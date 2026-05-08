@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Adaptive Sampling for Gaussian Processes – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1129,30 +1148,32 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="96d90ca2" class="cell" data-execution_count="1">
+<div id="ed847870" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances <span class="im">import</span> cantilever_beam_2d_linear</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> MESH_PATHS</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    GPFixedHyperparameterFitter,</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_2d_linear,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    MESH_PATHS,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    GPFixedHyperparameterFitter,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>model     <span class="op">=</span> benchmark.function()</span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> benchmark.prior()</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>nvars     <span class="op">=</span> model.nvars()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>problem <span class="op">=</span> build_cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>model     <span class="op">=</span> problem.function()</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> problem.prior()</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>nvars     <span class="op">=</span> model.nvars()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <section id="candidate-pool" class="level3">
 <h3 class="anchored" data-anchor-id="candidate-pool">Candidate Pool</h3>
 <p>Each sampler selects points from a finite <strong>candidate pool</strong> drawn in advance from the input distribution. Using a large candidate pool (e.g., 2000 points) ensures good coverage while keeping the greedy search tractable.</p>
-<div id="3dbc389f" class="cell" data-execution_count="2">
+<div id="b4f6ddb8" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>N_candidates <span class="op">=</span> <span class="dv">2000</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> prior.rvs(N_candidates)    <span class="co"># (nvars, N_candidates); the pool</span></span>
@@ -1181,7 +1202,7 @@ window.Quarto = {
 \mathbf{x}_{n+1} = \argmax_{\mathbf{x} \in \mathcal{C}} \left[k(\mathbf{x}, \mathbf{x}) - \mathbf{k}_n(\mathbf{x})^\top L_n^{-\top} L_n^{-1} \mathbf{k}_n(\mathbf{x})\right]
 \]</span></p>
 <p>where <span class="math inline">\(L_n\)</span> is the current Cholesky factor. The residual diagonal is the posterior variance of the GP <em>before</em> conditioning on any output values — this means the Cholesky sampler requires no function evaluations to select points.</p>
-<div id="89443c8f" class="cell" data-execution_count="3">
+<div id="021f3a09" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.cholesky_sampler <span class="im">import</span> (</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    CholeskySampler,</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1208,7 +1229,7 @@ window.Quarto = {
 <p>When hyperparameters are refined on a new training batch, call <code>sampler.set_kernel(updated_kernel)</code> before requesting more samples. The sampler replays the existing pivots with the new kernel and then continues greedy selection. This lets you interleave surrogate fitting and adaptive sampling in an active learning loop.</p>
 </div>
 </div>
-<div id="1808fd51" class="cell" data-execution_count="4">
+<div id="880df92e" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Warm-start: update kernel hyperparameters, then add 10 more points</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>updated_kernel <span class="op">=</span> Matern52Kernel([<span class="fl">0.8</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>chol_sampler.set_kernel(updated_kernel)</span>
@@ -1222,7 +1243,7 @@ window.Quarto = {
 P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(j)}) \rho(\boldsymbol{\xi})\,d\boldsymbol{\xi}
 \]</span></p>
 <p>We approximate the P matrix with Monte Carlo quadrature using samples from the prior.</p>
-<div id="7feec17a" class="cell" data-execution_count="5">
+<div id="511c88b6" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.ivar_sampler <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    IVARSampler,</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1247,7 +1268,7 @@ P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \b
 <section id="sobol-sampler-baseline" class="level2">
 <h2 class="anchored" data-anchor-id="sobol-sampler-baseline">Sobol Sampler (Baseline)</h2>
 <p>The <code>SobolAdaptiveSampler</code> generates a low-discrepancy Sobol sequence mapped to the input bounds. It implements the same protocol but ignores the kernel entirely. We use it as a strong space-filling baseline.</p>
-<div id="fd75fed4" class="cell" data-execution_count="6">
+<div id="ab4d201c" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.sobol_sampler <span class="im">import</span> (</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    SobolAdaptiveSampler,</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1270,7 +1291,7 @@ P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \b
 <h2 class="anchored" data-anchor-id="visualising-the-sample-designs">Visualising the Sample Designs</h2>
 <p>For 2D projections, we can see how the three strategies distribute their points.</p>
 <div id="cell-fig-sample-designs" class="cell" data-execution_count="7">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_sample_designs</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._gp <span class="im">import</span> plot_sample_designs</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>strategies <span class="op">=</span> [</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    (bkd.to_numpy(chol_samples), <span class="st">"#1A5276"</span>, <span class="st">"Cholesky-greedy"</span>),</span>
@@ -1306,7 +1327,7 @@ Figure&nbsp;1: Sample designs for 30 training points. Each panel shows the proje
 <li>Compute the relative <span class="math inline">\(L_2\)</span> error on the test set</li>
 </ol>
 <p>Because the greedy samplers are deterministic, each budget is simply an extension of the previous one — no re-evaluation is needed.</p>
-<div id="bc4d0236" class="cell" data-execution_count="8">
+<div id="3be1d5d1" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    GPFixedHyperparameterFitter,</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1366,7 +1387,7 @@ Figure&nbsp;1: Sample designs for 30 training points. Each panel shows the proje
 <span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>    sobol_errors.append(_fit_and_evaluate(pts, vals, ref_kernel))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div id="cell-fig-convergence" class="cell" data-execution_count="9">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_gp_sampling_convergence</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._gp <span class="im">import</span> plot_gp_sampling_convergence</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>plot_gp_sampling_convergence(ax, budgets, chol_errors, ivar_errors, sobol_errors)</span>
@@ -1390,7 +1411,7 @@ Figure&nbsp;2: Relative L₂ error vs.&nbsp;number of training samples for Chole
 <section id="active-learning-loop" class="level2">
 <h2 class="anchored" data-anchor-id="active-learning-loop">Active Learning Loop</h2>
 <p>In practice, hyperparameters are not known in advance. A standard workflow is to interleave adaptive sampling with hyperparameter re-fitting in batches:</p>
-<div id="d5103617" class="cell" data-execution_count="10">
+<div id="9c390b2c" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -2004,371 +2025,373 @@ Figure&nbsp;2: Relative L₂ error vs.&nbsp;number of training samples for Chole
 <span id="cb12-89"><a href="#cb12-89" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb12-90"><a href="#cb12-90" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb12-91"><a href="#cb12-91" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb12-92"><a href="#cb12-92" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances <span class="im">import</span> cantilever_beam_2d_linear</span>
-<span id="cb12-93"><a href="#cb12-93" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> MESH_PATHS</span>
-<span id="cb12-94"><a href="#cb12-94" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
-<span id="cb12-95"><a href="#cb12-95" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
-<span id="cb12-96"><a href="#cb12-96" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
-<span id="cb12-97"><a href="#cb12-97" aria-hidden="true" tabindex="-1"></a>    GPFixedHyperparameterFitter,</span>
-<span id="cb12-98"><a href="#cb12-98" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-99"><a href="#cb12-99" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-100"><a href="#cb12-100" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb12-92"><a href="#cb12-92" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb12-93"><a href="#cb12-93" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_2d_linear,</span>
+<span id="cb12-94"><a href="#cb12-94" aria-hidden="true" tabindex="-1"></a>    MESH_PATHS,</span>
+<span id="cb12-95"><a href="#cb12-95" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-96"><a href="#cb12-96" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess <span class="im">import</span> ExactGaussianProcess</span>
+<span id="cb12-97"><a href="#cb12-97" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.kernels.matern <span class="im">import</span> Matern52Kernel</span>
+<span id="cb12-98"><a href="#cb12-98" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
+<span id="cb12-99"><a href="#cb12-99" aria-hidden="true" tabindex="-1"></a>    GPFixedHyperparameterFitter,</span>
+<span id="cb12-100"><a href="#cb12-100" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb12-101"><a href="#cb12-101" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-102"><a href="#cb12-102" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
-<span id="cb12-103"><a href="#cb12-103" aria-hidden="true" tabindex="-1"></a>model     <span class="op">=</span> benchmark.function()</span>
-<span id="cb12-104"><a href="#cb12-104" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> benchmark.prior()</span>
-<span id="cb12-105"><a href="#cb12-105" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb12-106"><a href="#cb12-106" aria-hidden="true" tabindex="-1"></a>nvars     <span class="op">=</span> model.nvars()</span>
-<span id="cb12-107"><a href="#cb12-107" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-108"><a href="#cb12-108" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-109"><a href="#cb12-109" aria-hidden="true" tabindex="-1"></a><span class="fu">### Candidate Pool</span></span>
+<span id="cb12-102"><a href="#cb12-102" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb12-103"><a href="#cb12-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-104"><a href="#cb12-104" aria-hidden="true" tabindex="-1"></a>problem <span class="op">=</span> build_cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
+<span id="cb12-105"><a href="#cb12-105" aria-hidden="true" tabindex="-1"></a>model     <span class="op">=</span> problem.function()</span>
+<span id="cb12-106"><a href="#cb12-106" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> problem.prior()</span>
+<span id="cb12-107"><a href="#cb12-107" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb12-108"><a href="#cb12-108" aria-hidden="true" tabindex="-1"></a>nvars     <span class="op">=</span> model.nvars()</span>
+<span id="cb12-109"><a href="#cb12-109" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb12-110"><a href="#cb12-110" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-111"><a href="#cb12-111" aria-hidden="true" tabindex="-1"></a>Each sampler selects points from a finite **candidate pool** drawn in advance from the</span>
-<span id="cb12-112"><a href="#cb12-112" aria-hidden="true" tabindex="-1"></a>input distribution. Using a large candidate pool (e.g., 2000 points) ensures good</span>
-<span id="cb12-113"><a href="#cb12-113" aria-hidden="true" tabindex="-1"></a>coverage while keeping the greedy search tractable.</span>
-<span id="cb12-114"><a href="#cb12-114" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-117"><a href="#cb12-117" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-118"><a href="#cb12-118" aria-hidden="true" tabindex="-1"></a>N_candidates <span class="op">=</span> <span class="dv">2000</span></span>
-<span id="cb12-119"><a href="#cb12-119" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
-<span id="cb12-120"><a href="#cb12-120" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> prior.rvs(N_candidates)    <span class="co"># (nvars, N_candidates); the pool</span></span>
-<span id="cb12-121"><a href="#cb12-121" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-122"><a href="#cb12-122" aria-hidden="true" tabindex="-1"></a><span class="co"># Independent test set for evaluating surrogate accuracy</span></span>
-<span id="cb12-123"><a href="#cb12-123" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
-<span id="cb12-124"><a href="#cb12-124" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
-<span id="cb12-125"><a href="#cb12-125" aria-hidden="true" tabindex="-1"></a>X_test  <span class="op">=</span> prior.rvs(N_test)</span>
-<span id="cb12-126"><a href="#cb12-126" aria-hidden="true" tabindex="-1"></a>y_test  <span class="op">=</span> bkd.to_numpy(model(X_test))[<span class="dv">0</span>, :]</span>
-<span id="cb12-127"><a href="#cb12-127" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-128"><a href="#cb12-128" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-129"><a href="#cb12-129" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-130"><a href="#cb12-130" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Sampler Protocol</span></span>
+<span id="cb12-111"><a href="#cb12-111" aria-hidden="true" tabindex="-1"></a><span class="fu">### Candidate Pool</span></span>
+<span id="cb12-112"><a href="#cb12-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-113"><a href="#cb12-113" aria-hidden="true" tabindex="-1"></a>Each sampler selects points from a finite **candidate pool** drawn in advance from the</span>
+<span id="cb12-114"><a href="#cb12-114" aria-hidden="true" tabindex="-1"></a>input distribution. Using a large candidate pool (e.g., 2000 points) ensures good</span>
+<span id="cb12-115"><a href="#cb12-115" aria-hidden="true" tabindex="-1"></a>coverage while keeping the greedy search tractable.</span>
+<span id="cb12-116"><a href="#cb12-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-119"><a href="#cb12-119" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-120"><a href="#cb12-120" aria-hidden="true" tabindex="-1"></a>N_candidates <span class="op">=</span> <span class="dv">2000</span></span>
+<span id="cb12-121"><a href="#cb12-121" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
+<span id="cb12-122"><a href="#cb12-122" aria-hidden="true" tabindex="-1"></a>candidates <span class="op">=</span> prior.rvs(N_candidates)    <span class="co"># (nvars, N_candidates); the pool</span></span>
+<span id="cb12-123"><a href="#cb12-123" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-124"><a href="#cb12-124" aria-hidden="true" tabindex="-1"></a><span class="co"># Independent test set for evaluating surrogate accuracy</span></span>
+<span id="cb12-125"><a href="#cb12-125" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
+<span id="cb12-126"><a href="#cb12-126" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
+<span id="cb12-127"><a href="#cb12-127" aria-hidden="true" tabindex="-1"></a>X_test  <span class="op">=</span> prior.rvs(N_test)</span>
+<span id="cb12-128"><a href="#cb12-128" aria-hidden="true" tabindex="-1"></a>y_test  <span class="op">=</span> bkd.to_numpy(model(X_test))[<span class="dv">0</span>, :]</span>
+<span id="cb12-129"><a href="#cb12-129" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-130"><a href="#cb12-130" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-131"><a href="#cb12-131" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-132"><a href="#cb12-132" aria-hidden="true" tabindex="-1"></a>All three samplers implement the same <span class="in">`AdaptiveSamplerProtocol`</span>:</span>
+<span id="cb12-132"><a href="#cb12-132" aria-hidden="true" tabindex="-1"></a><span class="fu">## The Sampler Protocol</span></span>
 <span id="cb12-133"><a href="#cb12-133" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-134"><a href="#cb12-134" aria-hidden="true" tabindex="-1"></a><span class="in">```python</span></span>
-<span id="cb12-135"><a href="#cb12-135" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AdaptiveSamplerProtocol:</span>
-<span id="cb12-136"><a href="#cb12-136" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> set_kernel(<span class="va">self</span>, kernel) <span class="op">-&gt;</span> <span class="va">None</span>: ...</span>
-<span id="cb12-137"><a href="#cb12-137" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> select_samples(<span class="va">self</span>, nsamples: <span class="bu">int</span>) <span class="op">-&gt;</span> Array: ...   <span class="co"># (nvars, nsamples)</span></span>
-<span id="cb12-138"><a href="#cb12-138" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> add_additional_training_samples(<span class="va">self</span>, X: Array) <span class="op">-&gt;</span> <span class="va">None</span>: ...</span>
-<span id="cb12-139"><a href="#cb12-139" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-140"><a href="#cb12-140" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-141"><a href="#cb12-141" aria-hidden="true" tabindex="-1"></a>This means you can swap strategies with a single line change. Each call to</span>
-<span id="cb12-142"><a href="#cb12-142" aria-hidden="true" tabindex="-1"></a><span class="in">`select_samples(n)`</span> returns the *next* <span class="in">`n`</span> samples; state is preserved between calls</span>
-<span id="cb12-143"><a href="#cb12-143" aria-hidden="true" tabindex="-1"></a>so you can extend the training set incrementally without recomputing from scratch.</span>
-<span id="cb12-144"><a href="#cb12-144" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-145"><a href="#cb12-145" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-146"><a href="#cb12-146" aria-hidden="true" tabindex="-1"></a><span class="fu">## Cholesky-Greedy Sampler</span></span>
+<span id="cb12-134"><a href="#cb12-134" aria-hidden="true" tabindex="-1"></a>All three samplers implement the same <span class="in">`AdaptiveSamplerProtocol`</span>:</span>
+<span id="cb12-135"><a href="#cb12-135" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-136"><a href="#cb12-136" aria-hidden="true" tabindex="-1"></a><span class="in">```python</span></span>
+<span id="cb12-137"><a href="#cb12-137" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AdaptiveSamplerProtocol:</span>
+<span id="cb12-138"><a href="#cb12-138" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> set_kernel(<span class="va">self</span>, kernel) <span class="op">-&gt;</span> <span class="va">None</span>: ...</span>
+<span id="cb12-139"><a href="#cb12-139" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> select_samples(<span class="va">self</span>, nsamples: <span class="bu">int</span>) <span class="op">-&gt;</span> Array: ...   <span class="co"># (nvars, nsamples)</span></span>
+<span id="cb12-140"><a href="#cb12-140" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> add_additional_training_samples(<span class="va">self</span>, X: Array) <span class="op">-&gt;</span> <span class="va">None</span>: ...</span>
+<span id="cb12-141"><a href="#cb12-141" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-142"><a href="#cb12-142" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-143"><a href="#cb12-143" aria-hidden="true" tabindex="-1"></a>This means you can swap strategies with a single line change. Each call to</span>
+<span id="cb12-144"><a href="#cb12-144" aria-hidden="true" tabindex="-1"></a><span class="in">`select_samples(n)`</span> returns the *next* <span class="in">`n`</span> samples; state is preserved between calls</span>
+<span id="cb12-145"><a href="#cb12-145" aria-hidden="true" tabindex="-1"></a>so you can extend the training set incrementally without recomputing from scratch.</span>
+<span id="cb12-146"><a href="#cb12-146" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-147"><a href="#cb12-147" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-148"><a href="#cb12-148" aria-hidden="true" tabindex="-1"></a>The pivoted Cholesky factorisation of the kernel matrix selects the sequence of</span>
-<span id="cb12-149"><a href="#cb12-149" aria-hidden="true" tabindex="-1"></a>points that best "spans" the reproducing kernel Hilbert space of the GP. At step $n$</span>
-<span id="cb12-150"><a href="#cb12-150" aria-hidden="true" tabindex="-1"></a>the selected point $\mathbf{x}_{n+1}$ maximises the residual kernel diagonal:</span>
-<span id="cb12-151"><a href="#cb12-151" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-152"><a href="#cb12-152" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb12-153"><a href="#cb12-153" aria-hidden="true" tabindex="-1"></a>\mathbf{x}_{n+1} = \argmax_{\mathbf{x} \in \mathcal{C}} \left<span class="co">[</span><span class="ot">k(\mathbf{x}, \mathbf{x}) - \mathbf{k}_n(\mathbf{x})^\top L_n^{-\top} L_n^{-1} \mathbf{k}_n(\mathbf{x})\right</span><span class="co">]</span></span>
+<span id="cb12-148"><a href="#cb12-148" aria-hidden="true" tabindex="-1"></a><span class="fu">## Cholesky-Greedy Sampler</span></span>
+<span id="cb12-149"><a href="#cb12-149" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-150"><a href="#cb12-150" aria-hidden="true" tabindex="-1"></a>The pivoted Cholesky factorisation of the kernel matrix selects the sequence of</span>
+<span id="cb12-151"><a href="#cb12-151" aria-hidden="true" tabindex="-1"></a>points that best "spans" the reproducing kernel Hilbert space of the GP. At step $n$</span>
+<span id="cb12-152"><a href="#cb12-152" aria-hidden="true" tabindex="-1"></a>the selected point $\mathbf{x}_{n+1}$ maximises the residual kernel diagonal:</span>
+<span id="cb12-153"><a href="#cb12-153" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-154"><a href="#cb12-154" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb12-155"><a href="#cb12-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-156"><a href="#cb12-156" aria-hidden="true" tabindex="-1"></a>where $L_n$ is the current Cholesky factor. The residual diagonal is the posterior</span>
-<span id="cb12-157"><a href="#cb12-157" aria-hidden="true" tabindex="-1"></a>variance of the GP *before* conditioning on any output values — this means the</span>
-<span id="cb12-158"><a href="#cb12-158" aria-hidden="true" tabindex="-1"></a>Cholesky sampler requires no function evaluations to select points.</span>
-<span id="cb12-159"><a href="#cb12-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-162"><a href="#cb12-162" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-163"><a href="#cb12-163" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.cholesky_sampler <span class="im">import</span> (</span>
-<span id="cb12-164"><a href="#cb12-164" aria-hidden="true" tabindex="-1"></a>    CholeskySampler,</span>
-<span id="cb12-165"><a href="#cb12-165" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-166"><a href="#cb12-166" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-167"><a href="#cb12-167" aria-hidden="true" tabindex="-1"></a><span class="co"># A reference kernel with fixed (reasonable) hyperparameters</span></span>
-<span id="cb12-168"><a href="#cb12-168" aria-hidden="true" tabindex="-1"></a>ref_kernel <span class="op">=</span> Matern52Kernel([<span class="fl">1.0</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
-<span id="cb12-169"><a href="#cb12-169" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-170"><a href="#cb12-170" aria-hidden="true" tabindex="-1"></a>chol_sampler <span class="op">=</span> CholeskySampler(candidates, bkd)</span>
-<span id="cb12-171"><a href="#cb12-171" aria-hidden="true" tabindex="-1"></a>chol_sampler.set_kernel(ref_kernel)</span>
-<span id="cb12-172"><a href="#cb12-172" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-173"><a href="#cb12-173" aria-hidden="true" tabindex="-1"></a><span class="co"># Select 30 training points greedily</span></span>
-<span id="cb12-174"><a href="#cb12-174" aria-hidden="true" tabindex="-1"></a>chol_samples <span class="op">=</span> chol_sampler.select_samples(<span class="dv">30</span>)</span>
-<span id="cb12-175"><a href="#cb12-175" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-176"><a href="#cb12-176" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-177"><a href="#cb12-177" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb12-178"><a href="#cb12-178" aria-hidden="true" tabindex="-1"></a><span class="fu">## Warm-starting after kernel update</span></span>
-<span id="cb12-179"><a href="#cb12-179" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-180"><a href="#cb12-180" aria-hidden="true" tabindex="-1"></a>When hyperparameters are refined on a new training batch, call</span>
-<span id="cb12-181"><a href="#cb12-181" aria-hidden="true" tabindex="-1"></a><span class="in">`sampler.set_kernel(updated_kernel)`</span> before requesting more samples. The sampler</span>
-<span id="cb12-182"><a href="#cb12-182" aria-hidden="true" tabindex="-1"></a>replays the existing pivots with the new kernel and then continues greedy selection.</span>
-<span id="cb12-183"><a href="#cb12-183" aria-hidden="true" tabindex="-1"></a>This lets you interleave surrogate fitting and adaptive sampling in an active learning</span>
-<span id="cb12-184"><a href="#cb12-184" aria-hidden="true" tabindex="-1"></a>loop.</span>
-<span id="cb12-185"><a href="#cb12-185" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb12-186"><a href="#cb12-186" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-189"><a href="#cb12-189" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-190"><a href="#cb12-190" aria-hidden="true" tabindex="-1"></a><span class="co"># Warm-start: update kernel hyperparameters, then add 10 more points</span></span>
-<span id="cb12-191"><a href="#cb12-191" aria-hidden="true" tabindex="-1"></a>updated_kernel <span class="op">=</span> Matern52Kernel([<span class="fl">0.8</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
-<span id="cb12-192"><a href="#cb12-192" aria-hidden="true" tabindex="-1"></a>chol_sampler.set_kernel(updated_kernel)</span>
-<span id="cb12-193"><a href="#cb12-193" aria-hidden="true" tabindex="-1"></a>extra_samples <span class="op">=</span> chol_sampler.select_samples(<span class="dv">10</span>)   <span class="co"># 10 new points under new kernel</span></span>
-<span id="cb12-194"><a href="#cb12-194" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-195"><a href="#cb12-195" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-196"><a href="#cb12-196" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-197"><a href="#cb12-197" aria-hidden="true" tabindex="-1"></a><span class="fu">## IVAR Sampler</span></span>
+<span id="cb12-155"><a href="#cb12-155" aria-hidden="true" tabindex="-1"></a>\mathbf{x}_{n+1} = \argmax_{\mathbf{x} \in \mathcal{C}} \left<span class="co">[</span><span class="ot">k(\mathbf{x}, \mathbf{x}) - \mathbf{k}_n(\mathbf{x})^\top L_n^{-\top} L_n^{-1} \mathbf{k}_n(\mathbf{x})\right</span><span class="co">]</span></span>
+<span id="cb12-156"><a href="#cb12-156" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb12-157"><a href="#cb12-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-158"><a href="#cb12-158" aria-hidden="true" tabindex="-1"></a>where $L_n$ is the current Cholesky factor. The residual diagonal is the posterior</span>
+<span id="cb12-159"><a href="#cb12-159" aria-hidden="true" tabindex="-1"></a>variance of the GP *before* conditioning on any output values — this means the</span>
+<span id="cb12-160"><a href="#cb12-160" aria-hidden="true" tabindex="-1"></a>Cholesky sampler requires no function evaluations to select points.</span>
+<span id="cb12-161"><a href="#cb12-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-164"><a href="#cb12-164" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-165"><a href="#cb12-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.cholesky_sampler <span class="im">import</span> (</span>
+<span id="cb12-166"><a href="#cb12-166" aria-hidden="true" tabindex="-1"></a>    CholeskySampler,</span>
+<span id="cb12-167"><a href="#cb12-167" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-168"><a href="#cb12-168" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-169"><a href="#cb12-169" aria-hidden="true" tabindex="-1"></a><span class="co"># A reference kernel with fixed (reasonable) hyperparameters</span></span>
+<span id="cb12-170"><a href="#cb12-170" aria-hidden="true" tabindex="-1"></a>ref_kernel <span class="op">=</span> Matern52Kernel([<span class="fl">1.0</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb12-171"><a href="#cb12-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-172"><a href="#cb12-172" aria-hidden="true" tabindex="-1"></a>chol_sampler <span class="op">=</span> CholeskySampler(candidates, bkd)</span>
+<span id="cb12-173"><a href="#cb12-173" aria-hidden="true" tabindex="-1"></a>chol_sampler.set_kernel(ref_kernel)</span>
+<span id="cb12-174"><a href="#cb12-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-175"><a href="#cb12-175" aria-hidden="true" tabindex="-1"></a><span class="co"># Select 30 training points greedily</span></span>
+<span id="cb12-176"><a href="#cb12-176" aria-hidden="true" tabindex="-1"></a>chol_samples <span class="op">=</span> chol_sampler.select_samples(<span class="dv">30</span>)</span>
+<span id="cb12-177"><a href="#cb12-177" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-178"><a href="#cb12-178" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-179"><a href="#cb12-179" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb12-180"><a href="#cb12-180" aria-hidden="true" tabindex="-1"></a><span class="fu">## Warm-starting after kernel update</span></span>
+<span id="cb12-181"><a href="#cb12-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-182"><a href="#cb12-182" aria-hidden="true" tabindex="-1"></a>When hyperparameters are refined on a new training batch, call</span>
+<span id="cb12-183"><a href="#cb12-183" aria-hidden="true" tabindex="-1"></a><span class="in">`sampler.set_kernel(updated_kernel)`</span> before requesting more samples. The sampler</span>
+<span id="cb12-184"><a href="#cb12-184" aria-hidden="true" tabindex="-1"></a>replays the existing pivots with the new kernel and then continues greedy selection.</span>
+<span id="cb12-185"><a href="#cb12-185" aria-hidden="true" tabindex="-1"></a>This lets you interleave surrogate fitting and adaptive sampling in an active learning</span>
+<span id="cb12-186"><a href="#cb12-186" aria-hidden="true" tabindex="-1"></a>loop.</span>
+<span id="cb12-187"><a href="#cb12-187" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb12-188"><a href="#cb12-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-191"><a href="#cb12-191" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-192"><a href="#cb12-192" aria-hidden="true" tabindex="-1"></a><span class="co"># Warm-start: update kernel hyperparameters, then add 10 more points</span></span>
+<span id="cb12-193"><a href="#cb12-193" aria-hidden="true" tabindex="-1"></a>updated_kernel <span class="op">=</span> Matern52Kernel([<span class="fl">0.8</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb12-194"><a href="#cb12-194" aria-hidden="true" tabindex="-1"></a>chol_sampler.set_kernel(updated_kernel)</span>
+<span id="cb12-195"><a href="#cb12-195" aria-hidden="true" tabindex="-1"></a>extra_samples <span class="op">=</span> chol_sampler.select_samples(<span class="dv">10</span>)   <span class="co"># 10 new points under new kernel</span></span>
+<span id="cb12-196"><a href="#cb12-196" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-197"><a href="#cb12-197" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-198"><a href="#cb12-198" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-199"><a href="#cb12-199" aria-hidden="true" tabindex="-1"></a>IVAR selects the point with the largest integrated variance reduction. It requires</span>
-<span id="cb12-200"><a href="#cb12-200" aria-hidden="true" tabindex="-1"></a>the **P matrix** — the same kernel double-integral used in the UQ statistics — as</span>
-<span id="cb12-201"><a href="#cb12-201" aria-hidden="true" tabindex="-1"></a>additional input:</span>
-<span id="cb12-202"><a href="#cb12-202" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-203"><a href="#cb12-203" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb12-204"><a href="#cb12-204" aria-hidden="true" tabindex="-1"></a>P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(j)}) \rho(\boldsymbol{\xi})\,d\boldsymbol{\xi}</span>
+<span id="cb12-199"><a href="#cb12-199" aria-hidden="true" tabindex="-1"></a><span class="fu">## IVAR Sampler</span></span>
+<span id="cb12-200"><a href="#cb12-200" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-201"><a href="#cb12-201" aria-hidden="true" tabindex="-1"></a>IVAR selects the point with the largest integrated variance reduction. It requires</span>
+<span id="cb12-202"><a href="#cb12-202" aria-hidden="true" tabindex="-1"></a>the **P matrix** — the same kernel double-integral used in the UQ statistics — as</span>
+<span id="cb12-203"><a href="#cb12-203" aria-hidden="true" tabindex="-1"></a>additional input:</span>
+<span id="cb12-204"><a href="#cb12-204" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-205"><a href="#cb12-205" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb12-206"><a href="#cb12-206" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-207"><a href="#cb12-207" aria-hidden="true" tabindex="-1"></a>We approximate the P matrix with Monte Carlo quadrature using samples from the prior.</span>
+<span id="cb12-206"><a href="#cb12-206" aria-hidden="true" tabindex="-1"></a>P_{ij} = \int k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(i)}) k(\boldsymbol{\xi}, \boldsymbol{\xi}^{(j)}) \rho(\boldsymbol{\xi})\,d\boldsymbol{\xi}</span>
+<span id="cb12-207"><a href="#cb12-207" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb12-208"><a href="#cb12-208" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-211"><a href="#cb12-211" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-212"><a href="#cb12-212" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.ivar_sampler <span class="im">import</span> (</span>
-<span id="cb12-213"><a href="#cb12-213" aria-hidden="true" tabindex="-1"></a>    IVARSampler,</span>
-<span id="cb12-214"><a href="#cb12-214" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-215"><a href="#cb12-215" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-216"><a href="#cb12-216" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_P_mc(kernel, candidates, prior, bkd, nquad<span class="op">=</span><span class="dv">5000</span>):</span>
-<span id="cb12-217"><a href="#cb12-217" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Approximate P matrix via Monte Carlo with prior samples."""</span></span>
-<span id="cb12-218"><a href="#cb12-218" aria-hidden="true" tabindex="-1"></a>    np.random.seed(<span class="dv">123</span>)</span>
-<span id="cb12-219"><a href="#cb12-219" aria-hidden="true" tabindex="-1"></a>    quad_pts <span class="op">=</span> prior.rvs(nquad)                <span class="co"># (nvars, nquad)</span></span>
-<span id="cb12-220"><a href="#cb12-220" aria-hidden="true" tabindex="-1"></a>    K_qc <span class="op">=</span> kernel(quad_pts, candidates)        <span class="co"># (nquad, ncandidates)</span></span>
-<span id="cb12-221"><a href="#cb12-221" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (K_qc.T <span class="op">@</span> K_qc) <span class="op">/</span> nquad</span>
-<span id="cb12-222"><a href="#cb12-222" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-223"><a href="#cb12-223" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> compute_P_mc(ref_kernel, candidates, prior, bkd)</span>
+<span id="cb12-209"><a href="#cb12-209" aria-hidden="true" tabindex="-1"></a>We approximate the P matrix with Monte Carlo quadrature using samples from the prior.</span>
+<span id="cb12-210"><a href="#cb12-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-213"><a href="#cb12-213" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-214"><a href="#cb12-214" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.ivar_sampler <span class="im">import</span> (</span>
+<span id="cb12-215"><a href="#cb12-215" aria-hidden="true" tabindex="-1"></a>    IVARSampler,</span>
+<span id="cb12-216"><a href="#cb12-216" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-217"><a href="#cb12-217" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-218"><a href="#cb12-218" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_P_mc(kernel, candidates, prior, bkd, nquad<span class="op">=</span><span class="dv">5000</span>):</span>
+<span id="cb12-219"><a href="#cb12-219" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Approximate P matrix via Monte Carlo with prior samples."""</span></span>
+<span id="cb12-220"><a href="#cb12-220" aria-hidden="true" tabindex="-1"></a>    np.random.seed(<span class="dv">123</span>)</span>
+<span id="cb12-221"><a href="#cb12-221" aria-hidden="true" tabindex="-1"></a>    quad_pts <span class="op">=</span> prior.rvs(nquad)                <span class="co"># (nvars, nquad)</span></span>
+<span id="cb12-222"><a href="#cb12-222" aria-hidden="true" tabindex="-1"></a>    K_qc <span class="op">=</span> kernel(quad_pts, candidates)        <span class="co"># (nquad, ncandidates)</span></span>
+<span id="cb12-223"><a href="#cb12-223" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (K_qc.T <span class="op">@</span> K_qc) <span class="op">/</span> nquad</span>
 <span id="cb12-224"><a href="#cb12-224" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-225"><a href="#cb12-225" aria-hidden="true" tabindex="-1"></a>ivar_sampler <span class="op">=</span> IVARSampler(candidates, bkd)</span>
-<span id="cb12-226"><a href="#cb12-226" aria-hidden="true" tabindex="-1"></a>ivar_sampler.set_kernel(ref_kernel)</span>
-<span id="cb12-227"><a href="#cb12-227" aria-hidden="true" tabindex="-1"></a>ivar_sampler.set_P(P)</span>
-<span id="cb12-228"><a href="#cb12-228" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-229"><a href="#cb12-229" aria-hidden="true" tabindex="-1"></a>ivar_samples <span class="op">=</span> ivar_sampler.select_samples(<span class="dv">30</span>)</span>
-<span id="cb12-230"><a href="#cb12-230" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-231"><a href="#cb12-231" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-232"><a href="#cb12-232" aria-hidden="true" tabindex="-1"></a>The IVAR criterion is slightly more expensive per step than Cholesky because it</span>
-<span id="cb12-233"><a href="#cb12-233" aria-hidden="true" tabindex="-1"></a>involves a rank-1 update to a matrix solve, but it directly optimises the quantity</span>
-<span id="cb12-234"><a href="#cb12-234" aria-hidden="true" tabindex="-1"></a>we care about for UQ — integrated posterior variance.</span>
-<span id="cb12-235"><a href="#cb12-235" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-236"><a href="#cb12-236" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-237"><a href="#cb12-237" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sobol Sampler (Baseline)</span></span>
+<span id="cb12-225"><a href="#cb12-225" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> compute_P_mc(ref_kernel, candidates, prior, bkd)</span>
+<span id="cb12-226"><a href="#cb12-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-227"><a href="#cb12-227" aria-hidden="true" tabindex="-1"></a>ivar_sampler <span class="op">=</span> IVARSampler(candidates, bkd)</span>
+<span id="cb12-228"><a href="#cb12-228" aria-hidden="true" tabindex="-1"></a>ivar_sampler.set_kernel(ref_kernel)</span>
+<span id="cb12-229"><a href="#cb12-229" aria-hidden="true" tabindex="-1"></a>ivar_sampler.set_P(P)</span>
+<span id="cb12-230"><a href="#cb12-230" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-231"><a href="#cb12-231" aria-hidden="true" tabindex="-1"></a>ivar_samples <span class="op">=</span> ivar_sampler.select_samples(<span class="dv">30</span>)</span>
+<span id="cb12-232"><a href="#cb12-232" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-233"><a href="#cb12-233" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-234"><a href="#cb12-234" aria-hidden="true" tabindex="-1"></a>The IVAR criterion is slightly more expensive per step than Cholesky because it</span>
+<span id="cb12-235"><a href="#cb12-235" aria-hidden="true" tabindex="-1"></a>involves a rank-1 update to a matrix solve, but it directly optimises the quantity</span>
+<span id="cb12-236"><a href="#cb12-236" aria-hidden="true" tabindex="-1"></a>we care about for UQ — integrated posterior variance.</span>
+<span id="cb12-237"><a href="#cb12-237" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-238"><a href="#cb12-238" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-239"><a href="#cb12-239" aria-hidden="true" tabindex="-1"></a>The <span class="in">`SobolAdaptiveSampler`</span> generates a low-discrepancy Sobol sequence mapped to the</span>
-<span id="cb12-240"><a href="#cb12-240" aria-hidden="true" tabindex="-1"></a>input bounds. It implements the same protocol but ignores the kernel entirely.</span>
-<span id="cb12-241"><a href="#cb12-241" aria-hidden="true" tabindex="-1"></a>We use it as a strong space-filling baseline.</span>
-<span id="cb12-242"><a href="#cb12-242" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-245"><a href="#cb12-245" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-246"><a href="#cb12-246" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.sobol_sampler <span class="im">import</span> (</span>
-<span id="cb12-247"><a href="#cb12-247" aria-hidden="true" tabindex="-1"></a>    SobolAdaptiveSampler,</span>
-<span id="cb12-248"><a href="#cb12-248" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-249"><a href="#cb12-249" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-250"><a href="#cb12-250" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> map_uniform_to_marginals(samples_01, marginals, bkd):</span>
-<span id="cb12-251"><a href="#cb12-251" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Map [0,1]^d Sobol samples to physical space via per-marginal inverse CDF."""</span></span>
-<span id="cb12-252"><a href="#cb12-252" aria-hidden="true" tabindex="-1"></a>    mapped <span class="op">=</span> bkd.zeros_like(samples_01)</span>
-<span id="cb12-253"><a href="#cb12-253" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> d <span class="kw">in</span> <span class="bu">range</span>(samples_01.shape[<span class="dv">0</span>]):</span>
-<span id="cb12-254"><a href="#cb12-254" aria-hidden="true" tabindex="-1"></a>        mapped[d:d<span class="op">+</span><span class="dv">1</span>, :] <span class="op">=</span> marginals[d].invcdf(samples_01[d:d<span class="op">+</span><span class="dv">1</span>, :])</span>
-<span id="cb12-255"><a href="#cb12-255" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mapped</span>
-<span id="cb12-256"><a href="#cb12-256" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-257"><a href="#cb12-257" aria-hidden="true" tabindex="-1"></a><span class="co"># Sobol in [0,1]^d, then transform to prior distribution</span></span>
-<span id="cb12-258"><a href="#cb12-258" aria-hidden="true" tabindex="-1"></a>sobol_sampler <span class="op">=</span> SobolAdaptiveSampler(nvars, bkd)</span>
-<span id="cb12-259"><a href="#cb12-259" aria-hidden="true" tabindex="-1"></a>sobol_samples <span class="op">=</span> sobol_sampler.select_samples(<span class="dv">30</span>)</span>
-<span id="cb12-260"><a href="#cb12-260" aria-hidden="true" tabindex="-1"></a><span class="co"># Map [0,1]^d to prior distribution using the inverse CDF</span></span>
-<span id="cb12-261"><a href="#cb12-261" aria-hidden="true" tabindex="-1"></a>sobol_samples_mapped <span class="op">=</span> map_uniform_to_marginals(sobol_samples, marginals, bkd)</span>
-<span id="cb12-262"><a href="#cb12-262" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-263"><a href="#cb12-263" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-264"><a href="#cb12-264" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-265"><a href="#cb12-265" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualising the Sample Designs</span></span>
+<span id="cb12-239"><a href="#cb12-239" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sobol Sampler (Baseline)</span></span>
+<span id="cb12-240"><a href="#cb12-240" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-241"><a href="#cb12-241" aria-hidden="true" tabindex="-1"></a>The <span class="in">`SobolAdaptiveSampler`</span> generates a low-discrepancy Sobol sequence mapped to the</span>
+<span id="cb12-242"><a href="#cb12-242" aria-hidden="true" tabindex="-1"></a>input bounds. It implements the same protocol but ignores the kernel entirely.</span>
+<span id="cb12-243"><a href="#cb12-243" aria-hidden="true" tabindex="-1"></a>We use it as a strong space-filling baseline.</span>
+<span id="cb12-244"><a href="#cb12-244" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-247"><a href="#cb12-247" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-248"><a href="#cb12-248" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.adaptive.sobol_sampler <span class="im">import</span> (</span>
+<span id="cb12-249"><a href="#cb12-249" aria-hidden="true" tabindex="-1"></a>    SobolAdaptiveSampler,</span>
+<span id="cb12-250"><a href="#cb12-250" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-251"><a href="#cb12-251" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-252"><a href="#cb12-252" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> map_uniform_to_marginals(samples_01, marginals, bkd):</span>
+<span id="cb12-253"><a href="#cb12-253" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Map [0,1]^d Sobol samples to physical space via per-marginal inverse CDF."""</span></span>
+<span id="cb12-254"><a href="#cb12-254" aria-hidden="true" tabindex="-1"></a>    mapped <span class="op">=</span> bkd.zeros_like(samples_01)</span>
+<span id="cb12-255"><a href="#cb12-255" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> d <span class="kw">in</span> <span class="bu">range</span>(samples_01.shape[<span class="dv">0</span>]):</span>
+<span id="cb12-256"><a href="#cb12-256" aria-hidden="true" tabindex="-1"></a>        mapped[d:d<span class="op">+</span><span class="dv">1</span>, :] <span class="op">=</span> marginals[d].invcdf(samples_01[d:d<span class="op">+</span><span class="dv">1</span>, :])</span>
+<span id="cb12-257"><a href="#cb12-257" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> mapped</span>
+<span id="cb12-258"><a href="#cb12-258" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-259"><a href="#cb12-259" aria-hidden="true" tabindex="-1"></a><span class="co"># Sobol in [0,1]^d, then transform to prior distribution</span></span>
+<span id="cb12-260"><a href="#cb12-260" aria-hidden="true" tabindex="-1"></a>sobol_sampler <span class="op">=</span> SobolAdaptiveSampler(nvars, bkd)</span>
+<span id="cb12-261"><a href="#cb12-261" aria-hidden="true" tabindex="-1"></a>sobol_samples <span class="op">=</span> sobol_sampler.select_samples(<span class="dv">30</span>)</span>
+<span id="cb12-262"><a href="#cb12-262" aria-hidden="true" tabindex="-1"></a><span class="co"># Map [0,1]^d to prior distribution using the inverse CDF</span></span>
+<span id="cb12-263"><a href="#cb12-263" aria-hidden="true" tabindex="-1"></a>sobol_samples_mapped <span class="op">=</span> map_uniform_to_marginals(sobol_samples, marginals, bkd)</span>
+<span id="cb12-264"><a href="#cb12-264" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-265"><a href="#cb12-265" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-266"><a href="#cb12-266" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-267"><a href="#cb12-267" aria-hidden="true" tabindex="-1"></a>For 2D projections, we can see how the three strategies distribute their points.</span>
+<span id="cb12-267"><a href="#cb12-267" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualising the Sample Designs</span></span>
 <span id="cb12-268"><a href="#cb12-268" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-271"><a href="#cb12-271" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-272"><a href="#cb12-272" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Sample designs for 30 training points. Each panel shows the projection onto dimensions 1 and 2. Cholesky and IVAR tend to spread points more evenly across the input space than Sobol, which can exhibit clustering in projections."</span></span>
-<span id="cb12-273"><a href="#cb12-273" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-sample-designs</span></span>
-<span id="cb12-274"><a href="#cb12-274" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-275"><a href="#cb12-275" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_sample_designs</span>
+<span id="cb12-269"><a href="#cb12-269" aria-hidden="true" tabindex="-1"></a>For 2D projections, we can see how the three strategies distribute their points.</span>
+<span id="cb12-270"><a href="#cb12-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-273"><a href="#cb12-273" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-274"><a href="#cb12-274" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Sample designs for 30 training points. Each panel shows the projection onto dimensions 1 and 2. Cholesky and IVAR tend to spread points more evenly across the input space than Sobol, which can exhibit clustering in projections."</span></span>
+<span id="cb12-275"><a href="#cb12-275" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-sample-designs</span></span>
 <span id="cb12-276"><a href="#cb12-276" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-277"><a href="#cb12-277" aria-hidden="true" tabindex="-1"></a>strategies <span class="op">=</span> [</span>
-<span id="cb12-278"><a href="#cb12-278" aria-hidden="true" tabindex="-1"></a>    (bkd.to_numpy(chol_samples), <span class="st">"#1A5276"</span>, <span class="st">"Cholesky-greedy"</span>),</span>
-<span id="cb12-279"><a href="#cb12-279" aria-hidden="true" tabindex="-1"></a>    (bkd.to_numpy(ivar_samples), <span class="st">"#117A65"</span>, <span class="st">"IVAR"</span>),</span>
-<span id="cb12-280"><a href="#cb12-280" aria-hidden="true" tabindex="-1"></a>    (bkd.to_numpy(sobol_samples_mapped), <span class="st">"#7D3C98"</span>, <span class="st">"Sobol (mapped)"</span>),</span>
-<span id="cb12-281"><a href="#cb12-281" aria-hidden="true" tabindex="-1"></a>]</span>
-<span id="cb12-282"><a href="#cb12-282" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-283"><a href="#cb12-283" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
-<span id="cb12-284"><a href="#cb12-284" aria-hidden="true" tabindex="-1"></a>plot_sample_designs(axes, strategies)</span>
-<span id="cb12-285"><a href="#cb12-285" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb12-286"><a href="#cb12-286" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb12-287"><a href="#cb12-287" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-288"><a href="#cb12-288" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-289"><a href="#cb12-289" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-290"><a href="#cb12-290" aria-hidden="true" tabindex="-1"></a><span class="fu">## Convergence Experiment</span></span>
+<span id="cb12-277"><a href="#cb12-277" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._gp <span class="im">import</span> plot_sample_designs</span>
+<span id="cb12-278"><a href="#cb12-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-279"><a href="#cb12-279" aria-hidden="true" tabindex="-1"></a>strategies <span class="op">=</span> [</span>
+<span id="cb12-280"><a href="#cb12-280" aria-hidden="true" tabindex="-1"></a>    (bkd.to_numpy(chol_samples), <span class="st">"#1A5276"</span>, <span class="st">"Cholesky-greedy"</span>),</span>
+<span id="cb12-281"><a href="#cb12-281" aria-hidden="true" tabindex="-1"></a>    (bkd.to_numpy(ivar_samples), <span class="st">"#117A65"</span>, <span class="st">"IVAR"</span>),</span>
+<span id="cb12-282"><a href="#cb12-282" aria-hidden="true" tabindex="-1"></a>    (bkd.to_numpy(sobol_samples_mapped), <span class="st">"#7D3C98"</span>, <span class="st">"Sobol (mapped)"</span>),</span>
+<span id="cb12-283"><a href="#cb12-283" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb12-284"><a href="#cb12-284" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-285"><a href="#cb12-285" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
+<span id="cb12-286"><a href="#cb12-286" aria-hidden="true" tabindex="-1"></a>plot_sample_designs(axes, strategies)</span>
+<span id="cb12-287"><a href="#cb12-287" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb12-288"><a href="#cb12-288" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb12-289"><a href="#cb12-289" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-290"><a href="#cb12-290" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-291"><a href="#cb12-291" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-292"><a href="#cb12-292" aria-hidden="true" tabindex="-1"></a>We now run a systematic convergence study: for each strategy and each training budget</span>
-<span id="cb12-293"><a href="#cb12-293" aria-hidden="true" tabindex="-1"></a>$N \in <span class="sc">\{</span>10, 15, 20, 30, 40, 60, 80, 100<span class="sc">\}</span>$, we:</span>
-<span id="cb12-294"><a href="#cb12-294" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-295"><a href="#cb12-295" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Select $N$ training points using the strategy</span>
-<span id="cb12-296"><a href="#cb12-296" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Evaluate the beam model at those points</span>
-<span id="cb12-297"><a href="#cb12-297" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Fit a GP (fixed hyperparameters for comparability)</span>
-<span id="cb12-298"><a href="#cb12-298" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>Compute the relative $L_2$ error on the test set</span>
-<span id="cb12-299"><a href="#cb12-299" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-300"><a href="#cb12-300" aria-hidden="true" tabindex="-1"></a>Because the greedy samplers are deterministic, each budget is simply an extension</span>
-<span id="cb12-301"><a href="#cb12-301" aria-hidden="true" tabindex="-1"></a>of the previous one — no re-evaluation is needed.</span>
-<span id="cb12-302"><a href="#cb12-302" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-305"><a href="#cb12-305" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-306"><a href="#cb12-306" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
-<span id="cb12-307"><a href="#cb12-307" aria-hidden="true" tabindex="-1"></a>    GPFixedHyperparameterFitter,</span>
-<span id="cb12-308"><a href="#cb12-308" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-309"><a href="#cb12-309" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-310"><a href="#cb12-310" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> [<span class="dv">10</span>, <span class="dv">15</span>, <span class="dv">20</span>, <span class="dv">30</span>, <span class="dv">40</span>, <span class="dv">60</span>, <span class="dv">80</span>, <span class="dv">100</span>]</span>
+<span id="cb12-292"><a href="#cb12-292" aria-hidden="true" tabindex="-1"></a><span class="fu">## Convergence Experiment</span></span>
+<span id="cb12-293"><a href="#cb12-293" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-294"><a href="#cb12-294" aria-hidden="true" tabindex="-1"></a>We now run a systematic convergence study: for each strategy and each training budget</span>
+<span id="cb12-295"><a href="#cb12-295" aria-hidden="true" tabindex="-1"></a>$N \in <span class="sc">\{</span>10, 15, 20, 30, 40, 60, 80, 100<span class="sc">\}</span>$, we:</span>
+<span id="cb12-296"><a href="#cb12-296" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-297"><a href="#cb12-297" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Select $N$ training points using the strategy</span>
+<span id="cb12-298"><a href="#cb12-298" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Evaluate the beam model at those points</span>
+<span id="cb12-299"><a href="#cb12-299" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Fit a GP (fixed hyperparameters for comparability)</span>
+<span id="cb12-300"><a href="#cb12-300" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>Compute the relative $L_2$ error on the test set</span>
+<span id="cb12-301"><a href="#cb12-301" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-302"><a href="#cb12-302" aria-hidden="true" tabindex="-1"></a>Because the greedy samplers are deterministic, each budget is simply an extension</span>
+<span id="cb12-303"><a href="#cb12-303" aria-hidden="true" tabindex="-1"></a>of the previous one — no re-evaluation is needed.</span>
+<span id="cb12-304"><a href="#cb12-304" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-307"><a href="#cb12-307" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-308"><a href="#cb12-308" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
+<span id="cb12-309"><a href="#cb12-309" aria-hidden="true" tabindex="-1"></a>    GPFixedHyperparameterFitter,</span>
+<span id="cb12-310"><a href="#cb12-310" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb12-311"><a href="#cb12-311" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-312"><a href="#cb12-312" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _fit_and_evaluate(X_tr, y_tr, kernel):</span>
-<span id="cb12-313"><a href="#cb12-313" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Fit GP with fixed hyperparameters and return L2 error on test set."""</span></span>
-<span id="cb12-314"><a href="#cb12-314" aria-hidden="true" tabindex="-1"></a>    gp <span class="op">=</span> ExactGaussianProcess(kernel, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
-<span id="cb12-315"><a href="#cb12-315" aria-hidden="true" tabindex="-1"></a>    gp.hyp_list().set_all_inactive()</span>
-<span id="cb12-316"><a href="#cb12-316" aria-hidden="true" tabindex="-1"></a>    fitter <span class="op">=</span> GPFixedHyperparameterFitter(bkd)</span>
-<span id="cb12-317"><a href="#cb12-317" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> fitter.fit(gp, X_tr, y_tr)</span>
-<span id="cb12-318"><a href="#cb12-318" aria-hidden="true" tabindex="-1"></a>    fitted_gp <span class="op">=</span> result.surrogate()</span>
-<span id="cb12-319"><a href="#cb12-319" aria-hidden="true" tabindex="-1"></a>    y_pred <span class="op">=</span> bkd.to_numpy(fitted_gp.predict(X_test))[<span class="dv">0</span>, :]</span>
-<span id="cb12-320"><a href="#cb12-320" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.linalg.norm(y_test <span class="op">-</span> y_pred) <span class="op">/</span> np.linalg.norm(y_test)</span>
-<span id="cb12-321"><a href="#cb12-321" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-322"><a href="#cb12-322" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Cholesky convergence ----</span></span>
-<span id="cb12-323"><a href="#cb12-323" aria-hidden="true" tabindex="-1"></a>chol_sampler2 <span class="op">=</span> CholeskySampler(candidates, bkd)</span>
-<span id="cb12-324"><a href="#cb12-324" aria-hidden="true" tabindex="-1"></a>chol_sampler2.set_kernel(ref_kernel)</span>
-<span id="cb12-325"><a href="#cb12-325" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-326"><a href="#cb12-326" aria-hidden="true" tabindex="-1"></a>chol_errors <span class="op">=</span> []</span>
-<span id="cb12-327"><a href="#cb12-327" aria-hidden="true" tabindex="-1"></a>prev_n <span class="op">=</span> <span class="dv">0</span></span>
-<span id="cb12-328"><a href="#cb12-328" aria-hidden="true" tabindex="-1"></a>X_chol_accum <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb12-329"><a href="#cb12-329" aria-hidden="true" tabindex="-1"></a>y_chol_accum <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb12-330"><a href="#cb12-330" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> budgets:</span>
-<span id="cb12-331"><a href="#cb12-331" aria-hidden="true" tabindex="-1"></a>    new_pts <span class="op">=</span> chol_sampler2.select_samples(n <span class="op">-</span> prev_n)</span>
-<span id="cb12-332"><a href="#cb12-332" aria-hidden="true" tabindex="-1"></a>    new_vals <span class="op">=</span> model(new_pts)[:<span class="dv">1</span>, :]</span>
-<span id="cb12-333"><a href="#cb12-333" aria-hidden="true" tabindex="-1"></a>    X_chol_accum <span class="op">=</span> new_pts <span class="cf">if</span> X_chol_accum <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([X_chol_accum, new_pts])</span>
-<span id="cb12-334"><a href="#cb12-334" aria-hidden="true" tabindex="-1"></a>    y_chol_accum <span class="op">=</span> new_vals <span class="cf">if</span> y_chol_accum <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([y_chol_accum, new_vals])</span>
-<span id="cb12-335"><a href="#cb12-335" aria-hidden="true" tabindex="-1"></a>    chol_errors.append(_fit_and_evaluate(X_chol_accum, y_chol_accum, ref_kernel))</span>
-<span id="cb12-336"><a href="#cb12-336" aria-hidden="true" tabindex="-1"></a>    prev_n <span class="op">=</span> n</span>
-<span id="cb12-337"><a href="#cb12-337" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-338"><a href="#cb12-338" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- IVAR convergence ----</span></span>
-<span id="cb12-339"><a href="#cb12-339" aria-hidden="true" tabindex="-1"></a>ivar_sampler2 <span class="op">=</span> IVARSampler(candidates, bkd)</span>
-<span id="cb12-340"><a href="#cb12-340" aria-hidden="true" tabindex="-1"></a>ivar_sampler2.set_kernel(ref_kernel)</span>
-<span id="cb12-341"><a href="#cb12-341" aria-hidden="true" tabindex="-1"></a>ivar_sampler2.set_P(P)</span>
-<span id="cb12-342"><a href="#cb12-342" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-343"><a href="#cb12-343" aria-hidden="true" tabindex="-1"></a>ivar_errors <span class="op">=</span> []</span>
-<span id="cb12-344"><a href="#cb12-344" aria-hidden="true" tabindex="-1"></a>prev_n <span class="op">=</span> <span class="dv">0</span></span>
-<span id="cb12-345"><a href="#cb12-345" aria-hidden="true" tabindex="-1"></a>X_ivar_accum <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb12-346"><a href="#cb12-346" aria-hidden="true" tabindex="-1"></a>y_ivar_accum <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb12-347"><a href="#cb12-347" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> budgets:</span>
-<span id="cb12-348"><a href="#cb12-348" aria-hidden="true" tabindex="-1"></a>    new_pts <span class="op">=</span> ivar_sampler2.select_samples(n <span class="op">-</span> prev_n)</span>
-<span id="cb12-349"><a href="#cb12-349" aria-hidden="true" tabindex="-1"></a>    new_vals <span class="op">=</span> model(new_pts)[:<span class="dv">1</span>, :]</span>
-<span id="cb12-350"><a href="#cb12-350" aria-hidden="true" tabindex="-1"></a>    X_ivar_accum <span class="op">=</span> new_pts <span class="cf">if</span> X_ivar_accum <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([X_ivar_accum, new_pts])</span>
-<span id="cb12-351"><a href="#cb12-351" aria-hidden="true" tabindex="-1"></a>    y_ivar_accum <span class="op">=</span> new_vals <span class="cf">if</span> y_ivar_accum <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([y_ivar_accum, new_vals])</span>
-<span id="cb12-352"><a href="#cb12-352" aria-hidden="true" tabindex="-1"></a>    ivar_errors.append(_fit_and_evaluate(X_ivar_accum, y_ivar_accum, ref_kernel))</span>
-<span id="cb12-353"><a href="#cb12-353" aria-hidden="true" tabindex="-1"></a>    prev_n <span class="op">=</span> n</span>
-<span id="cb12-354"><a href="#cb12-354" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-355"><a href="#cb12-355" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Sobol (random seed repeated for each budget — not incremental) ----</span></span>
-<span id="cb12-356"><a href="#cb12-356" aria-hidden="true" tabindex="-1"></a>sobol_errors <span class="op">=</span> []</span>
-<span id="cb12-357"><a href="#cb12-357" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> budgets:</span>
-<span id="cb12-358"><a href="#cb12-358" aria-hidden="true" tabindex="-1"></a>    sobol_s2 <span class="op">=</span> SobolAdaptiveSampler(nvars, bkd)</span>
-<span id="cb12-359"><a href="#cb12-359" aria-hidden="true" tabindex="-1"></a>    pts_raw  <span class="op">=</span> sobol_s2.select_samples(n)</span>
-<span id="cb12-360"><a href="#cb12-360" aria-hidden="true" tabindex="-1"></a>    pts      <span class="op">=</span> map_uniform_to_marginals(pts_raw, marginals, bkd)</span>
-<span id="cb12-361"><a href="#cb12-361" aria-hidden="true" tabindex="-1"></a>    vals     <span class="op">=</span> model(pts)[:<span class="dv">1</span>, :]</span>
-<span id="cb12-362"><a href="#cb12-362" aria-hidden="true" tabindex="-1"></a>    sobol_errors.append(_fit_and_evaluate(pts, vals, ref_kernel))</span>
-<span id="cb12-363"><a href="#cb12-363" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-364"><a href="#cb12-364" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-367"><a href="#cb12-367" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-368"><a href="#cb12-368" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Relative L₂ error vs. number of training samples for Cholesky-greedy, IVAR, and Sobol designs. Adaptive strategies typically achieve lower error at every budget."</span></span>
-<span id="cb12-369"><a href="#cb12-369" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence</span></span>
-<span id="cb12-370"><a href="#cb12-370" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-371"><a href="#cb12-371" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._gp <span class="im">import</span> plot_gp_sampling_convergence</span>
+<span id="cb12-312"><a href="#cb12-312" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> [<span class="dv">10</span>, <span class="dv">15</span>, <span class="dv">20</span>, <span class="dv">30</span>, <span class="dv">40</span>, <span class="dv">60</span>, <span class="dv">80</span>, <span class="dv">100</span>]</span>
+<span id="cb12-313"><a href="#cb12-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-314"><a href="#cb12-314" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _fit_and_evaluate(X_tr, y_tr, kernel):</span>
+<span id="cb12-315"><a href="#cb12-315" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Fit GP with fixed hyperparameters and return L2 error on test set."""</span></span>
+<span id="cb12-316"><a href="#cb12-316" aria-hidden="true" tabindex="-1"></a>    gp <span class="op">=</span> ExactGaussianProcess(kernel, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb12-317"><a href="#cb12-317" aria-hidden="true" tabindex="-1"></a>    gp.hyp_list().set_all_inactive()</span>
+<span id="cb12-318"><a href="#cb12-318" aria-hidden="true" tabindex="-1"></a>    fitter <span class="op">=</span> GPFixedHyperparameterFitter(bkd)</span>
+<span id="cb12-319"><a href="#cb12-319" aria-hidden="true" tabindex="-1"></a>    result <span class="op">=</span> fitter.fit(gp, X_tr, y_tr)</span>
+<span id="cb12-320"><a href="#cb12-320" aria-hidden="true" tabindex="-1"></a>    fitted_gp <span class="op">=</span> result.surrogate()</span>
+<span id="cb12-321"><a href="#cb12-321" aria-hidden="true" tabindex="-1"></a>    y_pred <span class="op">=</span> bkd.to_numpy(fitted_gp.predict(X_test))[<span class="dv">0</span>, :]</span>
+<span id="cb12-322"><a href="#cb12-322" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> np.linalg.norm(y_test <span class="op">-</span> y_pred) <span class="op">/</span> np.linalg.norm(y_test)</span>
+<span id="cb12-323"><a href="#cb12-323" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-324"><a href="#cb12-324" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Cholesky convergence ----</span></span>
+<span id="cb12-325"><a href="#cb12-325" aria-hidden="true" tabindex="-1"></a>chol_sampler2 <span class="op">=</span> CholeskySampler(candidates, bkd)</span>
+<span id="cb12-326"><a href="#cb12-326" aria-hidden="true" tabindex="-1"></a>chol_sampler2.set_kernel(ref_kernel)</span>
+<span id="cb12-327"><a href="#cb12-327" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-328"><a href="#cb12-328" aria-hidden="true" tabindex="-1"></a>chol_errors <span class="op">=</span> []</span>
+<span id="cb12-329"><a href="#cb12-329" aria-hidden="true" tabindex="-1"></a>prev_n <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb12-330"><a href="#cb12-330" aria-hidden="true" tabindex="-1"></a>X_chol_accum <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb12-331"><a href="#cb12-331" aria-hidden="true" tabindex="-1"></a>y_chol_accum <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb12-332"><a href="#cb12-332" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> budgets:</span>
+<span id="cb12-333"><a href="#cb12-333" aria-hidden="true" tabindex="-1"></a>    new_pts <span class="op">=</span> chol_sampler2.select_samples(n <span class="op">-</span> prev_n)</span>
+<span id="cb12-334"><a href="#cb12-334" aria-hidden="true" tabindex="-1"></a>    new_vals <span class="op">=</span> model(new_pts)[:<span class="dv">1</span>, :]</span>
+<span id="cb12-335"><a href="#cb12-335" aria-hidden="true" tabindex="-1"></a>    X_chol_accum <span class="op">=</span> new_pts <span class="cf">if</span> X_chol_accum <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([X_chol_accum, new_pts])</span>
+<span id="cb12-336"><a href="#cb12-336" aria-hidden="true" tabindex="-1"></a>    y_chol_accum <span class="op">=</span> new_vals <span class="cf">if</span> y_chol_accum <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([y_chol_accum, new_vals])</span>
+<span id="cb12-337"><a href="#cb12-337" aria-hidden="true" tabindex="-1"></a>    chol_errors.append(_fit_and_evaluate(X_chol_accum, y_chol_accum, ref_kernel))</span>
+<span id="cb12-338"><a href="#cb12-338" aria-hidden="true" tabindex="-1"></a>    prev_n <span class="op">=</span> n</span>
+<span id="cb12-339"><a href="#cb12-339" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-340"><a href="#cb12-340" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- IVAR convergence ----</span></span>
+<span id="cb12-341"><a href="#cb12-341" aria-hidden="true" tabindex="-1"></a>ivar_sampler2 <span class="op">=</span> IVARSampler(candidates, bkd)</span>
+<span id="cb12-342"><a href="#cb12-342" aria-hidden="true" tabindex="-1"></a>ivar_sampler2.set_kernel(ref_kernel)</span>
+<span id="cb12-343"><a href="#cb12-343" aria-hidden="true" tabindex="-1"></a>ivar_sampler2.set_P(P)</span>
+<span id="cb12-344"><a href="#cb12-344" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-345"><a href="#cb12-345" aria-hidden="true" tabindex="-1"></a>ivar_errors <span class="op">=</span> []</span>
+<span id="cb12-346"><a href="#cb12-346" aria-hidden="true" tabindex="-1"></a>prev_n <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb12-347"><a href="#cb12-347" aria-hidden="true" tabindex="-1"></a>X_ivar_accum <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb12-348"><a href="#cb12-348" aria-hidden="true" tabindex="-1"></a>y_ivar_accum <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb12-349"><a href="#cb12-349" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> budgets:</span>
+<span id="cb12-350"><a href="#cb12-350" aria-hidden="true" tabindex="-1"></a>    new_pts <span class="op">=</span> ivar_sampler2.select_samples(n <span class="op">-</span> prev_n)</span>
+<span id="cb12-351"><a href="#cb12-351" aria-hidden="true" tabindex="-1"></a>    new_vals <span class="op">=</span> model(new_pts)[:<span class="dv">1</span>, :]</span>
+<span id="cb12-352"><a href="#cb12-352" aria-hidden="true" tabindex="-1"></a>    X_ivar_accum <span class="op">=</span> new_pts <span class="cf">if</span> X_ivar_accum <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([X_ivar_accum, new_pts])</span>
+<span id="cb12-353"><a href="#cb12-353" aria-hidden="true" tabindex="-1"></a>    y_ivar_accum <span class="op">=</span> new_vals <span class="cf">if</span> y_ivar_accum <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([y_ivar_accum, new_vals])</span>
+<span id="cb12-354"><a href="#cb12-354" aria-hidden="true" tabindex="-1"></a>    ivar_errors.append(_fit_and_evaluate(X_ivar_accum, y_ivar_accum, ref_kernel))</span>
+<span id="cb12-355"><a href="#cb12-355" aria-hidden="true" tabindex="-1"></a>    prev_n <span class="op">=</span> n</span>
+<span id="cb12-356"><a href="#cb12-356" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-357"><a href="#cb12-357" aria-hidden="true" tabindex="-1"></a><span class="co"># ---- Sobol (random seed repeated for each budget — not incremental) ----</span></span>
+<span id="cb12-358"><a href="#cb12-358" aria-hidden="true" tabindex="-1"></a>sobol_errors <span class="op">=</span> []</span>
+<span id="cb12-359"><a href="#cb12-359" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> n <span class="kw">in</span> budgets:</span>
+<span id="cb12-360"><a href="#cb12-360" aria-hidden="true" tabindex="-1"></a>    sobol_s2 <span class="op">=</span> SobolAdaptiveSampler(nvars, bkd)</span>
+<span id="cb12-361"><a href="#cb12-361" aria-hidden="true" tabindex="-1"></a>    pts_raw  <span class="op">=</span> sobol_s2.select_samples(n)</span>
+<span id="cb12-362"><a href="#cb12-362" aria-hidden="true" tabindex="-1"></a>    pts      <span class="op">=</span> map_uniform_to_marginals(pts_raw, marginals, bkd)</span>
+<span id="cb12-363"><a href="#cb12-363" aria-hidden="true" tabindex="-1"></a>    vals     <span class="op">=</span> model(pts)[:<span class="dv">1</span>, :]</span>
+<span id="cb12-364"><a href="#cb12-364" aria-hidden="true" tabindex="-1"></a>    sobol_errors.append(_fit_and_evaluate(pts, vals, ref_kernel))</span>
+<span id="cb12-365"><a href="#cb12-365" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-366"><a href="#cb12-366" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-369"><a href="#cb12-369" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-370"><a href="#cb12-370" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Relative L₂ error vs. number of training samples for Cholesky-greedy, IVAR, and Sobol designs. Adaptive strategies typically achieve lower error at every budget."</span></span>
+<span id="cb12-371"><a href="#cb12-371" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence</span></span>
 <span id="cb12-372"><a href="#cb12-372" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-373"><a href="#cb12-373" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
-<span id="cb12-374"><a href="#cb12-374" aria-hidden="true" tabindex="-1"></a>plot_gp_sampling_convergence(ax, budgets, chol_errors, ivar_errors, sobol_errors)</span>
-<span id="cb12-375"><a href="#cb12-375" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb12-376"><a href="#cb12-376" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb12-377"><a href="#cb12-377" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-378"><a href="#cb12-378" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-379"><a href="#cb12-379" aria-hidden="true" tabindex="-1"></a>The adaptive strategies typically achieve the same accuracy as Sobol with</span>
-<span id="cb12-380"><a href="#cb12-380" aria-hidden="true" tabindex="-1"></a>significantly fewer model evaluations. The exact gap depends on the smoothness of</span>
-<span id="cb12-381"><a href="#cb12-381" aria-hidden="true" tabindex="-1"></a>the model and the dimension of the input space; for higher-dimensional problems the</span>
-<span id="cb12-382"><a href="#cb12-382" aria-hidden="true" tabindex="-1"></a>advantage of adaptive strategies grows.</span>
-<span id="cb12-383"><a href="#cb12-383" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-384"><a href="#cb12-384" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-385"><a href="#cb12-385" aria-hidden="true" tabindex="-1"></a><span class="fu">## Active Learning Loop</span></span>
+<span id="cb12-373"><a href="#cb12-373" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._gp <span class="im">import</span> plot_gp_sampling_convergence</span>
+<span id="cb12-374"><a href="#cb12-374" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-375"><a href="#cb12-375" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb12-376"><a href="#cb12-376" aria-hidden="true" tabindex="-1"></a>plot_gp_sampling_convergence(ax, budgets, chol_errors, ivar_errors, sobol_errors)</span>
+<span id="cb12-377"><a href="#cb12-377" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb12-378"><a href="#cb12-378" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb12-379"><a href="#cb12-379" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-380"><a href="#cb12-380" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-381"><a href="#cb12-381" aria-hidden="true" tabindex="-1"></a>The adaptive strategies typically achieve the same accuracy as Sobol with</span>
+<span id="cb12-382"><a href="#cb12-382" aria-hidden="true" tabindex="-1"></a>significantly fewer model evaluations. The exact gap depends on the smoothness of</span>
+<span id="cb12-383"><a href="#cb12-383" aria-hidden="true" tabindex="-1"></a>the model and the dimension of the input space; for higher-dimensional problems the</span>
+<span id="cb12-384"><a href="#cb12-384" aria-hidden="true" tabindex="-1"></a>advantage of adaptive strategies grows.</span>
+<span id="cb12-385"><a href="#cb12-385" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-386"><a href="#cb12-386" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-387"><a href="#cb12-387" aria-hidden="true" tabindex="-1"></a>In practice, hyperparameters are not known in advance. A standard workflow is to</span>
-<span id="cb12-388"><a href="#cb12-388" aria-hidden="true" tabindex="-1"></a>interleave adaptive sampling with hyperparameter re-fitting in batches:</span>
-<span id="cb12-389"><a href="#cb12-389" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-392"><a href="#cb12-392" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb12-393"><a href="#cb12-393" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
-<span id="cb12-394"><a href="#cb12-394" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
-<span id="cb12-395"><a href="#cb12-395" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-396"><a href="#cb12-396" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-397"><a href="#cb12-397" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Active learning loop with Cholesky-greedy ---</span></span>
-<span id="cb12-398"><a href="#cb12-398" aria-hidden="true" tabindex="-1"></a>batch_size   <span class="op">=</span> <span class="dv">10</span></span>
-<span id="cb12-399"><a href="#cb12-399" aria-hidden="true" tabindex="-1"></a>n_batches    <span class="op">=</span> <span class="dv">5</span></span>
-<span id="cb12-400"><a href="#cb12-400" aria-hidden="true" tabindex="-1"></a>loop_sampler <span class="op">=</span> CholeskySampler(candidates, bkd)</span>
-<span id="cb12-401"><a href="#cb12-401" aria-hidden="true" tabindex="-1"></a>loop_kernel  <span class="op">=</span> Matern52Kernel([<span class="fl">1.0</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
-<span id="cb12-402"><a href="#cb12-402" aria-hidden="true" tabindex="-1"></a>loop_sampler.set_kernel(loop_kernel)</span>
-<span id="cb12-403"><a href="#cb12-403" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-404"><a href="#cb12-404" aria-hidden="true" tabindex="-1"></a>X_loop <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb12-405"><a href="#cb12-405" aria-hidden="true" tabindex="-1"></a>y_loop <span class="op">=</span> <span class="va">None</span></span>
-<span id="cb12-406"><a href="#cb12-406" aria-hidden="true" tabindex="-1"></a>loop_errors <span class="op">=</span> []</span>
-<span id="cb12-407"><a href="#cb12-407" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-408"><a href="#cb12-408" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> batch <span class="kw">in</span> <span class="bu">range</span>(n_batches):</span>
-<span id="cb12-409"><a href="#cb12-409" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 1. Select next batch of training points</span></span>
-<span id="cb12-410"><a href="#cb12-410" aria-hidden="true" tabindex="-1"></a>    new_pts  <span class="op">=</span> loop_sampler.select_samples(batch_size)</span>
-<span id="cb12-411"><a href="#cb12-411" aria-hidden="true" tabindex="-1"></a>    new_vals <span class="op">=</span> model(new_pts)[:<span class="dv">1</span>, :]</span>
-<span id="cb12-412"><a href="#cb12-412" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-413"><a href="#cb12-413" aria-hidden="true" tabindex="-1"></a>    X_loop <span class="op">=</span> new_pts  <span class="cf">if</span> X_loop <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([X_loop, new_pts])</span>
-<span id="cb12-414"><a href="#cb12-414" aria-hidden="true" tabindex="-1"></a>    y_loop <span class="op">=</span> new_vals <span class="cf">if</span> y_loop <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([y_loop, new_vals])</span>
-<span id="cb12-415"><a href="#cb12-415" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-416"><a href="#cb12-416" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2. Fit GP and optimise hyperparameters</span></span>
-<span id="cb12-417"><a href="#cb12-417" aria-hidden="true" tabindex="-1"></a>    loop_gp <span class="op">=</span> ExactGaussianProcess(loop_kernel, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
-<span id="cb12-418"><a href="#cb12-418" aria-hidden="true" tabindex="-1"></a>    ml_fitter  <span class="op">=</span> GPMaximumLikelihoodFitter(bkd)</span>
-<span id="cb12-419"><a href="#cb12-419" aria-hidden="true" tabindex="-1"></a>    loop_result <span class="op">=</span> ml_fitter.fit(loop_gp, X_loop, y_loop)</span>
-<span id="cb12-420"><a href="#cb12-420" aria-hidden="true" tabindex="-1"></a>    loop_gp     <span class="op">=</span> loop_result.surrogate()</span>
-<span id="cb12-421"><a href="#cb12-421" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-422"><a href="#cb12-422" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 3. Update sampler kernel with refined hyperparameters</span></span>
-<span id="cb12-423"><a href="#cb12-423" aria-hidden="true" tabindex="-1"></a>    loop_sampler.set_kernel(loop_gp.kernel())</span>
-<span id="cb12-424"><a href="#cb12-424" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-425"><a href="#cb12-425" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 4. Evaluate accuracy</span></span>
-<span id="cb12-426"><a href="#cb12-426" aria-hidden="true" tabindex="-1"></a>    y_pred <span class="op">=</span> bkd.to_numpy(loop_gp.predict(X_test))[<span class="dv">0</span>, :]</span>
-<span id="cb12-427"><a href="#cb12-427" aria-hidden="true" tabindex="-1"></a>    err    <span class="op">=</span> np.linalg.norm(y_test <span class="op">-</span> y_pred) <span class="op">/</span> np.linalg.norm(y_test)</span>
-<span id="cb12-428"><a href="#cb12-428" aria-hidden="true" tabindex="-1"></a>    loop_errors.append(err)</span>
-<span id="cb12-429"><a href="#cb12-429" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-430"><a href="#cb12-430" aria-hidden="true" tabindex="-1"></a>    n_total <span class="op">=</span> (batch <span class="op">+</span> <span class="dv">1</span>) <span class="op">*</span> batch_size</span>
-<span id="cb12-431"><a href="#cb12-431" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-432"><a href="#cb12-432" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-433"><a href="#cb12-433" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-434"><a href="#cb12-434" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb12-387"><a href="#cb12-387" aria-hidden="true" tabindex="-1"></a><span class="fu">## Active Learning Loop</span></span>
+<span id="cb12-388"><a href="#cb12-388" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-389"><a href="#cb12-389" aria-hidden="true" tabindex="-1"></a>In practice, hyperparameters are not known in advance. A standard workflow is to</span>
+<span id="cb12-390"><a href="#cb12-390" aria-hidden="true" tabindex="-1"></a>interleave adaptive sampling with hyperparameter re-fitting in batches:</span>
+<span id="cb12-391"><a href="#cb12-391" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-394"><a href="#cb12-394" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb12-395"><a href="#cb12-395" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.gaussianprocess.fitters <span class="im">import</span> (</span>
+<span id="cb12-396"><a href="#cb12-396" aria-hidden="true" tabindex="-1"></a>    GPMaximumLikelihoodFitter,</span>
+<span id="cb12-397"><a href="#cb12-397" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb12-398"><a href="#cb12-398" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-399"><a href="#cb12-399" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Active learning loop with Cholesky-greedy ---</span></span>
+<span id="cb12-400"><a href="#cb12-400" aria-hidden="true" tabindex="-1"></a>batch_size   <span class="op">=</span> <span class="dv">10</span></span>
+<span id="cb12-401"><a href="#cb12-401" aria-hidden="true" tabindex="-1"></a>n_batches    <span class="op">=</span> <span class="dv">5</span></span>
+<span id="cb12-402"><a href="#cb12-402" aria-hidden="true" tabindex="-1"></a>loop_sampler <span class="op">=</span> CholeskySampler(candidates, bkd)</span>
+<span id="cb12-403"><a href="#cb12-403" aria-hidden="true" tabindex="-1"></a>loop_kernel  <span class="op">=</span> Matern52Kernel([<span class="fl">1.0</span>] <span class="op">*</span> nvars, (<span class="fl">0.1</span>, <span class="fl">10.0</span>), nvars, bkd)</span>
+<span id="cb12-404"><a href="#cb12-404" aria-hidden="true" tabindex="-1"></a>loop_sampler.set_kernel(loop_kernel)</span>
+<span id="cb12-405"><a href="#cb12-405" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-406"><a href="#cb12-406" aria-hidden="true" tabindex="-1"></a>X_loop <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb12-407"><a href="#cb12-407" aria-hidden="true" tabindex="-1"></a>y_loop <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb12-408"><a href="#cb12-408" aria-hidden="true" tabindex="-1"></a>loop_errors <span class="op">=</span> []</span>
+<span id="cb12-409"><a href="#cb12-409" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-410"><a href="#cb12-410" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> batch <span class="kw">in</span> <span class="bu">range</span>(n_batches):</span>
+<span id="cb12-411"><a href="#cb12-411" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 1. Select next batch of training points</span></span>
+<span id="cb12-412"><a href="#cb12-412" aria-hidden="true" tabindex="-1"></a>    new_pts  <span class="op">=</span> loop_sampler.select_samples(batch_size)</span>
+<span id="cb12-413"><a href="#cb12-413" aria-hidden="true" tabindex="-1"></a>    new_vals <span class="op">=</span> model(new_pts)[:<span class="dv">1</span>, :]</span>
+<span id="cb12-414"><a href="#cb12-414" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-415"><a href="#cb12-415" aria-hidden="true" tabindex="-1"></a>    X_loop <span class="op">=</span> new_pts  <span class="cf">if</span> X_loop <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([X_loop, new_pts])</span>
+<span id="cb12-416"><a href="#cb12-416" aria-hidden="true" tabindex="-1"></a>    y_loop <span class="op">=</span> new_vals <span class="cf">if</span> y_loop <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> bkd.hstack([y_loop, new_vals])</span>
+<span id="cb12-417"><a href="#cb12-417" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-418"><a href="#cb12-418" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 2. Fit GP and optimise hyperparameters</span></span>
+<span id="cb12-419"><a href="#cb12-419" aria-hidden="true" tabindex="-1"></a>    loop_gp <span class="op">=</span> ExactGaussianProcess(loop_kernel, nvars<span class="op">=</span>nvars, bkd<span class="op">=</span>bkd, nugget<span class="op">=</span><span class="fl">1e-6</span>)</span>
+<span id="cb12-420"><a href="#cb12-420" aria-hidden="true" tabindex="-1"></a>    ml_fitter  <span class="op">=</span> GPMaximumLikelihoodFitter(bkd)</span>
+<span id="cb12-421"><a href="#cb12-421" aria-hidden="true" tabindex="-1"></a>    loop_result <span class="op">=</span> ml_fitter.fit(loop_gp, X_loop, y_loop)</span>
+<span id="cb12-422"><a href="#cb12-422" aria-hidden="true" tabindex="-1"></a>    loop_gp     <span class="op">=</span> loop_result.surrogate()</span>
+<span id="cb12-423"><a href="#cb12-423" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-424"><a href="#cb12-424" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 3. Update sampler kernel with refined hyperparameters</span></span>
+<span id="cb12-425"><a href="#cb12-425" aria-hidden="true" tabindex="-1"></a>    loop_sampler.set_kernel(loop_gp.kernel())</span>
+<span id="cb12-426"><a href="#cb12-426" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-427"><a href="#cb12-427" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 4. Evaluate accuracy</span></span>
+<span id="cb12-428"><a href="#cb12-428" aria-hidden="true" tabindex="-1"></a>    y_pred <span class="op">=</span> bkd.to_numpy(loop_gp.predict(X_test))[<span class="dv">0</span>, :]</span>
+<span id="cb12-429"><a href="#cb12-429" aria-hidden="true" tabindex="-1"></a>    err    <span class="op">=</span> np.linalg.norm(y_test <span class="op">-</span> y_pred) <span class="op">/</span> np.linalg.norm(y_test)</span>
+<span id="cb12-430"><a href="#cb12-430" aria-hidden="true" tabindex="-1"></a>    loop_errors.append(err)</span>
+<span id="cb12-431"><a href="#cb12-431" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-432"><a href="#cb12-432" aria-hidden="true" tabindex="-1"></a>    n_total <span class="op">=</span> (batch <span class="op">+</span> <span class="dv">1</span>) <span class="op">*</span> batch_size</span>
+<span id="cb12-433"><a href="#cb12-433" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb12-434"><a href="#cb12-434" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-435"><a href="#cb12-435" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-436"><a href="#cb12-436" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Space-filling** designs (Sobol, Latin hypercube) are simple and robust but do not</span>
-<span id="cb12-437"><a href="#cb12-437" aria-hidden="true" tabindex="-1"></a>  use kernel information to choose informative points</span>
-<span id="cb12-438"><a href="#cb12-438" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Cholesky-greedy** selection maximises information gain per step via an incremental</span>
-<span id="cb12-439"><a href="#cb12-439" aria-hidden="true" tabindex="-1"></a>  pivoted Cholesky factorisation; it is fast (no model evaluations needed to rank</span>
-<span id="cb12-440"><a href="#cb12-440" aria-hidden="true" tabindex="-1"></a>  candidates) and supports warm-starting after kernel updates</span>
-<span id="cb12-441"><a href="#cb12-441" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**IVAR** directly minimises integrated posterior variance — the quantity most</span>
-<span id="cb12-442"><a href="#cb12-442" aria-hidden="true" tabindex="-1"></a>  relevant for UQ — and often outperforms Cholesky on smooth models at the cost of</span>
-<span id="cb12-443"><a href="#cb12-443" aria-hidden="true" tabindex="-1"></a>  computing the P matrix</span>
-<span id="cb12-444"><a href="#cb12-444" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>All three strategies implement the same <span class="in">`AdaptiveSamplerProtocol`</span>, making them</span>
-<span id="cb12-445"><a href="#cb12-445" aria-hidden="true" tabindex="-1"></a>  interchangeable with a single line change</span>
-<span id="cb12-446"><a href="#cb12-446" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>An **active learning loop** interleaves adaptive sampling with hyperparameter</span>
-<span id="cb12-447"><a href="#cb12-447" aria-hidden="true" tabindex="-1"></a>  refitting, so the sampler continuously adapts as more data are collected</span>
-<span id="cb12-448"><a href="#cb12-448" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-449"><a href="#cb12-449" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-450"><a href="#cb12-450" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb12-436"><a href="#cb12-436" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb12-437"><a href="#cb12-437" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-438"><a href="#cb12-438" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Space-filling** designs (Sobol, Latin hypercube) are simple and robust but do not</span>
+<span id="cb12-439"><a href="#cb12-439" aria-hidden="true" tabindex="-1"></a>  use kernel information to choose informative points</span>
+<span id="cb12-440"><a href="#cb12-440" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Cholesky-greedy** selection maximises information gain per step via an incremental</span>
+<span id="cb12-441"><a href="#cb12-441" aria-hidden="true" tabindex="-1"></a>  pivoted Cholesky factorisation; it is fast (no model evaluations needed to rank</span>
+<span id="cb12-442"><a href="#cb12-442" aria-hidden="true" tabindex="-1"></a>  candidates) and supports warm-starting after kernel updates</span>
+<span id="cb12-443"><a href="#cb12-443" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**IVAR** directly minimises integrated posterior variance — the quantity most</span>
+<span id="cb12-444"><a href="#cb12-444" aria-hidden="true" tabindex="-1"></a>  relevant for UQ — and often outperforms Cholesky on smooth models at the cost of</span>
+<span id="cb12-445"><a href="#cb12-445" aria-hidden="true" tabindex="-1"></a>  computing the P matrix</span>
+<span id="cb12-446"><a href="#cb12-446" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>All three strategies implement the same <span class="in">`AdaptiveSamplerProtocol`</span>, making them</span>
+<span id="cb12-447"><a href="#cb12-447" aria-hidden="true" tabindex="-1"></a>  interchangeable with a single line change</span>
+<span id="cb12-448"><a href="#cb12-448" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>An **active learning loop** interleaves adaptive sampling with hyperparameter</span>
+<span id="cb12-449"><a href="#cb12-449" aria-hidden="true" tabindex="-1"></a>  refitting, so the sampler continuously adapts as more data are collected</span>
+<span id="cb12-450"><a href="#cb12-450" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-451"><a href="#cb12-451" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-452"><a href="#cb12-452" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>In the convergence experiment, add a **random sampling** baseline (draw $N$ points</span>
-<span id="cb12-453"><a href="#cb12-453" aria-hidden="true" tabindex="-1"></a>   iid from the prior at each budget). How much worse is it compared to Sobol?</span>
-<span id="cb12-454"><a href="#cb12-454" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-455"><a href="#cb12-455" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>The Cholesky sampler uses a reference kernel with fixed hyperparameters to rank</span>
-<span id="cb12-456"><a href="#cb12-456" aria-hidden="true" tabindex="-1"></a>   candidates. Experiment with different length scales ($0.3$ vs $3.0$) for the</span>
-<span id="cb12-457"><a href="#cb12-457" aria-hidden="true" tabindex="-1"></a>   reference kernel. How sensitive is the convergence to this choice?</span>
-<span id="cb12-458"><a href="#cb12-458" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-459"><a href="#cb12-459" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Extend the active learning loop to use IVAR instead of Cholesky. The P matrix must</span>
-<span id="cb12-460"><a href="#cb12-460" aria-hidden="true" tabindex="-1"></a>   be recomputed each time <span class="in">`set_kernel`</span> is called. Does the extra cost pay off in</span>
-<span id="cb12-461"><a href="#cb12-461" aria-hidden="true" tabindex="-1"></a>   lower error at a given budget?</span>
-<span id="cb12-462"><a href="#cb12-462" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-463"><a href="#cb12-463" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>Try <span class="in">`set_weight_function`</span> on the <span class="in">`CholeskySampler`</span> to bias sampling towards</span>
-<span id="cb12-464"><a href="#cb12-464" aria-hidden="true" tabindex="-1"></a>   regions where $|\xi_1| &gt; 1$ (the tails of the Gaussian). Does this improve tail</span>
-<span id="cb12-465"><a href="#cb12-465" aria-hidden="true" tabindex="-1"></a>   accuracy at the cost of centre accuracy?</span>
-<span id="cb12-466"><a href="#cb12-466" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-467"><a href="#cb12-467" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-468"><a href="#cb12-468" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb12-452"><a href="#cb12-452" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb12-453"><a href="#cb12-453" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-454"><a href="#cb12-454" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>In the convergence experiment, add a **random sampling** baseline (draw $N$ points</span>
+<span id="cb12-455"><a href="#cb12-455" aria-hidden="true" tabindex="-1"></a>   iid from the prior at each budget). How much worse is it compared to Sobol?</span>
+<span id="cb12-456"><a href="#cb12-456" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-457"><a href="#cb12-457" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>The Cholesky sampler uses a reference kernel with fixed hyperparameters to rank</span>
+<span id="cb12-458"><a href="#cb12-458" aria-hidden="true" tabindex="-1"></a>   candidates. Experiment with different length scales ($0.3$ vs $3.0$) for the</span>
+<span id="cb12-459"><a href="#cb12-459" aria-hidden="true" tabindex="-1"></a>   reference kernel. How sensitive is the convergence to this choice?</span>
+<span id="cb12-460"><a href="#cb12-460" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-461"><a href="#cb12-461" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Extend the active learning loop to use IVAR instead of Cholesky. The P matrix must</span>
+<span id="cb12-462"><a href="#cb12-462" aria-hidden="true" tabindex="-1"></a>   be recomputed each time <span class="in">`set_kernel`</span> is called. Does the extra cost pay off in</span>
+<span id="cb12-463"><a href="#cb12-463" aria-hidden="true" tabindex="-1"></a>   lower error at a given budget?</span>
+<span id="cb12-464"><a href="#cb12-464" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-465"><a href="#cb12-465" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>Try <span class="in">`set_weight_function`</span> on the <span class="in">`CholeskySampler`</span> to bias sampling towards</span>
+<span id="cb12-466"><a href="#cb12-466" aria-hidden="true" tabindex="-1"></a>   regions where $|\xi_1| &gt; 1$ (the tails of the Gaussian). Does this improve tail</span>
+<span id="cb12-467"><a href="#cb12-467" aria-hidden="true" tabindex="-1"></a>   accuracy at the cost of centre accuracy?</span>
+<span id="cb12-468"><a href="#cb12-468" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb12-469"><a href="#cb12-469" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-470"><a href="#cb12-470" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Multi-Output Gaussian Processes</span><span class="co">](multioutput_gp.qmd)</span> — Extend adaptive sampling</span>
-<span id="cb12-471"><a href="#cb12-471" aria-hidden="true" tabindex="-1"></a>  to multi-fidelity settings using <span class="in">`MultiOutputIVARSampler`</span></span>
-<span id="cb12-472"><a href="#cb12-472" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Building a GP Surrogate</span><span class="co">](gp_surrogate.qmd)</span> — Review GP fitting basics</span>
-<span id="cb12-473"><a href="#cb12-473" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Gaussian Processes</span><span class="co">](uq_with_gp.qmd)</span> — Use the P matrix from IVAR</span>
-<span id="cb12-474"><a href="#cb12-474" aria-hidden="true" tabindex="-1"></a>  sampling to also compute analytical moments</span>
+<span id="cb12-470"><a href="#cb12-470" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb12-471"><a href="#cb12-471" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-472"><a href="#cb12-472" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Multi-Output Gaussian Processes</span><span class="co">](multioutput_gp.qmd)</span> — Extend adaptive sampling</span>
+<span id="cb12-473"><a href="#cb12-473" aria-hidden="true" tabindex="-1"></a>  to multi-fidelity settings using <span class="in">`MultiOutputIVARSampler`</span></span>
+<span id="cb12-474"><a href="#cb12-474" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Building a GP Surrogate</span><span class="co">](gp_surrogate.qmd)</span> — Review GP fitting basics</span>
+<span id="cb12-475"><a href="#cb12-475" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Gaussian Processes</span><span class="co">](uq_with_gp.qmd)</span> — Use the P matrix from IVAR</span>
+<span id="cb12-476"><a href="#cb12-476" aria-hidden="true" tabindex="-1"></a>  sampling to also compute analytical moments</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

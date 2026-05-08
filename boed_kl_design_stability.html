@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Bayesian OED: Design Stability and Convergence – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1124,13 +1143,13 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<p>We reuse the Lotka-Volterra predator-prey benchmark from the nonlinear tutorial.</p>
-<div id="dfe13888" class="cell" data-execution_count="1">
+<p>We reuse the Lotka-Volterra predator-prey problem from the nonlinear tutorial.</p>
+<div id="6c3ed463" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.benchmarks <span class="im">import</span> LotkaVolterraOEDBenchmark</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.expdesign.lotka_volterra <span class="im">import</span> LotkaVolterraPredictionOEDProblem</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.data <span class="im">import</span> OEDDataGenerator</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign <span class="im">import</span> (</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    GaussianOEDInnerLoopLikelihood,</span>
@@ -1142,9 +1161,9 @@ window.Quarto = {
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> LotkaVolterraOEDBenchmark(bkd, final_time<span class="op">=</span><span class="fl">50.0</span>, deltat<span class="op">=</span><span class="fl">2.0</span>, stepper<span class="op">=</span><span class="st">"heun"</span>)</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>obs_model <span class="op">=</span> benchmark.observation_model()</span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> benchmark.prior()</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>oed <span class="op">=</span> LotkaVolterraPredictionOEDProblem(bkd, final_time<span class="op">=</span><span class="fl">50.0</span>, deltat<span class="op">=</span><span class="fl">2.0</span>, stepper<span class="op">=</span><span class="st">"heun"</span>)</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>obs_model <span class="op">=</span> oed.obs_map()</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> oed.inference_problem().prior()</span>
 <span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>nparams   <span class="op">=</span> prior.nvars()</span>
 <span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>nobs      <span class="op">=</span> obs_model.nqoi()</span>
 <span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
@@ -1155,12 +1174,12 @@ window.Quarto = {
 <span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>data_gen  <span class="op">=</span> OEDDataGenerator(bkd)</span>
 <span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>joint_var <span class="op">=</span> data_gen.joint_prior_noise_variable(prior, noise_cov_diag)</span>
 <span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>obs_times <span class="op">=</span> bkd.to_numpy(benchmark.observation_times())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>obs_times <span class="op">=</span> bkd.to_numpy(oed.observation_times())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="helper-solve-oed-for-a-given-budget-and-seed" class="level2">
 <h2 class="anchored" data-anchor-id="helper-solve-oed-for-a-given-budget-and-seed">Helper: Solve OED for a Given Budget and Seed</h2>
-<div id="a78ce5c4" class="cell" data-execution_count="2">
+<div id="76385f72" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solve_oed(M, seed):</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Solve the relaxed KL-OED problem for a given outer budget and seed.</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1190,7 +1209,7 @@ window.Quarto = {
 <section id="design-variability-at-fixed-budget" class="level2">
 <h2 class="anchored" data-anchor-id="design-variability-at-fixed-budget">Design Variability at Fixed Budget</h2>
 <p>We solve the OED problem three times at <span class="math inline">\(M = 1{,}000\)</span> with different random seeds. At this moderate budget the EIG estimate is noisy, so the optimal designs should differ visibly between runs.</p>
-<div id="2f0b4813" class="cell" data-execution_count="3">
+<div id="0e35dbc5" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>M_fixed <span class="op">=</span> <span class="dv">1000</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>n_seeds <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1233,7 +1252,7 @@ Figure&nbsp;1: Optimal design weights from 3 independent MC realizations at M=1,
 <p>Each budget level requires <code>n_seeds</code> independent forward-model evaluations and optimizations. For expensive models, this convergence study is itself a significant investment — but it is the only reliable way to verify that your design is trustworthy.</p>
 </div>
 </div>
-<div id="d545bcc0" class="cell" data-execution_count="5">
+<div id="da1d0933" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> [<span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">4000</span>]</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>n_seeds <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1826,14 +1845,14 @@ Figure&nbsp;2: Design weights from 3 independent MC realizations at three outer-
 <span id="cb5-67"><a href="#cb5-67" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-68"><a href="#cb5-68" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup</span></span>
 <span id="cb5-69"><a href="#cb5-69" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a>We reuse the Lotka-Volterra predator-prey benchmark from the nonlinear tutorial.</span>
+<span id="cb5-70"><a href="#cb5-70" aria-hidden="true" tabindex="-1"></a>We reuse the Lotka-Volterra predator-prey problem from the nonlinear tutorial.</span>
 <span id="cb5-71"><a href="#cb5-71" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-74"><a href="#cb5-74" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb5-75"><a href="#cb5-75" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
 <span id="cb5-76"><a href="#cb5-76" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb5-77"><a href="#cb5-77" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb5-78"><a href="#cb5-78" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.benchmarks <span class="im">import</span> LotkaVolterraOEDBenchmark</span>
+<span id="cb5-79"><a href="#cb5-79" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.expdesign.lotka_volterra <span class="im">import</span> LotkaVolterraPredictionOEDProblem</span>
 <span id="cb5-80"><a href="#cb5-80" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.data <span class="im">import</span> OEDDataGenerator</span>
 <span id="cb5-81"><a href="#cb5-81" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign <span class="im">import</span> (</span>
 <span id="cb5-82"><a href="#cb5-82" aria-hidden="true" tabindex="-1"></a>    GaussianOEDInnerLoopLikelihood,</span>
@@ -1845,9 +1864,9 @@ Figure&nbsp;2: Design weights from 3 independent MC realizations at three outer-
 <span id="cb5-88"><a href="#cb5-88" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
 <span id="cb5-89"><a href="#cb5-89" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb5-90"><a href="#cb5-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-91"><a href="#cb5-91" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> LotkaVolterraOEDBenchmark(bkd, final_time<span class="op">=</span><span class="fl">50.0</span>, deltat<span class="op">=</span><span class="fl">2.0</span>, stepper<span class="op">=</span><span class="st">"heun"</span>)</span>
-<span id="cb5-92"><a href="#cb5-92" aria-hidden="true" tabindex="-1"></a>obs_model <span class="op">=</span> benchmark.observation_model()</span>
-<span id="cb5-93"><a href="#cb5-93" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> benchmark.prior()</span>
+<span id="cb5-91"><a href="#cb5-91" aria-hidden="true" tabindex="-1"></a>oed <span class="op">=</span> LotkaVolterraPredictionOEDProblem(bkd, final_time<span class="op">=</span><span class="fl">50.0</span>, deltat<span class="op">=</span><span class="fl">2.0</span>, stepper<span class="op">=</span><span class="st">"heun"</span>)</span>
+<span id="cb5-92"><a href="#cb5-92" aria-hidden="true" tabindex="-1"></a>obs_model <span class="op">=</span> oed.obs_map()</span>
+<span id="cb5-93"><a href="#cb5-93" aria-hidden="true" tabindex="-1"></a>prior     <span class="op">=</span> oed.inference_problem().prior()</span>
 <span id="cb5-94"><a href="#cb5-94" aria-hidden="true" tabindex="-1"></a>nparams   <span class="op">=</span> prior.nvars()</span>
 <span id="cb5-95"><a href="#cb5-95" aria-hidden="true" tabindex="-1"></a>nobs      <span class="op">=</span> obs_model.nqoi()</span>
 <span id="cb5-96"><a href="#cb5-96" aria-hidden="true" tabindex="-1"></a></span>
@@ -1858,7 +1877,7 @@ Figure&nbsp;2: Design weights from 3 independent MC realizations at three outer-
 <span id="cb5-101"><a href="#cb5-101" aria-hidden="true" tabindex="-1"></a>data_gen  <span class="op">=</span> OEDDataGenerator(bkd)</span>
 <span id="cb5-102"><a href="#cb5-102" aria-hidden="true" tabindex="-1"></a>joint_var <span class="op">=</span> data_gen.joint_prior_noise_variable(prior, noise_cov_diag)</span>
 <span id="cb5-103"><a href="#cb5-103" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-104"><a href="#cb5-104" aria-hidden="true" tabindex="-1"></a>obs_times <span class="op">=</span> bkd.to_numpy(benchmark.observation_times())</span>
+<span id="cb5-104"><a href="#cb5-104" aria-hidden="true" tabindex="-1"></a>obs_times <span class="op">=</span> bkd.to_numpy(oed.observation_times())</span>
 <span id="cb5-105"><a href="#cb5-105" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb5-106"><a href="#cb5-106" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-107"><a href="#cb5-107" aria-hidden="true" tabindex="-1"></a><span class="fu">## Helper: Solve OED for a Given Budget and Seed</span></span>
@@ -1912,7 +1931,7 @@ Figure&nbsp;2: Design weights from 3 independent MC realizations at three outer-
 <span id="cb5-161"><a href="#cb5-161" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb5-162"><a href="#cb5-162" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Optimal design weights from 3 independent MC realizations at M=1,000. The designs share the same broad structure (peaks near the same times) but differ in magnitude, showing that the Monte Carlo noise in the EIG estimate propagates to the design."</span></span>
 <span id="cb5-163"><a href="#cb5-163" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-variability</span></span>
-<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_design_variability</span>
+<span id="cb5-164"><a href="#cb5-164" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures <span class="im">import</span> plot_design_variability</span>
 <span id="cb5-165"><a href="#cb5-165" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-166"><a href="#cb5-166" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb5-167"><a href="#cb5-167" aria-hidden="true" tabindex="-1"></a>plot_design_variability(axes, obs_times, designs_fixed, M_fixed)</span>
@@ -1961,7 +1980,7 @@ Figure&nbsp;2: Design weights from 3 independent MC realizations at three outer-
 <span id="cb5-214"><a href="#cb5-214" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb5-215"><a href="#cb5-215" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Design weights from 3 independent MC realizations at three outer-loop budgets. At M=1,000 the designs scatter visibly. By M=4,000 the curves nearly overlap, confirming that the design has stabilized."</span></span>
 <span id="cb5-216"><a href="#cb5-216" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-design-convergence</span></span>
-<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_design_convergence</span>
+<span id="cb5-217"><a href="#cb5-217" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures <span class="im">import</span> plot_design_convergence</span>
 <span id="cb5-218"><a href="#cb5-218" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-219"><a href="#cb5-219" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="bu">len</span>(budgets), <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">3.0</span> <span class="op">*</span> <span class="bu">len</span>(budgets)),</span>
 <span id="cb5-220"><a href="#cb5-220" aria-hidden="true" tabindex="-1"></a>                         sharex<span class="op">=</span><span class="va">True</span>, sharey<span class="op">=</span><span class="va">True</span>)</span>

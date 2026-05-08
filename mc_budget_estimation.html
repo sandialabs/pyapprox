@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Monte Carlo Budget Estimation – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -60,7 +63,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 div.csl-bib-body { }
 div.csl-entry {
   clear: both;
-  margin-bottom: 0em;
 }
 .hanging-indent div.csl-entry {
   margin-left:2em;
@@ -89,15 +91,14 @@ div.csl-indent {
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -209,7 +210,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -944,17 +945,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -1007,13 +1025,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1036,13 +1054,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1180,12 +1198,12 @@ window.Quarto = {
 \]</span></p>
 </div>
 </div>
-<div id="e509a3c5" class="cell" data-execution_count="1">
+<div id="677917e8" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble <span class="im">import</span> (</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    psd_multioutput_ensemble_3x3,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.statest <span class="im">import</span> (</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    MultiOutputEnsembleBenchmark,</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.statistics <span class="im">import</span> (</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    MultiOutputMean,</span>
@@ -1195,9 +1213,9 @@ window.Quarto = {
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.mc_estimator <span class="im">import</span> MCEstimator</span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>bm <span class="op">=</span> psd_multioutput_ensemble_3x3(bkd)</span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> bm.models()[<span class="dv">0</span>]       <span class="co"># highest-fidelity model</span></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> bm.prior()</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>bm <span class="op">=</span> MultiOutputEnsembleBenchmark(bkd, psd<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> bm.problem().models()[<span class="dv">0</span>]       <span class="co"># highest-fidelity model</span></span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> bm.problem().prior()</span>
 <span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>nqoi <span class="op">=</span> model.nqoi()          <span class="co"># 3 QoIs</span></span>
 <span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>cost_per_eval <span class="op">=</span> <span class="fl">2.1</span></span>
@@ -1213,7 +1231,7 @@ Cost per evaluation: 2.1</code></pre>
 <section id="stage-1-pilot-samples" class="level2">
 <h2 class="anchored" data-anchor-id="stage-1-pilot-samples">Stage 1: Pilot Samples</h2>
 <p>We draw a modest number of pilot samples <span class="math inline">\(M_{\text{pilot}}\)</span>, evaluate the model, and estimate the three moment quantities from the resulting QoI values.</p>
-<div id="9aac6749" class="cell" data-execution_count="2">
+<div id="43c80e05" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>M_pilot <span class="op">=</span> <span class="dv">50</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples_pilot <span class="op">=</span> variable.rvs(M_pilot)</span>
@@ -1235,7 +1253,7 @@ Values shape: (3, 50)</code></pre>
 <li><span class="math inline">\(\hat{\mathbf{B}}\)</span>: the sample covariance between the QoI values and their centered outer products (<span class="math inline">\(K \times K^2\)</span>)</li>
 </ul>
 <p>The <code>MultiOutputMeanAndVariance</code> statistic class provides <code>compute_pilot_quantities</code> to compute all three from raw model evaluations:</p>
-<div id="c803dd59" class="cell" data-execution_count="3">
+<div id="31c74712" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>stat_mv <span class="op">=</span> MultiOutputMeanAndVariance(nqoi, bkd)</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>cov_pilot, W_pilot, B_pilot <span class="op">=</span> stat_mv.compute_pilot_quantities([values_pilot])</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1282,7 +1300,7 @@ B shape: (3, 9)</code></pre>
 <li>Create an <strong>estimator</strong> (here, <code>MCEstimator</code>).</li>
 <li>Call <code>allocate_samples</code> with a target computational cost to determine the optimal number of samples.</li>
 </ol>
-<div id="45b6584d" class="cell" data-execution_count="4">
+<div id="86b50e1f" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 1-2: Create stat and set pilot quantities</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>stat <span class="op">=</span> MultiOutputMeanAndVariance(nqoi, bkd)</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>stat.set_pilot_quantities(cov_pilot, W_pilot, B_pilot)</span>
@@ -1306,7 +1324,7 @@ Actual cost: 499.8</code></pre>
 <h3 class="anchored" data-anchor-id="understanding-the-output">Understanding the Output</h3>
 <p>The <code>allocate_samples</code> call determines how many model evaluations to run. For single-model Monte Carlo, this is simply <span class="math inline">\(M = \lfloor \text{target\_cost} / \text{cost\_per\_eval} \rfloor\)</span>. Because the number of samples must be an integer, the actual cost is generally less than the target — no partial evaluations are allowed. The power of this API becomes apparent with multi-fidelity methods (covered in later tutorials), where it optimally distributes samples across models of different cost and accuracy.</p>
 <p>We can also inspect the <strong>predicted estimator covariance</strong> at this allocation:</p>
-<div id="63780ba7" class="cell" data-execution_count="5">
+<div id="49f6ef94" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>predicted_est_cov <span class="op">=</span> est.optimized_covariance()</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>nstats <span class="op">=</span> stat.nstats()</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of statistics: </span><span class="sc">{</span>nstats<span class="sc">}</span><span class="ss">"</span>)</span>
@@ -1327,7 +1345,7 @@ Diagonal (individual estimator variances):
 <section id="running-the-allocated-experiment" class="level2">
 <h2 class="anchored" data-anchor-id="running-the-allocated-experiment">Running the Allocated Experiment</h2>
 <p>With the budget determined, we generate samples, evaluate the model, and compute the statistics:</p>
-<div id="081c034c" class="cell" data-execution_count="6">
+<div id="f9e22022" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples according to the allocation</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>samples_allocated <span class="op">=</span> est.generate_samples_per_model(variable.rvs)[<span class="dv">0</span>]</span>
@@ -1420,7 +1438,7 @@ Figure&nbsp;3: Sensitivity of the budget prediction to pilot size. Each point is
 <section id="the-complete-two-stage-workflow" class="level2">
 <h2 class="anchored" data-anchor-id="the-complete-two-stage-workflow">The Complete Two-Stage Workflow</h2>
 <p>Putting it all together, the practical MC workflow for a target accuracy is:</p>
-<div id="247823b6" class="cell" data-execution_count="10">
+<div id="06b3b853" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- Full workflow ---</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Choose target accuracy and statistic</span></span>
@@ -1476,7 +1494,7 @@ Predicted std of mean(q_3): 0.032772</code></pre>
 <h3 class="anchored" data-anchor-id="visualizing-the-estimator-covariance">Visualizing the Estimator Covariance</h3>
 <p>The estimator covariance matrix at the allocated budget shows the block structure derived in the previous tutorial.</p>
 <div id="cell-fig-est-cov-final" class="cell" data-execution_count="11">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_est_cov_final</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._multifidelity_advanced <span class="im">import</span> plot_est_cov_final</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build labels for the 9 statistics: 3 means + 6 lower-triangle covariance</span></span>
 <span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>stat_labels <span class="op">=</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{</span><span class="dv">\m</span><span class="vs">u</span><span class="ch">}}</span><span class="vs">_</span><span class="ch">{{</span><span class="sc">{</span>k<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>
@@ -1539,9 +1557,9 @@ Figure&nbsp;4: Estimator covariance matrix for simultaneous mean and covariance 
 
 </section>
 
-<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
+<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" role="list">
 <div id="ref-dixon2025optimallybalancing" class="csl-entry" role="listitem">
-Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025. <span>“Optimally Balancing Exploration and Exploitation to Automate Multi-Fidelity Statistical Estimation.”</span> <a href="https://arxiv.org/abs/2505.09828">https://arxiv.org/abs/2505.09828</a>.
+Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025. <em>Optimally Balancing Exploration and Exploitation to Automate Multi-Fidelity Statistical Estimation</em>. <a href="https://arxiv.org/abs/2505.09828">https://arxiv.org/abs/2505.09828</a>.
 </div>
 </div></section></div></main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
@@ -2077,8 +2095,8 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-82"><a href="#cb16-82" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb16-83"><a href="#cb16-83" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb16-84"><a href="#cb16-84" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb16-85"><a href="#cb16-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble <span class="im">import</span> (</span>
-<span id="cb16-86"><a href="#cb16-86" aria-hidden="true" tabindex="-1"></a>    psd_multioutput_ensemble_3x3,</span>
+<span id="cb16-85"><a href="#cb16-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.statest <span class="im">import</span> (</span>
+<span id="cb16-86"><a href="#cb16-86" aria-hidden="true" tabindex="-1"></a>    MultiOutputEnsembleBenchmark,</span>
 <span id="cb16-87"><a href="#cb16-87" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb16-88"><a href="#cb16-88" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.statistics <span class="im">import</span> (</span>
 <span id="cb16-89"><a href="#cb16-89" aria-hidden="true" tabindex="-1"></a>    MultiOutputMean,</span>
@@ -2088,9 +2106,9 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-93"><a href="#cb16-93" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.statest.mc_estimator <span class="im">import</span> MCEstimator</span>
 <span id="cb16-94"><a href="#cb16-94" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-95"><a href="#cb16-95" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb16-96"><a href="#cb16-96" aria-hidden="true" tabindex="-1"></a>bm <span class="op">=</span> psd_multioutput_ensemble_3x3(bkd)</span>
-<span id="cb16-97"><a href="#cb16-97" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> bm.models()[<span class="dv">0</span>]       <span class="co"># highest-fidelity model</span></span>
-<span id="cb16-98"><a href="#cb16-98" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> bm.prior()</span>
+<span id="cb16-96"><a href="#cb16-96" aria-hidden="true" tabindex="-1"></a>bm <span class="op">=</span> MultiOutputEnsembleBenchmark(bkd, psd<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb16-97"><a href="#cb16-97" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> bm.problem().models()[<span class="dv">0</span>]       <span class="co"># highest-fidelity model</span></span>
+<span id="cb16-98"><a href="#cb16-98" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> bm.problem().prior()</span>
 <span id="cb16-99"><a href="#cb16-99" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-100"><a href="#cb16-100" aria-hidden="true" tabindex="-1"></a>nqoi <span class="op">=</span> model.nqoi()          <span class="co"># 3 QoIs</span></span>
 <span id="cb16-101"><a href="#cb16-101" aria-hidden="true" tabindex="-1"></a>cost_per_eval <span class="op">=</span> <span class="fl">2.1</span></span>
@@ -2216,7 +2234,7 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-233"><a href="#cb16-233" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Verification of the budget prediction. Histograms of mean estimates from 200 independent experiments at the allocated budget, with the predicted standard deviation (red dashed) and empirical standard deviation (green) overlaid."</span></span>
 <span id="cb16-234"><a href="#cb16-234" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-budget-verification</span></span>
 <span id="cb16-235"><a href="#cb16-235" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-236"><a href="#cb16-236" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_budget_verification</span>
+<span id="cb16-236"><a href="#cb16-236" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._multifidelity_advanced <span class="im">import</span> plot_budget_verification</span>
 <span id="cb16-237"><a href="#cb16-237" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-238"><a href="#cb16-238" aria-hidden="true" tabindex="-1"></a>n_reps <span class="op">=</span> <span class="dv">200</span></span>
 <span id="cb16-239"><a href="#cb16-239" aria-hidden="true" tabindex="-1"></a>M_alloc <span class="op">=</span> <span class="bu">int</span>(est._rounded_nsamples_per_model[<span class="dv">0</span>])</span>
@@ -2248,7 +2266,7 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-267"><a href="#cb16-267" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Predicted estimation error (trace of estimator covariance) vs. computational budget for three statistic choices. Estimating the variance requires a larger budget than the mean for the same accuracy, and estimating both simultaneously is the most expensive."</span></span>
 <span id="cb16-268"><a href="#cb16-268" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-budget-vs-statistic</span></span>
 <span id="cb16-269"><a href="#cb16-269" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-270"><a href="#cb16-270" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_budget_vs_statistic</span>
+<span id="cb16-270"><a href="#cb16-270" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._multifidelity_advanced <span class="im">import</span> plot_budget_vs_statistic</span>
 <span id="cb16-271"><a href="#cb16-271" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-272"><a href="#cb16-272" aria-hidden="true" tabindex="-1"></a><span class="co"># Create stat objects and set pilot quantities</span></span>
 <span id="cb16-273"><a href="#cb16-273" aria-hidden="true" tabindex="-1"></a>stat_mean <span class="op">=</span> MultiOutputMean(nqoi, bkd)</span>
@@ -2286,19 +2304,19 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-307"><a href="#cb16-307" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Sensitivity of the budget prediction to pilot size. Each point is the predicted standard deviation of $\\hat{\\mu}_1$ from an independent pilot experiment. Small pilots ($M_{\\text{pilot}} = 20$) produce highly variable predictions; larger pilots ($M_{\\text{pilot}} = 200$) are much more stable. The true value (from the benchmark's exact moments) is shown as a dashed red line."</span></span>
 <span id="cb16-308"><a href="#cb16-308" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pilot-sensitivity</span></span>
 <span id="cb16-309"><a href="#cb16-309" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-310"><a href="#cb16-310" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_pilot_sensitivity</span>
+<span id="cb16-310"><a href="#cb16-310" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._multifidelity_advanced <span class="im">import</span> plot_pilot_sensitivity</span>
 <span id="cb16-311"><a href="#cb16-311" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-312"><a href="#cb16-312" aria-hidden="true" tabindex="-1"></a>pilot_sizes <span class="op">=</span> [<span class="dv">20</span>, <span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">200</span>]</span>
 <span id="cb16-313"><a href="#cb16-313" aria-hidden="true" tabindex="-1"></a>n_pilot_reps <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb16-314"><a href="#cb16-314" aria-hidden="true" tabindex="-1"></a>target_for_test <span class="op">=</span> <span class="fl">500.0</span></span>
 <span id="cb16-315"><a href="#cb16-315" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-316"><a href="#cb16-316" aria-hidden="true" tabindex="-1"></a><span class="co"># Reference: exact moments from the benchmark</span></span>
-<span id="cb16-317"><a href="#cb16-317" aria-hidden="true" tabindex="-1"></a>ensemble <span class="op">=</span> bm._ensemble</span>
-<span id="cb16-318"><a href="#cb16-318" aria-hidden="true" tabindex="-1"></a>cov_true <span class="op">=</span> ensemble.covariance_matrix()[:nqoi, :nqoi]</span>
-<span id="cb16-319"><a href="#cb16-319" aria-hidden="true" tabindex="-1"></a>W_true <span class="op">=</span> ensemble.covariance_of_centered_values_kronecker_product_subproblem(</span>
+<span id="cb16-317"><a href="#cb16-317" aria-hidden="true" tabindex="-1"></a><span class="co"># Statistics methods are directly on the benchmark (inherits mixin)</span></span>
+<span id="cb16-318"><a href="#cb16-318" aria-hidden="true" tabindex="-1"></a>cov_true <span class="op">=</span> bm.covariance_matrix()[:nqoi, :nqoi]</span>
+<span id="cb16-319"><a href="#cb16-319" aria-hidden="true" tabindex="-1"></a>W_true <span class="op">=</span> bm.covariance_of_centered_values_kronecker_product_subproblem(</span>
 <span id="cb16-320"><a href="#cb16-320" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>], <span class="bu">list</span>(<span class="bu">range</span>(nqoi))</span>
 <span id="cb16-321"><a href="#cb16-321" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb16-322"><a href="#cb16-322" aria-hidden="true" tabindex="-1"></a>B_true <span class="op">=</span> ensemble.covariance_of_mean_and_variance_estimators_subproblem(</span>
+<span id="cb16-322"><a href="#cb16-322" aria-hidden="true" tabindex="-1"></a>B_true <span class="op">=</span> bm.covariance_of_mean_and_variance_estimators_subproblem(</span>
 <span id="cb16-323"><a href="#cb16-323" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>], <span class="bu">list</span>(<span class="bu">range</span>(nqoi))</span>
 <span id="cb16-324"><a href="#cb16-324" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb16-325"><a href="#cb16-325" aria-hidden="true" tabindex="-1"></a>stat_ref <span class="op">=</span> MultiOutputMeanAndVariance(nqoi, bkd)</span>
@@ -2394,7 +2412,7 @@ Dixon, Thomas, Alex Gorodetsky, John Jakeman, Akil Narayan, and Yiming Xu. 2025.
 <span id="cb16-419"><a href="#cb16-419" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Estimator covariance matrix for simultaneous mean and covariance estimation at the allocated budget. The block structure from the previous tutorial is visible: mean-mean (top-left), mean-variance (off-diagonal), variance-variance (bottom-right)."</span></span>
 <span id="cb16-420"><a href="#cb16-420" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-est-cov-final</span></span>
 <span id="cb16-421"><a href="#cb16-421" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-422"><a href="#cb16-422" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._multifidelity_advanced <span class="im">import</span> plot_est_cov_final</span>
+<span id="cb16-422"><a href="#cb16-422" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._multifidelity_advanced <span class="im">import</span> plot_est_cov_final</span>
 <span id="cb16-423"><a href="#cb16-423" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-424"><a href="#cb16-424" aria-hidden="true" tabindex="-1"></a><span class="co"># Build labels for the 9 statistics: 3 means + 6 lower-triangle covariance</span></span>
 <span id="cb16-425"><a href="#cb16-425" aria-hidden="true" tabindex="-1"></a>stat_labels <span class="op">=</span> [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{</span><span class="dv">\m</span><span class="vs">u</span><span class="ch">}}</span><span class="vs">_</span><span class="ch">{{</span><span class="sc">{</span>k<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nqoi)]</span>

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Estimator Accuracy and Mean Squared Error – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -2025,27 +2044,27 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-122"><a href="#cb1-122" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-124"><a href="#cb1-124" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-125"><a href="#cb1-125" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.multifidelity.multioutput_ensemble <span class="im">import</span> (</span>
-<span id="cb1-126"><a href="#cb1-126" aria-hidden="true" tabindex="-1"></a>    psd_multioutput_ensemble_3x3,</span>
+<span id="cb1-125"><a href="#cb1-125" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.statest <span class="im">import</span> (</span>
+<span id="cb1-126"><a href="#cb1-126" aria-hidden="true" tabindex="-1"></a>    MultiOutputEnsembleBenchmark,</span>
 <span id="cb1-127"><a href="#cb1-127" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-128"><a href="#cb1-128" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-129"><a href="#cb1-129" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb1-130"><a href="#cb1-130" aria-hidden="true" tabindex="-1"></a>bm <span class="op">=</span> psd_multioutput_ensemble_3x3(bkd)</span>
-<span id="cb1-131"><a href="#cb1-131" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> bm.models()[<span class="dv">0</span>]       <span class="co"># highest-fidelity model</span></span>
-<span id="cb1-132"><a href="#cb1-132" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> bm.prior()</span>
+<span id="cb1-130"><a href="#cb1-130" aria-hidden="true" tabindex="-1"></a>bm <span class="op">=</span> MultiOutputEnsembleBenchmark(bkd, psd<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb1-131"><a href="#cb1-131" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> bm.problem().models()[<span class="dv">0</span>]       <span class="co"># highest-fidelity model</span></span>
+<span id="cb1-132"><a href="#cb1-132" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> bm.problem().prior()</span>
 <span id="cb1-133"><a href="#cb1-133" aria-hidden="true" tabindex="-1"></a>K <span class="op">=</span> model.nqoi()              <span class="co"># 3 QoIs</span></span>
 <span id="cb1-134"><a href="#cb1-134" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-135"><a href="#cb1-135" aria-hidden="true" tabindex="-1"></a><span class="co"># --- True moments from the benchmark (high-accuracy quadrature) ---</span></span>
-<span id="cb1-136"><a href="#cb1-136" aria-hidden="true" tabindex="-1"></a>ensemble <span class="op">=</span> bm._ensemble</span>
-<span id="cb1-137"><a href="#cb1-137" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_numpy(ensemble.means())[<span class="dv">0</span>]          <span class="co"># (K,) model 0 means</span></span>
-<span id="cb1-138"><a href="#cb1-138" aria-hidden="true" tabindex="-1"></a>cov_full <span class="op">=</span> bkd.to_numpy(ensemble.covariance_matrix())</span>
+<span id="cb1-136"><a href="#cb1-136" aria-hidden="true" tabindex="-1"></a><span class="co"># Statistics methods are directly on the benchmark (inherits mixin)</span></span>
+<span id="cb1-137"><a href="#cb1-137" aria-hidden="true" tabindex="-1"></a>true_mean <span class="op">=</span> bkd.to_numpy(bm.means())[<span class="dv">0</span>]          <span class="co"># (K,) model 0 means</span></span>
+<span id="cb1-138"><a href="#cb1-138" aria-hidden="true" tabindex="-1"></a>cov_full <span class="op">=</span> bkd.to_numpy(bm.covariance_matrix())</span>
 <span id="cb1-139"><a href="#cb1-139" aria-hidden="true" tabindex="-1"></a>true_cov <span class="op">=</span> cov_full[:K, :K]                             <span class="co"># (K, K) model 0 block</span></span>
 <span id="cb1-140"><a href="#cb1-140" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-141"><a href="#cb1-141" aria-hidden="true" tabindex="-1"></a><span class="co"># Scalar moments for QoI 0</span></span>
 <span id="cb1-142"><a href="#cb1-142" aria-hidden="true" tabindex="-1"></a>true_var <span class="op">=</span> true_cov[<span class="dv">0</span>, <span class="dv">0</span>]</span>
 <span id="cb1-143"><a href="#cb1-143" aria-hidden="true" tabindex="-1"></a><span class="co"># W_true[0,0] = Var[(q0-mu0)^2] so kappa4 = W[0,0] + sigma^4</span></span>
 <span id="cb1-144"><a href="#cb1-144" aria-hidden="true" tabindex="-1"></a>W_true <span class="op">=</span> bkd.to_numpy(</span>
-<span id="cb1-145"><a href="#cb1-145" aria-hidden="true" tabindex="-1"></a>    ensemble.covariance_of_centered_values_kronecker_product_subproblem(</span>
+<span id="cb1-145"><a href="#cb1-145" aria-hidden="true" tabindex="-1"></a>    bm.covariance_of_centered_values_kronecker_product_subproblem(</span>
 <span id="cb1-146"><a href="#cb1-146" aria-hidden="true" tabindex="-1"></a>        [<span class="dv">0</span>], <span class="bu">list</span>(<span class="bu">range</span>(K))</span>
 <span id="cb1-147"><a href="#cb1-147" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb1-148"><a href="#cb1-148" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -2053,7 +2072,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-150"><a href="#cb1-150" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-151"><a href="#cb1-151" aria-hidden="true" tabindex="-1"></a><span class="co"># B matrix: Cov[q, (q-mu)^{otimes 2}]</span></span>
 <span id="cb1-152"><a href="#cb1-152" aria-hidden="true" tabindex="-1"></a>B_true <span class="op">=</span> bkd.to_numpy(</span>
-<span id="cb1-153"><a href="#cb1-153" aria-hidden="true" tabindex="-1"></a>    ensemble.covariance_of_mean_and_variance_estimators_subproblem(</span>
+<span id="cb1-153"><a href="#cb1-153" aria-hidden="true" tabindex="-1"></a>    bm.covariance_of_mean_and_variance_estimators_subproblem(</span>
 <span id="cb1-154"><a href="#cb1-154" aria-hidden="true" tabindex="-1"></a>        [<span class="dv">0</span>], <span class="bu">list</span>(<span class="bu">range</span>(K))</span>
 <span id="cb1-155"><a href="#cb1-155" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb1-156"><a href="#cb1-156" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -2063,7 +2082,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-162"><a href="#cb1-162" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-163"><a href="#cb1-163" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence of the MC mean estimator. Empirical variance of $\\hat{\\mu}_M$ (dots) versus sample size $M$, compared with the theoretical rate $\\sigma^2/M$ (dashed line). The true variance $\\sigma^2$ is computed via Gaussian quadrature."</span></span>
 <span id="cb1-164"><a href="#cb1-164" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mean-mse-convergence</span></span>
-<span id="cb1-165"><a href="#cb1-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_mean_mse_convergence</span>
+<span id="cb1-165"><a href="#cb1-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_mean_mse_convergence</span>
 <span id="cb1-166"><a href="#cb1-166" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-167"><a href="#cb1-167" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-168"><a href="#cb1-168" aria-hidden="true" tabindex="-1"></a>empirical_var_of_mean, M_values <span class="op">=</span> plot_mean_mse_convergence(</span>
@@ -2102,7 +2121,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-203"><a href="#cb1-203" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-204"><a href="#cb1-204" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence comparison: MC mean estimator vs. MC variance estimator. Both converge at rate $1/M$ (parallel lines on log-log), but the variance estimator has a larger constant, confirming that it requires more samples for the same precision."</span></span>
 <span id="cb1-205"><a href="#cb1-205" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mean-vs-var-convergence</span></span>
-<span id="cb1-206"><a href="#cb1-206" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_mean_vs_var_convergence</span>
+<span id="cb1-206"><a href="#cb1-206" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_mean_vs_var_convergence</span>
 <span id="cb1-207"><a href="#cb1-207" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-208"><a href="#cb1-208" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-209"><a href="#cb1-209" aria-hidden="true" tabindex="-1"></a>plot_mean_vs_var_convergence(</span>
@@ -2263,7 +2282,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-366"><a href="#cb1-366" aria-hidden="true" tabindex="-1"></a>    [block_mv.T,  block_vv],</span>
 <span id="cb1-367"><a href="#cb1-367" aria-hidden="true" tabindex="-1"></a>])</span>
 <span id="cb1-368"><a href="#cb1-368" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_estimator_covariance</span>
+<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_estimator_covariance</span>
 <span id="cb1-370"><a href="#cb1-370" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> (</span>
 <span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a>    [<span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{</span><span class="dv">\m</span><span class="vs">u</span><span class="ch">}}</span><span class="vs">_</span><span class="ch">{{</span><span class="sc">{</span>k<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ch">}}</span><span class="dv">$</span><span class="vs">"</span> <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(K)]</span>
@@ -2285,7 +2304,7 @@ Figure&nbsp;4: Diagonal of the estimator covariance matrix: individual estimator
 <span id="cb1-390"><a href="#cb1-390" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Diagonal of the estimator covariance matrix: individual estimator variances. The covariance entries ($\\hat{\\Sigma}_{jk}$) have much larger estimator variance than the mean entries ($\\hat{\\mu}_k$), confirming that higher-order statistics are harder to estimate."</span></span>
 <span id="cb1-391"><a href="#cb1-391" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-diagonal-variances</span></span>
 <span id="cb1-392"><a href="#cb1-392" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_diagonal_variances</span>
+<span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_diagonal_variances</span>
 <span id="cb1-394"><a href="#cb1-394" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-395"><a href="#cb1-395" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb1-396"><a href="#cb1-396" aria-hidden="true" tabindex="-1"></a>plot_diagonal_variances(empirical_est_cov, theoretical_est_cov, labels, ax)</span>

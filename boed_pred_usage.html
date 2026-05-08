@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Goal-Oriented OED: Convergence Verification – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1103,8 +1122,9 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="learning-objectives">Learning Objectives</h2>
 <p>After completing this tutorial, you will be able to:</p>
 <ul>
-<li>Construct a <code>LinearGaussianPredOEDBenchmark</code> and query its analytical utility</li>
-<li>Use <code>PredictionOEDDiagnostics</code> to compute MSE, bias, and variance of numerical estimates</li>
+<li>Construct a linear Gaussian prediction OED benchmark and query its analytical utility</li>
+<li>Use <code>PredictionOEDDiagnostics</code> to compute numerical utility estimates from raw samples</li>
+<li>Use <code>compute_estimator_mse</code> to decompose MSE into bias and variance</li>
 <li>Explain why the <strong>inner</strong> loop (not outer) drives convergence for goal-oriented OED</li>
 <li>Compare MC convergence rates for the standard deviation utility</li>
 </ul>
@@ -1124,60 +1144,96 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="5e913208" class="cell" data-execution_count="1">
+<div id="2794bdeb" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.benchmarks <span class="im">import</span> LinearGaussianPredOEDBenchmark</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.diagnostics <span class="im">import</span> (</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    PredictionOEDDiagnostics,</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    create_prediction_oed_diagnostics,</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.expdesign.linear_gaussian_pred <span class="im">import</span> (</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    build_linear_gaussian_pred_benchmark,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.data <span class="im">import</span> generate_oed_data</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.diagnostics <span class="im">import</span> (</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    PredictionOEDDiagnostics,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    compute_convergence_rate,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    compute_estimator_mse,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.diagnostics.prediction_diagnostics <span class="im">import</span> (</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    create_prediction_oed_diagnostics,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature <span class="im">import</span> MonteCarloSampler</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature.oed <span class="im">import</span> (</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    OEDQuadratureSampler,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    build_oed_joint_distribution,</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="c82d2c4f" class="cell" data-execution_count="2">
+<div id="6843d425" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>nobs      <span class="op">=</span> <span class="dv">2</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>degree    <span class="op">=</span> <span class="dv">3</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>noise_std <span class="op">=</span> <span class="fl">0.5</span></span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>prior_std <span class="op">=</span> <span class="fl">0.5</span></span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>npred     <span class="op">=</span> <span class="dv">1</span></span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> LinearGaussianPredOEDBenchmark(</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> build_linear_gaussian_pred_benchmark(</span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    nobs, degree, noise_std, prior_std, npred, bkd,</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>diagnostics <span class="op">=</span> create_prediction_oed_diagnostics(benchmark, <span class="st">"linear_stdev"</span>)</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Uniform design weights</span></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> bkd.ones((nobs, <span class="dv">1</span>)) <span class="op">/</span> nobs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>problem   <span class="op">=</span> benchmark.problem()</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>nparams   <span class="op">=</span> problem.nparams()</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Create diagnostics with the linear stdev utility type</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>noise_variances <span class="op">=</span> bkd.full((nobs,), noise_std<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>diagnostics <span class="op">=</span> create_prediction_oed_diagnostics(</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    noise_variances, npred, <span class="st">"linear_mean_mean_stdev"</span>, bkd,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Uniform design weights</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> bkd.ones((nobs, <span class="dv">1</span>)) <span class="op">/</span> nobs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>The diagnostics API separates sampling from estimation. <code>OEDQuadratureSampler</code> draws joint (prior + noise) samples, and <code>generate_oed_data</code> evaluates <code>obs_map</code> and <code>qoi_map</code> on those samples:</p>
+<div id="1d92d003" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>joint_dist <span class="op">=</span> build_oed_joint_distribution(problem, bkd)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_mc_sampler(seed):</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Create a MonteCarloSampler for the joint distribution."""</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    np.random.seed(seed)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> OEDQuadratureSampler(</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        MonteCarloSampler(joint_dist, bkd), nparams, bkd,</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="analytical-reference-value" class="level2">
 <h2 class="anchored" data-anchor-id="analytical-reference-value">Analytical Reference Value</h2>
-<div id="d80e273f" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>exact <span class="op">=</span> diagnostics.exact_utility(weights)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="f9a3ce99" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>exact <span class="op">=</span> benchmark.exact_risk_utility(weights, <span class="st">"linear_mean_mean_stdev"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>A single numerical estimate:</p>
-<div id="c37e7fe9" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>approx <span class="op">=</span> diagnostics.compute_numerical_utility(</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">500</span>,</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">1000</span>,</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    design_weights<span class="op">=</span>weights,</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    seed<span class="op">=</span><span class="dv">42</span>,</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="a2609ae8" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> generate_oed_data(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    problem, make_mc_sampler(<span class="dv">42</span>), make_mc_sampler(<span class="dv">5042</span>), <span class="dv">500</span>, <span class="dv">1000</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>approx <span class="op">=</span> diagnostics.compute_numerical_utility(</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    weights, data.outer_shapes, data.latent_samples,</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    data.inner_shapes, data.qoi_vals,</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="mse-decomposition" class="level2">
 <h2 class="anchored" data-anchor-id="mse-decomposition">MSE Decomposition</h2>
-<div id="5ba0427f" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>bias, variance, mse <span class="op">=</span> diagnostics.compute_mse(</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">100</span>,</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">500</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    nrealizations<span class="op">=</span><span class="dv">50</span>,</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    design_weights<span class="op">=</span>weights,</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    base_seed<span class="op">=</span><span class="dv">0</span>,</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="316c23dd" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_utility_realization(nouter, ninner, seed):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    data <span class="op">=</span> generate_oed_data(</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>        problem, make_mc_sampler(seed), make_mc_sampler(seed <span class="op">+</span> <span class="dv">5000</span>),</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        nouter, ninner,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> diagnostics.compute_numerical_utility(</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        weights, data.outer_shapes, data.latent_samples,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        data.inner_shapes, data.qoi_vals,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>estimates <span class="op">=</span> [compute_utility_realization(<span class="dv">100</span>, <span class="dv">500</span>, seed<span class="op">=</span>s) <span class="cf">for</span> s <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">50</span>)]</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>bias, variance, mse <span class="op">=</span> compute_estimator_mse(exact, estimates)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -1195,19 +1251,31 @@ U_\mathrm{std}(\mathbf{w})
 </section>
 <section id="mse-vs.-inner-sample-count-mc" class="level2">
 <h2 class="anchored" data-anchor-id="mse-vs.-inner-sample-count-mc">MSE vs.&nbsp;Inner Sample Count (MC)</h2>
-<div id="a41c9893" class="cell" data-execution_count="6">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>outer_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>]           <span class="co"># fixed at modest values</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>inner_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">5000</span>]</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>values_mc <span class="op">=</span> diagnostics.compute_mse_for_sample_combinations(</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    outer_sample_counts<span class="op">=</span>outer_counts,</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    inner_sample_counts<span class="op">=</span>inner_counts,</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    nrealizations<span class="op">=</span><span class="dv">50</span>,</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    design_weights<span class="op">=</span>weights,</span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    base_seed<span class="op">=</span><span class="dv">0</span>,</span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="1b6ad8b5" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>outer_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>]           <span class="co"># fixed at modest values</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>inner_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">5000</span>]</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>nrealizations <span class="op">=</span> <span class="dv">50</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sweep_pred_mse(outer_list, inner_list):</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Compute MSE grid over outer x inner sample counts."""</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    all_mse, all_sqbias, all_var <span class="op">=</span> [], [], []</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> ninner <span class="kw">in</span> inner_list:</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        mse_row, sqbias_row, var_row <span class="op">=</span> [], [], []</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> nouter <span class="kw">in</span> outer_list:</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>            ests <span class="op">=</span> [compute_utility_realization(nouter, ninner, seed<span class="op">=</span>s)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> s <span class="kw">in</span> <span class="bu">range</span>(nrealizations)]</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>            b, v, m <span class="op">=</span> compute_estimator_mse(exact, ests)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>            mse_row.append(m)</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>            sqbias_row.append(b<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>            var_row.append(v)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        all_mse.append(bkd.asarray(mse_row))</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        all_sqbias.append(bkd.asarray(sqbias_row))</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        all_var.append(bkd.asarray(var_row))</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">"mse"</span>: all_mse, <span class="st">"sqbias"</span>: all_sqbias, <span class="st">"variance"</span>: all_var}</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>values_mc <span class="op">=</span> sweep_pred_mse(outer_counts, inner_counts)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="cell-fig-pred-mse-mc" class="cell" data-execution_count="7">
+<div id="cell-fig-pred-mse-mc" class="cell" data-execution_count="8">
 <div class="cell-output cell-output-display">
 <div id="fig-pred-mse-mc" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
@@ -1221,36 +1289,40 @@ Figure&nbsp;1: MSE of the goal-oriented utility estimator vs.&nbsp;number of inn
 </div>
 </div>
 </div>
-<div id="603085e3" class="cell" data-execution_count="8">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># MC convergence rates (w.r.t. inner samples)</span></span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>mse_array <span class="op">=</span> bkd.to_numpy(bkd.vstack(values_mc[<span class="st">"mse"</span>]))  <span class="co"># (n_inner, n_outer)</span></span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> jj, nouter <span class="kw">in</span> <span class="bu">enumerate</span>(outer_counts):</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    mse_values <span class="op">=</span> mse_array[:, jj].tolist()</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    rate <span class="op">=</span> PredictionOEDDiagnostics.compute_convergence_rate(inner_counts, mse_values)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="c8bbb470" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># MC convergence rates (w.r.t. inner samples)</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>mse_array <span class="op">=</span> bkd.to_numpy(bkd.vstack(values_mc[<span class="st">"mse"</span>]))  <span class="co"># (n_inner, n_outer)</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> jj, nouter <span class="kw">in</span> <span class="bu">enumerate</span>(outer_counts):</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    mse_values <span class="op">=</span> mse_array[:, jj].tolist()</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    rate <span class="op">=</span> compute_convergence_rate(inner_counts, mse_values)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="avar-deviation-variant" class="level2">
 <h2 class="anchored" data-anchor-id="avar-deviation-variant">AVaR Deviation Variant</h2>
 <p>Switching to AVaR deviation requires only changing the utility type in the <code>create_prediction_oed_diagnostics</code> call.</p>
-<div id="b57dd8ca" class="cell" data-execution_count="9">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>diagnostics_avar <span class="op">=</span> create_prediction_oed_diagnostics(</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    benchmark, <span class="st">"linear_avar"</span>, beta<span class="op">=</span><span class="fl">0.9</span>,</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>exact_avar <span class="op">=</span> diagnostics_avar.exact_utility(weights)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="208152d1" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>diagnostics_avar <span class="op">=</span> create_prediction_oed_diagnostics(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    noise_variances, npred, <span class="st">"linear_avar_mean_avar"</span>, bkd, beta<span class="op">=</span><span class="fl">0.9</span>,</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>exact_avar <span class="op">=</span> benchmark.exact_risk_utility(</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    weights, <span class="st">"linear_avar_mean_avar"</span>, beta<span class="op">=</span><span class="fl">0.9</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="key-takeaways" class="level2">
 <h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
 <ul>
 <li>For goal-oriented OED, <strong>inner samples dominate</strong> MSE convergence — increasing outer samples alone barely reduces error.</li>
-<li><code>PredictionOEDDiagnostics</code> mirrors <code>KLOEDDiagnostics</code>: same <code>compute_mse</code>, <code>compute_mse_for_sample_combinations</code>, and <code>compute_convergence_rate</code> interface.</li>
+<li><code>PredictionOEDDiagnostics</code> accepts raw sample arrays — the caller generates samples and passes them in, making it easy to swap sampling strategies.</li>
+<li><code>compute_estimator_mse</code> and <code>compute_convergence_rate</code> are standalone utilities that work with any estimator.</li>
 <li>Switching between standard deviation and AVaR utility requires only changing <code>utility_type</code> in the <code>create_prediction_oed_diagnostics</code> call.</li>
 </ul>
 </section>
 <section id="exercises" class="level2">
 <h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
 <ol type="1">
-<li><p>Run <code>compute_mse_for_sample_combinations</code> varying <code>outer_counts</code> with <code>ninner</code> fixed at 2000. Confirm that the MSE does not decrease.</p></li>
+<li><p>Run the MSE sweep varying <code>outer_counts</code> with <code>ninner</code> fixed at 2000. Confirm that the MSE does not decrease.</p></li>
 <li><p>Try <code>npred=3</code> (three QoI components). Does the analytical utility change? Does the convergence rate change?</p></li>
 <li><p>Compare <code>exact_utility</code> for designs that concentrate all weight on one observation vs.&nbsp;uniform weights. Which is better for this polynomial model?</p></li>
 </ol>
@@ -1719,211 +1791,269 @@ Figure&nbsp;1: MSE of the goal-oriented utility estimator vs.&nbsp;number of inn
     }
   });
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Goal-Oriented OED: Convergence Verification"</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Using PredictionOEDDiagnostics to verify that numerical risk-aware utility estimates converge to analytical values, and comparing MC vs. Halton convergence rates."</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> usage</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> experimental_design</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 12</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 41</span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - boed_pred_concept</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - boed_pred_gaussian_analysis</span></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - experimental-design</span></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - convergence</span></span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - risk-measures</span></span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - api-usage</span></span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - quasi-monte-carlo</span></span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
-<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
-<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
-<span id="cb9-31"><a href="#cb9-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
-<span id="cb9-32"><a href="#cb9-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/boed_pred_usage.ipynb)</span></span>
-<span id="cb9-33"><a href="#cb9-33" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb9-34"><a href="#cb9-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-35"><a href="#cb9-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
-<span id="cb9-36"><a href="#cb9-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-37"><a href="#cb9-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
-<span id="cb9-38"><a href="#cb9-38" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-39"><a href="#cb9-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct a <span class="in">`LinearGaussianPredOEDBenchmark`</span> and query its analytical utility</span>
-<span id="cb9-40"><a href="#cb9-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Use <span class="in">`PredictionOEDDiagnostics`</span> to compute MSE, bias, and variance of numerical estimates</span>
-<span id="cb9-41"><a href="#cb9-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain why the **inner** loop (not outer) drives convergence for goal-oriented OED</span>
-<span id="cb9-42"><a href="#cb9-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Compare MC convergence rates for the standard deviation utility</span>
-<span id="cb9-43"><a href="#cb9-43" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-44"><a href="#cb9-44" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
-<span id="cb9-45"><a href="#cb9-45" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-46"><a href="#cb9-46" aria-hidden="true" tabindex="-1"></a>Read <span class="co">[</span><span class="ot">Goal-Oriented Bayesian OED</span><span class="co">](boed_pred_concept.qmd)</span> and</span>
-<span id="cb9-47"><a href="#cb9-47" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Gaussian Posterior Expressions</span><span class="co">](boed_pred_gaussian_analysis.qmd)</span>.</span>
-<span id="cb9-48"><a href="#cb9-48" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-49"><a href="#cb9-49" aria-hidden="true" tabindex="-1"></a><span class="fu">## Quick Recap</span></span>
-<span id="cb9-50"><a href="#cb9-50" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-51"><a href="#cb9-51" aria-hidden="true" tabindex="-1"></a>From the analysis tutorial, the expected standard deviation of the posterior</span>
-<span id="cb9-52"><a href="#cb9-52" aria-hidden="true" tabindex="-1"></a>push-forward in a linear Gaussian model is:</span>
-<span id="cb9-53"><a href="#cb9-53" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-54"><a href="#cb9-54" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-55"><a href="#cb9-55" aria-hidden="true" tabindex="-1"></a>U_\mathrm{std}(\mathbf{w})</span>
-<span id="cb9-56"><a href="#cb9-56" aria-hidden="true" tabindex="-1"></a>= \sqrt{\boldsymbol{\psi}\boldsymbol{\Sigma}_\star(\mathbf{w})\boldsymbol{\psi}^\top}.</span>
-<span id="cb9-57"><a href="#cb9-57" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb9-58"><a href="#cb9-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-59"><a href="#cb9-59" aria-hidden="true" tabindex="-1"></a>This is **deterministic** — no averaging over observations is needed.</span>
-<span id="cb9-60"><a href="#cb9-60" aria-hidden="true" tabindex="-1"></a>The numerical estimator must reproduce this from Monte Carlo samples alone.</span>
-<span id="cb9-61"><a href="#cb9-61" aria-hidden="true" tabindex="-1"></a>Because the estimator uses ratios of QoI-weighted likelihoods, the bias</span>
-<span id="cb9-62"><a href="#cb9-62" aria-hidden="true" tabindex="-1"></a>from the inner loop dominates, unlike the EIG estimator.</span>
-<span id="cb9-63"><a href="#cb9-63" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-64"><a href="#cb9-64" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup</span></span>
-<span id="cb9-65"><a href="#cb9-65" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-68"><a href="#cb9-68" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-69"><a href="#cb9-69" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
-<span id="cb9-70"><a href="#cb9-70" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb9-71"><a href="#cb9-71" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb9-72"><a href="#cb9-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.benchmarks <span class="im">import</span> LinearGaussianPredOEDBenchmark</span>
-<span id="cb9-73"><a href="#cb9-73" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.diagnostics <span class="im">import</span> (</span>
-<span id="cb9-74"><a href="#cb9-74" aria-hidden="true" tabindex="-1"></a>    PredictionOEDDiagnostics,</span>
-<span id="cb9-75"><a href="#cb9-75" aria-hidden="true" tabindex="-1"></a>    create_prediction_oed_diagnostics,</span>
-<span id="cb9-76"><a href="#cb9-76" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-77"><a href="#cb9-77" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-78"><a href="#cb9-78" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
-<span id="cb9-79"><a href="#cb9-79" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb9-80"><a href="#cb9-80" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-81"><a href="#cb9-81" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-84"><a href="#cb9-84" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-85"><a href="#cb9-85" aria-hidden="true" tabindex="-1"></a>nobs      <span class="op">=</span> <span class="dv">2</span></span>
-<span id="cb9-86"><a href="#cb9-86" aria-hidden="true" tabindex="-1"></a>degree    <span class="op">=</span> <span class="dv">3</span></span>
-<span id="cb9-87"><a href="#cb9-87" aria-hidden="true" tabindex="-1"></a>noise_std <span class="op">=</span> <span class="fl">0.5</span></span>
-<span id="cb9-88"><a href="#cb9-88" aria-hidden="true" tabindex="-1"></a>prior_std <span class="op">=</span> <span class="fl">0.5</span></span>
-<span id="cb9-89"><a href="#cb9-89" aria-hidden="true" tabindex="-1"></a>npred     <span class="op">=</span> <span class="dv">1</span></span>
-<span id="cb9-90"><a href="#cb9-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-91"><a href="#cb9-91" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> LinearGaussianPredOEDBenchmark(</span>
-<span id="cb9-92"><a href="#cb9-92" aria-hidden="true" tabindex="-1"></a>    nobs, degree, noise_std, prior_std, npred, bkd,</span>
-<span id="cb9-93"><a href="#cb9-93" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-94"><a href="#cb9-94" aria-hidden="true" tabindex="-1"></a>diagnostics <span class="op">=</span> create_prediction_oed_diagnostics(benchmark, <span class="st">"linear_stdev"</span>)</span>
-<span id="cb9-95"><a href="#cb9-95" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-96"><a href="#cb9-96" aria-hidden="true" tabindex="-1"></a><span class="co"># Uniform design weights</span></span>
-<span id="cb9-97"><a href="#cb9-97" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> bkd.ones((nobs, <span class="dv">1</span>)) <span class="op">/</span> nobs</span>
-<span id="cb9-98"><a href="#cb9-98" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-99"><a href="#cb9-99" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-100"><a href="#cb9-100" aria-hidden="true" tabindex="-1"></a><span class="fu">## Analytical Reference Value</span></span>
-<span id="cb9-101"><a href="#cb9-101" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-104"><a href="#cb9-104" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-105"><a href="#cb9-105" aria-hidden="true" tabindex="-1"></a>exact <span class="op">=</span> diagnostics.exact_utility(weights)</span>
-<span id="cb9-106"><a href="#cb9-106" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-107"><a href="#cb9-107" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-108"><a href="#cb9-108" aria-hidden="true" tabindex="-1"></a>A single numerical estimate:</span>
-<span id="cb9-109"><a href="#cb9-109" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-112"><a href="#cb9-112" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-113"><a href="#cb9-113" aria-hidden="true" tabindex="-1"></a>approx <span class="op">=</span> diagnostics.compute_numerical_utility(</span>
-<span id="cb9-114"><a href="#cb9-114" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">500</span>,</span>
-<span id="cb9-115"><a href="#cb9-115" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">1000</span>,</span>
-<span id="cb9-116"><a href="#cb9-116" aria-hidden="true" tabindex="-1"></a>    design_weights<span class="op">=</span>weights,</span>
-<span id="cb9-117"><a href="#cb9-117" aria-hidden="true" tabindex="-1"></a>    seed<span class="op">=</span><span class="dv">42</span>,</span>
-<span id="cb9-118"><a href="#cb9-118" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-119"><a href="#cb9-119" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-120"><a href="#cb9-120" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-121"><a href="#cb9-121" aria-hidden="true" tabindex="-1"></a><span class="fu">## MSE Decomposition</span></span>
-<span id="cb9-122"><a href="#cb9-122" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-125"><a href="#cb9-125" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-126"><a href="#cb9-126" aria-hidden="true" tabindex="-1"></a>bias, variance, mse <span class="op">=</span> diagnostics.compute_mse(</span>
-<span id="cb9-127"><a href="#cb9-127" aria-hidden="true" tabindex="-1"></a>    nouter<span class="op">=</span><span class="dv">100</span>,</span>
-<span id="cb9-128"><a href="#cb9-128" aria-hidden="true" tabindex="-1"></a>    ninner<span class="op">=</span><span class="dv">500</span>,</span>
-<span id="cb9-129"><a href="#cb9-129" aria-hidden="true" tabindex="-1"></a>    nrealizations<span class="op">=</span><span class="dv">50</span>,</span>
-<span id="cb9-130"><a href="#cb9-130" aria-hidden="true" tabindex="-1"></a>    design_weights<span class="op">=</span>weights,</span>
-<span id="cb9-131"><a href="#cb9-131" aria-hidden="true" tabindex="-1"></a>    base_seed<span class="op">=</span><span class="dv">0</span>,</span>
-<span id="cb9-132"><a href="#cb9-132" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-133"><a href="#cb9-133" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-134"><a href="#cb9-134" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-135"><a href="#cb9-135" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb9-136"><a href="#cb9-136" aria-hidden="true" tabindex="-1"></a><span class="fu">## Inner loop dominates for goal-oriented OED</span></span>
-<span id="cb9-137"><a href="#cb9-137" aria-hidden="true" tabindex="-1"></a>Compare to the EIG case in <span class="co">[</span><span class="ot">boed_kl_usage.qmd</span><span class="co">](boed_kl_usage.qmd)</span>: there, outer</span>
-<span id="cb9-138"><a href="#cb9-138" aria-hidden="true" tabindex="-1"></a>samples drive the MSE. Here, the inner samples drive it. You can verify this by</span>
-<span id="cb9-139"><a href="#cb9-139" aria-hidden="true" tabindex="-1"></a>holding <span class="in">`ninner`</span> fixed while increasing <span class="in">`nouter`</span> — the MSE barely changes.</span>
-<span id="cb9-140"><a href="#cb9-140" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb9-141"><a href="#cb9-141" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-142"><a href="#cb9-142" aria-hidden="true" tabindex="-1"></a><span class="fu">## MSE vs. Inner Sample Count (MC)</span></span>
-<span id="cb9-143"><a href="#cb9-143" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-146"><a href="#cb9-146" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-147"><a href="#cb9-147" aria-hidden="true" tabindex="-1"></a>outer_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>]           <span class="co"># fixed at modest values</span></span>
-<span id="cb9-148"><a href="#cb9-148" aria-hidden="true" tabindex="-1"></a>inner_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">5000</span>]</span>
-<span id="cb9-149"><a href="#cb9-149" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-150"><a href="#cb9-150" aria-hidden="true" tabindex="-1"></a>values_mc <span class="op">=</span> diagnostics.compute_mse_for_sample_combinations(</span>
-<span id="cb9-151"><a href="#cb9-151" aria-hidden="true" tabindex="-1"></a>    outer_sample_counts<span class="op">=</span>outer_counts,</span>
-<span id="cb9-152"><a href="#cb9-152" aria-hidden="true" tabindex="-1"></a>    inner_sample_counts<span class="op">=</span>inner_counts,</span>
-<span id="cb9-153"><a href="#cb9-153" aria-hidden="true" tabindex="-1"></a>    nrealizations<span class="op">=</span><span class="dv">50</span>,</span>
-<span id="cb9-154"><a href="#cb9-154" aria-hidden="true" tabindex="-1"></a>    design_weights<span class="op">=</span>weights,</span>
-<span id="cb9-155"><a href="#cb9-155" aria-hidden="true" tabindex="-1"></a>    base_seed<span class="op">=</span><span class="dv">0</span>,</span>
-<span id="cb9-156"><a href="#cb9-156" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-157"><a href="#cb9-157" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-158"><a href="#cb9-158" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-161"><a href="#cb9-161" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-162"><a href="#cb9-162" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb9-163"><a href="#cb9-163" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MSE of the goal-oriented utility estimator vs. number of inner samples for two outer sample counts (MC quadrature). The curves overlap — outer count has negligible effect — confirming that inner samples dominate convergence."</span></span>
-<span id="cb9-164"><a href="#cb9-164" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pred-mse-mc</span></span>
-<span id="cb9-165"><a href="#cb9-165" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_pred_mse_mc</span>
-<span id="cb9-166"><a href="#cb9-166" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-167"><a href="#cb9-167" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb9-168"><a href="#cb9-168" aria-hidden="true" tabindex="-1"></a>plot_pred_mse_mc(axes, bkd, values_mc, outer_counts, inner_counts)</span>
-<span id="cb9-169"><a href="#cb9-169" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Goal-oriented OED: MSE vs. inner samples (MC)"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.01</span>)</span>
-<span id="cb9-170"><a href="#cb9-170" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb9-171"><a href="#cb9-171" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb9-172"><a href="#cb9-172" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-173"><a href="#cb9-173" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-176"><a href="#cb9-176" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-177"><a href="#cb9-177" aria-hidden="true" tabindex="-1"></a><span class="co"># MC convergence rates (w.r.t. inner samples)</span></span>
-<span id="cb9-178"><a href="#cb9-178" aria-hidden="true" tabindex="-1"></a>mse_array <span class="op">=</span> bkd.to_numpy(bkd.vstack(values_mc[<span class="st">"mse"</span>]))  <span class="co"># (n_inner, n_outer)</span></span>
-<span id="cb9-179"><a href="#cb9-179" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> jj, nouter <span class="kw">in</span> <span class="bu">enumerate</span>(outer_counts):</span>
-<span id="cb9-180"><a href="#cb9-180" aria-hidden="true" tabindex="-1"></a>    mse_values <span class="op">=</span> mse_array[:, jj].tolist()</span>
-<span id="cb9-181"><a href="#cb9-181" aria-hidden="true" tabindex="-1"></a>    rate <span class="op">=</span> PredictionOEDDiagnostics.compute_convergence_rate(inner_counts, mse_values)</span>
-<span id="cb9-182"><a href="#cb9-182" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-183"><a href="#cb9-183" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-184"><a href="#cb9-184" aria-hidden="true" tabindex="-1"></a><span class="fu">## AVaR Deviation Variant</span></span>
-<span id="cb9-185"><a href="#cb9-185" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-186"><a href="#cb9-186" aria-hidden="true" tabindex="-1"></a>Switching to AVaR deviation requires only changing the utility type in the</span>
-<span id="cb9-187"><a href="#cb9-187" aria-hidden="true" tabindex="-1"></a><span class="in">`create_prediction_oed_diagnostics`</span> call.</span>
-<span id="cb9-188"><a href="#cb9-188" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-191"><a href="#cb9-191" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb9-192"><a href="#cb9-192" aria-hidden="true" tabindex="-1"></a>diagnostics_avar <span class="op">=</span> create_prediction_oed_diagnostics(</span>
-<span id="cb9-193"><a href="#cb9-193" aria-hidden="true" tabindex="-1"></a>    benchmark, <span class="st">"linear_avar"</span>, beta<span class="op">=</span><span class="fl">0.9</span>,</span>
-<span id="cb9-194"><a href="#cb9-194" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-195"><a href="#cb9-195" aria-hidden="true" tabindex="-1"></a>exact_avar <span class="op">=</span> diagnostics_avar.exact_utility(weights)</span>
-<span id="cb9-196"><a href="#cb9-196" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb9-197"><a href="#cb9-197" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-198"><a href="#cb9-198" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb9-199"><a href="#cb9-199" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-200"><a href="#cb9-200" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For goal-oriented OED, **inner samples dominate** MSE convergence — increasing</span>
-<span id="cb9-201"><a href="#cb9-201" aria-hidden="true" tabindex="-1"></a>  outer samples alone barely reduces error.</span>
-<span id="cb9-202"><a href="#cb9-202" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`PredictionOEDDiagnostics`</span> mirrors <span class="in">`KLOEDDiagnostics`</span>: same <span class="in">`compute_mse`</span>,</span>
-<span id="cb9-203"><a href="#cb9-203" aria-hidden="true" tabindex="-1"></a>  <span class="in">`compute_mse_for_sample_combinations`</span>, and <span class="in">`compute_convergence_rate`</span> interface.</span>
-<span id="cb9-204"><a href="#cb9-204" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Switching between standard deviation and AVaR utility requires only changing</span>
-<span id="cb9-205"><a href="#cb9-205" aria-hidden="true" tabindex="-1"></a>  <span class="in">`utility_type`</span> in the <span class="in">`create_prediction_oed_diagnostics`</span> call.</span>
-<span id="cb9-206"><a href="#cb9-206" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-207"><a href="#cb9-207" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb9-208"><a href="#cb9-208" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-209"><a href="#cb9-209" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Run <span class="in">`compute_mse_for_sample_combinations`</span> varying <span class="in">`outer_counts`</span> with</span>
-<span id="cb9-210"><a href="#cb9-210" aria-hidden="true" tabindex="-1"></a>   <span class="in">`ninner`</span> fixed at 2000. Confirm that the MSE does not decrease.</span>
-<span id="cb9-211"><a href="#cb9-211" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-212"><a href="#cb9-212" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Try <span class="in">`npred=3`</span> (three QoI components). Does the analytical utility change?</span>
-<span id="cb9-213"><a href="#cb9-213" aria-hidden="true" tabindex="-1"></a>   Does the convergence rate change?</span>
-<span id="cb9-214"><a href="#cb9-214" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-215"><a href="#cb9-215" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Compare <span class="in">`exact_utility`</span> for designs that concentrate all weight on one</span>
-<span id="cb9-216"><a href="#cb9-216" aria-hidden="true" tabindex="-1"></a>   observation vs. uniform weights. Which is better for this polynomial model?</span>
-<span id="cb9-217"><a href="#cb9-217" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-218"><a href="#cb9-218" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb9-219"><a href="#cb9-219" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-220"><a href="#cb9-220" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Optimize the design weights using the gradient expressions from</span>
-<span id="cb9-221"><a href="#cb9-221" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">Bayesian OED: Gradients and the Reparameterization Trick</span><span class="co">](boed_kl_gradients.qmd)</span></span>
-<span id="cb9-222"><a href="#cb9-222" aria-hidden="true" tabindex="-1"></a>  adapted for the goal-oriented utility</span>
-<span id="cb9-223"><a href="#cb9-223" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Extend to nonlinear models where no analytical reference is available</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Goal-Oriented OED: Convergence Verification"</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Using PredictionOEDDiagnostics to verify that numerical risk-aware utility estimates converge to analytical values, and comparing MC vs. Halton convergence rates."</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> usage</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> experimental_design</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 12</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 41</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - boed_pred_concept</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - boed_pred_gaussian_analysis</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - experimental-design</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - convergence</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - risk-measures</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - api-usage</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - quasi-monte-carlo</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/boed_pred_usage.ipynb)</span></span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-35"><a href="#cb10-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb10-36"><a href="#cb10-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-37"><a href="#cb10-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb10-38"><a href="#cb10-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-39"><a href="#cb10-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct a linear Gaussian prediction OED benchmark and query its analytical utility</span>
+<span id="cb10-40"><a href="#cb10-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Use <span class="in">`PredictionOEDDiagnostics`</span> to compute numerical utility estimates from raw samples</span>
+<span id="cb10-41"><a href="#cb10-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Use <span class="in">`compute_estimator_mse`</span> to decompose MSE into bias and variance</span>
+<span id="cb10-42"><a href="#cb10-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain why the **inner** loop (not outer) drives convergence for goal-oriented OED</span>
+<span id="cb10-43"><a href="#cb10-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Compare MC convergence rates for the standard deviation utility</span>
+<span id="cb10-44"><a href="#cb10-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-45"><a href="#cb10-45" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb10-46"><a href="#cb10-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-47"><a href="#cb10-47" aria-hidden="true" tabindex="-1"></a>Read <span class="co">[</span><span class="ot">Goal-Oriented Bayesian OED</span><span class="co">](boed_pred_concept.qmd)</span> and</span>
+<span id="cb10-48"><a href="#cb10-48" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Gaussian Posterior Expressions</span><span class="co">](boed_pred_gaussian_analysis.qmd)</span>.</span>
+<span id="cb10-49"><a href="#cb10-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-50"><a href="#cb10-50" aria-hidden="true" tabindex="-1"></a><span class="fu">## Quick Recap</span></span>
+<span id="cb10-51"><a href="#cb10-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-52"><a href="#cb10-52" aria-hidden="true" tabindex="-1"></a>From the analysis tutorial, the expected standard deviation of the posterior</span>
+<span id="cb10-53"><a href="#cb10-53" aria-hidden="true" tabindex="-1"></a>push-forward in a linear Gaussian model is:</span>
+<span id="cb10-54"><a href="#cb10-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-55"><a href="#cb10-55" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb10-56"><a href="#cb10-56" aria-hidden="true" tabindex="-1"></a>U_\mathrm{std}(\mathbf{w})</span>
+<span id="cb10-57"><a href="#cb10-57" aria-hidden="true" tabindex="-1"></a>= \sqrt{\boldsymbol{\psi}\boldsymbol{\Sigma}_\star(\mathbf{w})\boldsymbol{\psi}^\top}.</span>
+<span id="cb10-58"><a href="#cb10-58" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb10-59"><a href="#cb10-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-60"><a href="#cb10-60" aria-hidden="true" tabindex="-1"></a>This is **deterministic** — no averaging over observations is needed.</span>
+<span id="cb10-61"><a href="#cb10-61" aria-hidden="true" tabindex="-1"></a>The numerical estimator must reproduce this from Monte Carlo samples alone.</span>
+<span id="cb10-62"><a href="#cb10-62" aria-hidden="true" tabindex="-1"></a>Because the estimator uses ratios of QoI-weighted likelihoods, the bias</span>
+<span id="cb10-63"><a href="#cb10-63" aria-hidden="true" tabindex="-1"></a>from the inner loop dominates, unlike the EIG estimator.</span>
+<span id="cb10-64"><a href="#cb10-64" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-65"><a href="#cb10-65" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup</span></span>
+<span id="cb10-66"><a href="#cb10-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-69"><a href="#cb10-69" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-70"><a href="#cb10-70" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb10-71"><a href="#cb10-71" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb10-72"><a href="#cb10-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb10-73"><a href="#cb10-73" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.expdesign.linear_gaussian_pred <span class="im">import</span> (</span>
+<span id="cb10-74"><a href="#cb10-74" aria-hidden="true" tabindex="-1"></a>    build_linear_gaussian_pred_benchmark,</span>
+<span id="cb10-75"><a href="#cb10-75" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-76"><a href="#cb10-76" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.data <span class="im">import</span> generate_oed_data</span>
+<span id="cb10-77"><a href="#cb10-77" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.diagnostics <span class="im">import</span> (</span>
+<span id="cb10-78"><a href="#cb10-78" aria-hidden="true" tabindex="-1"></a>    PredictionOEDDiagnostics,</span>
+<span id="cb10-79"><a href="#cb10-79" aria-hidden="true" tabindex="-1"></a>    compute_convergence_rate,</span>
+<span id="cb10-80"><a href="#cb10-80" aria-hidden="true" tabindex="-1"></a>    compute_estimator_mse,</span>
+<span id="cb10-81"><a href="#cb10-81" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-82"><a href="#cb10-82" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.diagnostics.prediction_diagnostics <span class="im">import</span> (</span>
+<span id="cb10-83"><a href="#cb10-83" aria-hidden="true" tabindex="-1"></a>    create_prediction_oed_diagnostics,</span>
+<span id="cb10-84"><a href="#cb10-84" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-85"><a href="#cb10-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature <span class="im">import</span> MonteCarloSampler</span>
+<span id="cb10-86"><a href="#cb10-86" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.quadrature.oed <span class="im">import</span> (</span>
+<span id="cb10-87"><a href="#cb10-87" aria-hidden="true" tabindex="-1"></a>    OEDQuadratureSampler,</span>
+<span id="cb10-88"><a href="#cb10-88" aria-hidden="true" tabindex="-1"></a>    build_oed_joint_distribution,</span>
+<span id="cb10-89"><a href="#cb10-89" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-90"><a href="#cb10-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-91"><a href="#cb10-91" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">1</span>)</span>
+<span id="cb10-92"><a href="#cb10-92" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb10-93"><a href="#cb10-93" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-94"><a href="#cb10-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-97"><a href="#cb10-97" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-98"><a href="#cb10-98" aria-hidden="true" tabindex="-1"></a>nobs      <span class="op">=</span> <span class="dv">2</span></span>
+<span id="cb10-99"><a href="#cb10-99" aria-hidden="true" tabindex="-1"></a>degree    <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb10-100"><a href="#cb10-100" aria-hidden="true" tabindex="-1"></a>noise_std <span class="op">=</span> <span class="fl">0.5</span></span>
+<span id="cb10-101"><a href="#cb10-101" aria-hidden="true" tabindex="-1"></a>prior_std <span class="op">=</span> <span class="fl">0.5</span></span>
+<span id="cb10-102"><a href="#cb10-102" aria-hidden="true" tabindex="-1"></a>npred     <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb10-103"><a href="#cb10-103" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-104"><a href="#cb10-104" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> build_linear_gaussian_pred_benchmark(</span>
+<span id="cb10-105"><a href="#cb10-105" aria-hidden="true" tabindex="-1"></a>    nobs, degree, noise_std, prior_std, npred, bkd,</span>
+<span id="cb10-106"><a href="#cb10-106" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-107"><a href="#cb10-107" aria-hidden="true" tabindex="-1"></a>problem   <span class="op">=</span> benchmark.problem()</span>
+<span id="cb10-108"><a href="#cb10-108" aria-hidden="true" tabindex="-1"></a>nparams   <span class="op">=</span> problem.nparams()</span>
+<span id="cb10-109"><a href="#cb10-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-110"><a href="#cb10-110" aria-hidden="true" tabindex="-1"></a><span class="co"># Create diagnostics with the linear stdev utility type</span></span>
+<span id="cb10-111"><a href="#cb10-111" aria-hidden="true" tabindex="-1"></a>noise_variances <span class="op">=</span> bkd.full((nobs,), noise_std<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb10-112"><a href="#cb10-112" aria-hidden="true" tabindex="-1"></a>diagnostics <span class="op">=</span> create_prediction_oed_diagnostics(</span>
+<span id="cb10-113"><a href="#cb10-113" aria-hidden="true" tabindex="-1"></a>    noise_variances, npred, <span class="st">"linear_mean_mean_stdev"</span>, bkd,</span>
+<span id="cb10-114"><a href="#cb10-114" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-115"><a href="#cb10-115" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-116"><a href="#cb10-116" aria-hidden="true" tabindex="-1"></a><span class="co"># Uniform design weights</span></span>
+<span id="cb10-117"><a href="#cb10-117" aria-hidden="true" tabindex="-1"></a>weights <span class="op">=</span> bkd.ones((nobs, <span class="dv">1</span>)) <span class="op">/</span> nobs</span>
+<span id="cb10-118"><a href="#cb10-118" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-119"><a href="#cb10-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-120"><a href="#cb10-120" aria-hidden="true" tabindex="-1"></a>The diagnostics API separates sampling from estimation. <span class="in">`OEDQuadratureSampler`</span></span>
+<span id="cb10-121"><a href="#cb10-121" aria-hidden="true" tabindex="-1"></a>draws joint (prior + noise) samples, and <span class="in">`generate_oed_data`</span> evaluates</span>
+<span id="cb10-122"><a href="#cb10-122" aria-hidden="true" tabindex="-1"></a><span class="in">`obs_map`</span> and <span class="in">`qoi_map`</span> on those samples:</span>
+<span id="cb10-123"><a href="#cb10-123" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-126"><a href="#cb10-126" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-127"><a href="#cb10-127" aria-hidden="true" tabindex="-1"></a>joint_dist <span class="op">=</span> build_oed_joint_distribution(problem, bkd)</span>
+<span id="cb10-128"><a href="#cb10-128" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-129"><a href="#cb10-129" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_mc_sampler(seed):</span>
+<span id="cb10-130"><a href="#cb10-130" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Create a MonteCarloSampler for the joint distribution."""</span></span>
+<span id="cb10-131"><a href="#cb10-131" aria-hidden="true" tabindex="-1"></a>    np.random.seed(seed)</span>
+<span id="cb10-132"><a href="#cb10-132" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> OEDQuadratureSampler(</span>
+<span id="cb10-133"><a href="#cb10-133" aria-hidden="true" tabindex="-1"></a>        MonteCarloSampler(joint_dist, bkd), nparams, bkd,</span>
+<span id="cb10-134"><a href="#cb10-134" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-135"><a href="#cb10-135" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-136"><a href="#cb10-136" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-137"><a href="#cb10-137" aria-hidden="true" tabindex="-1"></a><span class="fu">## Analytical Reference Value</span></span>
+<span id="cb10-138"><a href="#cb10-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-141"><a href="#cb10-141" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-142"><a href="#cb10-142" aria-hidden="true" tabindex="-1"></a>exact <span class="op">=</span> benchmark.exact_risk_utility(weights, <span class="st">"linear_mean_mean_stdev"</span>)</span>
+<span id="cb10-143"><a href="#cb10-143" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-144"><a href="#cb10-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-145"><a href="#cb10-145" aria-hidden="true" tabindex="-1"></a>A single numerical estimate:</span>
+<span id="cb10-146"><a href="#cb10-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-149"><a href="#cb10-149" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-150"><a href="#cb10-150" aria-hidden="true" tabindex="-1"></a>data <span class="op">=</span> generate_oed_data(</span>
+<span id="cb10-151"><a href="#cb10-151" aria-hidden="true" tabindex="-1"></a>    problem, make_mc_sampler(<span class="dv">42</span>), make_mc_sampler(<span class="dv">5042</span>), <span class="dv">500</span>, <span class="dv">1000</span>,</span>
+<span id="cb10-152"><a href="#cb10-152" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-153"><a href="#cb10-153" aria-hidden="true" tabindex="-1"></a>approx <span class="op">=</span> diagnostics.compute_numerical_utility(</span>
+<span id="cb10-154"><a href="#cb10-154" aria-hidden="true" tabindex="-1"></a>    weights, data.outer_shapes, data.latent_samples,</span>
+<span id="cb10-155"><a href="#cb10-155" aria-hidden="true" tabindex="-1"></a>    data.inner_shapes, data.qoi_vals,</span>
+<span id="cb10-156"><a href="#cb10-156" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-157"><a href="#cb10-157" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-158"><a href="#cb10-158" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-159"><a href="#cb10-159" aria-hidden="true" tabindex="-1"></a><span class="fu">## MSE Decomposition</span></span>
+<span id="cb10-160"><a href="#cb10-160" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-163"><a href="#cb10-163" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-164"><a href="#cb10-164" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_utility_realization(nouter, ninner, seed):</span>
+<span id="cb10-165"><a href="#cb10-165" aria-hidden="true" tabindex="-1"></a>    data <span class="op">=</span> generate_oed_data(</span>
+<span id="cb10-166"><a href="#cb10-166" aria-hidden="true" tabindex="-1"></a>        problem, make_mc_sampler(seed), make_mc_sampler(seed <span class="op">+</span> <span class="dv">5000</span>),</span>
+<span id="cb10-167"><a href="#cb10-167" aria-hidden="true" tabindex="-1"></a>        nouter, ninner,</span>
+<span id="cb10-168"><a href="#cb10-168" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-169"><a href="#cb10-169" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> diagnostics.compute_numerical_utility(</span>
+<span id="cb10-170"><a href="#cb10-170" aria-hidden="true" tabindex="-1"></a>        weights, data.outer_shapes, data.latent_samples,</span>
+<span id="cb10-171"><a href="#cb10-171" aria-hidden="true" tabindex="-1"></a>        data.inner_shapes, data.qoi_vals,</span>
+<span id="cb10-172"><a href="#cb10-172" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-173"><a href="#cb10-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-174"><a href="#cb10-174" aria-hidden="true" tabindex="-1"></a>estimates <span class="op">=</span> [compute_utility_realization(<span class="dv">100</span>, <span class="dv">500</span>, seed<span class="op">=</span>s) <span class="cf">for</span> s <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">50</span>)]</span>
+<span id="cb10-175"><a href="#cb10-175" aria-hidden="true" tabindex="-1"></a>bias, variance, mse <span class="op">=</span> compute_estimator_mse(exact, estimates)</span>
+<span id="cb10-176"><a href="#cb10-176" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-177"><a href="#cb10-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-178"><a href="#cb10-178" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb10-179"><a href="#cb10-179" aria-hidden="true" tabindex="-1"></a><span class="fu">## Inner loop dominates for goal-oriented OED</span></span>
+<span id="cb10-180"><a href="#cb10-180" aria-hidden="true" tabindex="-1"></a>Compare to the EIG case in <span class="co">[</span><span class="ot">boed_kl_usage.qmd</span><span class="co">](boed_kl_usage.qmd)</span>: there, outer</span>
+<span id="cb10-181"><a href="#cb10-181" aria-hidden="true" tabindex="-1"></a>samples drive the MSE. Here, the inner samples drive it. You can verify this by</span>
+<span id="cb10-182"><a href="#cb10-182" aria-hidden="true" tabindex="-1"></a>holding <span class="in">`ninner`</span> fixed while increasing <span class="in">`nouter`</span> — the MSE barely changes.</span>
+<span id="cb10-183"><a href="#cb10-183" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb10-184"><a href="#cb10-184" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-185"><a href="#cb10-185" aria-hidden="true" tabindex="-1"></a><span class="fu">## MSE vs. Inner Sample Count (MC)</span></span>
+<span id="cb10-186"><a href="#cb10-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-189"><a href="#cb10-189" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-190"><a href="#cb10-190" aria-hidden="true" tabindex="-1"></a>outer_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>]           <span class="co"># fixed at modest values</span></span>
+<span id="cb10-191"><a href="#cb10-191" aria-hidden="true" tabindex="-1"></a>inner_counts <span class="op">=</span> [<span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">5000</span>]</span>
+<span id="cb10-192"><a href="#cb10-192" aria-hidden="true" tabindex="-1"></a>nrealizations <span class="op">=</span> <span class="dv">50</span></span>
+<span id="cb10-193"><a href="#cb10-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-194"><a href="#cb10-194" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sweep_pred_mse(outer_list, inner_list):</span>
+<span id="cb10-195"><a href="#cb10-195" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Compute MSE grid over outer x inner sample counts."""</span></span>
+<span id="cb10-196"><a href="#cb10-196" aria-hidden="true" tabindex="-1"></a>    all_mse, all_sqbias, all_var <span class="op">=</span> [], [], []</span>
+<span id="cb10-197"><a href="#cb10-197" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> ninner <span class="kw">in</span> inner_list:</span>
+<span id="cb10-198"><a href="#cb10-198" aria-hidden="true" tabindex="-1"></a>        mse_row, sqbias_row, var_row <span class="op">=</span> [], [], []</span>
+<span id="cb10-199"><a href="#cb10-199" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> nouter <span class="kw">in</span> outer_list:</span>
+<span id="cb10-200"><a href="#cb10-200" aria-hidden="true" tabindex="-1"></a>            ests <span class="op">=</span> [compute_utility_realization(nouter, ninner, seed<span class="op">=</span>s)</span>
+<span id="cb10-201"><a href="#cb10-201" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">for</span> s <span class="kw">in</span> <span class="bu">range</span>(nrealizations)]</span>
+<span id="cb10-202"><a href="#cb10-202" aria-hidden="true" tabindex="-1"></a>            b, v, m <span class="op">=</span> compute_estimator_mse(exact, ests)</span>
+<span id="cb10-203"><a href="#cb10-203" aria-hidden="true" tabindex="-1"></a>            mse_row.append(m)</span>
+<span id="cb10-204"><a href="#cb10-204" aria-hidden="true" tabindex="-1"></a>            sqbias_row.append(b<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb10-205"><a href="#cb10-205" aria-hidden="true" tabindex="-1"></a>            var_row.append(v)</span>
+<span id="cb10-206"><a href="#cb10-206" aria-hidden="true" tabindex="-1"></a>        all_mse.append(bkd.asarray(mse_row))</span>
+<span id="cb10-207"><a href="#cb10-207" aria-hidden="true" tabindex="-1"></a>        all_sqbias.append(bkd.asarray(sqbias_row))</span>
+<span id="cb10-208"><a href="#cb10-208" aria-hidden="true" tabindex="-1"></a>        all_var.append(bkd.asarray(var_row))</span>
+<span id="cb10-209"><a href="#cb10-209" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> {<span class="st">"mse"</span>: all_mse, <span class="st">"sqbias"</span>: all_sqbias, <span class="st">"variance"</span>: all_var}</span>
+<span id="cb10-210"><a href="#cb10-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-211"><a href="#cb10-211" aria-hidden="true" tabindex="-1"></a>values_mc <span class="op">=</span> sweep_pred_mse(outer_counts, inner_counts)</span>
+<span id="cb10-212"><a href="#cb10-212" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-213"><a href="#cb10-213" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-216"><a href="#cb10-216" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-217"><a href="#cb10-217" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb10-218"><a href="#cb10-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MSE of the goal-oriented utility estimator vs. number of inner samples for two outer sample counts (MC quadrature). The curves overlap — outer count has negligible effect — confirming that inner samples dominate convergence."</span></span>
+<span id="cb10-219"><a href="#cb10-219" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pred-mse-mc</span></span>
+<span id="cb10-220"><a href="#cb10-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures <span class="im">import</span> plot_pred_mse_mc</span>
+<span id="cb10-221"><a href="#cb10-221" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-222"><a href="#cb10-222" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb10-223"><a href="#cb10-223" aria-hidden="true" tabindex="-1"></a>plot_pred_mse_mc(axes, bkd, values_mc, outer_counts, inner_counts)</span>
+<span id="cb10-224"><a href="#cb10-224" aria-hidden="true" tabindex="-1"></a>plt.suptitle(<span class="st">"Goal-oriented OED: MSE vs. inner samples (MC)"</span>, fontsize<span class="op">=</span><span class="dv">12</span>, y<span class="op">=</span><span class="fl">1.01</span>)</span>
+<span id="cb10-225"><a href="#cb10-225" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb10-226"><a href="#cb10-226" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb10-227"><a href="#cb10-227" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-228"><a href="#cb10-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-231"><a href="#cb10-231" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-232"><a href="#cb10-232" aria-hidden="true" tabindex="-1"></a><span class="co"># MC convergence rates (w.r.t. inner samples)</span></span>
+<span id="cb10-233"><a href="#cb10-233" aria-hidden="true" tabindex="-1"></a>mse_array <span class="op">=</span> bkd.to_numpy(bkd.vstack(values_mc[<span class="st">"mse"</span>]))  <span class="co"># (n_inner, n_outer)</span></span>
+<span id="cb10-234"><a href="#cb10-234" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> jj, nouter <span class="kw">in</span> <span class="bu">enumerate</span>(outer_counts):</span>
+<span id="cb10-235"><a href="#cb10-235" aria-hidden="true" tabindex="-1"></a>    mse_values <span class="op">=</span> mse_array[:, jj].tolist()</span>
+<span id="cb10-236"><a href="#cb10-236" aria-hidden="true" tabindex="-1"></a>    rate <span class="op">=</span> compute_convergence_rate(inner_counts, mse_values)</span>
+<span id="cb10-237"><a href="#cb10-237" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-238"><a href="#cb10-238" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-239"><a href="#cb10-239" aria-hidden="true" tabindex="-1"></a><span class="fu">## AVaR Deviation Variant</span></span>
+<span id="cb10-240"><a href="#cb10-240" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-241"><a href="#cb10-241" aria-hidden="true" tabindex="-1"></a>Switching to AVaR deviation requires only changing the utility type in the</span>
+<span id="cb10-242"><a href="#cb10-242" aria-hidden="true" tabindex="-1"></a><span class="in">`create_prediction_oed_diagnostics`</span> call.</span>
+<span id="cb10-243"><a href="#cb10-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-246"><a href="#cb10-246" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb10-247"><a href="#cb10-247" aria-hidden="true" tabindex="-1"></a>diagnostics_avar <span class="op">=</span> create_prediction_oed_diagnostics(</span>
+<span id="cb10-248"><a href="#cb10-248" aria-hidden="true" tabindex="-1"></a>    noise_variances, npred, <span class="st">"linear_avar_mean_avar"</span>, bkd, beta<span class="op">=</span><span class="fl">0.9</span>,</span>
+<span id="cb10-249"><a href="#cb10-249" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-250"><a href="#cb10-250" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-251"><a href="#cb10-251" aria-hidden="true" tabindex="-1"></a>exact_avar <span class="op">=</span> benchmark.exact_risk_utility(</span>
+<span id="cb10-252"><a href="#cb10-252" aria-hidden="true" tabindex="-1"></a>    weights, <span class="st">"linear_avar_mean_avar"</span>, beta<span class="op">=</span><span class="fl">0.9</span>,</span>
+<span id="cb10-253"><a href="#cb10-253" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-254"><a href="#cb10-254" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb10-255"><a href="#cb10-255" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-256"><a href="#cb10-256" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb10-257"><a href="#cb10-257" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-258"><a href="#cb10-258" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For goal-oriented OED, **inner samples dominate** MSE convergence — increasing</span>
+<span id="cb10-259"><a href="#cb10-259" aria-hidden="true" tabindex="-1"></a>  outer samples alone barely reduces error.</span>
+<span id="cb10-260"><a href="#cb10-260" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`PredictionOEDDiagnostics`</span> accepts raw sample arrays — the caller generates</span>
+<span id="cb10-261"><a href="#cb10-261" aria-hidden="true" tabindex="-1"></a>  samples and passes them in, making it easy to swap sampling strategies.</span>
+<span id="cb10-262"><a href="#cb10-262" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`compute_estimator_mse`</span> and <span class="in">`compute_convergence_rate`</span> are standalone utilities</span>
+<span id="cb10-263"><a href="#cb10-263" aria-hidden="true" tabindex="-1"></a>  that work with any estimator.</span>
+<span id="cb10-264"><a href="#cb10-264" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Switching between standard deviation and AVaR utility requires only changing</span>
+<span id="cb10-265"><a href="#cb10-265" aria-hidden="true" tabindex="-1"></a>  <span class="in">`utility_type`</span> in the <span class="in">`create_prediction_oed_diagnostics`</span> call.</span>
+<span id="cb10-266"><a href="#cb10-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-267"><a href="#cb10-267" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb10-268"><a href="#cb10-268" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-269"><a href="#cb10-269" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Run the MSE sweep varying <span class="in">`outer_counts`</span> with <span class="in">`ninner`</span> fixed at 2000.</span>
+<span id="cb10-270"><a href="#cb10-270" aria-hidden="true" tabindex="-1"></a>   Confirm that the MSE does not decrease.</span>
+<span id="cb10-271"><a href="#cb10-271" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-272"><a href="#cb10-272" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Try <span class="in">`npred=3`</span> (three QoI components). Does the analytical utility change?</span>
+<span id="cb10-273"><a href="#cb10-273" aria-hidden="true" tabindex="-1"></a>   Does the convergence rate change?</span>
+<span id="cb10-274"><a href="#cb10-274" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-275"><a href="#cb10-275" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Compare <span class="in">`exact_utility`</span> for designs that concentrate all weight on one</span>
+<span id="cb10-276"><a href="#cb10-276" aria-hidden="true" tabindex="-1"></a>   observation vs. uniform weights. Which is better for this polynomial model?</span>
+<span id="cb10-277"><a href="#cb10-277" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-278"><a href="#cb10-278" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb10-279"><a href="#cb10-279" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-280"><a href="#cb10-280" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Optimize the design weights using the gradient expressions from</span>
+<span id="cb10-281"><a href="#cb10-281" aria-hidden="true" tabindex="-1"></a>  <span class="co">[</span><span class="ot">Bayesian OED: Gradients and the Reparameterization Trick</span><span class="co">](boed_kl_gradients.qmd)</span></span>
+<span id="cb10-282"><a href="#cb10-282" aria-hidden="true" tabindex="-1"></a>  adapted for the goal-oriented utility</span>
+<span id="cb10-283"><a href="#cb10-283" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Extend to nonlinear models where no analytical reference is available</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

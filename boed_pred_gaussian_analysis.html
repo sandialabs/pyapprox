@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Risk-Aware Utility: Gaussian Posterior Expressions – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -921,17 +923,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -984,13 +1003,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1013,13 +1032,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1241,13 +1260,13 @@ Q \mid \mathbf{y}
 <section id="numerical-verification" class="level2">
 <h2 class="anchored" data-anchor-id="numerical-verification">Numerical Verification</h2>
 <p>We verify the analytical expressions against Monte Carlo estimates.</p>
-<div id="c75499e8" class="cell" data-execution_count="1">
+<div id="22164a6d" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.analytical <span class="im">import</span> (</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    ConjugateGaussianOEDExpectedStdDev,</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    ConjugateGaussianOEDExpectedAVaRDev,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    ConjugateGaussianOEDDataMeanQoIMeanStdDev,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
@@ -1255,7 +1274,7 @@ Q \mid \mathbf{y}
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a small linear Gaussian problem</span></span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>nobs, degree, noise_std, prior_std <span class="op">=</span> <span class="dv">3</span>, <span class="dv">2</span>, <span class="fl">0.5</span>, <span class="fl">0.5</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.benchmarks.linear_gaussian <span class="im">import</span> _build_vandermonde</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed <span class="im">import</span> _build_vandermonde</span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>obs_locations <span class="op">=</span> bkd.linspace(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, nobs)</span>
 <span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>A <span class="op">=</span> _build_vandermonde(obs_locations, <span class="dv">0</span>, degree, bkd)</span>
@@ -1276,7 +1295,7 @@ Q \mid \mathbf{y}
 <span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>eff_noise_cov <span class="op">=</span> bkd.diag(noise_std<span class="op">**</span><span class="dv">2</span> <span class="op">/</span> w_flat)</span>
 <span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a><span class="co"># Analytical std deviation</span></span>
-<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>util_std <span class="op">=</span> ConjugateGaussianOEDExpectedStdDev(prior_mean, prior_cov, psi, bkd)</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>util_std <span class="op">=</span> ConjugateGaussianOEDDataMeanQoIMeanStdDev(prior_mean, prior_cov, psi, bkd)</span>
 <span id="cb1-36"><a href="#cb1-36" aria-hidden="true" tabindex="-1"></a>util_std.set_observation_matrix(A)</span>
 <span id="cb1-37"><a href="#cb1-37" aria-hidden="true" tabindex="-1"></a>util_std.set_noise_covariance(eff_noise_cov)</span>
 <span id="cb1-38"><a href="#cb1-38" aria-hidden="true" tabindex="-1"></a>sigma_Q <span class="op">=</span> util_std.value()</span>
@@ -1284,7 +1303,7 @@ Q \mid \mathbf{y}
 <span id="cb1-40"><a href="#cb1-40" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-41"><a href="#cb1-41" aria-hidden="true" tabindex="-1"></a><span class="co"># AVaR deviation at p=0.9</span></span>
 <span id="cb1-42"><a href="#cb1-42" aria-hidden="true" tabindex="-1"></a>p <span class="op">=</span> <span class="fl">0.9</span></span>
-<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>util_avar <span class="op">=</span> ConjugateGaussianOEDExpectedAVaRDev(</span>
+<span id="cb1-43"><a href="#cb1-43" aria-hidden="true" tabindex="-1"></a>util_avar <span class="op">=</span> ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev(</span>
 <span id="cb1-44"><a href="#cb1-44" aria-hidden="true" tabindex="-1"></a>    prior_mean, prior_cov, psi, p, bkd,</span>
 <span id="cb1-45"><a href="#cb1-45" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-46"><a href="#cb1-46" aria-hidden="true" tabindex="-1"></a>util_avar.set_observation_matrix(A)</span>
@@ -2000,8 +2019,8 @@ AVaR formula check:     0.710068</code></pre>
 <span id="cb3-216"><a href="#cb3-216" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
 <span id="cb3-217"><a href="#cb3-217" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb3-218"><a href="#cb3-218" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.analytical <span class="im">import</span> (</span>
-<span id="cb3-219"><a href="#cb3-219" aria-hidden="true" tabindex="-1"></a>    ConjugateGaussianOEDExpectedStdDev,</span>
-<span id="cb3-220"><a href="#cb3-220" aria-hidden="true" tabindex="-1"></a>    ConjugateGaussianOEDExpectedAVaRDev,</span>
+<span id="cb3-219"><a href="#cb3-219" aria-hidden="true" tabindex="-1"></a>    ConjugateGaussianOEDDataMeanQoIMeanStdDev,</span>
+<span id="cb3-220"><a href="#cb3-220" aria-hidden="true" tabindex="-1"></a>    ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,</span>
 <span id="cb3-221"><a href="#cb3-221" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb3-222"><a href="#cb3-222" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-223"><a href="#cb3-223" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
@@ -2009,7 +2028,7 @@ AVaR formula check:     0.710068</code></pre>
 <span id="cb3-225"><a href="#cb3-225" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-226"><a href="#cb3-226" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a small linear Gaussian problem</span></span>
 <span id="cb3-227"><a href="#cb3-227" aria-hidden="true" tabindex="-1"></a>nobs, degree, noise_std, prior_std <span class="op">=</span> <span class="dv">3</span>, <span class="dv">2</span>, <span class="fl">0.5</span>, <span class="fl">0.5</span></span>
-<span id="cb3-228"><a href="#cb3-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.expdesign.benchmarks.linear_gaussian <span class="im">import</span> _build_vandermonde</span>
+<span id="cb3-228"><a href="#cb3-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed <span class="im">import</span> _build_vandermonde</span>
 <span id="cb3-229"><a href="#cb3-229" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-230"><a href="#cb3-230" aria-hidden="true" tabindex="-1"></a>obs_locations <span class="op">=</span> bkd.linspace(<span class="op">-</span><span class="fl">1.0</span>, <span class="fl">1.0</span>, nobs)</span>
 <span id="cb3-231"><a href="#cb3-231" aria-hidden="true" tabindex="-1"></a>A <span class="op">=</span> _build_vandermonde(obs_locations, <span class="dv">0</span>, degree, bkd)</span>
@@ -2030,7 +2049,7 @@ AVaR formula check:     0.710068</code></pre>
 <span id="cb3-246"><a href="#cb3-246" aria-hidden="true" tabindex="-1"></a>eff_noise_cov <span class="op">=</span> bkd.diag(noise_std<span class="op">**</span><span class="dv">2</span> <span class="op">/</span> w_flat)</span>
 <span id="cb3-247"><a href="#cb3-247" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-248"><a href="#cb3-248" aria-hidden="true" tabindex="-1"></a><span class="co"># Analytical std deviation</span></span>
-<span id="cb3-249"><a href="#cb3-249" aria-hidden="true" tabindex="-1"></a>util_std <span class="op">=</span> ConjugateGaussianOEDExpectedStdDev(prior_mean, prior_cov, psi, bkd)</span>
+<span id="cb3-249"><a href="#cb3-249" aria-hidden="true" tabindex="-1"></a>util_std <span class="op">=</span> ConjugateGaussianOEDDataMeanQoIMeanStdDev(prior_mean, prior_cov, psi, bkd)</span>
 <span id="cb3-250"><a href="#cb3-250" aria-hidden="true" tabindex="-1"></a>util_std.set_observation_matrix(A)</span>
 <span id="cb3-251"><a href="#cb3-251" aria-hidden="true" tabindex="-1"></a>util_std.set_noise_covariance(eff_noise_cov)</span>
 <span id="cb3-252"><a href="#cb3-252" aria-hidden="true" tabindex="-1"></a>sigma_Q <span class="op">=</span> util_std.value()</span>
@@ -2038,7 +2057,7 @@ AVaR formula check:     0.710068</code></pre>
 <span id="cb3-254"><a href="#cb3-254" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-255"><a href="#cb3-255" aria-hidden="true" tabindex="-1"></a><span class="co"># AVaR deviation at p=0.9</span></span>
 <span id="cb3-256"><a href="#cb3-256" aria-hidden="true" tabindex="-1"></a>p <span class="op">=</span> <span class="fl">0.9</span></span>
-<span id="cb3-257"><a href="#cb3-257" aria-hidden="true" tabindex="-1"></a>util_avar <span class="op">=</span> ConjugateGaussianOEDExpectedAVaRDev(</span>
+<span id="cb3-257"><a href="#cb3-257" aria-hidden="true" tabindex="-1"></a>util_avar <span class="op">=</span> ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev(</span>
 <span id="cb3-258"><a href="#cb3-258" aria-hidden="true" tabindex="-1"></a>    prior_mean, prior_cov, psi, p, bkd,</span>
 <span id="cb3-259"><a href="#cb3-259" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb3-260"><a href="#cb3-260" aria-hidden="true" tabindex="-1"></a>util_avar.set_observation_matrix(A)</span>

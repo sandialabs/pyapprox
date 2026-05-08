@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Practical MCMC: Metropolis-Hastings and DRAM – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1844,8 +1863,8 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-59"><a href="#cb1-59" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-60"><a href="#cb1-60" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
 <span id="cb1-61"><a href="#cb1-61" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d,</span>
+<span id="cb1-62"><a href="#cb1-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb1-63"><a href="#cb1-63" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_1d,</span>
 <span id="cb1-64"><a href="#cb1-64" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-65"><a href="#cb1-65" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
 <span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a>    DiagonalGaussianLogLikelihood,</span>
@@ -1868,9 +1887,9 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-85"><a href="#cb1-85" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
-<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
-<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> benchmark_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
+<span id="cb1-86"><a href="#cb1-86" aria-hidden="true" tabindex="-1"></a>problem_2d <span class="op">=</span> build_cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb1-87"><a href="#cb1-87" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> problem_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
+<span id="cb1-88"><a href="#cb1-88" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> problem_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
 <span id="cb1-89"><a href="#cb1-89" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-90"><a href="#cb1-90" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip-only wrapper (first QoI is tip deflection)</span></span>
 <span id="cb1-91"><a href="#cb1-91" aria-hidden="true" tabindex="-1"></a>tip_model_2d <span class="op">=</span> FunctionFromCallable(</span>
@@ -1900,9 +1919,9 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-115"><a href="#cb1-115" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-116"><a href="#cb1-116" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-117"><a href="#cb1-117" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 1 KLE term (for the DR illustration)</span></span>
-<span id="cb1-118"><a href="#cb1-118" aria-hidden="true" tabindex="-1"></a>benchmark_1d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb1-119"><a href="#cb1-119" aria-hidden="true" tabindex="-1"></a>beam_1d <span class="op">=</span> benchmark_1d.function()   <span class="co"># nvars=1, nqoi=3</span></span>
-<span id="cb1-120"><a href="#cb1-120" aria-hidden="true" tabindex="-1"></a>prior_1d <span class="op">=</span> benchmark_1d.prior()</span>
+<span id="cb1-118"><a href="#cb1-118" aria-hidden="true" tabindex="-1"></a>problem_1d <span class="op">=</span> build_cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb1-119"><a href="#cb1-119" aria-hidden="true" tabindex="-1"></a>beam_1d <span class="op">=</span> problem_1d.function()   <span class="co"># nvars=1, nqoi=3</span></span>
+<span id="cb1-120"><a href="#cb1-120" aria-hidden="true" tabindex="-1"></a>prior_1d <span class="op">=</span> problem_1d.prior()</span>
 <span id="cb1-121"><a href="#cb1-121" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-122"><a href="#cb1-122" aria-hidden="true" tabindex="-1"></a>tip_model_1d <span class="op">=</span> FunctionFromCallable(</span>
 <span id="cb1-123"><a href="#cb1-123" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">1</span>,</span>
@@ -1975,7 +1994,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-192"><a href="#cb1-192" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-193"><a href="#cb1-193" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Effect of proposal width on chain behavior. Left: too narrow — the chain takes tiny steps and explores slowly (high acceptance, high autocorrelation). Center: well-tuned — healthy mixing, the chain moves freely through the posterior. Right: too wide — most proposals land in low-density regions and are rejected, causing the chain to stick in place for long stretches."</span></span>
 <span id="cb1-194"><a href="#cb1-194" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-proposal-width</span></span>
-<span id="cb1-195"><a href="#cb1-195" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_proposal_width</span>
+<span id="cb1-195"><a href="#cb1-195" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_proposal_width</span>
 <span id="cb1-196"><a href="#cb1-196" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-197"><a href="#cb1-197" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">3</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="dv">10</span>))</span>
 <span id="cb1-198"><a href="#cb1-198" aria-hidden="true" tabindex="-1"></a>plot_proposal_width(axes, run_mh, xi1_true, xi2_true)</span>
@@ -1998,7 +2017,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-217"><a href="#cb1-217" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-218"><a href="#cb1-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Acceptance rate and effective sample size (ESS) vs. proposal width. The optimal proposal width produces an acceptance rate of roughly $25\\text{--}40\\%$ for 2D problems. Too narrow → high acceptance but low ESS. Too wide → low acceptance and low ESS."</span></span>
 <span id="cb1-219"><a href="#cb1-219" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-acceptance-rate</span></span>
-<span id="cb1-220"><a href="#cb1-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_acceptance_rate</span>
+<span id="cb1-220"><a href="#cb1-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_acceptance_rate</span>
 <span id="cb1-221"><a href="#cb1-221" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-222"><a href="#cb1-222" aria-hidden="true" tabindex="-1"></a>fig, ax1 <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-223"><a href="#cb1-223" aria-hidden="true" tabindex="-1"></a>ax2 <span class="op">=</span> ax1.twinx()</span>
@@ -2022,7 +2041,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-243"><a href="#cb1-243" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-244"><a href="#cb1-244" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Effect of burn-in removal. The red histogram (all samples) is visibly shifted from the true value because the burn-in transient pulls the distribution toward the starting point. The blue histogram (burn-in removed) centers on the true value. The inset trace plot shows the transient approach phase (gray region)."</span></span>
 <span id="cb1-245"><a href="#cb1-245" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-burnin</span></span>
-<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_burnin</span>
+<span id="cb1-246"><a href="#cb1-246" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_burnin</span>
 <span id="cb1-247"><a href="#cb1-247" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-248"><a href="#cb1-248" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="fl">4.5</span>))</span>
 <span id="cb1-249"><a href="#cb1-249" aria-hidden="true" tabindex="-1"></a>plot_burnin(ax, run_mh, xi1_true)</span>
@@ -2040,7 +2059,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-263"><a href="#cb1-263" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-264"><a href="#cb1-264" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Autocorrelation of the $\\xi_1$ chain for three proposal widths. The well-tuned chain (green) decorrelates within ~20 steps. The too-narrow chain (blue) stays correlated for hundreds of steps. The too-wide chain (red) also decorrelates slowly due to frequent rejections."</span></span>
 <span id="cb1-265"><a href="#cb1-265" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-autocorrelation</span></span>
-<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_autocorrelation</span>
+<span id="cb1-266"><a href="#cb1-266" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_autocorrelation</span>
 <span id="cb1-267"><a href="#cb1-267" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-268"><a href="#cb1-268" aria-hidden="true" tabindex="-1"></a>configs <span class="op">=</span> [</span>
 <span id="cb1-269"><a href="#cb1-269" aria-hidden="true" tabindex="-1"></a>    {<span class="st">"sigma"</span>: np.array([<span class="fl">0.05</span>, <span class="fl">0.05</span>]), <span class="st">"label"</span>: <span class="st">"Too narrow"</span>, <span class="st">"color"</span>: <span class="st">"#2C7FB8"</span>},</span>
@@ -2067,7 +2086,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-292"><a href="#cb1-292" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-293"><a href="#cb1-293" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Delayed Rejection in action. Top: the first proposal (large step) lands in a low-density region and is rejected. Bottom: a second proposal (smaller step) is tried from the same current position. It lands in a higher-density region and is accepted. Without DR, the chain would have stayed put."</span></span>
 <span id="cb1-294"><a href="#cb1-294" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-delayed-rejection</span></span>
-<span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_delayed_rejection</span>
+<span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_delayed_rejection</span>
 <span id="cb1-296"><a href="#cb1-296" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-297"><a href="#cb1-297" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">2</span>, <span class="dv">1</span>, figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="dv">6</span>), sharex<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb1-298"><a href="#cb1-298" aria-hidden="true" tabindex="-1"></a>plot_delayed_rejection(ax1, ax2, tip_model_1d, y_obs_1d, sigma_noise_1d,</span>
@@ -2095,7 +2114,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-322"><a href="#cb1-322" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-323"><a href="#cb1-323" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Adaptive Metropolis learns the posterior shape. Left: initial isotropic proposal (circle) — the chain makes many rejected moves perpendicular to the posterior ridge. Right: after adaptation, the proposal aligns with the posterior's correlation structure (tilted ellipse) — the chain moves efficiently along the ridge."</span></span>
 <span id="cb1-324"><a href="#cb1-324" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-adaptive-proposal</span></span>
-<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_adaptive_proposal</span>
+<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_adaptive_proposal</span>
 <span id="cb1-326"><a href="#cb1-326" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-327"><a href="#cb1-327" aria-hidden="true" tabindex="-1"></a><span class="co"># Run adaptive MH</span></span>
 <span id="cb1-328"><a href="#cb1-328" aria-hidden="true" tabindex="-1"></a>n_steps_am <span class="op">=</span> <span class="dv">3000</span></span>
@@ -2142,7 +2161,7 @@ Figure&nbsp;7: Comparison of four MCMC variants on the KLE beam problem (3,000 s
 <span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Comparison of four MCMC variants on the KLE beam problem (3,000 steps each). Top row: trace plots of $\\xi_1$. Bottom row: 2D scatter of posterior samples with ESS annotations. Focus on ESS rather than acceptance rate — DR achieves 90% acceptance but the lowest ESS, because most accepted moves are tiny second-stage steps that barely advance the chain."</span></span>
 <span id="cb1-373"><a href="#cb1-373" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-dram-comparison</span></span>
-<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_dram_comparison</span>
+<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_dram_comparison</span>
 <span id="cb1-375"><a href="#cb1-375" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-376"><a href="#cb1-376" aria-hidden="true" tabindex="-1"></a>n_compare <span class="op">=</span> <span class="dv">3000</span></span>
 <span id="cb1-377"><a href="#cb1-377" aria-hidden="true" tabindex="-1"></a>burnin_comp <span class="op">=</span> <span class="dv">500</span></span>

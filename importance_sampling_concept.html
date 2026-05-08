@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Importance Sampling for Rare Events – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1222,17 +1241,17 @@ p = \int \mathbb{1}[f(\boldsymbol{\theta}) &gt; c]\, \frac{\pi(\boldsymbol{\thet
 <section id="setup-the-beam-model-with-a-failure-threshold" class="level2">
 <h2 class="anchored" data-anchor-id="setup-the-beam-model-with-a-failure-threshold">Setup: The Beam Model with a Failure Threshold</h2>
 <p>We now apply importance sampling to a realistic engineering model. We use the analytical cantilever beam with <span class="math inline">\(\mathrm{Beta}(2, 5)\)</span> priors on the two Young’s moduli, the same model as the <a href="./quasi_monte_carlo_sampling.html">QMC tutorial</a>.</p>
-<div id="46261c41" class="cell" data-execution_count="6">
+<div id="03fa569b" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.analytic.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d_analytical,</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam_1d_analytical <span class="im">import</span> (</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_1d_analytical,</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_1d_analytical(bkd)</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> benchmark.prior()</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>problem <span class="op">=</span> build_cantilever_beam_1d_analytical(bkd)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> problem.function()</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> problem.prior()</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of uncertain parameters: </span><span class="sc">{</span>model<span class="sc">.</span>nvars()<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of QoIs: </span><span class="sc">{</span>model<span class="sc">.</span>nqoi()<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1242,7 +1261,7 @@ Number of QoIs: 3</code></pre>
 </div>
 </div>
 <p>We define “failure” as tip deflection exceeding a threshold <span class="math inline">\(c\)</span>. We choose <span class="math inline">\(c\)</span> so that the true failure probability is small but still computable by quadrature — around <span class="math inline">\(p \approx 0.01\)</span> to <span class="math inline">\(0.001\)</span>, depending on the model’s output range.</p>
-<div id="2e1997c6" class="cell" data-execution_count="8">
+<div id="4fe7b56b" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Choose a threshold in the upper tail of the deflection distribution</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># using quadrature-weighted CDF evaluation.</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Search for a threshold that gives true p ≈ 0.005</span></span>
@@ -1294,7 +1313,7 @@ Figure&nbsp;4: The beam’s input space with tip deflection shown as a contour m
 <h2 class="anchored" data-anchor-id="choosing-a-biasing-distribution">Choosing a Biasing Distribution</h2>
 <p>For the beam model with bounded Beta priors on <span class="math inline">\((E_1, E_2)\)</span>, a practical strategy is to <strong>shift</strong> the sampling distribution toward the failure region. If we know approximately where failures occur — for example, from the response surface in <a href="#fig-failure-region" class="quarto-xref">Figure&nbsp;4</a> — we can center <span class="math inline">\(q\)</span> near the failure boundary.</p>
 <p>A simple approach: use a truncated normal (or Beta with adjusted parameters) centered near the region of input space where <span class="math inline">\(f\)</span> is close to the threshold. For this tutorial, we approximate the failure region’s center from the response surface and define <span class="math inline">\(q\)</span> as a product of independent shifted Beta distributions.</p>
-<div id="28481df1" class="cell" data-execution_count="10">
+<div id="053b8fdd" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Identify the approximate center of the failure region</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># using the prior samples that exceeded the threshold</span></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>fail_samples <span class="op">=</span> samples_vis_np[:, fail_mask]</span>
@@ -1309,7 +1328,7 @@ Figure&nbsp;4: The beam’s input space with tip deflection shown as a contour m
 <pre><code>Approximate failure region center: [18161.47802503  4556.64103994]</code></pre>
 </div>
 </div>
-<div id="5bcadf11" class="cell" data-execution_count="11">
+<div id="769e2f0c" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Build the biasing distribution q as a product of independent</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co"># truncated normals centered near the failure region, truncated</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="co"># to the prior's support bounds.</span></span>
@@ -1376,7 +1395,7 @@ Figure&nbsp;5: Left: <span class="math inline">\(M = 500\)</span> samples from t
 <section id="is-in-action-variance-reduction" class="level2">
 <h2 class="anchored" data-anchor-id="is-in-action-variance-reduction">IS in Action: Variance Reduction</h2>
 <p>We now run the same 500-replicate experiment as before, but using importance sampling with <span class="math inline">\(M = 500\)</span> samples per replicate.</p>
-<div id="52438427" class="cell" data-execution_count="14">
+<div id="f7c081f7" class="cell" data-execution_count="14">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_failure_estimates(model, variable, threshold, M, n_reps,</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>                         shift_center, bounds, spread_factor, bkd):</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Run n_reps IS experiments, each with M samples."""</span></span>
@@ -2306,15 +2325,15 @@ Figure&nbsp;8: Histograms of log importance weights <span class="math inline">\(
 <span id="cb9-345"><a href="#cb9-345" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-348"><a href="#cb9-348" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb9-349"><a href="#cb9-349" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb9-350"><a href="#cb9-350" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.analytic.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb9-351"><a href="#cb9-351" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d_analytical,</span>
+<span id="cb9-350"><a href="#cb9-350" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam_1d_analytical <span class="im">import</span> (</span>
+<span id="cb9-351"><a href="#cb9-351" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_1d_analytical,</span>
 <span id="cb9-352"><a href="#cb9-352" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb9-353"><a href="#cb9-353" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-354"><a href="#cb9-354" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb9-355"><a href="#cb9-355" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-356"><a href="#cb9-356" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_1d_analytical(bkd)</span>
-<span id="cb9-357"><a href="#cb9-357" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
-<span id="cb9-358"><a href="#cb9-358" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> benchmark.prior()</span>
+<span id="cb9-356"><a href="#cb9-356" aria-hidden="true" tabindex="-1"></a>problem <span class="op">=</span> build_cantilever_beam_1d_analytical(bkd)</span>
+<span id="cb9-357"><a href="#cb9-357" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> problem.function()</span>
+<span id="cb9-358"><a href="#cb9-358" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> problem.prior()</span>
 <span id="cb9-359"><a href="#cb9-359" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb9-360"><a href="#cb9-360" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of uncertain parameters: </span><span class="sc">{</span>model<span class="sc">.</span>nvars()<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb9-361"><a href="#cb9-361" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of QoIs: </span><span class="sc">{</span>model<span class="sc">.</span>nqoi()<span class="sc">}</span><span class="ss">"</span>)</span>

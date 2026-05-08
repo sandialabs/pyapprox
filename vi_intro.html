@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Approximating the Posterior: Introduction to Variational Inference – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1144,9 +1163,9 @@ Figure&nbsp;1: Two strategies for posterior inference. Left: MCMC generates a cl
 \delta_{\text{tip}} = f(E) = \frac{11\, q_0\, L^4}{120\, E\, I}
 \]</span></p>
 <p>We place a Gaussian prior on <span class="math inline">\(E\)</span> and observe tip deflection with Gaussian noise.</p>
-<div id="babe60aa" class="cell" data-execution_count="3">
+<div id="48204b67" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    HomogeneousBeam1DAnalytical,</span>
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
@@ -1256,7 +1275,7 @@ Figure&nbsp;3: VI in action: the Gaussian approximation (blue) evolves from its 
 <li><strong>Build the objective</strong>: combines the variational distribution, the log-likelihood, and the prior into a single function that measures how well the approximation fits.</li>
 <li><strong>Optimize</strong>: adjust the parameters to improve the fit.</li>
 </ol>
-<div id="3ca8112e" class="cell" data-execution_count="7">
+<div id="97555c8b" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.gaussian <span class="im">import</span> ConditionalGaussian</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.conditional.joint <span class="im">import</span> ConditionalIndependentJoint</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.joint.independent <span class="im">import</span> IndependentJoint</span>
@@ -1303,7 +1322,7 @@ Figure&nbsp;3: VI in action: the Gaussian approximation (blue) evolves from its 
 <pre><code>Variational parameters to optimize: 2</code></pre>
 </div>
 </div>
-<div id="2462d528" class="cell" data-execution_count="8">
+<div id="1f40aeb3" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Step 3: Optimize</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> VariationalFitter(bkd)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(elbo)</span>
@@ -1959,7 +1978,7 @@ Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well
 <span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Two strategies for posterior inference. Left: MCMC generates a cloud of samples that trace out the posterior. Right: VI searches over a family of simple distributions (Gaussians of different means and widths) and returns the single best fit. MCMC gives samples; VI gives an analytical curve."</span></span>
 <span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-two-strategies</span></span>
 <span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_two_strategies</span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._vi <span class="im">import</span> plot_two_strategies</span>
 <span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
 <span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a>plot_two_strategies(ax1, ax2)</span>
@@ -1985,12 +2004,12 @@ Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well
 <span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
-<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> _grid_integrate, _beam_exact_posterior</span>
+<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._vi <span class="im">import</span> _grid_integrate, _beam_exact_posterior</span>
 <span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.functions.algebraic.cantilever_beam <span class="im">import</span> (</span>
 <span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a>    HomogeneousBeam1DAnalytical,</span>
 <span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
@@ -2070,7 +2089,7 @@ Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well
 <span id="cb7-178"><a href="#cb7-178" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-179"><a href="#cb7-179" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Five Gaussian candidates overlaid on the exact beam posterior (orange). Each candidate has a different mean and width. Some are clearly poor (wrong center or too wide); the best candidate closely matches the posterior. VI finds the best one automatically."</span></span>
 <span id="cb7-180"><a href="#cb7-180" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-candidate-gallery</span></span>
-<span id="cb7-181"><a href="#cb7-181" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_candidate_gallery</span>
+<span id="cb7-181"><a href="#cb7-181" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._vi <span class="im">import</span> plot_candidate_gallery</span>
 <span id="cb7-182"><a href="#cb7-182" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-183"><a href="#cb7-183" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
 <span id="cb7-184"><a href="#cb7-184" aria-hidden="true" tabindex="-1"></a>plot_candidate_gallery(E_grid, post_exact, exact_mean, exact_std, E_true, ax)</span>
@@ -2088,7 +2107,7 @@ Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well
 <span id="cb7-198"><a href="#cb7-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "VI in action: the Gaussian approximation (blue) evolves from its initial shape (the prior) toward the exact posterior (orange). After just two optimizer steps the approximation is already close; by four steps it is nearly converged."</span></span>
 <span id="cb7-199"><a href="#cb7-199" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-optimization-snapshots</span></span>
 <span id="cb7-200"><a href="#cb7-200" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> math</span>
-<span id="cb7-201"><a href="#cb7-201" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_optimization_snapshots, _make_degree0_expansion</span>
+<span id="cb7-201"><a href="#cb7-201" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._vi <span class="im">import</span> plot_optimization_snapshots, _make_degree0_expansion</span>
 <span id="cb7-202"><a href="#cb7-202" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-203"><a href="#cb7-203" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">4</span>, figsize<span class="op">=</span>(<span class="dv">16</span>, <span class="fl">3.5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb7-204"><a href="#cb7-204" aria-hidden="true" tabindex="-1"></a>plot_optimization_snapshots(</span>
@@ -2187,7 +2206,7 @@ Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well
 <span id="cb7-303"><a href="#cb7-303" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-304"><a href="#cb7-304" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Variational inference result for the 1D beam. The Gaussian VI approximation (blue) closely matches the exact posterior computed on a grid (orange). For this near-Gaussian posterior, VI recovers the correct mean and width."</span></span>
 <span id="cb7-305"><a href="#cb7-305" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-vi-result</span></span>
-<span id="cb7-306"><a href="#cb7-306" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_vi_result</span>
+<span id="cb7-306"><a href="#cb7-306" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._vi <span class="im">import</span> plot_vi_result</span>
 <span id="cb7-307"><a href="#cb7-307" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
 <span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a>plot_vi_result(E_grid, post_exact, vi_mean, vi_stdev, E_true, ax)</span>
@@ -2204,7 +2223,7 @@ Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well
 <span id="cb7-322"><a href="#cb7-322" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-323"><a href="#cb7-323" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Three representations of the same posterior. Orange curve: exact grid posterior. Blue histogram: MCMC samples (2,000 steps, 200 burn-in). Blue dashed curve: VI Gaussian fit. All three agree, validating that VI recovers the correct posterior. MCMC gives discrete samples; VI gives a smooth analytical curve."</span></span>
 <span id="cb7-324"><a href="#cb7-324" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-vi-vs-mcmc</span></span>
-<span id="cb7-325"><a href="#cb7-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_vi_vs_mcmc</span>
+<span id="cb7-325"><a href="#cb7-325" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._vi <span class="im">import</span> plot_vi_vs_mcmc</span>
 <span id="cb7-326"><a href="#cb7-326" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-327"><a href="#cb7-327" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">9</span>, <span class="fl">4.5</span>))</span>
 <span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a>plot_vi_vs_mcmc(</span>
@@ -2226,7 +2245,7 @@ Figure&nbsp;6: A bimodal posterior (orange) that no single Gaussian can fit well
 <span id="cb7-346"><a href="#cb7-346" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-347"><a href="#cb7-347" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A bimodal posterior (orange) that no single Gaussian can fit well. The best Gaussian (left, blue) covers the gap between the two modes, placing mass where the posterior is nearly zero. Alternatively (right, purple), VI may lock onto a single mode and ignore the other. Neither option is satisfactory."</span></span>
 <span id="cb7-348"><a href="#cb7-348" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bimodal</span></span>
-<span id="cb7-349"><a href="#cb7-349" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._vi <span class="im">import</span> plot_bimodal</span>
+<span id="cb7-349"><a href="#cb7-349" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._vi <span class="im">import</span> plot_bimodal</span>
 <span id="cb7-350"><a href="#cb7-350" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-351"><a href="#cb7-351" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
 <span id="cb7-352"><a href="#cb7-352" aria-hidden="true" tabindex="-1"></a>plot_bimodal(ax1, ax2)</span>

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>FunctionTrain Sensitivity: Practical Usage – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1131,7 +1150,7 @@ window.Quarto = {
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="ab2dd377" class="cell" data-execution_count="1">
+<div id="983bb275" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> itertools <span class="im">import</span> chain, combinations</span>
@@ -1149,9 +1168,9 @@ window.Quarto = {
 </section>
 <section id="the-functiontrainsensitivity-class" class="level2">
 <h2 class="anchored" data-anchor-id="the-functiontrainsensitivity-class">The FunctionTrainSensitivity Class</h2>
-<div id="917b8348" class="cell" data-execution_count="2">
+<div id="d21bd0f7" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks <span class="im">import</span> ishigami_3d</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.sensitivity <span class="im">import</span> IshigamiBenchmark</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> (</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    create_pce_functiontrain,</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    PCEFunctionTrain,</span>
@@ -1183,13 +1202,12 @@ window.Quarto = {
 f(x_1, x_2, x_3) = \sin(x_1) + a\sin^2(x_2) + b\,x_3^4\sin(x_1),
 \quad x_k \sim \mathcal{U}[-\pi, \pi]
 \]</span></p>
-<div id="b010f813" class="cell" data-execution_count="3">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> ishigami_3d(bkd)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.function()</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>gt <span class="op">=</span> benchmark.ground_truth()</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">3</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="b631b527" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> IshigamiBenchmark(bkd)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.problem().function()</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.problem().prior()</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">3</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="step-2-analytical-sobol-indices" class="level3">
@@ -1202,14 +1220,14 @@ D = \frac{a^2}{8} + b\frac{\pi^4}{5} + \frac{b^2 \pi^8}{18} + \frac{1}{2},
 \quad V_3 = 0
 \]</span></p>
 <p>Variable <span class="math inline">\(x_3\)</span> has zero main effect but a non-zero total effect through the <span class="math inline">\(x_1\)</span>–<span class="math inline">\(x_3\)</span> interaction term <span class="math inline">\(V_{13} = 8b^2\pi^8/225\)</span>.</p>
-<div id="b31c419a" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>S_exact <span class="op">=</span> bkd.to_numpy(gt.main_effects).ravel()</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>T_exact <span class="op">=</span> bkd.to_numpy(gt.total_effects).ravel()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div id="9af8879b" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>S_exact <span class="op">=</span> bkd.to_numpy(benchmark.main_effects()).ravel()</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>T_exact <span class="op">=</span> bkd.to_numpy(benchmark.total_effects()).ravel()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
 <section id="step-3-create-and-fit-functiontrain" class="level3">
 <h3 class="anchored" data-anchor-id="step-3-create-and-fit-functiontrain">Step 3: Create and Fit FunctionTrain</h3>
-<div id="d942b8ce" class="cell" data-execution_count="5">
+<div id="c5963290" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Rank-3, degree-12 FT with oversampling ratio 5</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>ft_init <span class="op">=</span> create_pce_functiontrain(</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    marginals<span class="op">=</span>marginals,</span>
@@ -1230,7 +1248,7 @@ D = \frac{a^2}{8} + b\frac{\pi^4}{5} + \frac{b^2 \pi^8}{18} + \frac{1}{2},
 </section>
 <section id="step-4-compute-sensitivity-indices" class="level3">
 <h3 class="anchored" data-anchor-id="step-4-compute-sensitivity-indices">Step 4: Compute Sensitivity Indices</h3>
-<div id="f25269da" class="cell" data-execution_count="6">
+<div id="cd694db0" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create statistics objects</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>pce_ft <span class="op">=</span> PCEFunctionTrain(fitted_ft)</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
@@ -1245,7 +1263,7 @@ D = \frac{a^2}{8} + b\frac{\pi^4}{5} + \frac{b^2 \pi^8}{18} + \frac{1}{2},
 <section id="step-5-visualize-results" class="level3">
 <h3 class="anchored" data-anchor-id="step-5-visualize-results">Step 5: Visualize Results</h3>
 <div id="cell-fig-ft-sobol" class="cell" data-execution_count="7">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_sobol</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_sobol</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">4</span>))</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>plot_ft_sobol(S_exact, S_ft, T_exact, T_ft, nvars, axes)</span>
@@ -1270,7 +1288,7 @@ Figure&nbsp;1: FunctionTrain vs.&nbsp;analytical Sobol indices for the Ishigami 
 <h2 class="anchored" data-anchor-id="verifying-sobol-index-properties">Verifying Sobol Index Properties</h2>
 <section id="property-1-sum-of-all-indices-equals-1" class="level3">
 <h3 class="anchored" data-anchor-id="property-1-sum-of-all-indices-equals-1">Property 1: Sum of All Indices Equals 1</h3>
-<div id="6d8c8e29" class="cell" data-execution_count="8">
+<div id="3a7670d0" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute all Sobol indices for small d</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>all_S <span class="op">=</span> {}</span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> u <span class="kw">in</span> all_nonempty_subsets(nvars):</span>
@@ -1279,7 +1297,7 @@ Figure&nbsp;1: FunctionTrain vs.&nbsp;analytical Sobol indices for the Ishigami 
 </section>
 <section id="property-2-total-effect-equals-sum-of-containing-subsets" class="level3">
 <h3 class="anchored" data-anchor-id="property-2-total-effect-equals-sum-of-containing-subsets">Property 2: Total Effect Equals Sum of Containing Subsets</h3>
-<div id="789dbbe8" class="cell" data-execution_count="9">
+<div id="89dc56d3" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nvars):</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    T_k_direct <span class="op">=</span> <span class="bu">float</span>(sensitivity.total_effect_index(k)[<span class="dv">0</span>])</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    T_k_sum <span class="op">=</span> <span class="bu">sum</span>(s <span class="cf">for</span> u, s <span class="kw">in</span> all_S.items() <span class="cf">if</span> k <span class="kw">in</span> u)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1287,7 +1305,7 @@ Figure&nbsp;1: FunctionTrain vs.&nbsp;analytical Sobol indices for the Ishigami 
 </section>
 <section id="property-3-total-effect-main-effect" class="level3">
 <h3 class="anchored" data-anchor-id="property-3-total-effect-main-effect">Property 3: Total Effect &gt;= Main Effect</h3>
-<div id="35d6a96c" class="cell" data-execution_count="10">
+<div id="248baa1f" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nvars):</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    S_k <span class="op">=</span> S_ft[k]</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    T_k <span class="op">=</span> T_ft[k]</span>
@@ -1299,7 +1317,7 @@ Figure&nbsp;1: FunctionTrain vs.&nbsp;analytical Sobol indices for the Ishigami 
 <h2 class="anchored" data-anchor-id="sobol-index-decomposition">Sobol Index Decomposition</h2>
 <p>Since the Ishigami function already contains interactions, we can visualize the full decomposition. With <span class="math inline">\(d = 3\)</span> there are <span class="math inline">\(2^3 - 1 = 7\)</span> indices.</p>
 <div id="cell-fig-ft-decomposition" class="cell" data-execution_count="11">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_decomposition</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_decomposition</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
 <span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>plot_ft_decomposition(all_S, ax)</span>
@@ -1339,7 +1357,7 @@ Figure&nbsp;2: Full Sobol index decomposition of the Ishigami function computed 
 </section>
 <section id="recommended-workflow" class="level3">
 <h3 class="anchored" data-anchor-id="recommended-workflow">Recommended Workflow</h3>
-<div id="e545c735" class="cell" data-execution_count="12">
+<div id="5d5723bf" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Recommended workflow for sensitivity analysis:</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Fit FunctionTrain to target function</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Wrap with PCEFunctionTrain</span></span>
@@ -1898,7 +1916,7 @@ Figure&nbsp;2: Full Sobol index decomposition of the Ishigami function computed 
 <span id="cb13-66"><a href="#cb13-66" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-69"><a href="#cb13-69" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb13-70"><a href="#cb13-70" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal</span>
-<span id="cb13-71"><a href="#cb13-71" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks <span class="im">import</span> ishigami_3d</span>
+<span id="cb13-71"><a href="#cb13-71" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.sensitivity <span class="im">import</span> IshigamiBenchmark</span>
 <span id="cb13-72"><a href="#cb13-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.functiontrain <span class="im">import</span> (</span>
 <span id="cb13-73"><a href="#cb13-73" aria-hidden="true" tabindex="-1"></a>    create_pce_functiontrain,</span>
 <span id="cb13-74"><a href="#cb13-74" aria-hidden="true" tabindex="-1"></a>    PCEFunctionTrain,</span>
@@ -1934,185 +1952,184 @@ Figure&nbsp;2: Full Sobol index decomposition of the Ishigami function computed 
 <span id="cb13-104"><a href="#cb13-104" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb13-105"><a href="#cb13-105" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-108"><a href="#cb13-108" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-109"><a href="#cb13-109" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> ishigami_3d(bkd)</span>
-<span id="cb13-110"><a href="#cb13-110" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.function()</span>
-<span id="cb13-111"><a href="#cb13-111" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb13-112"><a href="#cb13-112" aria-hidden="true" tabindex="-1"></a>gt <span class="op">=</span> benchmark.ground_truth()</span>
-<span id="cb13-113"><a href="#cb13-113" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb13-114"><a href="#cb13-114" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">3</span></span>
-<span id="cb13-115"><a href="#cb13-115" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-116"><a href="#cb13-116" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-117"><a href="#cb13-117" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-118"><a href="#cb13-118" aria-hidden="true" tabindex="-1"></a><span class="fu">### Step 2: Analytical Sobol Indices</span></span>
-<span id="cb13-119"><a href="#cb13-119" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-120"><a href="#cb13-120" aria-hidden="true" tabindex="-1"></a>The Ishigami function has closed-form variance components:</span>
-<span id="cb13-121"><a href="#cb13-121" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-122"><a href="#cb13-122" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb13-123"><a href="#cb13-123" aria-hidden="true" tabindex="-1"></a>D = \frac{a^2}{8} + b\frac{\pi^4}{5} + \frac{b^2 \pi^8}{18} + \frac{1}{2},</span>
-<span id="cb13-124"><a href="#cb13-124" aria-hidden="true" tabindex="-1"></a>\quad V_1 = \frac{1}{2}<span class="sc">\!</span>\left(1 + \frac{b\pi^4}{5}\right)^{<span class="sc">\!</span>2},</span>
-<span id="cb13-125"><a href="#cb13-125" aria-hidden="true" tabindex="-1"></a>\quad V_2 = \frac{a^2}{8},</span>
-<span id="cb13-126"><a href="#cb13-126" aria-hidden="true" tabindex="-1"></a>\quad V_3 = 0</span>
-<span id="cb13-127"><a href="#cb13-127" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb13-128"><a href="#cb13-128" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-129"><a href="#cb13-129" aria-hidden="true" tabindex="-1"></a>Variable $x_3$ has zero main effect but a non-zero total effect through the</span>
-<span id="cb13-130"><a href="#cb13-130" aria-hidden="true" tabindex="-1"></a>$x_1$--$x_3$ interaction term $V_{13} = 8b^2\pi^8/225$.</span>
-<span id="cb13-131"><a href="#cb13-131" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-134"><a href="#cb13-134" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-135"><a href="#cb13-135" aria-hidden="true" tabindex="-1"></a>S_exact <span class="op">=</span> bkd.to_numpy(gt.main_effects).ravel()</span>
-<span id="cb13-136"><a href="#cb13-136" aria-hidden="true" tabindex="-1"></a>T_exact <span class="op">=</span> bkd.to_numpy(gt.total_effects).ravel()</span>
-<span id="cb13-137"><a href="#cb13-137" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-138"><a href="#cb13-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-139"><a href="#cb13-139" aria-hidden="true" tabindex="-1"></a><span class="fu">### Step 3: Create and Fit FunctionTrain</span></span>
-<span id="cb13-140"><a href="#cb13-140" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-143"><a href="#cb13-143" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-144"><a href="#cb13-144" aria-hidden="true" tabindex="-1"></a><span class="co"># Rank-3, degree-12 FT with oversampling ratio 5</span></span>
-<span id="cb13-145"><a href="#cb13-145" aria-hidden="true" tabindex="-1"></a>ft_init <span class="op">=</span> create_pce_functiontrain(</span>
-<span id="cb13-146"><a href="#cb13-146" aria-hidden="true" tabindex="-1"></a>    marginals<span class="op">=</span>marginals,</span>
-<span id="cb13-147"><a href="#cb13-147" aria-hidden="true" tabindex="-1"></a>    max_level<span class="op">=</span><span class="dv">12</span>,</span>
-<span id="cb13-148"><a href="#cb13-148" aria-hidden="true" tabindex="-1"></a>    ranks<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">3</span>],</span>
-<span id="cb13-149"><a href="#cb13-149" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
-<span id="cb13-150"><a href="#cb13-150" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb13-151"><a href="#cb13-151" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-152"><a href="#cb13-152" aria-hidden="true" tabindex="-1"></a>n_train <span class="op">=</span> <span class="dv">5</span> <span class="op">*</span> ft_init.nparams()</span>
-<span id="cb13-153"><a href="#cb13-153" aria-hidden="true" tabindex="-1"></a>train_samples <span class="op">=</span> prior.rvs(n_train)</span>
-<span id="cb13-154"><a href="#cb13-154" aria-hidden="true" tabindex="-1"></a>train_values <span class="op">=</span> func(train_samples)</span>
-<span id="cb13-155"><a href="#cb13-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-156"><a href="#cb13-156" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit</span></span>
-<span id="cb13-157"><a href="#cb13-157" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> ALSFitter(bkd, max_sweeps<span class="op">=</span><span class="dv">50</span>, tol<span class="op">=</span><span class="fl">1e-14</span>)</span>
-<span id="cb13-158"><a href="#cb13-158" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(ft_init, train_samples, train_values)</span>
-<span id="cb13-159"><a href="#cb13-159" aria-hidden="true" tabindex="-1"></a>fitted_ft <span class="op">=</span> result.surrogate()</span>
-<span id="cb13-160"><a href="#cb13-160" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-161"><a href="#cb13-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-162"><a href="#cb13-162" aria-hidden="true" tabindex="-1"></a><span class="fu">### Step 4: Compute Sensitivity Indices</span></span>
-<span id="cb13-163"><a href="#cb13-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-166"><a href="#cb13-166" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-167"><a href="#cb13-167" aria-hidden="true" tabindex="-1"></a><span class="co"># Create statistics objects</span></span>
-<span id="cb13-168"><a href="#cb13-168" aria-hidden="true" tabindex="-1"></a>pce_ft <span class="op">=</span> PCEFunctionTrain(fitted_ft)</span>
-<span id="cb13-169"><a href="#cb13-169" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
-<span id="cb13-170"><a href="#cb13-170" aria-hidden="true" tabindex="-1"></a>sensitivity <span class="op">=</span> FunctionTrainSensitivity(moments)</span>
-<span id="cb13-171"><a href="#cb13-171" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-172"><a href="#cb13-172" aria-hidden="true" tabindex="-1"></a><span class="co"># Get all indices</span></span>
-<span id="cb13-173"><a href="#cb13-173" aria-hidden="true" tabindex="-1"></a>S_ft <span class="op">=</span> bkd.to_numpy(sensitivity.all_main_effects())</span>
-<span id="cb13-174"><a href="#cb13-174" aria-hidden="true" tabindex="-1"></a>T_ft <span class="op">=</span> bkd.to_numpy(sensitivity.all_total_effects())</span>
-<span id="cb13-175"><a href="#cb13-175" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-176"><a href="#cb13-176" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-177"><a href="#cb13-177" aria-hidden="true" tabindex="-1"></a>Note that $S_3 \approx 0$ (no main effect) but $T_3 &gt; 0$ (interaction with $x_1$).</span>
-<span id="cb13-178"><a href="#cb13-178" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-179"><a href="#cb13-179" aria-hidden="true" tabindex="-1"></a><span class="fu">### Step 5: Visualize Results</span></span>
-<span id="cb13-180"><a href="#cb13-180" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-183"><a href="#cb13-183" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-184"><a href="#cb13-184" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "FunctionTrain vs. analytical Sobol indices for the Ishigami function. Left: first-order indices $S_k$. Center: total-order indices $S_k^T$. Right: main vs. total effect scatter---points above the diagonal indicate variables involved in interactions."</span></span>
-<span id="cb13-185"><a href="#cb13-185" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-sobol</span></span>
-<span id="cb13-186"><a href="#cb13-186" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_sobol</span>
-<span id="cb13-187"><a href="#cb13-187" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-188"><a href="#cb13-188" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">4</span>))</span>
-<span id="cb13-189"><a href="#cb13-189" aria-hidden="true" tabindex="-1"></a>plot_ft_sobol(S_exact, S_ft, T_exact, T_ft, nvars, axes)</span>
-<span id="cb13-190"><a href="#cb13-190" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb13-191"><a href="#cb13-191" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb13-192"><a href="#cb13-192" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-193"><a href="#cb13-193" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-194"><a href="#cb13-194" aria-hidden="true" tabindex="-1"></a><span class="fu">## Verifying Sobol Index Properties</span></span>
-<span id="cb13-195"><a href="#cb13-195" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-196"><a href="#cb13-196" aria-hidden="true" tabindex="-1"></a><span class="fu">### Property 1: Sum of All Indices Equals 1</span></span>
-<span id="cb13-197"><a href="#cb13-197" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-200"><a href="#cb13-200" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-201"><a href="#cb13-201" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute all Sobol indices for small d</span></span>
-<span id="cb13-202"><a href="#cb13-202" aria-hidden="true" tabindex="-1"></a>all_S <span class="op">=</span> {}</span>
-<span id="cb13-203"><a href="#cb13-203" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> u <span class="kw">in</span> all_nonempty_subsets(nvars):</span>
-<span id="cb13-204"><a href="#cb13-204" aria-hidden="true" tabindex="-1"></a>    all_S[u] <span class="op">=</span> <span class="bu">float</span>(sensitivity.sobol_index(<span class="bu">list</span>(u))[<span class="dv">0</span>])</span>
-<span id="cb13-205"><a href="#cb13-205" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-206"><a href="#cb13-206" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-207"><a href="#cb13-207" aria-hidden="true" tabindex="-1"></a><span class="fu">### Property 2: Total Effect Equals Sum of Containing Subsets</span></span>
-<span id="cb13-208"><a href="#cb13-208" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-211"><a href="#cb13-211" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-212"><a href="#cb13-212" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nvars):</span>
-<span id="cb13-213"><a href="#cb13-213" aria-hidden="true" tabindex="-1"></a>    T_k_direct <span class="op">=</span> <span class="bu">float</span>(sensitivity.total_effect_index(k)[<span class="dv">0</span>])</span>
-<span id="cb13-214"><a href="#cb13-214" aria-hidden="true" tabindex="-1"></a>    T_k_sum <span class="op">=</span> <span class="bu">sum</span>(s <span class="cf">for</span> u, s <span class="kw">in</span> all_S.items() <span class="cf">if</span> k <span class="kw">in</span> u)</span>
-<span id="cb13-215"><a href="#cb13-215" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-216"><a href="#cb13-216" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-217"><a href="#cb13-217" aria-hidden="true" tabindex="-1"></a><span class="fu">### Property 3: Total Effect &gt;= Main Effect</span></span>
-<span id="cb13-218"><a href="#cb13-218" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-221"><a href="#cb13-221" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-222"><a href="#cb13-222" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nvars):</span>
-<span id="cb13-223"><a href="#cb13-223" aria-hidden="true" tabindex="-1"></a>    S_k <span class="op">=</span> S_ft[k]</span>
-<span id="cb13-224"><a href="#cb13-224" aria-hidden="true" tabindex="-1"></a>    T_k <span class="op">=</span> T_ft[k]</span>
-<span id="cb13-225"><a href="#cb13-225" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> T_k <span class="op">-</span> S_k <span class="op">&gt;=</span> <span class="op">-</span><span class="fl">1e-10</span></span>
-<span id="cb13-226"><a href="#cb13-226" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-227"><a href="#cb13-227" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-228"><a href="#cb13-228" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sobol Index Decomposition</span></span>
-<span id="cb13-229"><a href="#cb13-229" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-230"><a href="#cb13-230" aria-hidden="true" tabindex="-1"></a>Since the Ishigami function already contains interactions, we can visualize the</span>
-<span id="cb13-231"><a href="#cb13-231" aria-hidden="true" tabindex="-1"></a>full decomposition. With $d = 3$ there are $2^3 - 1 = 7$ indices.</span>
-<span id="cb13-232"><a href="#cb13-232" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-235"><a href="#cb13-235" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-236"><a href="#cb13-236" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Full Sobol index decomposition of the Ishigami function computed from the FunctionTrain surrogate. Blue bars are first-order indices, orange are second-order, and green is the third-order interaction. The dominant interaction $S_{0,2}$ reflects the $b\\,x_3^4 \\sin(x_1)$ coupling."</span></span>
-<span id="cb13-237"><a href="#cb13-237" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-decomposition</span></span>
-<span id="cb13-238"><a href="#cb13-238" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_decomposition</span>
-<span id="cb13-239"><a href="#cb13-239" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-240"><a href="#cb13-240" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
-<span id="cb13-241"><a href="#cb13-241" aria-hidden="true" tabindex="-1"></a>plot_ft_decomposition(all_S, ax)</span>
-<span id="cb13-242"><a href="#cb13-242" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb13-243"><a href="#cb13-243" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb13-244"><a href="#cb13-244" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-245"><a href="#cb13-245" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-246"><a href="#cb13-246" aria-hidden="true" tabindex="-1"></a>The dominant interaction index $S_{0,2}$ reflects the $b\,x_3^4 \sin(x_1)$ term.</span>
-<span id="cb13-247"><a href="#cb13-247" aria-hidden="true" tabindex="-1"></a>Variable $x_1$ ($S_2$) has the largest main effect but also a large interaction</span>
-<span id="cb13-248"><a href="#cb13-248" aria-hidden="true" tabindex="-1"></a>contribution. Variable $x_2$ ($S_1$) has a large main effect and no interactions.</span>
-<span id="cb13-249"><a href="#cb13-249" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-250"><a href="#cb13-250" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical Guidelines</span></span>
-<span id="cb13-251"><a href="#cb13-251" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-252"><a href="#cb13-252" aria-hidden="true" tabindex="-1"></a><span class="fu">### When to Use FT Sensitivity Analysis</span></span>
-<span id="cb13-253"><a href="#cb13-253" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-254"><a href="#cb13-254" aria-hidden="true" tabindex="-1"></a>**Advantages:**</span>
-<span id="cb13-255"><a href="#cb13-255" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-256"><a href="#cb13-256" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Analytical**: No Monte Carlo sampling needed</span>
-<span id="cb13-257"><a href="#cb13-257" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**All indices**: Efficiently compute main + total effects</span>
-<span id="cb13-258"><a href="#cb13-258" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Exact** (up to fitting error): No MC variance</span>
-<span id="cb13-259"><a href="#cb13-259" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-260"><a href="#cb13-260" aria-hidden="true" tabindex="-1"></a>**Considerations:**</span>
-<span id="cb13-261"><a href="#cb13-261" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-262"><a href="#cb13-262" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Fitting quality affects results</span>
-<span id="cb13-263"><a href="#cb13-263" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>All general $S_u$ is exponential in $d$</span>
-<span id="cb13-264"><a href="#cb13-264" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Works best for low-rank structure</span>
-<span id="cb13-265"><a href="#cb13-265" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-266"><a href="#cb13-266" aria-hidden="true" tabindex="-1"></a><span class="fu">### Recommended Workflow</span></span>
-<span id="cb13-267"><a href="#cb13-267" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-270"><a href="#cb13-270" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb13-271"><a href="#cb13-271" aria-hidden="true" tabindex="-1"></a><span class="co"># Recommended workflow for sensitivity analysis:</span></span>
-<span id="cb13-272"><a href="#cb13-272" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Fit FunctionTrain to target function</span></span>
-<span id="cb13-273"><a href="#cb13-273" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Wrap with PCEFunctionTrain</span></span>
-<span id="cb13-274"><a href="#cb13-274" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Create FunctionTrainMoments</span></span>
-<span id="cb13-275"><a href="#cb13-275" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Create FunctionTrainSensitivity</span></span>
-<span id="cb13-276"><a href="#cb13-276" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Compute indices: all_main_effects(), all_total_effects(), sobol_index()</span></span>
-<span id="cb13-277"><a href="#cb13-277" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. Verify properties: sum of all S_u ~ 1, T_k &gt;= S_k</span></span>
-<span id="cb13-278"><a href="#cb13-278" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb13-279"><a href="#cb13-279" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-280"><a href="#cb13-280" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb13-281"><a href="#cb13-281" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-282"><a href="#cb13-282" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**FunctionTrainSensitivity** provides <span class="in">`main_effect_index()`</span>, <span class="in">`total_effect_index()`</span>, <span class="in">`sobol_index()`</span></span>
-<span id="cb13-283"><a href="#cb13-283" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Workflow**: FT → PCEFunctionTrain → Moments → Sensitivity</span>
-<span id="cb13-284"><a href="#cb13-284" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Verify properties**: $\sum S_u = 1$ and $\SobolT{k} \geq \Sobol{k}$</span>
-<span id="cb13-285"><a href="#cb13-285" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Interactions**: $\SobolT{k} - \Sobol{k}$ measures interaction strength</span>
-<span id="cb13-286"><a href="#cb13-286" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Sum of first-order**: $\sum_k \Sobol{k} &lt; 1$ indicates interactions</span>
-<span id="cb13-287"><a href="#cb13-287" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-288"><a href="#cb13-288" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb13-289"><a href="#cb13-289" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-290"><a href="#cb13-290" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**(Easy)** Change the Ishigami parameters to $a = 7, b = 0.05$. How do the</span>
-<span id="cb13-291"><a href="#cb13-291" aria-hidden="true" tabindex="-1"></a>   total effects of $x_1$ and $x_3$ change relative to $b = 0.1$?</span>
-<span id="cb13-292"><a href="#cb13-292" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-293"><a href="#cb13-293" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**(Medium)** Create a 5-variable function where only variables 0 and 1</span>
-<span id="cb13-294"><a href="#cb13-294" aria-hidden="true" tabindex="-1"></a>   interact. Compute all indices and verify the structure.</span>
-<span id="cb13-295"><a href="#cb13-295" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-296"><a href="#cb13-296" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**(Challenge)** The Sobol g-function</span>
-<span id="cb13-297"><a href="#cb13-297" aria-hidden="true" tabindex="-1"></a>   $f = \prod_k (|4x_k - 2| + a_k)/(1 + a_k)$ with $x_k \in <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>$ has a kink</span>
-<span id="cb13-298"><a href="#cb13-298" aria-hidden="true" tabindex="-1"></a>   that is hard for polynomials. Fit a FT and measure how many more parameters</span>
-<span id="cb13-299"><a href="#cb13-299" aria-hidden="true" tabindex="-1"></a>   you need compared to the Ishigami function for the same accuracy.</span>
-<span id="cb13-300"><a href="#cb13-300" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-301"><a href="#cb13-301" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb13-302"><a href="#cb13-302" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-303"><a href="#cb13-303" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
-<span id="cb13-304"><a href="#cb13-304" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb13-305"><a href="#cb13-305" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Sensitivity Analysis (Concept)</span><span class="co">](sensitivity_analysis_concept.qmd)</span> --- Review variance decomposition fundamentals</span>
+<span id="cb13-109"><a href="#cb13-109" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> IshigamiBenchmark(bkd)</span>
+<span id="cb13-110"><a href="#cb13-110" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.problem().function()</span>
+<span id="cb13-111"><a href="#cb13-111" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.problem().prior()</span>
+<span id="cb13-112"><a href="#cb13-112" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb13-113"><a href="#cb13-113" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb13-114"><a href="#cb13-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-115"><a href="#cb13-115" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-116"><a href="#cb13-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-117"><a href="#cb13-117" aria-hidden="true" tabindex="-1"></a><span class="fu">### Step 2: Analytical Sobol Indices</span></span>
+<span id="cb13-118"><a href="#cb13-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-119"><a href="#cb13-119" aria-hidden="true" tabindex="-1"></a>The Ishigami function has closed-form variance components:</span>
+<span id="cb13-120"><a href="#cb13-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-121"><a href="#cb13-121" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb13-122"><a href="#cb13-122" aria-hidden="true" tabindex="-1"></a>D = \frac{a^2}{8} + b\frac{\pi^4}{5} + \frac{b^2 \pi^8}{18} + \frac{1}{2},</span>
+<span id="cb13-123"><a href="#cb13-123" aria-hidden="true" tabindex="-1"></a>\quad V_1 = \frac{1}{2}<span class="sc">\!</span>\left(1 + \frac{b\pi^4}{5}\right)^{<span class="sc">\!</span>2},</span>
+<span id="cb13-124"><a href="#cb13-124" aria-hidden="true" tabindex="-1"></a>\quad V_2 = \frac{a^2}{8},</span>
+<span id="cb13-125"><a href="#cb13-125" aria-hidden="true" tabindex="-1"></a>\quad V_3 = 0</span>
+<span id="cb13-126"><a href="#cb13-126" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb13-127"><a href="#cb13-127" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-128"><a href="#cb13-128" aria-hidden="true" tabindex="-1"></a>Variable $x_3$ has zero main effect but a non-zero total effect through the</span>
+<span id="cb13-129"><a href="#cb13-129" aria-hidden="true" tabindex="-1"></a>$x_1$--$x_3$ interaction term $V_{13} = 8b^2\pi^8/225$.</span>
+<span id="cb13-130"><a href="#cb13-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-133"><a href="#cb13-133" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-134"><a href="#cb13-134" aria-hidden="true" tabindex="-1"></a>S_exact <span class="op">=</span> bkd.to_numpy(benchmark.main_effects()).ravel()</span>
+<span id="cb13-135"><a href="#cb13-135" aria-hidden="true" tabindex="-1"></a>T_exact <span class="op">=</span> bkd.to_numpy(benchmark.total_effects()).ravel()</span>
+<span id="cb13-136"><a href="#cb13-136" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-137"><a href="#cb13-137" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-138"><a href="#cb13-138" aria-hidden="true" tabindex="-1"></a><span class="fu">### Step 3: Create and Fit FunctionTrain</span></span>
+<span id="cb13-139"><a href="#cb13-139" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-142"><a href="#cb13-142" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-143"><a href="#cb13-143" aria-hidden="true" tabindex="-1"></a><span class="co"># Rank-3, degree-12 FT with oversampling ratio 5</span></span>
+<span id="cb13-144"><a href="#cb13-144" aria-hidden="true" tabindex="-1"></a>ft_init <span class="op">=</span> create_pce_functiontrain(</span>
+<span id="cb13-145"><a href="#cb13-145" aria-hidden="true" tabindex="-1"></a>    marginals<span class="op">=</span>marginals,</span>
+<span id="cb13-146"><a href="#cb13-146" aria-hidden="true" tabindex="-1"></a>    max_level<span class="op">=</span><span class="dv">12</span>,</span>
+<span id="cb13-147"><a href="#cb13-147" aria-hidden="true" tabindex="-1"></a>    ranks<span class="op">=</span>[<span class="dv">3</span>, <span class="dv">3</span>],</span>
+<span id="cb13-148"><a href="#cb13-148" aria-hidden="true" tabindex="-1"></a>    bkd<span class="op">=</span>bkd,</span>
+<span id="cb13-149"><a href="#cb13-149" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-150"><a href="#cb13-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-151"><a href="#cb13-151" aria-hidden="true" tabindex="-1"></a>n_train <span class="op">=</span> <span class="dv">5</span> <span class="op">*</span> ft_init.nparams()</span>
+<span id="cb13-152"><a href="#cb13-152" aria-hidden="true" tabindex="-1"></a>train_samples <span class="op">=</span> prior.rvs(n_train)</span>
+<span id="cb13-153"><a href="#cb13-153" aria-hidden="true" tabindex="-1"></a>train_values <span class="op">=</span> func(train_samples)</span>
+<span id="cb13-154"><a href="#cb13-154" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-155"><a href="#cb13-155" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit</span></span>
+<span id="cb13-156"><a href="#cb13-156" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> ALSFitter(bkd, max_sweeps<span class="op">=</span><span class="dv">50</span>, tol<span class="op">=</span><span class="fl">1e-14</span>)</span>
+<span id="cb13-157"><a href="#cb13-157" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(ft_init, train_samples, train_values)</span>
+<span id="cb13-158"><a href="#cb13-158" aria-hidden="true" tabindex="-1"></a>fitted_ft <span class="op">=</span> result.surrogate()</span>
+<span id="cb13-159"><a href="#cb13-159" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-160"><a href="#cb13-160" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-161"><a href="#cb13-161" aria-hidden="true" tabindex="-1"></a><span class="fu">### Step 4: Compute Sensitivity Indices</span></span>
+<span id="cb13-162"><a href="#cb13-162" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-165"><a href="#cb13-165" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-166"><a href="#cb13-166" aria-hidden="true" tabindex="-1"></a><span class="co"># Create statistics objects</span></span>
+<span id="cb13-167"><a href="#cb13-167" aria-hidden="true" tabindex="-1"></a>pce_ft <span class="op">=</span> PCEFunctionTrain(fitted_ft)</span>
+<span id="cb13-168"><a href="#cb13-168" aria-hidden="true" tabindex="-1"></a>moments <span class="op">=</span> FunctionTrainMoments(pce_ft)</span>
+<span id="cb13-169"><a href="#cb13-169" aria-hidden="true" tabindex="-1"></a>sensitivity <span class="op">=</span> FunctionTrainSensitivity(moments)</span>
+<span id="cb13-170"><a href="#cb13-170" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-171"><a href="#cb13-171" aria-hidden="true" tabindex="-1"></a><span class="co"># Get all indices</span></span>
+<span id="cb13-172"><a href="#cb13-172" aria-hidden="true" tabindex="-1"></a>S_ft <span class="op">=</span> bkd.to_numpy(sensitivity.all_main_effects())</span>
+<span id="cb13-173"><a href="#cb13-173" aria-hidden="true" tabindex="-1"></a>T_ft <span class="op">=</span> bkd.to_numpy(sensitivity.all_total_effects())</span>
+<span id="cb13-174"><a href="#cb13-174" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-175"><a href="#cb13-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-176"><a href="#cb13-176" aria-hidden="true" tabindex="-1"></a>Note that $S_3 \approx 0$ (no main effect) but $T_3 &gt; 0$ (interaction with $x_1$).</span>
+<span id="cb13-177"><a href="#cb13-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-178"><a href="#cb13-178" aria-hidden="true" tabindex="-1"></a><span class="fu">### Step 5: Visualize Results</span></span>
+<span id="cb13-179"><a href="#cb13-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-182"><a href="#cb13-182" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-183"><a href="#cb13-183" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "FunctionTrain vs. analytical Sobol indices for the Ishigami function. Left: first-order indices $S_k$. Center: total-order indices $S_k^T$. Right: main vs. total effect scatter---points above the diagonal indicate variables involved in interactions."</span></span>
+<span id="cb13-184"><a href="#cb13-184" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-sobol</span></span>
+<span id="cb13-185"><a href="#cb13-185" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_sobol</span>
+<span id="cb13-186"><a href="#cb13-186" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-187"><a href="#cb13-187" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">4</span>))</span>
+<span id="cb13-188"><a href="#cb13-188" aria-hidden="true" tabindex="-1"></a>plot_ft_sobol(S_exact, S_ft, T_exact, T_ft, nvars, axes)</span>
+<span id="cb13-189"><a href="#cb13-189" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb13-190"><a href="#cb13-190" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb13-191"><a href="#cb13-191" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-192"><a href="#cb13-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-193"><a href="#cb13-193" aria-hidden="true" tabindex="-1"></a><span class="fu">## Verifying Sobol Index Properties</span></span>
+<span id="cb13-194"><a href="#cb13-194" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-195"><a href="#cb13-195" aria-hidden="true" tabindex="-1"></a><span class="fu">### Property 1: Sum of All Indices Equals 1</span></span>
+<span id="cb13-196"><a href="#cb13-196" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-199"><a href="#cb13-199" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-200"><a href="#cb13-200" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute all Sobol indices for small d</span></span>
+<span id="cb13-201"><a href="#cb13-201" aria-hidden="true" tabindex="-1"></a>all_S <span class="op">=</span> {}</span>
+<span id="cb13-202"><a href="#cb13-202" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> u <span class="kw">in</span> all_nonempty_subsets(nvars):</span>
+<span id="cb13-203"><a href="#cb13-203" aria-hidden="true" tabindex="-1"></a>    all_S[u] <span class="op">=</span> <span class="bu">float</span>(sensitivity.sobol_index(<span class="bu">list</span>(u))[<span class="dv">0</span>])</span>
+<span id="cb13-204"><a href="#cb13-204" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-205"><a href="#cb13-205" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-206"><a href="#cb13-206" aria-hidden="true" tabindex="-1"></a><span class="fu">### Property 2: Total Effect Equals Sum of Containing Subsets</span></span>
+<span id="cb13-207"><a href="#cb13-207" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-210"><a href="#cb13-210" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-211"><a href="#cb13-211" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nvars):</span>
+<span id="cb13-212"><a href="#cb13-212" aria-hidden="true" tabindex="-1"></a>    T_k_direct <span class="op">=</span> <span class="bu">float</span>(sensitivity.total_effect_index(k)[<span class="dv">0</span>])</span>
+<span id="cb13-213"><a href="#cb13-213" aria-hidden="true" tabindex="-1"></a>    T_k_sum <span class="op">=</span> <span class="bu">sum</span>(s <span class="cf">for</span> u, s <span class="kw">in</span> all_S.items() <span class="cf">if</span> k <span class="kw">in</span> u)</span>
+<span id="cb13-214"><a href="#cb13-214" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-215"><a href="#cb13-215" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-216"><a href="#cb13-216" aria-hidden="true" tabindex="-1"></a><span class="fu">### Property 3: Total Effect &gt;= Main Effect</span></span>
+<span id="cb13-217"><a href="#cb13-217" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-220"><a href="#cb13-220" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-221"><a href="#cb13-221" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nvars):</span>
+<span id="cb13-222"><a href="#cb13-222" aria-hidden="true" tabindex="-1"></a>    S_k <span class="op">=</span> S_ft[k]</span>
+<span id="cb13-223"><a href="#cb13-223" aria-hidden="true" tabindex="-1"></a>    T_k <span class="op">=</span> T_ft[k]</span>
+<span id="cb13-224"><a href="#cb13-224" aria-hidden="true" tabindex="-1"></a>    <span class="cf">assert</span> T_k <span class="op">-</span> S_k <span class="op">&gt;=</span> <span class="op">-</span><span class="fl">1e-10</span></span>
+<span id="cb13-225"><a href="#cb13-225" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-226"><a href="#cb13-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-227"><a href="#cb13-227" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sobol Index Decomposition</span></span>
+<span id="cb13-228"><a href="#cb13-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-229"><a href="#cb13-229" aria-hidden="true" tabindex="-1"></a>Since the Ishigami function already contains interactions, we can visualize the</span>
+<span id="cb13-230"><a href="#cb13-230" aria-hidden="true" tabindex="-1"></a>full decomposition. With $d = 3$ there are $2^3 - 1 = 7$ indices.</span>
+<span id="cb13-231"><a href="#cb13-231" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-234"><a href="#cb13-234" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-235"><a href="#cb13-235" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Full Sobol index decomposition of the Ishigami function computed from the FunctionTrain surrogate. Blue bars are first-order indices, orange are second-order, and green is the third-order interaction. The dominant interaction $S_{0,2}$ reflects the $b\\,x_3^4 \\sin(x_1)$ coupling."</span></span>
+<span id="cb13-236"><a href="#cb13-236" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-decomposition</span></span>
+<span id="cb13-237"><a href="#cb13-237" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_decomposition</span>
+<span id="cb13-238"><a href="#cb13-238" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-239"><a href="#cb13-239" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb13-240"><a href="#cb13-240" aria-hidden="true" tabindex="-1"></a>plot_ft_decomposition(all_S, ax)</span>
+<span id="cb13-241"><a href="#cb13-241" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb13-242"><a href="#cb13-242" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb13-243"><a href="#cb13-243" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-244"><a href="#cb13-244" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-245"><a href="#cb13-245" aria-hidden="true" tabindex="-1"></a>The dominant interaction index $S_{0,2}$ reflects the $b\,x_3^4 \sin(x_1)$ term.</span>
+<span id="cb13-246"><a href="#cb13-246" aria-hidden="true" tabindex="-1"></a>Variable $x_1$ ($S_2$) has the largest main effect but also a large interaction</span>
+<span id="cb13-247"><a href="#cb13-247" aria-hidden="true" tabindex="-1"></a>contribution. Variable $x_2$ ($S_1$) has a large main effect and no interactions.</span>
+<span id="cb13-248"><a href="#cb13-248" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-249"><a href="#cb13-249" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical Guidelines</span></span>
+<span id="cb13-250"><a href="#cb13-250" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-251"><a href="#cb13-251" aria-hidden="true" tabindex="-1"></a><span class="fu">### When to Use FT Sensitivity Analysis</span></span>
+<span id="cb13-252"><a href="#cb13-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-253"><a href="#cb13-253" aria-hidden="true" tabindex="-1"></a>**Advantages:**</span>
+<span id="cb13-254"><a href="#cb13-254" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-255"><a href="#cb13-255" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Analytical**: No Monte Carlo sampling needed</span>
+<span id="cb13-256"><a href="#cb13-256" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**All indices**: Efficiently compute main + total effects</span>
+<span id="cb13-257"><a href="#cb13-257" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Exact** (up to fitting error): No MC variance</span>
+<span id="cb13-258"><a href="#cb13-258" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-259"><a href="#cb13-259" aria-hidden="true" tabindex="-1"></a>**Considerations:**</span>
+<span id="cb13-260"><a href="#cb13-260" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-261"><a href="#cb13-261" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Fitting quality affects results</span>
+<span id="cb13-262"><a href="#cb13-262" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>All general $S_u$ is exponential in $d$</span>
+<span id="cb13-263"><a href="#cb13-263" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Works best for low-rank structure</span>
+<span id="cb13-264"><a href="#cb13-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-265"><a href="#cb13-265" aria-hidden="true" tabindex="-1"></a><span class="fu">### Recommended Workflow</span></span>
+<span id="cb13-266"><a href="#cb13-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-269"><a href="#cb13-269" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb13-270"><a href="#cb13-270" aria-hidden="true" tabindex="-1"></a><span class="co"># Recommended workflow for sensitivity analysis:</span></span>
+<span id="cb13-271"><a href="#cb13-271" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Fit FunctionTrain to target function</span></span>
+<span id="cb13-272"><a href="#cb13-272" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Wrap with PCEFunctionTrain</span></span>
+<span id="cb13-273"><a href="#cb13-273" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Create FunctionTrainMoments</span></span>
+<span id="cb13-274"><a href="#cb13-274" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. Create FunctionTrainSensitivity</span></span>
+<span id="cb13-275"><a href="#cb13-275" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. Compute indices: all_main_effects(), all_total_effects(), sobol_index()</span></span>
+<span id="cb13-276"><a href="#cb13-276" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. Verify properties: sum of all S_u ~ 1, T_k &gt;= S_k</span></span>
+<span id="cb13-277"><a href="#cb13-277" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-278"><a href="#cb13-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-279"><a href="#cb13-279" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb13-280"><a href="#cb13-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-281"><a href="#cb13-281" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**FunctionTrainSensitivity** provides <span class="in">`main_effect_index()`</span>, <span class="in">`total_effect_index()`</span>, <span class="in">`sobol_index()`</span></span>
+<span id="cb13-282"><a href="#cb13-282" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Workflow**: FT → PCEFunctionTrain → Moments → Sensitivity</span>
+<span id="cb13-283"><a href="#cb13-283" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Verify properties**: $\sum S_u = 1$ and $\SobolT{k} \geq \Sobol{k}$</span>
+<span id="cb13-284"><a href="#cb13-284" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Interactions**: $\SobolT{k} - \Sobol{k}$ measures interaction strength</span>
+<span id="cb13-285"><a href="#cb13-285" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Sum of first-order**: $\sum_k \Sobol{k} &lt; 1$ indicates interactions</span>
+<span id="cb13-286"><a href="#cb13-286" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-287"><a href="#cb13-287" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb13-288"><a href="#cb13-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-289"><a href="#cb13-289" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**(Easy)** Change the Ishigami parameters to $a = 7, b = 0.05$. How do the</span>
+<span id="cb13-290"><a href="#cb13-290" aria-hidden="true" tabindex="-1"></a>   total effects of $x_1$ and $x_3$ change relative to $b = 0.1$?</span>
+<span id="cb13-291"><a href="#cb13-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-292"><a href="#cb13-292" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**(Medium)** Create a 5-variable function where only variables 0 and 1</span>
+<span id="cb13-293"><a href="#cb13-293" aria-hidden="true" tabindex="-1"></a>   interact. Compute all indices and verify the structure.</span>
+<span id="cb13-294"><a href="#cb13-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-295"><a href="#cb13-295" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**(Challenge)** The Sobol g-function</span>
+<span id="cb13-296"><a href="#cb13-296" aria-hidden="true" tabindex="-1"></a>   $f = \prod_k (|4x_k - 2| + a_k)/(1 + a_k)$ with $x_k \in <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>$ has a kink</span>
+<span id="cb13-297"><a href="#cb13-297" aria-hidden="true" tabindex="-1"></a>   that is hard for polynomials. Fit a FT and measure how many more parameters</span>
+<span id="cb13-298"><a href="#cb13-298" aria-hidden="true" tabindex="-1"></a>   you need compared to the Ishigami function for the same accuracy.</span>
+<span id="cb13-299"><a href="#cb13-299" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-300"><a href="#cb13-300" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb13-301"><a href="#cb13-301" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-302"><a href="#cb13-302" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb13-303"><a href="#cb13-303" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-304"><a href="#cb13-304" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Sensitivity Analysis (Concept)</span><span class="co">](sensitivity_analysis_concept.qmd)</span> --- Review variance decomposition fundamentals</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

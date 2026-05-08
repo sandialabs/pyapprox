@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Monte Carlo Sampling – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1119,20 +1138,20 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="setup-the-beam-model-and-prior">Setup: The Beam Model and Prior</h2>
 <p>Throughout this tutorial we use a <strong>1D Euler–Bernoulli beam</strong> as a fast surrogate for a more expensive 2D finite-element cantilever beam model. The 1D simplification captures the essential physics — spatially varying bending stiffness, tip deflection, stress, and curvature — while running in about 1 ms per sample, making the Monte Carlo experiments below feasible.</p>
 <p>The bending stiffness <span class="math inline">\(EI(x)\)</span> is modeled by a two-term Karhunen–Lo`eve expansion (KLE). The two uncertain parameters <span class="math inline">\(\xi_1, \xi_2 \sim \mathcal{N}(0,1)\)</span> control the dominant modes of the stiffness field. The model returns three QoIs: tip deflection, integrated bending stress, and maximum curvature.</p>
-<div id="a71f7ce6" class="cell" data-execution_count="1">
+<div id="f09ca7ef" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_1d,</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Create benchmark: KLE beam with 2 uncertain parameters</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_1d(bkd, nx<span class="op">=</span><span class="dv">40</span>, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> benchmark.prior()</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Create problem: KLE beam with 2 uncertain parameters</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>problem <span class="op">=</span> build_cantilever_beam_1d(bkd, nx<span class="op">=</span><span class="dv">40</span>, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> problem.function()</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> problem.prior()</span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of uncertain parameters: </span><span class="sc">{</span>model<span class="sc">.</span>nvars()<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of QoIs: </span><span class="sc">{</span>model<span class="sc">.</span>nqoi()<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1160,7 +1179,7 @@ Figure&nbsp;1: Deflected beam shapes for two different KLE parameter values. Col
 <section id="sampling-the-prior-and-evaluating-the-model" class="level2">
 <h2 class="anchored" data-anchor-id="sampling-the-prior-and-evaluating-the-model">Sampling the Prior and Evaluating the Model</h2>
 <p>The Monte Carlo idea is direct: draw <span class="math inline">\(M\)</span> independent samples <span class="math inline">\(\boldsymbol{\theta}^{(1)}, \dots, \boldsymbol{\theta}^{(M)}\)</span> from the prior <span class="math inline">\(\pi(\boldsymbol{\theta})\)</span>, evaluate the model at each, and use the results to estimate statistics of the QoI.</p>
-<div id="86b8163c" class="cell" data-execution_count="3">
+<div id="9e014d34" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> <span class="dv">50</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> variable.rvs(M)                          <span class="co"># shape: (2, M)</span></span>
@@ -1195,7 +1214,7 @@ Figure&nbsp;2: Left: <span class="math inline">\(M = 50\)</span> samples drawn f
 <section id="accelerating-evaluation-with-make_parallel" class="level2">
 <h2 class="anchored" data-anchor-id="accelerating-evaluation-with-make_parallel">Accelerating Evaluation with <code>make_parallel</code></h2>
 <p>Each call to the beam model solves a separate FEM problem. When <span class="math inline">\(M\)</span> is large, these independent solves can run in parallel across CPU cores. PyApprox’s <code>make_parallel</code> wraps any model satisfying <code>FunctionProtocol</code> with a parallel backend:</p>
-<div id="ca0c64d1" class="cell" data-execution_count="5">
+<div id="ccbef3e6" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.parallel <span class="im">import</span> make_parallel</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> make_parallel(model, backend<span class="op">=</span><span class="st">"joblib_processes"</span>, n_jobs<span class="op">=-</span><span class="dv">1</span>)</span>
@@ -1232,7 +1251,7 @@ Workers: -1</code></pre>
 <p><span class="math display">\[
 \hat{\sigma}^2_M = \frac{1}{M-1} \sum_{i=1}^{M} \left(q^{(i)} - \hat{\mu}_M\right)^2
 \]</span></p>
-<div id="2ba06432" class="cell" data-execution_count="6">
+<div id="8bab5808" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>mc_mean <span class="op">=</span> bkd.to_float(bkd.mean(qoi_values))</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>mc_var <span class="op">=</span> bkd.to_float(bkd.var(qoi_values, ddof<span class="op">=</span><span class="dv">1</span>))</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1248,10 +1267,10 @@ MC variance estimate (M=50): 7.244091</code></pre>
 <section id="estimates-are-random" class="level2">
 <h2 class="anchored" data-anchor-id="estimates-are-random">Estimates Are Random</h2>
 <p>To judge the accuracy of Monte Carlo, we need a reference answer. We compute the true mean and variance of the QoI using a high-accuracy deterministic method (quadrature rules are covered in a later tutorial).</p>
-<div id="17e505ce" class="cell" data-execution_count="7">
+<div id="9976b1ab" class="cell" data-execution_count="7">
 <div class="cell-output cell-output-stdout">
 <pre><code>True mean (quadrature):     9.526642
-True variance (quadrature): 6.4281436685</code></pre>
+True variance (quadrature): 6.4281436678</code></pre>
 </div>
 </div>
 <p>Because the samples are random, the estimates <span class="math inline">\(\hat{\mu}_M\)</span> and <span class="math inline">\(\hat{\sigma}^2_M\)</span> are themselves <strong>random variables</strong>. A different draw of <span class="math inline">\(M\)</span> samples gives a different estimate. <a href="#fig-mc-variability-small" class="quarto-xref">Figure&nbsp;3</a> demonstrates this: we repeat the Monte Carlo experiment 200 times, each with <span class="math inline">\(M = 10\)</span> samples, and collect the resulting mean estimates into a histogram.</p>
@@ -1265,7 +1284,7 @@ True variance (quadrature): 6.4281436685</code></pre>
 <span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> model(s)[<span class="dv">0</span>]</span>
 <span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    means_small[i] <span class="op">=</span> bkd.to_float(bkd.mean(q))</span>
 <span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_mc_variability_histogram</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_mc_variability_histogram</span>
 <span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">3.5</span>))</span>
 <span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>plot_mc_variability_histogram(means_small, true_mean, n_reps, M_small, ax)</span>
@@ -1298,7 +1317,7 @@ Figure&nbsp;3: Variability of the Monte Carlo mean estimate. Each of 200 indepen
 <span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> model(s)[<span class="dv">0</span>]</span>
 <span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    means_large[i] <span class="op">=</span> bkd.to_float(bkd.mean(q))</span>
 <span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_mc_variability_comparison</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_mc_variability_comparison</span>
 <span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>plot_mc_variability_comparison(means_small, means_large, true_mean,</span>
@@ -1323,7 +1342,7 @@ Figure&nbsp;4: Same experiment with <span class="math inline">\(M = 100\)</span>
 <section id="multiple-qois-and-covariance" class="level2">
 <h2 class="anchored" data-anchor-id="multiple-qois-and-covariance">Multiple QoIs and Covariance</h2>
 <p>So far we have tracked a single QoI — the tip deflection. In practice, a model often produces <strong>several</strong> quantities of interest simultaneously. Our beam model returns three QoIs: the tip deflection <span class="math inline">\(\delta_{\text{tip}}\)</span>, the integrated bending stress <span class="math inline">\(\int_0^L \sigma(x)\,dx\)</span>, and the maximum absolute curvature <span class="math inline">\(\kappa_{\max}\)</span>.</p>
-<div id="468dc1ea" class="cell" data-execution_count="10">
+<div id="317e5a52" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>M_multi <span class="op">=</span> <span class="dv">50</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>samples_multi <span class="op">=</span> variable.rvs(M_multi)</span>
@@ -1342,7 +1361,7 @@ Mean max curvature:      0.003481</code></pre>
 </div>
 <p><a href="#fig-multi-qoi-scatter" class="quarto-xref">Figure&nbsp;5</a> shows pairwise scatter plots of the three QoIs. Tip deflection and max curvature are strongly correlated (both increase when the beam is globally softer), while integrated stress is nearly uncorrelated with either — it depends on where the stiffness varies, not just how much.</p>
 <div id="cell-fig-multi-qoi-scatter" class="cell" data-execution_count="11">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_multi_qoi_scatter</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_multi_qoi_scatter</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>qoi_multi_np <span class="op">=</span> bkd.to_numpy(qoi_multi)</span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [</span>
@@ -1359,7 +1378,7 @@ Mean max curvature:      0.003481</code></pre>
 <div id="fig-multi-qoi-scatter" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-multi-qoi-scatter-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="monte_carlo_sampling_files/figure-html/fig-multi-qoi-scatter-output-1.png" width="1333" height="308" class="figure-img">
+<img src="monte_carlo_sampling_files/figure-html/fig-multi-qoi-scatter-output-1.png" width="1335" height="322" class="figure-img">
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-multi-qoi-scatter-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;5: Pairwise scatter of three QoIs across <span class="math inline">\(M = 50\)</span> samples. Tip deflection and max curvature are highly correlated, while integrated stress is nearly uncorrelated with both.
@@ -1375,7 +1394,7 @@ Figure&nbsp;5: Pairwise scatter of three QoIs across <span class="math inline">\
 \left(\mathbf{q}^{(i)} - \hat{\boldsymbol{\mu}}_M\right)^{\!\top}
 \]</span></p>
 <p>where <span class="math inline">\(\mathbf{q}^{(i)} \in \mathbb{R}^{n_{\text{qoi}}}\)</span> and <span class="math inline">\(\hat{\boldsymbol{\mu}}_M\)</span> is the sample mean vector. The diagonal entries are the marginal variances; the off-diagonal entries measure linear dependence between QoIs.</p>
-<div id="e4e7ebb7" class="cell" data-execution_count="12">
+<div id="66437a84" class="cell" data-execution_count="12">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>cov_matrix <span class="op">=</span> np.cov(qoi_multi_np)</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>corr_matrix <span class="op">=</span> np.corrcoef(qoi_multi_np)</span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Sample covariance matrix:"</span>)</span>
@@ -1384,14 +1403,14 @@ Figure&nbsp;5: Pairwise scatter of three QoIs across <span class="math inline">\
 <span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(np.array2string(corr_matrix, precision<span class="op">=</span><span class="dv">3</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Sample covariance matrix:
-[[7.24409098e+00 8.55200286e-08 2.31062053e-03]
- [8.55200286e-08 1.16545891e-14 2.52601799e-11]
- [2.31062053e-03 2.52601799e-11 7.92114572e-07]]
+[[ 7.24409097e+00 -1.33388003e-10  2.31062053e-03]
+ [-1.33388003e-10  7.61280184e-15 -1.15771282e-12]
+ [ 2.31062053e-03 -1.15771282e-12  7.92114571e-07]]
 
 Correlation matrix:
-[[1.    0.294 0.965]
- [0.294 1.    0.263]
- [0.965 0.263 1.   ]]</code></pre>
+[[ 1.000e+00 -5.680e-04  9.646e-01]
+ [-5.680e-04  1.000e+00 -1.491e-02]
+ [ 9.646e-01 -1.491e-02  1.000e+00]]</code></pre>
 </div>
 </div>
 <p>The correlation matrix reveals the structure: tip deflection and max curvature are strongly correlated (<span class="math inline">\(\rho \approx 0.96\)</span>) because both are global measures of how much the beam bends. Integrated stress, however, is nearly uncorrelated with both (<span class="math inline">\(\rho \approx 0\)</span>) because it depends on the <em>local</em> product <span class="math inline">\(EI(x) \cdot \kappa(x)\)</span> — where the stiffness is high, the stress is high even if curvature is low.</p>
@@ -1935,16 +1954,16 @@ Correlation matrix:
 <span id="cb17-58"><a href="#cb17-58" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb17-59"><a href="#cb17-59" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb17-60"><a href="#cb17-60" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb17-61"><a href="#cb17-61" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb17-62"><a href="#cb17-62" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d,</span>
+<span id="cb17-61"><a href="#cb17-61" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb17-62"><a href="#cb17-62" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_1d,</span>
 <span id="cb17-63"><a href="#cb17-63" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb17-64"><a href="#cb17-64" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-65"><a href="#cb17-65" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb17-66"><a href="#cb17-66" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-67"><a href="#cb17-67" aria-hidden="true" tabindex="-1"></a><span class="co"># Create benchmark: KLE beam with 2 uncertain parameters</span></span>
-<span id="cb17-68"><a href="#cb17-68" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_1d(bkd, nx<span class="op">=</span><span class="dv">40</span>, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb17-69"><a href="#cb17-69" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
-<span id="cb17-70"><a href="#cb17-70" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> benchmark.prior()</span>
+<span id="cb17-67"><a href="#cb17-67" aria-hidden="true" tabindex="-1"></a><span class="co"># Create problem: KLE beam with 2 uncertain parameters</span></span>
+<span id="cb17-68"><a href="#cb17-68" aria-hidden="true" tabindex="-1"></a>problem <span class="op">=</span> build_cantilever_beam_1d(bkd, nx<span class="op">=</span><span class="dv">40</span>, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb17-69"><a href="#cb17-69" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> problem.function()</span>
+<span id="cb17-70"><a href="#cb17-70" aria-hidden="true" tabindex="-1"></a>variable <span class="op">=</span> problem.prior()</span>
 <span id="cb17-71"><a href="#cb17-71" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-72"><a href="#cb17-72" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of uncertain parameters: </span><span class="sc">{</span>model<span class="sc">.</span>nvars()<span class="sc">}</span><span class="ss">"</span>)</span>
 <span id="cb17-73"><a href="#cb17-73" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of QoIs: </span><span class="sc">{</span>model<span class="sc">.</span>nqoi()<span class="sc">}</span><span class="ss">"</span>)</span>
@@ -1956,11 +1975,11 @@ Correlation matrix:
 <span id="cb17-81"><a href="#cb17-81" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb17-82"><a href="#cb17-82" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Deflected beam shapes for two different KLE parameter values. Color indicates the spatially varying bending stiffness $EI(x)$. Left: $\\boldsymbol{\\xi} = (-1.5,\\, 1.0)$ produces a stiffness field that is softer near the root, giving larger deflection. Right: $\\boldsymbol{\\xi} = (1.5,\\, -1.0)$ yields a stiffer root region and smaller deflection."</span></span>
 <span id="cb17-83"><a href="#cb17-83" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-beam-deflections</span></span>
-<span id="cb17-84"><a href="#cb17-84" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_beam_deflections</span>
+<span id="cb17-84"><a href="#cb17-84" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_beam_deflections</span>
 <span id="cb17-85"><a href="#cb17-85" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-86"><a href="#cb17-86" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">3.5</span>),</span>
 <span id="cb17-87"><a href="#cb17-87" aria-hidden="true" tabindex="-1"></a>                          gridspec_kw<span class="op">=</span>{<span class="st">"wspace"</span>: <span class="fl">0.3</span>, <span class="st">"right"</span>: <span class="fl">0.88</span>})</span>
-<span id="cb17-88"><a href="#cb17-88" aria-hidden="true" tabindex="-1"></a>plot_beam_deflections(benchmark, bkd, axes[<span class="dv">0</span>], axes[<span class="dv">1</span>], cbar_fig<span class="op">=</span>fig)</span>
+<span id="cb17-88"><a href="#cb17-88" aria-hidden="true" tabindex="-1"></a>plot_beam_deflections(problem, bkd, axes[<span class="dv">0</span>], axes[<span class="dv">1</span>], cbar_fig<span class="op">=</span>fig)</span>
 <span id="cb17-89"><a href="#cb17-89" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
 <span id="cb17-90"><a href="#cb17-90" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
 <span id="cb17-91"><a href="#cb17-91" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
@@ -1988,7 +2007,7 @@ Correlation matrix:
 <span id="cb17-117"><a href="#cb17-117" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb17-118"><a href="#cb17-118" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: $M = 50$ samples drawn from the prior in $(\\xi_1, \\xi_2)$ space. Right: the model response surface $\\delta_{\\text{tip}} = f(\\xi_1, \\xi_2)$ with sample QoI values overlaid as colored points."</span></span>
 <span id="cb17-119"><a href="#cb17-119" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-samples-and-surface</span></span>
-<span id="cb17-120"><a href="#cb17-120" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_samples_and_surface</span>
+<span id="cb17-120"><a href="#cb17-120" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_samples_and_surface</span>
 <span id="cb17-121"><a href="#cb17-121" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-122"><a href="#cb17-122" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
 <span id="cb17-123"><a href="#cb17-123" aria-hidden="true" tabindex="-1"></a>plot_samples_and_surface(model, samples, qoi_values, bkd, ax1, ax2, fig<span class="op">=</span>fig)</span>
@@ -2088,7 +2107,7 @@ Correlation matrix:
 <span id="cb17-225"><a href="#cb17-225" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> model(s)[<span class="dv">0</span>]</span>
 <span id="cb17-226"><a href="#cb17-226" aria-hidden="true" tabindex="-1"></a>    means_small[i] <span class="op">=</span> bkd.to_float(bkd.mean(q))</span>
 <span id="cb17-227"><a href="#cb17-227" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-228"><a href="#cb17-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_mc_variability_histogram</span>
+<span id="cb17-228"><a href="#cb17-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_mc_variability_histogram</span>
 <span id="cb17-229"><a href="#cb17-229" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-230"><a href="#cb17-230" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">3.5</span>))</span>
 <span id="cb17-231"><a href="#cb17-231" aria-hidden="true" tabindex="-1"></a>plot_mc_variability_histogram(means_small, true_mean, n_reps, M_small, ax)</span>
@@ -2115,7 +2134,7 @@ Correlation matrix:
 <span id="cb17-254"><a href="#cb17-254" aria-hidden="true" tabindex="-1"></a>    q <span class="op">=</span> model(s)[<span class="dv">0</span>]</span>
 <span id="cb17-255"><a href="#cb17-255" aria-hidden="true" tabindex="-1"></a>    means_large[i] <span class="op">=</span> bkd.to_float(bkd.mean(q))</span>
 <span id="cb17-256"><a href="#cb17-256" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-257"><a href="#cb17-257" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_mc_variability_comparison</span>
+<span id="cb17-257"><a href="#cb17-257" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_mc_variability_comparison</span>
 <span id="cb17-258"><a href="#cb17-258" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-259"><a href="#cb17-259" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.5</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb17-260"><a href="#cb17-260" aria-hidden="true" tabindex="-1"></a>plot_mc_variability_comparison(means_small, means_large, true_mean,</span>
@@ -2149,7 +2168,7 @@ Correlation matrix:
 <span id="cb17-292"><a href="#cb17-292" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Pairwise scatter of three QoIs across $M = 50$ samples. Tip deflection and max curvature are highly correlated, while integrated stress is nearly uncorrelated with both."</span></span>
 <span id="cb17-293"><a href="#cb17-293" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-multi-qoi-scatter</span></span>
 <span id="cb17-294"><a href="#cb17-294" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb17-295"><a href="#cb17-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._forward_uq <span class="im">import</span> plot_multi_qoi_scatter</span>
+<span id="cb17-295"><a href="#cb17-295" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._forward_uq <span class="im">import</span> plot_multi_qoi_scatter</span>
 <span id="cb17-296"><a href="#cb17-296" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb17-297"><a href="#cb17-297" aria-hidden="true" tabindex="-1"></a>qoi_multi_np <span class="op">=</span> bkd.to_numpy(qoi_multi)</span>
 <span id="cb17-298"><a href="#cb17-298" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [</span>

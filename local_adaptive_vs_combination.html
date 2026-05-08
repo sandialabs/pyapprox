@@ -1,0 +1,1411 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.37">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Side-by-side benchmark: locally adaptive hierarchical sparse grids beat the dimension-adaptive combination technique on a non-smooth 2D target.">
+
+<title>Local Adaptivity vs Combination Technique – PyApprox</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./assets/favicon.ico" rel="icon">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<!--
+pyapprox Tutorial MathJax Macros
+For HTML output via Quarto (MathJax 3.x)
+Mirrors _macros.tex but uses MathJax-compatible syntax
+-->
+
+<script>
+MathJax = {
+  tex: {
+    macros: {
+      // Vectors/Matrices/Tensors
+      vc: ["{\\mathbf{#1}}", 1],
+      mt: ["{\\mathbf{#1}}", 1],
+      ts: ["{\\mathcal{#1}}", 1],
+
+      // Common Vectors
+      params: "{\\boldsymbol{\\theta}}",
+      inputs: "{\\mathbf{x}}",
+      outputs: "{\\mathbf{y}}",
+      data: "{\\mathbf{y}}",
+      state: "{\\mathbf{u}}",
+
+      // Dimensions
+      dparams: "{d_\\theta}",
+      dinputs: "{d_x}",
+      doutputs: "{d_y}",
+      dstates: "{d_u}",
+      Reals: ["{\\mathbb{R}^{#1}}", 1],
+
+      // Samples
+      nsamples: "{N}",
+      sample: ["^{(#1)}", 1],
+      samplemat: ["{\\mathbf{#1}}", 1],
+
+      // Random Variables
+      rv: ["{\\tilde{#1}}", 1],
+
+      // Functions and Models
+      model: "{f}",
+      qoifunc: "{q}",
+      qoifunctional: "{g}",
+      surrogate: ["{f_{#1}}", 1],
+      surr: "{f_N}",
+
+      // Probability
+      E: "{\\mathbb{E}}",
+      Var: "{\\mathbb{V}}",
+      Cov: "{\\mathrm{Cov}}",
+      pdf: "{p}",
+      normal: "{\\mathcal{N}}",
+      uniform: "{\\mathcal{U}}",
+
+      // Sensitivity Analysis
+      Sobol: ["{S_{#1}}", 1],
+      SobolT: ["{S_{#1}^T}", 1],
+      maineff: ["{V_{#1}}", 1],
+      totaleff: ["{V_{#1}^T}", 1],
+
+      // Operators
+      argmin: "{\\operatorname*{arg\\,min}}",
+      argmax: "{\\operatorname*{arg\\,max}}",
+      dd: "{\\mathrm{d}}",
+      pd: ["{\\frac{\\partial #1}{\\partial #2}}", 2],
+
+      // Common Matrices
+      CovMat: "{\\boldsymbol{\\Sigma}}",
+      IdentMat: "{\\mathbf{I}}",
+      JacMat: "{\\mathbf{J}}",
+      HessMat: "{\\mathbf{H}}",
+
+      // Time-dependent Problems
+      tinit: "{t_0}",
+      tfinal: "{t_f}",
+      deltat: "{\\Delta t}",
+
+      // Integration/Quadrature
+      integral: "{\\mathcal{I}}",
+      domain: "{\\Omega}"
+    }
+  }
+};
+</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta property="og:title" content="Local Adaptivity vs Combination Technique – PyApprox">
+<meta property="og:description" content="Side-by-side benchmark: locally adaptive hierarchical sparse grids beat the dimension-adaptive combination technique on a non-smooth 2D target.">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/local_adaptive_vs_combination_files/figure-html/fig-convergence-output-1.png">
+<meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="837">
+<meta property="og:image:width" content="1322">
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo light-content">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo dark-content">
+    </a>
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">PyApprox</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./tutorials.html"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-topics" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Topics</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-topics">    
+        <li>
+    <a class="dropdown-item" href="./tutorials.html">
+ <span class="dropdown-text">Tutorial Index</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#forward-uq">
+ <span class="dropdown-text">Forward UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#multifidelity-estimation">
+ <span class="dropdown-text">Multifidelity Estimation</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#inverse-uq">
+ <span class="dropdown-text">Inverse UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#experimental-design">
+ <span class="dropdown-text">Experimental Design</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#surrogate-modeling">
+ <span class="dropdown-text">Surrogate Modeling</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#sensitivity-analysis">
+ <span class="dropdown-text">Sensitivity Analysis</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/sandialabs/pyapprox"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
+  <li><a href="#prerequisites" id="toc-prerequisites" class="nav-link" data-scroll-target="#prerequisites">Prerequisites</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
+  <li><a href="#target-function" id="toc-target-function" class="nav-link" data-scroll-target="#target-function">Target Function</a></li>
+  <li><a href="#combination-technique-dimension-adaptive" id="toc-combination-technique-dimension-adaptive" class="nav-link" data-scroll-target="#combination-technique-dimension-adaptive">Combination Technique (Dimension-Adaptive)</a></li>
+  <li><a href="#locally-adaptive-downward-closed-boundaries-included" id="toc-locally-adaptive-downward-closed-boundaries-included" class="nav-link" data-scroll-target="#locally-adaptive-downward-closed-boundaries-included">Locally Adaptive (Downward-Closed, Boundaries Included)</a></li>
+  <li><a href="#run-the-experiments" id="toc-run-the-experiments" class="nav-link" data-scroll-target="#run-the-experiments">Run the Experiments</a></li>
+  <li><a href="#convergence-comparison" id="toc-convergence-comparison" class="nav-link" data-scroll-target="#convergence-comparison">Convergence Comparison</a></li>
+  <li><a href="#point-distributions" id="toc-point-distributions" class="nav-link" data-scroll-target="#point-distributions">Point Distributions</a></li>
+  <li><a href="#why-local-adaptivity-wins" id="toc-why-local-adaptivity-wins" class="nav-link" data-scroll-target="#why-local-adaptivity-wins">Why Local Adaptivity Wins</a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary">Summary</a></li>
+  <li><a href="#exercises" id="toc-exercises" class="nav-link" data-scroll-target="#exercises">Exercises</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Local Adaptivity vs Combination Technique</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+<p class="subtitle lead">PyApprox Tutorial Library</p>
+</div>
+
+<div>
+  <div class="description">
+    Side-by-side benchmark: locally adaptive hierarchical sparse grids beat the dimension-adaptive combination technique on a non-smooth 2D target.
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Download Notebook
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p><a href="notebooks/local_adaptive_vs_combination.ipynb">Download as Jupyter Notebook</a></p>
+</div>
+</div>
+</div>
+<section id="learning-objectives" class="level2">
+<h2 class="anchored" data-anchor-id="learning-objectives">Learning Objectives</h2>
+<p>After completing this tutorial, you will be able to:</p>
+<ul>
+<li>Construct a locally adaptive sparse grid with <code>boundary_mode="include"</code> and <code>MaxLevelCriteria</code></li>
+<li>Run the same convergence experiment with the dimension-adaptive combination technique using piecewise bases</li>
+<li>Compare the two methods on a non-smooth target with a localised feature</li>
+<li>Explain why local adaptivity outperforms dimension adaptivity on localised features</li>
+</ul>
+</section>
+<section id="prerequisites" class="level2">
+<h2 class="anchored" data-anchor-id="prerequisites">Prerequisites</h2>
+<p><a href="./local_basis_sparse_grids.html">Local Basis Sparse Grids</a> and <a href="./local_adaptive_sparse_grids_concept.html">Locally Adaptive Sparse Grids</a>. This tutorial uses the hierarchical fitter API from the second.</p>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">Setup</h2>
+<div id="4f2af5af" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    SingleFidelityAdaptiveSparseGridFitter,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    TensorProductSubspaceFactory,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.basis_factory <span class="im">import</span> (</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    ClenshawCurtisLagrangeFactory,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    PiecewiseFactory,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d <span class="im">import</span> (</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    HierarchicalBasis1D,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.hierarchical.hierarchical_fitter <span class="im">import</span> (</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    SingleFidelityHierarchicalFitter,</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    ClenshawCurtisGrowthRule,</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    MaxLevelCriteria,</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="fl">0.0</span>, <span class="fl">1.0</span>, bkd)</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>max_pts <span class="op">=</span> <span class="dv">1000</span></span>
+<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
+<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>test_samples <span class="op">=</span> bkd.asarray(rng.uniform(<span class="dv">0</span>, <span class="dv">1</span>, (<span class="dv">2</span>, <span class="dv">4000</span>)))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="target-function" class="level2">
+<h2 class="anchored" data-anchor-id="target-function">Target Function</h2>
+<p>The benchmark has a sharp, localized feature that both dimensions contribute to:</p>
+<p><span class="math display">\[
+f(\xi) = \frac{1}{|0.3 - \xi_1^2 - \xi_2^2| + 0.1},
+\qquad \xi \in [0,1]^2.
+\]</span></p>
+<p>The near-singularity along the curve <span class="math inline">\(\xi_1^2 + \xi_2^2 = 0.3\)</span> creates a ridge that is not axis-aligned. Both dimensions matter, but the feature is spatially localized — exactly the setting where local adaptivity should outperform dimension adaptivity.</p>
+<div id="cc093632" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _target_callable(samples):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    z1, z2 <span class="op">=</span> samples[<span class="dv">0</span>], samples[<span class="dv">1</span>]</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> bkd.reshape(<span class="fl">1.0</span> <span class="op">/</span> (bkd.<span class="bu">abs</span>(<span class="fl">0.3</span> <span class="op">-</span> z1<span class="op">**</span><span class="dv">2</span> <span class="op">-</span> z2<span class="op">**</span><span class="dv">2</span>) <span class="op">+</span> <span class="fl">0.1</span>), (<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>target_fn <span class="op">=</span> FunctionFromCallable(<span class="dv">1</span>, <span class="dv">2</span>, _target_callable, bkd)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>exact_vals <span class="op">=</span> bkd.to_numpy(target_fn(test_samples))[<span class="dv">0</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="combination-technique-dimension-adaptive" class="level2">
+<h2 class="anchored" data-anchor-id="combination-technique-dimension-adaptive">Combination Technique (Dimension-Adaptive)</h2>
+<p>The combination technique builds the surrogate from a sum of tensor- product subspaces selected by a dimension-level error indicator. When it identifies a dimension as important it refines the entire axis to the next level — adding nodes uniformly even in regions where the function is smooth.</p>
+<div id="12a4c053" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_piecewise_factories(poly_type):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [PiecewiseFactory(marginal, bkd, poly_type<span class="op">=</span>poly_type)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_lagrange_factories():</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [ClenshawCurtisLagrangeFactory(marginal, bkd)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_combination(factories, max_level<span class="op">=</span><span class="dv">15</span>, tol<span class="op">=</span><span class="fl">1e-10</span>):</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Dimension-adaptive combination technique."""</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    growth <span class="op">=</span> ClenshawCurtisGrowthRule()</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    tp <span class="op">=</span> TensorProductSubspaceFactory(bkd, factories, growth)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    admis <span class="op">=</span> MaxLevelCriteria(max_level<span class="op">=</span>max_level, pnorm<span class="op">=</span><span class="fl">1.0</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    fitter <span class="op">=</span> SingleFidelityAdaptiveSparseGridFitter(bkd, tp, admis)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    ns_hist, err_hist <span class="op">=</span> [], []</span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        new_samples <span class="op">=</span> fitter.step_samples()</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> new_samples <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>        fitter.step_values(target_fn(new_samples))</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> fitter.result()</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> result.nsamples <span class="op">&gt;</span> <span class="dv">1</span>:</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>            approx <span class="op">=</span> bkd.to_numpy(result.surrogate(test_samples))[<span class="dv">0</span>]</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>            rmse <span class="op">=</span> <span class="bu">float</span>(np.sqrt(np.mean((exact_vals <span class="op">-</span> approx) <span class="op">**</span> <span class="dv">2</span>)))</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>            ns_hist.append(result.nsamples)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>            err_hist.append(rmse)</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> fitter.current_error() <span class="op">&lt;</span> tol <span class="kw">or</span> fitter.cumulative_cost() <span class="op">&gt;=</span> max_pts:</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> ns_hist, err_hist</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="locally-adaptive-downward-closed-boundaries-included" class="level2">
+<h2 class="anchored" data-anchor-id="locally-adaptive-downward-closed-boundaries-included">Locally Adaptive (Downward-Closed, Boundaries Included)</h2>
+<p>The locally adaptive fitter tracks per-point surpluses and refines the single point with the largest surplus next. Near the ridge those surpluses stay large while surpluses in the smooth regions decay quickly, so refinement concentrates on the ridge.</p>
+<div id="460fc73c" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_local(p_max, max_level<span class="op">=</span><span class="dv">15</span>):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Locally adaptive hierarchical fitter with boundaries."""</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    bases_1d <span class="op">=</span> [</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        HierarchicalBasis1D(bkd, bounds<span class="op">=</span>(<span class="fl">0.0</span>, <span class="fl">1.0</span>), p_max<span class="op">=</span>p_max,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>                            boundary_mode<span class="op">=</span><span class="st">"include"</span>),</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        HierarchicalBasis1D(bkd, bounds<span class="op">=</span>(<span class="fl">0.0</span>, <span class="fl">1.0</span>), p_max<span class="op">=</span>p_max,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>                            boundary_mode<span class="op">=</span><span class="st">"include"</span>),</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    admis <span class="op">=</span> MaxLevelCriteria(max_level<span class="op">=</span>max_level, pnorm<span class="op">=</span><span class="fl">1.0</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    fitter <span class="op">=</span> SingleFidelityHierarchicalFitter(</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>        bkd, bases_1d, admis, batch_size<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    ns_hist, err_hist <span class="op">=</span> [], []</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    total <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> total <span class="op">&lt;</span> max_pts:</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        new_samples <span class="op">=</span> fitter.step_samples()</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> new_samples <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>        fitter.step_values(target_fn(new_samples))</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>        total <span class="op">+=</span> <span class="bu">int</span>(new_samples.shape[<span class="dv">1</span>])</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> fitter.result()</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> result.nsamples <span class="op">&gt;</span> <span class="dv">1</span>:</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>            approx <span class="op">=</span> bkd.to_numpy(result.surrogate(test_samples))[<span class="dv">0</span>]</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>            rmse <span class="op">=</span> <span class="bu">float</span>(np.sqrt(np.mean((exact_vals <span class="op">-</span> approx) <span class="op">**</span> <span class="dv">2</span>)))</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>            ns_hist.append(result.nsamples)</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>            err_hist.append(rmse)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> ns_hist, err_hist, fitter</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="run-the-experiments" class="level2">
+<h2 class="anchored" data-anchor-id="run-the-experiments">Run the Experiments</h2>
+<div id="db9d5ebb" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>ns_comb_lag, err_comb_lag <span class="op">=</span> run_combination(make_lagrange_factories())</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>ns_comb_lin, err_comb_lin <span class="op">=</span> run_combination(make_piecewise_factories(<span class="st">"linear"</span>))</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>ns_comb_quad, err_comb_quad <span class="op">=</span> run_combination(make_piecewise_factories(<span class="st">"quadratic"</span>))</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>ns_loc_lin, err_loc_lin, fitter_loc_lin <span class="op">=</span> run_local(p_max<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>ns_loc_quad, err_loc_quad, fitter_loc_quad <span class="op">=</span> run_local(p_max<span class="op">=</span><span class="dv">2</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="convergence-comparison" class="level2">
+<h2 class="anchored" data-anchor-id="convergence-comparison">Convergence Comparison</h2>
+<div id="cell-fig-convergence" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_comb_lag,  err_comb_lag,  <span class="st">"v--"</span>, color<span class="op">=</span><span class="st">"#9467BD"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Combination, Lagrange"</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_comb_lin,  err_comb_lin,  <span class="st">"^--"</span>, color<span class="op">=</span><span class="st">"#7F7F7F"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Combination, piecewise linear"</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_comb_quad, err_comb_quad, <span class="st">"s--"</span>, color<span class="op">=</span><span class="st">"#E6550D"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Combination, piecewise quadratic"</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_loc_lin,   err_loc_lin,   <span class="st">"o-"</span>,  color<span class="op">=</span><span class="st">"#1F77B4"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Local adaptive, $p_{</span><span class="ch">\\</span><span class="st">max}=1$"</span>)</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_loc_quad,  err_loc_quad,  <span class="st">"D-"</span>,  color<span class="op">=</span><span class="st">"#2CA02C"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Local adaptive, $p_{</span><span class="ch">\\</span><span class="st">max}=2$"</span>)</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Number of function evaluations"</span>)</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"RMSE on test set"</span>)</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"$1/(|0.3-</span><span class="ch">\\</span><span class="st">xi_1^2-</span><span class="ch">\\</span><span class="st">xi_2^2|+0.1)$"</span>)</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>ax.legend(fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">True</span>, which<span class="op">=</span><span class="st">"both"</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-convergence" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="local_adaptive_vs_combination_files/figure-html/fig-convergence-output-1.png" width="661" height="419" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-convergence-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: RMSE vs.&nbsp;number of evaluations. Locally adaptive grids (solid) reach a given accuracy with substantially fewer evaluations than the combination technique (dashed). The combination technique spreads nodes uniformly along each axis; local refinement concentrates them on the ridge.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="point-distributions" class="level2">
+<h2 class="anchored" data-anchor-id="point-distributions">Point Distributions</h2>
+<p>The advantage is visible in the node placement: the combination technique refines whole axes uniformly, while local refinement clusters points along the ridge <span class="math inline">\(\xi_1^2 + \xi_2^2 = 0.3\)</span>.</p>
+<div id="cell-fig-points" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<div id="fig-points" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-points-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="local_adaptive_vs_combination_files/figure-html/fig-points-output-1.png" width="948" height="477" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-points-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Selected nodes. Left: dimension-adaptive combination technique with piecewise linear basis — uniform refinement along each axis. Right: locally adaptive hierarchical grid — refinement concentrated on the ridge.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="why-local-adaptivity-wins" class="level2">
+<h2 class="anchored" data-anchor-id="why-local-adaptivity-wins">Why Local Adaptivity Wins</h2>
+<p>The combination technique selects whole subspaces. When the indicator identifies a dimension as important it refines the entire axis to the next level — adding nodes uniformly even in smooth regions far from the ridge. Local adaptivity instead refines the single point with the largest surplus, so evaluations concentrate where the function is hardest to approximate.</p>
+</section>
+<section id="summary" class="level2">
+<h2 class="anchored" data-anchor-id="summary">Summary</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Method</th>
+<th>Refines</th>
+<th>Behavior on localized features</th>
+<th>API</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Combination, piecewise</td>
+<td>Whole subspaces</td>
+<td>Uniform refinement along important axes; wastes evaluations in smooth regions</td>
+<td><code>SingleFidelityAdaptiveSparseGridFitter</code> + <code>PiecewiseFactory</code></td>
+</tr>
+<tr class="even">
+<td>Local adaptive (<span class="math inline">\(p_{\max}{=}1\)</span>)</td>
+<td>Single points</td>
+<td>Concentrates evaluations on the feature</td>
+<td><code>SingleFidelityHierarchicalFitter</code> + <code>HierarchicalBasis1D(p_max=1)</code></td>
+</tr>
+<tr class="odd">
+<td>Local adaptive (<span class="math inline">\(p_{\max}{=}2\)</span>)</td>
+<td>Single points</td>
+<td>Same concentration; higher accuracy in smooth regions</td>
+<td><code>HierarchicalBasis1D(p_max=2)</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="exercises" class="level2">
+<h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
+<ol type="1">
+<li>Set <code>downward_closed=False</code> in <code>run_local</code>. Does the convergence curve improve or degrade? Inspect the point distribution to explain.</li>
+<li>Replace <code>target_fn</code> with a smooth function such as <span class="math inline">\(\cos(\pi \xi_1)\cos(\pi \xi_2/2)\)</span>. Does the local-vs-combination gap shrink, grow, or stay the same?</li>
+<li>Reduce <code>max_pts</code> to 100. Is the gap between the two methods already visible at small budgets?</li>
+</ol>
+
+
+<!-- -->
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/sandialabs\.github\.io\/pyapprox\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Local Adaptivity vs Combination Technique"</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Side-by-side benchmark: locally adaptive hierarchical sparse grids beat the dimension-adaptive combination technique on a non-smooth 2D target."</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> usage</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> surrogate_modeling</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 12</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="co">  - local_basis_sparse_grids</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - local_adaptive_sparse_grids_concept</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - sparse-grid</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - local-adaptive</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - hierarchical</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - non-smooth</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/local_adaptive_vs_combination.ipynb)</span></span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct a locally adaptive sparse grid with <span class="in">`boundary_mode="include"`</span> and <span class="in">`MaxLevelCriteria`</span></span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Run the same convergence experiment with the dimension-adaptive combination technique using piecewise bases</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Compare the two methods on a non-smooth target with a localised feature</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Explain why local adaptivity outperforms dimension adaptivity on localised features</span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a><span class="fu">## Prerequisites</span></span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Local Basis Sparse Grids</span><span class="co">](local_basis_sparse_grids.qmd)</span> and</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Locally Adaptive Sparse Grids</span><span class="co">](local_adaptive_sparse_grids_concept.qmd)</span>.</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>This tutorial uses the hierarchical fitter API from the second.</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup</span></span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids <span class="im">import</span> (</span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>    SingleFidelityAdaptiveSparseGridFitter,</span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a>    TensorProductSubspaceFactory,</span>
+<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.basis_factory <span class="im">import</span> (</span>
+<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a>    ClenshawCurtisLagrangeFactory,</span>
+<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>    PiecewiseFactory,</span>
+<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d <span class="im">import</span> (</span>
+<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a>    HierarchicalBasis1D,</span>
+<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.sparsegrids.hierarchical.hierarchical_fitter <span class="im">import</span> (</span>
+<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a>    SingleFidelityHierarchicalFitter,</span>
+<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
+<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a>    ClenshawCurtisGrowthRule,</span>
+<span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a>    MaxLevelCriteria,</span>
+<span id="cb7-78"><a href="#cb7-78" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.univariate.uniform <span class="im">import</span> UniformMarginal</span>
+<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.fromcallable.function <span class="im">import</span> (</span>
+<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
+<span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-84"><a href="#cb7-84" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">0</span>)</span>
+<span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a>marginal <span class="op">=</span> UniformMarginal(<span class="fl">0.0</span>, <span class="fl">1.0</span>, bkd)</span>
+<span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a>max_pts <span class="op">=</span> <span class="dv">1000</span></span>
+<span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a>rng <span class="op">=</span> np.random.default_rng(<span class="dv">0</span>)</span>
+<span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a>test_samples <span class="op">=</span> bkd.asarray(rng.uniform(<span class="dv">0</span>, <span class="dv">1</span>, (<span class="dv">2</span>, <span class="dv">4000</span>)))</span>
+<span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-94"><a href="#cb7-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a><span class="fu">## Target Function</span></span>
+<span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a>The benchmark has a sharp, localized feature that both dimensions</span>
+<span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a>contribute to:</span>
+<span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a>f(\xi) = \frac{1}{|0.3 - \xi_1^2 - \xi_2^2| + 0.1},</span>
+<span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a>\qquad \xi \in <span class="co">[</span><span class="ot">0,1</span><span class="co">]</span>^2.</span>
+<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a>The near-singularity along the curve $\xi_1^2 + \xi_2^2 = 0.3$</span>
+<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a>creates a ridge that is not axis-aligned.  Both dimensions matter,</span>
+<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a>but the feature is spatially localized — exactly the setting where</span>
+<span id="cb7-108"><a href="#cb7-108" aria-hidden="true" tabindex="-1"></a>local adaptivity should outperform dimension adaptivity.</span>
+<span id="cb7-109"><a href="#cb7-109" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-112"><a href="#cb7-112" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-113"><a href="#cb7-113" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _target_callable(samples):</span>
+<span id="cb7-114"><a href="#cb7-114" aria-hidden="true" tabindex="-1"></a>    z1, z2 <span class="op">=</span> samples[<span class="dv">0</span>], samples[<span class="dv">1</span>]</span>
+<span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> bkd.reshape(<span class="fl">1.0</span> <span class="op">/</span> (bkd.<span class="bu">abs</span>(<span class="fl">0.3</span> <span class="op">-</span> z1<span class="op">**</span><span class="dv">2</span> <span class="op">-</span> z2<span class="op">**</span><span class="dv">2</span>) <span class="op">+</span> <span class="fl">0.1</span>), (<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>))</span>
+<span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a>target_fn <span class="op">=</span> FunctionFromCallable(<span class="dv">1</span>, <span class="dv">2</span>, _target_callable, bkd)</span>
+<span id="cb7-118"><a href="#cb7-118" aria-hidden="true" tabindex="-1"></a>exact_vals <span class="op">=</span> bkd.to_numpy(target_fn(test_samples))[<span class="dv">0</span>]</span>
+<span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-121"><a href="#cb7-121" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a><span class="fu">## Combination Technique (Dimension-Adaptive)</span></span>
+<span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-124"><a href="#cb7-124" aria-hidden="true" tabindex="-1"></a>The combination technique builds the surrogate from a sum of tensor-</span>
+<span id="cb7-125"><a href="#cb7-125" aria-hidden="true" tabindex="-1"></a>product subspaces selected by a dimension-level error indicator.</span>
+<span id="cb7-126"><a href="#cb7-126" aria-hidden="true" tabindex="-1"></a>When it identifies a dimension as important it refines the entire</span>
+<span id="cb7-127"><a href="#cb7-127" aria-hidden="true" tabindex="-1"></a>axis to the next level — adding nodes uniformly even in regions</span>
+<span id="cb7-128"><a href="#cb7-128" aria-hidden="true" tabindex="-1"></a>where the function is smooth.</span>
+<span id="cb7-129"><a href="#cb7-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-132"><a href="#cb7-132" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-133"><a href="#cb7-133" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_piecewise_factories(poly_type):</span>
+<span id="cb7-134"><a href="#cb7-134" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [PiecewiseFactory(marginal, bkd, poly_type<span class="op">=</span>poly_type)</span>
+<span id="cb7-135"><a href="#cb7-135" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
+<span id="cb7-136"><a href="#cb7-136" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-137"><a href="#cb7-137" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> make_lagrange_factories():</span>
+<span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> [ClenshawCurtisLagrangeFactory(marginal, bkd)</span>
+<span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> _ <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">2</span>)]</span>
+<span id="cb7-140"><a href="#cb7-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-141"><a href="#cb7-141" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_combination(factories, max_level<span class="op">=</span><span class="dv">15</span>, tol<span class="op">=</span><span class="fl">1e-10</span>):</span>
+<span id="cb7-142"><a href="#cb7-142" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Dimension-adaptive combination technique."""</span></span>
+<span id="cb7-143"><a href="#cb7-143" aria-hidden="true" tabindex="-1"></a>    growth <span class="op">=</span> ClenshawCurtisGrowthRule()</span>
+<span id="cb7-144"><a href="#cb7-144" aria-hidden="true" tabindex="-1"></a>    tp <span class="op">=</span> TensorProductSubspaceFactory(bkd, factories, growth)</span>
+<span id="cb7-145"><a href="#cb7-145" aria-hidden="true" tabindex="-1"></a>    admis <span class="op">=</span> MaxLevelCriteria(max_level<span class="op">=</span>max_level, pnorm<span class="op">=</span><span class="fl">1.0</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb7-146"><a href="#cb7-146" aria-hidden="true" tabindex="-1"></a>    fitter <span class="op">=</span> SingleFidelityAdaptiveSparseGridFitter(bkd, tp, admis)</span>
+<span id="cb7-147"><a href="#cb7-147" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-148"><a href="#cb7-148" aria-hidden="true" tabindex="-1"></a>    ns_hist, err_hist <span class="op">=</span> [], []</span>
+<span id="cb7-149"><a href="#cb7-149" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb7-150"><a href="#cb7-150" aria-hidden="true" tabindex="-1"></a>        new_samples <span class="op">=</span> fitter.step_samples()</span>
+<span id="cb7-151"><a href="#cb7-151" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> new_samples <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb7-152"><a href="#cb7-152" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb7-153"><a href="#cb7-153" aria-hidden="true" tabindex="-1"></a>        fitter.step_values(target_fn(new_samples))</span>
+<span id="cb7-154"><a href="#cb7-154" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> fitter.result()</span>
+<span id="cb7-155"><a href="#cb7-155" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> result.nsamples <span class="op">&gt;</span> <span class="dv">1</span>:</span>
+<span id="cb7-156"><a href="#cb7-156" aria-hidden="true" tabindex="-1"></a>            approx <span class="op">=</span> bkd.to_numpy(result.surrogate(test_samples))[<span class="dv">0</span>]</span>
+<span id="cb7-157"><a href="#cb7-157" aria-hidden="true" tabindex="-1"></a>            rmse <span class="op">=</span> <span class="bu">float</span>(np.sqrt(np.mean((exact_vals <span class="op">-</span> approx) <span class="op">**</span> <span class="dv">2</span>)))</span>
+<span id="cb7-158"><a href="#cb7-158" aria-hidden="true" tabindex="-1"></a>            ns_hist.append(result.nsamples)</span>
+<span id="cb7-159"><a href="#cb7-159" aria-hidden="true" tabindex="-1"></a>            err_hist.append(rmse)</span>
+<span id="cb7-160"><a href="#cb7-160" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> fitter.current_error() <span class="op">&lt;</span> tol <span class="kw">or</span> fitter.cumulative_cost() <span class="op">&gt;=</span> max_pts:</span>
+<span id="cb7-161"><a href="#cb7-161" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> ns_hist, err_hist</span>
+<span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a><span class="fu">## Locally Adaptive (Downward-Closed, Boundaries Included)</span></span>
+<span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-168"><a href="#cb7-168" aria-hidden="true" tabindex="-1"></a>The locally adaptive fitter tracks per-point surpluses and refines</span>
+<span id="cb7-169"><a href="#cb7-169" aria-hidden="true" tabindex="-1"></a>the single point with the largest surplus next.  Near the ridge</span>
+<span id="cb7-170"><a href="#cb7-170" aria-hidden="true" tabindex="-1"></a>those surpluses stay large while surpluses in the smooth regions</span>
+<span id="cb7-171"><a href="#cb7-171" aria-hidden="true" tabindex="-1"></a>decay quickly, so refinement concentrates on the ridge.</span>
+<span id="cb7-172"><a href="#cb7-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-175"><a href="#cb7-175" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-176"><a href="#cb7-176" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> run_local(p_max, max_level<span class="op">=</span><span class="dv">15</span>):</span>
+<span id="cb7-177"><a href="#cb7-177" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Locally adaptive hierarchical fitter with boundaries."""</span></span>
+<span id="cb7-178"><a href="#cb7-178" aria-hidden="true" tabindex="-1"></a>    bases_1d <span class="op">=</span> [</span>
+<span id="cb7-179"><a href="#cb7-179" aria-hidden="true" tabindex="-1"></a>        HierarchicalBasis1D(bkd, bounds<span class="op">=</span>(<span class="fl">0.0</span>, <span class="fl">1.0</span>), p_max<span class="op">=</span>p_max,</span>
+<span id="cb7-180"><a href="#cb7-180" aria-hidden="true" tabindex="-1"></a>                            boundary_mode<span class="op">=</span><span class="st">"include"</span>),</span>
+<span id="cb7-181"><a href="#cb7-181" aria-hidden="true" tabindex="-1"></a>        HierarchicalBasis1D(bkd, bounds<span class="op">=</span>(<span class="fl">0.0</span>, <span class="fl">1.0</span>), p_max<span class="op">=</span>p_max,</span>
+<span id="cb7-182"><a href="#cb7-182" aria-hidden="true" tabindex="-1"></a>                            boundary_mode<span class="op">=</span><span class="st">"include"</span>),</span>
+<span id="cb7-183"><a href="#cb7-183" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb7-184"><a href="#cb7-184" aria-hidden="true" tabindex="-1"></a>    admis <span class="op">=</span> MaxLevelCriteria(max_level<span class="op">=</span>max_level, pnorm<span class="op">=</span><span class="fl">1.0</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb7-185"><a href="#cb7-185" aria-hidden="true" tabindex="-1"></a>    fitter <span class="op">=</span> SingleFidelityHierarchicalFitter(</span>
+<span id="cb7-186"><a href="#cb7-186" aria-hidden="true" tabindex="-1"></a>        bkd, bases_1d, admis, batch_size<span class="op">=</span><span class="dv">1</span>,</span>
+<span id="cb7-187"><a href="#cb7-187" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-188"><a href="#cb7-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-189"><a href="#cb7-189" aria-hidden="true" tabindex="-1"></a>    ns_hist, err_hist <span class="op">=</span> [], []</span>
+<span id="cb7-190"><a href="#cb7-190" aria-hidden="true" tabindex="-1"></a>    total <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb7-191"><a href="#cb7-191" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> total <span class="op">&lt;</span> max_pts:</span>
+<span id="cb7-192"><a href="#cb7-192" aria-hidden="true" tabindex="-1"></a>        new_samples <span class="op">=</span> fitter.step_samples()</span>
+<span id="cb7-193"><a href="#cb7-193" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> new_samples <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb7-194"><a href="#cb7-194" aria-hidden="true" tabindex="-1"></a>            <span class="cf">break</span></span>
+<span id="cb7-195"><a href="#cb7-195" aria-hidden="true" tabindex="-1"></a>        fitter.step_values(target_fn(new_samples))</span>
+<span id="cb7-196"><a href="#cb7-196" aria-hidden="true" tabindex="-1"></a>        total <span class="op">+=</span> <span class="bu">int</span>(new_samples.shape[<span class="dv">1</span>])</span>
+<span id="cb7-197"><a href="#cb7-197" aria-hidden="true" tabindex="-1"></a>        result <span class="op">=</span> fitter.result()</span>
+<span id="cb7-198"><a href="#cb7-198" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> result.nsamples <span class="op">&gt;</span> <span class="dv">1</span>:</span>
+<span id="cb7-199"><a href="#cb7-199" aria-hidden="true" tabindex="-1"></a>            approx <span class="op">=</span> bkd.to_numpy(result.surrogate(test_samples))[<span class="dv">0</span>]</span>
+<span id="cb7-200"><a href="#cb7-200" aria-hidden="true" tabindex="-1"></a>            rmse <span class="op">=</span> <span class="bu">float</span>(np.sqrt(np.mean((exact_vals <span class="op">-</span> approx) <span class="op">**</span> <span class="dv">2</span>)))</span>
+<span id="cb7-201"><a href="#cb7-201" aria-hidden="true" tabindex="-1"></a>            ns_hist.append(result.nsamples)</span>
+<span id="cb7-202"><a href="#cb7-202" aria-hidden="true" tabindex="-1"></a>            err_hist.append(rmse)</span>
+<span id="cb7-203"><a href="#cb7-203" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> ns_hist, err_hist, fitter</span>
+<span id="cb7-204"><a href="#cb7-204" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-205"><a href="#cb7-205" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-206"><a href="#cb7-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-207"><a href="#cb7-207" aria-hidden="true" tabindex="-1"></a><span class="fu">## Run the Experiments</span></span>
+<span id="cb7-208"><a href="#cb7-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-211"><a href="#cb7-211" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-212"><a href="#cb7-212" aria-hidden="true" tabindex="-1"></a>ns_comb_lag, err_comb_lag <span class="op">=</span> run_combination(make_lagrange_factories())</span>
+<span id="cb7-213"><a href="#cb7-213" aria-hidden="true" tabindex="-1"></a>ns_comb_lin, err_comb_lin <span class="op">=</span> run_combination(make_piecewise_factories(<span class="st">"linear"</span>))</span>
+<span id="cb7-214"><a href="#cb7-214" aria-hidden="true" tabindex="-1"></a>ns_comb_quad, err_comb_quad <span class="op">=</span> run_combination(make_piecewise_factories(<span class="st">"quadratic"</span>))</span>
+<span id="cb7-215"><a href="#cb7-215" aria-hidden="true" tabindex="-1"></a>ns_loc_lin, err_loc_lin, fitter_loc_lin <span class="op">=</span> run_local(p_max<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-216"><a href="#cb7-216" aria-hidden="true" tabindex="-1"></a>ns_loc_quad, err_loc_quad, fitter_loc_quad <span class="op">=</span> run_local(p_max<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a><span class="fu">## Convergence Comparison</span></span>
+<span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-224"><a href="#cb7-224" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-225"><a href="#cb7-225" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "RMSE vs. number of evaluations. Locally adaptive grids (solid) reach a given accuracy with substantially fewer evaluations than the combination technique (dashed). The combination technique spreads nodes uniformly along each axis; local refinement concentrates them on the ridge."</span></span>
+<span id="cb7-226"><a href="#cb7-226" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence</span></span>
+<span id="cb7-227"><a href="#cb7-227" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb7-228"><a href="#cb7-228" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_comb_lag,  err_comb_lag,  <span class="st">"v--"</span>, color<span class="op">=</span><span class="st">"#9467BD"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb7-229"><a href="#cb7-229" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Combination, Lagrange"</span>)</span>
+<span id="cb7-230"><a href="#cb7-230" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_comb_lin,  err_comb_lin,  <span class="st">"^--"</span>, color<span class="op">=</span><span class="st">"#7F7F7F"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb7-231"><a href="#cb7-231" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Combination, piecewise linear"</span>)</span>
+<span id="cb7-232"><a href="#cb7-232" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_comb_quad, err_comb_quad, <span class="st">"s--"</span>, color<span class="op">=</span><span class="st">"#E6550D"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb7-233"><a href="#cb7-233" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Combination, piecewise quadratic"</span>)</span>
+<span id="cb7-234"><a href="#cb7-234" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_loc_lin,   err_loc_lin,   <span class="st">"o-"</span>,  color<span class="op">=</span><span class="st">"#1F77B4"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb7-235"><a href="#cb7-235" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Local adaptive, $p_{</span><span class="ch">\\</span><span class="st">max}=1$"</span>)</span>
+<span id="cb7-236"><a href="#cb7-236" aria-hidden="true" tabindex="-1"></a>ax.loglog(ns_loc_quad,  err_loc_quad,  <span class="st">"D-"</span>,  color<span class="op">=</span><span class="st">"#2CA02C"</span>, lw<span class="op">=</span><span class="dv">2</span>,</span>
+<span id="cb7-237"><a href="#cb7-237" aria-hidden="true" tabindex="-1"></a>          label<span class="op">=</span><span class="st">"Local adaptive, $p_{</span><span class="ch">\\</span><span class="st">max}=2$"</span>)</span>
+<span id="cb7-238"><a href="#cb7-238" aria-hidden="true" tabindex="-1"></a>ax.set_xlabel(<span class="st">"Number of function evaluations"</span>)</span>
+<span id="cb7-239"><a href="#cb7-239" aria-hidden="true" tabindex="-1"></a>ax.set_ylabel(<span class="st">"RMSE on test set"</span>)</span>
+<span id="cb7-240"><a href="#cb7-240" aria-hidden="true" tabindex="-1"></a>ax.set_title(<span class="st">"$1/(|0.3-</span><span class="ch">\\</span><span class="st">xi_1^2-</span><span class="ch">\\</span><span class="st">xi_2^2|+0.1)$"</span>)</span>
+<span id="cb7-241"><a href="#cb7-241" aria-hidden="true" tabindex="-1"></a>ax.legend(fontsize<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb7-242"><a href="#cb7-242" aria-hidden="true" tabindex="-1"></a>ax.grid(<span class="va">True</span>, which<span class="op">=</span><span class="st">"both"</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb7-243"><a href="#cb7-243" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb7-244"><a href="#cb7-244" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-245"><a href="#cb7-245" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a><span class="fu">## Point Distributions</span></span>
+<span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a>The advantage is visible in the node placement: the combination</span>
+<span id="cb7-251"><a href="#cb7-251" aria-hidden="true" tabindex="-1"></a>technique refines whole axes uniformly, while local refinement</span>
+<span id="cb7-252"><a href="#cb7-252" aria-hidden="true" tabindex="-1"></a>clusters points along the ridge $\xi_1^2 + \xi_2^2 = 0.3$.</span>
+<span id="cb7-253"><a href="#cb7-253" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-256"><a href="#cb7-256" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb7-257"><a href="#cb7-257" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb7-258"><a href="#cb7-258" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Selected nodes.  Left: dimension-adaptive combination technique with piecewise linear basis — uniform refinement along each axis.  Right: locally adaptive hierarchical grid — refinement concentrated on the ridge."</span></span>
+<span id="cb7-259"><a href="#cb7-259" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-points</span></span>
+<span id="cb7-260"><a href="#cb7-260" aria-hidden="true" tabindex="-1"></a>_factories <span class="op">=</span> make_piecewise_factories(<span class="st">"linear"</span>)</span>
+<span id="cb7-261"><a href="#cb7-261" aria-hidden="true" tabindex="-1"></a>_growth <span class="op">=</span> ClenshawCurtisGrowthRule()</span>
+<span id="cb7-262"><a href="#cb7-262" aria-hidden="true" tabindex="-1"></a>_tp <span class="op">=</span> TensorProductSubspaceFactory(bkd, _factories, _growth)</span>
+<span id="cb7-263"><a href="#cb7-263" aria-hidden="true" tabindex="-1"></a>_admis <span class="op">=</span> MaxLevelCriteria(max_level<span class="op">=</span><span class="dv">15</span>, pnorm<span class="op">=</span><span class="fl">1.0</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb7-264"><a href="#cb7-264" aria-hidden="true" tabindex="-1"></a>_fitter_comb <span class="op">=</span> SingleFidelityAdaptiveSparseGridFitter(bkd, _tp, _admis)</span>
+<span id="cb7-265"><a href="#cb7-265" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb7-266"><a href="#cb7-266" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> _fitter_comb.step_samples()</span>
+<span id="cb7-267"><a href="#cb7-267" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> s <span class="kw">is</span> <span class="va">None</span> <span class="kw">or</span> _fitter_comb.cumulative_cost() <span class="op">&gt;=</span> max_pts:</span>
+<span id="cb7-268"><a href="#cb7-268" aria-hidden="true" tabindex="-1"></a>        <span class="cf">break</span></span>
+<span id="cb7-269"><a href="#cb7-269" aria-hidden="true" tabindex="-1"></a>    _fitter_comb.step_values(target_fn(s))</span>
+<span id="cb7-270"><a href="#cb7-270" aria-hidden="true" tabindex="-1"></a>nodes_comb <span class="op">=</span> bkd.to_numpy(_fitter_comb.get_samples(<span class="st">"selected"</span>))</span>
+<span id="cb7-271"><a href="#cb7-271" aria-hidden="true" tabindex="-1"></a>nodes_loc  <span class="op">=</span> bkd.to_numpy(fitter_loc_lin.get_samples())</span>
+<span id="cb7-272"><a href="#cb7-272" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-273"><a href="#cb7-273" aria-hidden="true" tabindex="-1"></a>theta <span class="op">=</span> np.linspace(<span class="dv">0</span>, np.pi <span class="op">/</span> <span class="dv">2</span>, <span class="dv">200</span>)</span>
+<span id="cb7-274"><a href="#cb7-274" aria-hidden="true" tabindex="-1"></a>ridge_x <span class="op">=</span> np.sqrt(<span class="fl">0.3</span>) <span class="op">*</span> np.cos(theta)</span>
+<span id="cb7-275"><a href="#cb7-275" aria-hidden="true" tabindex="-1"></a>ridge_y <span class="op">=</span> np.sqrt(<span class="fl">0.3</span>) <span class="op">*</span> np.sin(theta)</span>
+<span id="cb7-276"><a href="#cb7-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-277"><a href="#cb7-277" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="dv">5</span>))</span>
+<span id="cb7-278"><a href="#cb7-278" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> ax, nodes, title <span class="kw">in</span> [</span>
+<span id="cb7-279"><a href="#cb7-279" aria-hidden="true" tabindex="-1"></a>    (axes[<span class="dv">0</span>], nodes_comb, <span class="ss">f"Combination (n=</span><span class="sc">{</span>nodes_comb<span class="sc">.</span>shape[<span class="dv">1</span>]<span class="sc">}</span><span class="ss">)"</span>),</span>
+<span id="cb7-280"><a href="#cb7-280" aria-hidden="true" tabindex="-1"></a>    (axes[<span class="dv">1</span>], nodes_loc, <span class="ss">f"Local adaptive (n=</span><span class="sc">{</span>nodes_loc<span class="sc">.</span>shape[<span class="dv">1</span>]<span class="sc">}</span><span class="ss">)"</span>),</span>
+<span id="cb7-281"><a href="#cb7-281" aria-hidden="true" tabindex="-1"></a>]:</span>
+<span id="cb7-282"><a href="#cb7-282" aria-hidden="true" tabindex="-1"></a>    ax.plot(nodes[<span class="dv">0</span>], nodes[<span class="dv">1</span>], <span class="st">"o"</span>, color<span class="op">=</span><span class="st">"#1F77B4"</span>, ms<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb7-283"><a href="#cb7-283" aria-hidden="true" tabindex="-1"></a>    ax.plot(ridge_x, ridge_y, <span class="st">"--"</span>, color<span class="op">=</span><span class="st">"#D62728"</span>, lw<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-284"><a href="#cb7-284" aria-hidden="true" tabindex="-1"></a>    ax.set_xlim(<span class="dv">0</span>, <span class="dv">1</span>)<span class="op">;</span> ax.set_ylim(<span class="dv">0</span>, <span class="dv">1</span>)</span>
+<span id="cb7-285"><a href="#cb7-285" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="st">"$</span><span class="ch">\\</span><span class="st">xi_1$"</span>)<span class="op">;</span> ax.set_ylabel(<span class="st">"$</span><span class="ch">\\</span><span class="st">xi_2$"</span>)</span>
+<span id="cb7-286"><a href="#cb7-286" aria-hidden="true" tabindex="-1"></a>    ax.set_title(title)<span class="op">;</span> ax.set_aspect(<span class="st">"equal"</span>)</span>
+<span id="cb7-287"><a href="#cb7-287" aria-hidden="true" tabindex="-1"></a>    ax.grid(<span class="va">True</span>, alpha<span class="op">=</span><span class="fl">0.3</span>)</span>
+<span id="cb7-288"><a href="#cb7-288" aria-hidden="true" tabindex="-1"></a>fig.tight_layout()</span>
+<span id="cb7-289"><a href="#cb7-289" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb7-290"><a href="#cb7-290" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb7-291"><a href="#cb7-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-292"><a href="#cb7-292" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-293"><a href="#cb7-293" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why Local Adaptivity Wins</span></span>
+<span id="cb7-294"><a href="#cb7-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-295"><a href="#cb7-295" aria-hidden="true" tabindex="-1"></a>The combination technique selects whole subspaces.  When the indicator</span>
+<span id="cb7-296"><a href="#cb7-296" aria-hidden="true" tabindex="-1"></a>identifies a dimension as important it refines the entire axis to</span>
+<span id="cb7-297"><a href="#cb7-297" aria-hidden="true" tabindex="-1"></a>the next level — adding nodes uniformly even in smooth regions far</span>
+<span id="cb7-298"><a href="#cb7-298" aria-hidden="true" tabindex="-1"></a>from the ridge.  Local adaptivity instead refines the single point</span>
+<span id="cb7-299"><a href="#cb7-299" aria-hidden="true" tabindex="-1"></a>with the largest surplus, so evaluations concentrate where the</span>
+<span id="cb7-300"><a href="#cb7-300" aria-hidden="true" tabindex="-1"></a>function is hardest to approximate.</span>
+<span id="cb7-301"><a href="#cb7-301" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-302"><a href="#cb7-302" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-303"><a href="#cb7-303" aria-hidden="true" tabindex="-1"></a><span class="fu">## Summary</span></span>
+<span id="cb7-304"><a href="#cb7-304" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-305"><a href="#cb7-305" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Method <span class="pp">|</span> Refines <span class="pp">|</span> Behavior on localized features <span class="pp">|</span> API <span class="pp">|</span></span>
+<span id="cb7-306"><a href="#cb7-306" aria-hidden="true" tabindex="-1"></a><span class="pp">|---|---|---|---|</span></span>
+<span id="cb7-307"><a href="#cb7-307" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Combination, piecewise <span class="pp">|</span> Whole subspaces <span class="pp">|</span> Uniform refinement along important axes; wastes evaluations in smooth regions <span class="pp">|</span> <span class="in">`SingleFidelityAdaptiveSparseGridFitter`</span> + <span class="in">`PiecewiseFactory`</span> <span class="pp">|</span></span>
+<span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Local adaptive ($p_{\max}{=}1$) <span class="pp">|</span> Single points <span class="pp">|</span> Concentrates evaluations on the feature <span class="pp">|</span> <span class="in">`SingleFidelityHierarchicalFitter`</span> + <span class="in">`HierarchicalBasis1D(p_max=1)`</span> <span class="pp">|</span></span>
+<span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Local adaptive ($p_{\max}{=}2$) <span class="pp">|</span> Single points <span class="pp">|</span> Same concentration; higher accuracy in smooth regions <span class="pp">|</span> <span class="in">`HierarchicalBasis1D(p_max=2)`</span> <span class="pp">|</span></span>
+<span id="cb7-310"><a href="#cb7-310" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-312"><a href="#cb7-312" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb7-313"><a href="#cb7-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-314"><a href="#cb7-314" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Set <span class="in">`downward_closed=False`</span> in <span class="in">`run_local`</span>.  Does the convergence curve improve or degrade?  Inspect the point distribution to explain.</span>
+<span id="cb7-315"><a href="#cb7-315" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Replace <span class="in">`target_fn`</span> with a smooth function such as $\cos(\pi \xi_1)\cos(\pi \xi_2/2)$.  Does the local-vs-combination gap shrink, grow, or stay the same?</span>
+<span id="cb7-316"><a href="#cb7-316" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Reduce <span class="in">`max_pts`</span> to 100.  Is the gap between the two methods already visible at small budgets?</span>
+</code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.</p>
+</div>   
+    <div class="nav-footer-center">
+<p>Built with <a href="https://quarto.org">Quarto</a></p>
+</div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/sandialabs/pyapprox">Repository</a> | <a href="https://pypi.org/project/pyapprox/">PyPI</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

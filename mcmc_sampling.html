@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Sampling the Posterior with MCMC – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1219,7 +1238,7 @@ Figure&nbsp;2: Three scenarios for a proposed move. Top: the proposal lands in a
 <section id="running-mcmc-on-the-1d-beam" class="level2">
 <h2 class="anchored" data-anchor-id="running-mcmc-on-the-1d-beam">Running MCMC on the 1D Beam</h2>
 <p>We use a cantilever beam whose bending stiffness varies spatially, parameterized by a single KLE coefficient <span class="math inline">\(\xi \sim \mathcal{N}(0, 1)\)</span>. We observe the tip deflection with 10% Gaussian noise and want to infer <span class="math inline">\(\xi\)</span>. Rather than writing a manual Metropolis-Hastings loop, we use the <code>LogUnNormalizedPosterior</code> and <code>MetropolisHastingsSampler</code> classes from the typing API.</p>
-<div id="d8be49ae" class="cell" data-execution_count="3">
+<div id="dcfb1f13" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.inverse.posterior.log_unnormalized <span class="im">import</span> (</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    LogUnNormalizedPosterior,</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1278,11 +1297,11 @@ Figure&nbsp;3: MCMC output for the 1D beam problem. Left: trace plot showing the
 \log EI(x) = \log \overline{EI} + \sigma \sum_{i=1}^{2} \sqrt{\lambda_i}\, \phi_i(x)\, \xi_i
 \]</span></p>
 <p>where <span class="math inline">\(\overline{EI}\)</span> is the mean stiffness, <span class="math inline">\((\lambda_i, \phi_i)\)</span> are the KLE eigenvalues and eigenfunctions, and <span class="math inline">\(\xi_1, \xi_2 \sim \mathcal{N}(0,1)\)</span> are the uncertain parameters we want to infer. The 1D case above used a single KLE term; now we have a richer model that captures more spatial variation, making it a genuinely 2D inference problem.</p>
-<div id="2470b4d3" class="cell" data-execution_count="5">
+<div id="ef27212a" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> benchmark_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>problem_2d <span class="op">=</span> build_cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> problem_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> problem_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
 <span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip-only wrapper (first QoI is tip deflection)</span></span>
 <span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>tip_model_2d <span class="op">=</span> FunctionFromCallable(</span>
@@ -1316,7 +1335,7 @@ Observed:             10.120178
 Noise std (10%):      0.865673</code></pre>
 </div>
 </div>
-<div id="91040975" class="cell" data-execution_count="6">
+<div id="6dc47755" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># --- 2D MCMC ---</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>posterior_2d <span class="op">=</span> LogUnNormalizedPosterior(</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    model_fn<span class="op">=</span>tip_model_2d, likelihood<span class="op">=</span>noise_lik_2d, prior<span class="op">=</span>prior_2d, bkd<span class="op">=</span>bkd,</span>
@@ -1957,7 +1976,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-random-walk-concept</span></span>
 <span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb7-84"><a href="#cb7-84" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_random_walk_concept</span>
+<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_random_walk_concept</span>
 <span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">6</span>))</span>
 <span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a>plot_random_walk_concept(fig, ax)</span>
@@ -1976,8 +1995,8 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-mh-single-step</span></span>
 <span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> (</span>
-<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a>    cantilever_beam_1d,</span>
+<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_1d,</span>
 <span id="cb7-108"><a href="#cb7-108" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb7-109"><a href="#cb7-109" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability.likelihood <span class="im">import</span> (</span>
 <span id="cb7-110"><a href="#cb7-110" aria-hidden="true" tabindex="-1"></a>    DiagonalGaussianLogLikelihood,</span>
@@ -1987,14 +2006,14 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-114"><a href="#cb7-114" aria-hidden="true" tabindex="-1"></a>    FunctionFromCallable,</span>
 <span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a>)</span>
 <span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats <span class="im">import</span> norm</span>
-<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_mh_single_step</span>
+<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_mh_single_step</span>
 <span id="cb7-118"><a href="#cb7-118" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-121"><a href="#cb7-121" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 1 KLE term for spatially varying EI(x)</span></span>
-<span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a>benchmark_1d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a>beam_1d <span class="op">=</span> benchmark_1d.function()</span>
-<span id="cb7-124"><a href="#cb7-124" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark_1d.prior()</span>
+<span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a>problem_1d <span class="op">=</span> build_cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a>beam_1d <span class="op">=</span> problem_1d.function()</span>
+<span id="cb7-124"><a href="#cb7-124" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> problem_1d.prior()</span>
 <span id="cb7-125"><a href="#cb7-125" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-126"><a href="#cb7-126" aria-hidden="true" tabindex="-1"></a>tip_model <span class="op">=</span> FunctionFromCallable(</span>
 <span id="cb7-127"><a href="#cb7-127" aria-hidden="true" tabindex="-1"></a>    nqoi<span class="op">=</span><span class="dv">1</span>, nvars<span class="op">=</span><span class="dv">1</span>,</span>
@@ -2086,7 +2105,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MCMC output for the 1D beam problem. Left: trace plot showing the walker's path over 2,000 steps. The first 200 steps (gray shading) are discarded as burn-in. Right: histogram of the chain samples (post burn-in) overlaid on the exact grid posterior (orange curve). The MCMC samples faithfully reproduce the posterior."</span></span>
 <span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-trace-and-histogram</span></span>
-<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_trace_and_histogram</span>
+<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_trace_and_histogram</span>
 <span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-222"><a href="#cb7-222" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a>plot_trace_and_histogram(ax1, ax2, chain, xi_grid, post_vals,</span>
@@ -2110,9 +2129,9 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-241"><a href="#cb7-241" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-244"><a href="#cb7-244" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb7-245"><a href="#cb7-245" aria-hidden="true" tabindex="-1"></a><span class="co"># 1D FEM beam with 2 KLE terms for spatially varying EI(x)</span></span>
-<span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a>benchmark_2d <span class="op">=</span> cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> benchmark_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
-<span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> benchmark_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
+<span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a>problem_2d <span class="op">=</span> build_cantilever_beam_1d(bkd, num_kle_terms<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a>beam_2d <span class="op">=</span> problem_2d.function()   <span class="co"># nvars=2, nqoi=3</span></span>
+<span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a>prior_2d <span class="op">=</span> problem_2d.prior()     <span class="co"># IndependentJoint of 2 x N(0,1)</span></span>
 <span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a><span class="co"># Tip-only wrapper (first QoI is tip deflection)</span></span>
 <span id="cb7-251"><a href="#cb7-251" aria-hidden="true" tabindex="-1"></a>tip_model_2d <span class="op">=</span> FunctionFromCallable(</span>
@@ -2171,7 +2190,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "MCMC trajectory on the 2D beam posterior. The chain starts at the prior mean (green star) and migrates to the high-density region. Burn-in steps (gray) are discarded. Stationary samples (colored by step number) trace out the posterior, which is elongated due to the correlation between $\\xi_1$ and $\\xi_2$ imposed by the data."</span></span>
 <span id="cb7-310"><a href="#cb7-310" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-chain</span></span>
-<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_2d_chain</span>
+<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_2d_chain</span>
 <span id="cb7-312"><a href="#cb7-312" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-313"><a href="#cb7-313" aria-hidden="true" tabindex="-1"></a>burnin_2d <span class="op">=</span> <span class="dv">500</span></span>
 <span id="cb7-314"><a href="#cb7-314" aria-hidden="true" tabindex="-1"></a>chain_2d_post <span class="op">=</span> chain_2d[burnin_2d:]</span>
@@ -2189,7 +2208,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-329"><a href="#cb7-329" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Marginal posteriors from the 2D chain. The MCMC histograms (blue) closely match the exact marginals from grid evaluation (orange curves). Both parameters are shifted from their prior means toward the true values."</span></span>
 <span id="cb7-330"><a href="#cb7-330" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-2d-marginals</span></span>
-<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_2d_marginals</span>
+<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_2d_marginals</span>
 <span id="cb7-332"><a href="#cb7-332" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-333"><a href="#cb7-333" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="dv">4</span>))</span>
 <span id="cb7-334"><a href="#cb7-334" aria-hidden="true" tabindex="-1"></a>plot_2d_marginals(ax1, ax2, chain_2d_post, posterior_2d, xi_true_2d, bkd)</span>
@@ -2206,7 +2225,7 @@ Figure&nbsp;6: Posterior predictive check. The histogram shows tip deflection pr
 <span id="cb7-347"><a href="#cb7-347" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb7-348"><a href="#cb7-348" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Posterior predictive check. The histogram shows tip deflection predictions from posterior samples. The observed value (red dashed line) falls within the bulk of the predictive distribution --- the inference is consistent with the data."</span></span>
 <span id="cb7-349"><a href="#cb7-349" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-posterior-predictive</span></span>
-<span id="cb7-350"><a href="#cb7-350" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._bayesian <span class="im">import</span> plot_posterior_predictive</span>
+<span id="cb7-350"><a href="#cb7-350" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._bayesian <span class="im">import</span> plot_posterior_predictive</span>
 <span id="cb7-351"><a href="#cb7-351" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-352"><a href="#cb7-352" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
 <span id="cb7-353"><a href="#cb7-353" aria-hidden="true" tabindex="-1"></a>plot_posterior_predictive(ax, chain_2d_post, tip_model_2d,</span>

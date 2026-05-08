@@ -1,0 +1,2318 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.37">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Approximate an expensive model with a shallow universal polynomial network (SUPN).">
+
+<title>Building a Shallow Universal Polynomial Network – PyApprox</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+/* CSS for citations */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging-indent div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<link href="./assets/favicon.ico" rel="icon">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<!--
+pyapprox Tutorial MathJax Macros
+For HTML output via Quarto (MathJax 3.x)
+Mirrors _macros.tex but uses MathJax-compatible syntax
+-->
+
+<script>
+MathJax = {
+  tex: {
+    macros: {
+      // Vectors/Matrices/Tensors
+      vc: ["{\\mathbf{#1}}", 1],
+      mt: ["{\\mathbf{#1}}", 1],
+      ts: ["{\\mathcal{#1}}", 1],
+
+      // Common Vectors
+      params: "{\\boldsymbol{\\theta}}",
+      inputs: "{\\mathbf{x}}",
+      outputs: "{\\mathbf{y}}",
+      data: "{\\mathbf{y}}",
+      state: "{\\mathbf{u}}",
+
+      // Dimensions
+      dparams: "{d_\\theta}",
+      dinputs: "{d_x}",
+      doutputs: "{d_y}",
+      dstates: "{d_u}",
+      Reals: ["{\\mathbb{R}^{#1}}", 1],
+
+      // Samples
+      nsamples: "{N}",
+      sample: ["^{(#1)}", 1],
+      samplemat: ["{\\mathbf{#1}}", 1],
+
+      // Random Variables
+      rv: ["{\\tilde{#1}}", 1],
+
+      // Functions and Models
+      model: "{f}",
+      qoifunc: "{q}",
+      qoifunctional: "{g}",
+      surrogate: ["{f_{#1}}", 1],
+      surr: "{f_N}",
+
+      // Probability
+      E: "{\\mathbb{E}}",
+      Var: "{\\mathbb{V}}",
+      Cov: "{\\mathrm{Cov}}",
+      pdf: "{p}",
+      normal: "{\\mathcal{N}}",
+      uniform: "{\\mathcal{U}}",
+
+      // Sensitivity Analysis
+      Sobol: ["{S_{#1}}", 1],
+      SobolT: ["{S_{#1}^T}", 1],
+      maineff: ["{V_{#1}}", 1],
+      totaleff: ["{V_{#1}^T}", 1],
+
+      // Operators
+      argmin: "{\\operatorname*{arg\\,min}}",
+      argmax: "{\\operatorname*{arg\\,max}}",
+      dd: "{\\mathrm{d}}",
+      pd: ["{\\frac{\\partial #1}{\\partial #2}}", 2],
+
+      // Common Matrices
+      CovMat: "{\\boldsymbol{\\Sigma}}",
+      IdentMat: "{\\mathbf{I}}",
+      JacMat: "{\\mathbf{J}}",
+      HessMat: "{\\mathbf{H}}",
+
+      // Time-dependent Problems
+      tinit: "{t_0}",
+      tfinal: "{t_f}",
+      deltat: "{\\Delta t}",
+
+      // Integration/Quadrature
+      integral: "{\\mathcal{I}}",
+      domain: "{\\Omega}"
+    }
+  }
+};
+</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<meta property="og:title" content="Building a Shallow Universal Polynomial Network – PyApprox">
+<meta property="og:description" content="Approximate an expensive model with a shallow universal polynomial network (SUPN).">
+<meta property="og:image" content="https://sandialabs.github.io/pyapprox/supn_surrogates_files/figure-html/fig-runge-single-output-1.png">
+<meta property="og:site_name" content="PyApprox">
+<meta property="og:image:height" content="746">
+<meta property="og:image:width" content="1130">
+</head>
+
+<body class="nav-sidebar docked nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a href="./index.html" class="navbar-brand navbar-brand-logo">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo light-content">
+    <img src="./assets/pyapprox-logo.png" alt="" class="navbar-logo dark-content">
+    </a>
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">PyApprox</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./tutorials.html"> 
+<span class="menu-text">Tutorials</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-topics" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Topics</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-topics">    
+        <li>
+    <a class="dropdown-item" href="./tutorials.html">
+ <span class="dropdown-text">Tutorial Index</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#forward-uq">
+ <span class="dropdown-text">Forward UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#multifidelity-estimation">
+ <span class="dropdown-text">Multifidelity Estimation</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#inverse-uq">
+ <span class="dropdown-text">Inverse UQ</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#experimental-design">
+ <span class="dropdown-text">Experimental Design</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#surrogate-modeling">
+ <span class="dropdown-text">Surrogate Modeling</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tutorials.html#sensitivity-analysis">
+ <span class="dropdown-text">Sensitivity Analysis</span></a>
+  </li>  
+    </ul>
+  </li>
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/sandialabs/pyapprox"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./supn_surrogates.html">Universal Polynomial Networks</a></li><li class="breadcrumb-item"><a href="./supn_surrogates.html">Building a Shallow Universal Polynomial Network</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+      <button type="button" class="btn quarto-search-button" aria-label="Search" onclick="window.quartoOpenSearch();">
+        <i class="bi bi-search"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation docked overflow-auto">
+        <div class="mt-2 flex-shrink-0 align-items-center">
+        <div class="sidebar-search">
+        <div id="quarto-search" class="" title="Search"></div>
+        </div>
+        </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Getting Started</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./setup_environment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Setting Up Your Environment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models_decisions_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Models to Decisions Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true">
+ <span class="menu-text">Forward UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./forward_uq.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Forward Uncertainty Quantification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./random_variables_distributions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Random Variables and Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./estimator_accuracy_mse.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Estimator Accuracy and Mean Squared Error</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./quasi_monte_carlo_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Quasi–Monte Carlo Sampling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./qmc_practical.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical QMC: Scrambling, Error Bars, and High Dimensions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./importance_sampling_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Importance Sampling for Rare Events</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mc_budget_estimation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Monte Carlo Budget Estimation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
+ <span class="menu-text">Multifidelity Estimation</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./control_variate_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Control Variate Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximate Control Variate Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./acv_many_models_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">General ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mfmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlmc_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Level Monte Carlo: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_acv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Output ACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parametrically Defined Approximate Control Variates</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pacv_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PACV: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multilevel Best Linear Unbiased Estimators</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mlblue_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MLBLUE: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pilot_studies_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Pilot Studies: Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./ensemble_selection_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Ensemble Selection</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_estimation_cookbook.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Estimation: API Cookbook</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Inverse UQ</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bayesian_inference_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Data to Parameters: Introduction to Bayesian Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./mcmc_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sampling the Posterior with MCMC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./dram_mcmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Practical MCMC: Metropolis-Hastings and DRAM</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Approximating the Posterior: Introduction to Variational Inference</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_objective.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Variational Inference Optimizes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_optimization.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Optimizing the ELBO</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_families.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Choosing the Variational Family</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./vi_amortized.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Amortized Variational Inference</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Experimental Design</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./experimental_design_intro.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Not All Experiments Are Equal: Introduction to Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">KL-Based OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Learning from Experiments: Bayesian Optimal Experimental Design</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_estimator.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: The Double-Loop Estimator</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_gradients.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Gradients and the Reparameterization Trick</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Verifying Convergence with KLOEDDiagnostics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_qmc.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: MC vs.&nbsp;Halton for EIG Estimation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED in Practice: Parameter Estimation for a Predator-Prey System</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_kl_design_stability.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bayesian OED: Design Stability and Convergence</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Goal-Oriented OED</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented Bayesian OED: Designing for Prediction</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_gaussian_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Gaussian Posterior Expressions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_lognormal_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Risk-Aware Utility: Log-Normal Prediction Distributions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Convergence Verification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_pred_nonlinear_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Goal-Oriented OED: Designing for Prediction on a Predator-Prey System</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">OED Workflows</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./boed_data_workflow_usage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Decoupling Data Generation from OED Optimisation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true">
+ <span class="menu-text">Approximation Theory</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./lagrange_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Lagrange Interpolation: Polynomials on Optimal Points</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Interpolation: Local Basis Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tensor_product_interpolation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tensor Product Interpolation: Multivariate Approximation and Its Limits</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gauss_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Gauss Quadrature: Optimal Nodes from Orthogonal Polynomials</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./piecewise_quadrature.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Piecewise Polynomial Quadrature: Rectangle, Trapezoid, and Simpson’s Rules</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./leja_sequences.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Leja Sequences: Nested Points for Adaptive Interpolation</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true">
+ <span class="menu-text">Surrogate Modeling</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Surrogate Modeling Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./surrogate_design.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">What Makes a Good Surrogate?</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
+ <span class="menu-text">Polynomial Chaos</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./polynomial_chaos_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Polynomial Chaos Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./practical_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Overfitting and Cross-Validation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_pce_fitting.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sparse Polynomial Approximation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_pce.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Polynomial Chaos</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">Function Trains</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./function_train_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">An Introduction to Function Trains</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_functiontrain.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Function Trains</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false">
+ <span class="menu-text">Sparse Grids</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./isotropic_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Isotropic Sparse Grids: Breaking the Curse of Dimensionality</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sparse Grids: Data-Driven Refinement for Anisotropic Functions</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multifidelity_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multifidelity Sparse Grids: Multi-Index Collocation for Model Hierarchies</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sparse_grid_to_pce_conversion.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">From Sparse Grids to PCE: The Mathematics of Basis Conversion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_sparse_grids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Sparse Grids</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false">
+ <span class="menu-text">Gaussian Processes</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_surrogate.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Gaussian Process Surrogate</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./uq_with_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UQ with Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./adaptive_gp_sampling.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adaptive Sampling for Gaussian Processes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multioutput_gp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi-Fidelity Gaussian Processes</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./sobol_sensitivity_analysis.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sobol Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./pce_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">PCE-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gp_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">GP-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./morris_screening.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Morris Screening</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./bin_based_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bin-Based Sensitivity Analysis</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity_math.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Mathematical Derivation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./functiontrain_sensitivity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">FunctionTrain Sensitivity: Practical Usage</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+ <span class="menu-text">Random Fields</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE I: Random Fields and the Karhunen-Loève Expansion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_mesh_and_data_driven.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE II: Kernel-Based vs Data-Driven KLE</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./kle_spde.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">KLE III: SPDE-Based KLE for Matern Fields</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
+ <span class="menu-text">Optimization Under Uncertainty</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Design Under Uncertainty</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#learning-objectives" id="toc-learning-objectives" class="nav-link active" data-scroll-target="#learning-objectives">Learning Objectives</a></li>
+  <li><a href="#the-supn-ansatz" id="toc-the-supn-ansatz" class="nav-link" data-scroll-target="#the-supn-ansatz">The SUPN Ansatz</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup">Setup</a></li>
+  <li><a href="#inspecting-the-architecture" id="toc-inspecting-the-architecture" class="nav-link" data-scroll-target="#inspecting-the-architecture">Inspecting the Architecture</a></li>
+  <li><a href="#a-smooth-1d-target-runges-function" id="toc-a-smooth-1d-target-runges-function" class="nav-link" data-scroll-target="#a-smooth-1d-target-runges-function">A Smooth 1D Target: Runge’s Function</a>
+  <ul class="collapse">
+  <li><a href="#a-single-fit" id="toc-a-single-fit" class="nav-link" data-scroll-target="#a-single-fit">A Single Fit</a></li>
+  </ul></li>
+  <li><a href="#a-2d-target-sum-of-rastrigin-functions" id="toc-a-2d-target-sum-of-rastrigin-functions" class="nav-link" data-scroll-target="#a-2d-target-sum-of-rastrigin-functions">A 2D Target: Sum of Rastrigin Functions</a>
+  <ul class="collapse">
+  <li><a href="#choosing-n-textttmax_level" id="toc-choosing-n-textttmax_level" class="nav-link" data-scroll-target="#choosing-n-textttmax_level">Choosing <span class="math inline">\((N, \texttt{max\_level})\)</span></a></li>
+  </ul></li>
+  <li><a href="#practical-tips" id="toc-practical-tips" class="nav-link" data-scroll-target="#practical-tips">Practical Tips</a></li>
+  <li><a href="#key-takeaways" id="toc-key-takeaways" class="nav-link" data-scroll-target="#key-takeaways">Key Takeaways</a></li>
+  <li><a href="#exercises" id="toc-exercises" class="nav-link" data-scroll-target="#exercises">Exercises</a></li>
+  <li><a href="#next-steps" id="toc-next-steps" class="nav-link" data-scroll-target="#next-steps">Next Steps</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./surrogate_workflow.html">Surrogate Modeling</a></li><li class="breadcrumb-item"><a href="./supn_surrogates.html">Universal Polynomial Networks</a></li><li class="breadcrumb-item"><a href="./supn_surrogates.html">Building a Shallow Universal Polynomial Network</a></li></ol></nav>
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Building a Shallow Universal Polynomial Network</h1><button type="button" class="btn code-tools-button" id="quarto-code-tools-source"><i class="bi"></i> Code</button></div></div>
+<p class="subtitle lead">PyApprox Tutorial Library</p>
+</div>
+
+<div>
+  <div class="description">
+    Approximate an expensive model with a shallow universal polynomial network (SUPN).
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center collapsed" data-bs-toggle="collapse" data-bs-target=".callout-1-contents" aria-controls="callout-1" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Download Notebook
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-1" class="callout-1-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p><a href="notebooks/supn_surrogates.ipynb">Download as Jupyter Notebook</a></p>
+</div>
+</div>
+</div>
+<section id="learning-objectives" class="level2">
+<h2 class="anchored" data-anchor-id="learning-objectives">Learning Objectives</h2>
+<p>After completing this tutorial, you will be able to:</p>
+<ul>
+<li>Write down the SUPN ansatz and identify its trainable parameters</li>
+<li>Construct a SUPN with <code>create_supn</code> and inspect its parameter count</li>
+<li>Fit a SUPN to training data with <code>SUPNMSEFitter</code></li>
+<li>Examine convergence as a function of network width <span class="math inline">\(N\)</span> and polynomial degree on a smooth 1D target</li>
+<li>Apply SUPNs to a 2D target and choose the hyperparameters by sweeping a small grid</li>
+</ul>
+<p>Surrogate models replace expensive simulators with cheap approximations — see <a href="./surrogate_workflow.html">The Surrogate Modeling Workflow</a> for an introduction. The <strong>shallow universal polynomial network (SUPN)</strong> <span class="citation" data-cites="morrow2025supn">(<a href="#ref-morrow2025supn" role="doc-biblioref">Morrow et al. 2025</a>)</span> is an expressive nonlinear surrogate that borrows from both polynomial chaos expansions (PCEs) and Gaussian processes (GPs). It uses the same Chebyshev basis as a PCE, but feeds linear combinations of that basis through a <span class="math inline">\(\tanh\)</span> nonlinearity, then takes a final linear combination. The result is an expressive nonlinear surrogate with far fewer trainable parameters than a deep neural network.</p>
+</section>
+<section id="the-supn-ansatz" class="level2">
+<h2 class="anchored" data-anchor-id="the-supn-ansatz">The SUPN Ansatz</h2>
+<p>A SUPN approximates a target function <span class="math inline">\(f : [-1, 1]^D \to \mathbb{R}^Q\)</span> as</p>
+<p><span class="math display">\[
+f_{N, \Lambda}(\mathbf{x}) = \sum_{n=1}^{N} c_n \, \tanh\!\left( \sum_{m \in \Lambda} a_{n, m} \, T_m(\mathbf{x}) \right)
+\]</span></p>
+<p>where <span class="math inline">\(T_m(\mathbf{x}) = \prod_{d=1}^{D} T_{m_d}(x_d)\)</span> is a product of univariate Chebyshev polynomials of the first kind, <span class="math inline">\(\Lambda \subset \mathbb{N}_0^D\)</span> is a multi-index set (analogous to the basis index set of a PCE), and <span class="math inline">\(a_{n, m} \in \mathbb{R}\)</span> and <span class="math inline">\(c_n \in \mathbb{R}^Q\)</span> are the trainable parameters.</p>
+<p>In matrix form, with the <span class="math inline">\(M = |\Lambda|\)</span> basis functions stacked into a vector <span class="math inline">\(B(\mathbf{x}) \in \mathbb{R}^M\)</span>:</p>
+<p><span class="math display">\[
+f(\mathbf{x}) = C \, \tanh\!\big( A \, B(\mathbf{x}) \big),
+\]</span></p>
+<p>where <span class="math inline">\(A \in \mathbb{R}^{N \times M}\)</span> and <span class="math inline">\(C \in \mathbb{R}^{Q \times N}\)</span>. The total parameter count is</p>
+<p><span class="math display">\[
+P = N M + Q N.
+\]</span></p>
+<p>The architecture has three stages:</p>
+<ol type="1">
+<li><strong>Chebyshev lift.</strong> <span class="math inline">\(\mathbf{x} \mapsto B(\mathbf{x})\)</span> replaces the raw input with a polynomial feature vector. This is the role played by the early hidden layers of an MLP, but pre-specified rather than learned.</li>
+<li><strong>Hidden layer.</strong> A linear map followed by a <span class="math inline">\(\tanh\)</span> nonlinearity, exactly as in a single-layer MLP.</li>
+<li><strong>Linear readout.</strong> A linear combination of the <span class="math inline">\(N\)</span> hidden units produces the output.</li>
+</ol>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Connection to PCE
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A polynomial chaos expansion uses the same Chebyshev basis <span class="math inline">\(\{T_m\}_{m \in \Lambda}\)</span> but combines it linearly: <span class="math inline">\(f_{\text{PCE}}(\mathbf{x}) = \sum_m \alpha_m T_m(\mathbf{x})\)</span>. A SUPN feeds linear combinations of the same basis through a <span class="math inline">\(\tanh\)</span> nonlinearity, then takes a final linear combination. When the inner sum is small, <span class="math inline">\(\tanh(y) \approx y\)</span> and the SUPN behaves like a linear combination of PCEs; when the sum is large the nonlinearity dominates and the network gains expressivity beyond what any single PCE in the same basis can achieve.</p>
+</div>
+</div>
+</section>
+<section id="setup" class="level2">
+<h2 class="anchored" data-anchor-id="setup">Setup</h2>
+<div id="1410a274" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.supn <span class="im">import</span> create_supn</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.supn.fitters <span class="im">import</span> SUPNMSEFitter</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="inspecting-the-architecture" class="level2">
+<h2 class="anchored" data-anchor-id="inspecting-the-architecture">Inspecting the Architecture</h2>
+<p>Before fitting anything, let’s build a small SUPN and look at its structure.</p>
+<div id="76317e33" class="cell" data-execution_count="2">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>supn <span class="op">=</span> create_supn(nvars<span class="op">=</span><span class="dv">1</span>, width<span class="op">=</span><span class="dv">5</span>, max_level<span class="op">=</span><span class="dv">4</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> supn.width()</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> supn.nterms()</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> supn.nparams()</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Width N             : </span><span class="sc">{</span>N<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of basis fns : </span><span class="sc">{</span>M<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Total parameters P  : </span><span class="sc">{</span>P<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Width N             : 5
+Number of basis fns : 5
+Total parameters P  : 30</code></pre>
+</div>
+</div>
+<p>The number of basis functions <span class="math inline">\(M\)</span> includes the constant term <span class="math inline">\(T_0 \equiv 1\)</span>. For a 1D SUPN with <code>max_level=4</code>, the index set is <span class="math inline">\(\Lambda = \{0, 1, 2, 3, 4\}\)</span> so <span class="math inline">\(M = 5\)</span>. The parameter count is <span class="math inline">\(P = NM + QN\)</span>: five hidden units, each carrying five Chebyshev coefficients (<span class="math inline">\(25\)</span> entries of <span class="math inline">\(A\)</span>), plus one output weight per hidden unit (<span class="math inline">\(5\)</span> entries of <span class="math inline">\(C\)</span>), giving <span class="math inline">\(P = 30\)</span>.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Sampling rule of thumb
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>For smooth 1D targets, <span class="math inline">\(K \approx 2P\)</span> random uniform training samples is enough to land in a clean training regime. For harder or higher-dimensional targets, low-discrepancy sequences (e.g.&nbsp;Sobol) with <span class="math inline">\(K \approx 4P\)</span> provide better coverage than random sampling at the same budget. If the loss landscape feels noisy or optimization stalls, increasing the sample ratio or improving the sample design usually helps.</p>
+</div>
+</div>
+</section>
+<section id="a-smooth-1d-target-runges-function" class="level2">
+<h2 class="anchored" data-anchor-id="a-smooth-1d-target-runges-function">A Smooth 1D Target: Runge’s Function</h2>
+<p>The Runge function</p>
+<p><span class="math display">\[
+f(x) = \frac{1}{1 + (cx)^2}
+\]</span></p>
+<p>with <span class="math inline">\(c = 5\)</span> is a textbook example of a function that is hard to approximate with naive interpolation. It is, however, infinitely smooth, and we expect SUPNs to converge rapidly on it.</p>
+<div id="c3610814" class="cell" data-execution_count="3">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> runge(samples, c<span class="op">=</span><span class="fl">5.0</span>):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fl">1.0</span> <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> (c <span class="op">*</span> samples)<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>x_test <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1000</span>).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>y_test <span class="op">=</span> runge(x_test)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<section id="a-single-fit" class="level3">
+<h3 class="anchored" data-anchor-id="a-single-fit">A Single Fit</h3>
+<p>We start with a single moderately-sized SUPN to demonstrate the full workflow before sweeping over hyperparameters.</p>
+<div id="cec7be33" class="cell" data-execution_count="4">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>supn <span class="op">=</span> create_supn(nvars<span class="op">=</span><span class="dv">1</span>, width<span class="op">=</span><span class="dv">5</span>, max_level<span class="op">=</span><span class="dv">4</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> supn.nparams()</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>K <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> P</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>x_train <span class="op">=</span> np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, K).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>y_train <span class="op">=</span> runge(x_train)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> SUPNMSEFitter(bkd)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(supn, bkd.asarray(x_train), bkd.asarray(y_train))</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>fitted <span class="op">=</span> result.surrogate()</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>y_pred <span class="op">=</span> bkd.to_numpy(fitted(bkd.asarray(x_test)))</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>rel_l2 <span class="op">=</span> np.linalg.norm(y_pred <span class="op">-</span> y_test) <span class="op">/</span> np.linalg.norm(y_test)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Parameters P        : </span><span class="sc">{</span>P<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Training samples K  : </span><span class="sc">{</span>K<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Converged           : </span><span class="sc">{</span>result<span class="sc">.</span>converged()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Relative L2 error   : </span><span class="sc">{</span>rel_l2<span class="sc">:.4e}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Parameters P        : 30
+Training samples K  : 60
+Converged           : True
+Relative L2 error   : 2.4358e-03</code></pre>
+</div>
+</div>
+<p>The default fitter chains Adam warm-starting (500 iterations) with trust-region Newton–CG, matching the two-phase training procedure in <span class="citation" data-cites="morrow2025supn">Morrow et al. (<a href="#ref-morrow2025supn" role="doc-biblioref">2025</a>)</span>. Adam navigates the non-convex loss landscape to a good basin; the second-order optimizer then converges rapidly to a high-accuracy local minimum using analytical gradient and Hessian-vector product.</p>
+<div id="cell-fig-runge-single" class="cell" data-execution_count="5">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._supn <span class="im">import</span> plot_supn_fit_1d</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>plot_supn_fit_1d(</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    x_test.flatten(), y_test.flatten(), y_pred.flatten(), ax,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    title<span class="op">=</span><span class="st">"SUPN fit to Runge function"</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-runge-single" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-runge-single-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="supn_surrogates_files/figure-html/fig-runge-single-output-1.png" width="565" height="373" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-runge-single-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;1: SUPN fit (N=5, M=5, P=30) to the Runge function with c=5. The dashed line is the target; the solid line is the SUPN prediction. Even with only 30 parameters, the fit captures the central peak and the falloff in the tails.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="a-2d-target-sum-of-rastrigin-functions" class="level2">
+<h2 class="anchored" data-anchor-id="a-2d-target-sum-of-rastrigin-functions">A 2D Target: Sum of Rastrigin Functions</h2>
+<p>Let’s move to two dimensions. The 2D Rastrigin sum</p>
+<p><span class="math display">\[
+f(x, y) = \big(x^2 - \cos(5\pi x)\big) + \big(y^2 - \cos(5\pi y)\big)
+\]</span></p>
+<p>is oscillatory in each variable and additively separable. SUPNs handle this kind of tensor-structured target well.</p>
+<div id="df01e2a5" class="cell" data-execution_count="6">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rastrigin_sum(samples):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    x, y <span class="op">=</span> samples[<span class="dv">0</span>], samples[<span class="dv">1</span>]</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> ((x<span class="op">**</span><span class="dv">2</span> <span class="op">-</span> np.cos(<span class="dv">5</span> <span class="op">*</span> np.pi <span class="op">*</span> x))</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> (y<span class="op">**</span><span class="dv">2</span> <span class="op">-</span> np.cos(<span class="dv">5</span> <span class="op">*</span> np.pi <span class="op">*</span> y)))</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> vals.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>We build a 2D test grid:</p>
+<div id="fbe58047" class="cell" data-execution_count="7">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> (</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    meshgrid_samples,</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>X, Y, samples_grid <span class="op">=</span> meshgrid_samples(<span class="dv">80</span>, [<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>], bkd)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>z_true <span class="op">=</span> bkd.to_numpy(rastrigin_sum(bkd.to_numpy(samples_grid))).reshape(</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    bkd.to_numpy(X).shape</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>X_np, Y_np <span class="op">=</span> bkd.to_numpy(X), bkd.to_numpy(Y)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>and fit a 2D SUPN.</p>
+<div id="e787d686" class="cell" data-execution_count="8">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats.qmc <span class="im">import</span> Sobol</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">3</span>)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>supn2d <span class="op">=</span> create_supn(nvars<span class="op">=</span><span class="dv">2</span>, width<span class="op">=</span><span class="dv">8</span>, max_level<span class="op">=</span><span class="dv">14</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> supn2d.nparams()</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>K <span class="op">=</span> <span class="dv">4096</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>sobol_sampler <span class="op">=</span> Sobol(d<span class="op">=</span><span class="dv">2</span>, scramble<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span><span class="dv">42</span>)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>x_train <span class="op">=</span> (<span class="fl">2.0</span> <span class="op">*</span> sobol_sampler.random(K) <span class="op">-</span> <span class="fl">1.0</span>).T  <span class="co"># (2, K) on [-1,1]^2</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>y_train <span class="op">=</span> rastrigin_sum(x_train)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>fitter_2d <span class="op">=</span> SUPNMSEFitter(bkd)</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>result_2d <span class="op">=</span> fitter_2d.fit(supn2d, bkd.asarray(x_train), bkd.asarray(y_train))</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>fitted_2d <span class="op">=</span> result_2d.surrogate()</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">99</span>)</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>x_test_2d <span class="op">=</span> np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">2</span>, <span class="dv">5000</span>))</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>y_test_2d <span class="op">=</span> rastrigin_sum(x_test_2d)</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>y_pred_2d <span class="op">=</span> bkd.to_numpy(fitted_2d(bkd.asarray(x_test_2d)))</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>rel_l2 <span class="op">=</span> np.linalg.norm(y_pred_2d <span class="op">-</span> y_test_2d) <span class="op">/</span> np.linalg.norm(y_test_2d)</span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Parameters P        : </span><span class="sc">{</span>P<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Training samples K  : </span><span class="sc">{</span>K<span class="sc">}</span><span class="ss"> (Sobol sequence)"</span>)</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Converged           : </span><span class="sc">{</span>result_2d<span class="sc">.</span>converged()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Relative L2 error   : </span><span class="sc">{</span>rel_l2<span class="sc">:.4e}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Parameters P        : 968
+Training samples K  : 4096 (Sobol sequence)
+Converged           : False
+Relative L2 error   : 1.5333e-02</code></pre>
+</div>
+</div>
+<div id="cell-fig-rastrigin-2d" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._supn <span class="im">import</span> plot_supn_2d_comparison</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>z_pred <span class="op">=</span> bkd.to_numpy(</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    fitted_2d(bkd.asarray(samples_grid))</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>).reshape(X_np.shape)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="dv">4</span>))</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>plot_supn_2d_comparison(X_np, Y_np, z_true, z_pred, axes, fig)</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-rastrigin-2d" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-rastrigin-2d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="supn_surrogates_files/figure-html/fig-rastrigin-2d-output-1.png" width="1232" height="372" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-rastrigin-2d-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;2: Three-panel comparison on the 2D Rastrigin sum (N=8, L=14, P=968, K=4096 Sobol). Left: target function; middle: SUPN prediction; right: pointwise absolute error.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<section id="choosing-n-textttmax_level" class="level3">
+<h3 class="anchored" data-anchor-id="choosing-n-textttmax_level">Choosing <span class="math inline">\((N, \texttt{max\_level})\)</span></h3>
+<p>The two main hyperparameters of a SUPN are the network width <span class="math inline">\(N\)</span> and the polynomial degree controlling <span class="math inline">\(|\Lambda|\)</span>. To get a feel for their interplay, we sweep both and record the test error.</p>
+<div id="e9ce2e99" class="cell" data-execution_count="10">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>N_values <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">6</span>, <span class="dv">8</span>, <span class="dv">10</span>]</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>L_values <span class="op">=</span> [<span class="dv">6</span>, <span class="dv">8</span>, <span class="dv">10</span>, <span class="dv">14</span>]</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>err_grid <span class="op">=</span> np.zeros((<span class="bu">len</span>(N_values), <span class="bu">len</span>(L_values)))</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, N_val <span class="kw">in</span> <span class="bu">enumerate</span>(N_values):</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j, L_val <span class="kw">in</span> <span class="bu">enumerate</span>(L_values):</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">*</span> <span class="dv">100</span> <span class="op">+</span> j)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>        supn_ij <span class="op">=</span> create_supn(</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>            nvars<span class="op">=</span><span class="dv">2</span>, width<span class="op">=</span>N_val, max_level<span class="op">=</span>L_val, bkd<span class="op">=</span>bkd,</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>        P_ij <span class="op">=</span> supn_ij.nparams()</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>        K_ij <span class="op">=</span> <span class="dv">4</span> <span class="op">*</span> P_ij</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>        sobol_ij <span class="op">=</span> Sobol(d<span class="op">=</span><span class="dv">2</span>, scramble<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span>i <span class="op">*</span> <span class="dv">100</span> <span class="op">+</span> j)</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>        x_tr <span class="op">=</span> (<span class="fl">2.0</span> <span class="op">*</span> sobol_ij.random(K_ij) <span class="op">-</span> <span class="fl">1.0</span>).T</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>        y_tr <span class="op">=</span> rastrigin_sum(x_tr)</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true" tabindex="-1"></a>        fitter_ij <span class="op">=</span> SUPNMSEFitter(bkd)</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a>        result_ij <span class="op">=</span> fitter_ij.fit(</span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a>            supn_ij, bkd.asarray(x_tr), bkd.asarray(y_tr),</span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a>        fitted_ij <span class="op">=</span> result_ij.surrogate()</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a>        y_p <span class="op">=</span> bkd.to_numpy(fitted_ij(bkd.asarray(x_test_2d)))</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a>        err_grid[i, j] <span class="op">=</span> (</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>            np.linalg.norm(y_p <span class="op">-</span> y_test_2d) <span class="op">/</span> np.linalg.norm(y_test_2d)</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>        )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="cell-fig-supn-heatmap" class="cell" data-execution_count="11">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._supn <span class="im">import</span> plot_supn_heatmap</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">5</span>))</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>plot_supn_heatmap(err_grid, N_values, L_values, ax)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>plt.show()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<div id="fig-supn-heatmap" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-supn-heatmap-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="supn_surrogates_files/figure-html/fig-supn-heatmap-output-1.png" width="558" height="466" class="figure-img">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-supn-heatmap-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure&nbsp;3: Test error heat-map over (N, max_level) on the 2D Rastrigin sum. Each cell shows the relative L2 error of one trained SUPN. Increasing the polynomial degree (moving right) drives the error down sharply on this oscillatory target; increasing N (moving up) refines the result but is less effective on its own.
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>The heat-map gives a practical recipe: pick <code>max_level</code> large enough to resolve the variation of the target, then use <span class="math inline">\(N\)</span> to refine. For oscillatory targets like this one, the polynomial degree is by far the more important knob.</p>
+</section>
+</section>
+<section id="practical-tips" class="level2">
+<h2 class="anchored" data-anchor-id="practical-tips">Practical Tips</h2>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Practical guidance for SUPN training
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<ul>
+<li>For smooth 1D targets, <span class="math inline">\(K \approx 2P\)</span> random uniform samples often suffices. For harder or higher-dimensional targets, use low-discrepancy sequences (Sobol) with <span class="math inline">\(K \approx 4P\)</span> for better coverage.</li>
+<li>If the loss plateaus, increase <code>max_level</code> before increasing <code>width</code>. The polynomial degree governs the expressivity of the inner sum, which is usually the limiting factor.</li>
+<li>The default fitter chains Adam warm-starting with trust-region Newton–CG. Adam navigates the non-convex landscape to a good basin; the second-order optimizer then converges rapidly. You can customize the optimizer via <code>fitter.set_optimizer(...)</code>.</li>
+<li>Multiple random initializations are cheap insurance for difficult targets — refit two or three times and keep the best.</li>
+</ul>
+</div>
+</div>
+</section>
+<section id="key-takeaways" class="level2">
+<h2 class="anchored" data-anchor-id="key-takeaways">Key Takeaways</h2>
+<ul>
+<li>A SUPN is a single-hidden-layer network whose first stage is a fixed Chebyshev polynomial lift; the trainable parameters are the inner coefficients <span class="math inline">\(a_{n,m}\)</span> and the output weights <span class="math inline">\(c_n\)</span>.</li>
+<li><code>create_supn(nvars, width, max_level, bkd)</code> builds a SUPN; the parameter count is <span class="math inline">\(P = NM + QN\)</span> where <span class="math inline">\(M = |\Lambda|\)</span> is the size of the multi-index set.</li>
+<li><code>SUPNMSEFitter</code> trains the network with Adam warm-starting followed by trust-region Newton–CG using analytical gradient and Hessian-vector product; check <code>result.converged()</code> after fitting.</li>
+<li>On smooth targets, SUPN test error decays rapidly with <span class="math inline">\(P\)</span>.</li>
+<li>For a fixed parameter budget, increasing <code>max_level</code> usually buys more accuracy than increasing <code>width</code>, especially on oscillatory targets.</li>
+</ul>
+</section>
+<section id="exercises" class="level2">
+<h2 class="anchored" data-anchor-id="exercises">Exercises</h2>
+<ol type="1">
+<li><strong>Width vs degree trade-off.</strong> Re-run the heat-map with <span class="math inline">\(K = 8P\)</span> Sobol training samples instead of <span class="math inline">\(4P\)</span>. Does the optimal <span class="math inline">\((N, \texttt{max\_level})\)</span> pair change, or just the absolute error level?</li>
+<li><strong>Hyperbolic cross.</strong> Pass <code>pnorm=0.5</code> to <code>create_supn</code> to use a hyperbolic-cross index set instead of total-degree. How does the parameter count change at fixed <code>max_level</code>, and how does the error on the 2D Rastrigin sum compare?</li>
+<li><strong>Sample-count sensitivity.</strong> For the Runge example at <span class="math inline">\((N, L) = (4, 6)\)</span>, sweep the training-sample multiplier <span class="math inline">\(K/P \in \{1, 2, 4, 8\}\)</span> and plot the relative <span class="math inline">\(L^2\)</span> error. Where does the error stop improving?</li>
+<li><strong>Custom optimizer.</strong> The default fitter chains <code>AdamOptimizer</code> with trust-region Newton–CG. Import <code>AdamOptimizer</code> and <code>ScipyTrustConstrOptimizer</code>, build a <code>ChainedOptimizer</code> with <code>maxiter=2000</code> for Adam and <code>gtol=1e-10</code> for trust-constr, and pass it to <code>fitter.set_optimizer(...)</code>. Does the longer warm-start improve the 2D Rastrigin error?</li>
+</ol>
+</section>
+<section id="next-steps" class="level2">
+<h2 class="anchored" data-anchor-id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="./polynomial_chaos_surrogates.html">Building a Polynomial Chaos Surrogate</a> — the linear cousin of a SUPN; compare fitting cost and accuracy on the same targets.</li>
+<li><a href="./gp_surrogate.html">Building a Gaussian Process Surrogate</a> — another nonlinear surrogate, with built-in uncertainty quantification.</li>
+<li><a href="./practical_pce_fitting.html">Practical PCE Fitting</a> — sample-efficient strategies that transfer to SUPNs.</li>
+</ul>
+
+
+<!-- -->
+
+
+</section>
+
+<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" role="list">
+<div id="ref-morrow2025supn" class="csl-entry" role="listitem">
+Morrow, Zachary, Michael Penwarden, Brian Chen, Aurya Javeed, Akil Narayan, and John D. Jakeman. 2025. <em>SUPN: Shallow Universal Polynomial Networks</em>. <a href="https://arxiv.org/abs/2511.21414">https://arxiv.org/abs/2511.21414</a>.
+</div>
+</div></section></div></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/sandialabs\.github\.io\/pyapprox\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Building a Shallow Universal Polynomial Network"</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="an">subtitle:</span><span class="co"> "PyApprox Tutorial Library"</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Approximate an expensive model with a shallow universal polynomial network (SUPN)."</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="an">tutorial_type:</span><span class="co"> hands-on</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="an">topic:</span><span class="co"> surrogate_modeling</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="an">difficulty:</span><span class="co"> intermediate</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="an">estimated_time:</span><span class="co"> 15</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="an">render_time:</span><span class="co"> 300</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="an">prerequisites:</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate_workflow</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co">  - polynomial_chaos_surrogates</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="an">tags:</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a><span class="co">  - surrogate</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a><span class="co">  - supn</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="co">  - neural-network</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a><span class="co">  - chebyshev</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a><span class="co">  - polynomial</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: false</span></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: true</span></span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a><span class="an">jupyter:</span><span class="co"> python3</span></span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip collapse="true"}</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a><span class="fu">## Download Notebook</span></span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Download as Jupyter Notebook</span><span class="co">](notebooks/supn_surrogates.ipynb)</span></span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a><span class="fu">## Learning Objectives</span></span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>After completing this tutorial, you will be able to:</span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Write down the SUPN ansatz and identify its trainable parameters</span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Construct a SUPN with <span class="in">`create_supn`</span> and inspect its parameter count</span>
+<span id="cb15-41"><a href="#cb15-41" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Fit a SUPN to training data with <span class="in">`SUPNMSEFitter`</span></span>
+<span id="cb15-42"><a href="#cb15-42" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Examine convergence as a function of network width $N$ and polynomial degree on a smooth 1D target</span>
+<span id="cb15-43"><a href="#cb15-43" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Apply SUPNs to a 2D target and choose the hyperparameters by sweeping a small grid</span>
+<span id="cb15-44"><a href="#cb15-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-45"><a href="#cb15-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-46"><a href="#cb15-46" aria-hidden="true" tabindex="-1"></a>Surrogate models replace expensive simulators with cheap approximations --- see <span class="co">[</span><span class="ot">The Surrogate Modeling Workflow</span><span class="co">](surrogate_workflow.qmd)</span> for an introduction. The **shallow universal polynomial network (SUPN)** <span class="co">[</span><span class="ot">@morrow2025supn</span><span class="co">]</span> is an expressive nonlinear surrogate that borrows from both polynomial chaos expansions (PCEs) and Gaussian processes (GPs). It uses the same Chebyshev basis as a PCE, but feeds linear combinations of that basis through a $\tanh$ nonlinearity, then takes a final linear combination. The result is an expressive nonlinear surrogate with far fewer trainable parameters than a deep neural network.</span>
+<span id="cb15-47"><a href="#cb15-47" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-48"><a href="#cb15-48" aria-hidden="true" tabindex="-1"></a><span class="fu">## The SUPN Ansatz</span></span>
+<span id="cb15-49"><a href="#cb15-49" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-50"><a href="#cb15-50" aria-hidden="true" tabindex="-1"></a>A SUPN approximates a target function $f : <span class="co">[</span><span class="ot">-1, 1</span><span class="co">]</span>^D \to \mathbb{R}^Q$ as</span>
+<span id="cb15-51"><a href="#cb15-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-52"><a href="#cb15-52" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-53"><a href="#cb15-53" aria-hidden="true" tabindex="-1"></a>f_{N, \Lambda}(\mathbf{x}) = \sum_{n=1}^{N} c_n \, \tanh<span class="sc">\!</span>\left( \sum_{m \in \Lambda} a_{n, m} \, T_m(\mathbf{x}) \right)</span>
+<span id="cb15-54"><a href="#cb15-54" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-55"><a href="#cb15-55" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-56"><a href="#cb15-56" aria-hidden="true" tabindex="-1"></a>where $T_m(\mathbf{x}) = \prod_{d=1}^{D} T_{m_d}(x_d)$ is a product of univariate Chebyshev polynomials of the first kind, $\Lambda \subset \mathbb{N}_0^D$ is a multi-index set (analogous to the basis index set of a PCE), and $a_{n, m} \in \mathbb{R}$ and $c_n \in \mathbb{R}^Q$ are the trainable parameters.</span>
+<span id="cb15-57"><a href="#cb15-57" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-58"><a href="#cb15-58" aria-hidden="true" tabindex="-1"></a>In matrix form, with the $M = |\Lambda|$ basis functions stacked into a vector $B(\mathbf{x}) \in \mathbb{R}^M$:</span>
+<span id="cb15-59"><a href="#cb15-59" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-60"><a href="#cb15-60" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-61"><a href="#cb15-61" aria-hidden="true" tabindex="-1"></a>f(\mathbf{x}) = C \, \tanh<span class="sc">\!</span>\big( A \, B(\mathbf{x}) \big),</span>
+<span id="cb15-62"><a href="#cb15-62" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-63"><a href="#cb15-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-64"><a href="#cb15-64" aria-hidden="true" tabindex="-1"></a>where $A \in \mathbb{R}^{N \times M}$ and $C \in \mathbb{R}^{Q \times N}$. The total parameter count is</span>
+<span id="cb15-65"><a href="#cb15-65" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-66"><a href="#cb15-66" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-67"><a href="#cb15-67" aria-hidden="true" tabindex="-1"></a>P = N M + Q N.</span>
+<span id="cb15-68"><a href="#cb15-68" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-69"><a href="#cb15-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-70"><a href="#cb15-70" aria-hidden="true" tabindex="-1"></a>The architecture has three stages:</span>
+<span id="cb15-71"><a href="#cb15-71" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-72"><a href="#cb15-72" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Chebyshev lift.** $\mathbf{x} \mapsto B(\mathbf{x})$ replaces the raw input with a polynomial feature vector. This is the role played by the early hidden layers of an MLP, but pre-specified rather than learned.</span>
+<span id="cb15-73"><a href="#cb15-73" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Hidden layer.** A linear map followed by a $\tanh$ nonlinearity, exactly as in a single-layer MLP.</span>
+<span id="cb15-74"><a href="#cb15-74" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Linear readout.** A linear combination of the $N$ hidden units produces the output.</span>
+<span id="cb15-75"><a href="#cb15-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-76"><a href="#cb15-76" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb15-77"><a href="#cb15-77" aria-hidden="true" tabindex="-1"></a><span class="fu">## Connection to PCE</span></span>
+<span id="cb15-78"><a href="#cb15-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-79"><a href="#cb15-79" aria-hidden="true" tabindex="-1"></a>A polynomial chaos expansion uses the same Chebyshev basis $<span class="sc">\{</span>T_m<span class="sc">\}</span>_{m \in \Lambda}$ but combines it linearly: $f_{\text{PCE}}(\mathbf{x}) = \sum_m \alpha_m T_m(\mathbf{x})$. A SUPN feeds linear combinations of the same basis through a $\tanh$ nonlinearity, then takes a final linear combination. When the inner sum is small, $\tanh(y) \approx y$ and the SUPN behaves like a linear combination of PCEs; when the sum is large the nonlinearity dominates and the network gains expressivity beyond what any single PCE in the same basis can achieve.</span>
+<span id="cb15-80"><a href="#cb15-80" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb15-81"><a href="#cb15-81" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-82"><a href="#cb15-82" aria-hidden="true" tabindex="-1"></a><span class="fu">## Setup</span></span>
+<span id="cb15-83"><a href="#cb15-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-86"><a href="#cb15-86" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-87"><a href="#cb15-87" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb15-88"><a href="#cb15-88" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
+<span id="cb15-89"><a href="#cb15-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-90"><a href="#cb15-90" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb15-91"><a href="#cb15-91" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-92"><a href="#cb15-92" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
+<span id="cb15-93"><a href="#cb15-93" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.supn <span class="im">import</span> create_supn</span>
+<span id="cb15-94"><a href="#cb15-94" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.supn.fitters <span class="im">import</span> SUPNMSEFitter</span>
+<span id="cb15-95"><a href="#cb15-95" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-96"><a href="#cb15-96" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb15-97"><a href="#cb15-97" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-98"><a href="#cb15-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-99"><a href="#cb15-99" aria-hidden="true" tabindex="-1"></a><span class="fu">## Inspecting the Architecture</span></span>
+<span id="cb15-100"><a href="#cb15-100" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-101"><a href="#cb15-101" aria-hidden="true" tabindex="-1"></a>Before fitting anything, let's build a small SUPN and look at its structure.</span>
+<span id="cb15-102"><a href="#cb15-102" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-105"><a href="#cb15-105" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-106"><a href="#cb15-106" aria-hidden="true" tabindex="-1"></a>supn <span class="op">=</span> create_supn(nvars<span class="op">=</span><span class="dv">1</span>, width<span class="op">=</span><span class="dv">5</span>, max_level<span class="op">=</span><span class="dv">4</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb15-107"><a href="#cb15-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-108"><a href="#cb15-108" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> supn.width()</span>
+<span id="cb15-109"><a href="#cb15-109" aria-hidden="true" tabindex="-1"></a>M <span class="op">=</span> supn.nterms()</span>
+<span id="cb15-110"><a href="#cb15-110" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> supn.nparams()</span>
+<span id="cb15-111"><a href="#cb15-111" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-112"><a href="#cb15-112" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Width N             : </span><span class="sc">{</span>N<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb15-113"><a href="#cb15-113" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of basis fns : </span><span class="sc">{</span>M<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb15-114"><a href="#cb15-114" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Total parameters P  : </span><span class="sc">{</span>P<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb15-115"><a href="#cb15-115" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-116"><a href="#cb15-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-117"><a href="#cb15-117" aria-hidden="true" tabindex="-1"></a>The number of basis functions $M$ includes the constant term $T_0 \equiv 1$. For a 1D SUPN with <span class="in">`max_level=4`</span>, the index set is $\Lambda = <span class="sc">\{</span>0, 1, 2, 3, 4<span class="sc">\}</span>$ so $M = 5$. The parameter count is $P = NM + QN$: five hidden units, each carrying five Chebyshev coefficients ($25$ entries of $A$), plus one output weight per hidden unit ($5$ entries of $C$), giving $P = 30$.</span>
+<span id="cb15-118"><a href="#cb15-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-119"><a href="#cb15-119" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb15-120"><a href="#cb15-120" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sampling rule of thumb</span></span>
+<span id="cb15-121"><a href="#cb15-121" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-122"><a href="#cb15-122" aria-hidden="true" tabindex="-1"></a>For smooth 1D targets, $K \approx 2P$ random uniform training samples is enough to land in a clean training regime. For harder or higher-dimensional targets, low-discrepancy sequences (e.g. Sobol) with $K \approx 4P$ provide better coverage than random sampling at the same budget. If the loss landscape feels noisy or optimization stalls, increasing the sample ratio or improving the sample design usually helps.</span>
+<span id="cb15-123"><a href="#cb15-123" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb15-124"><a href="#cb15-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-125"><a href="#cb15-125" aria-hidden="true" tabindex="-1"></a><span class="fu">## A Smooth 1D Target: Runge's Function</span></span>
+<span id="cb15-126"><a href="#cb15-126" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-127"><a href="#cb15-127" aria-hidden="true" tabindex="-1"></a>The Runge function</span>
+<span id="cb15-128"><a href="#cb15-128" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-129"><a href="#cb15-129" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-130"><a href="#cb15-130" aria-hidden="true" tabindex="-1"></a>f(x) = \frac{1}{1 + (cx)^2}</span>
+<span id="cb15-131"><a href="#cb15-131" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-132"><a href="#cb15-132" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-133"><a href="#cb15-133" aria-hidden="true" tabindex="-1"></a>with $c = 5$ is a textbook example of a function that is hard to approximate with naive interpolation. It is, however, infinitely smooth, and we expect SUPNs to converge rapidly on it.</span>
+<span id="cb15-134"><a href="#cb15-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-137"><a href="#cb15-137" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-138"><a href="#cb15-138" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> runge(samples, c<span class="op">=</span><span class="fl">5.0</span>):</span>
+<span id="cb15-139"><a href="#cb15-139" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="fl">1.0</span> <span class="op">/</span> (<span class="fl">1.0</span> <span class="op">+</span> (c <span class="op">*</span> samples)<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb15-140"><a href="#cb15-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-141"><a href="#cb15-141" aria-hidden="true" tabindex="-1"></a>x_test <span class="op">=</span> np.linspace(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1000</span>).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb15-142"><a href="#cb15-142" aria-hidden="true" tabindex="-1"></a>y_test <span class="op">=</span> runge(x_test)</span>
+<span id="cb15-143"><a href="#cb15-143" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-144"><a href="#cb15-144" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-145"><a href="#cb15-145" aria-hidden="true" tabindex="-1"></a><span class="fu">### A Single Fit</span></span>
+<span id="cb15-146"><a href="#cb15-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-147"><a href="#cb15-147" aria-hidden="true" tabindex="-1"></a>We start with a single moderately-sized SUPN to demonstrate the full workflow before sweeping over hyperparameters.</span>
+<span id="cb15-148"><a href="#cb15-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-151"><a href="#cb15-151" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-152"><a href="#cb15-152" aria-hidden="true" tabindex="-1"></a>supn <span class="op">=</span> create_supn(nvars<span class="op">=</span><span class="dv">1</span>, width<span class="op">=</span><span class="dv">5</span>, max_level<span class="op">=</span><span class="dv">4</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb15-153"><a href="#cb15-153" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> supn.nparams()</span>
+<span id="cb15-154"><a href="#cb15-154" aria-hidden="true" tabindex="-1"></a>K <span class="op">=</span> <span class="dv">2</span> <span class="op">*</span> P</span>
+<span id="cb15-155"><a href="#cb15-155" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-156"><a href="#cb15-156" aria-hidden="true" tabindex="-1"></a>x_train <span class="op">=</span> np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, K).reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb15-157"><a href="#cb15-157" aria-hidden="true" tabindex="-1"></a>y_train <span class="op">=</span> runge(x_train)</span>
+<span id="cb15-158"><a href="#cb15-158" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-159"><a href="#cb15-159" aria-hidden="true" tabindex="-1"></a>fitter <span class="op">=</span> SUPNMSEFitter(bkd)</span>
+<span id="cb15-160"><a href="#cb15-160" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> fitter.fit(supn, bkd.asarray(x_train), bkd.asarray(y_train))</span>
+<span id="cb15-161"><a href="#cb15-161" aria-hidden="true" tabindex="-1"></a>fitted <span class="op">=</span> result.surrogate()</span>
+<span id="cb15-162"><a href="#cb15-162" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-163"><a href="#cb15-163" aria-hidden="true" tabindex="-1"></a>y_pred <span class="op">=</span> bkd.to_numpy(fitted(bkd.asarray(x_test)))</span>
+<span id="cb15-164"><a href="#cb15-164" aria-hidden="true" tabindex="-1"></a>rel_l2 <span class="op">=</span> np.linalg.norm(y_pred <span class="op">-</span> y_test) <span class="op">/</span> np.linalg.norm(y_test)</span>
+<span id="cb15-165"><a href="#cb15-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-166"><a href="#cb15-166" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Parameters P        : </span><span class="sc">{</span>P<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb15-167"><a href="#cb15-167" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Training samples K  : </span><span class="sc">{</span>K<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb15-168"><a href="#cb15-168" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Converged           : </span><span class="sc">{</span>result<span class="sc">.</span>converged()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb15-169"><a href="#cb15-169" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Relative L2 error   : </span><span class="sc">{</span>rel_l2<span class="sc">:.4e}</span><span class="ss">"</span>)</span>
+<span id="cb15-170"><a href="#cb15-170" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-171"><a href="#cb15-171" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-172"><a href="#cb15-172" aria-hidden="true" tabindex="-1"></a>The default fitter chains Adam warm-starting (500 iterations) with trust-region Newton--CG, matching the two-phase training procedure in @morrow2025supn. Adam navigates the non-convex loss landscape to a good basin; the second-order optimizer then converges rapidly to a high-accuracy local minimum using analytical gradient and Hessian-vector product.</span>
+<span id="cb15-173"><a href="#cb15-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-176"><a href="#cb15-176" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-177"><a href="#cb15-177" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "SUPN fit (N=5, M=5, P=30) to the Runge function with c=5. The dashed line is the target; the solid line is the SUPN prediction. Even with only 30 parameters, the fit captures the central peak and the falloff in the tails."</span></span>
+<span id="cb15-178"><a href="#cb15-178" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-runge-single</span></span>
+<span id="cb15-179"><a href="#cb15-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-180"><a href="#cb15-180" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._supn <span class="im">import</span> plot_supn_fit_1d</span>
+<span id="cb15-181"><a href="#cb15-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-182"><a href="#cb15-182" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">4</span>))</span>
+<span id="cb15-183"><a href="#cb15-183" aria-hidden="true" tabindex="-1"></a>plot_supn_fit_1d(</span>
+<span id="cb15-184"><a href="#cb15-184" aria-hidden="true" tabindex="-1"></a>    x_test.flatten(), y_test.flatten(), y_pred.flatten(), ax,</span>
+<span id="cb15-185"><a href="#cb15-185" aria-hidden="true" tabindex="-1"></a>    title<span class="op">=</span><span class="st">"SUPN fit to Runge function"</span>,</span>
+<span id="cb15-186"><a href="#cb15-186" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-187"><a href="#cb15-187" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb15-188"><a href="#cb15-188" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb15-189"><a href="#cb15-189" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-190"><a href="#cb15-190" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-191"><a href="#cb15-191" aria-hidden="true" tabindex="-1"></a><span class="fu">## A 2D Target: Sum of Rastrigin Functions</span></span>
+<span id="cb15-192"><a href="#cb15-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-193"><a href="#cb15-193" aria-hidden="true" tabindex="-1"></a>Let's move to two dimensions. The 2D Rastrigin sum</span>
+<span id="cb15-194"><a href="#cb15-194" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-195"><a href="#cb15-195" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-196"><a href="#cb15-196" aria-hidden="true" tabindex="-1"></a>f(x, y) = \big(x^2 - \cos(5\pi x)\big) + \big(y^2 - \cos(5\pi y)\big)</span>
+<span id="cb15-197"><a href="#cb15-197" aria-hidden="true" tabindex="-1"></a>$$</span>
+<span id="cb15-198"><a href="#cb15-198" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-199"><a href="#cb15-199" aria-hidden="true" tabindex="-1"></a>is oscillatory in each variable and additively separable. SUPNs handle this kind of tensor-structured target well.</span>
+<span id="cb15-200"><a href="#cb15-200" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-203"><a href="#cb15-203" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-204"><a href="#cb15-204" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rastrigin_sum(samples):</span>
+<span id="cb15-205"><a href="#cb15-205" aria-hidden="true" tabindex="-1"></a>    x, y <span class="op">=</span> samples[<span class="dv">0</span>], samples[<span class="dv">1</span>]</span>
+<span id="cb15-206"><a href="#cb15-206" aria-hidden="true" tabindex="-1"></a>    vals <span class="op">=</span> ((x<span class="op">**</span><span class="dv">2</span> <span class="op">-</span> np.cos(<span class="dv">5</span> <span class="op">*</span> np.pi <span class="op">*</span> x))</span>
+<span id="cb15-207"><a href="#cb15-207" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> (y<span class="op">**</span><span class="dv">2</span> <span class="op">-</span> np.cos(<span class="dv">5</span> <span class="op">*</span> np.pi <span class="op">*</span> y)))</span>
+<span id="cb15-208"><a href="#cb15-208" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> vals.reshape(<span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>)</span>
+<span id="cb15-209"><a href="#cb15-209" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-210"><a href="#cb15-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-211"><a href="#cb15-211" aria-hidden="true" tabindex="-1"></a>We build a 2D test grid:</span>
+<span id="cb15-212"><a href="#cb15-212" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-215"><a href="#cb15-215" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-216"><a href="#cb15-216" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> (</span>
+<span id="cb15-217"><a href="#cb15-217" aria-hidden="true" tabindex="-1"></a>    meshgrid_samples,</span>
+<span id="cb15-218"><a href="#cb15-218" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-219"><a href="#cb15-219" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-220"><a href="#cb15-220" aria-hidden="true" tabindex="-1"></a>X, Y, samples_grid <span class="op">=</span> meshgrid_samples(<span class="dv">80</span>, [<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, <span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>], bkd)</span>
+<span id="cb15-221"><a href="#cb15-221" aria-hidden="true" tabindex="-1"></a>z_true <span class="op">=</span> bkd.to_numpy(rastrigin_sum(bkd.to_numpy(samples_grid))).reshape(</span>
+<span id="cb15-222"><a href="#cb15-222" aria-hidden="true" tabindex="-1"></a>    bkd.to_numpy(X).shape</span>
+<span id="cb15-223"><a href="#cb15-223" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-224"><a href="#cb15-224" aria-hidden="true" tabindex="-1"></a>X_np, Y_np <span class="op">=</span> bkd.to_numpy(X), bkd.to_numpy(Y)</span>
+<span id="cb15-225"><a href="#cb15-225" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-226"><a href="#cb15-226" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-227"><a href="#cb15-227" aria-hidden="true" tabindex="-1"></a>and fit a 2D SUPN.</span>
+<span id="cb15-228"><a href="#cb15-228" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-231"><a href="#cb15-231" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-232"><a href="#cb15-232" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> scipy.stats.qmc <span class="im">import</span> Sobol</span>
+<span id="cb15-233"><a href="#cb15-233" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-234"><a href="#cb15-234" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">3</span>)</span>
+<span id="cb15-235"><a href="#cb15-235" aria-hidden="true" tabindex="-1"></a>supn2d <span class="op">=</span> create_supn(nvars<span class="op">=</span><span class="dv">2</span>, width<span class="op">=</span><span class="dv">8</span>, max_level<span class="op">=</span><span class="dv">14</span>, bkd<span class="op">=</span>bkd)</span>
+<span id="cb15-236"><a href="#cb15-236" aria-hidden="true" tabindex="-1"></a>P <span class="op">=</span> supn2d.nparams()</span>
+<span id="cb15-237"><a href="#cb15-237" aria-hidden="true" tabindex="-1"></a>K <span class="op">=</span> <span class="dv">4096</span></span>
+<span id="cb15-238"><a href="#cb15-238" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-239"><a href="#cb15-239" aria-hidden="true" tabindex="-1"></a>sobol_sampler <span class="op">=</span> Sobol(d<span class="op">=</span><span class="dv">2</span>, scramble<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span><span class="dv">42</span>)</span>
+<span id="cb15-240"><a href="#cb15-240" aria-hidden="true" tabindex="-1"></a>x_train <span class="op">=</span> (<span class="fl">2.0</span> <span class="op">*</span> sobol_sampler.random(K) <span class="op">-</span> <span class="fl">1.0</span>).T  <span class="co"># (2, K) on [-1,1]^2</span></span>
+<span id="cb15-241"><a href="#cb15-241" aria-hidden="true" tabindex="-1"></a>y_train <span class="op">=</span> rastrigin_sum(x_train)</span>
+<span id="cb15-242"><a href="#cb15-242" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-243"><a href="#cb15-243" aria-hidden="true" tabindex="-1"></a>fitter_2d <span class="op">=</span> SUPNMSEFitter(bkd)</span>
+<span id="cb15-244"><a href="#cb15-244" aria-hidden="true" tabindex="-1"></a>result_2d <span class="op">=</span> fitter_2d.fit(supn2d, bkd.asarray(x_train), bkd.asarray(y_train))</span>
+<span id="cb15-245"><a href="#cb15-245" aria-hidden="true" tabindex="-1"></a>fitted_2d <span class="op">=</span> result_2d.surrogate()</span>
+<span id="cb15-246"><a href="#cb15-246" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-247"><a href="#cb15-247" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">99</span>)</span>
+<span id="cb15-248"><a href="#cb15-248" aria-hidden="true" tabindex="-1"></a>x_test_2d <span class="op">=</span> np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">2</span>, <span class="dv">5000</span>))</span>
+<span id="cb15-249"><a href="#cb15-249" aria-hidden="true" tabindex="-1"></a>y_test_2d <span class="op">=</span> rastrigin_sum(x_test_2d)</span>
+<span id="cb15-250"><a href="#cb15-250" aria-hidden="true" tabindex="-1"></a>y_pred_2d <span class="op">=</span> bkd.to_numpy(fitted_2d(bkd.asarray(x_test_2d)))</span>
+<span id="cb15-251"><a href="#cb15-251" aria-hidden="true" tabindex="-1"></a>rel_l2 <span class="op">=</span> np.linalg.norm(y_pred_2d <span class="op">-</span> y_test_2d) <span class="op">/</span> np.linalg.norm(y_test_2d)</span>
+<span id="cb15-252"><a href="#cb15-252" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-253"><a href="#cb15-253" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Parameters P        : </span><span class="sc">{</span>P<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb15-254"><a href="#cb15-254" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Training samples K  : </span><span class="sc">{</span>K<span class="sc">}</span><span class="ss"> (Sobol sequence)"</span>)</span>
+<span id="cb15-255"><a href="#cb15-255" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Converged           : </span><span class="sc">{</span>result_2d<span class="sc">.</span>converged()<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb15-256"><a href="#cb15-256" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Relative L2 error   : </span><span class="sc">{</span>rel_l2<span class="sc">:.4e}</span><span class="ss">"</span>)</span>
+<span id="cb15-257"><a href="#cb15-257" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-258"><a href="#cb15-258" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-261"><a href="#cb15-261" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-262"><a href="#cb15-262" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Three-panel comparison on the 2D Rastrigin sum (N=8, L=14, P=968, K=4096 Sobol). Left: target function; middle: SUPN prediction; right: pointwise absolute error."</span></span>
+<span id="cb15-263"><a href="#cb15-263" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-rastrigin-2d</span></span>
+<span id="cb15-264"><a href="#cb15-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-265"><a href="#cb15-265" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._supn <span class="im">import</span> plot_supn_2d_comparison</span>
+<span id="cb15-266"><a href="#cb15-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-267"><a href="#cb15-267" aria-hidden="true" tabindex="-1"></a>z_pred <span class="op">=</span> bkd.to_numpy(</span>
+<span id="cb15-268"><a href="#cb15-268" aria-hidden="true" tabindex="-1"></a>    fitted_2d(bkd.asarray(samples_grid))</span>
+<span id="cb15-269"><a href="#cb15-269" aria-hidden="true" tabindex="-1"></a>).reshape(X_np.shape)</span>
+<span id="cb15-270"><a href="#cb15-270" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-271"><a href="#cb15-271" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="dv">4</span>))</span>
+<span id="cb15-272"><a href="#cb15-272" aria-hidden="true" tabindex="-1"></a>plot_supn_2d_comparison(X_np, Y_np, z_true, z_pred, axes, fig)</span>
+<span id="cb15-273"><a href="#cb15-273" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb15-274"><a href="#cb15-274" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb15-275"><a href="#cb15-275" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-276"><a href="#cb15-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-277"><a href="#cb15-277" aria-hidden="true" tabindex="-1"></a><span class="fu">### Choosing $(N, \texttt{max\_level})$</span></span>
+<span id="cb15-278"><a href="#cb15-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-279"><a href="#cb15-279" aria-hidden="true" tabindex="-1"></a>The two main hyperparameters of a SUPN are the network width $N$ and the polynomial degree controlling $|\Lambda|$. To get a feel for their interplay, we sweep both and record the test error.</span>
+<span id="cb15-280"><a href="#cb15-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-283"><a href="#cb15-283" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-284"><a href="#cb15-284" aria-hidden="true" tabindex="-1"></a>N_values <span class="op">=</span> [<span class="dv">2</span>, <span class="dv">4</span>, <span class="dv">6</span>, <span class="dv">8</span>, <span class="dv">10</span>]</span>
+<span id="cb15-285"><a href="#cb15-285" aria-hidden="true" tabindex="-1"></a>L_values <span class="op">=</span> [<span class="dv">6</span>, <span class="dv">8</span>, <span class="dv">10</span>, <span class="dv">14</span>]</span>
+<span id="cb15-286"><a href="#cb15-286" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-287"><a href="#cb15-287" aria-hidden="true" tabindex="-1"></a>err_grid <span class="op">=</span> np.zeros((<span class="bu">len</span>(N_values), <span class="bu">len</span>(L_values)))</span>
+<span id="cb15-288"><a href="#cb15-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-289"><a href="#cb15-289" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, N_val <span class="kw">in</span> <span class="bu">enumerate</span>(N_values):</span>
+<span id="cb15-290"><a href="#cb15-290" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> j, L_val <span class="kw">in</span> <span class="bu">enumerate</span>(L_values):</span>
+<span id="cb15-291"><a href="#cb15-291" aria-hidden="true" tabindex="-1"></a>        np.random.seed(i <span class="op">*</span> <span class="dv">100</span> <span class="op">+</span> j)</span>
+<span id="cb15-292"><a href="#cb15-292" aria-hidden="true" tabindex="-1"></a>        supn_ij <span class="op">=</span> create_supn(</span>
+<span id="cb15-293"><a href="#cb15-293" aria-hidden="true" tabindex="-1"></a>            nvars<span class="op">=</span><span class="dv">2</span>, width<span class="op">=</span>N_val, max_level<span class="op">=</span>L_val, bkd<span class="op">=</span>bkd,</span>
+<span id="cb15-294"><a href="#cb15-294" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb15-295"><a href="#cb15-295" aria-hidden="true" tabindex="-1"></a>        P_ij <span class="op">=</span> supn_ij.nparams()</span>
+<span id="cb15-296"><a href="#cb15-296" aria-hidden="true" tabindex="-1"></a>        K_ij <span class="op">=</span> <span class="dv">4</span> <span class="op">*</span> P_ij</span>
+<span id="cb15-297"><a href="#cb15-297" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-298"><a href="#cb15-298" aria-hidden="true" tabindex="-1"></a>        sobol_ij <span class="op">=</span> Sobol(d<span class="op">=</span><span class="dv">2</span>, scramble<span class="op">=</span><span class="va">True</span>, seed<span class="op">=</span>i <span class="op">*</span> <span class="dv">100</span> <span class="op">+</span> j)</span>
+<span id="cb15-299"><a href="#cb15-299" aria-hidden="true" tabindex="-1"></a>        x_tr <span class="op">=</span> (<span class="fl">2.0</span> <span class="op">*</span> sobol_ij.random(K_ij) <span class="op">-</span> <span class="fl">1.0</span>).T</span>
+<span id="cb15-300"><a href="#cb15-300" aria-hidden="true" tabindex="-1"></a>        y_tr <span class="op">=</span> rastrigin_sum(x_tr)</span>
+<span id="cb15-301"><a href="#cb15-301" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-302"><a href="#cb15-302" aria-hidden="true" tabindex="-1"></a>        fitter_ij <span class="op">=</span> SUPNMSEFitter(bkd)</span>
+<span id="cb15-303"><a href="#cb15-303" aria-hidden="true" tabindex="-1"></a>        result_ij <span class="op">=</span> fitter_ij.fit(</span>
+<span id="cb15-304"><a href="#cb15-304" aria-hidden="true" tabindex="-1"></a>            supn_ij, bkd.asarray(x_tr), bkd.asarray(y_tr),</span>
+<span id="cb15-305"><a href="#cb15-305" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb15-306"><a href="#cb15-306" aria-hidden="true" tabindex="-1"></a>        fitted_ij <span class="op">=</span> result_ij.surrogate()</span>
+<span id="cb15-307"><a href="#cb15-307" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-308"><a href="#cb15-308" aria-hidden="true" tabindex="-1"></a>        y_p <span class="op">=</span> bkd.to_numpy(fitted_ij(bkd.asarray(x_test_2d)))</span>
+<span id="cb15-309"><a href="#cb15-309" aria-hidden="true" tabindex="-1"></a>        err_grid[i, j] <span class="op">=</span> (</span>
+<span id="cb15-310"><a href="#cb15-310" aria-hidden="true" tabindex="-1"></a>            np.linalg.norm(y_p <span class="op">-</span> y_test_2d) <span class="op">/</span> np.linalg.norm(y_test_2d)</span>
+<span id="cb15-311"><a href="#cb15-311" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb15-312"><a href="#cb15-312" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-313"><a href="#cb15-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-316"><a href="#cb15-316" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb15-317"><a href="#cb15-317" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Test error heat-map over (N, max_level) on the 2D Rastrigin sum. Each cell shows the relative L2 error of one trained SUPN. Increasing the polynomial degree (moving right) drives the error down sharply on this oscillatory target; increasing N (moving up) refines the result but is less effective on its own."</span></span>
+<span id="cb15-318"><a href="#cb15-318" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-supn-heatmap</span></span>
+<span id="cb15-319"><a href="#cb15-319" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-320"><a href="#cb15-320" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._supn <span class="im">import</span> plot_supn_heatmap</span>
+<span id="cb15-321"><a href="#cb15-321" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-322"><a href="#cb15-322" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">6</span>, <span class="dv">5</span>))</span>
+<span id="cb15-323"><a href="#cb15-323" aria-hidden="true" tabindex="-1"></a>plot_supn_heatmap(err_grid, N_values, L_values, ax)</span>
+<span id="cb15-324"><a href="#cb15-324" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb15-325"><a href="#cb15-325" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb15-326"><a href="#cb15-326" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb15-327"><a href="#cb15-327" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-328"><a href="#cb15-328" aria-hidden="true" tabindex="-1"></a>The heat-map gives a practical recipe: pick <span class="in">`max_level`</span> large enough to resolve the variation of the target, then use $N$ to refine. For oscillatory targets like this one, the polynomial degree is by far the more important knob.</span>
+<span id="cb15-329"><a href="#cb15-329" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-330"><a href="#cb15-330" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical Tips</span></span>
+<span id="cb15-331"><a href="#cb15-331" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-332"><a href="#cb15-332" aria-hidden="true" tabindex="-1"></a>::: {.callout-tip}</span>
+<span id="cb15-333"><a href="#cb15-333" aria-hidden="true" tabindex="-1"></a><span class="fu">## Practical guidance for SUPN training</span></span>
+<span id="cb15-334"><a href="#cb15-334" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-335"><a href="#cb15-335" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For smooth 1D targets, $K \approx 2P$ random uniform samples often suffices. For harder or higher-dimensional targets, use low-discrepancy sequences (Sobol) with $K \approx 4P$ for better coverage.</span>
+<span id="cb15-336"><a href="#cb15-336" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>If the loss plateaus, increase <span class="in">`max_level`</span> before increasing <span class="in">`width`</span>. The polynomial degree governs the expressivity of the inner sum, which is usually the limiting factor.</span>
+<span id="cb15-337"><a href="#cb15-337" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The default fitter chains Adam warm-starting with trust-region Newton--CG. Adam navigates the non-convex landscape to a good basin; the second-order optimizer then converges rapidly. You can customize the optimizer via <span class="in">`fitter.set_optimizer(...)`</span>.</span>
+<span id="cb15-338"><a href="#cb15-338" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Multiple random initializations are cheap insurance for difficult targets --- refit two or three times and keep the best.</span>
+<span id="cb15-339"><a href="#cb15-339" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb15-340"><a href="#cb15-340" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-341"><a href="#cb15-341" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb15-342"><a href="#cb15-342" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-343"><a href="#cb15-343" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>A SUPN is a single-hidden-layer network whose first stage is a fixed Chebyshev polynomial lift; the trainable parameters are the inner coefficients $a_{n,m}$ and the output weights $c_n$.</span>
+<span id="cb15-344"><a href="#cb15-344" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`create_supn(nvars, width, max_level, bkd)`</span> builds a SUPN; the parameter count is $P = NM + QN$ where $M = |\Lambda|$ is the size of the multi-index set.</span>
+<span id="cb15-345"><a href="#cb15-345" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`SUPNMSEFitter`</span> trains the network with Adam warm-starting followed by trust-region Newton--CG using analytical gradient and Hessian-vector product; check <span class="in">`result.converged()`</span> after fitting.</span>
+<span id="cb15-346"><a href="#cb15-346" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>On smooth targets, SUPN test error decays rapidly with $P$.</span>
+<span id="cb15-347"><a href="#cb15-347" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>For a fixed parameter budget, increasing <span class="in">`max_level`</span> usually buys more accuracy than increasing <span class="in">`width`</span>, especially on oscillatory targets.</span>
+<span id="cb15-348"><a href="#cb15-348" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-349"><a href="#cb15-349" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb15-350"><a href="#cb15-350" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-351"><a href="#cb15-351" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**Width vs degree trade-off.** Re-run the heat-map with $K = 8P$ Sobol training samples instead of $4P$. Does the optimal $(N, \texttt{max<span class="sc">\_</span>level})$ pair change, or just the absolute error level?</span>
+<span id="cb15-352"><a href="#cb15-352" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**Hyperbolic cross.** Pass <span class="in">`pnorm=0.5`</span> to <span class="in">`create_supn`</span> to use a hyperbolic-cross index set instead of total-degree. How does the parameter count change at fixed <span class="in">`max_level`</span>, and how does the error on the 2D Rastrigin sum compare?</span>
+<span id="cb15-353"><a href="#cb15-353" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**Sample-count sensitivity.** For the Runge example at $(N, L) = (4, 6)$, sweep the training-sample multiplier $K/P \in <span class="sc">\{</span>1, 2, 4, 8<span class="sc">\}</span>$ and plot the relative $L^2$ error. Where does the error stop improving?</span>
+<span id="cb15-354"><a href="#cb15-354" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**Custom optimizer.** The default fitter chains <span class="in">`AdamOptimizer`</span> with trust-region Newton--CG. Import <span class="in">`AdamOptimizer`</span> and <span class="in">`ScipyTrustConstrOptimizer`</span>, build a <span class="in">`ChainedOptimizer`</span> with <span class="in">`maxiter=2000`</span> for Adam and <span class="in">`gtol=1e-10`</span> for trust-constr, and pass it to <span class="in">`fitter.set_optimizer(...)`</span>. Does the longer warm-start improve the 2D Rastrigin error?</span>
+<span id="cb15-355"><a href="#cb15-355" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-356"><a href="#cb15-356" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb15-357"><a href="#cb15-357" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-358"><a href="#cb15-358" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Building a Polynomial Chaos Surrogate</span><span class="co">](polynomial_chaos_surrogates.qmd)</span> --- the linear cousin of a SUPN; compare fitting cost and accuracy on the same targets.</span>
+<span id="cb15-359"><a href="#cb15-359" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Building a Gaussian Process Surrogate</span><span class="co">](gp_surrogate.qmd)</span> --- another nonlinear surrogate, with built-in uncertainty quantification.</span>
+<span id="cb15-360"><a href="#cb15-360" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Practical PCE Fitting</span><span class="co">](practical_pce_fitting.qmd)</span> --- sample-efficient strategies that transfer to SUPNs.</span>
+</code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>Copyright 2019 National Technology &amp; Engineering Solutions of Sandia, LLC (NTESS). Under the terms of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.</p>
+</div>   
+    <div class="nav-footer-center">
+<p>Built with <a href="https://quarto.org">Quarto</a></p>
+</div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/sandialabs/pyapprox">Repository</a> | <a href="https://pypi.org/project/pyapprox/">PyPI</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

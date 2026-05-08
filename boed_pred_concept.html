@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Goal-Oriented Bayesian OED: Designing for Prediction – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1791,7 +1810,7 @@ Figure&nbsp;3: Left: push-forward std of q(θ)=θ₂ as sensors are added for th
 <span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Top row: 2D posterior ellipses (1σ and 2σ) in parameter space for each design. The green double-headed arrow marks the QoI direction θ₂. Design A (EIG-optimal) tightly constrains θ₁ but leaves the ellipse width in the θ₂ direction unchanged; Design B constrains θ₂ directly. Bottom row: the resulting 1D push-forward distributions p(q(θ)|y,w). Design A's push-forward is identical to the prior — the experiment gave zero benefit for prediction. Design B's push-forward is 30% narrower."</span></span>
 <span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pushforward-intuition</span></span>
 <span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_pushforward_intuition</span>
+<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures <span class="im">import</span> plot_pushforward_intuition</span>
 <span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-83"><a href="#cb1-83" aria-hidden="true" tabindex="-1"></a>fig <span class="op">=</span> plt.figure(figsize<span class="op">=</span>(<span class="dv">11</span>, <span class="dv">9</span>))</span>
 <span id="cb1-84"><a href="#cb1-84" aria-hidden="true" tabindex="-1"></a>fig.suptitle(<span class="st">"EIG-optimal designs can leave prediction uncertainty unchanged"</span>,</span>
@@ -1862,7 +1881,7 @@ Figure&nbsp;3: Left: push-forward std of q(θ)=θ₂ as sensors are added for th
 <span id="cb1-151"><a href="#cb1-151" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: 12 outer samples each produce a push-forward posterior p(q|y^(m),w) (thin blue curves). For the linear Gaussian model, all have the same width (variance does not depend on the specific observation). The utility U(w) equals this common variance. The grey dashed curve is the prior push-forward. Right: EIG(x) (orange, left axis) and push-forward std (blue dashed, right axis) as functions of a single-sensor location. The two criteria are maximised/minimised at opposite ends of the domain — EIG peaks at x=0 (where θ₁ is measured), prediction utility peaks at x=1 (where θ₂ is measured)."</span></span>
 <span id="cb1-152"><a href="#cb1-152" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-utility-as-average</span></span>
 <span id="cb1-153"><a href="#cb1-153" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb1-154"><a href="#cb1-154" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_utility_as_average</span>
+<span id="cb1-154"><a href="#cb1-154" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures <span class="im">import</span> plot_utility_as_average</span>
 <span id="cb1-155"><a href="#cb1-155" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-156"><a href="#cb1-156" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.6</span>))</span>
 <span id="cb1-157"><a href="#cb1-157" aria-hidden="true" tabindex="-1"></a>fig.suptitle(<span class="st">"Goal-oriented utility = expected push-forward variance"</span>,</span>
@@ -1929,7 +1948,7 @@ Figure&nbsp;3: Left: push-forward std of q(θ)=θ₂ as sensors are added for th
 <span id="cb1-220"><a href="#cb1-220" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Left: push-forward std of q(θ)=θ₂ as sensors are added for the EIG-optimal design (x=0, orange) and the Pred-OED-optimal design (x=1, blue). Design A never reduces prediction uncertainty regardless of how many sensors are added — it is exactly at the prior std for all K. Middle: push-forward PDFs at K=5 sensors; Design B's push-forward is 2.5× narrower. Right: goal-oriented utility landscape (push-forward std vs. sensor location) for a single sensor, showing the monotone improvement as x→1."</span></span>
 <span id="cb1-221"><a href="#cb1-221" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pushforward-shrinkage</span></span>
 <span id="cb1-222"><a href="#cb1-222" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb1-223"><a href="#cb1-223" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures <span class="im">import</span> plot_pushforward_shrinkage</span>
+<span id="cb1-223"><a href="#cb1-223" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures <span class="im">import</span> plot_pushforward_shrinkage</span>
 <span id="cb1-224"><a href="#cb1-224" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-225"><a href="#cb1-225" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
 <span id="cb1-226"><a href="#cb1-226" aria-hidden="true" tabindex="-1"></a>fig.suptitle(</span>

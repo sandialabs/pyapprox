@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>PCE-Based Sensitivity Analysis – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1128,11 +1147,11 @@ window.Quarto = {
 f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 \]</span></p>
 <p>The Ishigami function has notable features: <span class="math inline">\(x_2\)</span> has the largest main effect, <span class="math inline">\(x_3\)</span> has zero main effect but a strong interaction with <span class="math inline">\(x_1\)</span>, and <span class="math inline">\(x_1\)</span> participates in both direct and interaction effects.</p>
-<div id="478fb8f1" class="cell" data-execution_count="1">
+<div id="5d5a2d19" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks <span class="im">import</span> ishigami_3d</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.sensitivity <span class="im">import</span> IshigamiBenchmark</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1144,17 +1163,16 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Load benchmark</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> ishigami_3d(bkd)</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.function()</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>gt <span class="op">=</span> benchmark.ground_truth()</span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">3</span></span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(gt.main_effects).flatten()</span>
-<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(gt.total_effects).flatten()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> IshigamiBenchmark(bkd)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.problem().function()</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.problem().prior()</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(benchmark.main_effects()).flatten()</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(benchmark.total_effects()).flatten()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="8d2b5ec7" class="cell" data-execution_count="2">
+<div id="6c9440f6" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit a PCE to the Ishigami function</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">200</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)</span>
@@ -1169,7 +1187,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="basic-usage" class="level2">
 <h2 class="anchored" data-anchor-id="basic-usage">Basic Usage</h2>
 <p>The <code>PolynomialChaosSensitivityAnalysis</code> class wraps a fitted PCE and provides Sobol index computation.</p>
-<div id="6f1762a5" class="cell" data-execution_count="3">
+<div id="dc8373ad" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> PolynomialChaosSensitivityAnalysis</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> PolynomialChaosSensitivityAnalysis(pce)</span>
@@ -1185,7 +1203,7 @@ f(x_1, x_2, x_3) = \sin(x_1) + 7\sin^2(x_2) + 0.1\, x_3^4 \sin(x_1)
 <section id="interaction-terms" class="level2">
 <h2 class="anchored" data-anchor-id="interaction-terms">Interaction Terms</h2>
 <p>To compute higher-order Sobol indices (e.g., <span class="math inline">\(\Sobol{13}\)</span>), specify the interaction terms of interest. Each column of the interaction matrix is a binary indicator of which variables are active.</p>
-<div id="7f912a14" class="cell" data-execution_count="4">
+<div id="fb229ee6" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Define interaction terms: main effects + all pairwise + triple</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>interaction_terms <span class="op">=</span> bkd.asarray([</span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>],  <span class="co"># x_1 active</span></span>
@@ -1810,7 +1828,7 @@ Figure&nbsp;2: Convergence of PCE-based Sobol indices with polynomial degree. As
 <span id="cb6-69"><a href="#cb6-69" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb6-70"><a href="#cb6-70" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb6-71"><a href="#cb6-71" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks <span class="im">import</span> ishigami_3d</span>
+<span id="cb6-72"><a href="#cb6-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.sensitivity <span class="im">import</span> IshigamiBenchmark</span>
 <span id="cb6-73"><a href="#cb6-73" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
 <span id="cb6-74"><a href="#cb6-74" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
 <span id="cb6-75"><a href="#cb6-75" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -1822,147 +1840,146 @@ Figure&nbsp;2: Convergence of PCE-based Sobol indices with polynomial degree. As
 <span id="cb6-81"><a href="#cb6-81" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb6-82"><a href="#cb6-82" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-83"><a href="#cb6-83" aria-hidden="true" tabindex="-1"></a><span class="co"># Load benchmark</span></span>
-<span id="cb6-84"><a href="#cb6-84" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> ishigami_3d(bkd)</span>
-<span id="cb6-85"><a href="#cb6-85" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.function()</span>
-<span id="cb6-86"><a href="#cb6-86" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb6-87"><a href="#cb6-87" aria-hidden="true" tabindex="-1"></a>gt <span class="op">=</span> benchmark.ground_truth()</span>
-<span id="cb6-88"><a href="#cb6-88" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb6-89"><a href="#cb6-89" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">3</span></span>
-<span id="cb6-90"><a href="#cb6-90" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-91"><a href="#cb6-91" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(gt.main_effects).flatten()</span>
-<span id="cb6-92"><a href="#cb6-92" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(gt.total_effects).flatten()</span>
-<span id="cb6-93"><a href="#cb6-93" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-94"><a href="#cb6-94" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-97"><a href="#cb6-97" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-98"><a href="#cb6-98" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit a PCE to the Ishigami function</span></span>
-<span id="cb6-99"><a href="#cb6-99" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">200</span></span>
-<span id="cb6-100"><a href="#cb6-100" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)</span>
-<span id="cb6-101"><a href="#cb6-101" aria-hidden="true" tabindex="-1"></a>values_train <span class="op">=</span> func(samples_train)</span>
-<span id="cb6-102"><a href="#cb6-102" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-103"><a href="#cb6-103" aria-hidden="true" tabindex="-1"></a>degree <span class="op">=</span> <span class="dv">8</span></span>
-<span id="cb6-104"><a href="#cb6-104" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> create_pce_from_marginals(marginals, degree, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb6-105"><a href="#cb6-105" aria-hidden="true" tabindex="-1"></a>ls_fitter <span class="op">=</span> LeastSquaresFitter(bkd)</span>
-<span id="cb6-106"><a href="#cb6-106" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> ls_fitter.fit(pce, samples_train, values_train).surrogate()</span>
-<span id="cb6-107"><a href="#cb6-107" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-84"><a href="#cb6-84" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> IshigamiBenchmark(bkd)</span>
+<span id="cb6-85"><a href="#cb6-85" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.problem().function()</span>
+<span id="cb6-86"><a href="#cb6-86" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.problem().prior()</span>
+<span id="cb6-87"><a href="#cb6-87" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb6-88"><a href="#cb6-88" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb6-89"><a href="#cb6-89" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-90"><a href="#cb6-90" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(benchmark.main_effects()).flatten()</span>
+<span id="cb6-91"><a href="#cb6-91" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(benchmark.total_effects()).flatten()</span>
+<span id="cb6-92"><a href="#cb6-92" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-93"><a href="#cb6-93" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-96"><a href="#cb6-96" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-97"><a href="#cb6-97" aria-hidden="true" tabindex="-1"></a><span class="co"># Fit a PCE to the Ishigami function</span></span>
+<span id="cb6-98"><a href="#cb6-98" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb6-99"><a href="#cb6-99" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)</span>
+<span id="cb6-100"><a href="#cb6-100" aria-hidden="true" tabindex="-1"></a>values_train <span class="op">=</span> func(samples_train)</span>
+<span id="cb6-101"><a href="#cb6-101" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-102"><a href="#cb6-102" aria-hidden="true" tabindex="-1"></a>degree <span class="op">=</span> <span class="dv">8</span></span>
+<span id="cb6-103"><a href="#cb6-103" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> create_pce_from_marginals(marginals, degree, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb6-104"><a href="#cb6-104" aria-hidden="true" tabindex="-1"></a>ls_fitter <span class="op">=</span> LeastSquaresFitter(bkd)</span>
+<span id="cb6-105"><a href="#cb6-105" aria-hidden="true" tabindex="-1"></a>pce <span class="op">=</span> ls_fitter.fit(pce, samples_train, values_train).surrogate()</span>
+<span id="cb6-106"><a href="#cb6-106" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-107"><a href="#cb6-107" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-108"><a href="#cb6-108" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-109"><a href="#cb6-109" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-110"><a href="#cb6-110" aria-hidden="true" tabindex="-1"></a><span class="fu">## Basic Usage</span></span>
-<span id="cb6-111"><a href="#cb6-111" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-112"><a href="#cb6-112" aria-hidden="true" tabindex="-1"></a>The <span class="in">`PolynomialChaosSensitivityAnalysis`</span> class wraps a fitted PCE and provides Sobol index computation.</span>
-<span id="cb6-113"><a href="#cb6-113" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-116"><a href="#cb6-116" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-117"><a href="#cb6-117" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> PolynomialChaosSensitivityAnalysis</span>
-<span id="cb6-118"><a href="#cb6-118" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-119"><a href="#cb6-119" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> PolynomialChaosSensitivityAnalysis(pce)</span>
-<span id="cb6-120"><a href="#cb6-120" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-121"><a href="#cb6-121" aria-hidden="true" tabindex="-1"></a><span class="co"># Main effects (first-order indices)</span></span>
-<span id="cb6-122"><a href="#cb6-122" aria-hidden="true" tabindex="-1"></a>main_effects <span class="op">=</span> sa.main_effects()  <span class="co"># shape (nvars, nqoi)</span></span>
-<span id="cb6-123"><a href="#cb6-123" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-124"><a href="#cb6-124" aria-hidden="true" tabindex="-1"></a><span class="co"># Total effects</span></span>
-<span id="cb6-125"><a href="#cb6-125" aria-hidden="true" tabindex="-1"></a>total_effects <span class="op">=</span> sa.total_effects()  <span class="co"># shape (nvars, nqoi)</span></span>
-<span id="cb6-126"><a href="#cb6-126" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-127"><a href="#cb6-127" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-128"><a href="#cb6-128" aria-hidden="true" tabindex="-1"></a>The PCE-based estimates closely match the analytical ground truth. Note that $\Sobol{3} \approx 0$ (no main effect for $x_3$) but $\SobolT{3} &gt; 0$ (due to the $x_1 x_3$ interaction).</span>
+<span id="cb6-109"><a href="#cb6-109" aria-hidden="true" tabindex="-1"></a><span class="fu">## Basic Usage</span></span>
+<span id="cb6-110"><a href="#cb6-110" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-111"><a href="#cb6-111" aria-hidden="true" tabindex="-1"></a>The <span class="in">`PolynomialChaosSensitivityAnalysis`</span> class wraps a fitted PCE and provides Sobol index computation.</span>
+<span id="cb6-112"><a href="#cb6-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-115"><a href="#cb6-115" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-116"><a href="#cb6-116" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> PolynomialChaosSensitivityAnalysis</span>
+<span id="cb6-117"><a href="#cb6-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-118"><a href="#cb6-118" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> PolynomialChaosSensitivityAnalysis(pce)</span>
+<span id="cb6-119"><a href="#cb6-119" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-120"><a href="#cb6-120" aria-hidden="true" tabindex="-1"></a><span class="co"># Main effects (first-order indices)</span></span>
+<span id="cb6-121"><a href="#cb6-121" aria-hidden="true" tabindex="-1"></a>main_effects <span class="op">=</span> sa.main_effects()  <span class="co"># shape (nvars, nqoi)</span></span>
+<span id="cb6-122"><a href="#cb6-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-123"><a href="#cb6-123" aria-hidden="true" tabindex="-1"></a><span class="co"># Total effects</span></span>
+<span id="cb6-124"><a href="#cb6-124" aria-hidden="true" tabindex="-1"></a>total_effects <span class="op">=</span> sa.total_effects()  <span class="co"># shape (nvars, nqoi)</span></span>
+<span id="cb6-125"><a href="#cb6-125" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-126"><a href="#cb6-126" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-127"><a href="#cb6-127" aria-hidden="true" tabindex="-1"></a>The PCE-based estimates closely match the analytical ground truth. Note that $\Sobol{3} \approx 0$ (no main effect for $x_3$) but $\SobolT{3} &gt; 0$ (due to the $x_1 x_3$ interaction).</span>
+<span id="cb6-128"><a href="#cb6-128" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-129"><a href="#cb6-129" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-130"><a href="#cb6-130" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-131"><a href="#cb6-131" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interaction Terms</span></span>
-<span id="cb6-132"><a href="#cb6-132" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-133"><a href="#cb6-133" aria-hidden="true" tabindex="-1"></a>To compute higher-order Sobol indices (e.g., $\Sobol{13}$), specify the interaction terms of interest. Each column of the interaction matrix is a binary indicator of which variables are active.</span>
-<span id="cb6-134"><a href="#cb6-134" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-137"><a href="#cb6-137" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-138"><a href="#cb6-138" aria-hidden="true" tabindex="-1"></a><span class="co"># Define interaction terms: main effects + all pairwise + triple</span></span>
-<span id="cb6-139"><a href="#cb6-139" aria-hidden="true" tabindex="-1"></a>interaction_terms <span class="op">=</span> bkd.asarray([</span>
-<span id="cb6-140"><a href="#cb6-140" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>],  <span class="co"># x_1 active</span></span>
-<span id="cb6-141"><a href="#cb6-141" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>],  <span class="co"># x_2 active</span></span>
-<span id="cb6-142"><a href="#cb6-142" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>],  <span class="co"># x_3 active</span></span>
-<span id="cb6-143"><a href="#cb6-143" aria-hidden="true" tabindex="-1"></a>])</span>
-<span id="cb6-144"><a href="#cb6-144" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-145"><a href="#cb6-145" aria-hidden="true" tabindex="-1"></a>sa.set_interaction_terms_of_interest(interaction_terms)</span>
-<span id="cb6-146"><a href="#cb6-146" aria-hidden="true" tabindex="-1"></a>sobol_all <span class="op">=</span> sa.sobol_indices()  <span class="co"># shape (nterms, nqoi)</span></span>
-<span id="cb6-147"><a href="#cb6-147" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-148"><a href="#cb6-148" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-149"><a href="#cb6-149" aria-hidden="true" tabindex="-1"></a>The $\Sobol{13}$ interaction is substantial, capturing the $x_1$-$x_3$ coupling in the $0.1 x_3^4 \sin(x_1)$ term. The other pairwise and triple interactions are near zero.</span>
+<span id="cb6-130"><a href="#cb6-130" aria-hidden="true" tabindex="-1"></a><span class="fu">## Interaction Terms</span></span>
+<span id="cb6-131"><a href="#cb6-131" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-132"><a href="#cb6-132" aria-hidden="true" tabindex="-1"></a>To compute higher-order Sobol indices (e.g., $\Sobol{13}$), specify the interaction terms of interest. Each column of the interaction matrix is a binary indicator of which variables are active.</span>
+<span id="cb6-133"><a href="#cb6-133" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-136"><a href="#cb6-136" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-137"><a href="#cb6-137" aria-hidden="true" tabindex="-1"></a><span class="co"># Define interaction terms: main effects + all pairwise + triple</span></span>
+<span id="cb6-138"><a href="#cb6-138" aria-hidden="true" tabindex="-1"></a>interaction_terms <span class="op">=</span> bkd.asarray([</span>
+<span id="cb6-139"><a href="#cb6-139" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>],  <span class="co"># x_1 active</span></span>
+<span id="cb6-140"><a href="#cb6-140" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>],  <span class="co"># x_2 active</span></span>
+<span id="cb6-141"><a href="#cb6-141" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">1</span>],  <span class="co"># x_3 active</span></span>
+<span id="cb6-142"><a href="#cb6-142" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb6-143"><a href="#cb6-143" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-144"><a href="#cb6-144" aria-hidden="true" tabindex="-1"></a>sa.set_interaction_terms_of_interest(interaction_terms)</span>
+<span id="cb6-145"><a href="#cb6-145" aria-hidden="true" tabindex="-1"></a>sobol_all <span class="op">=</span> sa.sobol_indices()  <span class="co"># shape (nterms, nqoi)</span></span>
+<span id="cb6-146"><a href="#cb6-146" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-147"><a href="#cb6-147" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-148"><a href="#cb6-148" aria-hidden="true" tabindex="-1"></a>The $\Sobol{13}$ interaction is substantial, capturing the $x_1$-$x_3$ coupling in the $0.1 x_3^4 \sin(x_1)$ term. The other pairwise and triple interactions are near zero.</span>
+<span id="cb6-149"><a href="#cb6-149" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-150"><a href="#cb6-150" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-151"><a href="#cb6-151" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-152"><a href="#cb6-152" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualization</span></span>
-<span id="cb6-153"><a href="#cb6-153" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-154"><a href="#cb6-154" aria-hidden="true" tabindex="-1"></a>The <span class="in">`sensitivity.plots`</span> module provides built-in plotting functions.</span>
-<span id="cb6-155"><a href="#cb6-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-158"><a href="#cb6-158" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-159"><a href="#cb6-159" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "PCE-based Sobol indices for the Ishigami function. Left: main effect pie chart showing $x_2$ dominates. Center: total-order bar chart---$x_3$ has zero main effect but nonzero total effect due to its interaction with $x_1$. Right: full Sobol decomposition showing the $S_{13}$ interaction."</span></span>
-<span id="cb6-160"><a href="#cb6-160" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pce-sobol</span></span>
-<span id="cb6-161"><a href="#cb6-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-162"><a href="#cb6-162" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity.plots <span class="im">import</span> (</span>
-<span id="cb6-163"><a href="#cb6-163" aria-hidden="true" tabindex="-1"></a>    plot_main_effects,</span>
-<span id="cb6-164"><a href="#cb6-164" aria-hidden="true" tabindex="-1"></a>    plot_total_effects,</span>
-<span id="cb6-165"><a href="#cb6-165" aria-hidden="true" tabindex="-1"></a>    plot_interaction_values,</span>
-<span id="cb6-166"><a href="#cb6-166" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb6-167"><a href="#cb6-167" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-168"><a href="#cb6-168" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2, ax3) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">15</span>, <span class="fl">4.5</span>))</span>
-<span id="cb6-169"><a href="#cb6-169" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-170"><a href="#cb6-170" aria-hidden="true" tabindex="-1"></a><span class="co"># Main effects pie chart</span></span>
-<span id="cb6-171"><a href="#cb6-171" aria-hidden="true" tabindex="-1"></a>plot_main_effects(main_effects, ax1, bkd, rv<span class="op">=</span><span class="st">"x"</span>)</span>
-<span id="cb6-172"><a href="#cb6-172" aria-hidden="true" tabindex="-1"></a>ax1.set_title(<span class="st">"Main Effects"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
-<span id="cb6-173"><a href="#cb6-173" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-174"><a href="#cb6-174" aria-hidden="true" tabindex="-1"></a><span class="co"># Total effects bar chart</span></span>
-<span id="cb6-175"><a href="#cb6-175" aria-hidden="true" tabindex="-1"></a>plot_total_effects(total_effects, ax2, bkd, rv<span class="op">=</span><span class="st">"x"</span>)</span>
-<span id="cb6-176"><a href="#cb6-176" aria-hidden="true" tabindex="-1"></a>ax2.set_ylabel(<span class="st">"Sobol Index"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
-<span id="cb6-177"><a href="#cb6-177" aria-hidden="true" tabindex="-1"></a>ax2.set_title(<span class="st">"Total Effects"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
-<span id="cb6-178"><a href="#cb6-178" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-179"><a href="#cb6-179" aria-hidden="true" tabindex="-1"></a><span class="co"># Full Sobol decomposition pie chart</span></span>
-<span id="cb6-180"><a href="#cb6-180" aria-hidden="true" tabindex="-1"></a>plot_interaction_values(sobol_all, interaction_terms, ax3, bkd, rv<span class="op">=</span><span class="st">"x"</span>)</span>
-<span id="cb6-181"><a href="#cb6-181" aria-hidden="true" tabindex="-1"></a>ax3.set_title(<span class="st">"Full Sobol Decomposition"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
-<span id="cb6-182"><a href="#cb6-182" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-183"><a href="#cb6-183" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-184"><a href="#cb6-184" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb6-185"><a href="#cb6-185" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-151"><a href="#cb6-151" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualization</span></span>
+<span id="cb6-152"><a href="#cb6-152" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-153"><a href="#cb6-153" aria-hidden="true" tabindex="-1"></a>The <span class="in">`sensitivity.plots`</span> module provides built-in plotting functions.</span>
+<span id="cb6-154"><a href="#cb6-154" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-157"><a href="#cb6-157" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-158"><a href="#cb6-158" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "PCE-based Sobol indices for the Ishigami function. Left: main effect pie chart showing $x_2$ dominates. Center: total-order bar chart---$x_3$ has zero main effect but nonzero total effect due to its interaction with $x_1$. Right: full Sobol decomposition showing the $S_{13}$ interaction."</span></span>
+<span id="cb6-159"><a href="#cb6-159" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-pce-sobol</span></span>
+<span id="cb6-160"><a href="#cb6-160" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-161"><a href="#cb6-161" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity.plots <span class="im">import</span> (</span>
+<span id="cb6-162"><a href="#cb6-162" aria-hidden="true" tabindex="-1"></a>    plot_main_effects,</span>
+<span id="cb6-163"><a href="#cb6-163" aria-hidden="true" tabindex="-1"></a>    plot_total_effects,</span>
+<span id="cb6-164"><a href="#cb6-164" aria-hidden="true" tabindex="-1"></a>    plot_interaction_values,</span>
+<span id="cb6-165"><a href="#cb6-165" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-166"><a href="#cb6-166" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-167"><a href="#cb6-167" aria-hidden="true" tabindex="-1"></a>fig, (ax1, ax2, ax3) <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">15</span>, <span class="fl">4.5</span>))</span>
+<span id="cb6-168"><a href="#cb6-168" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-169"><a href="#cb6-169" aria-hidden="true" tabindex="-1"></a><span class="co"># Main effects pie chart</span></span>
+<span id="cb6-170"><a href="#cb6-170" aria-hidden="true" tabindex="-1"></a>plot_main_effects(main_effects, ax1, bkd, rv<span class="op">=</span><span class="st">"x"</span>)</span>
+<span id="cb6-171"><a href="#cb6-171" aria-hidden="true" tabindex="-1"></a>ax1.set_title(<span class="st">"Main Effects"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb6-172"><a href="#cb6-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-173"><a href="#cb6-173" aria-hidden="true" tabindex="-1"></a><span class="co"># Total effects bar chart</span></span>
+<span id="cb6-174"><a href="#cb6-174" aria-hidden="true" tabindex="-1"></a>plot_total_effects(total_effects, ax2, bkd, rv<span class="op">=</span><span class="st">"x"</span>)</span>
+<span id="cb6-175"><a href="#cb6-175" aria-hidden="true" tabindex="-1"></a>ax2.set_ylabel(<span class="st">"Sobol Index"</span>, fontsize<span class="op">=</span><span class="dv">11</span>)</span>
+<span id="cb6-176"><a href="#cb6-176" aria-hidden="true" tabindex="-1"></a>ax2.set_title(<span class="st">"Total Effects"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb6-177"><a href="#cb6-177" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-178"><a href="#cb6-178" aria-hidden="true" tabindex="-1"></a><span class="co"># Full Sobol decomposition pie chart</span></span>
+<span id="cb6-179"><a href="#cb6-179" aria-hidden="true" tabindex="-1"></a>plot_interaction_values(sobol_all, interaction_terms, ax3, bkd, rv<span class="op">=</span><span class="st">"x"</span>)</span>
+<span id="cb6-180"><a href="#cb6-180" aria-hidden="true" tabindex="-1"></a>ax3.set_title(<span class="st">"Full Sobol Decomposition"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb6-181"><a href="#cb6-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-182"><a href="#cb6-182" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-183"><a href="#cb6-183" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-184"><a href="#cb6-184" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-185"><a href="#cb6-185" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-186"><a href="#cb6-186" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-187"><a href="#cb6-187" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-188"><a href="#cb6-188" aria-hidden="true" tabindex="-1"></a><span class="fu">## Convergence with PCE Degree</span></span>
-<span id="cb6-189"><a href="#cb6-189" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-190"><a href="#cb6-190" aria-hidden="true" tabindex="-1"></a>The accuracy of PCE-based Sobol indices depends on how well the surrogate approximates the true function. Higher polynomial degree generally gives better indices, but requires more training data.</span>
-<span id="cb6-191"><a href="#cb6-191" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-194"><a href="#cb6-194" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-195"><a href="#cb6-195" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb6-196"><a href="#cb6-196" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence of PCE-based Sobol indices with polynomial degree. As the degree increases, the estimates approach the analytical ground truth (dashed lines). The x_1-x_3 interaction requires higher degree to resolve because it involves a degree-4 polynomial in x_3."</span></span>
-<span id="cb6-197"><a href="#cb6-197" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence</span></span>
-<span id="cb6-198"><a href="#cb6-198" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-199"><a href="#cb6-199" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_pce_convergence</span>
-<span id="cb6-200"><a href="#cb6-200" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-201"><a href="#cb6-201" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
-<span id="cb6-202"><a href="#cb6-202" aria-hidden="true" tabindex="-1"></a>plot_pce_convergence(func, prior, marginals, nvars, gt_main, gt_total,</span>
-<span id="cb6-203"><a href="#cb6-203" aria-hidden="true" tabindex="-1"></a>                     bkd, axes)</span>
-<span id="cb6-204"><a href="#cb6-204" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb6-205"><a href="#cb6-205" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb6-206"><a href="#cb6-206" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb6-207"><a href="#cb6-207" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-208"><a href="#cb6-208" aria-hidden="true" tabindex="-1"></a>The $x_3$ total effect converges slowly because it requires capturing the $x_3^4$ term, which needs at least polynomial degree 4.</span>
+<span id="cb6-187"><a href="#cb6-187" aria-hidden="true" tabindex="-1"></a><span class="fu">## Convergence with PCE Degree</span></span>
+<span id="cb6-188"><a href="#cb6-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-189"><a href="#cb6-189" aria-hidden="true" tabindex="-1"></a>The accuracy of PCE-based Sobol indices depends on how well the surrogate approximates the true function. Higher polynomial degree generally gives better indices, but requires more training data.</span>
+<span id="cb6-190"><a href="#cb6-190" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-193"><a href="#cb6-193" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb6-194"><a href="#cb6-194" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb6-195"><a href="#cb6-195" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence of PCE-based Sobol indices with polynomial degree. As the degree increases, the estimates approach the analytical ground truth (dashed lines). The x_1-x_3 interaction requires higher degree to resolve because it involves a degree-4 polynomial in x_3."</span></span>
+<span id="cb6-196"><a href="#cb6-196" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-convergence</span></span>
+<span id="cb6-197"><a href="#cb6-197" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-198"><a href="#cb6-198" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_pce_convergence</span>
+<span id="cb6-199"><a href="#cb6-199" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-200"><a href="#cb6-200" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">4.5</span>))</span>
+<span id="cb6-201"><a href="#cb6-201" aria-hidden="true" tabindex="-1"></a>plot_pce_convergence(func, prior, marginals, nvars, gt_main, gt_total,</span>
+<span id="cb6-202"><a href="#cb6-202" aria-hidden="true" tabindex="-1"></a>                     bkd, axes)</span>
+<span id="cb6-203"><a href="#cb6-203" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb6-204"><a href="#cb6-204" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb6-205"><a href="#cb6-205" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb6-206"><a href="#cb6-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-207"><a href="#cb6-207" aria-hidden="true" tabindex="-1"></a>The $x_3$ total effect converges slowly because it requires capturing the $x_3^4$ term, which needs at least polynomial degree 4.</span>
+<span id="cb6-208"><a href="#cb6-208" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-209"><a href="#cb6-209" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-210"><a href="#cb6-210" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-211"><a href="#cb6-211" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb6-212"><a href="#cb6-212" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-213"><a href="#cb6-213" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`PolynomialChaosSensitivityAnalysis`</span> computes Sobol indices analytically from PCE coefficients --- no sampling needed</span>
-<span id="cb6-214"><a href="#cb6-214" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`main_effects()`</span> and <span class="in">`total_effects()`</span> return first-order and total-order indices</span>
-<span id="cb6-215"><a href="#cb6-215" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Use <span class="in">`set_interaction_terms_of_interest()`</span> and <span class="in">`sobol_indices()`</span> for higher-order interaction indices</span>
-<span id="cb6-216"><a href="#cb6-216" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The sum of all Sobol indices equals 1 (up to surrogate error)</span>
-<span id="cb6-217"><a href="#cb6-217" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Index accuracy depends on the PCE degree --- higher degree resolves more complex functions</span>
+<span id="cb6-210"><a href="#cb6-210" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb6-211"><a href="#cb6-211" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-212"><a href="#cb6-212" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`PolynomialChaosSensitivityAnalysis`</span> computes Sobol indices analytically from PCE coefficients --- no sampling needed</span>
+<span id="cb6-213"><a href="#cb6-213" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="in">`main_effects()`</span> and <span class="in">`total_effects()`</span> return first-order and total-order indices</span>
+<span id="cb6-214"><a href="#cb6-214" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Use <span class="in">`set_interaction_terms_of_interest()`</span> and <span class="in">`sobol_indices()`</span> for higher-order interaction indices</span>
+<span id="cb6-215"><a href="#cb6-215" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The sum of all Sobol indices equals 1 (up to surrogate error)</span>
+<span id="cb6-216"><a href="#cb6-216" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Index accuracy depends on the PCE degree --- higher degree resolves more complex functions</span>
+<span id="cb6-217"><a href="#cb6-217" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-218"><a href="#cb6-218" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-219"><a href="#cb6-219" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-220"><a href="#cb6-220" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb6-221"><a href="#cb6-221" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-222"><a href="#cb6-222" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**(Easy)** Compute and compare the sum $\sum_i \Sobol{i}$ at degree 4 vs. degree 8. How does the sum change, and what does it imply about how well the PCE captures interactions?</span>
-<span id="cb6-223"><a href="#cb6-223" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-224"><a href="#cb6-224" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**(Medium)** Apply PCE sensitivity analysis to the 4D Sobol G-function (<span class="in">`sobol_g_4d`</span> benchmark). Compute main effects and compare to the analytical ground truth. What polynomial degree is sufficient?</span>
-<span id="cb6-225"><a href="#cb6-225" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-226"><a href="#cb6-226" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**(Challenge)** Use a multi-output PCE (e.g., the beam model with 3 QoIs) and compute Sobol indices for each QoI. Create a grouped bar chart comparing the rankings across QoIs.</span>
+<span id="cb6-219"><a href="#cb6-219" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb6-220"><a href="#cb6-220" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-221"><a href="#cb6-221" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**(Easy)** Compute and compare the sum $\sum_i \Sobol{i}$ at degree 4 vs. degree 8. How does the sum change, and what does it imply about how well the PCE captures interactions?</span>
+<span id="cb6-222"><a href="#cb6-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-223"><a href="#cb6-223" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**(Medium)** Apply PCE sensitivity analysis to the 4D Sobol G-function (<span class="in">`sobol_g_4d`</span> benchmark). Compute main effects and compare to the analytical ground truth. What polynomial degree is sufficient?</span>
+<span id="cb6-224"><a href="#cb6-224" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-225"><a href="#cb6-225" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**(Challenge)** Use a multi-output PCE (e.g., the beam model with 3 QoIs) and compute Sobol indices for each QoI. Create a grouped bar chart comparing the rankings across QoIs.</span>
+<span id="cb6-226"><a href="#cb6-226" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-227"><a href="#cb6-227" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-228"><a href="#cb6-228" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-229"><a href="#cb6-229" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb6-230"><a href="#cb6-230" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-231"><a href="#cb6-231" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
-<span id="cb6-232"><a href="#cb6-232" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-233"><a href="#cb6-233" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Morris Screening</span><span class="co">](morris_screening.qmd)</span> --- Cheap screening to identify important inputs before Sobol analysis</span>
-<span id="cb6-234"><a href="#cb6-234" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Bin-Based Sensitivity</span><span class="co">](bin_based_sensitivity.qmd)</span> --- Sobol indices from existing datasets (no special sampling design)</span>
+<span id="cb6-228"><a href="#cb6-228" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb6-229"><a href="#cb6-229" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-230"><a href="#cb6-230" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb6-231"><a href="#cb6-231" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-232"><a href="#cb6-232" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Morris Screening</span><span class="co">](morris_screening.qmd)</span> --- Cheap screening to identify important inputs before Sobol analysis</span>
+<span id="cb6-233"><a href="#cb6-233" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">Bin-Based Sensitivity</span><span class="co">](bin_based_sensitivity.qmd)</span> --- Sobol indices from existing datasets (no special sampling design)</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Bin-Based Sensitivity Analysis – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1167,24 +1186,23 @@ R_{ij} = \frac{\Var[\E[Y|X_i, X_j]]}{\Var[Y]} = \Sobol{i} + \Sobol{j} + \Sobol{i
 </section>
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
-<div id="56f0660d" class="cell" data-execution_count="1">
+<div id="94b3b7f5" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks <span class="im">import</span> ishigami_3d</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.sensitivity <span class="im">import</span> IshigamiBenchmark</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity.variance_based <span class="im">import</span> BinBasedSensitivityAnalysis</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Load the Ishigami benchmark</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> ishigami_3d(bkd)</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.function()</span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>gt <span class="op">=</span> benchmark.ground_truth()</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Ishigami function: f(x) = sin(x1) + 7*sin^2(x2) + 0.1*x3^4*sin(x1)"</span>)</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Domain: x_i ~ U[-pi, pi], i = 1,2,3"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> IshigamiBenchmark(bkd)</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.problem().function()</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.problem().prior()</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Ishigami function: f(x) = sin(x1) + 7*sin^2(x2) + 0.1*x3^4*sin(x1)"</span>)</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Domain: x_i ~ U[-pi, pi], i = 1,2,3"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Ishigami function: f(x) = sin(x1) + 7*sin^2(x2) + 0.1*x3^4*sin(x1)
 Domain: x_i ~ U[-pi, pi], i = 1,2,3</code></pre>
@@ -1194,7 +1212,7 @@ Domain: x_i ~ U[-pi, pi], i = 1,2,3</code></pre>
 <section id="first-order-indices" class="level2">
 <h2 class="anchored" data-anchor-id="first-order-indices">First-Order Indices</h2>
 <p>Let’s compute main effects using the bin-based method.</p>
-<div id="3d423fcd" class="cell" data-execution_count="2">
+<div id="6862daea" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples from the prior</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">10000</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> prior.rvs(N)</span>
@@ -1207,7 +1225,7 @@ Domain: x_i ~ U[-pi, pi], i = 1,2,3</code></pre>
 Values shape: (1, 10000)</code></pre>
 </div>
 </div>
-<div id="8966b36c" class="cell" data-execution_count="3">
+<div id="e0b33689" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Create bin-based sensitivity analyzer</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> BinBasedSensitivityAnalysis(prior, bkd)</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -1222,7 +1240,7 @@ Values shape: (1, 10000)</code></pre>
 <span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  S_</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>s<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
 <span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Ground truth:"</span>)</span>
-<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(gt.main_effects).flatten()</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(benchmark.main_effects()).flatten()</span>
 <span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, s <span class="kw">in</span> <span class="bu">enumerate</span>(gt_main):</span>
 <span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  S_</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>s<span class="sc">:.4f}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
@@ -1247,7 +1265,7 @@ Ground truth:
 <section id="visualizing-1d-bin-partitions" class="level2">
 <h2 class="anchored" data-anchor-id="visualizing-1d-bin-partitions">Visualizing 1D Bin Partitions</h2>
 <p>Let’s visualize how the conditional means are computed. First, we prepare the data:</p>
-<div id="4d92516e" class="cell" data-execution_count="4">
+<div id="b556665c" class="cell" data-execution_count="4">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert to numpy for visualization</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>nbins <span class="op">=</span> <span class="dv">10</span></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>samples_np <span class="op">=</span> bkd.to_numpy(samples)</span>
@@ -1270,7 +1288,7 @@ Ground truth:
 </div>
 <p>Now we plot the conditional means for each variable:</p>
 <div id="cell-fig-bin-1d" class="cell" data-execution_count="5">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_bin_1d</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._sensitivity <span class="im">import</span> plot_bin_1d</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">4</span>))</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>plot_bin_1d(samples_np, values_np, main_effects, nbins, axes)</span>
@@ -1294,7 +1312,7 @@ Figure&nbsp;1: Conditional means per bin for each input variable. Orange bars sh
 <section id="second-order-indices" class="level2">
 <h2 class="anchored" data-anchor-id="second-order-indices">Second-Order Indices</h2>
 <p>The Ishigami function has a notable interaction between <span class="math inline">\(X_1\)</span> and <span class="math inline">\(X_3\)</span> through the term <span class="math inline">\(0.1 X_3^4 \sin(X_1)\)</span>. Let’s compute the second-order index <span class="math inline">\(\Sobol{13}\)</span>.</p>
-<div id="8e556012" class="cell" data-execution_count="6">
+<div id="5c709d4b" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Set up interaction terms of interest (main effects + second-order)</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Interaction matrix: each column is a binary indicator of active variables</span></span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Column 0: [1,0,0] = S_1, Column 1: [0,1,0] = S_2, etc.</span></span>
@@ -1316,7 +1334,7 @@ Figure&nbsp;1: Conditional means per bin for each input variable. Orange bars sh
 <span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_13 = </span><span class="sc">{</span>sobol_all[<span class="dv">4</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
 <span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_23 = </span><span class="sc">{</span>sobol_all[<span class="dv">5</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
 <span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Ground truth S_13 = </span><span class="sc">{</span>gt<span class="sc">.</span>sobol_indices<span class="sc">.</span>get((<span class="dv">0</span>, <span class="dv">2</span>), <span class="st">'N/A'</span>)<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Ground truth S_13 = </span><span class="sc">{</span>benchmark<span class="sc">.</span>sobol_indices()<span class="sc">.</span>get((<span class="dv">0</span>, <span class="dv">2</span>), <span class="st">'N/A'</span>)<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
 <span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Sum of all indices = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">sum</span>(sobol_all)<span class="sc">:.4f}</span><span class="ss"> (should be close to 1)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>All Sobol indices:
@@ -1337,7 +1355,7 @@ Sum of all indices = 0.7877 (should be close to 1)</code></pre>
 <section id="visualizing-2d-bin-partitions" class="level2">
 <h2 class="anchored" data-anchor-id="visualizing-2d-bin-partitions">Visualizing 2D Bin Partitions</h2>
 <p>Let’s visualize the 2D binning used to compute <span class="math inline">\(\Sobol{13}\)</span>. First, we compute the 2D grid of conditional means:</p>
-<div id="62cc4f88" class="cell" data-execution_count="7">
+<div id="01e4984d" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Variables for the X1-X3 interaction</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>var_i, var_j <span class="op">=</span> <span class="dv">0</span>, <span class="dv">2</span>  <span class="co"># X_1, X_3</span></span>
 <span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>nbins_2d <span class="op">=</span> <span class="dv">5</span></span>
@@ -1375,7 +1393,7 @@ Conditional mean range: [-1.63, 8.28]</code></pre>
 </div>
 <p>Now we visualize the results:</p>
 <div id="cell-fig-bin-2d" class="cell" data-execution_count="8">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_bin_2d</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._sensitivity <span class="im">import</span> plot_bin_2d</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">5</span>))</span>
 <span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>plot_bin_2d(xi, xj, values_np, edges_i, edges_j, cell_means,</span>
@@ -1401,11 +1419,11 @@ Figure&nbsp;2: 2D binning for the <span class="math inline">\(X_1\)</span>–<sp
 <h2 class="anchored" data-anchor-id="comparison-bin-based-vs.-sample-based">Comparison: Bin-Based vs.&nbsp;Sample-Based</h2>
 <p>Let’s compare the bin-based estimates with the Saltelli/Jansen sample-based estimator <strong>at the same computational budget</strong> (same number of function evaluations).</p>
 <p>The sample-based method requires a special sampling design: two independent sample matrices <span class="math inline">\(\mt{A}\)</span> and <span class="math inline">\(\mt{B}\)</span> (each of size <span class="math inline">\(N_\text{base}\)</span>), plus <span class="math inline">\(d\)</span> mixed matrices <span class="math inline">\(\mt{C}_i\)</span>. The total cost is <span class="math inline">\(N_\text{base}(d + 2)\)</span> function evaluations. So for a budget of <span class="math inline">\(N\)</span> evaluations, the sample-based method can afford <span class="math inline">\(N_\text{base} = \lfloor N / (d + 2) \rfloor\)</span> base samples.</p>
-<div id="baf0c540" class="cell" data-execution_count="9">
+<div id="3b22c513" class="cell" data-execution_count="9">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> MonteCarloSensitivityAnalysis</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(gt.main_effects).flatten()</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(gt.total_effects).flatten()</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(benchmark.main_effects()).flatten()</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(benchmark.total_effects()).flatten()</span>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Fixed budget: same total number of function evaluations</span></span>
 <span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> [<span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">5000</span>, <span class="dv">10000</span>]</span>
@@ -1461,7 +1479,7 @@ Figure&nbsp;2: 2D binning for the <span class="math inline">\(X_1\)</span>–<sp
 </div>
 </div>
 <div id="cell-fig-bin-vs-mc" class="cell" data-execution_count="10">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_bin_vs_mc</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._sensitivity <span class="im">import</span> plot_bin_vs_mc</span>
 <span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute detailed comparison at N=10000</span></span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>N_detail <span class="op">=</span> <span class="dv">10000</span></span>
@@ -1508,7 +1526,7 @@ Figure&nbsp;3: Convergence comparison at equal computational budget. Left: maxim
 <section id="bootstrap-uncertainty-estimates" class="level2">
 <h2 class="anchored" data-anchor-id="bootstrap-uncertainty-estimates">Bootstrap Uncertainty Estimates</h2>
 <p>Bin-based estimation has statistical uncertainty. Let’s quantify it using bootstrap.</p>
-<div id="794fa643" class="cell" data-execution_count="11">
+<div id="5d14db1e" class="cell" data-execution_count="11">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute bootstrap statistics</span></span>
 <span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> sa.bootstrap(samples, values, nbootstraps<span class="op">=</span><span class="dv">20</span>, seed<span class="op">=</span><span class="dv">42</span>)</span>
@@ -1533,7 +1551,7 @@ X_3   0.0047    [0.0037, 0.0073]0.0023    </code></pre>
 </div>
 </div>
 <div id="cell-fig-bootstrap" class="cell" data-execution_count="12">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_bootstrap</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._sensitivity <span class="im">import</span> plot_bootstrap</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
 <span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>plot_bootstrap(median, q25, q75, gt_main, ax)</span>
@@ -2194,369 +2212,368 @@ Figure&nbsp;4: Bootstrap uncertainty of bin-based main effect estimates. Bars sh
 <span id="cb20-101"><a href="#cb20-101" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb20-102"><a href="#cb20-102" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb20-103"><a href="#cb20-103" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb20-104"><a href="#cb20-104" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks <span class="im">import</span> ishigami_3d</span>
+<span id="cb20-104"><a href="#cb20-104" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.sensitivity <span class="im">import</span> IshigamiBenchmark</span>
 <span id="cb20-105"><a href="#cb20-105" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity.variance_based <span class="im">import</span> BinBasedSensitivityAnalysis</span>
 <span id="cb20-106"><a href="#cb20-106" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb20-107"><a href="#cb20-107" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
 <span id="cb20-108"><a href="#cb20-108" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
 <span id="cb20-109"><a href="#cb20-109" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb20-110"><a href="#cb20-110" aria-hidden="true" tabindex="-1"></a><span class="co"># Load the Ishigami benchmark</span></span>
-<span id="cb20-111"><a href="#cb20-111" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> ishigami_3d(bkd)</span>
-<span id="cb20-112"><a href="#cb20-112" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.function()</span>
-<span id="cb20-113"><a href="#cb20-113" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb20-114"><a href="#cb20-114" aria-hidden="true" tabindex="-1"></a>gt <span class="op">=</span> benchmark.ground_truth()</span>
-<span id="cb20-115"><a href="#cb20-115" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-116"><a href="#cb20-116" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Ishigami function: f(x) = sin(x1) + 7*sin^2(x2) + 0.1*x3^4*sin(x1)"</span>)</span>
-<span id="cb20-117"><a href="#cb20-117" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Domain: x_i ~ U[-pi, pi], i = 1,2,3"</span>)</span>
-<span id="cb20-118"><a href="#cb20-118" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-119"><a href="#cb20-119" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-120"><a href="#cb20-120" aria-hidden="true" tabindex="-1"></a><span class="fu">## First-Order Indices</span></span>
-<span id="cb20-121"><a href="#cb20-121" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-122"><a href="#cb20-122" aria-hidden="true" tabindex="-1"></a>Let's compute main effects using the bin-based method.</span>
-<span id="cb20-123"><a href="#cb20-123" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-126"><a href="#cb20-126" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-127"><a href="#cb20-127" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples from the prior</span></span>
-<span id="cb20-128"><a href="#cb20-128" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">10000</span></span>
-<span id="cb20-129"><a href="#cb20-129" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> prior.rvs(N)</span>
-<span id="cb20-130"><a href="#cb20-130" aria-hidden="true" tabindex="-1"></a>values <span class="op">=</span> func(samples)</span>
-<span id="cb20-131"><a href="#cb20-131" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-132"><a href="#cb20-132" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Samples shape: </span><span class="sc">{</span>samples<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb20-133"><a href="#cb20-133" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Values shape: </span><span class="sc">{</span>values<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb20-134"><a href="#cb20-134" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-135"><a href="#cb20-135" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-138"><a href="#cb20-138" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-139"><a href="#cb20-139" aria-hidden="true" tabindex="-1"></a><span class="co"># Create bin-based sensitivity analyzer</span></span>
-<span id="cb20-140"><a href="#cb20-140" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> BinBasedSensitivityAnalysis(prior, bkd)</span>
-<span id="cb20-141"><a href="#cb20-141" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-142"><a href="#cb20-142" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute sensitivity indices</span></span>
-<span id="cb20-143"><a href="#cb20-143" aria-hidden="true" tabindex="-1"></a>sa.compute(samples, values)</span>
-<span id="cb20-144"><a href="#cb20-144" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-145"><a href="#cb20-145" aria-hidden="true" tabindex="-1"></a><span class="co"># Get main effects</span></span>
-<span id="cb20-146"><a href="#cb20-146" aria-hidden="true" tabindex="-1"></a>main_effects <span class="op">=</span> bkd.to_numpy(sa.main_effects()).flatten()</span>
-<span id="cb20-147"><a href="#cb20-147" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-148"><a href="#cb20-148" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"First-order Sobol indices (bin-based estimate):"</span>)</span>
-<span id="cb20-149"><a href="#cb20-149" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, s <span class="kw">in</span> <span class="bu">enumerate</span>(main_effects):</span>
-<span id="cb20-150"><a href="#cb20-150" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  S_</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>s<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-151"><a href="#cb20-151" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-152"><a href="#cb20-152" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Ground truth:"</span>)</span>
-<span id="cb20-153"><a href="#cb20-153" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(gt.main_effects).flatten()</span>
-<span id="cb20-154"><a href="#cb20-154" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, s <span class="kw">in</span> <span class="bu">enumerate</span>(gt_main):</span>
-<span id="cb20-155"><a href="#cb20-155" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  S_</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>s<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-156"><a href="#cb20-156" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-157"><a href="#cb20-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-158"><a href="#cb20-158" aria-hidden="true" tabindex="-1"></a>The bin-based estimates agree reasonably well with the ground truth. The Ishigami function has:</span>
-<span id="cb20-159"><a href="#cb20-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-160"><a href="#cb20-160" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$X_1$: Moderate main effect through $\sin(X_1)$</span>
-<span id="cb20-161"><a href="#cb20-161" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$X_2$: Large main effect through $7\sin^2(X_2)$</span>
-<span id="cb20-162"><a href="#cb20-162" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$X_3$: Zero main effect (only appears through interaction $X_3^4 \sin(X_1)$)</span>
-<span id="cb20-163"><a href="#cb20-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-164"><a href="#cb20-164" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualizing 1D Bin Partitions</span></span>
-<span id="cb20-165"><a href="#cb20-165" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-166"><a href="#cb20-166" aria-hidden="true" tabindex="-1"></a>Let's visualize how the conditional means are computed. First, we prepare the data:</span>
-<span id="cb20-167"><a href="#cb20-167" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-170"><a href="#cb20-170" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-171"><a href="#cb20-171" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert to numpy for visualization</span></span>
-<span id="cb20-172"><a href="#cb20-172" aria-hidden="true" tabindex="-1"></a>nbins <span class="op">=</span> <span class="dv">10</span></span>
-<span id="cb20-173"><a href="#cb20-173" aria-hidden="true" tabindex="-1"></a>samples_np <span class="op">=</span> bkd.to_numpy(samples)</span>
-<span id="cb20-174"><a href="#cb20-174" aria-hidden="true" tabindex="-1"></a>values_np <span class="op">=</span> bkd.to_numpy(values).flatten()</span>
-<span id="cb20-175"><a href="#cb20-175" aria-hidden="true" tabindex="-1"></a>global_mean <span class="op">=</span> np.mean(values_np)</span>
-<span id="cb20-176"><a href="#cb20-176" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-177"><a href="#cb20-177" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_bin_statistics(var_idx, nbins):</span>
-<span id="cb20-178"><a href="#cb20-178" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Compute bin edges and conditional means for one variable."""</span></span>
-<span id="cb20-179"><a href="#cb20-179" aria-hidden="true" tabindex="-1"></a>    probs <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, nbins <span class="op">+</span> <span class="dv">1</span>)</span>
-<span id="cb20-180"><a href="#cb20-180" aria-hidden="true" tabindex="-1"></a>    bin_edges <span class="op">=</span> np.quantile(samples_np[var_idx], probs)</span>
-<span id="cb20-181"><a href="#cb20-181" aria-hidden="true" tabindex="-1"></a>    bin_indices <span class="op">=</span> np.clip(np.digitize(samples_np[var_idx], bin_edges[:<span class="op">-</span><span class="dv">1</span>]) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, nbins <span class="op">-</span> <span class="dv">1</span>)</span>
-<span id="cb20-182"><a href="#cb20-182" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-183"><a href="#cb20-183" aria-hidden="true" tabindex="-1"></a>    bin_means, bin_centers <span class="op">=</span> [], []</span>
-<span id="cb20-184"><a href="#cb20-184" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nbins):</span>
-<span id="cb20-185"><a href="#cb20-185" aria-hidden="true" tabindex="-1"></a>        mask <span class="op">=</span> bin_indices <span class="op">==</span> k</span>
-<span id="cb20-186"><a href="#cb20-186" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> np.<span class="bu">sum</span>(mask) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
-<span id="cb20-187"><a href="#cb20-187" aria-hidden="true" tabindex="-1"></a>            bin_means.append(np.mean(values_np[mask]))</span>
-<span id="cb20-188"><a href="#cb20-188" aria-hidden="true" tabindex="-1"></a>            bin_centers.append(np.mean(samples_np[var_idx, mask]))</span>
-<span id="cb20-189"><a href="#cb20-189" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> bin_edges, bin_means, bin_centers</span>
-<span id="cb20-190"><a href="#cb20-190" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-191"><a href="#cb20-191" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-192"><a href="#cb20-192" aria-hidden="true" tabindex="-1"></a>Now we plot the conditional means for each variable:</span>
-<span id="cb20-193"><a href="#cb20-193" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-196"><a href="#cb20-196" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-197"><a href="#cb20-197" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Conditional means per bin for each input variable. Orange bars show the bin-averaged output $\\hat{\\mu}_k = E[Y \\mid X_i \\in \\text{bin}_k]$; the red dashed line marks the global mean $E[Y]$; the blue histogram shows the sample density. Large bar-to-bar variation indicates a high first-order index."</span></span>
-<span id="cb20-198"><a href="#cb20-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bin-1d</span></span>
-<span id="cb20-199"><a href="#cb20-199" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-200"><a href="#cb20-200" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_bin_1d</span>
-<span id="cb20-201"><a href="#cb20-201" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-202"><a href="#cb20-202" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">4</span>))</span>
-<span id="cb20-203"><a href="#cb20-203" aria-hidden="true" tabindex="-1"></a>plot_bin_1d(samples_np, values_np, main_effects, nbins, axes)</span>
-<span id="cb20-204"><a href="#cb20-204" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb20-205"><a href="#cb20-205" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb20-206"><a href="#cb20-206" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-207"><a href="#cb20-207" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-208"><a href="#cb20-208" aria-hidden="true" tabindex="-1"></a>Note how $X_2$ has the largest variation in conditional means (tallest bars varying from the red line), explaining its high $\Sobol{2}$ value. For $X_3$, the conditional means are nearly constant, giving $\Sobol{3} \approx 0$.</span>
-<span id="cb20-209"><a href="#cb20-209" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-210"><a href="#cb20-210" aria-hidden="true" tabindex="-1"></a><span class="fu">## Second-Order Indices</span></span>
-<span id="cb20-211"><a href="#cb20-211" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-212"><a href="#cb20-212" aria-hidden="true" tabindex="-1"></a>The Ishigami function has a notable interaction between $X_1$ and $X_3$ through the term $0.1 X_3^4 \sin(X_1)$. Let's compute the second-order index $\Sobol{13}$.</span>
-<span id="cb20-213"><a href="#cb20-213" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-216"><a href="#cb20-216" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-217"><a href="#cb20-217" aria-hidden="true" tabindex="-1"></a><span class="co"># Set up interaction terms of interest (main effects + second-order)</span></span>
-<span id="cb20-218"><a href="#cb20-218" aria-hidden="true" tabindex="-1"></a><span class="co"># Interaction matrix: each column is a binary indicator of active variables</span></span>
-<span id="cb20-219"><a href="#cb20-219" aria-hidden="true" tabindex="-1"></a><span class="co"># Column 0: [1,0,0] = S_1, Column 1: [0,1,0] = S_2, etc.</span></span>
-<span id="cb20-220"><a href="#cb20-220" aria-hidden="true" tabindex="-1"></a>interaction_terms <span class="op">=</span> bkd.asarray([</span>
-<span id="cb20-221"><a href="#cb20-221" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>],  <span class="co"># X_1 active in S_1, S_12, S_13</span></span>
-<span id="cb20-222"><a href="#cb20-222" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>],  <span class="co"># X_2 active in S_2, S_12, S_23</span></span>
-<span id="cb20-223"><a href="#cb20-223" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>],  <span class="co"># X_3 active in S_3, S_13, S_23</span></span>
-<span id="cb20-224"><a href="#cb20-224" aria-hidden="true" tabindex="-1"></a>])</span>
-<span id="cb20-225"><a href="#cb20-225" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-226"><a href="#cb20-226" aria-hidden="true" tabindex="-1"></a>sa.set_interaction_terms_of_interest(interaction_terms)</span>
-<span id="cb20-227"><a href="#cb20-227" aria-hidden="true" tabindex="-1"></a>sa.compute(samples, values)</span>
-<span id="cb20-228"><a href="#cb20-228" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-229"><a href="#cb20-229" aria-hidden="true" tabindex="-1"></a>sobol_all <span class="op">=</span> bkd.to_numpy(sa.sobol_indices()).flatten()</span>
-<span id="cb20-230"><a href="#cb20-230" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"All Sobol indices:"</span>)</span>
-<span id="cb20-231"><a href="#cb20-231" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_1 = </span><span class="sc">{</span>sobol_all[<span class="dv">0</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-232"><a href="#cb20-232" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_2 = </span><span class="sc">{</span>sobol_all[<span class="dv">1</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-233"><a href="#cb20-233" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_3 = </span><span class="sc">{</span>sobol_all[<span class="dv">2</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-234"><a href="#cb20-234" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_12 = </span><span class="sc">{</span>sobol_all[<span class="dv">3</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-235"><a href="#cb20-235" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_13 = </span><span class="sc">{</span>sobol_all[<span class="dv">4</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-236"><a href="#cb20-236" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_23 = </span><span class="sc">{</span>sobol_all[<span class="dv">5</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-237"><a href="#cb20-237" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-238"><a href="#cb20-238" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Ground truth S_13 = </span><span class="sc">{</span>gt<span class="sc">.</span>sobol_indices<span class="sc">.</span>get((<span class="dv">0</span>, <span class="dv">2</span>), <span class="st">'N/A'</span>)<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-239"><a href="#cb20-239" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Sum of all indices = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">sum</span>(sobol_all)<span class="sc">:.4f}</span><span class="ss"> (should be close to 1)"</span>)</span>
-<span id="cb20-240"><a href="#cb20-240" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-241"><a href="#cb20-241" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-242"><a href="#cb20-242" aria-hidden="true" tabindex="-1"></a>The $\Sobol{13}$ interaction is substantial (~0.24), capturing the $X_1$-$X_3$ coupling. The other pairwise interactions are near zero.</span>
-<span id="cb20-243"><a href="#cb20-243" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-244"><a href="#cb20-244" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualizing 2D Bin Partitions</span></span>
-<span id="cb20-245"><a href="#cb20-245" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-246"><a href="#cb20-246" aria-hidden="true" tabindex="-1"></a>Let's visualize the 2D binning used to compute $\Sobol{13}$. First, we compute the 2D grid of conditional means:</span>
-<span id="cb20-247"><a href="#cb20-247" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-250"><a href="#cb20-250" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-251"><a href="#cb20-251" aria-hidden="true" tabindex="-1"></a><span class="co"># Variables for the X1-X3 interaction</span></span>
-<span id="cb20-252"><a href="#cb20-252" aria-hidden="true" tabindex="-1"></a>var_i, var_j <span class="op">=</span> <span class="dv">0</span>, <span class="dv">2</span>  <span class="co"># X_1, X_3</span></span>
-<span id="cb20-253"><a href="#cb20-253" aria-hidden="true" tabindex="-1"></a>nbins_2d <span class="op">=</span> <span class="dv">5</span></span>
-<span id="cb20-254"><a href="#cb20-254" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-255"><a href="#cb20-255" aria-hidden="true" tabindex="-1"></a><span class="co"># Get samples for these variables</span></span>
-<span id="cb20-256"><a href="#cb20-256" aria-hidden="true" tabindex="-1"></a>xi <span class="op">=</span> samples_np[var_i]</span>
-<span id="cb20-257"><a href="#cb20-257" aria-hidden="true" tabindex="-1"></a>xj <span class="op">=</span> samples_np[var_j]</span>
-<span id="cb20-258"><a href="#cb20-258" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-259"><a href="#cb20-259" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute bin edges using quantiles</span></span>
-<span id="cb20-260"><a href="#cb20-260" aria-hidden="true" tabindex="-1"></a>edges_i <span class="op">=</span> np.quantile(xi, np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, nbins_2d <span class="op">+</span> <span class="dv">1</span>))</span>
-<span id="cb20-261"><a href="#cb20-261" aria-hidden="true" tabindex="-1"></a>edges_j <span class="op">=</span> np.quantile(xj, np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, nbins_2d <span class="op">+</span> <span class="dv">1</span>))</span>
-<span id="cb20-262"><a href="#cb20-262" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-263"><a href="#cb20-263" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute 2D bin indices</span></span>
-<span id="cb20-264"><a href="#cb20-264" aria-hidden="true" tabindex="-1"></a>bin_i <span class="op">=</span> np.clip(np.digitize(xi, edges_i[:<span class="op">-</span><span class="dv">1</span>]) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, nbins_2d <span class="op">-</span> <span class="dv">1</span>)</span>
-<span id="cb20-265"><a href="#cb20-265" aria-hidden="true" tabindex="-1"></a>bin_j <span class="op">=</span> np.clip(np.digitize(xj, edges_j[:<span class="op">-</span><span class="dv">1</span>]) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, nbins_2d <span class="op">-</span> <span class="dv">1</span>)</span>
-<span id="cb20-266"><a href="#cb20-266" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-267"><a href="#cb20-267" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute conditional means for each cell</span></span>
-<span id="cb20-268"><a href="#cb20-268" aria-hidden="true" tabindex="-1"></a>cell_means <span class="op">=</span> np.zeros((nbins_2d, nbins_2d))</span>
-<span id="cb20-269"><a href="#cb20-269" aria-hidden="true" tabindex="-1"></a>cell_counts <span class="op">=</span> np.zeros((nbins_2d, nbins_2d))</span>
-<span id="cb20-270"><a href="#cb20-270" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-271"><a href="#cb20-271" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(N):</span>
-<span id="cb20-272"><a href="#cb20-272" aria-hidden="true" tabindex="-1"></a>    bi, bj <span class="op">=</span> bin_i[k], bin_j[k]</span>
-<span id="cb20-273"><a href="#cb20-273" aria-hidden="true" tabindex="-1"></a>    cell_means[bi, bj] <span class="op">+=</span> values_np[k]</span>
-<span id="cb20-274"><a href="#cb20-274" aria-hidden="true" tabindex="-1"></a>    cell_counts[bi, bj] <span class="op">+=</span> <span class="dv">1</span></span>
-<span id="cb20-275"><a href="#cb20-275" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-276"><a href="#cb20-276" aria-hidden="true" tabindex="-1"></a>cell_counts[cell_counts <span class="op">==</span> <span class="dv">0</span>] <span class="op">=</span> <span class="dv">1</span>  <span class="co"># Avoid division by zero</span></span>
-<span id="cb20-277"><a href="#cb20-277" aria-hidden="true" tabindex="-1"></a>cell_means <span class="op">/=</span> cell_counts</span>
-<span id="cb20-278"><a href="#cb20-278" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-279"><a href="#cb20-279" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"2D grid: </span><span class="sc">{</span>nbins_2d<span class="sc">}</span><span class="ss">x</span><span class="sc">{</span>nbins_2d<span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>nbins_2d<span class="op">**</span><span class="dv">2</span><span class="sc">}</span><span class="ss"> cells"</span>)</span>
-<span id="cb20-280"><a href="#cb20-280" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Conditional mean range: [</span><span class="sc">{</span>cell_means<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">, </span><span class="sc">{</span>cell_means<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">]"</span>)</span>
-<span id="cb20-281"><a href="#cb20-281" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-282"><a href="#cb20-282" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-283"><a href="#cb20-283" aria-hidden="true" tabindex="-1"></a>Now we visualize the results:</span>
-<span id="cb20-284"><a href="#cb20-284" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-287"><a href="#cb20-287" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-288"><a href="#cb20-288" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "2D binning for the $X_1$--$X_3$ interaction. Left: samples colored by output value with the 5x5 bin grid overlaid. Right: conditional mean $E[Y \\mid X_1, X_3]$ within each cell. The cell-to-cell variation (after subtracting main effects) yields $S_{13}$."</span></span>
-<span id="cb20-289"><a href="#cb20-289" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bin-2d</span></span>
-<span id="cb20-290"><a href="#cb20-290" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-291"><a href="#cb20-291" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_bin_2d</span>
-<span id="cb20-292"><a href="#cb20-292" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-293"><a href="#cb20-293" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">5</span>))</span>
-<span id="cb20-294"><a href="#cb20-294" aria-hidden="true" tabindex="-1"></a>plot_bin_2d(xi, xj, values_np, edges_i, edges_j, cell_means,</span>
-<span id="cb20-295"><a href="#cb20-295" aria-hidden="true" tabindex="-1"></a>            nbins_2d, axes, fig<span class="op">=</span>fig)</span>
-<span id="cb20-296"><a href="#cb20-296" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb20-297"><a href="#cb20-297" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb20-298"><a href="#cb20-298" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-299"><a href="#cb20-299" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-300"><a href="#cb20-300" aria-hidden="true" tabindex="-1"></a>The left plot shows samples colored by their $Y$ values with the bin grid overlaid. The right plot shows the conditional mean within each 2D cell. The variation in conditional means across cells (after subtracting main effects) gives the interaction term $\Sobol{13}$.</span>
-<span id="cb20-301"><a href="#cb20-301" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-302"><a href="#cb20-302" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparison: Bin-Based vs. Sample-Based</span></span>
-<span id="cb20-303"><a href="#cb20-303" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-304"><a href="#cb20-304" aria-hidden="true" tabindex="-1"></a>Let's compare the bin-based estimates with the Saltelli/Jansen sample-based estimator</span>
-<span id="cb20-305"><a href="#cb20-305" aria-hidden="true" tabindex="-1"></a>**at the same computational budget** (same number of function evaluations).</span>
-<span id="cb20-306"><a href="#cb20-306" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-307"><a href="#cb20-307" aria-hidden="true" tabindex="-1"></a>The sample-based method requires a special sampling design: two independent sample</span>
-<span id="cb20-308"><a href="#cb20-308" aria-hidden="true" tabindex="-1"></a>matrices $\mt{A}$ and $\mt{B}$ (each of size $N_\text{base}$), plus $d$ mixed matrices</span>
-<span id="cb20-309"><a href="#cb20-309" aria-hidden="true" tabindex="-1"></a>$\mt{C}_i$. The total cost is $N_\text{base}(d + 2)$ function evaluations. So for a</span>
-<span id="cb20-310"><a href="#cb20-310" aria-hidden="true" tabindex="-1"></a>budget of $N$ evaluations, the sample-based method can afford $N_\text{base} = \lfloor N / (d + 2) \rfloor$ base samples.</span>
-<span id="cb20-311"><a href="#cb20-311" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-314"><a href="#cb20-314" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-315"><a href="#cb20-315" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> MonteCarloSensitivityAnalysis</span>
-<span id="cb20-316"><a href="#cb20-316" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-317"><a href="#cb20-317" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(gt.main_effects).flatten()</span>
-<span id="cb20-318"><a href="#cb20-318" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(gt.total_effects).flatten()</span>
-<span id="cb20-319"><a href="#cb20-319" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-320"><a href="#cb20-320" aria-hidden="true" tabindex="-1"></a><span class="co"># Fixed budget: same total number of function evaluations</span></span>
-<span id="cb20-321"><a href="#cb20-321" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> [<span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">5000</span>, <span class="dv">10000</span>]</span>
-<span id="cb20-322"><a href="#cb20-322" aria-hidden="true" tabindex="-1"></a>n_reps <span class="op">=</span> <span class="dv">10</span></span>
-<span id="cb20-323"><a href="#cb20-323" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-324"><a href="#cb20-324" aria-hidden="true" tabindex="-1"></a>bin_errors <span class="op">=</span> {N: [] <span class="cf">for</span> N <span class="kw">in</span> budgets}</span>
-<span id="cb20-325"><a href="#cb20-325" aria-hidden="true" tabindex="-1"></a>mc_errors <span class="op">=</span> {N: [] <span class="cf">for</span> N <span class="kw">in</span> budgets}</span>
-<span id="cb20-326"><a href="#cb20-326" aria-hidden="true" tabindex="-1"></a>mc_total_errors <span class="op">=</span> {N: [] <span class="cf">for</span> N <span class="kw">in</span> budgets}</span>
-<span id="cb20-327"><a href="#cb20-327" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-328"><a href="#cb20-328" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> N_budget <span class="kw">in</span> budgets:</span>
-<span id="cb20-329"><a href="#cb20-329" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> rep <span class="kw">in</span> <span class="bu">range</span>(n_reps):</span>
-<span id="cb20-330"><a href="#cb20-330" aria-hidden="true" tabindex="-1"></a>        np.random.seed(rep)</span>
-<span id="cb20-331"><a href="#cb20-331" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-332"><a href="#cb20-332" aria-hidden="true" tabindex="-1"></a>        <span class="co"># --- Bin-based: uses all N_budget samples ---</span></span>
-<span id="cb20-333"><a href="#cb20-333" aria-hidden="true" tabindex="-1"></a>        s <span class="op">=</span> prior.rvs(N_budget)</span>
-<span id="cb20-334"><a href="#cb20-334" aria-hidden="true" tabindex="-1"></a>        v <span class="op">=</span> func(s)</span>
-<span id="cb20-335"><a href="#cb20-335" aria-hidden="true" tabindex="-1"></a>        sa_bin <span class="op">=</span> BinBasedSensitivityAnalysis(prior, bkd)</span>
-<span id="cb20-336"><a href="#cb20-336" aria-hidden="true" tabindex="-1"></a>        sa_bin.compute(s, v)</span>
-<span id="cb20-337"><a href="#cb20-337" aria-hidden="true" tabindex="-1"></a>        bin_main <span class="op">=</span> bkd.to_numpy(sa_bin.main_effects()).flatten()</span>
-<span id="cb20-338"><a href="#cb20-338" aria-hidden="true" tabindex="-1"></a>        bin_errors[N_budget].append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(bin_main <span class="op">-</span> gt_main)))</span>
-<span id="cb20-339"><a href="#cb20-339" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-340"><a href="#cb20-340" aria-hidden="true" tabindex="-1"></a>        <span class="co"># --- Sample-based (MC): N_base = N_budget / (d + 2) ---</span></span>
-<span id="cb20-341"><a href="#cb20-341" aria-hidden="true" tabindex="-1"></a>        d <span class="op">=</span> <span class="dv">3</span></span>
-<span id="cb20-342"><a href="#cb20-342" aria-hidden="true" tabindex="-1"></a>        N_base <span class="op">=</span> N_budget <span class="op">//</span> (d <span class="op">+</span> <span class="dv">2</span>)</span>
-<span id="cb20-343"><a href="#cb20-343" aria-hidden="true" tabindex="-1"></a>        sa_mc <span class="op">=</span> MonteCarloSensitivityAnalysis(prior, bkd)</span>
-<span id="cb20-344"><a href="#cb20-344" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Only main effects (no pairwise), so nterms = d</span></span>
-<span id="cb20-345"><a href="#cb20-345" aria-hidden="true" tabindex="-1"></a>        interaction_terms <span class="op">=</span> bkd.asarray(np.eye(d, dtype<span class="op">=</span><span class="bu">float</span>))</span>
-<span id="cb20-346"><a href="#cb20-346" aria-hidden="true" tabindex="-1"></a>        sa_mc.set_interaction_terms_of_interest(interaction_terms)</span>
-<span id="cb20-347"><a href="#cb20-347" aria-hidden="true" tabindex="-1"></a>        mc_samples <span class="op">=</span> sa_mc.generate_samples(N_base)</span>
-<span id="cb20-348"><a href="#cb20-348" aria-hidden="true" tabindex="-1"></a>        mc_values <span class="op">=</span> func(mc_samples)</span>
-<span id="cb20-349"><a href="#cb20-349" aria-hidden="true" tabindex="-1"></a>        sa_mc.compute(mc_values)</span>
-<span id="cb20-350"><a href="#cb20-350" aria-hidden="true" tabindex="-1"></a>        mc_main <span class="op">=</span> bkd.to_numpy(sa_mc.main_effects()).flatten()</span>
-<span id="cb20-351"><a href="#cb20-351" aria-hidden="true" tabindex="-1"></a>        mc_total <span class="op">=</span> bkd.to_numpy(sa_mc.total_effects()).flatten()</span>
-<span id="cb20-352"><a href="#cb20-352" aria-hidden="true" tabindex="-1"></a>        mc_errors[N_budget].append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(mc_main <span class="op">-</span> gt_main)))</span>
-<span id="cb20-353"><a href="#cb20-353" aria-hidden="true" tabindex="-1"></a>        mc_total_errors[N_budget].append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(mc_total <span class="op">-</span> gt_total)))</span>
-<span id="cb20-354"><a href="#cb20-354" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-355"><a href="#cb20-355" aria-hidden="true" tabindex="-1"></a><span class="co"># Print summary</span></span>
-<span id="cb20-356"><a href="#cb20-356" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'Budget'</span><span class="sc">:&lt;8}{</span><span class="st">'Bin max|err|'</span><span class="sc">:&lt;18}{</span><span class="st">'MC max|err| (S)'</span><span class="sc">:&lt;18}{</span><span class="st">'MC max|err| (T)'</span><span class="sc">:&lt;18}</span><span class="ss">"</span>)</span>
-<span id="cb20-357"><a href="#cb20-357" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">62</span>)</span>
-<span id="cb20-358"><a href="#cb20-358" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> N_budget <span class="kw">in</span> budgets:</span>
-<span id="cb20-359"><a href="#cb20-359" aria-hidden="true" tabindex="-1"></a>    b <span class="op">=</span> np.median(bin_errors[N_budget])</span>
-<span id="cb20-360"><a href="#cb20-360" aria-hidden="true" tabindex="-1"></a>    m <span class="op">=</span> np.median(mc_errors[N_budget])</span>
-<span id="cb20-361"><a href="#cb20-361" aria-hidden="true" tabindex="-1"></a>    t <span class="op">=</span> np.median(mc_total_errors[N_budget])</span>
-<span id="cb20-362"><a href="#cb20-362" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>N_budget<span class="sc">:&lt;8}{</span>b<span class="sc">:&lt;18.4f}{</span>m<span class="sc">:&lt;18.4f}{</span>t<span class="sc">:&lt;18.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-363"><a href="#cb20-363" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-364"><a href="#cb20-364" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-367"><a href="#cb20-367" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-368"><a href="#cb20-368" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence comparison at equal computational budget. Left: maximum absolute error in first-order Sobol indices vs. number of function evaluations. The bin-based method uses all $N$ samples directly; the sample-based (Saltelli/Jansen) method splits the budget into $N/(d+2)$ base samples. Shaded bands show the 25th--75th percentile range over 10 random seeds. Right: detailed comparison at $N = 10{,}000$ showing per-variable accuracy."</span></span>
-<span id="cb20-369"><a href="#cb20-369" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bin-vs-mc</span></span>
-<span id="cb20-370"><a href="#cb20-370" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-371"><a href="#cb20-371" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_bin_vs_mc</span>
-<span id="cb20-372"><a href="#cb20-372" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-373"><a href="#cb20-373" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute detailed comparison at N=10000</span></span>
-<span id="cb20-374"><a href="#cb20-374" aria-hidden="true" tabindex="-1"></a>N_detail <span class="op">=</span> <span class="dv">10000</span></span>
-<span id="cb20-375"><a href="#cb20-375" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb20-376"><a href="#cb20-376" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-377"><a href="#cb20-377" aria-hidden="true" tabindex="-1"></a><span class="co"># Bin-based at N_detail</span></span>
-<span id="cb20-378"><a href="#cb20-378" aria-hidden="true" tabindex="-1"></a>s <span class="op">=</span> prior.rvs(N_detail)</span>
-<span id="cb20-379"><a href="#cb20-379" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> func(s)</span>
-<span id="cb20-380"><a href="#cb20-380" aria-hidden="true" tabindex="-1"></a>sa_bin <span class="op">=</span> BinBasedSensitivityAnalysis(prior, bkd)</span>
-<span id="cb20-381"><a href="#cb20-381" aria-hidden="true" tabindex="-1"></a>sa_bin.compute(s, v)</span>
-<span id="cb20-382"><a href="#cb20-382" aria-hidden="true" tabindex="-1"></a>bin_main_detail <span class="op">=</span> bkd.to_numpy(sa_bin.main_effects()).flatten()</span>
-<span id="cb20-383"><a href="#cb20-383" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-384"><a href="#cb20-384" aria-hidden="true" tabindex="-1"></a><span class="co"># MC at same budget</span></span>
-<span id="cb20-385"><a href="#cb20-385" aria-hidden="true" tabindex="-1"></a>N_base_detail <span class="op">=</span> N_detail <span class="op">//</span> (<span class="dv">3</span> <span class="op">+</span> <span class="dv">2</span>)</span>
-<span id="cb20-386"><a href="#cb20-386" aria-hidden="true" tabindex="-1"></a>sa_mc <span class="op">=</span> MonteCarloSensitivityAnalysis(prior, bkd)</span>
-<span id="cb20-387"><a href="#cb20-387" aria-hidden="true" tabindex="-1"></a>interaction_terms <span class="op">=</span> bkd.asarray(np.eye(<span class="dv">3</span>, dtype<span class="op">=</span><span class="bu">float</span>))</span>
-<span id="cb20-388"><a href="#cb20-388" aria-hidden="true" tabindex="-1"></a>sa_mc.set_interaction_terms_of_interest(interaction_terms)</span>
-<span id="cb20-389"><a href="#cb20-389" aria-hidden="true" tabindex="-1"></a>mc_s <span class="op">=</span> sa_mc.generate_samples(N_base_detail)</span>
-<span id="cb20-390"><a href="#cb20-390" aria-hidden="true" tabindex="-1"></a>mc_v <span class="op">=</span> func(mc_s)</span>
-<span id="cb20-391"><a href="#cb20-391" aria-hidden="true" tabindex="-1"></a>sa_mc.compute(mc_v)</span>
-<span id="cb20-392"><a href="#cb20-392" aria-hidden="true" tabindex="-1"></a>mc_main_detail <span class="op">=</span> bkd.to_numpy(sa_mc.main_effects()).flatten()</span>
-<span id="cb20-393"><a href="#cb20-393" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-394"><a href="#cb20-394" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">5</span>))</span>
-<span id="cb20-395"><a href="#cb20-395" aria-hidden="true" tabindex="-1"></a>plot_bin_vs_mc(budgets, bin_errors, mc_errors, gt_main,</span>
-<span id="cb20-396"><a href="#cb20-396" aria-hidden="true" tabindex="-1"></a>               bin_main_detail, mc_main_detail, N_detail,</span>
-<span id="cb20-397"><a href="#cb20-397" aria-hidden="true" tabindex="-1"></a>               N_base_detail, axes)</span>
-<span id="cb20-398"><a href="#cb20-398" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb20-399"><a href="#cb20-399" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb20-400"><a href="#cb20-400" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-401"><a href="#cb20-401" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-402"><a href="#cb20-402" aria-hidden="true" tabindex="-1"></a>Both methods converge as the budget increases. The bin-based method uses all $N$ samples</span>
-<span id="cb20-403"><a href="#cb20-403" aria-hidden="true" tabindex="-1"></a>for binning, while the sample-based method must split the budget across its $A$, $B$,</span>
-<span id="cb20-404"><a href="#cb20-404" aria-hidden="true" tabindex="-1"></a>and $C_i$ matrices ($N_\text{base} = N / 5$ for $d = 3$). However, the sample-based</span>
-<span id="cb20-405"><a href="#cb20-405" aria-hidden="true" tabindex="-1"></a>method also provides **total effects**, which binning cannot.</span>
-<span id="cb20-406"><a href="#cb20-406" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-407"><a href="#cb20-407" aria-hidden="true" tabindex="-1"></a><span class="fu">## Bootstrap Uncertainty Estimates</span></span>
-<span id="cb20-408"><a href="#cb20-408" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-409"><a href="#cb20-409" aria-hidden="true" tabindex="-1"></a>Bin-based estimation has statistical uncertainty. Let's quantify it using bootstrap.</span>
-<span id="cb20-410"><a href="#cb20-410" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-413"><a href="#cb20-413" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-414"><a href="#cb20-414" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute bootstrap statistics</span></span>
-<span id="cb20-415"><a href="#cb20-415" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb20-416"><a href="#cb20-416" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> sa.bootstrap(samples, values, nbootstraps<span class="op">=</span><span class="dv">20</span>, seed<span class="op">=</span><span class="dv">42</span>)</span>
-<span id="cb20-417"><a href="#cb20-417" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-418"><a href="#cb20-418" aria-hidden="true" tabindex="-1"></a>median <span class="op">=</span> bkd.to_numpy(stats[<span class="st">'median'</span>]).flatten()</span>
-<span id="cb20-419"><a href="#cb20-419" aria-hidden="true" tabindex="-1"></a>q25 <span class="op">=</span> bkd.to_numpy(stats[<span class="st">'quantile_25'</span>]).flatten()</span>
-<span id="cb20-420"><a href="#cb20-420" aria-hidden="true" tabindex="-1"></a>q75 <span class="op">=</span> bkd.to_numpy(stats[<span class="st">'quantile_75'</span>]).flatten()</span>
-<span id="cb20-421"><a href="#cb20-421" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-422"><a href="#cb20-422" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Bootstrap statistics for main effects:"</span>)</span>
-<span id="cb20-423"><a href="#cb20-423" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'Var'</span><span class="sc">:&lt;6}{</span><span class="st">'Median'</span><span class="sc">:&lt;10}{</span><span class="st">'IQR'</span><span class="sc">:&lt;15}{</span><span class="st">'Std'</span><span class="sc">:&lt;10}</span><span class="ss">"</span>)</span>
-<span id="cb20-424"><a href="#cb20-424" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">40</span>)</span>
-<span id="cb20-425"><a href="#cb20-425" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">3</span>):</span>
-<span id="cb20-426"><a href="#cb20-426" aria-hidden="true" tabindex="-1"></a>    std <span class="op">=</span> bkd.to_numpy(stats[<span class="st">'std'</span>]).flatten()[i]</span>
-<span id="cb20-427"><a href="#cb20-427" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"X_</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">:&lt;4}{</span>median[i]<span class="sc">:&lt;10.4f}</span><span class="ss">[</span><span class="sc">{</span>q25[i]<span class="sc">:.4f}</span><span class="ss">, </span><span class="sc">{</span>q75[i]<span class="sc">:.4f}</span><span class="ss">]</span><span class="sc">{</span>std<span class="sc">:&lt;10.4f}</span><span class="ss">"</span>)</span>
-<span id="cb20-428"><a href="#cb20-428" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-429"><a href="#cb20-429" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-432"><a href="#cb20-432" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb20-433"><a href="#cb20-433" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Bootstrap uncertainty of bin-based main effect estimates. Bars show medians over 20 resamples; error bars span the 25th--75th percentile range. Red stars mark the analytical ground truth."</span></span>
-<span id="cb20-434"><a href="#cb20-434" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bootstrap</span></span>
-<span id="cb20-435"><a href="#cb20-435" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-436"><a href="#cb20-436" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._sensitivity <span class="im">import</span> plot_bootstrap</span>
-<span id="cb20-437"><a href="#cb20-437" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-438"><a href="#cb20-438" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
-<span id="cb20-439"><a href="#cb20-439" aria-hidden="true" tabindex="-1"></a>plot_bootstrap(median, q25, q75, gt_main, ax)</span>
-<span id="cb20-440"><a href="#cb20-440" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb20-441"><a href="#cb20-441" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb20-442"><a href="#cb20-442" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb20-443"><a href="#cb20-443" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-444"><a href="#cb20-444" aria-hidden="true" tabindex="-1"></a><span class="fu">## Trade-offs: Bin-Based vs. Sample-Based</span></span>
-<span id="cb20-445"><a href="#cb20-445" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-446"><a href="#cb20-446" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Aspect <span class="pp">|</span> Bin-Based <span class="pp">|</span> Saltelli/Jansen <span class="pp">|</span></span>
-<span id="cb20-447"><a href="#cb20-447" aria-hidden="true" tabindex="-1"></a><span class="pp">|--------|-----------|-----------------|</span></span>
-<span id="cb20-448"><a href="#cb20-448" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Sample requirements <span class="pp">|</span> Any existing samples <span class="pp">|</span> Special A/B/C matrices <span class="pp">|</span></span>
-<span id="cb20-449"><a href="#cb20-449" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cost for $\Sobol{i}$ <span class="pp">|</span> $N$ evaluations <span class="pp">|</span> $N_\text{base}(d+2)$ evaluations <span class="pp">|</span></span>
-<span id="cb20-450"><a href="#cb20-450" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Total effects <span class="pp">|</span> Not available <span class="pp">|</span> Available <span class="pp">|</span></span>
-<span id="cb20-451"><a href="#cb20-451" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Higher-order <span class="pp">|</span> Up to ~3rd order <span class="pp">|</span> Only first and total <span class="pp">|</span></span>
-<span id="cb20-452"><a href="#cb20-452" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Accuracy at equal budget <span class="pp">|</span> More samples per estimate <span class="pp">|</span> Fewer base samples <span class="pp">|</span></span>
-<span id="cb20-453"><a href="#cb20-453" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-454"><a href="#cb20-454" aria-hidden="true" tabindex="-1"></a>**Use bin-based when:**</span>
-<span id="cb20-455"><a href="#cb20-455" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-456"><a href="#cb20-456" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You have existing model evaluations and cannot run new ones</span>
-<span id="cb20-457"><a href="#cb20-457" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You need second-order interaction indices</span>
-<span id="cb20-458"><a href="#cb20-458" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Total effects are not required</span>
-<span id="cb20-459"><a href="#cb20-459" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-460"><a href="#cb20-460" aria-hidden="true" tabindex="-1"></a>**Use sample-based when:**</span>
-<span id="cb20-461"><a href="#cb20-461" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-462"><a href="#cb20-462" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You control the sampling design</span>
-<span id="cb20-463"><a href="#cb20-463" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You need total effects</span>
-<span id="cb20-464"><a href="#cb20-464" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Maximum efficiency is critical</span>
-<span id="cb20-465"><a href="#cb20-465" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-466"><a href="#cb20-466" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
-<span id="cb20-467"><a href="#cb20-467" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-468"><a href="#cb20-468" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Bin-based estimation** computes Sobol indices from any sample set</span>
-<span id="cb20-469"><a href="#cb20-469" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Partitions variables into equal-probability bins using inverse CDF</span>
-<span id="cb20-470"><a href="#cb20-470" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Conditional variance** of bin means approximates $\Var<span class="co">[</span><span class="ot">\E[Y|X_i]</span><span class="co">]</span>$</span>
-<span id="cb20-471"><a href="#cb20-471" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ANOVA subtraction** extracts pure interaction effects: $\Sobol{ij} = R_{ij} - \Sobol{i} - \Sobol{j}$</span>
-<span id="cb20-472"><a href="#cb20-472" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Total effects infeasible** due to curse of dimensionality in high-order binning</span>
-<span id="cb20-473"><a href="#cb20-473" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Bootstrap provides uncertainty quantification</span>
-<span id="cb20-474"><a href="#cb20-474" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-475"><a href="#cb20-475" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
-<span id="cb20-476"><a href="#cb20-476" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-477"><a href="#cb20-477" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**(Easy)** Change the number of bins using <span class="in">`nbins=[15, 4, 3]`</span> (15 bins for 1st order, 4 for 2nd, 3 for 3rd). How do the estimates change?</span>
-<span id="cb20-478"><a href="#cb20-478" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-479"><a href="#cb20-479" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**(Medium)** Perform a convergence study: compute bin-based estimates for $N = 500, 1000, 2000, 5000, 10000$ samples. Plot the error vs. $N$ for each main effect.</span>
-<span id="cb20-480"><a href="#cb20-480" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-481"><a href="#cb20-481" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**(Challenge)** Apply bin-based sensitivity analysis to the 6D Sobol G-function (<span class="in">`sobol_g_6d`</span> benchmark). Compute both main effects and all 15 pairwise interactions. Verify that the sum of indices is close to 1.</span>
-<span id="cb20-482"><a href="#cb20-482" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-483"><a href="#cb20-483" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
-<span id="cb20-484"><a href="#cb20-484" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-485"><a href="#cb20-485" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
-<span id="cb20-486"><a href="#cb20-486" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-487"><a href="#cb20-487" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">PCE-Based Sensitivity</span><span class="co">](pce_sensitivity.qmd)</span> --- Sobol indices from polynomial chaos surrogates</span>
-<span id="cb20-488"><a href="#cb20-488" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">FunctionTrain Sensitivity (Math)</span><span class="co">](functiontrain_sensitivity_math.qmd)</span> --- Analytical Sobol index derivation from tensor decompositions</span>
+<span id="cb20-111"><a href="#cb20-111" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> IshigamiBenchmark(bkd)</span>
+<span id="cb20-112"><a href="#cb20-112" aria-hidden="true" tabindex="-1"></a>func <span class="op">=</span> benchmark.problem().function()</span>
+<span id="cb20-113"><a href="#cb20-113" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.problem().prior()</span>
+<span id="cb20-114"><a href="#cb20-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-115"><a href="#cb20-115" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Ishigami function: f(x) = sin(x1) + 7*sin^2(x2) + 0.1*x3^4*sin(x1)"</span>)</span>
+<span id="cb20-116"><a href="#cb20-116" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Domain: x_i ~ U[-pi, pi], i = 1,2,3"</span>)</span>
+<span id="cb20-117"><a href="#cb20-117" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-118"><a href="#cb20-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-119"><a href="#cb20-119" aria-hidden="true" tabindex="-1"></a><span class="fu">## First-Order Indices</span></span>
+<span id="cb20-120"><a href="#cb20-120" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-121"><a href="#cb20-121" aria-hidden="true" tabindex="-1"></a>Let's compute main effects using the bin-based method.</span>
+<span id="cb20-122"><a href="#cb20-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-125"><a href="#cb20-125" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-126"><a href="#cb20-126" aria-hidden="true" tabindex="-1"></a><span class="co"># Generate samples from the prior</span></span>
+<span id="cb20-127"><a href="#cb20-127" aria-hidden="true" tabindex="-1"></a>N <span class="op">=</span> <span class="dv">10000</span></span>
+<span id="cb20-128"><a href="#cb20-128" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> prior.rvs(N)</span>
+<span id="cb20-129"><a href="#cb20-129" aria-hidden="true" tabindex="-1"></a>values <span class="op">=</span> func(samples)</span>
+<span id="cb20-130"><a href="#cb20-130" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-131"><a href="#cb20-131" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Samples shape: </span><span class="sc">{</span>samples<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb20-132"><a href="#cb20-132" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Values shape: </span><span class="sc">{</span>values<span class="sc">.</span>shape<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb20-133"><a href="#cb20-133" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-134"><a href="#cb20-134" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-137"><a href="#cb20-137" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-138"><a href="#cb20-138" aria-hidden="true" tabindex="-1"></a><span class="co"># Create bin-based sensitivity analyzer</span></span>
+<span id="cb20-139"><a href="#cb20-139" aria-hidden="true" tabindex="-1"></a>sa <span class="op">=</span> BinBasedSensitivityAnalysis(prior, bkd)</span>
+<span id="cb20-140"><a href="#cb20-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-141"><a href="#cb20-141" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute sensitivity indices</span></span>
+<span id="cb20-142"><a href="#cb20-142" aria-hidden="true" tabindex="-1"></a>sa.compute(samples, values)</span>
+<span id="cb20-143"><a href="#cb20-143" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-144"><a href="#cb20-144" aria-hidden="true" tabindex="-1"></a><span class="co"># Get main effects</span></span>
+<span id="cb20-145"><a href="#cb20-145" aria-hidden="true" tabindex="-1"></a>main_effects <span class="op">=</span> bkd.to_numpy(sa.main_effects()).flatten()</span>
+<span id="cb20-146"><a href="#cb20-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-147"><a href="#cb20-147" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"First-order Sobol indices (bin-based estimate):"</span>)</span>
+<span id="cb20-148"><a href="#cb20-148" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, s <span class="kw">in</span> <span class="bu">enumerate</span>(main_effects):</span>
+<span id="cb20-149"><a href="#cb20-149" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  S_</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>s<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-150"><a href="#cb20-150" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-151"><a href="#cb20-151" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"</span><span class="ch">\n</span><span class="st">Ground truth:"</span>)</span>
+<span id="cb20-152"><a href="#cb20-152" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(benchmark.main_effects()).flatten()</span>
+<span id="cb20-153"><a href="#cb20-153" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, s <span class="kw">in</span> <span class="bu">enumerate</span>(gt_main):</span>
+<span id="cb20-154"><a href="#cb20-154" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"  S_</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>s<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-155"><a href="#cb20-155" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-156"><a href="#cb20-156" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-157"><a href="#cb20-157" aria-hidden="true" tabindex="-1"></a>The bin-based estimates agree reasonably well with the ground truth. The Ishigami function has:</span>
+<span id="cb20-158"><a href="#cb20-158" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-159"><a href="#cb20-159" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$X_1$: Moderate main effect through $\sin(X_1)$</span>
+<span id="cb20-160"><a href="#cb20-160" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$X_2$: Large main effect through $7\sin^2(X_2)$</span>
+<span id="cb20-161"><a href="#cb20-161" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>$X_3$: Zero main effect (only appears through interaction $X_3^4 \sin(X_1)$)</span>
+<span id="cb20-162"><a href="#cb20-162" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-163"><a href="#cb20-163" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualizing 1D Bin Partitions</span></span>
+<span id="cb20-164"><a href="#cb20-164" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-165"><a href="#cb20-165" aria-hidden="true" tabindex="-1"></a>Let's visualize how the conditional means are computed. First, we prepare the data:</span>
+<span id="cb20-166"><a href="#cb20-166" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-169"><a href="#cb20-169" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-170"><a href="#cb20-170" aria-hidden="true" tabindex="-1"></a><span class="co"># Convert to numpy for visualization</span></span>
+<span id="cb20-171"><a href="#cb20-171" aria-hidden="true" tabindex="-1"></a>nbins <span class="op">=</span> <span class="dv">10</span></span>
+<span id="cb20-172"><a href="#cb20-172" aria-hidden="true" tabindex="-1"></a>samples_np <span class="op">=</span> bkd.to_numpy(samples)</span>
+<span id="cb20-173"><a href="#cb20-173" aria-hidden="true" tabindex="-1"></a>values_np <span class="op">=</span> bkd.to_numpy(values).flatten()</span>
+<span id="cb20-174"><a href="#cb20-174" aria-hidden="true" tabindex="-1"></a>global_mean <span class="op">=</span> np.mean(values_np)</span>
+<span id="cb20-175"><a href="#cb20-175" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-176"><a href="#cb20-176" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> compute_bin_statistics(var_idx, nbins):</span>
+<span id="cb20-177"><a href="#cb20-177" aria-hidden="true" tabindex="-1"></a>    <span class="co">"""Compute bin edges and conditional means for one variable."""</span></span>
+<span id="cb20-178"><a href="#cb20-178" aria-hidden="true" tabindex="-1"></a>    probs <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, nbins <span class="op">+</span> <span class="dv">1</span>)</span>
+<span id="cb20-179"><a href="#cb20-179" aria-hidden="true" tabindex="-1"></a>    bin_edges <span class="op">=</span> np.quantile(samples_np[var_idx], probs)</span>
+<span id="cb20-180"><a href="#cb20-180" aria-hidden="true" tabindex="-1"></a>    bin_indices <span class="op">=</span> np.clip(np.digitize(samples_np[var_idx], bin_edges[:<span class="op">-</span><span class="dv">1</span>]) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, nbins <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb20-181"><a href="#cb20-181" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-182"><a href="#cb20-182" aria-hidden="true" tabindex="-1"></a>    bin_means, bin_centers <span class="op">=</span> [], []</span>
+<span id="cb20-183"><a href="#cb20-183" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(nbins):</span>
+<span id="cb20-184"><a href="#cb20-184" aria-hidden="true" tabindex="-1"></a>        mask <span class="op">=</span> bin_indices <span class="op">==</span> k</span>
+<span id="cb20-185"><a href="#cb20-185" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> np.<span class="bu">sum</span>(mask) <span class="op">&gt;</span> <span class="dv">0</span>:</span>
+<span id="cb20-186"><a href="#cb20-186" aria-hidden="true" tabindex="-1"></a>            bin_means.append(np.mean(values_np[mask]))</span>
+<span id="cb20-187"><a href="#cb20-187" aria-hidden="true" tabindex="-1"></a>            bin_centers.append(np.mean(samples_np[var_idx, mask]))</span>
+<span id="cb20-188"><a href="#cb20-188" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> bin_edges, bin_means, bin_centers</span>
+<span id="cb20-189"><a href="#cb20-189" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-190"><a href="#cb20-190" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-191"><a href="#cb20-191" aria-hidden="true" tabindex="-1"></a>Now we plot the conditional means for each variable:</span>
+<span id="cb20-192"><a href="#cb20-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-195"><a href="#cb20-195" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-196"><a href="#cb20-196" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Conditional means per bin for each input variable. Orange bars show the bin-averaged output $\\hat{\\mu}_k = E[Y \\mid X_i \\in \\text{bin}_k]$; the red dashed line marks the global mean $E[Y]$; the blue histogram shows the sample density. Large bar-to-bar variation indicates a high first-order index."</span></span>
+<span id="cb20-197"><a href="#cb20-197" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bin-1d</span></span>
+<span id="cb20-198"><a href="#cb20-198" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-199"><a href="#cb20-199" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._sensitivity <span class="im">import</span> plot_bin_1d</span>
+<span id="cb20-200"><a href="#cb20-200" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-201"><a href="#cb20-201" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">4</span>))</span>
+<span id="cb20-202"><a href="#cb20-202" aria-hidden="true" tabindex="-1"></a>plot_bin_1d(samples_np, values_np, main_effects, nbins, axes)</span>
+<span id="cb20-203"><a href="#cb20-203" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb20-204"><a href="#cb20-204" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb20-205"><a href="#cb20-205" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-206"><a href="#cb20-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-207"><a href="#cb20-207" aria-hidden="true" tabindex="-1"></a>Note how $X_2$ has the largest variation in conditional means (tallest bars varying from the red line), explaining its high $\Sobol{2}$ value. For $X_3$, the conditional means are nearly constant, giving $\Sobol{3} \approx 0$.</span>
+<span id="cb20-208"><a href="#cb20-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-209"><a href="#cb20-209" aria-hidden="true" tabindex="-1"></a><span class="fu">## Second-Order Indices</span></span>
+<span id="cb20-210"><a href="#cb20-210" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-211"><a href="#cb20-211" aria-hidden="true" tabindex="-1"></a>The Ishigami function has a notable interaction between $X_1$ and $X_3$ through the term $0.1 X_3^4 \sin(X_1)$. Let's compute the second-order index $\Sobol{13}$.</span>
+<span id="cb20-212"><a href="#cb20-212" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-215"><a href="#cb20-215" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-216"><a href="#cb20-216" aria-hidden="true" tabindex="-1"></a><span class="co"># Set up interaction terms of interest (main effects + second-order)</span></span>
+<span id="cb20-217"><a href="#cb20-217" aria-hidden="true" tabindex="-1"></a><span class="co"># Interaction matrix: each column is a binary indicator of active variables</span></span>
+<span id="cb20-218"><a href="#cb20-218" aria-hidden="true" tabindex="-1"></a><span class="co"># Column 0: [1,0,0] = S_1, Column 1: [0,1,0] = S_2, etc.</span></span>
+<span id="cb20-219"><a href="#cb20-219" aria-hidden="true" tabindex="-1"></a>interaction_terms <span class="op">=</span> bkd.asarray([</span>
+<span id="cb20-220"><a href="#cb20-220" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>],  <span class="co"># X_1 active in S_1, S_12, S_13</span></span>
+<span id="cb20-221"><a href="#cb20-221" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>],  <span class="co"># X_2 active in S_2, S_12, S_23</span></span>
+<span id="cb20-222"><a href="#cb20-222" aria-hidden="true" tabindex="-1"></a>    [<span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>],  <span class="co"># X_3 active in S_3, S_13, S_23</span></span>
+<span id="cb20-223"><a href="#cb20-223" aria-hidden="true" tabindex="-1"></a>])</span>
+<span id="cb20-224"><a href="#cb20-224" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-225"><a href="#cb20-225" aria-hidden="true" tabindex="-1"></a>sa.set_interaction_terms_of_interest(interaction_terms)</span>
+<span id="cb20-226"><a href="#cb20-226" aria-hidden="true" tabindex="-1"></a>sa.compute(samples, values)</span>
+<span id="cb20-227"><a href="#cb20-227" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-228"><a href="#cb20-228" aria-hidden="true" tabindex="-1"></a>sobol_all <span class="op">=</span> bkd.to_numpy(sa.sobol_indices()).flatten()</span>
+<span id="cb20-229"><a href="#cb20-229" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"All Sobol indices:"</span>)</span>
+<span id="cb20-230"><a href="#cb20-230" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_1 = </span><span class="sc">{</span>sobol_all[<span class="dv">0</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-231"><a href="#cb20-231" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_2 = </span><span class="sc">{</span>sobol_all[<span class="dv">1</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-232"><a href="#cb20-232" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_3 = </span><span class="sc">{</span>sobol_all[<span class="dv">2</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-233"><a href="#cb20-233" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_12 = </span><span class="sc">{</span>sobol_all[<span class="dv">3</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-234"><a href="#cb20-234" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_13 = </span><span class="sc">{</span>sobol_all[<span class="dv">4</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-235"><a href="#cb20-235" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"  S_23 = </span><span class="sc">{</span>sobol_all[<span class="dv">5</span>]<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-236"><a href="#cb20-236" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-237"><a href="#cb20-237" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Ground truth S_13 = </span><span class="sc">{</span>benchmark<span class="sc">.</span>sobol_indices()<span class="sc">.</span>get((<span class="dv">0</span>, <span class="dv">2</span>), <span class="st">'N/A'</span>)<span class="sc">:.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-238"><a href="#cb20-238" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="ch">\n</span><span class="ss">Sum of all indices = </span><span class="sc">{</span>np<span class="sc">.</span><span class="bu">sum</span>(sobol_all)<span class="sc">:.4f}</span><span class="ss"> (should be close to 1)"</span>)</span>
+<span id="cb20-239"><a href="#cb20-239" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-240"><a href="#cb20-240" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-241"><a href="#cb20-241" aria-hidden="true" tabindex="-1"></a>The $\Sobol{13}$ interaction is substantial (~0.24), capturing the $X_1$-$X_3$ coupling. The other pairwise interactions are near zero.</span>
+<span id="cb20-242"><a href="#cb20-242" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-243"><a href="#cb20-243" aria-hidden="true" tabindex="-1"></a><span class="fu">## Visualizing 2D Bin Partitions</span></span>
+<span id="cb20-244"><a href="#cb20-244" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-245"><a href="#cb20-245" aria-hidden="true" tabindex="-1"></a>Let's visualize the 2D binning used to compute $\Sobol{13}$. First, we compute the 2D grid of conditional means:</span>
+<span id="cb20-246"><a href="#cb20-246" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-249"><a href="#cb20-249" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-250"><a href="#cb20-250" aria-hidden="true" tabindex="-1"></a><span class="co"># Variables for the X1-X3 interaction</span></span>
+<span id="cb20-251"><a href="#cb20-251" aria-hidden="true" tabindex="-1"></a>var_i, var_j <span class="op">=</span> <span class="dv">0</span>, <span class="dv">2</span>  <span class="co"># X_1, X_3</span></span>
+<span id="cb20-252"><a href="#cb20-252" aria-hidden="true" tabindex="-1"></a>nbins_2d <span class="op">=</span> <span class="dv">5</span></span>
+<span id="cb20-253"><a href="#cb20-253" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-254"><a href="#cb20-254" aria-hidden="true" tabindex="-1"></a><span class="co"># Get samples for these variables</span></span>
+<span id="cb20-255"><a href="#cb20-255" aria-hidden="true" tabindex="-1"></a>xi <span class="op">=</span> samples_np[var_i]</span>
+<span id="cb20-256"><a href="#cb20-256" aria-hidden="true" tabindex="-1"></a>xj <span class="op">=</span> samples_np[var_j]</span>
+<span id="cb20-257"><a href="#cb20-257" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-258"><a href="#cb20-258" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute bin edges using quantiles</span></span>
+<span id="cb20-259"><a href="#cb20-259" aria-hidden="true" tabindex="-1"></a>edges_i <span class="op">=</span> np.quantile(xi, np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, nbins_2d <span class="op">+</span> <span class="dv">1</span>))</span>
+<span id="cb20-260"><a href="#cb20-260" aria-hidden="true" tabindex="-1"></a>edges_j <span class="op">=</span> np.quantile(xj, np.linspace(<span class="dv">0</span>, <span class="dv">1</span>, nbins_2d <span class="op">+</span> <span class="dv">1</span>))</span>
+<span id="cb20-261"><a href="#cb20-261" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-262"><a href="#cb20-262" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute 2D bin indices</span></span>
+<span id="cb20-263"><a href="#cb20-263" aria-hidden="true" tabindex="-1"></a>bin_i <span class="op">=</span> np.clip(np.digitize(xi, edges_i[:<span class="op">-</span><span class="dv">1</span>]) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, nbins_2d <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb20-264"><a href="#cb20-264" aria-hidden="true" tabindex="-1"></a>bin_j <span class="op">=</span> np.clip(np.digitize(xj, edges_j[:<span class="op">-</span><span class="dv">1</span>]) <span class="op">-</span> <span class="dv">1</span>, <span class="dv">0</span>, nbins_2d <span class="op">-</span> <span class="dv">1</span>)</span>
+<span id="cb20-265"><a href="#cb20-265" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-266"><a href="#cb20-266" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute conditional means for each cell</span></span>
+<span id="cb20-267"><a href="#cb20-267" aria-hidden="true" tabindex="-1"></a>cell_means <span class="op">=</span> np.zeros((nbins_2d, nbins_2d))</span>
+<span id="cb20-268"><a href="#cb20-268" aria-hidden="true" tabindex="-1"></a>cell_counts <span class="op">=</span> np.zeros((nbins_2d, nbins_2d))</span>
+<span id="cb20-269"><a href="#cb20-269" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-270"><a href="#cb20-270" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> k <span class="kw">in</span> <span class="bu">range</span>(N):</span>
+<span id="cb20-271"><a href="#cb20-271" aria-hidden="true" tabindex="-1"></a>    bi, bj <span class="op">=</span> bin_i[k], bin_j[k]</span>
+<span id="cb20-272"><a href="#cb20-272" aria-hidden="true" tabindex="-1"></a>    cell_means[bi, bj] <span class="op">+=</span> values_np[k]</span>
+<span id="cb20-273"><a href="#cb20-273" aria-hidden="true" tabindex="-1"></a>    cell_counts[bi, bj] <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb20-274"><a href="#cb20-274" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-275"><a href="#cb20-275" aria-hidden="true" tabindex="-1"></a>cell_counts[cell_counts <span class="op">==</span> <span class="dv">0</span>] <span class="op">=</span> <span class="dv">1</span>  <span class="co"># Avoid division by zero</span></span>
+<span id="cb20-276"><a href="#cb20-276" aria-hidden="true" tabindex="-1"></a>cell_means <span class="op">/=</span> cell_counts</span>
+<span id="cb20-277"><a href="#cb20-277" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-278"><a href="#cb20-278" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"2D grid: </span><span class="sc">{</span>nbins_2d<span class="sc">}</span><span class="ss">x</span><span class="sc">{</span>nbins_2d<span class="sc">}</span><span class="ss"> = </span><span class="sc">{</span>nbins_2d<span class="op">**</span><span class="dv">2</span><span class="sc">}</span><span class="ss"> cells"</span>)</span>
+<span id="cb20-279"><a href="#cb20-279" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Conditional mean range: [</span><span class="sc">{</span>cell_means<span class="sc">.</span><span class="bu">min</span>()<span class="sc">:.2f}</span><span class="ss">, </span><span class="sc">{</span>cell_means<span class="sc">.</span><span class="bu">max</span>()<span class="sc">:.2f}</span><span class="ss">]"</span>)</span>
+<span id="cb20-280"><a href="#cb20-280" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-281"><a href="#cb20-281" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-282"><a href="#cb20-282" aria-hidden="true" tabindex="-1"></a>Now we visualize the results:</span>
+<span id="cb20-283"><a href="#cb20-283" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-286"><a href="#cb20-286" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-287"><a href="#cb20-287" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "2D binning for the $X_1$--$X_3$ interaction. Left: samples colored by output value with the 5x5 bin grid overlaid. Right: conditional mean $E[Y \\mid X_1, X_3]$ within each cell. The cell-to-cell variation (after subtracting main effects) yields $S_{13}$."</span></span>
+<span id="cb20-288"><a href="#cb20-288" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bin-2d</span></span>
+<span id="cb20-289"><a href="#cb20-289" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-290"><a href="#cb20-290" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._sensitivity <span class="im">import</span> plot_bin_2d</span>
+<span id="cb20-291"><a href="#cb20-291" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-292"><a href="#cb20-292" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">5</span>))</span>
+<span id="cb20-293"><a href="#cb20-293" aria-hidden="true" tabindex="-1"></a>plot_bin_2d(xi, xj, values_np, edges_i, edges_j, cell_means,</span>
+<span id="cb20-294"><a href="#cb20-294" aria-hidden="true" tabindex="-1"></a>            nbins_2d, axes, fig<span class="op">=</span>fig)</span>
+<span id="cb20-295"><a href="#cb20-295" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb20-296"><a href="#cb20-296" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb20-297"><a href="#cb20-297" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-298"><a href="#cb20-298" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-299"><a href="#cb20-299" aria-hidden="true" tabindex="-1"></a>The left plot shows samples colored by their $Y$ values with the bin grid overlaid. The right plot shows the conditional mean within each 2D cell. The variation in conditional means across cells (after subtracting main effects) gives the interaction term $\Sobol{13}$.</span>
+<span id="cb20-300"><a href="#cb20-300" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-301"><a href="#cb20-301" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparison: Bin-Based vs. Sample-Based</span></span>
+<span id="cb20-302"><a href="#cb20-302" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-303"><a href="#cb20-303" aria-hidden="true" tabindex="-1"></a>Let's compare the bin-based estimates with the Saltelli/Jansen sample-based estimator</span>
+<span id="cb20-304"><a href="#cb20-304" aria-hidden="true" tabindex="-1"></a>**at the same computational budget** (same number of function evaluations).</span>
+<span id="cb20-305"><a href="#cb20-305" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-306"><a href="#cb20-306" aria-hidden="true" tabindex="-1"></a>The sample-based method requires a special sampling design: two independent sample</span>
+<span id="cb20-307"><a href="#cb20-307" aria-hidden="true" tabindex="-1"></a>matrices $\mt{A}$ and $\mt{B}$ (each of size $N_\text{base}$), plus $d$ mixed matrices</span>
+<span id="cb20-308"><a href="#cb20-308" aria-hidden="true" tabindex="-1"></a>$\mt{C}_i$. The total cost is $N_\text{base}(d + 2)$ function evaluations. So for a</span>
+<span id="cb20-309"><a href="#cb20-309" aria-hidden="true" tabindex="-1"></a>budget of $N$ evaluations, the sample-based method can afford $N_\text{base} = \lfloor N / (d + 2) \rfloor$ base samples.</span>
+<span id="cb20-310"><a href="#cb20-310" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-313"><a href="#cb20-313" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-314"><a href="#cb20-314" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.sensitivity <span class="im">import</span> MonteCarloSensitivityAnalysis</span>
+<span id="cb20-315"><a href="#cb20-315" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-316"><a href="#cb20-316" aria-hidden="true" tabindex="-1"></a>gt_main <span class="op">=</span> bkd.to_numpy(benchmark.main_effects()).flatten()</span>
+<span id="cb20-317"><a href="#cb20-317" aria-hidden="true" tabindex="-1"></a>gt_total <span class="op">=</span> bkd.to_numpy(benchmark.total_effects()).flatten()</span>
+<span id="cb20-318"><a href="#cb20-318" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-319"><a href="#cb20-319" aria-hidden="true" tabindex="-1"></a><span class="co"># Fixed budget: same total number of function evaluations</span></span>
+<span id="cb20-320"><a href="#cb20-320" aria-hidden="true" tabindex="-1"></a>budgets <span class="op">=</span> [<span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">5000</span>, <span class="dv">10000</span>]</span>
+<span id="cb20-321"><a href="#cb20-321" aria-hidden="true" tabindex="-1"></a>n_reps <span class="op">=</span> <span class="dv">10</span></span>
+<span id="cb20-322"><a href="#cb20-322" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-323"><a href="#cb20-323" aria-hidden="true" tabindex="-1"></a>bin_errors <span class="op">=</span> {N: [] <span class="cf">for</span> N <span class="kw">in</span> budgets}</span>
+<span id="cb20-324"><a href="#cb20-324" aria-hidden="true" tabindex="-1"></a>mc_errors <span class="op">=</span> {N: [] <span class="cf">for</span> N <span class="kw">in</span> budgets}</span>
+<span id="cb20-325"><a href="#cb20-325" aria-hidden="true" tabindex="-1"></a>mc_total_errors <span class="op">=</span> {N: [] <span class="cf">for</span> N <span class="kw">in</span> budgets}</span>
+<span id="cb20-326"><a href="#cb20-326" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-327"><a href="#cb20-327" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> N_budget <span class="kw">in</span> budgets:</span>
+<span id="cb20-328"><a href="#cb20-328" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> rep <span class="kw">in</span> <span class="bu">range</span>(n_reps):</span>
+<span id="cb20-329"><a href="#cb20-329" aria-hidden="true" tabindex="-1"></a>        np.random.seed(rep)</span>
+<span id="cb20-330"><a href="#cb20-330" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-331"><a href="#cb20-331" aria-hidden="true" tabindex="-1"></a>        <span class="co"># --- Bin-based: uses all N_budget samples ---</span></span>
+<span id="cb20-332"><a href="#cb20-332" aria-hidden="true" tabindex="-1"></a>        s <span class="op">=</span> prior.rvs(N_budget)</span>
+<span id="cb20-333"><a href="#cb20-333" aria-hidden="true" tabindex="-1"></a>        v <span class="op">=</span> func(s)</span>
+<span id="cb20-334"><a href="#cb20-334" aria-hidden="true" tabindex="-1"></a>        sa_bin <span class="op">=</span> BinBasedSensitivityAnalysis(prior, bkd)</span>
+<span id="cb20-335"><a href="#cb20-335" aria-hidden="true" tabindex="-1"></a>        sa_bin.compute(s, v)</span>
+<span id="cb20-336"><a href="#cb20-336" aria-hidden="true" tabindex="-1"></a>        bin_main <span class="op">=</span> bkd.to_numpy(sa_bin.main_effects()).flatten()</span>
+<span id="cb20-337"><a href="#cb20-337" aria-hidden="true" tabindex="-1"></a>        bin_errors[N_budget].append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(bin_main <span class="op">-</span> gt_main)))</span>
+<span id="cb20-338"><a href="#cb20-338" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-339"><a href="#cb20-339" aria-hidden="true" tabindex="-1"></a>        <span class="co"># --- Sample-based (MC): N_base = N_budget / (d + 2) ---</span></span>
+<span id="cb20-340"><a href="#cb20-340" aria-hidden="true" tabindex="-1"></a>        d <span class="op">=</span> <span class="dv">3</span></span>
+<span id="cb20-341"><a href="#cb20-341" aria-hidden="true" tabindex="-1"></a>        N_base <span class="op">=</span> N_budget <span class="op">//</span> (d <span class="op">+</span> <span class="dv">2</span>)</span>
+<span id="cb20-342"><a href="#cb20-342" aria-hidden="true" tabindex="-1"></a>        sa_mc <span class="op">=</span> MonteCarloSensitivityAnalysis(prior, bkd)</span>
+<span id="cb20-343"><a href="#cb20-343" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Only main effects (no pairwise), so nterms = d</span></span>
+<span id="cb20-344"><a href="#cb20-344" aria-hidden="true" tabindex="-1"></a>        interaction_terms <span class="op">=</span> bkd.asarray(np.eye(d, dtype<span class="op">=</span><span class="bu">float</span>))</span>
+<span id="cb20-345"><a href="#cb20-345" aria-hidden="true" tabindex="-1"></a>        sa_mc.set_interaction_terms_of_interest(interaction_terms)</span>
+<span id="cb20-346"><a href="#cb20-346" aria-hidden="true" tabindex="-1"></a>        mc_samples <span class="op">=</span> sa_mc.generate_samples(N_base)</span>
+<span id="cb20-347"><a href="#cb20-347" aria-hidden="true" tabindex="-1"></a>        mc_values <span class="op">=</span> func(mc_samples)</span>
+<span id="cb20-348"><a href="#cb20-348" aria-hidden="true" tabindex="-1"></a>        sa_mc.compute(mc_values)</span>
+<span id="cb20-349"><a href="#cb20-349" aria-hidden="true" tabindex="-1"></a>        mc_main <span class="op">=</span> bkd.to_numpy(sa_mc.main_effects()).flatten()</span>
+<span id="cb20-350"><a href="#cb20-350" aria-hidden="true" tabindex="-1"></a>        mc_total <span class="op">=</span> bkd.to_numpy(sa_mc.total_effects()).flatten()</span>
+<span id="cb20-351"><a href="#cb20-351" aria-hidden="true" tabindex="-1"></a>        mc_errors[N_budget].append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(mc_main <span class="op">-</span> gt_main)))</span>
+<span id="cb20-352"><a href="#cb20-352" aria-hidden="true" tabindex="-1"></a>        mc_total_errors[N_budget].append(np.<span class="bu">max</span>(np.<span class="bu">abs</span>(mc_total <span class="op">-</span> gt_total)))</span>
+<span id="cb20-353"><a href="#cb20-353" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-354"><a href="#cb20-354" aria-hidden="true" tabindex="-1"></a><span class="co"># Print summary</span></span>
+<span id="cb20-355"><a href="#cb20-355" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'Budget'</span><span class="sc">:&lt;8}{</span><span class="st">'Bin max|err|'</span><span class="sc">:&lt;18}{</span><span class="st">'MC max|err| (S)'</span><span class="sc">:&lt;18}{</span><span class="st">'MC max|err| (T)'</span><span class="sc">:&lt;18}</span><span class="ss">"</span>)</span>
+<span id="cb20-356"><a href="#cb20-356" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">62</span>)</span>
+<span id="cb20-357"><a href="#cb20-357" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> N_budget <span class="kw">in</span> budgets:</span>
+<span id="cb20-358"><a href="#cb20-358" aria-hidden="true" tabindex="-1"></a>    b <span class="op">=</span> np.median(bin_errors[N_budget])</span>
+<span id="cb20-359"><a href="#cb20-359" aria-hidden="true" tabindex="-1"></a>    m <span class="op">=</span> np.median(mc_errors[N_budget])</span>
+<span id="cb20-360"><a href="#cb20-360" aria-hidden="true" tabindex="-1"></a>    t <span class="op">=</span> np.median(mc_total_errors[N_budget])</span>
+<span id="cb20-361"><a href="#cb20-361" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span>N_budget<span class="sc">:&lt;8}{</span>b<span class="sc">:&lt;18.4f}{</span>m<span class="sc">:&lt;18.4f}{</span>t<span class="sc">:&lt;18.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-362"><a href="#cb20-362" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-363"><a href="#cb20-363" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-366"><a href="#cb20-366" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-367"><a href="#cb20-367" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Convergence comparison at equal computational budget. Left: maximum absolute error in first-order Sobol indices vs. number of function evaluations. The bin-based method uses all $N$ samples directly; the sample-based (Saltelli/Jansen) method splits the budget into $N/(d+2)$ base samples. Shaded bands show the 25th--75th percentile range over 10 random seeds. Right: detailed comparison at $N = 10{,}000$ showing per-variable accuracy."</span></span>
+<span id="cb20-368"><a href="#cb20-368" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bin-vs-mc</span></span>
+<span id="cb20-369"><a href="#cb20-369" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-370"><a href="#cb20-370" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._sensitivity <span class="im">import</span> plot_bin_vs_mc</span>
+<span id="cb20-371"><a href="#cb20-371" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-372"><a href="#cb20-372" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute detailed comparison at N=10000</span></span>
+<span id="cb20-373"><a href="#cb20-373" aria-hidden="true" tabindex="-1"></a>N_detail <span class="op">=</span> <span class="dv">10000</span></span>
+<span id="cb20-374"><a href="#cb20-374" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb20-375"><a href="#cb20-375" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-376"><a href="#cb20-376" aria-hidden="true" tabindex="-1"></a><span class="co"># Bin-based at N_detail</span></span>
+<span id="cb20-377"><a href="#cb20-377" aria-hidden="true" tabindex="-1"></a>s <span class="op">=</span> prior.rvs(N_detail)</span>
+<span id="cb20-378"><a href="#cb20-378" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> func(s)</span>
+<span id="cb20-379"><a href="#cb20-379" aria-hidden="true" tabindex="-1"></a>sa_bin <span class="op">=</span> BinBasedSensitivityAnalysis(prior, bkd)</span>
+<span id="cb20-380"><a href="#cb20-380" aria-hidden="true" tabindex="-1"></a>sa_bin.compute(s, v)</span>
+<span id="cb20-381"><a href="#cb20-381" aria-hidden="true" tabindex="-1"></a>bin_main_detail <span class="op">=</span> bkd.to_numpy(sa_bin.main_effects()).flatten()</span>
+<span id="cb20-382"><a href="#cb20-382" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-383"><a href="#cb20-383" aria-hidden="true" tabindex="-1"></a><span class="co"># MC at same budget</span></span>
+<span id="cb20-384"><a href="#cb20-384" aria-hidden="true" tabindex="-1"></a>N_base_detail <span class="op">=</span> N_detail <span class="op">//</span> (<span class="dv">3</span> <span class="op">+</span> <span class="dv">2</span>)</span>
+<span id="cb20-385"><a href="#cb20-385" aria-hidden="true" tabindex="-1"></a>sa_mc <span class="op">=</span> MonteCarloSensitivityAnalysis(prior, bkd)</span>
+<span id="cb20-386"><a href="#cb20-386" aria-hidden="true" tabindex="-1"></a>interaction_terms <span class="op">=</span> bkd.asarray(np.eye(<span class="dv">3</span>, dtype<span class="op">=</span><span class="bu">float</span>))</span>
+<span id="cb20-387"><a href="#cb20-387" aria-hidden="true" tabindex="-1"></a>sa_mc.set_interaction_terms_of_interest(interaction_terms)</span>
+<span id="cb20-388"><a href="#cb20-388" aria-hidden="true" tabindex="-1"></a>mc_s <span class="op">=</span> sa_mc.generate_samples(N_base_detail)</span>
+<span id="cb20-389"><a href="#cb20-389" aria-hidden="true" tabindex="-1"></a>mc_v <span class="op">=</span> func(mc_s)</span>
+<span id="cb20-390"><a href="#cb20-390" aria-hidden="true" tabindex="-1"></a>sa_mc.compute(mc_v)</span>
+<span id="cb20-391"><a href="#cb20-391" aria-hidden="true" tabindex="-1"></a>mc_main_detail <span class="op">=</span> bkd.to_numpy(sa_mc.main_effects()).flatten()</span>
+<span id="cb20-392"><a href="#cb20-392" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-393"><a href="#cb20-393" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">14</span>, <span class="dv">5</span>))</span>
+<span id="cb20-394"><a href="#cb20-394" aria-hidden="true" tabindex="-1"></a>plot_bin_vs_mc(budgets, bin_errors, mc_errors, gt_main,</span>
+<span id="cb20-395"><a href="#cb20-395" aria-hidden="true" tabindex="-1"></a>               bin_main_detail, mc_main_detail, N_detail,</span>
+<span id="cb20-396"><a href="#cb20-396" aria-hidden="true" tabindex="-1"></a>               N_base_detail, axes)</span>
+<span id="cb20-397"><a href="#cb20-397" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb20-398"><a href="#cb20-398" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb20-399"><a href="#cb20-399" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-400"><a href="#cb20-400" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-401"><a href="#cb20-401" aria-hidden="true" tabindex="-1"></a>Both methods converge as the budget increases. The bin-based method uses all $N$ samples</span>
+<span id="cb20-402"><a href="#cb20-402" aria-hidden="true" tabindex="-1"></a>for binning, while the sample-based method must split the budget across its $A$, $B$,</span>
+<span id="cb20-403"><a href="#cb20-403" aria-hidden="true" tabindex="-1"></a>and $C_i$ matrices ($N_\text{base} = N / 5$ for $d = 3$). However, the sample-based</span>
+<span id="cb20-404"><a href="#cb20-404" aria-hidden="true" tabindex="-1"></a>method also provides **total effects**, which binning cannot.</span>
+<span id="cb20-405"><a href="#cb20-405" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-406"><a href="#cb20-406" aria-hidden="true" tabindex="-1"></a><span class="fu">## Bootstrap Uncertainty Estimates</span></span>
+<span id="cb20-407"><a href="#cb20-407" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-408"><a href="#cb20-408" aria-hidden="true" tabindex="-1"></a>Bin-based estimation has statistical uncertainty. Let's quantify it using bootstrap.</span>
+<span id="cb20-409"><a href="#cb20-409" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-412"><a href="#cb20-412" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-413"><a href="#cb20-413" aria-hidden="true" tabindex="-1"></a><span class="co"># Compute bootstrap statistics</span></span>
+<span id="cb20-414"><a href="#cb20-414" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb20-415"><a href="#cb20-415" aria-hidden="true" tabindex="-1"></a>stats <span class="op">=</span> sa.bootstrap(samples, values, nbootstraps<span class="op">=</span><span class="dv">20</span>, seed<span class="op">=</span><span class="dv">42</span>)</span>
+<span id="cb20-416"><a href="#cb20-416" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-417"><a href="#cb20-417" aria-hidden="true" tabindex="-1"></a>median <span class="op">=</span> bkd.to_numpy(stats[<span class="st">'median'</span>]).flatten()</span>
+<span id="cb20-418"><a href="#cb20-418" aria-hidden="true" tabindex="-1"></a>q25 <span class="op">=</span> bkd.to_numpy(stats[<span class="st">'quantile_25'</span>]).flatten()</span>
+<span id="cb20-419"><a href="#cb20-419" aria-hidden="true" tabindex="-1"></a>q75 <span class="op">=</span> bkd.to_numpy(stats[<span class="st">'quantile_75'</span>]).flatten()</span>
+<span id="cb20-420"><a href="#cb20-420" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-421"><a href="#cb20-421" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"Bootstrap statistics for main effects:"</span>)</span>
+<span id="cb20-422"><a href="#cb20-422" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"</span><span class="sc">{</span><span class="st">'Var'</span><span class="sc">:&lt;6}{</span><span class="st">'Median'</span><span class="sc">:&lt;10}{</span><span class="st">'IQR'</span><span class="sc">:&lt;15}{</span><span class="st">'Std'</span><span class="sc">:&lt;10}</span><span class="ss">"</span>)</span>
+<span id="cb20-423"><a href="#cb20-423" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">"-"</span> <span class="op">*</span> <span class="dv">40</span>)</span>
+<span id="cb20-424"><a href="#cb20-424" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="dv">3</span>):</span>
+<span id="cb20-425"><a href="#cb20-425" aria-hidden="true" tabindex="-1"></a>    std <span class="op">=</span> bkd.to_numpy(stats[<span class="st">'std'</span>]).flatten()[i]</span>
+<span id="cb20-426"><a href="#cb20-426" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"X_</span><span class="sc">{</span>i<span class="op">+</span><span class="dv">1</span><span class="sc">:&lt;4}{</span>median[i]<span class="sc">:&lt;10.4f}</span><span class="ss">[</span><span class="sc">{</span>q25[i]<span class="sc">:.4f}</span><span class="ss">, </span><span class="sc">{</span>q75[i]<span class="sc">:.4f}</span><span class="ss">]</span><span class="sc">{</span>std<span class="sc">:&lt;10.4f}</span><span class="ss">"</span>)</span>
+<span id="cb20-427"><a href="#cb20-427" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-428"><a href="#cb20-428" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-431"><a href="#cb20-431" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb20-432"><a href="#cb20-432" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Bootstrap uncertainty of bin-based main effect estimates. Bars show medians over 20 resamples; error bars span the 25th--75th percentile range. Red stars mark the analytical ground truth."</span></span>
+<span id="cb20-433"><a href="#cb20-433" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-bootstrap</span></span>
+<span id="cb20-434"><a href="#cb20-434" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-435"><a href="#cb20-435" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._sensitivity <span class="im">import</span> plot_bootstrap</span>
+<span id="cb20-436"><a href="#cb20-436" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-437"><a href="#cb20-437" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">5</span>))</span>
+<span id="cb20-438"><a href="#cb20-438" aria-hidden="true" tabindex="-1"></a>plot_bootstrap(median, q25, q75, gt_main, ax)</span>
+<span id="cb20-439"><a href="#cb20-439" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb20-440"><a href="#cb20-440" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb20-441"><a href="#cb20-441" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb20-442"><a href="#cb20-442" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-443"><a href="#cb20-443" aria-hidden="true" tabindex="-1"></a><span class="fu">## Trade-offs: Bin-Based vs. Sample-Based</span></span>
+<span id="cb20-444"><a href="#cb20-444" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-445"><a href="#cb20-445" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Aspect <span class="pp">|</span> Bin-Based <span class="pp">|</span> Saltelli/Jansen <span class="pp">|</span></span>
+<span id="cb20-446"><a href="#cb20-446" aria-hidden="true" tabindex="-1"></a><span class="pp">|--------|-----------|-----------------|</span></span>
+<span id="cb20-447"><a href="#cb20-447" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Sample requirements <span class="pp">|</span> Any existing samples <span class="pp">|</span> Special A/B/C matrices <span class="pp">|</span></span>
+<span id="cb20-448"><a href="#cb20-448" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Cost for $\Sobol{i}$ <span class="pp">|</span> $N$ evaluations <span class="pp">|</span> $N_\text{base}(d+2)$ evaluations <span class="pp">|</span></span>
+<span id="cb20-449"><a href="#cb20-449" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Total effects <span class="pp">|</span> Not available <span class="pp">|</span> Available <span class="pp">|</span></span>
+<span id="cb20-450"><a href="#cb20-450" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Higher-order <span class="pp">|</span> Up to ~3rd order <span class="pp">|</span> Only first and total <span class="pp">|</span></span>
+<span id="cb20-451"><a href="#cb20-451" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> Accuracy at equal budget <span class="pp">|</span> More samples per estimate <span class="pp">|</span> Fewer base samples <span class="pp">|</span></span>
+<span id="cb20-452"><a href="#cb20-452" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-453"><a href="#cb20-453" aria-hidden="true" tabindex="-1"></a>**Use bin-based when:**</span>
+<span id="cb20-454"><a href="#cb20-454" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-455"><a href="#cb20-455" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You have existing model evaluations and cannot run new ones</span>
+<span id="cb20-456"><a href="#cb20-456" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You need second-order interaction indices</span>
+<span id="cb20-457"><a href="#cb20-457" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Total effects are not required</span>
+<span id="cb20-458"><a href="#cb20-458" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-459"><a href="#cb20-459" aria-hidden="true" tabindex="-1"></a>**Use sample-based when:**</span>
+<span id="cb20-460"><a href="#cb20-460" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-461"><a href="#cb20-461" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You control the sampling design</span>
+<span id="cb20-462"><a href="#cb20-462" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>You need total effects</span>
+<span id="cb20-463"><a href="#cb20-463" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Maximum efficiency is critical</span>
+<span id="cb20-464"><a href="#cb20-464" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-465"><a href="#cb20-465" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb20-466"><a href="#cb20-466" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-467"><a href="#cb20-467" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Bin-based estimation** computes Sobol indices from any sample set</span>
+<span id="cb20-468"><a href="#cb20-468" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Partitions variables into equal-probability bins using inverse CDF</span>
+<span id="cb20-469"><a href="#cb20-469" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Conditional variance** of bin means approximates $\Var<span class="co">[</span><span class="ot">\E[Y|X_i]</span><span class="co">]</span>$</span>
+<span id="cb20-470"><a href="#cb20-470" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**ANOVA subtraction** extracts pure interaction effects: $\Sobol{ij} = R_{ij} - \Sobol{i} - \Sobol{j}$</span>
+<span id="cb20-471"><a href="#cb20-471" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**Total effects infeasible** due to curse of dimensionality in high-order binning</span>
+<span id="cb20-472"><a href="#cb20-472" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Bootstrap provides uncertainty quantification</span>
+<span id="cb20-473"><a href="#cb20-473" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-474"><a href="#cb20-474" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb20-475"><a href="#cb20-475" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-476"><a href="#cb20-476" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>**(Easy)** Change the number of bins using <span class="in">`nbins=[15, 4, 3]`</span> (15 bins for 1st order, 4 for 2nd, 3 for 3rd). How do the estimates change?</span>
+<span id="cb20-477"><a href="#cb20-477" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-478"><a href="#cb20-478" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>**(Medium)** Perform a convergence study: compute bin-based estimates for $N = 500, 1000, 2000, 5000, 10000$ samples. Plot the error vs. $N$ for each main effect.</span>
+<span id="cb20-479"><a href="#cb20-479" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-480"><a href="#cb20-480" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>**(Challenge)** Apply bin-based sensitivity analysis to the 6D Sobol G-function (<span class="in">`sobol_g_6d`</span> benchmark). Compute both main effects and all 15 pairwise interactions. Verify that the sum of indices is close to 1.</span>
+<span id="cb20-481"><a href="#cb20-481" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-482"><a href="#cb20-482" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb20-483"><a href="#cb20-483" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-484"><a href="#cb20-484" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb20-485"><a href="#cb20-485" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-486"><a href="#cb20-486" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">PCE-Based Sensitivity</span><span class="co">](pce_sensitivity.qmd)</span> --- Sobol indices from polynomial chaos surrogates</span>
+<span id="cb20-487"><a href="#cb20-487" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">FunctionTrain Sensitivity (Math)</span><span class="co">](functiontrain_sensitivity_math.qmd)</span> --- Analytical Sobol index derivation from tensor decompositions</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>Sparse Polynomial Approximation – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -223,7 +225,7 @@ window.Quarto = {
 <meta property="og:image" content="https://sandialabs.github.io/pyapprox/sparse_pce_fitting_files/figure-html/fig-coefficient-decay-output-1.png">
 <meta property="og:site_name" content="PyApprox">
 <meta property="og:image:height" content="744">
-<meta property="og:image:width" content="1511">
+<meta property="og:image:width" content="1510">
 </head>
 
 <body class="nav-sidebar docked nav-fixed quarto-light">
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1119,35 +1138,37 @@ window.Quarto = {
 <section id="setup" class="level2">
 <h2 class="anchored" data-anchor-id="setup">Setup</h2>
 <p>We use the same 2D cantilever beam benchmark with <span class="math inline">\(d = 3\)</span> uncertain parameters. Because the sparse fitters currently support only a single QoI, we work with just the first QoI (tip deflection) throughout this tutorial.</p>
-<div id="5684686d" class="cell" data-execution_count="1">
+<div id="6c462f76" class="cell" data-execution_count="1">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances <span class="im">import</span> cantilever_beam_2d_linear</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    compute_hyperbolic_indices,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_2d_linear,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    MESH_PATHS,</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    compute_hyperbolic_indices,</span>
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.least_squares <span class="im">import</span> (</span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    LeastSquaresFitter,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
 <span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> MESH_PATHS</span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>ls_fitter <span class="op">=</span> LeastSquaresFitter(bkd)</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> model.nvars()</span>
-<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>nqoi_full <span class="op">=</span> model.nqoi()</span>
-<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.least_squares <span class="im">import</span> (</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    LeastSquaresFitter,</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>ls_fitter <span class="op">=</span> LeastSquaresFitter(bkd)</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>problem <span class="op">=</span> build_cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> problem.function()</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> problem.prior()</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> model.nvars()</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>nqoi_full <span class="op">=</span> model.nqoi()</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
-<div id="d6e6989c" class="cell" data-execution_count="2">
+<div id="8ad01ba2" class="cell" data-execution_count="2">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Training data</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">100</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
@@ -1180,7 +1201,7 @@ window.Quarto = {
 <section id="why-sparsity-matters" class="level2">
 <h2 class="anchored" data-anchor-id="why-sparsity-matters">Why Sparsity Matters</h2>
 <p>For a total-degree polynomial basis in <span class="math inline">\(d\)</span> variables at degree <span class="math inline">\(p\)</span>, the number of terms grows as <span class="math inline">\(\binom{d + p}{p}\)</span>. This combinatorial explosion makes standard least-squares fitting infeasible in high dimensions:</p>
-<div id="1cd927bb" class="cell" data-execution_count="3">
+<div id="2cadf683" class="cell" data-execution_count="3">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> d <span class="kw">in</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>]:</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> p <span class="kw">in</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>]:</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        _ <span class="op">=</span> compute_hyperbolic_indices(d, p, <span class="fl">1.0</span>, bkd).shape[<span class="dv">1</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -1191,7 +1212,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="coefficient-magnitudes-of-a-fitted-pce">Coefficient Magnitudes of a Fitted PCE</h2>
 <p>To see sparsity in action, let’s fit a least-squares PCE at degree 5 and examine the coefficient magnitudes:</p>
 <div id="cell-fig-coefficient-decay" class="cell" data-execution_count="4">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_coefficient_decay</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_coefficient_decay</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>degree_large <span class="op">=</span> <span class="dv">5</span></span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>pce_ls <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
@@ -1209,7 +1230,7 @@ window.Quarto = {
 <div id="fig-coefficient-decay" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-coefficient-decay-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="sparse_pce_fitting_files/figure-html/fig-coefficient-decay-output-1.png" width="756" height="372" class="figure-img">
+<img src="sparse_pce_fitting_files/figure-html/fig-coefficient-decay-output-1.png" width="755" height="372" class="figure-img">
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-coefficient-decay-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;1: Sorted coefficient magnitudes (descending, log scale) for a degree-5 least-squares PCE fitted with N = 100 samples. Most coefficients are orders of magnitude smaller than the leading terms, suggesting the expansion is approximately sparse.
@@ -1229,7 +1250,7 @@ Figure&nbsp;1: Sorted coefficient magnitudes (descending, log scale) for a degre
 <li>Re-solve the least-squares problem restricted to the active set</li>
 <li>Repeat until the residual is small enough or the maximum number of terms is reached</li>
 </ol>
-<div id="f4788ba1" class="cell" data-execution_count="5">
+<div id="9df37d4d" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.omp <span class="im">import</span> OMPFitter</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>pce_omp <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
@@ -1239,7 +1260,7 @@ Figure&nbsp;1: Sorted coefficient magnitudes (descending, log scale) for a degre
 </div>
 <p>The residual history shows how the fit improves as terms are added:</p>
 <div id="cell-fig-omp-residual" class="cell" data-execution_count="6">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_omp_residual</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_omp_residual</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>res_hist <span class="op">=</span> bkd.to_numpy(omp_result.residual_history())</span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
@@ -1295,7 +1316,7 @@ Figure&nbsp;3: Why L₁ promotes sparsity. Left: the L₁ constraint region (dia
 \hat{\mathbf{c}} = \arg\min_{\mathbf{c}} \frac{1}{2}\|\boldsymbol{\Phi}\mathbf{c} - \mathbf{y}\|_2^2 + \lambda \|\mathbf{c}\|_1
 \]</span></p>
 <p>The L1 penalty encourages sparsity by driving small coefficients to exactly zero. The regularization strength <span class="math inline">\(\lambda\)</span> controls the trade-off between fit quality and sparsity.</p>
-<div id="642f9d22" class="cell" data-execution_count="8">
+<div id="c08d9c9b" class="cell" data-execution_count="8">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.bpdn <span class="im">import</span> BPDNFitter</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>pce_bpdn <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
@@ -1308,7 +1329,7 @@ Figure&nbsp;3: Why L₁ promotes sparsity. Left: the L₁ constraint region (dia
 <h2 class="anchored" data-anchor-id="comparing-coefficient-sparsity">Comparing Coefficient Sparsity</h2>
 <p><a href="#fig-sparse-coefficients" class="quarto-xref">Figure&nbsp;4</a> compares the coefficient magnitudes from least squares, OMP, and BPDN. The sparse fitters zero out unimportant terms while retaining the dominant ones.</p>
 <div id="cell-fig-sparse-coefficients" class="cell" data-execution_count="9">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_sparse_coefficients</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_sparse_coefficients</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>fitter_names <span class="op">=</span> [<span class="st">"Least Squares"</span>, <span class="st">"OMP"</span>, <span class="st">"BPDN"</span>]</span>
 <span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> [ls_result, omp_result, bpdn_result]</span>
@@ -1321,7 +1342,7 @@ Figure&nbsp;3: Why L₁ promotes sparsity. Left: the L₁ constraint region (dia
 <div id="fig-sparse-coefficients" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-sparse-coefficients-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<img src="sparse_pce_fitting_files/figure-html/fig-sparse-coefficients-output-1.png" width="1428" height="372" class="figure-img">
+<img src="sparse_pce_fitting_files/figure-html/fig-sparse-coefficients-output-1.png" width="1427" height="372" class="figure-img">
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-sparse-coefficients-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;4: Coefficient magnitudes for tip deflection using least squares, OMP, and BPDN fitters. OMP and BPDN produce sparser solutions, zeroing out unimportant terms.
@@ -1334,7 +1355,7 @@ Figure&nbsp;4: Coefficient magnitudes for tip deflection using least squares, OM
 <section id="accuracy-comparison" class="level2">
 <h2 class="anchored" data-anchor-id="accuracy-comparison">Accuracy Comparison</h2>
 <p>Despite using far fewer coefficients, the sparse fitters can match or beat the full least-squares fit:</p>
-<div id="c35fb860" class="cell" data-execution_count="10">
+<div id="516c2915" class="cell" data-execution_count="10">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, result <span class="kw">in</span> <span class="bu">zip</span>(fitter_names, results):</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    preds <span class="op">=</span> bkd.to_numpy(result.surrogate()(samples_test))</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    l2_err <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>, :] <span class="op">-</span> preds[<span class="dv">0</span>, :])</span>
@@ -1343,7 +1364,7 @@ Figure&nbsp;4: Coefficient magnitudes for tip deflection using least squares, OM
 </div>
 <p>The advantage of sparse methods becomes more pronounced when the training budget is limited relative to the number of basis terms. <a href="#fig-accuracy-vs-n" class="quarto-xref">Figure&nbsp;5</a> compares a standard degree-3 least-squares fit (10 terms, safe oversampling) against a degree-5 OMP fit (many candidate terms but sparse selection) as the training size increases:</p>
 <div id="cell-fig-accuracy-vs-n" class="cell" data-execution_count="11">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_accuracy_vs_n</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_accuracy_vs_n</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>N_values <span class="op">=</span> [<span class="dv">30</span>, <span class="dv">50</span>, <span class="dv">75</span>, <span class="dv">100</span>, <span class="dv">150</span>]</span>
 <span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>ls3_errors <span class="op">=</span> []</span>
@@ -1933,378 +1954,380 @@ Figure&nbsp;5: Test-set error vs.&nbsp;training size for least-squares degree-3 
 <span id="cb11-59"><a href="#cb11-59" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb11-60"><a href="#cb11-60" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
 <span id="cb11-61"><a href="#cb11-61" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
-<span id="cb11-62"><a href="#cb11-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances <span class="im">import</span> cantilever_beam_2d_linear</span>
-<span id="cb11-63"><a href="#cb11-63" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
-<span id="cb11-64"><a href="#cb11-64" aria-hidden="true" tabindex="-1"></a>    compute_hyperbolic_indices,</span>
+<span id="cb11-62"><a href="#cb11-62" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_benchmarks.pde.cantilever_beam <span class="im">import</span> (</span>
+<span id="cb11-63"><a href="#cb11-63" aria-hidden="true" tabindex="-1"></a>    build_cantilever_beam_2d_linear,</span>
+<span id="cb11-64"><a href="#cb11-64" aria-hidden="true" tabindex="-1"></a>    MESH_PATHS,</span>
 <span id="cb11-65"><a href="#cb11-65" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb11-66"><a href="#cb11-66" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
-<span id="cb11-67"><a href="#cb11-67" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
+<span id="cb11-66"><a href="#cb11-66" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.indices <span class="im">import</span> (</span>
+<span id="cb11-67"><a href="#cb11-67" aria-hidden="true" tabindex="-1"></a>    compute_hyperbolic_indices,</span>
 <span id="cb11-68"><a href="#cb11-68" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb11-69"><a href="#cb11-69" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.least_squares <span class="im">import</span> (</span>
-<span id="cb11-70"><a href="#cb11-70" aria-hidden="true" tabindex="-1"></a>    LeastSquaresFitter,</span>
+<span id="cb11-69"><a href="#cb11-69" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.pce <span class="im">import</span> (</span>
+<span id="cb11-70"><a href="#cb11-70" aria-hidden="true" tabindex="-1"></a>    create_pce_from_marginals,</span>
 <span id="cb11-71"><a href="#cb11-71" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb11-72"><a href="#cb11-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.benchmarks.instances.pde.cantilever_beam <span class="im">import</span> MESH_PATHS</span>
-<span id="cb11-73"><a href="#cb11-73" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-74"><a href="#cb11-74" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
-<span id="cb11-75"><a href="#cb11-75" aria-hidden="true" tabindex="-1"></a>ls_fitter <span class="op">=</span> LeastSquaresFitter(bkd)</span>
-<span id="cb11-76"><a href="#cb11-76" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-77"><a href="#cb11-77" aria-hidden="true" tabindex="-1"></a>benchmark <span class="op">=</span> cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
-<span id="cb11-78"><a href="#cb11-78" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> benchmark.function()</span>
-<span id="cb11-79"><a href="#cb11-79" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> benchmark.prior()</span>
-<span id="cb11-80"><a href="#cb11-80" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
-<span id="cb11-81"><a href="#cb11-81" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> model.nvars()</span>
-<span id="cb11-82"><a href="#cb11-82" aria-hidden="true" tabindex="-1"></a>nqoi_full <span class="op">=</span> model.nqoi()</span>
-<span id="cb11-83"><a href="#cb11-83" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-84"><a href="#cb11-84" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span>
-<span id="cb11-85"><a href="#cb11-85" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-86"><a href="#cb11-86" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-89"><a href="#cb11-89" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-90"><a href="#cb11-90" aria-hidden="true" tabindex="-1"></a><span class="co"># Training data</span></span>
-<span id="cb11-91"><a href="#cb11-91" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">100</span></span>
-<span id="cb11-92"><a href="#cb11-92" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
-<span id="cb11-93"><a href="#cb11-93" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)</span>
-<span id="cb11-94"><a href="#cb11-94" aria-hidden="true" tabindex="-1"></a>values_full <span class="op">=</span> model(samples_train)          <span class="co"># (nqoi, N_train)</span></span>
-<span id="cb11-95"><a href="#cb11-95" aria-hidden="true" tabindex="-1"></a>values_train <span class="op">=</span> values_full[<span class="dv">0</span>:<span class="dv">1</span>, :]          <span class="co"># (1, N_train) --- tip deflection only</span></span>
-<span id="cb11-96"><a href="#cb11-96" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-97"><a href="#cb11-97" aria-hidden="true" tabindex="-1"></a><span class="co"># Test data</span></span>
-<span id="cb11-98"><a href="#cb11-98" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
-<span id="cb11-99"><a href="#cb11-99" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
-<span id="cb11-100"><a href="#cb11-100" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
-<span id="cb11-101"><a href="#cb11-101" aria-hidden="true" tabindex="-1"></a>values_test_full <span class="op">=</span> model(samples_test)</span>
-<span id="cb11-102"><a href="#cb11-102" aria-hidden="true" tabindex="-1"></a>values_test <span class="op">=</span> values_test_full[<span class="dv">0</span>:<span class="dv">1</span>, :]      <span class="co"># (1, N_test)</span></span>
-<span id="cb11-103"><a href="#cb11-103" aria-hidden="true" tabindex="-1"></a>vals_test_np <span class="op">=</span> bkd.to_numpy(values_test)</span>
-<span id="cb11-104"><a href="#cb11-104" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-105"><a href="#cb11-105" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-106"><a href="#cb11-106" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
-<span id="cb11-107"><a href="#cb11-107" aria-hidden="true" tabindex="-1"></a><span class="fu">## nqoi restriction</span></span>
-<span id="cb11-108"><a href="#cb11-108" aria-hidden="true" tabindex="-1"></a>The sparse fitters (<span class="in">`OMPFitter`</span>, <span class="in">`BPDNFitter`</span>) currently support only nqoi=1. For multi-QoI problems, fit each QoI separately.</span>
-<span id="cb11-109"><a href="#cb11-109" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb11-110"><a href="#cb11-110" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-111"><a href="#cb11-111" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-112"><a href="#cb11-112" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why Sparsity Matters</span></span>
+<span id="cb11-72"><a href="#cb11-72" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.least_squares <span class="im">import</span> (</span>
+<span id="cb11-73"><a href="#cb11-73" aria-hidden="true" tabindex="-1"></a>    LeastSquaresFitter,</span>
+<span id="cb11-74"><a href="#cb11-74" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-75"><a href="#cb11-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-76"><a href="#cb11-76" aria-hidden="true" tabindex="-1"></a>bkd <span class="op">=</span> NumpyBkd()</span>
+<span id="cb11-77"><a href="#cb11-77" aria-hidden="true" tabindex="-1"></a>ls_fitter <span class="op">=</span> LeastSquaresFitter(bkd)</span>
+<span id="cb11-78"><a href="#cb11-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-79"><a href="#cb11-79" aria-hidden="true" tabindex="-1"></a>problem <span class="op">=</span> build_cantilever_beam_2d_linear(bkd, num_kle_terms<span class="op">=</span><span class="dv">1</span>, mesh_path<span class="op">=</span>MESH_PATHS[<span class="dv">4</span>])</span>
+<span id="cb11-80"><a href="#cb11-80" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> problem.function()</span>
+<span id="cb11-81"><a href="#cb11-81" aria-hidden="true" tabindex="-1"></a>prior <span class="op">=</span> problem.prior()</span>
+<span id="cb11-82"><a href="#cb11-82" aria-hidden="true" tabindex="-1"></a>marginals <span class="op">=</span> prior.marginals()</span>
+<span id="cb11-83"><a href="#cb11-83" aria-hidden="true" tabindex="-1"></a>nvars <span class="op">=</span> model.nvars()</span>
+<span id="cb11-84"><a href="#cb11-84" aria-hidden="true" tabindex="-1"></a>nqoi_full <span class="op">=</span> model.nqoi()</span>
+<span id="cb11-85"><a href="#cb11-85" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-86"><a href="#cb11-86" aria-hidden="true" tabindex="-1"></a>qoi_labels <span class="op">=</span> [<span class="vs">r"</span><span class="dv">$\d</span><span class="vs">elta_{</span><span class="dv">\m</span><span class="vs">athrm{tip}}</span><span class="dv">$</span><span class="vs">"</span>, <span class="vs">r"</span><span class="dv">$\s</span><span class="vs">igma_{</span><span class="dv">\m</span><span class="vs">athrm{tot}}</span><span class="dv">$</span><span class="vs">"</span>]</span>
+<span id="cb11-87"><a href="#cb11-87" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb11-88"><a href="#cb11-88" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-91"><a href="#cb11-91" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-92"><a href="#cb11-92" aria-hidden="true" tabindex="-1"></a><span class="co"># Training data</span></span>
+<span id="cb11-93"><a href="#cb11-93" aria-hidden="true" tabindex="-1"></a>N_train <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb11-94"><a href="#cb11-94" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">42</span>)</span>
+<span id="cb11-95"><a href="#cb11-95" aria-hidden="true" tabindex="-1"></a>samples_train <span class="op">=</span> prior.rvs(N_train)</span>
+<span id="cb11-96"><a href="#cb11-96" aria-hidden="true" tabindex="-1"></a>values_full <span class="op">=</span> model(samples_train)          <span class="co"># (nqoi, N_train)</span></span>
+<span id="cb11-97"><a href="#cb11-97" aria-hidden="true" tabindex="-1"></a>values_train <span class="op">=</span> values_full[<span class="dv">0</span>:<span class="dv">1</span>, :]          <span class="co"># (1, N_train) --- tip deflection only</span></span>
+<span id="cb11-98"><a href="#cb11-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-99"><a href="#cb11-99" aria-hidden="true" tabindex="-1"></a><span class="co"># Test data</span></span>
+<span id="cb11-100"><a href="#cb11-100" aria-hidden="true" tabindex="-1"></a>N_test <span class="op">=</span> <span class="dv">500</span></span>
+<span id="cb11-101"><a href="#cb11-101" aria-hidden="true" tabindex="-1"></a>np.random.seed(<span class="dv">123</span>)</span>
+<span id="cb11-102"><a href="#cb11-102" aria-hidden="true" tabindex="-1"></a>samples_test <span class="op">=</span> prior.rvs(N_test)</span>
+<span id="cb11-103"><a href="#cb11-103" aria-hidden="true" tabindex="-1"></a>values_test_full <span class="op">=</span> model(samples_test)</span>
+<span id="cb11-104"><a href="#cb11-104" aria-hidden="true" tabindex="-1"></a>values_test <span class="op">=</span> values_test_full[<span class="dv">0</span>:<span class="dv">1</span>, :]      <span class="co"># (1, N_test)</span></span>
+<span id="cb11-105"><a href="#cb11-105" aria-hidden="true" tabindex="-1"></a>vals_test_np <span class="op">=</span> bkd.to_numpy(values_test)</span>
+<span id="cb11-106"><a href="#cb11-106" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb11-107"><a href="#cb11-107" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-108"><a href="#cb11-108" aria-hidden="true" tabindex="-1"></a>::: {.callout-note}</span>
+<span id="cb11-109"><a href="#cb11-109" aria-hidden="true" tabindex="-1"></a><span class="fu">## nqoi restriction</span></span>
+<span id="cb11-110"><a href="#cb11-110" aria-hidden="true" tabindex="-1"></a>The sparse fitters (<span class="in">`OMPFitter`</span>, <span class="in">`BPDNFitter`</span>) currently support only nqoi=1. For multi-QoI problems, fit each QoI separately.</span>
+<span id="cb11-111"><a href="#cb11-111" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb11-112"><a href="#cb11-112" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-113"><a href="#cb11-113" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-114"><a href="#cb11-114" aria-hidden="true" tabindex="-1"></a>For a total-degree polynomial basis in $d$ variables at degree $p$, the number of terms grows as $\binom{d + p}{p}$. This combinatorial explosion makes standard least-squares fitting infeasible in high dimensions:</span>
+<span id="cb11-114"><a href="#cb11-114" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why Sparsity Matters</span></span>
 <span id="cb11-115"><a href="#cb11-115" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-118"><a href="#cb11-118" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-119"><a href="#cb11-119" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> d <span class="kw">in</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>]:</span>
-<span id="cb11-120"><a href="#cb11-120" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> p <span class="kw">in</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>]:</span>
-<span id="cb11-121"><a href="#cb11-121" aria-hidden="true" tabindex="-1"></a>        _ <span class="op">=</span> compute_hyperbolic_indices(d, p, <span class="fl">1.0</span>, bkd).shape[<span class="dv">1</span>]</span>
-<span id="cb11-122"><a href="#cb11-122" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-123"><a href="#cb11-123" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-124"><a href="#cb11-124" aria-hidden="true" tabindex="-1"></a>For $d = 10$ at degree 5, a standard least-squares fit would require at least $2 \times 3003 = 6006$ training samples. But in many applications, the true model depends primarily on a small subset of the basis terms --- most coefficients are negligibly small. **Sparse recovery** methods exploit this structure to produce accurate approximations with far fewer samples.</span>
+<span id="cb11-116"><a href="#cb11-116" aria-hidden="true" tabindex="-1"></a>For a total-degree polynomial basis in $d$ variables at degree $p$, the number of terms grows as $\binom{d + p}{p}$. This combinatorial explosion makes standard least-squares fitting infeasible in high dimensions:</span>
+<span id="cb11-117"><a href="#cb11-117" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-120"><a href="#cb11-120" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-121"><a href="#cb11-121" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> d <span class="kw">in</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">10</span>, <span class="dv">20</span>]:</span>
+<span id="cb11-122"><a href="#cb11-122" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> p <span class="kw">in</span> [<span class="dv">3</span>, <span class="dv">5</span>, <span class="dv">7</span>]:</span>
+<span id="cb11-123"><a href="#cb11-123" aria-hidden="true" tabindex="-1"></a>        _ <span class="op">=</span> compute_hyperbolic_indices(d, p, <span class="fl">1.0</span>, bkd).shape[<span class="dv">1</span>]</span>
+<span id="cb11-124"><a href="#cb11-124" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb11-125"><a href="#cb11-125" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-126"><a href="#cb11-126" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-127"><a href="#cb11-127" aria-hidden="true" tabindex="-1"></a><span class="fu">## Coefficient Magnitudes of a Fitted PCE</span></span>
+<span id="cb11-126"><a href="#cb11-126" aria-hidden="true" tabindex="-1"></a>For $d = 10$ at degree 5, a standard least-squares fit would require at least $2 \times 3003 = 6006$ training samples. But in many applications, the true model depends primarily on a small subset of the basis terms --- most coefficients are negligibly small. **Sparse recovery** methods exploit this structure to produce accurate approximations with far fewer samples.</span>
+<span id="cb11-127"><a href="#cb11-127" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-128"><a href="#cb11-128" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-129"><a href="#cb11-129" aria-hidden="true" tabindex="-1"></a>To see sparsity in action, let's fit a least-squares PCE at degree 5 and examine the coefficient magnitudes:</span>
+<span id="cb11-129"><a href="#cb11-129" aria-hidden="true" tabindex="-1"></a><span class="fu">## Coefficient Magnitudes of a Fitted PCE</span></span>
 <span id="cb11-130"><a href="#cb11-130" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-133"><a href="#cb11-133" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-134"><a href="#cb11-134" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Sorted coefficient magnitudes (descending, log scale) for a degree-5 least-squares PCE fitted with N = 100 samples. Most coefficients are orders of magnitude smaller than the leading terms, suggesting the expansion is approximately sparse."</span></span>
-<span id="cb11-135"><a href="#cb11-135" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-coefficient-decay</span></span>
-<span id="cb11-136"><a href="#cb11-136" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-137"><a href="#cb11-137" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_coefficient_decay</span>
+<span id="cb11-131"><a href="#cb11-131" aria-hidden="true" tabindex="-1"></a>To see sparsity in action, let's fit a least-squares PCE at degree 5 and examine the coefficient magnitudes:</span>
+<span id="cb11-132"><a href="#cb11-132" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-135"><a href="#cb11-135" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-136"><a href="#cb11-136" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Sorted coefficient magnitudes (descending, log scale) for a degree-5 least-squares PCE fitted with N = 100 samples. Most coefficients are orders of magnitude smaller than the leading terms, suggesting the expansion is approximately sparse."</span></span>
+<span id="cb11-137"><a href="#cb11-137" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-coefficient-decay</span></span>
 <span id="cb11-138"><a href="#cb11-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-139"><a href="#cb11-139" aria-hidden="true" tabindex="-1"></a>degree_large <span class="op">=</span> <span class="dv">5</span></span>
-<span id="cb11-140"><a href="#cb11-140" aria-hidden="true" tabindex="-1"></a>pce_ls <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb11-141"><a href="#cb11-141" aria-hidden="true" tabindex="-1"></a>nterms_large <span class="op">=</span> pce_ls.nterms()</span>
-<span id="cb11-142"><a href="#cb11-142" aria-hidden="true" tabindex="-1"></a>ls_result <span class="op">=</span> ls_fitter.fit(pce_ls, samples_train, values_train)</span>
-<span id="cb11-143"><a href="#cb11-143" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-144"><a href="#cb11-144" aria-hidden="true" tabindex="-1"></a>coef_ls <span class="op">=</span> bkd.to_numpy(ls_result.params())[:, <span class="dv">0</span>]</span>
-<span id="cb11-145"><a href="#cb11-145" aria-hidden="true" tabindex="-1"></a>sorted_abs <span class="op">=</span> np.sort(np.<span class="bu">abs</span>(coef_ls))[::<span class="op">-</span><span class="dv">1</span>]</span>
-<span id="cb11-146"><a href="#cb11-146" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-147"><a href="#cb11-147" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
-<span id="cb11-148"><a href="#cb11-148" aria-hidden="true" tabindex="-1"></a>plot_coefficient_decay(sorted_abs, degree_large, nterms_large, N_train, ax)</span>
-<span id="cb11-149"><a href="#cb11-149" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb11-150"><a href="#cb11-150" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb11-151"><a href="#cb11-151" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-152"><a href="#cb11-152" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-153"><a href="#cb11-153" aria-hidden="true" tabindex="-1"></a>The rapid decay in coefficient magnitudes shows that only a handful of terms carry most of the information. This motivates sparse fitters that identify and retain only the important terms.</span>
+<span id="cb11-139"><a href="#cb11-139" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_coefficient_decay</span>
+<span id="cb11-140"><a href="#cb11-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-141"><a href="#cb11-141" aria-hidden="true" tabindex="-1"></a>degree_large <span class="op">=</span> <span class="dv">5</span></span>
+<span id="cb11-142"><a href="#cb11-142" aria-hidden="true" tabindex="-1"></a>pce_ls <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-143"><a href="#cb11-143" aria-hidden="true" tabindex="-1"></a>nterms_large <span class="op">=</span> pce_ls.nterms()</span>
+<span id="cb11-144"><a href="#cb11-144" aria-hidden="true" tabindex="-1"></a>ls_result <span class="op">=</span> ls_fitter.fit(pce_ls, samples_train, values_train)</span>
+<span id="cb11-145"><a href="#cb11-145" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-146"><a href="#cb11-146" aria-hidden="true" tabindex="-1"></a>coef_ls <span class="op">=</span> bkd.to_numpy(ls_result.params())[:, <span class="dv">0</span>]</span>
+<span id="cb11-147"><a href="#cb11-147" aria-hidden="true" tabindex="-1"></a>sorted_abs <span class="op">=</span> np.sort(np.<span class="bu">abs</span>(coef_ls))[::<span class="op">-</span><span class="dv">1</span>]</span>
+<span id="cb11-148"><a href="#cb11-148" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-149"><a href="#cb11-149" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">8</span>, <span class="dv">4</span>))</span>
+<span id="cb11-150"><a href="#cb11-150" aria-hidden="true" tabindex="-1"></a>plot_coefficient_decay(sorted_abs, degree_large, nterms_large, N_train, ax)</span>
+<span id="cb11-151"><a href="#cb11-151" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb11-152"><a href="#cb11-152" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb11-153"><a href="#cb11-153" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb11-154"><a href="#cb11-154" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-155"><a href="#cb11-155" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-156"><a href="#cb11-156" aria-hidden="true" tabindex="-1"></a><span class="fu">## Orthogonal Matching Pursuit (OMP)</span></span>
+<span id="cb11-155"><a href="#cb11-155" aria-hidden="true" tabindex="-1"></a>The rapid decay in coefficient magnitudes shows that only a handful of terms carry most of the information. This motivates sparse fitters that identify and retain only the important terms.</span>
+<span id="cb11-156"><a href="#cb11-156" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-157"><a href="#cb11-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-158"><a href="#cb11-158" aria-hidden="true" tabindex="-1"></a>OMP is a greedy algorithm that builds the active set one term at a time:</span>
+<span id="cb11-158"><a href="#cb11-158" aria-hidden="true" tabindex="-1"></a><span class="fu">## Orthogonal Matching Pursuit (OMP)</span></span>
 <span id="cb11-159"><a href="#cb11-159" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-160"><a href="#cb11-160" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Find the basis term most correlated with the current residual</span>
-<span id="cb11-161"><a href="#cb11-161" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Add it to the active set</span>
-<span id="cb11-162"><a href="#cb11-162" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Re-solve the least-squares problem restricted to the active set</span>
-<span id="cb11-163"><a href="#cb11-163" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>Repeat until the residual is small enough or the maximum number of terms is reached</span>
-<span id="cb11-164"><a href="#cb11-164" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-167"><a href="#cb11-167" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-168"><a href="#cb11-168" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.omp <span class="im">import</span> OMPFitter</span>
-<span id="cb11-169"><a href="#cb11-169" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-170"><a href="#cb11-170" aria-hidden="true" tabindex="-1"></a>pce_omp <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-160"><a href="#cb11-160" aria-hidden="true" tabindex="-1"></a>OMP is a greedy algorithm that builds the active set one term at a time:</span>
+<span id="cb11-161"><a href="#cb11-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-162"><a href="#cb11-162" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Find the basis term most correlated with the current residual</span>
+<span id="cb11-163"><a href="#cb11-163" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Add it to the active set</span>
+<span id="cb11-164"><a href="#cb11-164" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Re-solve the least-squares problem restricted to the active set</span>
+<span id="cb11-165"><a href="#cb11-165" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>Repeat until the residual is small enough or the maximum number of terms is reached</span>
+<span id="cb11-166"><a href="#cb11-166" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-169"><a href="#cb11-169" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-170"><a href="#cb11-170" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.omp <span class="im">import</span> OMPFitter</span>
 <span id="cb11-171"><a href="#cb11-171" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-172"><a href="#cb11-172" aria-hidden="true" tabindex="-1"></a>omp_fitter <span class="op">=</span> OMPFitter(bkd, max_nonzeros<span class="op">=</span><span class="dv">15</span>, rtol<span class="op">=</span><span class="fl">1e-4</span>)</span>
-<span id="cb11-173"><a href="#cb11-173" aria-hidden="true" tabindex="-1"></a>omp_result <span class="op">=</span> omp_fitter.fit(pce_omp, samples_train, values_train)</span>
-<span id="cb11-174"><a href="#cb11-174" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-175"><a href="#cb11-175" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-176"><a href="#cb11-176" aria-hidden="true" tabindex="-1"></a>The residual history shows how the fit improves as terms are added:</span>
+<span id="cb11-172"><a href="#cb11-172" aria-hidden="true" tabindex="-1"></a>pce_omp <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-173"><a href="#cb11-173" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-174"><a href="#cb11-174" aria-hidden="true" tabindex="-1"></a>omp_fitter <span class="op">=</span> OMPFitter(bkd, max_nonzeros<span class="op">=</span><span class="dv">15</span>, rtol<span class="op">=</span><span class="fl">1e-4</span>)</span>
+<span id="cb11-175"><a href="#cb11-175" aria-hidden="true" tabindex="-1"></a>omp_result <span class="op">=</span> omp_fitter.fit(pce_omp, samples_train, values_train)</span>
+<span id="cb11-176"><a href="#cb11-176" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb11-177"><a href="#cb11-177" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-180"><a href="#cb11-180" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-181"><a href="#cb11-181" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "OMP residual history. The residual norm decreases as each new basis term is added to the active set."</span></span>
-<span id="cb11-182"><a href="#cb11-182" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-omp-residual</span></span>
-<span id="cb11-183"><a href="#cb11-183" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-184"><a href="#cb11-184" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_omp_residual</span>
+<span id="cb11-178"><a href="#cb11-178" aria-hidden="true" tabindex="-1"></a>The residual history shows how the fit improves as terms are added:</span>
+<span id="cb11-179"><a href="#cb11-179" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-182"><a href="#cb11-182" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-183"><a href="#cb11-183" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "OMP residual history. The residual norm decreases as each new basis term is added to the active set."</span></span>
+<span id="cb11-184"><a href="#cb11-184" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-omp-residual</span></span>
 <span id="cb11-185"><a href="#cb11-185" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-186"><a href="#cb11-186" aria-hidden="true" tabindex="-1"></a>res_hist <span class="op">=</span> bkd.to_numpy(omp_result.residual_history())</span>
+<span id="cb11-186"><a href="#cb11-186" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_omp_residual</span>
 <span id="cb11-187"><a href="#cb11-187" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-188"><a href="#cb11-188" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">4</span>))</span>
-<span id="cb11-189"><a href="#cb11-189" aria-hidden="true" tabindex="-1"></a>plot_omp_residual(res_hist, ax)</span>
-<span id="cb11-190"><a href="#cb11-190" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb11-191"><a href="#cb11-191" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb11-192"><a href="#cb11-192" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-193"><a href="#cb11-193" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-194"><a href="#cb11-194" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-195"><a href="#cb11-195" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why Does L1 Promote Sparsity?</span></span>
+<span id="cb11-188"><a href="#cb11-188" aria-hidden="true" tabindex="-1"></a>res_hist <span class="op">=</span> bkd.to_numpy(omp_result.residual_history())</span>
+<span id="cb11-189"><a href="#cb11-189" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-190"><a href="#cb11-190" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="dv">4</span>))</span>
+<span id="cb11-191"><a href="#cb11-191" aria-hidden="true" tabindex="-1"></a>plot_omp_residual(res_hist, ax)</span>
+<span id="cb11-192"><a href="#cb11-192" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb11-193"><a href="#cb11-193" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb11-194"><a href="#cb11-194" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb11-195"><a href="#cb11-195" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-196"><a href="#cb11-196" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-197"><a href="#cb11-197" aria-hidden="true" tabindex="-1"></a>Before applying BPDN, it helps to understand *geometrically* why the $\ell_1$ penalty</span>
-<span id="cb11-198"><a href="#cb11-198" aria-hidden="true" tabindex="-1"></a>drives coefficients to exactly zero while the more familiar $\ell_2$ penalty does not.</span>
-<span id="cb11-199"><a href="#cb11-199" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-200"><a href="#cb11-200" aria-hidden="true" tabindex="-1"></a>Consider a simple model with two coefficients $\theta_1, \theta_2$. The unconstrained</span>
-<span id="cb11-201"><a href="#cb11-201" aria-hidden="true" tabindex="-1"></a>least-squares solution is $\theta^*_{\mathrm{LS}} = (2.5, 1.5)$. The contours of the</span>
-<span id="cb11-202"><a href="#cb11-202" aria-hidden="true" tabindex="-1"></a>least-squares objective $J(\theta) = <span class="sc">\|</span>\Phi\theta - y<span class="sc">\|</span>_2^2$ are ellipses centred on</span>
-<span id="cb11-203"><a href="#cb11-203" aria-hidden="true" tabindex="-1"></a>$\theta^*_{\mathrm{LS}}$.</span>
-<span id="cb11-204"><a href="#cb11-204" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-205"><a href="#cb11-205" aria-hidden="true" tabindex="-1"></a>Now impose a budget constraint $<span class="sc">\|</span>\theta<span class="sc">\|</span>_p \leq t$ with $t = 1.8$. The constrained</span>
-<span id="cb11-206"><a href="#cb11-206" aria-hidden="true" tabindex="-1"></a>solution is the point inside the constraint region that minimises $J$ --- equivalently,</span>
-<span id="cb11-207"><a href="#cb11-207" aria-hidden="true" tabindex="-1"></a>the first contour of $J$ that touches the constraint boundary.</span>
-<span id="cb11-208"><a href="#cb11-208" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-209"><a href="#cb11-209" aria-hidden="true" tabindex="-1"></a>The geometry of the constraint region is the key:</span>
+<span id="cb11-197"><a href="#cb11-197" aria-hidden="true" tabindex="-1"></a><span class="fu">## Why Does L1 Promote Sparsity?</span></span>
+<span id="cb11-198"><a href="#cb11-198" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-199"><a href="#cb11-199" aria-hidden="true" tabindex="-1"></a>Before applying BPDN, it helps to understand *geometrically* why the $\ell_1$ penalty</span>
+<span id="cb11-200"><a href="#cb11-200" aria-hidden="true" tabindex="-1"></a>drives coefficients to exactly zero while the more familiar $\ell_2$ penalty does not.</span>
+<span id="cb11-201"><a href="#cb11-201" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-202"><a href="#cb11-202" aria-hidden="true" tabindex="-1"></a>Consider a simple model with two coefficients $\theta_1, \theta_2$. The unconstrained</span>
+<span id="cb11-203"><a href="#cb11-203" aria-hidden="true" tabindex="-1"></a>least-squares solution is $\theta^*_{\mathrm{LS}} = (2.5, 1.5)$. The contours of the</span>
+<span id="cb11-204"><a href="#cb11-204" aria-hidden="true" tabindex="-1"></a>least-squares objective $J(\theta) = <span class="sc">\|</span>\Phi\theta - y<span class="sc">\|</span>_2^2$ are ellipses centred on</span>
+<span id="cb11-205"><a href="#cb11-205" aria-hidden="true" tabindex="-1"></a>$\theta^*_{\mathrm{LS}}$.</span>
+<span id="cb11-206"><a href="#cb11-206" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-207"><a href="#cb11-207" aria-hidden="true" tabindex="-1"></a>Now impose a budget constraint $<span class="sc">\|</span>\theta<span class="sc">\|</span>_p \leq t$ with $t = 1.8$. The constrained</span>
+<span id="cb11-208"><a href="#cb11-208" aria-hidden="true" tabindex="-1"></a>solution is the point inside the constraint region that minimises $J$ --- equivalently,</span>
+<span id="cb11-209"><a href="#cb11-209" aria-hidden="true" tabindex="-1"></a>the first contour of $J$ that touches the constraint boundary.</span>
 <span id="cb11-210"><a href="#cb11-210" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-211"><a href="#cb11-211" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The $\ell_1$ constraint $|\theta_1| + |\theta_2| \leq t$ is a **diamond** with sharp</span>
-<span id="cb11-212"><a href="#cb11-212" aria-hidden="true" tabindex="-1"></a>  corners on the coordinate axes. As we expand the elliptical contours outward from</span>
-<span id="cb11-213"><a href="#cb11-213" aria-hidden="true" tabindex="-1"></a>  $\theta^*_{\mathrm{LS}}$, they almost always first touch the diamond at one of these</span>
-<span id="cb11-214"><a href="#cb11-214" aria-hidden="true" tabindex="-1"></a>  corners --- a point where one coordinate is exactly zero. The solution is **sparse**.</span>
-<span id="cb11-215"><a href="#cb11-215" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-216"><a href="#cb11-216" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The $\ell_2$ constraint $\theta_1^2 + \theta_2^2 \leq t^2$ is a **circle** with no</span>
-<span id="cb11-217"><a href="#cb11-217" aria-hidden="true" tabindex="-1"></a>  corners. The contours touch the circle on its smooth boundary, generically at a point</span>
-<span id="cb11-218"><a href="#cb11-218" aria-hidden="true" tabindex="-1"></a>  where both coordinates are nonzero. The solution **shrinks** coefficients but does not</span>
-<span id="cb11-219"><a href="#cb11-219" aria-hidden="true" tabindex="-1"></a>  zero them out.</span>
-<span id="cb11-220"><a href="#cb11-220" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-223"><a href="#cb11-223" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-224"><a href="#cb11-224" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb11-225"><a href="#cb11-225" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Why L₁ promotes sparsity. Left: the L₁ constraint region (diamond) has corners on the axes. The smallest objective contour touching the diamond hits a corner, forcing θ₂ = 0. Right: the L₂ constraint region (circle) is smooth, so the tangent point has both components nonzero. Both panels use the same objective with unconstrained optimum θ* = (2.5, 1.5) and budget t = 1.8."</span></span>
-<span id="cb11-226"><a href="#cb11-226" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-l1-vs-l2</span></span>
-<span id="cb11-227"><a href="#cb11-227" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-228"><a href="#cb11-228" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.patches <span class="im">import</span> Polygon</span>
+<span id="cb11-211"><a href="#cb11-211" aria-hidden="true" tabindex="-1"></a>The geometry of the constraint region is the key:</span>
+<span id="cb11-212"><a href="#cb11-212" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-213"><a href="#cb11-213" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The $\ell_1$ constraint $|\theta_1| + |\theta_2| \leq t$ is a **diamond** with sharp</span>
+<span id="cb11-214"><a href="#cb11-214" aria-hidden="true" tabindex="-1"></a>  corners on the coordinate axes. As we expand the elliptical contours outward from</span>
+<span id="cb11-215"><a href="#cb11-215" aria-hidden="true" tabindex="-1"></a>  $\theta^*_{\mathrm{LS}}$, they almost always first touch the diamond at one of these</span>
+<span id="cb11-216"><a href="#cb11-216" aria-hidden="true" tabindex="-1"></a>  corners --- a point where one coordinate is exactly zero. The solution is **sparse**.</span>
+<span id="cb11-217"><a href="#cb11-217" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-218"><a href="#cb11-218" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>The $\ell_2$ constraint $\theta_1^2 + \theta_2^2 \leq t^2$ is a **circle** with no</span>
+<span id="cb11-219"><a href="#cb11-219" aria-hidden="true" tabindex="-1"></a>  corners. The contours touch the circle on its smooth boundary, generically at a point</span>
+<span id="cb11-220"><a href="#cb11-220" aria-hidden="true" tabindex="-1"></a>  where both coordinates are nonzero. The solution **shrinks** coefficients but does not</span>
+<span id="cb11-221"><a href="#cb11-221" aria-hidden="true" tabindex="-1"></a>  zero them out.</span>
+<span id="cb11-222"><a href="#cb11-222" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-225"><a href="#cb11-225" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-226"><a href="#cb11-226" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb11-227"><a href="#cb11-227" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Why L₁ promotes sparsity. Left: the L₁ constraint region (diamond) has corners on the axes. The smallest objective contour touching the diamond hits a corner, forcing θ₂ = 0. Right: the L₂ constraint region (circle) is smooth, so the tangent point has both components nonzero. Both panels use the same objective with unconstrained optimum θ* = (2.5, 1.5) and budget t = 1.8."</span></span>
+<span id="cb11-228"><a href="#cb11-228" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-l1-vs-l2</span></span>
 <span id="cb11-229"><a href="#cb11-229" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-230"><a href="#cb11-230" aria-hidden="true" tabindex="-1"></a>theta_star <span class="op">=</span> np.array([<span class="fl">2.5</span>, <span class="fl">1.5</span>])</span>
-<span id="cb11-231"><a href="#cb11-231" aria-hidden="true" tabindex="-1"></a>t <span class="op">=</span> <span class="fl">1.8</span></span>
-<span id="cb11-232"><a href="#cb11-232" aria-hidden="true" tabindex="-1"></a>H <span class="op">=</span> np.array([[<span class="fl">1.0</span>, <span class="fl">0.3</span>], [<span class="fl">0.3</span>, <span class="fl">0.6</span>]])</span>
-<span id="cb11-233"><a href="#cb11-233" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-234"><a href="#cb11-234" aria-hidden="true" tabindex="-1"></a>th1 <span class="op">=</span> np.linspace(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">4.2</span>, <span class="dv">600</span>)</span>
-<span id="cb11-235"><a href="#cb11-235" aria-hidden="true" tabindex="-1"></a>th2 <span class="op">=</span> np.linspace(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">3.8</span>, <span class="dv">600</span>)</span>
-<span id="cb11-236"><a href="#cb11-236" aria-hidden="true" tabindex="-1"></a>T1, T2 <span class="op">=</span> np.meshgrid(th1, th2)</span>
-<span id="cb11-237"><a href="#cb11-237" aria-hidden="true" tabindex="-1"></a>D1, D2 <span class="op">=</span> T1 <span class="op">-</span> theta_star[<span class="dv">0</span>], T2 <span class="op">-</span> theta_star[<span class="dv">1</span>]</span>
-<span id="cb11-238"><a href="#cb11-238" aria-hidden="true" tabindex="-1"></a>J <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (H[<span class="dv">0</span>,<span class="dv">0</span>]<span class="op">*</span>D1<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">2</span><span class="op">*</span>H[<span class="dv">0</span>,<span class="dv">1</span>]<span class="op">*</span>D1<span class="op">*</span>D2 <span class="op">+</span> H[<span class="dv">1</span>,<span class="dv">1</span>]<span class="op">*</span>D2<span class="op">**</span><span class="dv">2</span>)</span>
-<span id="cb11-239"><a href="#cb11-239" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-240"><a href="#cb11-240" aria-hidden="true" tabindex="-1"></a>diamond_verts <span class="op">=</span> np.array([[t, <span class="dv">0</span>], [<span class="dv">0</span>, t], [<span class="op">-</span>t, <span class="dv">0</span>], [<span class="dv">0</span>, <span class="op">-</span>t], [t, <span class="dv">0</span>]])</span>
+<span id="cb11-230"><a href="#cb11-230" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> matplotlib.patches <span class="im">import</span> Polygon</span>
+<span id="cb11-231"><a href="#cb11-231" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-232"><a href="#cb11-232" aria-hidden="true" tabindex="-1"></a>theta_star <span class="op">=</span> np.array([<span class="fl">2.5</span>, <span class="fl">1.5</span>])</span>
+<span id="cb11-233"><a href="#cb11-233" aria-hidden="true" tabindex="-1"></a>t <span class="op">=</span> <span class="fl">1.8</span></span>
+<span id="cb11-234"><a href="#cb11-234" aria-hidden="true" tabindex="-1"></a>H <span class="op">=</span> np.array([[<span class="fl">1.0</span>, <span class="fl">0.3</span>], [<span class="fl">0.3</span>, <span class="fl">0.6</span>]])</span>
+<span id="cb11-235"><a href="#cb11-235" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-236"><a href="#cb11-236" aria-hidden="true" tabindex="-1"></a>th1 <span class="op">=</span> np.linspace(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">4.2</span>, <span class="dv">600</span>)</span>
+<span id="cb11-237"><a href="#cb11-237" aria-hidden="true" tabindex="-1"></a>th2 <span class="op">=</span> np.linspace(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">3.8</span>, <span class="dv">600</span>)</span>
+<span id="cb11-238"><a href="#cb11-238" aria-hidden="true" tabindex="-1"></a>T1, T2 <span class="op">=</span> np.meshgrid(th1, th2)</span>
+<span id="cb11-239"><a href="#cb11-239" aria-hidden="true" tabindex="-1"></a>D1, D2 <span class="op">=</span> T1 <span class="op">-</span> theta_star[<span class="dv">0</span>], T2 <span class="op">-</span> theta_star[<span class="dv">1</span>]</span>
+<span id="cb11-240"><a href="#cb11-240" aria-hidden="true" tabindex="-1"></a>J <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (H[<span class="dv">0</span>,<span class="dv">0</span>]<span class="op">*</span>D1<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">2</span><span class="op">*</span>H[<span class="dv">0</span>,<span class="dv">1</span>]<span class="op">*</span>D1<span class="op">*</span>D2 <span class="op">+</span> H[<span class="dv">1</span>,<span class="dv">1</span>]<span class="op">*</span>D2<span class="op">**</span><span class="dv">2</span>)</span>
 <span id="cb11-241"><a href="#cb11-241" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-242"><a href="#cb11-242" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Find L1-constrained solution (search diamond boundary) ──</span></span>
-<span id="cb11-243"><a href="#cb11-243" aria-hidden="true" tabindex="-1"></a>n_bnd <span class="op">=</span> <span class="dv">8000</span></span>
-<span id="cb11-244"><a href="#cb11-244" aria-hidden="true" tabindex="-1"></a>l1_boundary <span class="op">=</span> []</span>
-<span id="cb11-245"><a href="#cb11-245" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_bnd):</span>
-<span id="cb11-246"><a href="#cb11-246" aria-hidden="true" tabindex="-1"></a>    frac <span class="op">=</span> i <span class="op">/</span> n_bnd</span>
-<span id="cb11-247"><a href="#cb11-247" aria-hidden="true" tabindex="-1"></a>    seg <span class="op">=</span> <span class="bu">min</span>(<span class="bu">int</span>(frac <span class="op">*</span> <span class="dv">4</span>), <span class="dv">3</span>)</span>
-<span id="cb11-248"><a href="#cb11-248" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> (frac <span class="op">*</span> <span class="dv">4</span>) <span class="op">-</span> seg</span>
-<span id="cb11-249"><a href="#cb11-249" aria-hidden="true" tabindex="-1"></a>    l1_boundary.append((<span class="dv">1</span><span class="op">-</span>s)<span class="op">*</span>diamond_verts[seg] <span class="op">+</span> s<span class="op">*</span>diamond_verts[seg<span class="op">+</span><span class="dv">1</span>])</span>
-<span id="cb11-250"><a href="#cb11-250" aria-hidden="true" tabindex="-1"></a>l1_boundary <span class="op">=</span> np.array(l1_boundary)</span>
-<span id="cb11-251"><a href="#cb11-251" aria-hidden="true" tabindex="-1"></a>d1b, d2b <span class="op">=</span> l1_boundary[:, <span class="dv">0</span>] <span class="op">-</span> theta_star[<span class="dv">0</span>], l1_boundary[:, <span class="dv">1</span>] <span class="op">-</span> theta_star[<span class="dv">1</span>]</span>
-<span id="cb11-252"><a href="#cb11-252" aria-hidden="true" tabindex="-1"></a>j_bnd <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (H[<span class="dv">0</span>,<span class="dv">0</span>]<span class="op">*</span>d1b<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">2</span><span class="op">*</span>H[<span class="dv">0</span>,<span class="dv">1</span>]<span class="op">*</span>d1b<span class="op">*</span>d2b <span class="op">+</span> H[<span class="dv">1</span>,<span class="dv">1</span>]<span class="op">*</span>d2b<span class="op">**</span><span class="dv">2</span>)</span>
-<span id="cb11-253"><a href="#cb11-253" aria-hidden="true" tabindex="-1"></a>l1_sol <span class="op">=</span> l1_boundary[np.argmin(j_bnd)]</span>
-<span id="cb11-254"><a href="#cb11-254" aria-hidden="true" tabindex="-1"></a>j_l1 <span class="op">=</span> j_bnd.<span class="bu">min</span>()</span>
-<span id="cb11-255"><a href="#cb11-255" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-256"><a href="#cb11-256" aria-hidden="true" tabindex="-1"></a><span class="co"># ── L2-constrained solution ──</span></span>
-<span id="cb11-257"><a href="#cb11-257" aria-hidden="true" tabindex="-1"></a>l2_sol <span class="op">=</span> t <span class="op">*</span> theta_star <span class="op">/</span> np.linalg.norm(theta_star)</span>
-<span id="cb11-258"><a href="#cb11-258" aria-hidden="true" tabindex="-1"></a>d_l2 <span class="op">=</span> l2_sol <span class="op">-</span> theta_star</span>
-<span id="cb11-259"><a href="#cb11-259" aria-hidden="true" tabindex="-1"></a>j_l2 <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (H[<span class="dv">0</span>,<span class="dv">0</span>]<span class="op">*</span>d_l2[<span class="dv">0</span>]<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">2</span><span class="op">*</span>H[<span class="dv">0</span>,<span class="dv">1</span>]<span class="op">*</span>d_l2[<span class="dv">0</span>]<span class="op">*</span>d_l2[<span class="dv">1</span>] <span class="op">+</span> H[<span class="dv">1</span>,<span class="dv">1</span>]<span class="op">*</span>d_l2[<span class="dv">1</span>]<span class="op">**</span><span class="dv">2</span>)</span>
-<span id="cb11-260"><a href="#cb11-260" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-261"><a href="#cb11-261" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Plot ──</span></span>
-<span id="cb11-262"><a href="#cb11-262" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">5.5</span>))</span>
-<span id="cb11-263"><a href="#cb11-263" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> np.linspace(<span class="fl">0.1</span>, <span class="fl">5.5</span>, <span class="dv">18</span>)</span>
-<span id="cb11-264"><a href="#cb11-264" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-265"><a href="#cb11-265" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> panel, (ax, j_sol, sol) <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="bu">zip</span>(axes, [j_l1, j_l2], [l1_sol, l2_sol])):</span>
-<span id="cb11-266"><a href="#cb11-266" aria-hidden="true" tabindex="-1"></a>    ax.contourf(T1, T2, J, levels<span class="op">=</span>levels, cmap<span class="op">=</span><span class="st">"magma_r"</span>, alpha<span class="op">=</span><span class="fl">0.5</span>)</span>
-<span id="cb11-267"><a href="#cb11-267" aria-hidden="true" tabindex="-1"></a>    ax.contour(T1, T2, J, levels<span class="op">=</span>levels, cmap<span class="op">=</span><span class="st">"magma_r"</span>, linewidths<span class="op">=</span><span class="fl">0.7</span>, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
-<span id="cb11-268"><a href="#cb11-268" aria-hidden="true" tabindex="-1"></a>    ax.contour(T1, T2, J, levels<span class="op">=</span>[j_sol], colors<span class="op">=</span>[<span class="st">"#d62828"</span>], linewidths<span class="op">=</span><span class="fl">2.5</span>, zorder<span class="op">=</span><span class="dv">5</span>)</span>
-<span id="cb11-269"><a href="#cb11-269" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-270"><a href="#cb11-270" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> panel <span class="op">==</span> <span class="dv">0</span>:</span>
-<span id="cb11-271"><a href="#cb11-271" aria-hidden="true" tabindex="-1"></a>        patch <span class="op">=</span> Polygon(diamond_verts[:<span class="op">-</span><span class="dv">1</span>], closed<span class="op">=</span><span class="va">True</span>, facecolor<span class="op">=</span><span class="st">"#2a9d8f"</span>,</span>
-<span id="cb11-272"><a href="#cb11-272" aria-hidden="true" tabindex="-1"></a>                        alpha<span class="op">=</span><span class="fl">0.2</span>, edgecolor<span class="op">=</span><span class="st">"#264653"</span>, linewidth<span class="op">=</span><span class="fl">2.5</span>, zorder<span class="op">=</span><span class="dv">4</span>)</span>
-<span id="cb11-273"><a href="#cb11-273" aria-hidden="true" tabindex="-1"></a>        ax.add_patch(patch)</span>
-<span id="cb11-274"><a href="#cb11-274" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> v <span class="kw">in</span> diamond_verts[:<span class="op">-</span><span class="dv">1</span>]:</span>
-<span id="cb11-275"><a href="#cb11-275" aria-hidden="true" tabindex="-1"></a>            ax.plot(v[<span class="dv">0</span>], v[<span class="dv">1</span>], <span class="st">"o"</span>, color<span class="op">=</span><span class="st">"#264653"</span>, ms<span class="op">=</span><span class="dv">6</span>, zorder<span class="op">=</span><span class="dv">6</span>)</span>
-<span id="cb11-276"><a href="#cb11-276" aria-hidden="true" tabindex="-1"></a>        label <span class="op">=</span> <span class="vs">r"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat{</span><span class="ch">\t</span><span class="vs">heta} = </span><span class="kw">(</span><span class="vs">1</span><span class="dv">.</span><span class="vs">8,</span><span class="ch">\;</span><span class="vs"> </span><span class="dv">\m</span><span class="vs">athbf</span><span class="op">{0}</span><span class="kw">)</span><span class="dv">$</span><span class="vs">"</span></span>
-<span id="cb11-277"><a href="#cb11-277" aria-hidden="true" tabindex="-1"></a>        txt_offset <span class="op">=</span> (<span class="op">-</span><span class="fl">1.8</span>, <span class="op">-</span><span class="fl">0.9</span>)</span>
-<span id="cb11-278"><a href="#cb11-278" aria-hidden="true" tabindex="-1"></a>        ax.annotate(<span class="vs">r"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_2 = 0</span><span class="dv">$</span><span class="vs"> </span><span class="kw">(</span><span class="vs">sparse!</span><span class="kw">)</span><span class="vs">"</span>, xy<span class="op">=</span>(sol[<span class="dv">0</span>]<span class="op">+</span><span class="fl">0.1</span>, sol[<span class="dv">1</span>]<span class="op">+</span><span class="fl">0.05</span>),</span>
-<span id="cb11-279"><a href="#cb11-279" aria-hidden="true" tabindex="-1"></a>                    xytext<span class="op">=</span>(sol[<span class="dv">0</span>]<span class="op">+</span><span class="fl">0.4</span>, sol[<span class="dv">1</span>]<span class="op">-</span><span class="fl">0.7</span>), fontsize<span class="op">=</span><span class="dv">10</span>, color<span class="op">=</span><span class="st">"#264653"</span>,</span>
-<span id="cb11-280"><a href="#cb11-280" aria-hidden="true" tabindex="-1"></a>                    fontstyle<span class="op">=</span><span class="st">"italic"</span>,</span>
-<span id="cb11-281"><a href="#cb11-281" aria-hidden="true" tabindex="-1"></a>                    arrowprops<span class="op">=</span><span class="bu">dict</span>(arrowstyle<span class="op">=</span><span class="st">"-&gt;"</span>, color<span class="op">=</span><span class="st">"#264653"</span>, lw<span class="op">=</span><span class="fl">1.2</span>), zorder<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb11-282"><a href="#cb11-282" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
-<span id="cb11-283"><a href="#cb11-283" aria-hidden="true" tabindex="-1"></a>        circ <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">2</span><span class="op">*</span>np.pi, <span class="dv">300</span>)</span>
-<span id="cb11-284"><a href="#cb11-284" aria-hidden="true" tabindex="-1"></a>        ax.fill(t<span class="op">*</span>np.cos(circ), t<span class="op">*</span>np.sin(circ), facecolor<span class="op">=</span><span class="st">"#2a9d8f"</span>, alpha<span class="op">=</span><span class="fl">0.2</span>, zorder<span class="op">=</span><span class="dv">4</span>)</span>
-<span id="cb11-285"><a href="#cb11-285" aria-hidden="true" tabindex="-1"></a>        ax.plot(t<span class="op">*</span>np.cos(circ), t<span class="op">*</span>np.sin(circ), color<span class="op">=</span><span class="st">"#264653"</span>, lw<span class="op">=</span><span class="fl">2.5</span>, zorder<span class="op">=</span><span class="dv">4</span>)</span>
-<span id="cb11-286"><a href="#cb11-286" aria-hidden="true" tabindex="-1"></a>        label <span class="op">=</span> <span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{\t</span><span class="vs">heta</span><span class="ch">}}</span><span class="vs"> = </span><span class="kw">(</span><span class="sc">{</span>sol[<span class="dv">0</span>]<span class="sc">:.2f}</span><span class="vs">,</span><span class="ch">\;</span><span class="vs"> </span><span class="sc">{</span>sol[<span class="dv">1</span>]<span class="sc">:.2f}</span><span class="kw">)</span><span class="dv">$</span><span class="vs">"</span></span>
-<span id="cb11-287"><a href="#cb11-287" aria-hidden="true" tabindex="-1"></a>        txt_offset <span class="op">=</span> (<span class="op">-</span><span class="fl">2.0</span>, <span class="fl">0.8</span>)</span>
-<span id="cb11-288"><a href="#cb11-288" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-289"><a href="#cb11-289" aria-hidden="true" tabindex="-1"></a>    ax.plot(<span class="op">*</span>sol, <span class="st">"*"</span>, color<span class="op">=</span><span class="st">"#d62828"</span>, ms<span class="op">=</span><span class="dv">20</span>, zorder<span class="op">=</span><span class="dv">8</span>,</span>
-<span id="cb11-290"><a href="#cb11-290" aria-hidden="true" tabindex="-1"></a>            markeredgecolor<span class="op">=</span><span class="st">"white"</span>, markeredgewidth<span class="op">=</span><span class="fl">1.0</span>)</span>
-<span id="cb11-291"><a href="#cb11-291" aria-hidden="true" tabindex="-1"></a>    ax.annotate(label, xy<span class="op">=</span>sol, xytext<span class="op">=</span>(sol[<span class="dv">0</span>]<span class="op">+</span>txt_offset[<span class="dv">0</span>], sol[<span class="dv">1</span>]<span class="op">+</span>txt_offset[<span class="dv">1</span>]),</span>
-<span id="cb11-292"><a href="#cb11-292" aria-hidden="true" tabindex="-1"></a>                fontsize<span class="op">=</span><span class="fl">11.5</span>, color<span class="op">=</span><span class="st">"#d62828"</span>, fontweight<span class="op">=</span><span class="st">"bold"</span>,</span>
-<span id="cb11-293"><a href="#cb11-293" aria-hidden="true" tabindex="-1"></a>                arrowprops<span class="op">=</span><span class="bu">dict</span>(arrowstyle<span class="op">=</span><span class="st">"-&gt;"</span>, color<span class="op">=</span><span class="st">"#d62828"</span>, lw<span class="op">=</span><span class="fl">1.5</span>), zorder<span class="op">=</span><span class="dv">9</span>,</span>
-<span id="cb11-294"><a href="#cb11-294" aria-hidden="true" tabindex="-1"></a>                bbox<span class="op">=</span><span class="bu">dict</span>(boxstyle<span class="op">=</span><span class="st">"round,pad=0.3"</span>, fc<span class="op">=</span><span class="st">"white"</span>, ec<span class="op">=</span><span class="st">"none"</span>, alpha<span class="op">=</span><span class="fl">0.8</span>))</span>
-<span id="cb11-295"><a href="#cb11-295" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-296"><a href="#cb11-296" aria-hidden="true" tabindex="-1"></a>    ax.plot(<span class="op">*</span>theta_star, <span class="st">"k+"</span>, ms<span class="op">=</span><span class="dv">15</span>, mew<span class="op">=</span><span class="fl">2.5</span>, zorder<span class="op">=</span><span class="dv">8</span>)</span>
-<span id="cb11-297"><a href="#cb11-297" aria-hidden="true" tabindex="-1"></a>    ax.annotate(<span class="vs">r"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta</span><span class="dv">^</span><span class="op">*</span><span class="vs">_{</span><span class="dv">\m</span><span class="vs">athrm{LS}}</span><span class="dv">$</span><span class="vs">"</span>, xy<span class="op">=</span>theta_star,</span>
-<span id="cb11-298"><a href="#cb11-298" aria-hidden="true" tabindex="-1"></a>                xytext<span class="op">=</span>(theta_star[<span class="dv">0</span>]<span class="op">+</span><span class="fl">0.2</span>, theta_star[<span class="dv">1</span>]<span class="op">+</span><span class="fl">0.3</span>), fontsize<span class="op">=</span><span class="dv">11</span>, zorder<span class="op">=</span><span class="dv">9</span>)</span>
-<span id="cb11-299"><a href="#cb11-299" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-300"><a href="#cb11-300" aria-hidden="true" tabindex="-1"></a>    ax.axhline(<span class="dv">0</span>, color<span class="op">=</span><span class="st">"#adb5bd"</span>, lw<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb11-301"><a href="#cb11-301" aria-hidden="true" tabindex="-1"></a>    ax.axvline(<span class="dv">0</span>, color<span class="op">=</span><span class="st">"#adb5bd"</span>, lw<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb11-302"><a href="#cb11-302" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="vs">r"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_1</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
-<span id="cb11-303"><a href="#cb11-303" aria-hidden="true" tabindex="-1"></a>    ax.set_ylabel(<span class="vs">r"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_2</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
-<span id="cb11-304"><a href="#cb11-304" aria-hidden="true" tabindex="-1"></a>    ax.set_xlim(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">4.2</span>)</span>
-<span id="cb11-305"><a href="#cb11-305" aria-hidden="true" tabindex="-1"></a>    ax.set_ylim(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">3.8</span>)</span>
-<span id="cb11-306"><a href="#cb11-306" aria-hidden="true" tabindex="-1"></a>    ax.set_aspect(<span class="st">"equal"</span>)</span>
-<span id="cb11-307"><a href="#cb11-307" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-308"><a href="#cb11-308" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].set_title(<span class="vs">r"</span><span class="dv">$</span><span class="er">\</span><span class="vs">ell_1</span><span class="dv">$</span><span class="vs"> constraint: </span><span class="dv">$</span><span class="cf">|</span><span class="ch">\t</span><span class="vs">heta_1</span><span class="cf">|</span><span class="vs"> </span><span class="op">+</span><span class="vs"> </span><span class="cf">|</span><span class="ch">\t</span><span class="vs">heta_2</span><span class="cf">|</span><span class="vs"> </span><span class="er">\</span><span class="vs">leq t</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
-<span id="cb11-309"><a href="#cb11-309" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].set_title(<span class="vs">r"</span><span class="dv">$</span><span class="er">\</span><span class="vs">ell_2</span><span class="dv">$</span><span class="vs"> constraint: </span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_1</span><span class="dv">^</span><span class="vs">2 </span><span class="op">+</span><span class="vs"> </span><span class="ch">\t</span><span class="vs">heta_2</span><span class="dv">^</span><span class="vs">2 </span><span class="er">\</span><span class="vs">leq t</span><span class="dv">^</span><span class="vs">2</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
-<span id="cb11-310"><a href="#cb11-310" aria-hidden="true" tabindex="-1"></a>plt.tight_layout(w_pad<span class="op">=</span><span class="dv">2</span>)</span>
-<span id="cb11-311"><a href="#cb11-311" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb11-312"><a href="#cb11-312" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-313"><a href="#cb11-313" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-314"><a href="#cb11-314" aria-hidden="true" tabindex="-1"></a>This geometry extends to higher dimensions. In $P$-dimensional coefficient space, the</span>
-<span id="cb11-315"><a href="#cb11-315" aria-hidden="true" tabindex="-1"></a>$\ell_1$ ball is a **cross-polytope** with $2P$ vertices, all on the coordinate axes.</span>
-<span id="cb11-316"><a href="#cb11-316" aria-hidden="true" tabindex="-1"></a>Every vertex has $P - 1$ coordinates exactly equal to zero. Edges, faces, and higher-dimensional</span>
-<span id="cb11-317"><a href="#cb11-317" aria-hidden="true" tabindex="-1"></a>facets also lie on coordinate subspaces. An ellipsoidal objective contour expanding</span>
-<span id="cb11-318"><a href="#cb11-318" aria-hidden="true" tabindex="-1"></a>outward from $\theta^*_{\mathrm{LS}}$ will generically first touch the polytope on a</span>
-<span id="cb11-319"><a href="#cb11-319" aria-hidden="true" tabindex="-1"></a>low-dimensional face, producing a solution with many zero components.</span>
-<span id="cb11-320"><a href="#cb11-320" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-321"><a href="#cb11-321" aria-hidden="true" tabindex="-1"></a>For a PCE with hundreds or thousands of candidate terms, this means the BPDN/LASSO</span>
-<span id="cb11-322"><a href="#cb11-322" aria-hidden="true" tabindex="-1"></a>solution retains only the handful of basis functions that contribute most to explaining</span>
-<span id="cb11-323"><a href="#cb11-323" aria-hidden="true" tabindex="-1"></a>the training data --- exactly the sparsity we want.</span>
-<span id="cb11-324"><a href="#cb11-324" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-325"><a href="#cb11-325" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-326"><a href="#cb11-326" aria-hidden="true" tabindex="-1"></a><span class="fu">## Basis Pursuit Denoising (BPDN / LASSO)</span></span>
+<span id="cb11-242"><a href="#cb11-242" aria-hidden="true" tabindex="-1"></a>diamond_verts <span class="op">=</span> np.array([[t, <span class="dv">0</span>], [<span class="dv">0</span>, t], [<span class="op">-</span>t, <span class="dv">0</span>], [<span class="dv">0</span>, <span class="op">-</span>t], [t, <span class="dv">0</span>]])</span>
+<span id="cb11-243"><a href="#cb11-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-244"><a href="#cb11-244" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Find L1-constrained solution (search diamond boundary) ──</span></span>
+<span id="cb11-245"><a href="#cb11-245" aria-hidden="true" tabindex="-1"></a>n_bnd <span class="op">=</span> <span class="dv">8000</span></span>
+<span id="cb11-246"><a href="#cb11-246" aria-hidden="true" tabindex="-1"></a>l1_boundary <span class="op">=</span> []</span>
+<span id="cb11-247"><a href="#cb11-247" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(n_bnd):</span>
+<span id="cb11-248"><a href="#cb11-248" aria-hidden="true" tabindex="-1"></a>    frac <span class="op">=</span> i <span class="op">/</span> n_bnd</span>
+<span id="cb11-249"><a href="#cb11-249" aria-hidden="true" tabindex="-1"></a>    seg <span class="op">=</span> <span class="bu">min</span>(<span class="bu">int</span>(frac <span class="op">*</span> <span class="dv">4</span>), <span class="dv">3</span>)</span>
+<span id="cb11-250"><a href="#cb11-250" aria-hidden="true" tabindex="-1"></a>    s <span class="op">=</span> (frac <span class="op">*</span> <span class="dv">4</span>) <span class="op">-</span> seg</span>
+<span id="cb11-251"><a href="#cb11-251" aria-hidden="true" tabindex="-1"></a>    l1_boundary.append((<span class="dv">1</span><span class="op">-</span>s)<span class="op">*</span>diamond_verts[seg] <span class="op">+</span> s<span class="op">*</span>diamond_verts[seg<span class="op">+</span><span class="dv">1</span>])</span>
+<span id="cb11-252"><a href="#cb11-252" aria-hidden="true" tabindex="-1"></a>l1_boundary <span class="op">=</span> np.array(l1_boundary)</span>
+<span id="cb11-253"><a href="#cb11-253" aria-hidden="true" tabindex="-1"></a>d1b, d2b <span class="op">=</span> l1_boundary[:, <span class="dv">0</span>] <span class="op">-</span> theta_star[<span class="dv">0</span>], l1_boundary[:, <span class="dv">1</span>] <span class="op">-</span> theta_star[<span class="dv">1</span>]</span>
+<span id="cb11-254"><a href="#cb11-254" aria-hidden="true" tabindex="-1"></a>j_bnd <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (H[<span class="dv">0</span>,<span class="dv">0</span>]<span class="op">*</span>d1b<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">2</span><span class="op">*</span>H[<span class="dv">0</span>,<span class="dv">1</span>]<span class="op">*</span>d1b<span class="op">*</span>d2b <span class="op">+</span> H[<span class="dv">1</span>,<span class="dv">1</span>]<span class="op">*</span>d2b<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb11-255"><a href="#cb11-255" aria-hidden="true" tabindex="-1"></a>l1_sol <span class="op">=</span> l1_boundary[np.argmin(j_bnd)]</span>
+<span id="cb11-256"><a href="#cb11-256" aria-hidden="true" tabindex="-1"></a>j_l1 <span class="op">=</span> j_bnd.<span class="bu">min</span>()</span>
+<span id="cb11-257"><a href="#cb11-257" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-258"><a href="#cb11-258" aria-hidden="true" tabindex="-1"></a><span class="co"># ── L2-constrained solution ──</span></span>
+<span id="cb11-259"><a href="#cb11-259" aria-hidden="true" tabindex="-1"></a>l2_sol <span class="op">=</span> t <span class="op">*</span> theta_star <span class="op">/</span> np.linalg.norm(theta_star)</span>
+<span id="cb11-260"><a href="#cb11-260" aria-hidden="true" tabindex="-1"></a>d_l2 <span class="op">=</span> l2_sol <span class="op">-</span> theta_star</span>
+<span id="cb11-261"><a href="#cb11-261" aria-hidden="true" tabindex="-1"></a>j_l2 <span class="op">=</span> <span class="fl">0.5</span> <span class="op">*</span> (H[<span class="dv">0</span>,<span class="dv">0</span>]<span class="op">*</span>d_l2[<span class="dv">0</span>]<span class="op">**</span><span class="dv">2</span> <span class="op">+</span> <span class="dv">2</span><span class="op">*</span>H[<span class="dv">0</span>,<span class="dv">1</span>]<span class="op">*</span>d_l2[<span class="dv">0</span>]<span class="op">*</span>d_l2[<span class="dv">1</span>] <span class="op">+</span> H[<span class="dv">1</span>,<span class="dv">1</span>]<span class="op">*</span>d_l2[<span class="dv">1</span>]<span class="op">**</span><span class="dv">2</span>)</span>
+<span id="cb11-262"><a href="#cb11-262" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-263"><a href="#cb11-263" aria-hidden="true" tabindex="-1"></a><span class="co"># ── Plot ──</span></span>
+<span id="cb11-264"><a href="#cb11-264" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">2</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">5.5</span>))</span>
+<span id="cb11-265"><a href="#cb11-265" aria-hidden="true" tabindex="-1"></a>levels <span class="op">=</span> np.linspace(<span class="fl">0.1</span>, <span class="fl">5.5</span>, <span class="dv">18</span>)</span>
+<span id="cb11-266"><a href="#cb11-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-267"><a href="#cb11-267" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> panel, (ax, j_sol, sol) <span class="kw">in</span> <span class="bu">enumerate</span>(<span class="bu">zip</span>(axes, [j_l1, j_l2], [l1_sol, l2_sol])):</span>
+<span id="cb11-268"><a href="#cb11-268" aria-hidden="true" tabindex="-1"></a>    ax.contourf(T1, T2, J, levels<span class="op">=</span>levels, cmap<span class="op">=</span><span class="st">"magma_r"</span>, alpha<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb11-269"><a href="#cb11-269" aria-hidden="true" tabindex="-1"></a>    ax.contour(T1, T2, J, levels<span class="op">=</span>levels, cmap<span class="op">=</span><span class="st">"magma_r"</span>, linewidths<span class="op">=</span><span class="fl">0.7</span>, alpha<span class="op">=</span><span class="fl">0.7</span>)</span>
+<span id="cb11-270"><a href="#cb11-270" aria-hidden="true" tabindex="-1"></a>    ax.contour(T1, T2, J, levels<span class="op">=</span>[j_sol], colors<span class="op">=</span>[<span class="st">"#d62828"</span>], linewidths<span class="op">=</span><span class="fl">2.5</span>, zorder<span class="op">=</span><span class="dv">5</span>)</span>
+<span id="cb11-271"><a href="#cb11-271" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-272"><a href="#cb11-272" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> panel <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb11-273"><a href="#cb11-273" aria-hidden="true" tabindex="-1"></a>        patch <span class="op">=</span> Polygon(diamond_verts[:<span class="op">-</span><span class="dv">1</span>], closed<span class="op">=</span><span class="va">True</span>, facecolor<span class="op">=</span><span class="st">"#2a9d8f"</span>,</span>
+<span id="cb11-274"><a href="#cb11-274" aria-hidden="true" tabindex="-1"></a>                        alpha<span class="op">=</span><span class="fl">0.2</span>, edgecolor<span class="op">=</span><span class="st">"#264653"</span>, linewidth<span class="op">=</span><span class="fl">2.5</span>, zorder<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb11-275"><a href="#cb11-275" aria-hidden="true" tabindex="-1"></a>        ax.add_patch(patch)</span>
+<span id="cb11-276"><a href="#cb11-276" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> v <span class="kw">in</span> diamond_verts[:<span class="op">-</span><span class="dv">1</span>]:</span>
+<span id="cb11-277"><a href="#cb11-277" aria-hidden="true" tabindex="-1"></a>            ax.plot(v[<span class="dv">0</span>], v[<span class="dv">1</span>], <span class="st">"o"</span>, color<span class="op">=</span><span class="st">"#264653"</span>, ms<span class="op">=</span><span class="dv">6</span>, zorder<span class="op">=</span><span class="dv">6</span>)</span>
+<span id="cb11-278"><a href="#cb11-278" aria-hidden="true" tabindex="-1"></a>        label <span class="op">=</span> <span class="vs">r"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat{</span><span class="ch">\t</span><span class="vs">heta} = </span><span class="kw">(</span><span class="vs">1</span><span class="dv">.</span><span class="vs">8,</span><span class="ch">\;</span><span class="vs"> </span><span class="dv">\m</span><span class="vs">athbf</span><span class="op">{0}</span><span class="kw">)</span><span class="dv">$</span><span class="vs">"</span></span>
+<span id="cb11-279"><a href="#cb11-279" aria-hidden="true" tabindex="-1"></a>        txt_offset <span class="op">=</span> (<span class="op">-</span><span class="fl">1.8</span>, <span class="op">-</span><span class="fl">0.9</span>)</span>
+<span id="cb11-280"><a href="#cb11-280" aria-hidden="true" tabindex="-1"></a>        ax.annotate(<span class="vs">r"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_2 = 0</span><span class="dv">$</span><span class="vs"> </span><span class="kw">(</span><span class="vs">sparse!</span><span class="kw">)</span><span class="vs">"</span>, xy<span class="op">=</span>(sol[<span class="dv">0</span>]<span class="op">+</span><span class="fl">0.1</span>, sol[<span class="dv">1</span>]<span class="op">+</span><span class="fl">0.05</span>),</span>
+<span id="cb11-281"><a href="#cb11-281" aria-hidden="true" tabindex="-1"></a>                    xytext<span class="op">=</span>(sol[<span class="dv">0</span>]<span class="op">+</span><span class="fl">0.4</span>, sol[<span class="dv">1</span>]<span class="op">-</span><span class="fl">0.7</span>), fontsize<span class="op">=</span><span class="dv">10</span>, color<span class="op">=</span><span class="st">"#264653"</span>,</span>
+<span id="cb11-282"><a href="#cb11-282" aria-hidden="true" tabindex="-1"></a>                    fontstyle<span class="op">=</span><span class="st">"italic"</span>,</span>
+<span id="cb11-283"><a href="#cb11-283" aria-hidden="true" tabindex="-1"></a>                    arrowprops<span class="op">=</span><span class="bu">dict</span>(arrowstyle<span class="op">=</span><span class="st">"-&gt;"</span>, color<span class="op">=</span><span class="st">"#264653"</span>, lw<span class="op">=</span><span class="fl">1.2</span>), zorder<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb11-284"><a href="#cb11-284" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb11-285"><a href="#cb11-285" aria-hidden="true" tabindex="-1"></a>        circ <span class="op">=</span> np.linspace(<span class="dv">0</span>, <span class="dv">2</span><span class="op">*</span>np.pi, <span class="dv">300</span>)</span>
+<span id="cb11-286"><a href="#cb11-286" aria-hidden="true" tabindex="-1"></a>        ax.fill(t<span class="op">*</span>np.cos(circ), t<span class="op">*</span>np.sin(circ), facecolor<span class="op">=</span><span class="st">"#2a9d8f"</span>, alpha<span class="op">=</span><span class="fl">0.2</span>, zorder<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb11-287"><a href="#cb11-287" aria-hidden="true" tabindex="-1"></a>        ax.plot(t<span class="op">*</span>np.cos(circ), t<span class="op">*</span>np.sin(circ), color<span class="op">=</span><span class="st">"#264653"</span>, lw<span class="op">=</span><span class="fl">2.5</span>, zorder<span class="op">=</span><span class="dv">4</span>)</span>
+<span id="cb11-288"><a href="#cb11-288" aria-hidden="true" tabindex="-1"></a>        label <span class="op">=</span> <span class="vs">rf"</span><span class="dv">$</span><span class="er">\</span><span class="vs">hat</span><span class="ch">{{\t</span><span class="vs">heta</span><span class="ch">}}</span><span class="vs"> = </span><span class="kw">(</span><span class="sc">{</span>sol[<span class="dv">0</span>]<span class="sc">:.2f}</span><span class="vs">,</span><span class="ch">\;</span><span class="vs"> </span><span class="sc">{</span>sol[<span class="dv">1</span>]<span class="sc">:.2f}</span><span class="kw">)</span><span class="dv">$</span><span class="vs">"</span></span>
+<span id="cb11-289"><a href="#cb11-289" aria-hidden="true" tabindex="-1"></a>        txt_offset <span class="op">=</span> (<span class="op">-</span><span class="fl">2.0</span>, <span class="fl">0.8</span>)</span>
+<span id="cb11-290"><a href="#cb11-290" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-291"><a href="#cb11-291" aria-hidden="true" tabindex="-1"></a>    ax.plot(<span class="op">*</span>sol, <span class="st">"*"</span>, color<span class="op">=</span><span class="st">"#d62828"</span>, ms<span class="op">=</span><span class="dv">20</span>, zorder<span class="op">=</span><span class="dv">8</span>,</span>
+<span id="cb11-292"><a href="#cb11-292" aria-hidden="true" tabindex="-1"></a>            markeredgecolor<span class="op">=</span><span class="st">"white"</span>, markeredgewidth<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb11-293"><a href="#cb11-293" aria-hidden="true" tabindex="-1"></a>    ax.annotate(label, xy<span class="op">=</span>sol, xytext<span class="op">=</span>(sol[<span class="dv">0</span>]<span class="op">+</span>txt_offset[<span class="dv">0</span>], sol[<span class="dv">1</span>]<span class="op">+</span>txt_offset[<span class="dv">1</span>]),</span>
+<span id="cb11-294"><a href="#cb11-294" aria-hidden="true" tabindex="-1"></a>                fontsize<span class="op">=</span><span class="fl">11.5</span>, color<span class="op">=</span><span class="st">"#d62828"</span>, fontweight<span class="op">=</span><span class="st">"bold"</span>,</span>
+<span id="cb11-295"><a href="#cb11-295" aria-hidden="true" tabindex="-1"></a>                arrowprops<span class="op">=</span><span class="bu">dict</span>(arrowstyle<span class="op">=</span><span class="st">"-&gt;"</span>, color<span class="op">=</span><span class="st">"#d62828"</span>, lw<span class="op">=</span><span class="fl">1.5</span>), zorder<span class="op">=</span><span class="dv">9</span>,</span>
+<span id="cb11-296"><a href="#cb11-296" aria-hidden="true" tabindex="-1"></a>                bbox<span class="op">=</span><span class="bu">dict</span>(boxstyle<span class="op">=</span><span class="st">"round,pad=0.3"</span>, fc<span class="op">=</span><span class="st">"white"</span>, ec<span class="op">=</span><span class="st">"none"</span>, alpha<span class="op">=</span><span class="fl">0.8</span>))</span>
+<span id="cb11-297"><a href="#cb11-297" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-298"><a href="#cb11-298" aria-hidden="true" tabindex="-1"></a>    ax.plot(<span class="op">*</span>theta_star, <span class="st">"k+"</span>, ms<span class="op">=</span><span class="dv">15</span>, mew<span class="op">=</span><span class="fl">2.5</span>, zorder<span class="op">=</span><span class="dv">8</span>)</span>
+<span id="cb11-299"><a href="#cb11-299" aria-hidden="true" tabindex="-1"></a>    ax.annotate(<span class="vs">r"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta</span><span class="dv">^</span><span class="op">*</span><span class="vs">_{</span><span class="dv">\m</span><span class="vs">athrm{LS}}</span><span class="dv">$</span><span class="vs">"</span>, xy<span class="op">=</span>theta_star,</span>
+<span id="cb11-300"><a href="#cb11-300" aria-hidden="true" tabindex="-1"></a>                xytext<span class="op">=</span>(theta_star[<span class="dv">0</span>]<span class="op">+</span><span class="fl">0.2</span>, theta_star[<span class="dv">1</span>]<span class="op">+</span><span class="fl">0.3</span>), fontsize<span class="op">=</span><span class="dv">11</span>, zorder<span class="op">=</span><span class="dv">9</span>)</span>
+<span id="cb11-301"><a href="#cb11-301" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-302"><a href="#cb11-302" aria-hidden="true" tabindex="-1"></a>    ax.axhline(<span class="dv">0</span>, color<span class="op">=</span><span class="st">"#adb5bd"</span>, lw<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-303"><a href="#cb11-303" aria-hidden="true" tabindex="-1"></a>    ax.axvline(<span class="dv">0</span>, color<span class="op">=</span><span class="st">"#adb5bd"</span>, lw<span class="op">=</span><span class="fl">0.5</span>, zorder<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-304"><a href="#cb11-304" aria-hidden="true" tabindex="-1"></a>    ax.set_xlabel(<span class="vs">r"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_1</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
+<span id="cb11-305"><a href="#cb11-305" aria-hidden="true" tabindex="-1"></a>    ax.set_ylabel(<span class="vs">r"</span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_2</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">13</span>)</span>
+<span id="cb11-306"><a href="#cb11-306" aria-hidden="true" tabindex="-1"></a>    ax.set_xlim(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">4.2</span>)</span>
+<span id="cb11-307"><a href="#cb11-307" aria-hidden="true" tabindex="-1"></a>    ax.set_ylim(<span class="op">-</span><span class="fl">1.2</span>, <span class="fl">3.8</span>)</span>
+<span id="cb11-308"><a href="#cb11-308" aria-hidden="true" tabindex="-1"></a>    ax.set_aspect(<span class="st">"equal"</span>)</span>
+<span id="cb11-309"><a href="#cb11-309" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-310"><a href="#cb11-310" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">0</span>].set_title(<span class="vs">r"</span><span class="dv">$</span><span class="er">\</span><span class="vs">ell_1</span><span class="dv">$</span><span class="vs"> constraint: </span><span class="dv">$</span><span class="cf">|</span><span class="ch">\t</span><span class="vs">heta_1</span><span class="cf">|</span><span class="vs"> </span><span class="op">+</span><span class="vs"> </span><span class="cf">|</span><span class="ch">\t</span><span class="vs">heta_2</span><span class="cf">|</span><span class="vs"> </span><span class="er">\</span><span class="vs">leq t</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb11-311"><a href="#cb11-311" aria-hidden="true" tabindex="-1"></a>axes[<span class="dv">1</span>].set_title(<span class="vs">r"</span><span class="dv">$</span><span class="er">\</span><span class="vs">ell_2</span><span class="dv">$</span><span class="vs"> constraint: </span><span class="dv">$</span><span class="ch">\t</span><span class="vs">heta_1</span><span class="dv">^</span><span class="vs">2 </span><span class="op">+</span><span class="vs"> </span><span class="ch">\t</span><span class="vs">heta_2</span><span class="dv">^</span><span class="vs">2 </span><span class="er">\</span><span class="vs">leq t</span><span class="dv">^</span><span class="vs">2</span><span class="dv">$</span><span class="vs">"</span>, fontsize<span class="op">=</span><span class="dv">12</span>)</span>
+<span id="cb11-312"><a href="#cb11-312" aria-hidden="true" tabindex="-1"></a>plt.tight_layout(w_pad<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb11-313"><a href="#cb11-313" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb11-314"><a href="#cb11-314" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb11-315"><a href="#cb11-315" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-316"><a href="#cb11-316" aria-hidden="true" tabindex="-1"></a>This geometry extends to higher dimensions. In $P$-dimensional coefficient space, the</span>
+<span id="cb11-317"><a href="#cb11-317" aria-hidden="true" tabindex="-1"></a>$\ell_1$ ball is a **cross-polytope** with $2P$ vertices, all on the coordinate axes.</span>
+<span id="cb11-318"><a href="#cb11-318" aria-hidden="true" tabindex="-1"></a>Every vertex has $P - 1$ coordinates exactly equal to zero. Edges, faces, and higher-dimensional</span>
+<span id="cb11-319"><a href="#cb11-319" aria-hidden="true" tabindex="-1"></a>facets also lie on coordinate subspaces. An ellipsoidal objective contour expanding</span>
+<span id="cb11-320"><a href="#cb11-320" aria-hidden="true" tabindex="-1"></a>outward from $\theta^*_{\mathrm{LS}}$ will generically first touch the polytope on a</span>
+<span id="cb11-321"><a href="#cb11-321" aria-hidden="true" tabindex="-1"></a>low-dimensional face, producing a solution with many zero components.</span>
+<span id="cb11-322"><a href="#cb11-322" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-323"><a href="#cb11-323" aria-hidden="true" tabindex="-1"></a>For a PCE with hundreds or thousands of candidate terms, this means the BPDN/LASSO</span>
+<span id="cb11-324"><a href="#cb11-324" aria-hidden="true" tabindex="-1"></a>solution retains only the handful of basis functions that contribute most to explaining</span>
+<span id="cb11-325"><a href="#cb11-325" aria-hidden="true" tabindex="-1"></a>the training data --- exactly the sparsity we want.</span>
+<span id="cb11-326"><a href="#cb11-326" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-327"><a href="#cb11-327" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-328"><a href="#cb11-328" aria-hidden="true" tabindex="-1"></a>BPDN solves the L1-regularized least-squares problem:</span>
+<span id="cb11-328"><a href="#cb11-328" aria-hidden="true" tabindex="-1"></a><span class="fu">## Basis Pursuit Denoising (BPDN / LASSO)</span></span>
 <span id="cb11-329"><a href="#cb11-329" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-330"><a href="#cb11-330" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb11-331"><a href="#cb11-331" aria-hidden="true" tabindex="-1"></a>\hat{\mathbf{c}} = \arg\min_{\mathbf{c}} \frac{1}{2}<span class="sc">\|</span>\boldsymbol{\Phi}\mathbf{c} - \mathbf{y}<span class="sc">\|</span>_2^2 + \lambda <span class="sc">\|</span>\mathbf{c}<span class="sc">\|</span>_1</span>
+<span id="cb11-330"><a href="#cb11-330" aria-hidden="true" tabindex="-1"></a>BPDN solves the L1-regularized least-squares problem:</span>
+<span id="cb11-331"><a href="#cb11-331" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-332"><a href="#cb11-332" aria-hidden="true" tabindex="-1"></a>$$</span>
-<span id="cb11-333"><a href="#cb11-333" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-334"><a href="#cb11-334" aria-hidden="true" tabindex="-1"></a>The L1 penalty encourages sparsity by driving small coefficients to exactly zero. The regularization strength $\lambda$ controls the trade-off between fit quality and sparsity.</span>
+<span id="cb11-333"><a href="#cb11-333" aria-hidden="true" tabindex="-1"></a>\hat{\mathbf{c}} = \arg\min_{\mathbf{c}} \frac{1}{2}<span class="sc">\|</span>\boldsymbol{\Phi}\mathbf{c} - \mathbf{y}<span class="sc">\|</span>_2^2 + \lambda <span class="sc">\|</span>\mathbf{c}<span class="sc">\|</span>_1</span>
+<span id="cb11-334"><a href="#cb11-334" aria-hidden="true" tabindex="-1"></a>$$</span>
 <span id="cb11-335"><a href="#cb11-335" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-338"><a href="#cb11-338" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-339"><a href="#cb11-339" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.bpdn <span class="im">import</span> BPDNFitter</span>
-<span id="cb11-340"><a href="#cb11-340" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-341"><a href="#cb11-341" aria-hidden="true" tabindex="-1"></a>pce_bpdn <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-336"><a href="#cb11-336" aria-hidden="true" tabindex="-1"></a>The L1 penalty encourages sparsity by driving small coefficients to exactly zero. The regularization strength $\lambda$ controls the trade-off between fit quality and sparsity.</span>
+<span id="cb11-337"><a href="#cb11-337" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-340"><a href="#cb11-340" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-341"><a href="#cb11-341" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.surrogates.affine.expansions.fitters.bpdn <span class="im">import</span> BPDNFitter</span>
 <span id="cb11-342"><a href="#cb11-342" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-343"><a href="#cb11-343" aria-hidden="true" tabindex="-1"></a>bpdn_fitter <span class="op">=</span> BPDNFitter(bkd, penalty<span class="op">=</span><span class="fl">0.01</span>)</span>
-<span id="cb11-344"><a href="#cb11-344" aria-hidden="true" tabindex="-1"></a>bpdn_result <span class="op">=</span> bpdn_fitter.fit(pce_bpdn, samples_train, values_train)</span>
-<span id="cb11-345"><a href="#cb11-345" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-346"><a href="#cb11-346" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-347"><a href="#cb11-347" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-348"><a href="#cb11-348" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparing Coefficient Sparsity</span></span>
+<span id="cb11-343"><a href="#cb11-343" aria-hidden="true" tabindex="-1"></a>pce_bpdn <span class="op">=</span> create_pce_from_marginals(marginals, degree_large, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-344"><a href="#cb11-344" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-345"><a href="#cb11-345" aria-hidden="true" tabindex="-1"></a>bpdn_fitter <span class="op">=</span> BPDNFitter(bkd, penalty<span class="op">=</span><span class="fl">0.01</span>)</span>
+<span id="cb11-346"><a href="#cb11-346" aria-hidden="true" tabindex="-1"></a>bpdn_result <span class="op">=</span> bpdn_fitter.fit(pce_bpdn, samples_train, values_train)</span>
+<span id="cb11-347"><a href="#cb11-347" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb11-348"><a href="#cb11-348" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-349"><a href="#cb11-349" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-350"><a href="#cb11-350" aria-hidden="true" tabindex="-1"></a>@fig-sparse-coefficients compares the coefficient magnitudes from least squares, OMP, and BPDN. The sparse fitters zero out unimportant terms while retaining the dominant ones.</span>
+<span id="cb11-350"><a href="#cb11-350" aria-hidden="true" tabindex="-1"></a><span class="fu">## Comparing Coefficient Sparsity</span></span>
 <span id="cb11-351"><a href="#cb11-351" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-354"><a href="#cb11-354" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-355"><a href="#cb11-355" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Coefficient magnitudes for tip deflection using least squares, OMP, and BPDN fitters. OMP and BPDN produce sparser solutions, zeroing out unimportant terms."</span></span>
-<span id="cb11-356"><a href="#cb11-356" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-sparse-coefficients</span></span>
-<span id="cb11-357"><a href="#cb11-357" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-358"><a href="#cb11-358" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_sparse_coefficients</span>
+<span id="cb11-352"><a href="#cb11-352" aria-hidden="true" tabindex="-1"></a>@fig-sparse-coefficients compares the coefficient magnitudes from least squares, OMP, and BPDN. The sparse fitters zero out unimportant terms while retaining the dominant ones.</span>
+<span id="cb11-353"><a href="#cb11-353" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-356"><a href="#cb11-356" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-357"><a href="#cb11-357" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Coefficient magnitudes for tip deflection using least squares, OMP, and BPDN fitters. OMP and BPDN produce sparser solutions, zeroing out unimportant terms."</span></span>
+<span id="cb11-358"><a href="#cb11-358" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-sparse-coefficients</span></span>
 <span id="cb11-359"><a href="#cb11-359" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-360"><a href="#cb11-360" aria-hidden="true" tabindex="-1"></a>fitter_names <span class="op">=</span> [<span class="st">"Least Squares"</span>, <span class="st">"OMP"</span>, <span class="st">"BPDN"</span>]</span>
-<span id="cb11-361"><a href="#cb11-361" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> [ls_result, omp_result, bpdn_result]</span>
-<span id="cb11-362"><a href="#cb11-362" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-363"><a href="#cb11-363" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">15</span>, <span class="dv">4</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb11-364"><a href="#cb11-364" aria-hidden="true" tabindex="-1"></a>plot_sparse_coefficients(results, fitter_names, bkd, axes)</span>
-<span id="cb11-365"><a href="#cb11-365" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb11-366"><a href="#cb11-366" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb11-367"><a href="#cb11-367" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-368"><a href="#cb11-368" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-369"><a href="#cb11-369" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-370"><a href="#cb11-370" aria-hidden="true" tabindex="-1"></a><span class="fu">## Accuracy Comparison</span></span>
+<span id="cb11-360"><a href="#cb11-360" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_sparse_coefficients</span>
+<span id="cb11-361"><a href="#cb11-361" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-362"><a href="#cb11-362" aria-hidden="true" tabindex="-1"></a>fitter_names <span class="op">=</span> [<span class="st">"Least Squares"</span>, <span class="st">"OMP"</span>, <span class="st">"BPDN"</span>]</span>
+<span id="cb11-363"><a href="#cb11-363" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> [ls_result, omp_result, bpdn_result]</span>
+<span id="cb11-364"><a href="#cb11-364" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-365"><a href="#cb11-365" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">15</span>, <span class="dv">4</span>), sharey<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-366"><a href="#cb11-366" aria-hidden="true" tabindex="-1"></a>plot_sparse_coefficients(results, fitter_names, bkd, axes)</span>
+<span id="cb11-367"><a href="#cb11-367" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb11-368"><a href="#cb11-368" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb11-369"><a href="#cb11-369" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb11-370"><a href="#cb11-370" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-371"><a href="#cb11-371" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-372"><a href="#cb11-372" aria-hidden="true" tabindex="-1"></a>Despite using far fewer coefficients, the sparse fitters can match or beat the full least-squares fit:</span>
+<span id="cb11-372"><a href="#cb11-372" aria-hidden="true" tabindex="-1"></a><span class="fu">## Accuracy Comparison</span></span>
 <span id="cb11-373"><a href="#cb11-373" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-376"><a href="#cb11-376" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-377"><a href="#cb11-377" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, result <span class="kw">in</span> <span class="bu">zip</span>(fitter_names, results):</span>
-<span id="cb11-378"><a href="#cb11-378" aria-hidden="true" tabindex="-1"></a>    preds <span class="op">=</span> bkd.to_numpy(result.surrogate()(samples_test))</span>
-<span id="cb11-379"><a href="#cb11-379" aria-hidden="true" tabindex="-1"></a>    l2_err <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>, :] <span class="op">-</span> preds[<span class="dv">0</span>, :])</span>
-<span id="cb11-380"><a href="#cb11-380" aria-hidden="true" tabindex="-1"></a>    l2_ref <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>, :])</span>
-<span id="cb11-381"><a href="#cb11-381" aria-hidden="true" tabindex="-1"></a>    n_nz <span class="op">=</span> np.<span class="bu">sum</span>(np.<span class="bu">abs</span>(bkd.to_numpy(result.params())[:, <span class="dv">0</span>]) <span class="op">&gt;</span> <span class="fl">1e-12</span>)</span>
-<span id="cb11-382"><a href="#cb11-382" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-383"><a href="#cb11-383" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-384"><a href="#cb11-384" aria-hidden="true" tabindex="-1"></a>The advantage of sparse methods becomes more pronounced when the training budget is limited relative to the number of basis terms. @fig-accuracy-vs-n compares a standard degree-3 least-squares fit (10 terms, safe oversampling) against a degree-5 OMP fit (many candidate terms but sparse selection) as the training size increases:</span>
+<span id="cb11-374"><a href="#cb11-374" aria-hidden="true" tabindex="-1"></a>Despite using far fewer coefficients, the sparse fitters can match or beat the full least-squares fit:</span>
+<span id="cb11-375"><a href="#cb11-375" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-378"><a href="#cb11-378" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-379"><a href="#cb11-379" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, result <span class="kw">in</span> <span class="bu">zip</span>(fitter_names, results):</span>
+<span id="cb11-380"><a href="#cb11-380" aria-hidden="true" tabindex="-1"></a>    preds <span class="op">=</span> bkd.to_numpy(result.surrogate()(samples_test))</span>
+<span id="cb11-381"><a href="#cb11-381" aria-hidden="true" tabindex="-1"></a>    l2_err <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>, :] <span class="op">-</span> preds[<span class="dv">0</span>, :])</span>
+<span id="cb11-382"><a href="#cb11-382" aria-hidden="true" tabindex="-1"></a>    l2_ref <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>, :])</span>
+<span id="cb11-383"><a href="#cb11-383" aria-hidden="true" tabindex="-1"></a>    n_nz <span class="op">=</span> np.<span class="bu">sum</span>(np.<span class="bu">abs</span>(bkd.to_numpy(result.params())[:, <span class="dv">0</span>]) <span class="op">&gt;</span> <span class="fl">1e-12</span>)</span>
+<span id="cb11-384"><a href="#cb11-384" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 <span id="cb11-385"><a href="#cb11-385" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-388"><a href="#cb11-388" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb11-389"><a href="#cb11-389" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Test-set error vs. training size for least-squares degree-3 and OMP degree-5. The sparse OMP fit can exploit higher-order terms when enough data is available, eventually surpassing the lower-degree dense fit."</span></span>
-<span id="cb11-390"><a href="#cb11-390" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-accuracy-vs-n</span></span>
-<span id="cb11-391"><a href="#cb11-391" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-392"><a href="#cb11-392" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._pce <span class="im">import</span> plot_accuracy_vs_n</span>
+<span id="cb11-386"><a href="#cb11-386" aria-hidden="true" tabindex="-1"></a>The advantage of sparse methods becomes more pronounced when the training budget is limited relative to the number of basis terms. @fig-accuracy-vs-n compares a standard degree-3 least-squares fit (10 terms, safe oversampling) against a degree-5 OMP fit (many candidate terms but sparse selection) as the training size increases:</span>
+<span id="cb11-387"><a href="#cb11-387" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-390"><a href="#cb11-390" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
+<span id="cb11-391"><a href="#cb11-391" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Test-set error vs. training size for least-squares degree-3 and OMP degree-5. The sparse OMP fit can exploit higher-order terms when enough data is available, eventually surpassing the lower-degree dense fit."</span></span>
+<span id="cb11-392"><a href="#cb11-392" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-accuracy-vs-n</span></span>
 <span id="cb11-393"><a href="#cb11-393" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-394"><a href="#cb11-394" aria-hidden="true" tabindex="-1"></a>N_values <span class="op">=</span> [<span class="dv">30</span>, <span class="dv">50</span>, <span class="dv">75</span>, <span class="dv">100</span>, <span class="dv">150</span>]</span>
-<span id="cb11-395"><a href="#cb11-395" aria-hidden="true" tabindex="-1"></a>ls3_errors <span class="op">=</span> []</span>
-<span id="cb11-396"><a href="#cb11-396" aria-hidden="true" tabindex="-1"></a>omp5_errors <span class="op">=</span> []</span>
-<span id="cb11-397"><a href="#cb11-397" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-398"><a href="#cb11-398" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> N_tr <span class="kw">in</span> N_values:</span>
-<span id="cb11-399"><a href="#cb11-399" aria-hidden="true" tabindex="-1"></a>    np.random.seed(<span class="dv">500</span> <span class="op">+</span> N_tr)</span>
-<span id="cb11-400"><a href="#cb11-400" aria-hidden="true" tabindex="-1"></a>    s_tr <span class="op">=</span> prior.rvs(N_tr)</span>
-<span id="cb11-401"><a href="#cb11-401" aria-hidden="true" tabindex="-1"></a>    v_tr <span class="op">=</span> model(s_tr)[<span class="dv">0</span>:<span class="dv">1</span>, :]</span>
-<span id="cb11-402"><a href="#cb11-402" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-403"><a href="#cb11-403" aria-hidden="true" tabindex="-1"></a>    <span class="co"># LS degree-3</span></span>
-<span id="cb11-404"><a href="#cb11-404" aria-hidden="true" tabindex="-1"></a>    pce3 <span class="op">=</span> create_pce_from_marginals(marginals, <span class="dv">3</span>, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb11-405"><a href="#cb11-405" aria-hidden="true" tabindex="-1"></a>    nterms3 <span class="op">=</span> pce3.nterms()</span>
-<span id="cb11-406"><a href="#cb11-406" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> N_tr <span class="op">&gt;</span> nterms3:</span>
-<span id="cb11-407"><a href="#cb11-407" aria-hidden="true" tabindex="-1"></a>        ls3 <span class="op">=</span> ls_fitter.fit(pce3, s_tr, v_tr).surrogate()</span>
-<span id="cb11-408"><a href="#cb11-408" aria-hidden="true" tabindex="-1"></a>        p3 <span class="op">=</span> bkd.to_numpy(ls3(samples_test))</span>
-<span id="cb11-409"><a href="#cb11-409" aria-hidden="true" tabindex="-1"></a>        e3 <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>] <span class="op">-</span> p3[<span class="dv">0</span>]) <span class="op">/</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>])</span>
-<span id="cb11-410"><a href="#cb11-410" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
-<span id="cb11-411"><a href="#cb11-411" aria-hidden="true" tabindex="-1"></a>        e3 <span class="op">=</span> np.nan</span>
-<span id="cb11-412"><a href="#cb11-412" aria-hidden="true" tabindex="-1"></a>    ls3_errors.append(e3)</span>
-<span id="cb11-413"><a href="#cb11-413" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-414"><a href="#cb11-414" aria-hidden="true" tabindex="-1"></a>    <span class="co"># OMP degree-5</span></span>
-<span id="cb11-415"><a href="#cb11-415" aria-hidden="true" tabindex="-1"></a>    pce5 <span class="op">=</span> create_pce_from_marginals(marginals, <span class="dv">5</span>, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
-<span id="cb11-416"><a href="#cb11-416" aria-hidden="true" tabindex="-1"></a>    omp5 <span class="op">=</span> OMPFitter(bkd, max_nonzeros<span class="op">=</span><span class="dv">15</span>, rtol<span class="op">=</span><span class="fl">1e-4</span>)</span>
-<span id="cb11-417"><a href="#cb11-417" aria-hidden="true" tabindex="-1"></a>    omp5_res <span class="op">=</span> omp5.fit(pce5, s_tr, v_tr).surrogate()</span>
-<span id="cb11-418"><a href="#cb11-418" aria-hidden="true" tabindex="-1"></a>    p5 <span class="op">=</span> bkd.to_numpy(omp5_res(samples_test))</span>
-<span id="cb11-419"><a href="#cb11-419" aria-hidden="true" tabindex="-1"></a>    e5 <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>] <span class="op">-</span> p5[<span class="dv">0</span>]) <span class="op">/</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>])</span>
-<span id="cb11-420"><a href="#cb11-420" aria-hidden="true" tabindex="-1"></a>    omp5_errors.append(e5)</span>
-<span id="cb11-421"><a href="#cb11-421" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-422"><a href="#cb11-422" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
-<span id="cb11-423"><a href="#cb11-423" aria-hidden="true" tabindex="-1"></a>plot_accuracy_vs_n(N_values, ls3_errors, omp5_errors, ax)</span>
-<span id="cb11-424"><a href="#cb11-424" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
-<span id="cb11-425"><a href="#cb11-425" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
-<span id="cb11-426"><a href="#cb11-426" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb11-427"><a href="#cb11-427" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-428"><a href="#cb11-428" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-429"><a href="#cb11-429" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb11-394"><a href="#cb11-394" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._pce <span class="im">import</span> plot_accuracy_vs_n</span>
+<span id="cb11-395"><a href="#cb11-395" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-396"><a href="#cb11-396" aria-hidden="true" tabindex="-1"></a>N_values <span class="op">=</span> [<span class="dv">30</span>, <span class="dv">50</span>, <span class="dv">75</span>, <span class="dv">100</span>, <span class="dv">150</span>]</span>
+<span id="cb11-397"><a href="#cb11-397" aria-hidden="true" tabindex="-1"></a>ls3_errors <span class="op">=</span> []</span>
+<span id="cb11-398"><a href="#cb11-398" aria-hidden="true" tabindex="-1"></a>omp5_errors <span class="op">=</span> []</span>
+<span id="cb11-399"><a href="#cb11-399" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-400"><a href="#cb11-400" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> N_tr <span class="kw">in</span> N_values:</span>
+<span id="cb11-401"><a href="#cb11-401" aria-hidden="true" tabindex="-1"></a>    np.random.seed(<span class="dv">500</span> <span class="op">+</span> N_tr)</span>
+<span id="cb11-402"><a href="#cb11-402" aria-hidden="true" tabindex="-1"></a>    s_tr <span class="op">=</span> prior.rvs(N_tr)</span>
+<span id="cb11-403"><a href="#cb11-403" aria-hidden="true" tabindex="-1"></a>    v_tr <span class="op">=</span> model(s_tr)[<span class="dv">0</span>:<span class="dv">1</span>, :]</span>
+<span id="cb11-404"><a href="#cb11-404" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-405"><a href="#cb11-405" aria-hidden="true" tabindex="-1"></a>    <span class="co"># LS degree-3</span></span>
+<span id="cb11-406"><a href="#cb11-406" aria-hidden="true" tabindex="-1"></a>    pce3 <span class="op">=</span> create_pce_from_marginals(marginals, <span class="dv">3</span>, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-407"><a href="#cb11-407" aria-hidden="true" tabindex="-1"></a>    nterms3 <span class="op">=</span> pce3.nterms()</span>
+<span id="cb11-408"><a href="#cb11-408" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> N_tr <span class="op">&gt;</span> nterms3:</span>
+<span id="cb11-409"><a href="#cb11-409" aria-hidden="true" tabindex="-1"></a>        ls3 <span class="op">=</span> ls_fitter.fit(pce3, s_tr, v_tr).surrogate()</span>
+<span id="cb11-410"><a href="#cb11-410" aria-hidden="true" tabindex="-1"></a>        p3 <span class="op">=</span> bkd.to_numpy(ls3(samples_test))</span>
+<span id="cb11-411"><a href="#cb11-411" aria-hidden="true" tabindex="-1"></a>        e3 <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>] <span class="op">-</span> p3[<span class="dv">0</span>]) <span class="op">/</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>])</span>
+<span id="cb11-412"><a href="#cb11-412" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb11-413"><a href="#cb11-413" aria-hidden="true" tabindex="-1"></a>        e3 <span class="op">=</span> np.nan</span>
+<span id="cb11-414"><a href="#cb11-414" aria-hidden="true" tabindex="-1"></a>    ls3_errors.append(e3)</span>
+<span id="cb11-415"><a href="#cb11-415" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-416"><a href="#cb11-416" aria-hidden="true" tabindex="-1"></a>    <span class="co"># OMP degree-5</span></span>
+<span id="cb11-417"><a href="#cb11-417" aria-hidden="true" tabindex="-1"></a>    pce5 <span class="op">=</span> create_pce_from_marginals(marginals, <span class="dv">5</span>, bkd, nqoi<span class="op">=</span><span class="dv">1</span>)</span>
+<span id="cb11-418"><a href="#cb11-418" aria-hidden="true" tabindex="-1"></a>    omp5 <span class="op">=</span> OMPFitter(bkd, max_nonzeros<span class="op">=</span><span class="dv">15</span>, rtol<span class="op">=</span><span class="fl">1e-4</span>)</span>
+<span id="cb11-419"><a href="#cb11-419" aria-hidden="true" tabindex="-1"></a>    omp5_res <span class="op">=</span> omp5.fit(pce5, s_tr, v_tr).surrogate()</span>
+<span id="cb11-420"><a href="#cb11-420" aria-hidden="true" tabindex="-1"></a>    p5 <span class="op">=</span> bkd.to_numpy(omp5_res(samples_test))</span>
+<span id="cb11-421"><a href="#cb11-421" aria-hidden="true" tabindex="-1"></a>    e5 <span class="op">=</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>] <span class="op">-</span> p5[<span class="dv">0</span>]) <span class="op">/</span> np.linalg.norm(vals_test_np[<span class="dv">0</span>])</span>
+<span id="cb11-422"><a href="#cb11-422" aria-hidden="true" tabindex="-1"></a>    omp5_errors.append(e5)</span>
+<span id="cb11-423"><a href="#cb11-423" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-424"><a href="#cb11-424" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">7</span>, <span class="fl">4.5</span>))</span>
+<span id="cb11-425"><a href="#cb11-425" aria-hidden="true" tabindex="-1"></a>plot_accuracy_vs_n(N_values, ls3_errors, omp5_errors, ax)</span>
+<span id="cb11-426"><a href="#cb11-426" aria-hidden="true" tabindex="-1"></a>plt.tight_layout()</span>
+<span id="cb11-427"><a href="#cb11-427" aria-hidden="true" tabindex="-1"></a>plt.show()</span>
+<span id="cb11-428"><a href="#cb11-428" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb11-429"><a href="#cb11-429" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-430"><a href="#cb11-430" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-431"><a href="#cb11-431" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>In high dimensions, the number of polynomial basis terms grows combinatorially, but many coefficients are negligibly small --- the expansion is **approximately sparse**</span>
-<span id="cb11-432"><a href="#cb11-432" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**OMP** greedily selects the most important terms one at a time; it is simple, interpretable, and requires no tuning of a regularization parameter (only <span class="in">`max_nonzeros`</span> and <span class="in">`rtol`</span>)</span>
-<span id="cb11-433"><a href="#cb11-433" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**BPDN/LASSO** solves an L1-regularized least-squares problem; the penalty $\lambda$ trades off fit quality and sparsity</span>
-<span id="cb11-434"><a href="#cb11-434" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Sparse fitters can use **high-degree basis sets** (many candidate terms) without needing a correspondingly large training set</span>
-<span id="cb11-435"><a href="#cb11-435" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>When most coefficients are near zero, sparse methods achieve **better accuracy with fewer samples** than dense least-squares at the same degree</span>
-<span id="cb11-436"><a href="#cb11-436" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-437"><a href="#cb11-437" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-438"><a href="#cb11-438" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
+<span id="cb11-431"><a href="#cb11-431" aria-hidden="true" tabindex="-1"></a><span class="fu">## Key Takeaways</span></span>
+<span id="cb11-432"><a href="#cb11-432" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-433"><a href="#cb11-433" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>In high dimensions, the number of polynomial basis terms grows combinatorially, but many coefficients are negligibly small --- the expansion is **approximately sparse**</span>
+<span id="cb11-434"><a href="#cb11-434" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**OMP** greedily selects the most important terms one at a time; it is simple, interpretable, and requires no tuning of a regularization parameter (only <span class="in">`max_nonzeros`</span> and <span class="in">`rtol`</span>)</span>
+<span id="cb11-435"><a href="#cb11-435" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>**BPDN/LASSO** solves an L1-regularized least-squares problem; the penalty $\lambda$ trades off fit quality and sparsity</span>
+<span id="cb11-436"><a href="#cb11-436" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>Sparse fitters can use **high-degree basis sets** (many candidate terms) without needing a correspondingly large training set</span>
+<span id="cb11-437"><a href="#cb11-437" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span>When most coefficients are near zero, sparse methods achieve **better accuracy with fewer samples** than dense least-squares at the same degree</span>
+<span id="cb11-438"><a href="#cb11-438" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-439"><a href="#cb11-439" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-440"><a href="#cb11-440" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Sweep the OMP <span class="in">`max_nonzeros`</span> parameter from 5 to 25. Plot the test-set error vs. number of selected terms. At what point do additional terms stop helping?</span>
+<span id="cb11-440"><a href="#cb11-440" aria-hidden="true" tabindex="-1"></a><span class="fu">## Exercises</span></span>
 <span id="cb11-441"><a href="#cb11-441" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-442"><a href="#cb11-442" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Try different L1 penalty values for BPDN (e.g., 0.001, 0.01, 0.1, 1.0). How does the penalty affect the number of non-zero coefficients and the test-set error?</span>
+<span id="cb11-442"><a href="#cb11-442" aria-hidden="true" tabindex="-1"></a><span class="ss">1. </span>Sweep the OMP <span class="in">`max_nonzeros`</span> parameter from 5 to 25. Plot the test-set error vs. number of selected terms. At what point do additional terms stop helping?</span>
 <span id="cb11-443"><a href="#cb11-443" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-444"><a href="#cb11-444" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Fit OMP on each QoI separately (tip deflection and total stress). Compare the support sets --- do both QoIs select the same basis terms?</span>
+<span id="cb11-444"><a href="#cb11-444" aria-hidden="true" tabindex="-1"></a><span class="ss">2. </span>Try different L1 penalty values for BPDN (e.g., 0.001, 0.01, 0.1, 1.0). How does the penalty affect the number of non-zero coefficients and the test-set error?</span>
 <span id="cb11-445"><a href="#cb11-445" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-446"><a href="#cb11-446" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Increase the problem dimension by using <span class="in">`num_kle_terms=3`</span> in the benchmark (giving $d = 9$ variables). Fit a degree-5 PCE with OMP and compare to least-squares degree-3. How does the advantage of sparsity change in higher dimensions?</span>
+<span id="cb11-446"><a href="#cb11-446" aria-hidden="true" tabindex="-1"></a><span class="ss">3. </span>Fit OMP on each QoI separately (tip deflection and total stress). Compare the support sets --- do both QoIs select the same basis terms?</span>
 <span id="cb11-447"><a href="#cb11-447" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-448"><a href="#cb11-448" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-449"><a href="#cb11-449" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
+<span id="cb11-448"><a href="#cb11-448" aria-hidden="true" tabindex="-1"></a><span class="ss">4. </span>**(Challenge)** Increase the problem dimension by using <span class="in">`num_kle_terms=3`</span> in the benchmark (giving $d = 9$ variables). Fit a degree-5 PCE with OMP and compare to least-squares degree-3. How does the advantage of sparsity change in higher dimensions?</span>
+<span id="cb11-449"><a href="#cb11-449" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb11-450"><a href="#cb11-450" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-451"><a href="#cb11-451" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb11-451"><a href="#cb11-451" aria-hidden="true" tabindex="-1"></a><span class="fu">## Next Steps</span></span>
 <span id="cb11-452"><a href="#cb11-452" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb11-453"><a href="#cb11-453" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Polynomial Chaos</span><span class="co">](uq_with_pce.qmd)</span> --- Using the fitted PCE to compute moments and marginal densities</span>
+<span id="cb11-453"><a href="#cb11-453" aria-hidden="true" tabindex="-1"></a>Continue with:</span>
+<span id="cb11-454"><a href="#cb11-454" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-455"><a href="#cb11-455" aria-hidden="true" tabindex="-1"></a><span class="ss">- </span><span class="co">[</span><span class="ot">UQ with Polynomial Chaos</span><span class="co">](uq_with_pce.qmd)</span> --- Using the fitted PCE to compute moments and marginal densities</span>
 </code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

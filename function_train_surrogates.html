@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.27">
+<meta name="generator" content="quarto-1.9.37">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -10,6 +10,9 @@
 
 <title>An Introduction to Function Trains – PyApprox</title>
 <style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
 div.columns{display: flex; gap: min(4vw, 1.5em);}
@@ -69,15 +72,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="./assets/favicon.ico" rel="icon">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
-<script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-05ee64385f1e5ee624ea5115ee54573b.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-f507e431dcd19b274b5dcdf0696c924b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -189,7 +191,7 @@ MathJax = {
 </script>
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 const typesetMath = (el) => {
@@ -924,17 +926,34 @@ window.Quarto = {
 </li>
       </ul>
   </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false">
+ <span class="menu-text">Universal Polynomial Networks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./supn_surrogates.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Building a Shallow Universal Polynomial Network</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
  <span class="menu-text">Sensitivity Analysis</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./sensitivity_analysis_concept.html" class="sidebar-item-text sidebar-link">
@@ -987,13 +1006,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
  <span class="menu-text">Random Fields</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./kle_introduction.html" class="sidebar-item-text sidebar-link">
@@ -1016,13 +1035,13 @@ window.Quarto = {
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true">
  <span class="menu-text">Optimization Under Uncertainty</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-17" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-18" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-17" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-18" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./design_under_uncertainty.html" class="sidebar-item-text sidebar-link">
@@ -1133,7 +1152,7 @@ f(x_1, x_2) = g_1(x_1) \cdot g_2(x_2)
 <p><span class="math display">\[
 f(x_1, x_2) = e^{-x_1^2 / 2} \cdot e^{-x_2^2 / 2} = e^{-(x_1^2 + x_2^2)/2}
 \]</span></p>
-<div id="d6613530" class="cell" data-execution_count="1">
+<div id="75eb3bd0" class="cell" data-execution_count="1">
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
@@ -1165,7 +1184,7 @@ f(x_1, x_2) = g_1^{(1)}(x_1)\cdot g_2^{(1)}(x_2) \;+\; g_1^{(2)}(x_1)\cdot g_2^{
 \]</span></p>
 <p>Each term is itself separable, but the sum introduces interactions that a single product could not capture. The rank measures how many such product terms are needed.</p>
 <p>Let us build a concrete rank-2 example. We take two very different rank-1 terms and add them:</p>
-<div id="92e077ce" class="cell" data-execution_count="2">
+<div id="71d348cb" class="cell" data-execution_count="2">
 <div class="cell-output cell-output-display">
 <div>
 <figure class="figure">
@@ -1322,7 +1341,7 @@ f(x_1, \ldots, x_d)
 <li>Creates the correct orthogonal polynomial basis for each variable.</li>
 <li>Assembles the cores into a <code>FunctionTrain</code> with the specified rank.</li>
 </ol>
-<div id="7bfc99aa" class="cell" data-execution_count="5">
+<div id="f19b7330" class="cell" data-execution_count="5">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.util.backends.numpy <span class="im">import</span> NumpyBkd</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.probability <span class="im">import</span> UniformMarginal, GaussianMarginal</span>
@@ -1342,7 +1361,7 @@ f(x_1, \ldots, x_d)
 </div>
 <p>The shapes confirm the structure: core 0 is <span class="math inline">\(1 \times 2\)</span>, core 1 is <span class="math inline">\(2 \times 2\)</span>, and core 2 is <span class="math inline">\(2 \times 1\)</span>.</p>
 <p>We can evaluate the FT on a batch of samples just like any other surrogate:</p>
-<div id="b04cc8db" class="cell" data-execution_count="6">
+<div id="cb686d8d" class="cell" data-execution_count="6">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Evaluate on 2000 random samples</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>nsamples <span class="op">=</span> <span class="dv">2000</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>samples <span class="op">=</span> bkd.asarray(np.random.uniform(<span class="op">-</span><span class="dv">1</span>, <span class="dv">1</span>, (<span class="dv">3</span>, nsamples)))</span>
@@ -1365,7 +1384,7 @@ f(x_1, \ldots, x_d)
 <section id="visualising-a-fitted-rank-2-ft" class="level2">
 <h2 class="anchored" data-anchor-id="visualising-a-fitted-rank-2-ft">Visualising a Fitted Rank-2 FT</h2>
 <p>To build intuition for what the FT actually represents, let us manually set the coefficients to reproduce the rank-2 Gaussian example from earlier.</p>
-<div id="1120242d" class="cell" data-execution_count="7">
+<div id="967e2277" class="cell" data-execution_count="7">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Recall our target:</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co">#   f(x1, x2) = g1_a(x1)*g2_a(x2) + g1_b(x1)*g2_b(x2)  (rank-2, 2 variables)</span></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="co"># We will build a 2-variable version for this illustration.</span></span>
@@ -1412,7 +1431,7 @@ f(x_1, \ldots, x_d)
 <span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>ft_fitted <span class="op">=</span> mse_result.surrogate()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div id="cell-fig-ft-fitted" class="cell" data-execution_count="8">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_fitted</span>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_fitted</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
 <span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>plot_ft_fitted(true_func, ft_fitted, plot_limits, bkd, axes, fig<span class="op">=</span>fig)</span>
@@ -1436,8 +1455,8 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <section id="what-does-the-rank-control" class="level2">
 <h2 class="anchored" data-anchor-id="what-does-the-rank-control">What Does the Rank Control?</h2>
 <p>The rank <span class="math inline">\(r\)</span> is the single number that determines how much interaction between variables the FT can represent. A quick experiment illustrates this:</p>
-<div id="3a293816" class="cell" data-execution_count="9">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_rank_comparison</span>
+<div id="abbea2cf" class="cell" data-execution_count="9">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_rank_comparison</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> meshgrid_samples</span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>npts <span class="op">=</span> <span class="dv">100</span></span>
@@ -2020,7 +2039,7 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <span id="cb6-75"><a href="#cb6-75" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb6-76"><a href="#cb6-76" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
 <span id="cb6-77"><a href="#cb6-77" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> matplotlib.pyplot <span class="im">as</span> plt</span>
-<span id="cb6-78"><a href="#cb6-78" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_rank1_contours</span>
+<span id="cb6-78"><a href="#cb6-78" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_rank1_contours</span>
 <span id="cb6-79"><a href="#cb6-79" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-80"><a href="#cb6-80" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">12</span>, <span class="fl">3.8</span>))</span>
 <span id="cb6-81"><a href="#cb6-81" aria-hidden="true" tabindex="-1"></a>cf <span class="op">=</span> plot_ft_rank1_contours(axes)</span>
@@ -2062,7 +2081,7 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <span id="cb6-117"><a href="#cb6-117" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-120"><a href="#cb6-120" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb6-121"><a href="#cb6-121" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb6-122"><a href="#cb6-122" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_highrank_contours</span>
+<span id="cb6-122"><a href="#cb6-122" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_highrank_contours</span>
 <span id="cb6-123"><a href="#cb6-123" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-124"><a href="#cb6-124" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.0</span>))</span>
 <span id="cb6-125"><a href="#cb6-125" aria-hidden="true" tabindex="-1"></a>plot_ft_highrank_contours(axes, fig<span class="op">=</span>fig)</span>
@@ -2117,7 +2136,7 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <span id="cb6-176"><a href="#cb6-176" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb6-177"><a href="#cb6-177" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A rank-2 function represented as a matrix product of two function-valued vectors. Each coloured box is a univariate function. The inner dimension (rank) is 2."</span></span>
 <span id="cb6-178"><a href="#cb6-178" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-core-diagram</span></span>
-<span id="cb6-179"><a href="#cb6-179" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_core_diagram</span>
+<span id="cb6-179"><a href="#cb6-179" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_core_diagram</span>
 <span id="cb6-180"><a href="#cb6-180" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-181"><a href="#cb6-181" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">10</span>, <span class="fl">3.5</span>))</span>
 <span id="cb6-182"><a href="#cb6-182" aria-hidden="true" tabindex="-1"></a>plot_core_diagram(ax)</span>
@@ -2151,7 +2170,7 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <span id="cb6-212"><a href="#cb6-212" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
 <span id="cb6-213"><a href="#cb6-213" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "A rank-2 FT for three variables. Each block is a univariate function. Each core is a matrix of such blocks. The result of the matrix-product chain is a scalar."</span></span>
 <span id="cb6-214"><a href="#cb6-214" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-3var</span></span>
-<span id="cb6-215"><a href="#cb6-215" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_3var</span>
+<span id="cb6-215"><a href="#cb6-215" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_3var</span>
 <span id="cb6-216"><a href="#cb6-216" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-217"><a href="#cb6-217" aria-hidden="true" tabindex="-1"></a>fig, ax <span class="op">=</span> plt.subplots(figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
 <span id="cb6-218"><a href="#cb6-218" aria-hidden="true" tabindex="-1"></a>plot_ft_3var(ax)</span>
@@ -2352,7 +2371,7 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <span id="cb6-421"><a href="#cb6-421" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
 <span id="cb6-422"><a href="#cb6-422" aria-hidden="true" tabindex="-1"></a><span class="co">#| fig-cap: "Comparing a rank-2 function train (right) to the true rank-2 target (left) over the 2D domain [−1,1]². The FT closely reproduces both peaks using only two 1D polynomial expansions per variable."</span></span>
 <span id="cb6-423"><a href="#cb6-423" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: fig-ft-fitted</span></span>
-<span id="cb6-424"><a href="#cb6-424" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_fitted</span>
+<span id="cb6-424"><a href="#cb6-424" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_fitted</span>
 <span id="cb6-425"><a href="#cb6-425" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-426"><a href="#cb6-426" aria-hidden="true" tabindex="-1"></a>fig, axes <span class="op">=</span> plt.subplots(<span class="dv">1</span>, <span class="dv">3</span>, figsize<span class="op">=</span>(<span class="dv">13</span>, <span class="fl">4.2</span>))</span>
 <span id="cb6-427"><a href="#cb6-427" aria-hidden="true" tabindex="-1"></a>plot_ft_fitted(true_func, ft_fitted, plot_limits, bkd, axes, fig<span class="op">=</span>fig)</span>
@@ -2371,7 +2390,7 @@ Figure&nbsp;3: Comparing a rank-2 function train (right) to the true rank-2 targ
 <span id="cb6-440"><a href="#cb6-440" aria-hidden="true" tabindex="-1"></a>variables the FT can represent. A quick experiment illustrates this:</span>
 <span id="cb6-441"><a href="#cb6-441" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-444"><a href="#cb6-444" aria-hidden="true" tabindex="-1"></a><span class="in">```{python}</span></span>
-<span id="cb6-445"><a href="#cb6-445" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.tutorial_figures._function_train <span class="im">import</span> plot_ft_rank_comparison</span>
+<span id="cb6-445"><a href="#cb6-445" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox_tutorials.figures._function_train <span class="im">import</span> plot_ft_rank_comparison</span>
 <span id="cb6-446"><a href="#cb6-446" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pyapprox.interface.functions.plot.plot2d_rectangular <span class="im">import</span> meshgrid_samples</span>
 <span id="cb6-447"><a href="#cb6-447" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-448"><a href="#cb6-448" aria-hidden="true" tabindex="-1"></a>npts <span class="op">=</span> <span class="dv">100</span></span>
