@@ -1,0 +1,207 @@
+---
+title: "Approximate Control Variate Monte Carlo"
+subtitle: "PyApprox Tutorial Library"
+description: "Extending control variates to the practical case where the low-fidelity model statistic is unknown, using additional low-fidelity samples in its place."
+tutorial_type: concept
+topic: multi_fidelity
+difficulty: beginner
+estimated_time: 7
+render_time: 11
+prerequisites:
+  - control_variate_concept
+tags:
+  - multi-fidelity
+  - approximate-control-variate
+  - variance-reduction
+  - monte-carlo
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/acv_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why an unknown low-fidelity mean undermines the CVMC correction
+- Write down the Approximate Control Variate (ACV) estimator and describe its two sample sets
+- Explain how the ratio $r$ of low-fidelity to high-fidelity samples controls variance reduction
+- Identify the limit in which ACV recovers the full CVMC variance reduction
+
+
+## Prerequisites
+
+Complete [Control Variate Monte Carlo](control_variate_concept.qmd) before this tutorial.
+
+
+## The Problem: CVMC Needs a Number We Don't Have
+
+The CVMC estimator corrects the high-fidelity (HF) mean estimate using
+
+$$
+\hat{\mu}_\alpha^{\text{CV}} = \hat{\mu}_\alpha + \eta \left(\hat{\mu}_\kappa - \mu_\kappa\right).
+$$
+
+The correction term $\hat{\mu}_\kappa - \mu_\kappa$ works because $\mu_\kappa$ is a **fixed
+number**: the true low-fidelity (LF) mean. Subtracting it centers the LF estimator error
+at zero, so the correction has mean zero and purely cancels correlated HF error.
+
+For a practical numerical model, $\mu_\kappa$ is almost never known analytically. The
+natural instinct is to estimate it from samples. But this creates a problem: if we use
+the **same** $N$ samples to estimate both $\hat{\mu}_\alpha$ and $\hat{\mu}_\kappa$, the
+correction term becomes $\hat{\mu}_\kappa(\mathcal{Z}_N) - \hat{\mu}_\kappa(\mathcal{Z}_N) = 0$
+— it vanishes identically and we gain nothing.
+
+If instead we use a **separate** set of LF samples to estimate $\mu_\kappa$, the correction
+is no longer zero but it is now **noisy** — we are using one random quantity to cancel
+another. How noisy it is depends on how many LF samples we use.
+
+@fig-unknown-mean-problem makes this concrete. Each panel shows the distribution of the
+corrected estimator when $\mu_\kappa$ is: (left) known exactly, (centre) estimated from a
+small LF sample, (right) estimated from a large LF sample.
+
+```{python}
+#| echo: false
+#| fig-cap: "Effect of an unknown $\\mu_\\kappa$ on the corrected estimator. Left: CVMC with $\\mu_\\kappa$ known exactly — the correction is precise and the histogram is narrow. Centre: the correction is built from a small independent LF sample ($r = 2$); the noisy estimate of $\\mu_\\kappa$ adds spread. Right: a large LF sample ($r = 20$) makes the LF mean estimate accurate and the histogram approaches the CVMC ideal."
+#| label: fig-unknown-mean-problem
+
+import numpy as np
+np.random.seed(42)
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox_benchmarks.statest import (
+    TunableEnsembleBenchmark,
+)
+from pyapprox_tutorials.figures._cv_acv import plot_unknown_mean_problem
+
+bkd = NumpyBkd()
+benchmark = TunableEnsembleBenchmark(bkd, theta1=np.pi / 2 * 0.95)
+
+fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=True)
+N, n_trials = plot_unknown_mean_problem(benchmark, bkd, axes)
+fig.suptitle(
+    rf"$N = {N}$ HF samples, {n_trials} independent trials  |  $\rho \approx 0.9$",
+    fontsize=11,
+)
+plt.tight_layout()
+plt.show()
+```
+
+The figure shows the core trade-off clearly. A noisy correction (centre) is better than
+no correction at all — it still reduces variance compared to plain MC — but it cannot
+match the precision of CVMC. A cheap LF model means we can afford large $r$, closing
+the gap to CVMC at modest extra cost.
+
+
+## The ACV Estimator
+
+Approximate Control Variate Monte Carlo (ACVMC) [GGEJJCP2020] formalises this idea. Let
+$\mathcal{Z}_N$ be the $N$ samples shared by both models, and let
+$\mathcal{Z}_{rN} \supset \mathcal{Z}_N$ be the larger set of $rN$ samples used only for
+$f_\kappa$. The ACV estimator is
+
+$$
+\hat{\mu}_\alpha^{\text{ACV}} = \hat{\mu}_\alpha(\mathcal{Z}_N)
++ \eta \Bigl(\hat{\mu}_\kappa(\mathcal{Z}_N) - \hat{\mu}_\kappa(\mathcal{Z}_{rN})\Bigr).
+$$ {#eq-acv}
+
+The true $\mu_\kappa$ never appears: it cancels in expectation because both LF estimates
+are unbiased for the same quantity. The estimator is **unbiased for any $r > 1$ and any $\eta$**.
+
+The total cost of one ACV estimate is
+
+$$
+C^{\text{ACV}} = N C_\alpha + r N C_\kappa
+$$
+
+where $C_\alpha$ and $C_\kappa$ are the per-sample costs of the two models. The extra
+$r N C_\kappa$ buys a more accurate estimate of $\mu_\kappa$, which tightens the correction.
+
+
+## Variance Reduction Depends on $r$
+
+With the optimal $\eta$ (derived in [ACV Analysis](acv_many_models_analysis.qmd#sec-two-model)), the variance
+reduction factor is
+
+$$
+\gamma = 1 - \frac{r - 1}{r}\,\rho^2_{\alpha\kappa}.
+$$ {#eq-acv-reduction}
+
+Two limits are instructive. As $r \to 1^+$ (almost no extra LF samples), $\gamma \to 1$
+and ACV offers no improvement over plain MC. As $r \to \infty$ (very many LF samples),
+$\gamma \to 1 - \rho^2_{\alpha\kappa}$, recovering the full CVMC variance reduction.
+For finite $r$, ACV lies strictly between these bounds.
+
+@fig-variance-reduction-vs-r shows how rapidly $\gamma$ approaches the CVMC limit.
+Even modest $r$ (e.g. $r = 10$) recovers $90\%$ of the maximum variance reduction.
+Because $f_\kappa$ is cheap, large $r$ is usually affordable.
+
+```{python}
+#| echo: false
+#| fig-cap: "ACV variance reduction factor $1 - \\frac{r-1}{r}\\rho^2$ as a function of the LF-to-HF sample ratio $r$, for three values of model correlation $\\rho$. Dashed horizontal lines show the CVMC limit $1 - \\rho^2$ each curve approaches as $r \\to \\infty$."
+#| label: fig-variance-reduction-vs-r
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._cv_acv import plot_acv_variance_reduction_vs_r
+
+fig, ax = plt.subplots(figsize=(8, 4.5))
+plot_acv_variance_reduction_vs_r(ax)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Key Takeaways
+
+- CVMC requires $\mu_\kappa$ to be known exactly; in practice it is not, which motivates ACV
+- Estimating $\mu_\kappa$ from the same HF samples gives zero correction; a separate LF
+  sample set is needed
+- The ACV estimator uses $\mathcal{Z}_N$ (shared) and $\mathcal{Z}_{rN} \supset \mathcal{Z}_N$
+  (LF only); it is unbiased for any $r > 1$
+- Variance reduction is $1 - \frac{r-1}{r}\rho^2$, interpolating between no reduction
+  ($r \to 1$) and full CVMC reduction ($r \to \infty$)
+- Because LF evaluations are cheap, large $r$ is usually affordable
+
+
+## Exercises
+
+1. @fig-unknown-mean-problem shows that a noisy correction still reduces variance compared
+   to plain MC. Is this always true, or can a bad $\mu_\kappa$ estimate make things worse?
+
+2. From @eq-acv-reduction, find the value of $r$ at which ACV achieves $95\%$ of the
+   CVMC variance reduction for $\rho = 0.9$. How does your answer change for $\rho = 0.5$?
+
+3. Suppose $C_\kappa = 0.01 C_\alpha$ (LF is 100× cheaper). For a fixed total budget
+   equal to $N C_\alpha$, roughly how large can you make $r$? What variance reduction
+   does this buy for $\rho = 0.9$?
+
+
+## Next Steps
+
+- [ACV Analysis](acv_many_models_analysis.qmd#sec-two-model) --- Derive $\gamma = 1 - \frac{r-1}{r}\rho^2$, the
+  optimal $\eta$, and the optimal $r$ for a fixed budget
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#universal-workflow) --- Use the PyApprox ACV API end-to-end
+- [General ACV](acv_many_models_concept.qmd) --- Extend ACV to many low-fidelity models
+
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → Universal Workflow](multifidelity_estimation_cookbook.qmd#universal-workflow).
+:::
+
+## References
+
+- [GGEJJCP2020] A. Gorodetsky, S. Geraci, M. Eldred, J. Jakeman. *A generalized approximate
+  control variate framework for multifidelity uncertainty quantification.* Journal of
+  Computational Physics, 408:109257, 2020.
+  [DOI](https://doi.org/10.1016/j.jcp.2020.109257)

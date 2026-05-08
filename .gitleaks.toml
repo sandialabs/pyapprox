@@ -1,0 +1,29 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist"
+
+paths = [
+  '''pyapprox/.*/tests/.*''',
+  '''tutorials/.*''',
+  '''docs/.*''',
+  '''\.github/.*''',
+]
+
+stopwords = [
+  "example",
+  "placeholder",
+  "dummy",
+  "test",
+  "fake",
+  "sample",
+]
+
+regexTarget = "match"
+regexes = [
+  # Hex strings used as numerical coefficients or hashes in tests
+  '''(?i)0x[0-9a-f]+''',
+  # Placeholder tokens in docs/tutorials
+  '''(?i)(your[_-]?token|replace[_-]?me|insert[_-]?here)''',
+]

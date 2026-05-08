@@ -1,0 +1,488 @@
+---
+title: "GPU Acceleration and Float32 Performance"
+subtitle: "PyApprox Tutorial Library"
+description: "Benchmarking GP surrogate performance with float32, CPU, and GPU backends"
+tutorial_type: hands-on
+topic: performance
+difficulty: intermediate
+prerequisites:
+  - gpu_torch_intro
+  - backend_alternatives
+  - gp_surrogate
+tags:
+  - backends
+  - performance
+  - gpu
+  - advanced
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-warning}
+## GPU Required
+
+This tutorial benchmarks GPU acceleration and requires a machine with a GPU
+(CUDA or Apple MPS). It is not executed during automated builds.
+To run it locally:
+
+```bash
+quarto render tutorials/in_progress/gpu_acceleration.qmd --execute
+```
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Configure `TorchBkd` with custom device and dtype settings
+- Understand the performance trade-offs between float32 and float64
+- Benchmark GP surrogate fitting and prediction on CPU vs GPU
+- Interpret speedup results accurately, including the small-n regime where GPU can be slower
+- Choose the right backend configuration for your workload
+
+
+## Why Float32 and GPU?
+
+Gaussian process computations are dominated by dense linear algebra — kernel
+matrix assembly ($O(n^2)$), Cholesky factorization ($O(n^3)$), and triangular
+solves ($O(n^2)$). Two hardware levers can accelerate these:
+
+| Lever | Mechanism | Typical speedup |
+|-------|-----------|-----------------:|
+| **float32** | Half the memory bandwidth, wider SIMD lanes | 1.3–2.6× on CPU |
+| **GPU** | Massively parallel FP32 cores | 5–50× for large $n$ |
+
+PyApprox's `TorchBkd` accepts `device` and `dtype` arguments, making it
+easy to switch between configurations without changing any downstream code.
+
+::: {.callout-tip}
+## New to TorchBkd and GPU basics?
+Complete [GPU Computing with PyTorch and TorchBkd](gpu_torch_intro.qmd) first.
+That tutorial explains device placement, synchronisation, and the TorchBkd API
+from scratch.
+:::
+
+
+## Setup
+
+```{python}
+import time
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+
+print(f"PyTorch {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"MPS available:  {torch.backends.mps.is_available()}")
+```
+
+```{python}
+# Detect best available GPU device
+if torch.cuda.is_available():
+    GPU_DEVICE = "cuda"
+    GPU_NAME = torch.cuda.get_device_name(0)
+elif torch.backends.mps.is_available():
+    GPU_DEVICE = "mps"
+    GPU_NAME = "Apple MPS"
+else:
+    raise RuntimeError(
+        "No GPU available. This tutorial requires CUDA or MPS."
+    )
+print(f"Using GPU device: {GPU_DEVICE} ({GPU_NAME})")
+```
+
+
+## Configuring TorchBkd
+
+`TorchBkd` accepts optional `device` and `dtype` arguments. All tensor-creation
+methods (`zeros`, `ones`, `array`, `eye`, `linspace`, etc.) respect these
+settings automatically.
+
+```{python}
+from pyapprox.util.backends.torch import TorchBkd
+
+# CPU float64 — the default (maximum precision)
+bkd_cpu64 = TorchBkd(device="cpu", dtype=torch.float64)
+
+# CPU float32 — faster, lower precision
+bkd_cpu32 = TorchBkd(device="cpu", dtype=torch.float32)
+
+# GPU float32 — fastest for large problems
+bkd_gpu32 = TorchBkd(device=GPU_DEVICE, dtype=torch.float32)
+
+# Verify that tensor creation respects settings
+x = bkd_gpu32.zeros((3, 3))
+print(f"Device: {x.device}, Dtype: {x.dtype}")
+```
+
+
+## Benchmark: GP Fitting and Prediction
+
+We benchmark two operations across configurations:
+
+1. **GP fitting** — Cholesky factorization + triangular solve
+2. **GP prediction** — posterior mean at test points
+
+::: {.callout-note}
+## Fitting vs scipy
+
+GP hyperparameter optimization normally uses scipy, which operates in float64
+internally. To benchmark the Cholesky factorization itself in float32, we use
+`_fit_internal()` which bypasses scipy and directly performs the factorization
+in the backend's native dtype. In production, you would fit hyperparameters on
+CPU float64, then switch to GPU float32 for prediction.
+:::
+
+
+### Test Function
+
+We use a synthetic function with enough complexity to make the GP work:
+
+```{python}
+def make_training_data(nvars, ntrain, bkd):
+    """Generate training samples and values for benchmarking."""
+    np.random.seed(42)
+    X = bkd.array(np.random.uniform(-1, 1, (nvars, ntrain)))
+    # Sum of sines — smooth, multi-dimensional
+    vals = bkd.zeros((1, ntrain))
+    for d in range(nvars):
+        vals = vals + bkd.sin(3.0 * X[d:d+1, :])
+    return X, vals
+```
+
+
+### Timing Utility
+
+The timing helper calls `bkd.synchronize()` rather than checking the device
+itself. This keeps device-specific logic inside `TorchBkd` where it belongs —
+the timer works correctly on CPU, CUDA, and MPS without modification.
+
+```{python}
+def time_operation(fn, bkd, n_warmup=3, n_repeat=7):
+    """
+    Time a callable accurately on any TorchBkd device.
+
+    Warmup calls allow the GPU to JIT-compile kernels so they are not
+    charged to the first measured call. bkd.synchronize() blocks until
+    all pending GPU work is complete before reading the clock.
+    """
+    for _ in range(n_warmup):
+        fn()
+    bkd.synchronize()
+
+    times = []
+    for _ in range(n_repeat):
+        t0 = time.perf_counter()
+        fn()
+        bkd.synchronize()
+        times.append(time.perf_counter() - t0)
+    return float(np.median(times))
+```
+
+::: {.callout-note}
+## Why synchronize on the backend?
+GPU operations are asynchronous — Python dispatches work and returns before
+the GPU finishes. Without `bkd.synchronize()`, `perf_counter()` would capture
+dispatch time only, massively underestimating GPU compute time. Using a method
+on `TorchBkd` means the timer never needs to know which device is active —
+that decision stays encapsulated in the backend.
+:::
+
+
+### Run Benchmarks
+
+```{python}
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+
+nvars = 5
+ntest = 500
+sample_sizes = [100, 200, 500, 1000, 2000]   # includes small-n regime
+
+configs = {
+    "CPU float64": bkd_cpu64,
+    "CPU float32": bkd_cpu32,
+    f"GPU float32 ({GPU_DEVICE})": bkd_gpu32,
+}
+
+results = {name: {"fit": [], "predict": []} for name in configs}
+
+for ntrain in sample_sizes:
+    print(f"\n--- n_train = {ntrain} ---")
+
+    for config_name, bkd in configs.items():
+        X_train, y_train = make_training_data(nvars, ntrain, bkd)
+        X_test, _ = make_training_data(nvars, ntest, bkd)
+
+        # Capture loop variables explicitly to avoid closure bugs
+        def make_fit_fn(X_tr, y_tr, bk):
+            def run_fit():
+                kernel = Matern52Kernel(
+                    [1.0] * nvars, (0.01, 10.0), nvars, bk,
+                )
+                gp = ExactGaussianProcess(
+                    kernel, nvars=nvars, bkd=bk, nugget=1e-4,
+                )
+                # Use _fit_internal to bypass scipy (which requires float64)
+                gp._fit_internal(X_tr, y_tr)
+                return gp
+            return run_fit
+
+        def make_predict_fn(gp, X_te):
+            def run_predict():
+                return gp(X_te)
+            return run_predict
+
+        fit_fn = make_fit_fn(X_train, y_train, bkd)
+
+        t_fit = time_operation(fit_fn, bkd)
+        results[config_name]["fit"].append(t_fit)
+
+        gp_fitted = fit_fn()
+        predict_fn = make_predict_fn(gp_fitted, X_test)
+        t_pred = time_operation(predict_fn, bkd)
+        results[config_name]["predict"].append(t_pred)
+
+        print(f"  {config_name:30s}  fit={t_fit:.4f}s  predict={t_pred:.4f}s")
+```
+
+
+### Visualise Results
+
+```{python}
+#| label: fig-benchmark
+#| fig-cap: "GP fitting and prediction time across device/dtype configurations"
+colors = ["#2196F3", "#FF9800", "#4CAF50"]
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+for ax, metric, title in zip(
+    axes, ["fit", "predict"], ["GP Fitting", "GP Prediction"]
+):
+    for (name, data), color in zip(results.items(), colors):
+        ax.plot(sample_sizes, data[metric], "o-",
+                label=name, color=color, lw=2, ms=6)
+    ax.set_xlabel("Training samples (n)")
+    ax.set_ylabel("Time (seconds, log scale)")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    ax.set_yscale("log")
+
+fig.suptitle("GP Performance: Device and Dtype Comparison", fontsize=14)
+fig.tight_layout()
+plt.show()
+```
+
+::: {.callout-tip}
+## Observe the small-n regime
+At $n = 100$, the GPU configuration is often *slower* than CPU due to kernel
+launch overhead and host-to-device transfer costs. The GPU advantage grows
+steadily with $n$ and typically becomes significant around $n \geq 500$.
+This is why the benchmark includes small sample sizes.
+:::
+
+
+### Speedup Table
+
+```{python}
+gpu_key = f"GPU float32 ({GPU_DEVICE})"
+
+print("Speedup relative to CPU float64 baseline:")
+print(f"{'n':>6s}  {'CPU f32 fit':>12s}  {'GPU f32 fit':>12s}  {'CPU f32 pred':>13s}  {'GPU f32 pred':>13s}")
+print("-" * 62)
+for i, n in enumerate(sample_sizes):
+    t64_fit  = results["CPU float64"]["fit"][i]
+    t32_fit  = results["CPU float32"]["fit"][i]
+    tgpu_fit = results[gpu_key]["fit"][i]
+
+    t64_pred  = results["CPU float64"]["predict"][i]
+    t32_pred  = results["CPU float32"]["predict"][i]
+    tgpu_pred = results[gpu_key]["predict"][i]
+
+    print(f"{n:6d}  {t64_fit/t32_fit:11.2f}×  {t64_fit/tgpu_fit:11.2f}×"
+          f"  {t64_pred/t32_pred:12.2f}×  {t64_pred/tgpu_pred:12.2f}×")
+```
+
+
+### Absolute Time Table
+
+```{python}
+print("Absolute wall-clock times (median seconds over 7 repeats):")
+header = f"{'n':>6s}"
+for config_name in configs:
+    header += f"  {config_name + ' fit':>20s}  {config_name + ' pred':>20s}"
+print(header)
+print("-" * len(header))
+for i, n in enumerate(sample_sizes):
+    row = f"{n:6d}"
+    for config_name in configs:
+        row += f"  {results[config_name]['fit'][i]:20.4f}  {results[config_name]['predict'][i]:20.4f}"
+    print(row)
+```
+
+
+## Accuracy Comparison
+
+Float32 reduces precision from ~15 to ~7 significant digits. For GP surrogates,
+the accuracy impact depends on the condition number of the kernel matrix.
+
+```{python}
+X_train64, y_train64 = make_training_data(nvars, 500, bkd_cpu64)
+X_train32, y_train32 = make_training_data(nvars, 500, bkd_cpu32)
+X_test64, _  = make_training_data(nvars, 200, bkd_cpu64)
+X_test32, _  = make_training_data(nvars, 200, bkd_cpu32)
+
+k64 = Matern52Kernel([1.0] * nvars, (0.01, 10.0), nvars, bkd_cpu64)
+gp64 = ExactGaussianProcess(k64, nvars=nvars, bkd=bkd_cpu64, nugget=1e-4)
+gp64._fit_internal(X_train64, y_train64)
+pred64 = bkd_cpu64.to_numpy(gp64(X_test64))
+
+k32 = Matern52Kernel([1.0] * nvars, (0.01, 10.0), nvars, bkd_cpu32)
+gp32 = ExactGaussianProcess(k32, nvars=nvars, bkd=bkd_cpu32, nugget=1e-4)
+gp32._fit_internal(X_train32, y_train32)
+pred32 = bkd_cpu32.to_numpy(gp32(X_test32))
+
+rel_diff = np.abs(pred64 - pred32.astype(np.float64)) / (np.abs(pred64) + 1e-15)
+print(f"Max relative difference  (f64 vs f32): {rel_diff.max():.2e}")
+print(f"Mean relative difference (f64 vs f32): {rel_diff.mean():.2e}")
+```
+
+```{python}
+#| label: fig-accuracy
+#| fig-cap: "Distribution of relative prediction errors between float64 and float32"
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+ax1.hist(rel_diff.ravel(), bins=40, color="#2196F3", edgecolor="white", lw=0.5)
+ax1.set_xlabel("Relative error  |f64 − f32| / |f64|")
+ax1.set_ylabel("Count")
+ax1.set_title("Error Distribution (linear scale)")
+ax1.axvline(rel_diff.mean(), color="red", ls="--", label=f"Mean = {rel_diff.mean():.1e}")
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+ax2.hist(np.log10(rel_diff.ravel() + 1e-16), bins=40,
+         color="#FF9800", edgecolor="white", lw=0.5)
+ax2.set_xlabel("log₁₀(relative error)")
+ax2.set_ylabel("Count")
+ax2.set_title("Error Distribution (log scale)")
+ax2.axvline(np.log10(rel_diff.mean()), color="red", ls="--",
+            label=f"Mean = {rel_diff.mean():.1e}")
+ax2.legend()
+ax2.grid(True, alpha=0.3)
+
+fig.suptitle("float32 vs float64 Prediction Accuracy (n=500)", fontsize=13)
+fig.tight_layout()
+plt.show()
+```
+
+::: {.callout-tip}
+## When is float32 safe?
+
+Float32 is generally safe for GP prediction when:
+
+- The kernel matrix is well-conditioned (small $n$, adequate nugget)
+- You only need the posterior mean (not variance or log-likelihood)
+- Relative accuracy of $10^{-4}$ to $10^{-6}$ is sufficient
+
+For hyperparameter optimization via marginal likelihood, **use float64** —
+the log-determinant and its gradients are sensitive to precision.
+:::
+
+## Memory Footprint
+
+Float32 uses half the GPU VRAM of float64. For large $n$, this can be the
+difference between fitting in memory and an out-of-memory error.
+
+```{python}
+if GPU_DEVICE == "cuda":
+    torch.cuda.reset_peak_memory_stats()
+    bkd_gpu32_mem = TorchBkd(device="cuda", dtype=torch.float32)
+    X, y = make_training_data(nvars, 2000, bkd_gpu32_mem)
+    k = Matern52Kernel([1.0] * nvars, (0.01, 10.0), nvars, bkd_gpu32_mem)
+    gp = ExactGaussianProcess(k, nvars=nvars, bkd=bkd_gpu32_mem, nugget=1e-4)
+    gp._fit_internal(X, y)
+    peak_f32_mb = torch.cuda.max_memory_allocated() / 1024**2
+
+    torch.cuda.reset_peak_memory_stats()
+    bkd_gpu64_mem = TorchBkd(device="cuda", dtype=torch.float64)
+    X, y = make_training_data(nvars, 2000, bkd_gpu64_mem)
+    k = Matern52Kernel([1.0] * nvars, (0.01, 10.0), nvars, bkd_gpu64_mem)
+    gp = ExactGaussianProcess(k, nvars=nvars, bkd=bkd_gpu64_mem, nugget=1e-4)
+    gp._fit_internal(X, y)
+    peak_f64_mb = torch.cuda.max_memory_allocated() / 1024**2
+
+    print("Peak GPU memory during GP fit (n=2000, nvars=5):")
+    print(f"  GPU float32: {peak_f32_mb:.1f} MB  (1.0×)")
+    print(f"  GPU float64: {peak_f64_mb:.1f} MB  ({peak_f64_mb / peak_f32_mb:.2f}×)")
+else:
+    print("Memory profiling requires CUDA. MPS memory stats are not exposed.")
+```
+
+
+## Practical Guidelines
+
+| Scenario | Recommended config | Reason |
+|----------|-------------------|--------|
+| Hyperparameter optimisation | **CPU float64** | Log-determinant gradients need full precision |
+| Large-scale prediction (n > 1000) | **GPU float32** | Max throughput, acceptable accuracy |
+| Interactive exploration | **CPU float32** | Fast iteration without GPU setup |
+| Accuracy-critical production | **CPU float64** | Guaranteed numerical precision |
+| Batch prediction in a pipeline | **GPU float32** | High throughput, data already on device |
+| Small n (< 200) | **CPU float32** | GPU overhead exceeds compute savings |
+
+```{python}
+# Example configurations
+bkd_prod = TorchBkd(device="cpu",      dtype=torch.float64)  # precision
+bkd_fast = TorchBkd(device=GPU_DEVICE, dtype=torch.float32)  # throughput
+```
+
+::: {.callout-note}
+## MPS Limitations
+
+Apple MPS (Metal Performance Shaders) does not support all linear algebra
+operations. In particular, `cholesky_solve` and `eigh` are not implemented on
+MPS as of PyTorch 2.x, meaning some operations fall back to CPU silently.
+CUDA GPUs provide the most complete acceleration.
+:::
+
+
+## Key Takeaways
+
+- `TorchBkd(device=..., dtype=...)` configures device and precision without
+  changing any downstream code
+- **Float32 on CPU** gives 1.3–2.6× speedup with minimal accuracy loss for
+  prediction
+- **GPU acceleration** provides the largest gains for large training sets
+  ($n > 1000$); at small $n$ the GPU can be *slower* than CPU
+- Use `bkd.synchronize()` for accurate GPU timing — it works correctly for
+  CPU, CUDA, and MPS without conditional logic in the caller
+- Float32 uses half the VRAM of float64, which matters when fitting large
+  models on GPU
+- Use **float64** for hyperparameter optimization and anywhere numerical
+  precision is critical
+
+
+## Exercises
+
+1. **(Easy)** Create a `TorchBkd` with float32 and verify that `zeros`,
+   `ones`, and `eye` all produce float32 tensors.
+
+2. **(Medium)** Extend the benchmark to time kernel matrix assembly separately
+   from the full GP fit. At what $n$ does Cholesky factorization begin to
+   dominate over assembly?
+
+3. **(Medium)** Add GPU memory usage tracking to the benchmark loop using
+   `torch.cuda.max_memory_allocated()`. Plot peak VRAM vs $n$ for float32
+   and float64. At what $n$ would a 16 GB GPU run out of float64 memory?
+
+4. **(Challenge)** Run the benchmark with `Matern32Kernel` and `RBFKernel`
+   and compare how kernel complexity affects the CPU vs GPU trade-off. Does
+   a more expensive kernel shift the crossover point?

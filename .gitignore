@@ -14,13 +14,14 @@ dist/
 __pycache__/
 .DS_Store
 
-pyapprox/cython/*.pyd
-pyapprox/cython/*.c
 .vscode/
 .venv*/
+.env/
 
-# Hatch-vcs generated version file
-pyapprox/_version.py
+# Hatch-vcs generated version files
+packages/pyapprox/src/pyapprox/_version.py
+packages/pyapprox-benchmarks/src/pyapprox_benchmarks/_version.py
+packages/pyapprox-tutorials/src/pyapprox_tutorials/_version.py
 
 # Patch files
 *.patch
@@ -28,6 +29,9 @@ pyapprox/_version.py
 # Migration scripts
 _migrate*.py
 _fixup*.py
+
+# Ad-hoc scripts
+scripts/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -41,7 +45,18 @@ htmlcov/
 # mypy
 .mypy_cache/
 
+# import-linter
+.import_linter_cache/
+
 # Quarto
 _freeze/
 _site/
+_book/
+_build_logs/
 .quarto/
+
+# Quarto render tooling output
+tutorials/library/render_errors.txt
+tutorials/library/render_times.txt
+tutorials/library/render_timings.csv
+tutorials/library/time_renders.sh

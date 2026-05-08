@@ -1,0 +1,189 @@
+---
+title: "Setting Up Your Environment"
+subtitle: "PyApprox Tutorial Library"
+description: "Configure Python environment for uncertainty quantification with PyApprox"
+prerequisites: []
+tags:
+  - setup
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+render_time: 9
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/setup_environment.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Install PyApprox and its dependencies
+- Set up a conda environment for UQ computations
+- Import and verify key PyApprox modules
+- Understand the backend system for array operations
+
+## Prerequisites
+
+This tutorial assumes you have:
+
+- Python 3.10 or later installed
+- Basic familiarity with conda or pip package management
+- A terminal or command prompt
+
+## Installation
+
+PyApprox is distributed as three sibling packages in a monorepo
+(`pyapprox`, `pyapprox-benchmarks`, `pyapprox-tutorials`). Install all
+three together to follow along with these tutorials.
+
+### Install the latest version from GitHub (recommended)
+
+These tutorials always track the latest `main` branch. Install all three
+packages with:
+
+```bash
+pip install \
+    "pyapprox[runtime-extras] @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox" \
+    "pyapprox-benchmarks @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-benchmarks" \
+    "pyapprox-tutorials @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-tutorials"
+```
+
+### Development installation (clone the repository)
+
+For local development or contributing:
+
+```bash
+git clone https://github.com/sandialabs/pyapprox.git
+cd pyapprox
+make install-dev
+```
+
+This installs all three packages in editable mode with full developer
+tooling (tests, docs, linters, fem, umbridge, etc.).
+
+## Verifying Installation
+
+Let's verify that PyApprox is installed correctly by importing key modules.
+
+```{python}
+# Core backend for array operations
+from pyapprox.util.backends.numpy import NumpyBkd
+
+# Benchmark problems for testing
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark
+from pyapprox_benchmarks.ode import build_lotka_volterra_3species
+
+print("pyapprox imported successfully!")
+```
+
+## The Backend System
+
+PyApprox uses a backend-agnostic design that allows the same code to run with either NumPy or PyTorch arrays. This enables:
+
+- **NumPy backend**: Standard numerical computing, CPU-based
+- **PyTorch backend**: GPU acceleration, automatic differentiation
+
+For these tutorials, we use the NumPy backend exclusively.
+
+### Creating a Backend
+
+```{python}
+from pyapprox.util.backends.numpy import NumpyBkd
+
+# Create the NumPy backend
+bkd = NumpyBkd()
+
+# The backend provides array creation and operations
+x = bkd.array([[1.0, 2.0, 3.0]])
+print(f"Array shape: {x.shape}")
+print(f"Array values: {x}")
+```
+
+### Backend Operations
+
+The backend provides methods for common array operations:
+
+```{python}
+import numpy as np
+
+# Array creation
+zeros = bkd.zeros((3, 2))
+ones = bkd.ones((2, 3))
+eye = bkd.eye(3)
+
+# Mathematical operations
+y = bkd.array([[1.0], [2.0], [3.0]])
+result = bkd.sum(y)
+print(f"Sum: {result}")
+
+# Linear algebra
+A = bkd.array([[1.0, 2.0], [3.0, 4.0]])
+b = bkd.array([[5.0], [6.0]])
+x_solve = bkd.solve(A, b)
+print(f"Solution to Ax=b: {x_solve.flatten()}")
+```
+
+## Loading a Benchmark
+
+Benchmarks are pre-configured test problems with known solutions. Let's load the Lotka-Volterra ecosystem model that we'll use throughout these tutorials.
+
+```{python}
+# Create backend and load benchmark
+bkd = NumpyBkd()
+benchmark = build_lotka_volterra_3species(bkd)
+
+# Examine benchmark properties
+print(f"Benchmark name: {benchmark.name()}")
+print(f"Number of parameters: {benchmark.nparams()}")
+print(f"Number of states: {benchmark.nstates()}")
+```
+
+The Lotka-Volterra model describes the population dynamics of three competing species. We'll explore this model in detail in subsequent tutorials.
+
+## Array Shape Conventions
+
+PyApprox follows consistent array shape conventions:
+
+| Array Type | Shape | Description |
+|------------|-------|-------------|
+| Input samples | `(nvars, nsamples)` | Variables as rows, samples as columns |
+| Output values | `(nqoi, nsamples)` | Quantities of interest as rows |
+| Single sample | `(nvars, 1)` | Always 2D, even for one sample |
+
+```{python}
+# Example: 3 variables, 5 samples
+nvars, nsamples = 3, 5
+samples = bkd.array(np.random.rand(nvars, nsamples))
+print(f"Samples shape: {samples.shape}")
+print(f"First sample (column): {samples[:, 0]}")
+```
+
+## Key Takeaways
+
+- PyApprox uses a **backend system** for array operations (NumPy or PyTorch)
+- **Benchmarks** provide pre-configured test problems with known solutions
+- Arrays follow the convention: **samples as columns** `(nvars, nsamples)`
+- The `NumpyBkd()` backend is used for all tutorials unless otherwise noted
+
+## Exercises
+
+1. **(Easy)** Create a 4x10 array of random numbers using the backend and compute its column-wise mean.
+
+2. **(Medium)** Create an `IshigamiBenchmark(bkd)` and print its prior (`benchmark.problem().prior()`) and number of variables (`benchmark.problem().prior().nvars()`).
+
+3. **(Challenge)** Explore the backend's linear algebra capabilities by solving a 5x5 random linear system $Ax = b$.
+
+## Next Steps
+
+Now that your environment is set up, continue to:
+
+- [From Models to Decisions Under Uncertainty](models_decisions_uncertainty.qmd) - Why computational models need UQ

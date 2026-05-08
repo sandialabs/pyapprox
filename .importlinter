@@ -1,0 +1,51 @@
+[importlinter]
+root_package = pyapprox
+include_external_packages = True
+
+# ── Contract 1: No circular dependencies between top-level modules ───────
+[importlinter:contract:acyclic]
+name = No circular dependencies between top-level modules
+type = acyclic_siblings
+ancestors =
+    pyapprox
+ignore_imports =
+    # TECH DEBT: real cycle; potential fix: extract bayesian optimization into its own top-level module
+    pyapprox.optimization.bayesian.fitter_adapter -> pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter
+    pyapprox.optimization.bayesian.fitter_adapter -> pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter
+    pyapprox.optimization.bayesian.fitter_adapter -> pyapprox.surrogates.gaussianprocess.fitters.incremental_fitter
+
+# ── Contract 2: Foundation modules must not import domain modules ────────
+[importlinter:contract:util-isolation]
+name = util must not import domain modules
+type = forbidden
+source_modules =
+    pyapprox.util
+forbidden_modules =
+    pyapprox.interface
+    pyapprox.probability
+    pyapprox.optimization
+    pyapprox.ode
+    pyapprox.surrogates
+    pyapprox.inverse
+    pyapprox.generative
+    pyapprox.sensitivity
+    pyapprox.pde
+    pyapprox.statest
+    pyapprox.expdesign
+
+[importlinter:contract:interface-isolation]
+name = interface must not import domain modules
+type = forbidden
+source_modules =
+    pyapprox.interface
+forbidden_modules =
+    pyapprox.probability
+    pyapprox.optimization
+    pyapprox.ode
+    pyapprox.surrogates
+    pyapprox.inverse
+    pyapprox.generative
+    pyapprox.sensitivity
+    pyapprox.pde
+    pyapprox.statest
+    pyapprox.expdesign

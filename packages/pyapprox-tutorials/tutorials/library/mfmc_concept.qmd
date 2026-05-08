@@ -1,0 +1,155 @@
+---
+title: "Multi-Fidelity Monte Carlo"
+subtitle: "PyApprox Tutorial Library"
+description: "A hierarchy estimator using nested sample sets and a recursive correction structure, contrasted with MLMC."
+tutorial_type: concept
+topic: multi_fidelity
+difficulty: beginner
+estimated_time: 7
+render_time: 9
+prerequisites:
+  - mlmc_concept
+tags:
+  - multi-fidelity
+  - mfmc
+  - variance-reduction
+  - monte-carlo
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+    fig-dpi: 96
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/mfmc_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain how the MFMC recursive derivation builds the estimator from two-model ACV
+- Describe the nested sample structure $\mathcal{Z}_0 \subset \cdots \subset \mathcal{Z}_M$
+  and contrast it with MLMC's independent sets
+- Explain why only $f_1$ directly reduces HF variance in both MFMC and MLMC
+- Identify settings where MFMC and MLMC perform similarly vs differently
+
+
+## Prerequisites
+
+Complete [Multi-Level Monte Carlo](mlmc_concept.qmd) before this tutorial.
+
+
+## Motivation: A Different Way to Share Samples
+
+MLMC decomposes the HF mean as a telescoping sum and estimates each level correction on
+a completely **independent** sample set. This independence keeps the variance formula
+clean, but it also means every sample drawn at level $\ell$ is used only once, for the
+correction at that level.
+
+Multi-Fidelity Monte Carlo (MFMC) [PWGSIAM2016] takes a different approach. Instead of
+independent sets, it uses **nested** sample sets where each model sees all the samples
+the previous model saw, plus more. Cheaper models accumulate samples, but every HF sample
+propagates through every LF model. This creates a denser web of shared information and,
+crucially, allows the correction weight $\eta_\alpha$ to be **optimised** at each level
+rather than fixed at $-1$.
+
+Before the algebra, @fig-sample-structure makes the structural difference visual.
+
+```{python}
+#| echo: false
+#| fig-cap: "Sample allocation for MLMC (left) and MFMC (right) across three models at equal total cost. Each row is a model; each cell is a sample evaluation. MLMC: each level correction uses a disjoint set — no sample appears in more than one row. MFMC: sets are nested — every HF sample (red) is also evaluated by all LF models, and cheaper models evaluate progressively more exclusive samples (orange, blue)."
+#| label: fig-sample-structure
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._hierarchy import plot_sample_structure
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 3.5))
+plot_sample_structure(axes)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Building the Estimator Recursively
+
+MFMC is constructed by starting from the two-model ACV estimator and recursively
+improving each LF mean estimate with the next cheaper model.
+
+**Step 1.** Start with the two-model ACV estimator:
+
+$$
+\hat{\mu}_0 = \hat{\mu}_0(\mathcal{Z}_0)
++ \eta_1\bigl(\hat{\mu}_1(\mathcal{Z}_0) - \hat{\mu}_1(\mathcal{Z}_1)\bigr).
+$$
+
+**Step 2.** Rather than taking $\hat{\mu}_1(\mathcal{Z}_1)$ as a raw mean, improve it
+with $f_2$ using the same ACV pattern, then substitute back:
+
+$$
+\hat{\mu}_0 = \hat{\mu}_0(\mathcal{Z}_0)
++ \eta_1\bigl(\hat{\mu}_1(\mathcal{Z}_0) - \hat{\mu}_1(\mathcal{Z}_1)\bigr)
++ \underbrace{\eta_1 \eta_2}_{\text{weight product}}
+  \bigl(\hat{\mu}_2(\mathcal{Z}_1) - \hat{\mu}_2(\mathcal{Z}_2)\bigr).
+$$
+
+**Step 3.** Repeating this substitution for all $M$ LF models and re-labelling the
+accumulated weight products as a single effective weight $\eta_\alpha$ per level gives
+the compact MFMC estimator:
+
+$$
+\hat{\mu}_0^{\text{MFMC}} = \hat{\mu}_0(\mathcal{Z}_0)
++ \sum_{\alpha=1}^{M} \eta_\alpha
+  \bigl(\hat{\mu}_\alpha(\mathcal{Z}_{\alpha-1}) - \hat{\mu}_\alpha(\mathcal{Z}_\alpha)\bigr).
+$$ {#eq-mfmc}
+
+The nested structure $\mathcal{Z}_0 \subset \mathcal{Z}_1 \subset \cdots \subset
+\mathcal{Z}_M$ ensures that model $f_\alpha$ is evaluated on both $\mathcal{Z}_{\alpha-1}$
+(the shared subset with the model above) and $\mathcal{Z}_\alpha$ (the full set including
+its exclusive samples), mirroring the ACV structure at every level.
+
+The estimator is unbiased for any choice of $\eta_\alpha$, since each correction term
+has mean zero. The weights are then chosen to minimise variance — see
+[MFMC Analysis](mfmc_analysis.qmd) for the full derivation.
+
+
+## Key Takeaways
+
+- MFMC builds the estimator recursively: start from two-model ACV and replace each
+  raw LF mean with an improved ACV estimate at the next level
+- The result is a sum of corrections with nested sample sets and optimised weights
+- MFMC optimises weights; MLMC fixes them at $-1$
+
+
+## Exercises
+
+1. Write out the three-model MFMC estimator explicitly using the weight-product form from
+   the recursive derivation. Verify that it matches @eq-mfmc.
+
+2. If $\rho_{0,1} = 0.99$ and $\rho_{0,2} = 0.50$, does adding $f_2$ significantly
+   improve variance over using $f_1$ alone in MFMC? Why or why not?
+
+
+## Next Steps
+
+- [MFMC Analysis](mfmc_analysis.qmd) --- Derive the MFMC variance formula and optimal
+  sample ratios $r_\alpha^*$
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#estimator-quick-reference) --- Use the PyApprox MFMC API end-to-end
+
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → MFMCEstimator](multifidelity_estimation_cookbook.qmd#estimator-quick-reference).
+:::
+
+## References
+
+- [PWGSIAM2016] B. Peherstorfer, K. Willcox, M. Gunzburger. *Optimal Model Management
+  for Multifidelity Monte Carlo Estimation.* SIAM Journal on Scientific Computing,
+  38(5):A3163--A3194, 2016. [DOI](https://doi.org/10.1137/15M1046472)

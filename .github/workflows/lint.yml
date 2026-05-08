@@ -2,9 +2,9 @@ name: Lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, "dev/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "dev/**"]
 
 concurrency:
   group: lint-${{ github.ref }}
@@ -19,5 +19,21 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check pyapprox/
+      - run: ruff check packages/pyapprox/src/pyapprox/
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install mypy numpy
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e "packages/pyapprox[lint]"
+      - name: mypy ratchet (must not exceed baseline)
+        run: bash scripts/mypy_diff.sh 1651 packages/pyapprox/src/pyapprox/
 

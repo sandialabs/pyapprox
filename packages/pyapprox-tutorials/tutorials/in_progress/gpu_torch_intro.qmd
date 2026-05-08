@@ -1,0 +1,385 @@
+---
+title: "GPU Computing with PyTorch and TorchBkd"
+subtitle: "PyApprox Tutorial Library"
+description: "Learn how to activate GPU acceleration using PyTorch and TorchBkd before applying it to Gaussian Process surrogates"
+tutorial_type: hands-on
+topic: performance
+difficulty: intermediate
+prerequisites:
+  - backend_alternatives
+tags:
+  - backends
+  - gpu
+  - pytorch
+  - performance
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Detect available GPU hardware (CUDA and Apple MPS) using PyTorch
+- Move tensors between CPU and GPU and understand the associated costs
+- Configure `TorchBkd` with `device` and `dtype` to activate GPU acceleration
+- Understand why GPU synchronization matters for accurate benchmarking
+- Recognise when GPU acceleration helps — and when it doesn't
+
+
+## Why GPUs Speed Up Numerical Computation
+
+A CPU has a small number of powerful, general-purpose cores (typically 8–64)
+optimised for sequential logic and branching. A GPU has thousands of smaller
+cores designed to execute the *same instruction on many data points
+simultaneously*. This is called **SIMD parallelism** (Single Instruction,
+Multiple Data).
+
+The operations that dominate scientific computing — matrix multiplication,
+element-wise transforms, reductions — all fit this pattern perfectly. When you
+multiply two $n \times n$ matrices, every output element is an independent dot
+product; a GPU can compute thousands of them at once.
+
+| Hardware | Cores | Strength |
+|----------|-------|----------|
+| CPU | 8–64 (fast) | Sequential logic, branching |
+| GPU | 1,000–10,000+ (simple) | Parallel arithmetic on arrays |
+
+::: {.callout-note}
+## The analogy
+A CPU is like a small team of expert chefs who can each cook any dish. A GPU
+is like a factory floor of workers who each do one step — but ten thousand at
+a time. For repetitive numerical work, the factory wins.
+:::
+
+
+## Setup
+
+```{python}
+import time
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+
+print(f"PyTorch version : {torch.__version__}")
+print(f"CUDA available  : {torch.cuda.is_available()}")
+print(f"MPS available   : {torch.backends.mps.is_available()}")
+```
+
+```{python}
+# Detect the best available device
+if torch.cuda.is_available():
+    GPU_DEVICE = "cuda"
+    GPU_NAME = torch.cuda.get_device_name(0)
+elif torch.backends.mps.is_available():
+    GPU_DEVICE = "mps"
+    GPU_NAME = "Apple MPS"
+else:
+    GPU_DEVICE = None
+    GPU_NAME = "None (CPU only)"
+
+print(f"Active GPU: {GPU_NAME}  (device='{GPU_DEVICE}')")
+```
+
+
+## Tensors and Device Placement
+
+Every PyTorch tensor lives on a specific device. You choose the device at
+creation time or move the tensor explicitly with `.to()`.
+
+```{python}
+# Create a tensor on CPU (the default)
+x_cpu = torch.randn(4, 4)
+print(f"x_cpu device: {x_cpu.device}")
+
+if GPU_DEVICE:
+    # Move it to the GPU
+    x_gpu = x_cpu.to(GPU_DEVICE)
+    print(f"x_gpu device: {x_gpu.device}")
+
+    # Operations between tensors must share a device
+    y_gpu = torch.ones(4, 4, device=GPU_DEVICE)
+    z = x_gpu + y_gpu   # fine — both on GPU
+    print(f"z device    : {z.device}")
+```
+
+::: {.callout-warning}
+## Device mismatch raises an error
+```python
+# This will raise RuntimeError: Expected all tensors to be on the same device
+z = x_cpu + x_gpu
+```
+Always ensure operands live on the same device before combining them.
+:::
+
+
+## GPU Synchronisation
+
+GPU operations are **asynchronous** by default — your Python code dispatches
+work to the GPU and returns immediately, before the computation finishes. This
+means naive timing with `time.perf_counter()` will severely *underestimate*
+GPU time if you don't synchronise first.
+
+```{python}
+def synchronize(device: str | None) -> None:
+    """Block until all pending operations on `device` are complete."""
+    if device == "cuda":
+        torch.cuda.synchronize()
+    elif device == "mps":
+        torch.mps.synchronize()
+    # CPU is always synchronous — nothing to do
+```
+
+::: {.callout-note}
+## Why synchronize belongs on TorchBkd
+The backend abstraction exists so that calling code never needs to check which
+device is active. Putting `synchronize()` on `TorchBkd` keeps that logic
+encapsulated — your timing utility just calls `bkd.synchronize()` and works
+correctly on any device. We use a standalone helper here for illustration, but
+in the next tutorial you will see it used as a method on the backend object.
+:::
+
+```{python}
+def time_operation(fn, device=None, n_warmup=3, n_repeat=7):
+    """
+    Time `fn()` accurately on any device.
+
+    Warmup runs let the GPU JIT-compile kernels so they are not
+    charged to the first timed call.
+    """
+    for _ in range(n_warmup):
+        fn()
+    synchronize(device)
+
+    times = []
+    for _ in range(n_repeat):
+        t0 = time.perf_counter()
+        fn()
+        synchronize(device)
+        times.append(time.perf_counter() - t0)
+
+    return float(np.median(times))
+```
+
+
+## Benchmark: Matrix Multiplication
+
+Matrix multiplication is the single most important operation in modern
+numerical computing — it underpins neural networks, Gaussian processes, and
+nearly all dense linear algebra. Let's see the CPU vs GPU difference directly.
+
+```{python}
+sizes = [128, 256, 512, 1024, 2048, 4096]
+cpu_times = []
+gpu_times = []
+
+for n in sizes:
+    A_cpu = torch.randn(n, n)
+    B_cpu = torch.randn(n, n)
+
+    t_cpu = time_operation(lambda: torch.matmul(A_cpu, B_cpu), device=None)
+    cpu_times.append(t_cpu)
+
+    if GPU_DEVICE:
+        A_gpu = A_cpu.to(GPU_DEVICE)
+        B_gpu = B_cpu.to(GPU_DEVICE)
+        t_gpu = time_operation(
+            lambda: torch.matmul(A_gpu, B_gpu), device=GPU_DEVICE
+        )
+        gpu_times.append(t_gpu)
+
+print("Matrix multiply timings (median seconds):")
+print(f"{'Size':>6}  {'CPU (s)':>10}  {'GPU (s)':>10}  {'Speedup':>10}")
+print("-" * 44)
+for i, n in enumerate(sizes):
+    gpu_t = gpu_times[i] if GPU_DEVICE else float("nan")
+    speedup = cpu_times[i] / gpu_t if GPU_DEVICE else float("nan")
+    print(f"{n:6d}  {cpu_times[i]:10.4f}  {gpu_t:10.4f}  {speedup:9.1f}×")
+```
+
+```{python}
+#| label: fig-matmul
+#| fig-cap: "CPU vs GPU matrix multiplication time and speedup factor"
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+ax1.plot(sizes, cpu_times, "o-", label="CPU float32", color="#2196F3", lw=2)
+if GPU_DEVICE:
+    ax1.plot(sizes, gpu_times, "s-", label=f"GPU float32 ({GPU_DEVICE})",
+             color="#4CAF50", lw=2)
+ax1.set_xlabel("Matrix size (n × n)")
+ax1.set_ylabel("Time (seconds, log scale)")
+ax1.set_title("Wall-clock Time")
+ax1.set_yscale("log")
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+if GPU_DEVICE:
+    speedups = [c / g for c, g in zip(cpu_times, gpu_times)]
+    ax2.plot(sizes, speedups, "D-", color="#FF9800", lw=2)
+    ax2.axhline(1.0, color="grey", ls="--", lw=1, label="No speedup")
+    ax2.set_xlabel("Matrix size (n × n)")
+    ax2.set_ylabel("Speedup (CPU time / GPU time)")
+    ax2.set_title(f"Speedup Factor — {GPU_NAME}")
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+else:
+    ax2.text(0.5, 0.5, "No GPU detected", ha="center", va="center",
+             transform=ax2.transAxes, fontsize=14, color="grey")
+    ax2.set_title("Speedup Factor")
+
+fig.tight_layout()
+plt.show()
+```
+
+::: {.callout-tip}
+## What to observe
+For small matrices (n < 256) the GPU is often *slower* — the overhead of
+dispatching work to the device exceeds the compute savings. The crossover
+point and peak speedup depend on your hardware, but the trend is universal:
+**GPU advantage grows with problem size**.
+:::
+
+
+## The Transfer Cost Gotcha
+
+Moving data between CPU and GPU is slow relative to computation. A common
+mistake is to transfer data repeatedly inside a hot loop.
+
+```{python}
+if GPU_DEVICE:
+    N = 1000
+
+    # Simulate a tensor already on GPU
+    x_gpu = torch.randn(N, N, device=GPU_DEVICE)
+    x_cpu = torch.randn(N, N)
+
+    # Bad: unnecessary round-trip transfer per iteration
+    def bad_pattern():
+        for _ in range(10):
+            # Pull to CPU, compute, push back — very slow
+            tmp = x_gpu.cpu() + x_cpu
+            _ = tmp.to(GPU_DEVICE)
+
+    # Good: keep everything on the GPU
+    y_gpu = x_cpu.to(GPU_DEVICE)
+    def good_pattern():
+        for _ in range(10):
+            _ = x_gpu + y_gpu
+
+    t_bad  = time_operation(bad_pattern,  device=GPU_DEVICE)
+    t_good = time_operation(good_pattern, device=GPU_DEVICE)
+    print(f"Bad pattern  (repeated transfer): {t_bad:.4f}s")
+    print(f"Good pattern (stay on GPU)      : {t_good:.4f}s")
+    print(f"Overhead ratio: {t_bad / t_good:.1f}×")
+```
+
+**Rule of thumb:** transfer data to the GPU *once*, do all your computation
+there, then transfer results back *once* at the end.
+
+
+## Introducing TorchBkd
+
+Raw PyTorch requires you to specify device and dtype at every tensor creation
+call, and to manually call `.to()` whenever you want to move data. `TorchBkd`
+eliminates this boilerplate by storing device and dtype as backend-level
+configuration.
+
+```{python}
+from pyapprox.util.backends.torch import TorchBkd
+
+# Three configurations — identical API, different hardware targets
+bkd_cpu64 = TorchBkd(device="cpu",      dtype=torch.float64)  # default
+bkd_cpu32 = TorchBkd(device="cpu",      dtype=torch.float32)  # faster CPU
+bkd_gpu32 = TorchBkd(device=GPU_DEVICE, dtype=torch.float32)  # GPU
+
+# Every tensor-creation method respects the backend settings
+for label, bkd in [("CPU f64", bkd_cpu64),
+                    ("CPU f32", bkd_cpu32),
+                    ("GPU f32", bkd_gpu32)]:
+    x = bkd.zeros((3, 3))
+    print(f"{label}: device={x.device}, dtype={x.dtype}")
+```
+
+No `.to()`, no manual dtype arguments — switching between CPU and GPU is a
+single line change at the top of your script.
+
+### TorchBkd.synchronize()
+
+`TorchBkd` also exposes a `synchronize()` method so that timing utilities
+don't need device-specific logic:
+
+```python
+# Instead of:
+if torch.cuda.is_available():
+    torch.cuda.synchronize()
+elif torch.backends.mps.is_available():
+    torch.mps.synchronize()
+
+# You write:
+bkd.synchronize()   # works for cpu, cuda, and mps
+```
+
+This is the pattern used in the next tutorial's `time_operation` helper.
+
+
+## When GPU Doesn't Help
+
+GPU acceleration is not free — it adds dispatch overhead and requires large
+problems to amortise the cost. Here are the situations where CPU is equal or
+better:
+
+| Situation | Why GPU doesn't help |
+|-----------|---------------------|
+| Small tensors (n < ~200) | Dispatch overhead dominates compute |
+| Lots of Python-side logic between ops | GPU sits idle waiting for CPU |
+| Data-transfer-bound workflows | Memory bandwidth, not compute, is the bottleneck |
+| Scalar or near-scalar outputs | No parallelism to exploit |
+| Operations unsupported on MPS | Falls back to CPU silently |
+
+The next tutorial demonstrates this concretely for Gaussian process fitting at
+small training set sizes.
+
+
+## Key Takeaways
+
+- Use `torch.cuda.is_available()` and `torch.backends.mps.is_available()` to
+  detect hardware
+- Tensors must share a device for operations between them to work
+- GPU operations are asynchronous — always call `synchronize()` before timing
+- `TorchBkd(device=..., dtype=...)` configures the backend once; all
+  downstream tensor ops inherit the settings automatically
+- `bkd.synchronize()` encapsulates device-specific sync logic so callers
+  don't need to know which device is active
+- Transfer data to GPU once, compute, transfer back once — avoid repeated
+  round-trips
+
+## Exercises
+
+1. **(Easy)** Print the device and dtype of tensors created by `bkd.zeros`,
+   `bkd.ones`, `bkd.eye`, and `bkd.linspace` for each of the three
+   configurations above. Confirm they all match.
+
+2. **(Medium)** Extend the matrix multiply benchmark to compare float32 vs
+   float64 on CPU. At what matrix size does float32 become noticeably faster?
+
+3. **(Medium)** Modify `time_operation` to use `bkd.synchronize()` instead
+   of the standalone `synchronize()` helper, and confirm that timings are
+   identical.
+
+4. **(Challenge)** Add a transfer-overhead measurement to the matmul benchmark:
+   time how long `x_cpu.to(GPU_DEVICE)` takes for each matrix size and plot
+   it alongside compute time. At what size does transfer cost become negligible
+   relative to the speedup gained?
+
+---
+
+*Next tutorial: [GPU Acceleration and Float32 Performance](gpu_acceleration.qmd) —
+applying TorchBkd to Gaussian Process surrogates and quantifying real-world
+speedups.*

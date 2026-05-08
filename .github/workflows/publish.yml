@@ -20,13 +20,15 @@ jobs:
           python-version: "3.12"
       - run: |
           pip install hatch hatch-vcs
-          hatch build
-      - name: Show built version
-        run: ls -la dist/
+          for pkg in packages/pyapprox packages/pyapprox-benchmarks packages/pyapprox-tutorials; do
+            cd $pkg && hatch build && cd $GITHUB_WORKSPACE
+          done
+      - name: Show built versions
+        run: ls -la packages/*/dist/
       - uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: dist/
+          path: packages/*/dist/
 
   test-pypi:
     needs: build
@@ -42,6 +44,7 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/
 
   verify-test-pypi:
     needs: test-pypi
@@ -57,8 +60,10 @@ jobs:
           pip install \
             --index-url https://test.pypi.org/simple/ \
             --extra-index-url https://pypi.org/simple/ \
-            pyapprox
+            pyapprox pyapprox-benchmarks pyapprox-tutorials
           python -c "import pyapprox; print(f'Installed pyapprox {pyapprox.__version__}')"
+          python -c "import pyapprox_benchmarks; print('benchmarks OK')"
+          python -c "import pyapprox_tutorials; print('tutorials OK')"
 
   pypi:
     needs: verify-test-pypi
@@ -73,3 +78,5 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
