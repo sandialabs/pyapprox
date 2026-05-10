@@ -386,6 +386,88 @@ class TestDGPLayerPriorSampling:
         bkd.assert_allclose(emp_mean, mean_pred, atol=0.1)
 
 
+    def test_prior_sample_variance_matches_predict_marginal(self, numpy_bkd):
+        """Sample variance must match predict_marginal variance.
+
+        Salimbeni reparameterization gives samples whose marginal
+        variance equals predict_marginal's variance. FITC-style
+        sampling would underestimate by the Nystrom residual.
+        """
+        bkd = numpy_bkd
+        rng = np.random.RandomState(99)
+        nvars = 1
+        M = 5
+        N_test = 8
+        S = 20000
+
+        layer = _make_layer(bkd, nvars=nvars, num_inducing=M, seed=77)
+        h = bkd.array(rng.randn(nvars, N_test))
+
+        _, var_pred = layer.predict_marginal(h)
+
+        samples = layer.sample(h, n_samples=S)
+
+        emp_var = bkd.reshape(
+            bkd.asarray([
+                float(bkd.var(samples[:, 0, j])) for j in range(N_test)
+            ]),
+            (1, N_test),
+        )
+
+        bkd.assert_allclose(emp_var, var_pred, rtol=0.05, atol=0.01)
+
+    def test_prior_sample_marginally_gaussian(self, numpy_bkd):
+        """Each marginal f(h_i) under SVGP is Gaussian — empirical
+        skewness ~ 0 and excess kurtosis ~ 0."""
+        from scipy.stats import kurtosis, skew
+
+        bkd = numpy_bkd
+        rng = np.random.RandomState(7)
+        layer = _make_layer(bkd, nvars=1, num_inducing=5, seed=11)
+        h = bkd.array(rng.randn(1, 6))
+        S = 30000
+        samples = layer.sample(h, n_samples=S)
+        samples_np = bkd.to_numpy(samples)
+
+        for j in range(6):
+            s = samples_np[:, 0, j]
+            s_std = (s - s.mean()) / s.std()
+            assert abs(skew(s_std)) < 0.05
+            assert abs(kurtosis(s_std)) < 0.10
+
+    def test_prior_sample_covariance_diagonal(self, numpy_bkd):
+        """Under Salimbeni, samples at different points are independent.
+        Off-diagonal sample covariance should be ~ 0.
+
+        Under FITC, samples share u so off-diagonals would be nonzero.
+        """
+        bkd = numpy_bkd
+        rng = np.random.RandomState(13)
+        M, N_test, S = 5, 6, 30000
+        layer = _make_layer(bkd, nvars=1, num_inducing=M, seed=23)
+        h = bkd.array(rng.randn(1, N_test))
+
+        _, var_pred = layer.predict_marginal(h)
+
+        samples = layer.sample(h, n_samples=S)
+        flat = samples[:, 0, :]
+        emp_cov = bkd.cov(flat, rowvar=False)
+
+        bkd.assert_allclose(
+            bkd.diag(emp_cov),
+            var_pred[0, :],
+            rtol=0.05, atol=0.01,
+        )
+
+        off_diag = emp_cov - bkd.diag(bkd.diag(emp_cov))
+        max_off_diag = float(bkd.max(bkd.abs(off_diag)))
+        mean_diag = float(bkd.mean(bkd.diag(emp_cov)))
+        assert max_off_diag < 0.1 * mean_diag, (
+            f"Off-diagonal covariance {max_off_diag:.4f} too large "
+            f"relative to diagonal {mean_diag:.4f}"
+        )
+
+
 class TestDGPLayerValidation:
     def test_mismatched_inducing_raises(self, bkd):
         kernel = Matern52Kernel(

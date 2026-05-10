@@ -3,14 +3,21 @@
 Propagates inputs through a directed acyclic graph of sparse variational
 GP layers, maintaining correlation through shared ancestors by threading
 the same sample index through the entire DAG.
+
+The propagation rule generates joint L-dimensional quadrature nodes
+for the reparameterization noise across all stochastic layers.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Generic, Hashable, Optional, Tuple
+from typing import Dict, Generic, Hashable, List, Optional, Tuple
 
 import networkx as nx
 
 from pyapprox.surrogates.gaussianprocess.deep.layer import DGPLayer
+from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
+    MonteCarloRule,
+    PropagationRule,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -37,10 +44,34 @@ class LayerOutputDist(Generic[Array]):
     samples: Optional[Array]
 
 
+def _count_node_dimensions(dag: "nx.DiGraph") -> int:
+    """Number of reparameterization-noise dimensions for the DAG.
+
+    Allocates one dimension per node. For Gaussian-likelihood ELBO
+    computation the leaf node's dimension is unused, but allocating it
+    keeps the rule's view of the DAG consistent across all propagator
+    methods (forward, sample_forward).
+    """
+    return dag.number_of_nodes()
+
+
+def _build_node_index(
+    dag: "nx.DiGraph",
+) -> Dict[Hashable, int]:
+    """Map every node to its column index in the rule's nodes array."""
+    return {
+        node: idx
+        for idx, node in enumerate(nx.topological_sort(dag))
+    }
+
+
 class LayerPropagator(Generic[Array]):
     """Forward propagation through a DAG of DGPLayers.
 
-    For root layers (no parents), input is deterministic: S=1, weight=1.
+    For root layers (no parents), input is deterministic: S=1, weight=1
+    for the mean/variance cache, but S reparameterized samples are
+    drawn for children using the propagation rule's nodes.
+
     For non-root layers, each propagation sample s uses the same
     parent sample index s, preserving correlation through shared ancestors.
 
@@ -48,13 +79,23 @@ class LayerPropagator(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Backend for numerical operations.
+    rule : Optional[PropagationRule]
+        Quadrature rule for propagation noise. Defaults to MonteCarloRule.
     """
 
-    def __init__(self, bkd: Backend[Array]) -> None:
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        rule: Optional[PropagationRule] = None,
+    ) -> None:
         self._bkd = bkd
+        self._rule = rule or MonteCarloRule()
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
+
+    def rule(self) -> PropagationRule:
+        return self._rule
 
     def forward(
         self,
@@ -84,61 +125,79 @@ class LayerPropagator(Generic[Array]):
         bkd = self._bkd
         cache: Dict[Hashable, LayerOutputDist[Array]] = {}
 
+        n_dims = _count_node_dimensions(dag)
+        node_idx = _build_node_index(dag)
+
+        nodes: Optional[Array] = None
+        weights: Optional[Array] = None
+        if n_dims > 0:
+            nodes, weights = self._rule(n_samples, n_dims, bkd)
+
+        n_pts = X.shape[1]
+
         for node in nx.topological_sort(dag):
             layer = layers[node]
             parents = list(dag.predecessors(node))
             has_children = dag.out_degree(node) > 0
 
+            L_uu = layer.compute_L_uu()
+
             if not parents:
-                mean, var = layer.predict_marginal(X)
+                mean, var = layer.predict_marginal(X, L_uu=L_uu)
                 means = bkd.reshape(mean, (1,) + mean.shape)
                 variances = bkd.reshape(var, (1,) + var.shape)
-                weights = bkd.ones((1,))
+                w = bkd.ones((1,))
                 samples = None
                 if has_children:
-                    samples = layer.sample(X, n_samples=n_samples)
-                cache[node] = LayerOutputDist(
-                    means, variances, weights, samples,
-                )
+                    col = node_idx[node]
+                    eps_col = nodes[:, col]
+                    eps = bkd.reshape(eps_col, (n_samples, 1, 1))
+                    eps = eps * bkd.full((n_samples, 1, n_pts), 1.0)
+                    samples = layer.sample(
+                        X, n_samples, eps=eps, L_uu=L_uu,
+                    )
+                cache[node] = LayerOutputDist(means, variances, w, samples)
             else:
-                S = n_samples
                 parent_dists = [cache[p] for p in parents]
+                S = parent_dists[0].samples.shape[0]
 
-                S_parent = parent_dists[0].samples.shape[0]
-                S = S_parent
-
-                n_pts = X.shape[1]
-                all_means = []
-                all_vars = []
-
+                h_list: List[Array] = []
                 for s in range(S):
-                    parent_samples_s = []
-                    for pdist in parent_dists:
-                        parent_samples_s.append(pdist.samples[s])
+                    parent_samples_s = [
+                        pdist.samples[s] for pdist in parent_dists
+                    ]
+                    h_list.append(layer.input_builder().build(
+                        X, parent_samples_s, bkd,
+                    ))
+                h_all = bkd.concatenate(h_list, axis=1)
 
-                    h = bkd.vstack([X] + parent_samples_s)
-                    mean_s, var_s = layer.predict_marginal(h)
-                    all_means.append(mean_s)
-                    all_vars.append(var_s)
-
-                means = bkd.stack(all_means, axis=0)
-                variances = bkd.stack(all_vars, axis=0)
-                weights = bkd.full((S,), 1.0 / S)
+                mean_all, var_all = layer.predict_marginal(
+                    h_all, L_uu=L_uu,
+                )
+                means_stacked = bkd.reshape(
+                    mean_all, (S, 1, n_pts),
+                )
+                variances_stacked = bkd.reshape(
+                    var_all, (S, 1, n_pts),
+                )
 
                 samples = None
                 if has_children:
-                    sample_list = []
-                    for s in range(S):
-                        parent_samples_s = []
-                        for pdist in parent_dists:
-                            parent_samples_s.append(pdist.samples[s])
-                        h = bkd.vstack([X] + parent_samples_s)
-                        samp = layer.sample(h, n_samples=1)
-                        sample_list.append(samp[0])
-                    samples = bkd.stack(sample_list, axis=0)
+                    col = node_idx[node]
+                    sigma_all = bkd.sqrt(var_all)
+                    # (S,) -> (S, 1) broadcast to (S, n_pts) -> (1, S*n_pts)
+                    eps_col = nodes[:, col]
+                    eps_all = bkd.reshape(
+                        bkd.reshape(eps_col, (S, 1)) * bkd.ones((1, n_pts)),
+                        (1, S * n_pts),
+                    )
+                    samples_flat = mean_all + sigma_all * eps_all
+                    samples = bkd.reshape(
+                        samples_flat, (S, 1, n_pts),
+                    )
 
                 cache[node] = LayerOutputDist(
-                    means, variances, weights, samples,
+                    means_stacked, variances_stacked, weights, samples,
                 )
 
         return cache
@@ -251,21 +310,52 @@ class LayerPropagator(Generic[Array]):
         bkd = self._bkd
         sample_cache: Dict[Hashable, Array] = {}
 
+        n_dims = _count_node_dimensions(dag)
+        node_idx = _build_node_index(dag)
+        nodes, _ = self._rule(n_samples, n_dims, bkd)
+
+        n_pts = X.shape[1]
+
         for node in nx.topological_sort(dag):
             layer = layers[node]
             parents = list(dag.predecessors(node))
 
+            col = node_idx[node]
+
+            L_uu = layer.compute_L_uu()
+
             if not parents:
-                sample_cache[node] = layer.sample(X, n_samples=n_samples)
+                eps_col = nodes[:, col]
+                eps = bkd.reshape(eps_col, (n_samples, 1, 1))
+                eps = eps * bkd.full((n_samples, 1, n_pts), 1.0)
+                sample_cache[node] = layer.sample(
+                    X, n_samples=n_samples, eps=eps, L_uu=L_uu,
+                )
             else:
-                sample_list = []
+                h_list: List[Array] = []
                 for s in range(n_samples):
-                    parent_samples_s = []
-                    for p in parents:
-                        parent_samples_s.append(sample_cache[p][s])
-                    h = bkd.vstack([X] + parent_samples_s)
-                    samp = layer.sample(h, n_samples=1)
-                    sample_list.append(samp[0])
-                sample_cache[node] = bkd.stack(sample_list, axis=0)
+                    parent_samples_s = [
+                        sample_cache[p][s] for p in parents
+                    ]
+                    h_list.append(layer.input_builder().build(
+                        X, parent_samples_s, bkd,
+                    ))
+                h_all = bkd.concatenate(h_list, axis=1)
+
+                mean_all, var_all = layer.predict_marginal(
+                    h_all, L_uu=L_uu,
+                )
+                sigma_all = bkd.sqrt(var_all)
+
+                eps_col = nodes[:, col]
+                eps_all = bkd.reshape(
+                    bkd.reshape(eps_col, (n_samples, 1))
+                    * bkd.ones((1, n_pts)),
+                    (1, n_samples * n_pts),
+                )
+                samples_flat = mean_all + sigma_all * eps_all
+                sample_cache[node] = bkd.reshape(
+                    samples_flat, (n_samples, 1, n_pts),
+                )
 
         return sample_cache

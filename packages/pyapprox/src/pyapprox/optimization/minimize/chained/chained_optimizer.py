@@ -9,8 +9,8 @@ from pyapprox.optimization.minimize.objective.protocols import (
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
+from pyapprox.optimization.minimize.result_protocol import (
+    OptimizerResultProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -137,7 +137,7 @@ class ChainedOptimizer(Generic[Array]):
             raise RuntimeError("Optimizer not bound. Call bind() first.")
         return self._global_optimizer.bkd()
 
-    def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
+    def minimize(self, init_guess: Array) -> OptimizerResultProtocol[Array]:
         """Perform optimization using the chained approach.
 
         Parameters
@@ -147,7 +147,7 @@ class ChainedOptimizer(Generic[Array]):
 
         Returns
         -------
-        ScipyOptimizerResultWrapper[Array]
+        OptimizerResultProtocol[Array]
             The final optimization result after applying both optimizers.
 
         Raises

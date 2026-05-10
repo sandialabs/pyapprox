@@ -9,6 +9,10 @@ optimizer updates directly — required for doubly-stochastic VI in Deep GPs.
 import copy
 from typing import Generic, List, Optional, Tuple
 
+from pyapprox.surrogates.gaussianprocess.deep.input_builder import (
+    InputBuilder,
+    SkipConnectedBuilder,
+)
 from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (
     InducingPoints,
 )
@@ -55,6 +59,9 @@ class DGPLayer(Generic[Array]):
         Observation likelihood (only for observed/leaf layers).
     nugget : float
         Jitter for K_uu Cholesky stability.
+    input_builder : Optional[InputBuilder[Array]]
+        Strategy for assembling layer input from X and parent outputs.
+        Defaults to SkipConnectedBuilder.
     """
 
     def __init__(
@@ -66,6 +73,7 @@ class DGPLayer(Generic[Array]):
         bkd: Backend[Array],
         likelihood: Optional[GaussianLikelihood[Array]] = None,
         nugget: float = 1e-6,
+        input_builder: Optional[InputBuilder[Array]] = None,
     ) -> None:
         if not isinstance(kernel, Kernel):
             raise TypeError(
@@ -88,6 +96,7 @@ class DGPLayer(Generic[Array]):
         self._bkd = bkd
         self._likelihood = likelihood
         self._nugget = nugget
+        self._input_builder = input_builder or SkipConnectedBuilder()
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -103,6 +112,9 @@ class DGPLayer(Generic[Array]):
 
     def variational_dist(self) -> GaussianVariationalDistribution[Array]:
         return self._variational_dist
+
+    def input_builder(self) -> InputBuilder[Array]:
+        return self._input_builder
 
     def likelihood(self) -> Optional[GaussianLikelihood[Array]]:
         return self._likelihood
@@ -121,7 +133,7 @@ class DGPLayer(Generic[Array]):
             hyps += self._likelihood.hyp_list().hyperparameters()
         return HyperParameterList(hyps)
 
-    def _compute_L_uu(self) -> Array:
+    def compute_L_uu(self) -> Array:
         """Cholesky of K_uu + nugget*I."""
         bkd = self._bkd
         Z = self._inducing_points.get_samples()
@@ -129,13 +141,17 @@ class DGPLayer(Generic[Array]):
         K_uu = K_uu + bkd.eye(K_uu.shape[0]) * self._nugget
         return bkd.cholesky(K_uu)
 
-    def predict_marginal(self, h: Array) -> Tuple[Array, Array]:
+    def predict_marginal(
+        self, h: Array, L_uu: Optional[Array] = None,
+    ) -> Tuple[Array, Array]:
         """SVGP posterior mean and variance at layer inputs h.
 
         Parameters
         ----------
         h : Array
             Layer inputs, shape (nvars, N).
+        L_uu : Optional[Array]
+            Precomputed Cholesky of K_uu. If None, computed internally.
 
         Returns
         -------
@@ -145,10 +161,10 @@ class DGPLayer(Generic[Array]):
             Posterior marginal variance, shape (1, N).
         """
         bkd = self._bkd
-        Z = self._inducing_points.get_samples()
-        L_uu = self._compute_L_uu()
+        if L_uu is None:
+            L_uu = self.compute_L_uu()
 
-        K_uf = self._kernel(Z, h)
+        K_uf = self._kernel(self._inducing_points.get_samples(), h)
 
         # alpha = L_uu^{-1} K_uf, shape (M, N)
         alpha = bkd.solve_triangular(L_uu, K_uf, lower=True)
@@ -174,8 +190,17 @@ class DGPLayer(Generic[Array]):
 
         return mean, var
 
-    def sample(self, h: Array, n_samples: int, eps: Optional[Array] = None) -> Array:
-        """Reparameterized samples from the layer posterior at inputs h.
+    def sample(
+        self,
+        h: Array,
+        n_samples: int,
+        eps: Optional[Array] = None,
+        L_uu: Optional[Array] = None,
+    ) -> Array:
+        """Reparameterized samples from the SVGP marginal at inputs h.
+
+        Implements Salimbeni-style DSVI propagation:
+            f(h_i)^(s) = mu(h_i) + sigma(h_i) * eps^(s)_i
 
         Parameters
         ----------
@@ -184,7 +209,10 @@ class DGPLayer(Generic[Array]):
         n_samples : int
             Number of samples S.
         eps : Optional[Array]
-            Standard normal noise for inducing values, shape (n_samples, M).
+            Standard-normal reparameterization noise, shape (S, 1, N).
+            If None, drawn fresh internally as iid N(0, 1).
+        L_uu : Optional[Array]
+            Precomputed Cholesky of K_uu. If None, computed internally.
 
         Returns
         -------
@@ -192,29 +220,22 @@ class DGPLayer(Generic[Array]):
             Samples, shape (n_samples, 1, N).
         """
         bkd = self._bkd
-        Z = self._inducing_points.get_samples()
-        L_uu = self._compute_L_uu()
-        K_uf = self._kernel(Z, h)
+        mean, var = self.predict_marginal(h, L_uu=L_uu)
+        sigma = bkd.sqrt(var)
 
-        # alpha = L_uu^{-1} K_uf, shape (M, N)
-        alpha = bkd.solve_triangular(L_uu, K_uf, lower=True)
+        if eps is None:
+            import numpy as np
+            eps_np = np.random.randn(n_samples, 1, h.shape[1])
+            eps = bkd.array(eps_np)
+        else:
+            expected_shape = (n_samples, 1, h.shape[1])
+            if tuple(eps.shape) != expected_shape:
+                raise ValueError(
+                    f"eps shape {tuple(eps.shape)} does not match "
+                    f"expected {expected_shape}"
+                )
 
-        # u_samples shape (n_samples, M) — un-whitened inducing samples
-        u_samples = self._variational_dist.sample(L_uu, n_samples, eps=eps)
-
-        # L_uu^{-1} u_samples^T, shape (M, n_samples)
-        v = bkd.solve_triangular(L_uu, u_samples.T, lower=True)
-
-        # f_mean_offset = alpha^T @ v, shape (N, n_samples)
-        f_mean_offset = bkd.dot(alpha.T, v)
-
-        # Add mean function contribution
-        mean_val = self._mean(h)  # (1, N)
-        # f = f_mean_offset + mean(h), shape (N, n_samples)
-        f = f_mean_offset + mean_val.T
-
-        # Transpose to (n_samples, 1, N)
-        return bkd.reshape(f.T, (n_samples, 1, h.shape[1]))
+        return mean[None, :, :] + sigma[None, :, :] * eps
 
     def kl_to_prior(self) -> Array:
         """KL divergence KL[q(u) || p(u)] (scalar)."""

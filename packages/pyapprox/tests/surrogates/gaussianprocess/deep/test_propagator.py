@@ -266,3 +266,147 @@ class TestLayerPropagatorSampleForward:
         prop = LayerPropagator(bkd)
         sample_cache = prop.sample_forward(dag, layers, X, n_samples=S)
         assert sample_cache[0].shape == (S, 1, 5)
+
+
+class TestPropagatorMCvsGH:
+    """MC propagation should converge to tensor-GH propagation."""
+
+    def test_two_layer_mc_converges_to_gh(self, numpy_bkd):
+        """Leaf mean/std under MC at large S should match GH."""
+        from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
+            MonteCarloRule,
+            TensorProductGHRule,
+        )
+
+        bkd = numpy_bkd
+        dag = nx.DiGraph()
+        dag.add_edge(0, 1)
+        layer0 = _make_layer(bkd, nvars=1, num_inducing=4, seed=10)
+        layer1 = _make_layer(bkd, nvars=2, num_inducing=4, seed=20)
+        layers = {0: layer0, 1: layer1}
+
+        X = bkd.array(np.random.RandomState(0).randn(1, 5))
+
+        gh_rule = TensorProductGHRule(order=7)
+        prop_gh = LayerPropagator(bkd, rule=gh_rule)
+        mean_gh, std_gh = prop_gh.predict_mean_and_std(
+            dag, layers, X, target_node=1, n_samples=49,
+        )
+
+        mc_rule = MonteCarloRule(rng=np.random.default_rng(42))
+        prop_mc = LayerPropagator(bkd, rule=mc_rule)
+        mean_mc, std_mc = prop_mc.predict_mean_and_std(
+            dag, layers, X, target_node=1, n_samples=10000,
+        )
+
+        bkd.assert_allclose(mean_mc, mean_gh, rtol=0.05, atol=0.02)
+        bkd.assert_allclose(std_mc, std_gh, rtol=0.10, atol=0.02)
+
+    def test_chain_leaf_variance_at_least_layer_variance(self, numpy_bkd):
+        """A 2-layer DGP's leaf std should be at least the root layer's
+        intrinsic std far from inducing points. Propagation adds
+        uncertainty; it should never collapse it."""
+        bkd = numpy_bkd
+        dag = nx.DiGraph()
+        dag.add_edge(0, 1)
+        layer0 = _make_layer(bkd, nvars=1, num_inducing=4, seed=10)
+        layer1 = _make_layer(bkd, nvars=2, num_inducing=4, seed=20)
+        layers = {0: layer0, 1: layer1}
+
+        X_far = bkd.array([[10.0, -10.0, 15.0]])
+
+        prop = LayerPropagator(bkd)
+        _, std_chain = prop.predict_mean_and_std(
+            dag, layers, X_far, target_node=1, n_samples=500,
+        )
+
+        _, var_root = layer0.predict_marginal(X_far)
+        std_root = bkd.sqrt(var_root)
+
+        std_chain_np = bkd.to_numpy(std_chain).ravel()
+        std_root_np = bkd.to_numpy(std_root).ravel()
+
+        for i in range(3):
+            assert std_chain_np[i] >= 0.5 * std_root_np[i], (
+                f"Chain std {std_chain_np[i]:.4f} collapsed below "
+                f"root std {std_root_np[i]:.4f} at point {i}"
+            )
+
+    def test_two_layer_sobol_converges_to_gh(self, numpy_bkd):
+        """Sobol propagation at large S should match tensor GH."""
+        from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
+            SobolRule,
+            TensorProductGHRule,
+        )
+
+        bkd = numpy_bkd
+        dag = nx.DiGraph()
+        dag.add_edge(0, 1)
+        layer0 = _make_layer(bkd, nvars=1, num_inducing=4, seed=10)
+        layer1 = _make_layer(bkd, nvars=2, num_inducing=4, seed=20)
+        layers = {0: layer0, 1: layer1}
+
+        X = bkd.array(np.random.RandomState(0).randn(1, 5))
+
+        gh_rule = TensorProductGHRule(order=7)
+        prop_gh = LayerPropagator(bkd, rule=gh_rule)
+        mean_gh, std_gh = prop_gh.predict_mean_and_std(
+            dag, layers, X, target_node=1, n_samples=49,
+        )
+
+        sobol_rule = SobolRule(seed=42)
+        prop_sobol = LayerPropagator(bkd, rule=sobol_rule)
+        mean_sobol, std_sobol = prop_sobol.predict_mean_and_std(
+            dag, layers, X, target_node=1, n_samples=2048,
+        )
+
+        bkd.assert_allclose(mean_sobol, mean_gh, rtol=0.03, atol=0.01)
+        bkd.assert_allclose(std_sobol, std_gh, rtol=0.05, atol=0.01)
+
+
+class TestPropagatorDimensionConsistency:
+    """Both forward and sample_forward must request the same number of
+    dimensions from the rule on the same DAG."""
+
+    def test_forward_and_sample_request_same_dimensions(self, numpy_bkd):
+        """Use a custom rule that records the n_layers it is asked for.
+        Confirm forward() and sample_forward() both pass the same value."""
+        from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
+            MonteCarloRule,
+        )
+
+        bkd = numpy_bkd
+
+        class _RecordingRule:
+            def __init__(self):
+                self._inner = MonteCarloRule(
+                    rng=np.random.default_rng(0),
+                )
+                self.observed_dims: list[int] = []
+
+            def __call__(self, n_samples, n_layers, bkd):
+                self.observed_dims.append(n_layers)
+                return self._inner(n_samples, n_layers, bkd)
+
+        dag = nx.DiGraph()
+        dag.add_edge(0, 1)
+        layer0 = _make_layer(bkd, nvars=1, num_inducing=4, seed=10)
+        layer1 = _make_layer(bkd, nvars=2, num_inducing=4, seed=20)
+        layers = {0: layer0, 1: layer1}
+
+        X = bkd.array(np.random.RandomState(0).randn(1, 5))
+        rule = _RecordingRule()
+        prop = LayerPropagator(bkd, rule=rule)
+
+        prop.predict_mean_and_std(
+            dag, layers, X, target_node=1, n_samples=5,
+        )
+        prop.sample_forward(dag, layers, X, n_samples=5)
+
+        assert len(rule.observed_dims) == 2
+        assert rule.observed_dims[0] == rule.observed_dims[1], (
+            f"forward() requested {rule.observed_dims[0]} dimensions "
+            f"but sample_forward() requested {rule.observed_dims[1]}; "
+            f"they must agree for the same DAG."
+        )
+        assert rule.observed_dims[0] == 2
