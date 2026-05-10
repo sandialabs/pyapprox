@@ -9,6 +9,7 @@ where the outer expectation is over propagation samples (MC or quadrature)
 and the inner expectation is closed-form for Gaussian likelihoods.
 """
 
+import math
 from typing import Dict, Generic, Hashable, Tuple
 
 from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
@@ -101,12 +102,22 @@ class DGPELBOLoss(Generic[Array]):
                 dag, layers, X, node, n_samples=self._n_propagation,
             )
 
-            S = means.shape[0]
-            for s in range(S):
-                ell_s = lik.expected_log_prob(
-                    y, means[s], variances[s],
-                )
-                neg_elbo = neg_elbo - weights[s] * bkd.sum(ell_s)
+            sigma2 = lik.noise_var()[0]
+            N = y.shape[-1]
+            # means: (S,1,N), variances: (S,1,N) -> squeeze to (S,N)
+            mu = means[:, 0, :]
+            fvar = variances[:, 0, :]
+            residual = y[0, :] - mu  # (S, N)
+            # weighted sum of data-dependent term: einsum avoids Python loop
+            mse_plus_var = residual * residual + fvar  # (S, N)
+            weighted_sum = bkd.einsum(
+                "s,sn->", weights, mse_plus_var,
+            )
+            const = math.log(2.0 * math.pi) + bkd.log(sigma2)
+            w_total = bkd.sum(weights)
+            neg_elbo = neg_elbo + (
+                0.5 * (w_total * N * const + weighted_sum / sigma2)
+            )
 
         return bkd.reshape(neg_elbo, (1, 1))
 

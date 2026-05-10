@@ -9,6 +9,10 @@ import networkx as nx
 from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
     DeepGaussianProcess,
 )
+from pyapprox.surrogates.gaussianprocess.deep.initializers import (
+    InducingInitializer,
+    RandomUniformInitializer,
+)
 from pyapprox.surrogates.gaussianprocess.deep.layer import DGPLayer
 from pyapprox.surrogates.gaussianprocess.deep.propagator import (
     LayerPropagator,
@@ -45,6 +49,7 @@ def build_single_fidelity_dgp(
     nugget: float = 1e-6,
     n_propagation: int = 10,
     seed: int = 0,
+    initializer: Optional[InducingInitializer[Array]] = None,
 ) -> DeepGaussianProcess[Array]:
     """Build a single-fidelity Deep GP.
 
@@ -77,6 +82,9 @@ def build_single_fidelity_dgp(
         Default number of propagation samples.
     seed : int
         Random seed for initial inducing point locations.
+    initializer : Optional[InducingInitializer[Array]]
+        Strategy for placing inducing points. Defaults to
+        RandomUniformInitializer with inducing_bounds.
 
     Returns
     -------
@@ -85,6 +93,9 @@ def build_single_fidelity_dgp(
     """
     if n_layers < 1:
         raise ValueError(f"n_layers must be >= 1, got {n_layers}")
+
+    if initializer is None:
+        initializer = RandomUniformInitializer(inducing_bounds)
 
     rng = np.random.RandomState(seed)
     dag = nx.DiGraph()
@@ -103,7 +114,7 @@ def build_single_fidelity_dgp(
             mean = ParentPassthroughMean(parent_start=nvars, bkd=bkd)
 
         kernel = kernel_factory(layer_nvars, bkd)
-        locs = bkd.array(rng.randn(layer_nvars, num_inducing))
+        locs = initializer.initialize(num_inducing, layer_nvars, bkd, rng)
         ip = InducingPoints(
             nvars=layer_nvars,
             num_inducing=num_inducing,
@@ -139,6 +150,7 @@ def build_multilevel_dgp(
     nugget: float = 1e-6,
     n_propagation: int = 10,
     seed: int = 0,
+    initializer: Optional[InducingInitializer[Array]] = None,
 ) -> DeepGaussianProcess[Array]:
     """Build a multilevel Deep GP with parent-passthrough means.
 
@@ -175,6 +187,9 @@ def build_multilevel_dgp(
         Default number of propagation samples.
     seed : int
         Random seed for initial inducing point locations.
+    initializer : Optional[InducingInitializer[Array]]
+        Strategy for placing inducing points. Defaults to
+        RandomUniformInitializer with inducing_bounds.
 
     Returns
     -------
@@ -186,6 +201,9 @@ def build_multilevel_dgp(
         raise ValueError(
             f"Need at least 1 level, got {n_levels}"
         )
+
+    if initializer is None:
+        initializer = RandomUniformInitializer(inducing_bounds)
 
     rng = np.random.RandomState(seed)
     dag = nx.DiGraph()
@@ -207,7 +225,7 @@ def build_multilevel_dgp(
             )
 
         kernel = kernel_factory(layer_nvars, bkd)
-        locs = bkd.array(rng.randn(layer_nvars, num_inducing))
+        locs = initializer.initialize(num_inducing, layer_nvars, bkd, rng)
         ip = InducingPoints(
             nvars=layer_nvars,
             num_inducing=num_inducing,

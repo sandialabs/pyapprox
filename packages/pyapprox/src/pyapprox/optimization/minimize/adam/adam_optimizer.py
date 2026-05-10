@@ -4,20 +4,8 @@ Implements the Adam algorithm (Kingma & Ba, 2015) for use as a warm-start
 phase before a second-order local optimizer via ChainedOptimizer.
 """
 
-from typing import Generic, Optional, Self, Union, cast
+from typing import Generic, Optional, Self, cast
 
-import numpy as np
-from scipy.optimize import OptimizeResult
-
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWrapper,
-)
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
 )
@@ -27,25 +15,18 @@ from pyapprox.optimization.minimize.objective.protocols import (
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
 )
-from pyapprox.optimization.minimize.scipy.scipy_result import (
-    ScipyOptimizerResultWrapper,
+from pyapprox.optimization.minimize.result import OptimizerResult
+from pyapprox.optimization.minimize.result_protocol import (
+    OptimizerResultProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
-_WrappedObjective = Union[
-    NumpyFunctionWrapper[Array],
-    NumpyFunctionWithJacobianWrapper[Array],
-    NumpyFunctionWithJacobianAndHVPWrapper[Array],
-    NumpyFunctionWithJacobianAndWHVPWrapper[Array],
-]
 
 
 class AdamOptimizer(Generic[Array]):
     """Adam optimizer (Kingma & Ba, 2015).
 
     Implements the Adam algorithm for first-order gradient-based optimization.
-    Satisfies ``BindableOptimizerProtocol`` so it can be used standalone or
-    as the global phase of a ``ChainedOptimizer``.
+    Works directly in backend space without numpy conversions.
 
     Parameters
     ----------
@@ -79,9 +60,9 @@ class AdamOptimizer(Generic[Array]):
         self._maxiter = maxiter
         self._verbosity = verbosity
 
-        self._objective: Optional[_WrappedObjective[Array]] = None
-        self._lb: Optional[np.ndarray] = None
-        self._ub: Optional[np.ndarray] = None
+        self._objective: Optional[ObjectiveProtocol[Array]] = None
+        self._bounds: Optional[Array] = None
+        self._bkd: Optional[Backend[Array]] = None
         self._is_bound = False
 
     def bind(
@@ -110,23 +91,20 @@ class AdamOptimizer(Generic[Array]):
                 "AdamOptimizer does not support constraints."
             )
         validate_objective(objective)
-        self._objective = numpy_function_wrapper_factory(objective)
-        if not hasattr(self._objective, "jacobian"):
+        if not hasattr(objective, "jacobian"):
             raise TypeError(
                 "AdamOptimizer requires an objective with a jacobian method."
             )
-        np_bounds = self._objective.bkd().to_numpy(bounds)
-        self._lb = np_bounds[:, 0]
-        self._ub = np_bounds[:, 1]
+        self._objective = objective
+        self._bounds = bounds
+        self._bkd = objective.bkd()
         self._is_bound = True
         return self
 
     def is_bound(self) -> bool:
-        """Return True if bound to an objective."""
         return self._is_bound
 
     def copy(self) -> Self:
-        """Return an unbound copy with same options."""
         return cast(
             Self,
             AdamOptimizer(
@@ -140,15 +118,14 @@ class AdamOptimizer(Generic[Array]):
         )
 
     def bkd(self) -> Backend[Array]:
-        """Return the backend from the bound objective."""
         if not self._is_bound:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._objective is not None
-        return self._objective.bkd()
+        assert self._bkd is not None
+        return self._bkd
 
     def minimize(
         self, init_guess: Array
-    ) -> ScipyOptimizerResultWrapper[Array]:
+    ) -> OptimizerResultProtocol[Array]:
         """Run Adam optimization.
 
         Parameters
@@ -158,56 +135,58 @@ class AdamOptimizer(Generic[Array]):
 
         Returns
         -------
-        ScipyOptimizerResultWrapper[Array]
+        OptimizerResultProtocol[Array]
             Optimization result.
         """
         if not self._is_bound:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
         assert self._objective is not None
-        assert self._lb is not None
-        assert self._ub is not None
+        assert self._bounds is not None
+        assert self._bkd is not None
 
-        bkd = self._objective.bkd()
-        x = bkd.to_numpy(init_guess[:, 0]).copy()
+        bkd = self._bkd
+        objective = self._objective
+
+        x = init_guess[:, 0]
         n = len(x)
+        lb = self._bounds[:, 0]
+        ub = self._bounds[:, 1]
 
-        m = np.zeros(n)
-        v = np.zeros(n)
+        m = bkd.zeros((n,))
+        v = bkd.zeros((n,))
         beta1, beta2 = self._beta1, self._beta2
         lr, eps = self._lr, self._eps
-        lb, ub = self._lb, self._ub
 
-        best_f = np.inf
-        best_x = x.copy()
+        best_f = float("inf")
+        best_x = x
 
         for t in range(1, self._maxiter + 1):
-            obj_out = self._objective(x[:, None])
-            f_val = float(obj_out[0, 0])
-            grad = self._objective.jacobian(x[:, None])[0]  # type: ignore[union-attr]
+            x_col = bkd.reshape(x, (n, 1))
+            f_val = objective(x_col)
+            f_scalar = float(bkd.to_numpy(bkd.reshape(f_val, (-1,)))[0])
+
+            grad = objective.jacobian(x_col)[0]  # type: ignore[union-attr]
 
             m = beta1 * m + (1.0 - beta1) * grad
-            v = beta2 * v + (1.0 - beta2) * grad**2
+            v = beta2 * v + (1.0 - beta2) * grad * grad
 
             m_hat = m / (1.0 - beta1**t)
             v_hat = v / (1.0 - beta2**t)
 
-            x = x - lr * m_hat / (np.sqrt(v_hat) + eps)
+            x = x - lr * m_hat / (bkd.sqrt(v_hat) + eps)
+            x = bkd.clip(x, lb, ub)
 
-            # Project onto bounds
-            x = np.clip(x, lb, ub)
-
-            if f_val < best_f:
-                best_f = f_val
-                best_x = x.copy()
+            if f_scalar < best_f:
+                best_f = f_scalar
+                best_x = x
 
             if self._verbosity >= 1 and t % 100 == 0:
-                print(f"Adam iter {t:5d}  f = {f_val:.6e}")
+                print(f"Adam iter {t:5d}  f = {f_scalar:.6e}")
 
-        scipy_result = OptimizeResult(
-            x=best_x,
+        return OptimizerResult(
+            optima=bkd.reshape(best_x, (n, 1)),
             fun=best_f,
             success=True,
             message="Adam completed maximum iterations",
             nit=self._maxiter,
         )
-        return ScipyOptimizerResultWrapper(scipy_result, bkd)

@@ -72,7 +72,9 @@ from .composition import (
     SeparableProductKernel,
     SumKernel,
 )
+from .constant import ConstantKernel
 from .iid_gaussian_noise import IIDGaussianNoise
+from .linear import LinearKernel
 from .matern import (
     ExponentialKernel,
     Matern32Kernel,
@@ -131,7 +133,9 @@ __all__ = [
     "Matern52Kernel",
     "Matern32Kernel",
     "ExponentialKernel",
+    "ConstantKernel",
     "IIDGaussianNoise",
+    "LinearKernel",
     # Scaling functions
     "PolynomialScaling",
     # Composition kernels
