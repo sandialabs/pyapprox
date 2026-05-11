@@ -711,10 +711,10 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
         )
         # Convert native MLMC ratios to partition ratios
         # Same logic as MLMCEstimator._native_ratios_to_npartition_ratios
-        partition_ratios = [nsample_ratios[0] - 1]
+        ratios_list = [nsample_ratios[0] - 1]
         for ii in range(1, len(nsample_ratios)):
-            partition_ratios.append(nsample_ratios[ii] - partition_ratios[ii - 1])
-        partition_ratios = self._bkd.hstack(partition_ratios)
+            ratios_list.append(nsample_ratios[ii] - ratios_list[ii - 1])
+        partition_ratios = self._bkd.hstack(ratios_list)
         if self._bkd.to_float(self._bkd.min(partition_ratios)) < -1e-8:
             raise ValueError(
                 f"Analytical MLMC produced negative partition ratios: "
