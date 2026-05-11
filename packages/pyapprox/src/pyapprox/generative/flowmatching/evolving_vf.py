@@ -19,8 +19,6 @@ from pyapprox.generative.flowmatching.basis_factory import (
 )
 from pyapprox.generative.flowmatching.basis_interp import (
     IdentityInterpolator,
-    LagrangeInterp1D,
-    RecurrenceInterpolator,
 )
 from pyapprox.generative.flowmatching.basis_state import (
     StieltjesBasisState,
@@ -42,9 +40,7 @@ from pyapprox.util.hyperparameter import (
     HyperParameterList,
 )
 
-BasisInterpolator = Union[
-    IdentityInterpolator[Array], RecurrenceInterpolator[Array]
-]
+BasisInterpolator = IdentityInterpolator[Array]
 
 
 def _make_legendre_basis(n_legendre: int, bkd: Backend[Array]):
@@ -91,15 +87,13 @@ class CoefficientStrategy(Protocol[Array]):
 class PerSliceStrategy(Generic[Array]):
     """Independent lstsq fit at each training t_k.
 
-    Coefficients at non-training t values are obtained by Lagrange
-    interpolation of the per-slice coefficient vectors.
+    Evaluation is only valid at the exact training time nodes.
     """
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
         self._slice_coefs: Optional[list[Array]] = None
         self._t_nodes: Optional[Array] = None
-        self._coef_interps: Optional[list[LagrangeInterp1D[Array]]] = None
         self._n_basis: int = 0
         self._nqoi: int = 0
 
@@ -152,40 +146,26 @@ class PerSliceStrategy(Generic[Array]):
         self._slice_coefs = slice_coefs
         self._n_basis = slice_coefs[0].shape[0]
         self._nqoi = slice_coefs[0].shape[1]
-        self._build_coef_interpolators(bkd)
-
-    def _build_coef_interpolators(self, bkd: Backend[Array]) -> None:
-        """Build Lagrange interpolators for each coefficient component."""
-        assert self._slice_coefs is not None
-        assert self._t_nodes is not None
-        coef_stack = bkd.stack(self._slice_coefs, axis=0)  # (n_t, n_basis, nqoi)
-        self._coef_interps = []
-        for n in range(self._n_basis):
-            for q in range(self._nqoi):
-                interp = LagrangeInterp1D(bkd)
-                interp.fit(self._t_nodes, coef_stack[:, n, q])
-                self._coef_interps.append(interp)
 
     def _get_coefs(self, t_val: float, bkd: Backend[Array]) -> Array:
-        """Get coefficients at t_val (exact lookup or interpolation)."""
+        """Get coefficients at t_val via exact snapshot lookup.
+
+        Raises ValueError if t_val does not match any training node.
+        """
         assert self._t_nodes is not None
         assert self._slice_coefs is not None
-        assert self._coef_interps is not None
 
         diffs = bkd.abs(self._t_nodes - t_val)
         idx = int(bkd.to_float(bkd.argmin(diffs)))
         if bkd.to_float(diffs[idx]) < 1e-12:
             return self._slice_coefs[idx]
 
-        # Interpolate
-        t_arr = bkd.asarray([t_val])
-        c = bkd.zeros((self._n_basis, self._nqoi))
-        ii = 0
-        for n in range(self._n_basis):
-            for q in range(self._nqoi):
-                c[n, q] = self._coef_interps[ii](t_arr)[0]
-                ii += 1
-        return c
+        raise ValueError(
+            f"PerSliceStrategy: t={t_val} does not match any training "
+            f"snapshot (nearest is {bkd.to_float(self._t_nodes[idx])}, "
+            f"gap={bkd.to_float(diffs[idx]):.2e}). "
+            f"Evaluation is only valid at training time nodes."
+        )
 
     def evaluate(
         self,
@@ -380,7 +360,7 @@ class StieltjesFlowVF(Generic[Array]):
 
     Parameters
     ----------
-    interpolator : IdentityInterpolator or RecurrenceInterpolator
+    interpolator : IdentityInterpolator
         Maps t values to ``StieltjesBasisState`` objects.
     strategy : PerSliceStrategy or KroneckerStrategy
         Coefficient fitting strategy.
@@ -688,8 +668,6 @@ def build_stieltjes_flow_vf(
     nqoi: int = 1,
     ortho_tol: float = 1e-10,
     n_legendre: int = 1,
-    interpolate_rcoefs: bool = False,
-    strategy_factory: Optional[object] = None,
     per_slice: bool = False,
 ) -> StieltjesFlowVF[Array]:
     """Build a StieltjesFlowVF from quad data.
@@ -698,11 +676,8 @@ def build_stieltjes_flow_vf(
     state ``x_t = path.interpolate(t, x0, x1)`` at each t, and runs the
     Lanczos algorithm to build orthonormal polynomial bases.
 
-    For ODE integration at arbitrary t, set ``interpolate_rcoefs=True``
-    to use ``RecurrenceInterpolator`` (Lagrange interpolation of
-    recurrence coefficients by default).  When ``interpolate_rcoefs=False``
-    (the default), ``IdentityInterpolator`` is used and the ODE solver
-    must step at exactly the training t nodes.
+    Uses ``IdentityInterpolator`` — the ODE solver must step at exactly
+    the training t nodes.
 
     Parameters
     ----------
@@ -721,14 +696,6 @@ def build_stieltjes_flow_vf(
     n_legendre : int
         Number of Legendre time basis terms.  Only used when
         ``per_slice=False``.
-    interpolate_rcoefs : bool
-        If True, use ``RecurrenceInterpolator`` for smooth basis evolution
-        at arbitrary t.  If False, use ``IdentityInterpolator`` (exact
-        t-node matching only).
-    strategy_factory : callable, optional
-        Factory ``() -> ScalarInterp1DProtocol`` for creating per-coefficient
-        interpolation strategies.  Only used when ``interpolate_rcoefs=True``.
-        Defaults to ``LagrangeInterp1D``.
     per_slice : bool
         If True, use ``PerSliceStrategy`` (independent fit at each t_k).
         If False (default), use ``KroneckerStrategy`` (global Legendre
@@ -788,13 +755,7 @@ def build_stieltjes_flow_vf(
 
     t_arr = bkd.asarray(t_vals_list)
 
-    if interpolate_rcoefs:
-        interp: BasisInterpolator = RecurrenceInterpolator(
-            bkd, strategy_factory=strategy_factory,
-        )
-    else:
-        interp = IdentityInterpolator(bkd)
-
+    interp: BasisInterpolator = IdentityInterpolator(bkd)
     interp.fit(t_arr, states)
 
     if per_slice:

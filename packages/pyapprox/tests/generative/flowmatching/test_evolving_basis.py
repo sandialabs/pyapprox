@@ -16,7 +16,6 @@ from pyapprox.generative.flowmatching.basis_factory import (
 )
 from pyapprox.generative.flowmatching.basis_interp import (
     IdentityInterpolator,
-    RecurrenceInterpolator,
 )
 from pyapprox.generative.flowmatching.basis_state import StieltjesBasisState
 from pyapprox.generative.flowmatching.evolving_vf import (
@@ -298,42 +297,8 @@ class TestLegendreTimeExpansion:
             f"n_legendre={n_leg}: loss {result.training_loss():.2e} >= 1e-8"
         )
 
-class TestRecurrenceInterpolator:
-    def test_exact_nodes_match_identity(self, bkd) -> None:
-        """At training nodes, RecurrenceInterpolator returns exact states."""
-        nterms = 4
-        pts, wts = _gauss_hermite_quad(bkd, 15)
-        factory = StieltjesBasisFactory(nterms, bkd)
-
-        t_vals = [0.2, 0.5, 0.8]
-        states = [factory.build(pts + mu, wts) for mu in [0.0, 1.0, 2.0]]
-
-        interp = RecurrenceInterpolator(bkd)
-        interp.fit(bkd.asarray(t_vals), states)
-
-        for ii, t in enumerate(t_vals):
-            state = interp(t)
-            bkd.assert_allclose(state.rcoefs(), states[ii].rcoefs())
-
-    def test_interpolated_state_between_nodes(self, bkd) -> None:
-        """Interpolated state at midpoint has rcoefs between neighbors."""
-        nterms = 3
-        pts, wts = _gauss_hermite_quad(bkd, 10)
-        factory = StieltjesBasisFactory(nterms, bkd)
-
-        # Two states with different shifts => different alpha coefficients
-        state_lo = factory.build(pts, wts)
-        state_hi = factory.build(pts + 2.0, wts)
-
-        interp = RecurrenceInterpolator(bkd)
-        interp.fit(bkd.asarray([0.0, 1.0]), [state_lo, state_hi])
-
-        # At midpoint t=0.5, linear interpolation of rcoefs
-        state_mid = interp(0.5)
-        expected_rcoefs = 0.5 * state_lo.rcoefs() + 0.5 * state_hi.rcoefs()
-        bkd.assert_allclose(state_mid.rcoefs(), expected_rcoefs, atol=1e-12)
-
-    def test_no_snap_identity_raises(self, bkd) -> None:
+class TestIdentityInterpolator:
+    def test_raises_at_non_training_t(self, bkd) -> None:
         """IdentityInterpolator raises at non-training t values."""
         nterms = 3
         pts, wts = _gauss_hermite_quad(bkd, 10)
@@ -346,52 +311,9 @@ class TestRecurrenceInterpolator:
         with pytest.raises(ValueError, match="not found"):
             interp(0.5)
 
-    def test_smooth_velocity_with_interpolated_recurrence(self, bkd) -> None:
-        """Velocity is Lipschitz in t with RecurrenceInterpolator."""
-        nterms = 4
-        vf, path, qd = _build_evolving_gaussian_setup(
-            bkd, 2.0, 0.5, nterms, n_t=8, n_x=15, n_legendre=1,
-        )
-        # Fit with IdentityInterpolator (training only)
-        result = LeastSquaresFitter(bkd).fit(vf, path, qd)
-
-        # Now build a second VF with RecurrenceInterpolator, same coeffs
-        vf_smooth = build_stieltjes_flow_vf(
-            qd, path, nterms, bkd, n_legendre=1,
-            interpolate_rcoefs=True,
-        )
-        vf_smooth.set_coefficients(vf.get_coefficients())
-
-        # Evaluate at many t values and check Lipschitz continuity
-        x_fixed = bkd.asarray([[0.5]])
-        n_probe = 200
-        t_probe = bkd.linspace(0.01, 0.99, n_probe)
-        v_vals = bkd.zeros((n_probe,))
-        for ii in range(n_probe):
-            t_val = bkd.to_float(t_probe[ii])
-            inp = bkd.vstack([
-                bkd.full((1, 1), t_val),
-                x_fixed,
-            ])
-            v_vals[ii] = bkd.to_float(vf_smooth(inp)[0, 0])
-
-        # Finite differences: |v(t+dt) - v(t)| / dt should be bounded
-        dv = bkd.abs(v_vals[1:] - v_vals[:-1])
-        dt_arr = t_probe[1:] - t_probe[:-1]
-        ratios = dv / dt_arr
-        max_ratio = bkd.to_float(bkd.max(ratios))
-
-        # For a smooth Gaussian transport, the velocity derivative in t
-        # should be bounded. The exact bound depends on the problem but
-        # should not be pathologically large.
-        assert max_ratio < 100.0, (
-            f"Velocity not Lipschitz: max |dv/dt| = {max_ratio:.1f}"
-        )
-
 
 def _build_per_slice_gaussian_setup(bkd, mu_target, sigma_target, nterms,
-                                    n_t=8, n_x=15,
-                                    interpolate_rcoefs=False):
+                                    n_t=8, n_x=15):
     """Build per-slice StieltjesFlowVF for Gaussian transport."""
     quad_marginals = [UniformMarginal(0.0, 1.0, bkd),
                       GaussianMarginal(0.0, 1.0, bkd)]
@@ -409,8 +331,7 @@ def _build_per_slice_gaussian_setup(bkd, mu_target, sigma_target, nterms,
     )
 
     vf = build_stieltjes_flow_vf(
-        quad_data, path, nterms, bkd,
-        per_slice=True, interpolate_rcoefs=interpolate_rcoefs,
+        quad_data, path, nterms, bkd, per_slice=True,
     )
     return vf, path, quad_data
 
@@ -484,26 +405,22 @@ class TestPerSliceStrategy:
         with pytest.raises(NotImplementedError, match="PerSliceStrategy"):
             vf.hyp_list()
 
-    def test_per_slice_with_recurrence_interpolation(self, bkd) -> None:
-        """Per-slice + RecurrenceInterpolator evaluates at non-training t."""
+    def test_per_slice_raises_at_non_training_t(self, bkd) -> None:
+        """Per-slice strategy raises when evaluated at non-training t."""
         nterms = 4
         vf, path, qd = _build_per_slice_gaussian_setup(
             bkd, 2.0, 0.5, nterms, n_t=8, n_x=15,
-            interpolate_rcoefs=True,
         )
         result = LeastSquaresFitter(bkd).fit(vf, path, qd)
         fitted_vf = result.surrogate()
 
-        # Evaluate at a non-training t value
-        t_mid = 0.37  # unlikely to match any GH node
-        x_test = bkd.asarray([[0.5, 1.0, -0.5]])
-        t_test = bkd.full((1, 3), t_mid)
+        t_mid = 0.37
+        x_test = bkd.asarray([[0.5]])
+        t_test = bkd.full((1, 1), t_mid)
         vf_input = bkd.vstack([t_test, x_test])
 
-        # Should not raise and should return finite values
-        v_pred = fitted_vf(vf_input)
-        assert v_pred.shape == (1, 3)
-        assert bkd.to_float(bkd.max(bkd.abs(v_pred))) < 100.0
+        with pytest.raises(ValueError, match="not found"):
+            fitted_vf(vf_input)
 
     def test_kronecker_regression(self, bkd) -> None:
         """KroneckerStrategy matches old behavior exactly."""

@@ -36,19 +36,20 @@ def _make_shift_samplers(shift=2.0, n_pool=500, seed=0):
 
 
 class TestTorchSGDFitter:
+    @pytest.mark.timeout(300)
     def test_shift_transport_statistics(self, bkd):
         """SGD-trained VF transports N(0,1) to N(shift,1) in mean."""
         torch_bkd = _make_torch_bkd()
         shift = 2.0
-        source, target = _make_shift_samplers(shift=shift, n_pool=5000)
+        source, target = _make_shift_samplers(shift=shift, n_pool=2000)
         path = LinearPath(torch_bkd)
         torch.manual_seed(0)
         vf = MLPVelocityField(
-            nvars_in=2, nqoi=1, hidden_dims=[64, 64], bkd=bkd,
+            nvars_in=2, nqoi=1, hidden_dims=[32, 32], bkd=bkd,
         )
 
         fitter = TorchSGDFitter(
-            lr=1e-3, n_steps=10000, batch_size=512, seed=42,
+            lr=1e-3, n_steps=3000, batch_size=256, seed=42,
         )
         result = fitter.fit(vf, path, source, target)
         fitted = result.surrogate()

@@ -20,9 +20,9 @@ def compute_flow_density(
     x1_samples: Array,
     bkd: Backend[Array],
     n_steps: int = 100,
-    x_range: tuple[float, float] = (-6.0, 6.0),
     scheme: str = "heun",
     log_source_density: Optional[Callable[[Array], Array]] = None,
+    t_end: float = 1.0 - 1e-8,
 ) -> Array:
     """Evaluate density q(x1) by solving the backward ODE with divergence tracking.
 
@@ -40,14 +40,15 @@ def compute_flow_density(
         Computational backend.
     n_steps : int
         Number of ODE integration steps.
-    x_range : tuple[float, float]
-        Clipping range for spatial variable.
     scheme : str
         ODE integration scheme: ``"euler"`` or ``"heun"``.
     log_source_density : callable, optional
         ``log p0(x)`` evaluated at traced-back source samples.  Takes and
         returns arrays of shape ``(1, nsamples)``.  Defaults to standard
         normal ``N(0, 1)``.
+    t_end : float
+        Upper integration limit, shifted slightly below 1.0 to avoid
+        singularities in the velocity field at ``t = 1``.
 
     Returns
     -------
@@ -60,14 +61,13 @@ def compute_flow_density(
     nsamples = x1_samples.shape[1]
     x = bkd.copy(x1_samples)
     log_div_integral = bkd.zeros((1, nsamples))
-    dt = 1.0 / n_steps
+    dt = t_end / n_steps
 
     for i in range(n_steps):
-        t = 1.0 - i * dt
+        t = t_end - i * dt
         t_row = bkd.full((1, nsamples), t)
 
-        x_c1 = bkd.clip(x, x_range[0], x_range[1])
-        vf_in1 = bkd.vstack([t_row, x_c1])
+        vf_in1 = bkd.vstack([t_row, x])
         v1 = model(vf_in1)  # type: ignore[operator]
         jac1 = model.jacobian_batch(vf_in1)  # type: ignore[attr-defined]
         div1 = bkd.reshape(jac1[:, 0, 1], (1, -1))
@@ -76,11 +76,10 @@ def compute_flow_density(
             x = x - dt * v1
             log_div_integral = log_div_integral + dt * div1
         else:  # heun
-            t2 = t - dt
+            t2 = max(t - dt, 0.0)
             t_row2 = bkd.full((1, nsamples), t2)
             x2 = x - dt * v1
-            x_c2 = bkd.clip(x2, x_range[0], x_range[1])
-            vf_in2 = bkd.vstack([t_row2, x_c2])
+            vf_in2 = bkd.vstack([t_row2, x2])
             v2 = model(vf_in2)  # type: ignore[operator]
             jac2 = model.jacobian_batch(vf_in2)  # type: ignore[attr-defined]
             div2 = bkd.reshape(jac2[:, 0, 1], (1, -1))
@@ -92,7 +91,7 @@ def compute_flow_density(
         log_source_density = _log_standard_normal
     log_p0 = log_source_density(x)
     log_q = log_p0 - log_div_integral
-    return bkd.exp(bkd.clip(log_q, -50, 50))
+    return bkd.exp(log_q)
 
 
 def compute_kl_divergence(
@@ -102,9 +101,9 @@ def compute_kl_divergence(
     quad_wts: Array,
     bkd: Backend[Array],
     n_steps: int = 100,
-    x_range: tuple[float, float] = (-6.0, 6.0),
     scheme: str = "heun",
     log_source_density: Optional[Callable[[Array], Array]] = None,
+    t_end: float = 1.0 - 1e-8,
 ) -> float:
     """Compute D_KL(p || q) using quadrature nodes for target p.
 
@@ -122,11 +121,11 @@ def compute_kl_divergence(
         Computational backend.
     n_steps : int
         Number of ODE steps for density evaluation.
-    x_range : tuple[float, float]
-        Spatial clipping range.
     scheme : str
         ODE integration scheme.
     log_source_density : callable, optional
+        Passed to ``compute_flow_density``.
+    t_end : float
         Passed to ``compute_flow_density``.
 
     Returns
@@ -136,12 +135,12 @@ def compute_kl_divergence(
     """
     p_vals = target_pdf_fn(quad_pts)  # type: ignore[operator]
     q_vals = compute_flow_density(
-        model, quad_pts, bkd, n_steps=n_steps, x_range=x_range, scheme=scheme,
-        log_source_density=log_source_density,
+        model, quad_pts, bkd, n_steps=n_steps, scheme=scheme,
+        log_source_density=log_source_density, t_end=t_end,
     )
     eps = 1e-15
     integrand = bkd.log((p_vals + eps) / (q_vals + eps))
     kl = bkd.sum(
-        bkd.flatten(p_vals) * bkd.flatten(integrand) * quad_wts
-    ) / bkd.sum(bkd.flatten(p_vals) * quad_wts)
+        bkd.flatten(integrand) * quad_wts
+    ) / bkd.sum(quad_wts)
     return bkd.to_float(kl)
