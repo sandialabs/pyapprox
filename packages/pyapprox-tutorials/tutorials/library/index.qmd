@@ -1,7 +1,7 @@
 ---
 title: "PyApprox | Faster, Defensible Delivery via Simulation & Data"
 pagetitle: "PyApprox | Uncertainty Quantification, Surrogate Modeling & Bayesian Design"
-description: "Open-source Python toolkit for reliable, simulation- and data-driven engineering under uncertainty. Surrogate modeling, sensitivity analysis, Bayesian inference, and optimal experimental design. 80+ tutorials."
+description: "Open-source Python toolkit for reliable, simulation- and data-driven engineering under uncertainty. Surrogate modeling, sensitivity analysis, Bayesian inference, and optimal experimental design. 90+ tutorials."
 sidebar: false
 toc: false
 page-layout: full
@@ -36,7 +36,7 @@ Pushing performance while guaranteeing reliability demands expensive simulations
 
 ::: {.stats-bar}
 ::: {.stat-item}
-[80+]{.stat-number}
+[90+]{.stat-number}
 [Tutorials]{.stat-label}
 :::
 ::: {.stat-item}
@@ -231,7 +231,7 @@ indices, Morris screening, and analytical methods.
 ::: {.why-grid}
 
 ::: {.why-item}
-[80+ Validated Tutorials]{.why-title}
+[90+ Validated Tutorials]{.why-title}
 
 Every tutorial is executable, tested against analytical solutions where
 available, and designed to build intuition before diving into code.
