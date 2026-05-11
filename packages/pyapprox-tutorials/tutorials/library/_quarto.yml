@@ -8,7 +8,7 @@ project:
 website:
   title: "PyApprox"
   site-url: https://sandialabs.github.io/pyapprox/
-  description: "Open-source Python toolkit for uncertainty quantification, surrogate modeling, Bayesian experimental design, and sensitivity analysis. 80+ validated tutorials backed by Sandia National Laboratories."
+  description: "Open-source Python toolkit for uncertainty quantification, surrogate modeling, Bayesian experimental design, and sensitivity analysis. 90+ validated tutorials backed by Sandia National Laboratories."
   favicon: assets/favicon.ico
   open-graph: true
   navbar:
@@ -139,6 +139,10 @@ website:
               contents:
                 - isotropic_sparse_grids.qmd
                 - adaptive_sparse_grids.qmd
+                - local_basis_sparse_grids.qmd
+                - local_adaptive_sparse_grids_concept.qmd
+                - local_adaptive_vs_combination.qmd
+                - sparse_grid_cost_tracking.qmd
                 - multifidelity_sparse_grids.qmd
                 - sparse_grid_to_pce_conversion.qmd
                 - uq_with_sparse_grids.qmd

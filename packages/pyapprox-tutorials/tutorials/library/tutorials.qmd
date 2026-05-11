@@ -1,7 +1,7 @@
 ---
 title: "Tutorials"
-pagetitle: "PyApprox Tutorials | 80+ UQ, Surrogate Modeling & Sensitivity Analysis Guides"
-description: "Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis."
+pagetitle: "PyApprox Tutorials | 90+ UQ, Surrogate Modeling & Sensitivity Analysis Guides"
+description: "Browse 90+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis."
 toc: true
 toc-depth: 2
 ---
@@ -10,7 +10,7 @@ toc-depth: 2
 
 [Tutorial Library]{.tutorials-title-text}
 
-[80+ validated, executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.]{.tutorials-subtitle}
+[90+ validated, executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.]{.tutorials-subtitle}
 
 :::
 
