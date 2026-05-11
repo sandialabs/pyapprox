@@ -15,8 +15,19 @@ internally and fitted parameters are stored on the copy (immutable pattern).
     concerns.
 """
 
+from pyapprox.surrogates.gaussianprocess.exact_nargp import (
+    ExactNARGPFitResult,
+    ExactNARGPFitter,
+    ExactNARGPModel,
+)
+from pyapprox.surrogates.gaussianprocess.fitters.composition import (
+    DGPChainedFitResult,
+    DGPFitterChain,
+    DGPFitterProtocol,
+)
 from pyapprox.surrogates.gaussianprocess.fitters.deep_gp_fitter import (
     DGPMaximumLikelihoodFitter,
+    MFDGPSequentialFitter,
 )
 from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (
     GPFixedHyperparameterFitter,
@@ -41,12 +52,19 @@ from pyapprox.surrogates.gaussianprocess.fitters.variational_fitter import (
 )
 
 __all__ = [
+    "DGPChainedFitResult",
+    "DGPFitterChain",
+    "DGPFitterProtocol",
     "DGPMaximumLikelihoodFitter",
+    "ExactNARGPFitResult",
+    "ExactNARGPFitter",
+    "ExactNARGPModel",
     "GPFitResult",
     "GPOptimizedFitResult",
     "GPFixedHyperparameterFitter",
     "GPIncrementalFitter",
     "GPMaximumLikelihoodFitter",
+    "MFDGPSequentialFitter",
     "VariationalGPFixedHyperparameterFitter",
     "VariationalGPMaximumLikelihoodFitter",
     "MultiOutputGPFixedHyperparameterFitter",

@@ -8,7 +8,7 @@ from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
     DeepGaussianProcess,
 )
 from pyapprox.surrogates.gaussianprocess.deep.initializers import (
-    FixedInitializer,
+    CustomInitializer,
     InducingInitializer,
     RandomUniformInitializer,
     SobolInitializer,
@@ -33,7 +33,7 @@ from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
 __all__ = [
     "DeepGaussianProcess",
     "DGPLayer",
-    "FixedInitializer",
+    "CustomInitializer",
     "InducingInitializer",
     "InputBuilder",
     "LayerPropagator",

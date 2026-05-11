@@ -1,6 +1,6 @@
 """Builder functions for common Deep GP architectures."""
 
-from typing import Callable, Dict, Hashable, List, Optional, Tuple
+from typing import Callable, Dict, Hashable, List, Optional, Tuple, Union
 
 import networkx as nx
 import numpy as np
@@ -141,16 +141,23 @@ def build_single_fidelity_dgp(
 
 def build_multilevel_dgp(
     level_nvars: List[int],
-    num_inducing: int,
+    num_inducing: Union[int, List[int]],
     kernel_factory: KernelFactory[Array],
     bkd: Backend[Array],
     noise_std: float = 0.1,
     noise_bounds: Tuple[float, float] = (1e-6, 1.0),
-    inducing_bounds: Tuple[float, float] = (-5.0, 5.0),
+    inducing_bounds: Union[
+        Tuple[float, float], List[Tuple[float, float]],
+    ] = (-5.0, 5.0),
     nugget: float = 1e-6,
     n_propagation: int = 10,
     seed: int = 0,
-    initializer: Optional[InducingInitializer[Array]] = None,
+    initializer: Optional[
+        Union[
+            InducingInitializer[Array],
+            List[InducingInitializer[Array]],
+        ]
+    ] = None,
 ) -> DeepGaussianProcess[Array]:
     """Build a multilevel Deep GP with parent-passthrough means.
 
@@ -169,8 +176,9 @@ def build_multilevel_dgp(
     level_nvars : List[int]
         Input dimensionality for each level. Typically all the same
         (the physical input dimension).
-    num_inducing : int
-        Number of inducing points per layer.
+    num_inducing : int or List[int]
+        Number of inducing points per layer. If a single int, the
+        same value is used for all layers.
     kernel_factory : Callable[[int, Backend], Kernel]
         Factory that takes (nvars_for_layer, bkd) and returns a kernel.
     bkd : Backend[Array]
@@ -179,17 +187,21 @@ def build_multilevel_dgp(
         Observation noise standard deviation for each layer.
     noise_bounds : Tuple[float, float]
         Bounds for noise parameter optimization.
-    inducing_bounds : Tuple[float, float]
-        Bounds for inducing point locations.
+    inducing_bounds : Tuple[float, float] or List[Tuple[float, float]]
+        Bounds for inducing point locations. A single tuple applies
+        to all layers; a list provides per-layer bounds. Non-root
+        layers have augmented inputs [x, f_parent] so their bounds
+        should cover the parent output range.
     nugget : float
         Cholesky jitter for each layer.
     n_propagation : int
         Default number of propagation samples.
     seed : int
         Random seed for initial inducing point locations.
-    initializer : Optional[InducingInitializer[Array]]
-        Strategy for placing inducing points. Defaults to
-        RandomUniformInitializer with inducing_bounds.
+    initializer : InducingInitializer, List[InducingInitializer], or None
+        Strategy for placing inducing points. A single initializer
+        is used for all layers; a list provides one per layer.
+        Defaults to RandomUniformInitializer with inducing_bounds.
 
     Returns
     -------
@@ -202,8 +214,39 @@ def build_multilevel_dgp(
             f"Need at least 1 level, got {n_levels}"
         )
 
+    if isinstance(num_inducing, int):
+        num_inducing_list = [num_inducing] * n_levels
+    else:
+        if len(num_inducing) != n_levels:
+            raise ValueError(
+                f"num_inducing list length {len(num_inducing)} does not "
+                f"match number of levels {n_levels}"
+            )
+        num_inducing_list = list(num_inducing)
+
+    if isinstance(inducing_bounds, list):
+        if len(inducing_bounds) != n_levels:
+            raise ValueError(
+                f"inducing_bounds list length {len(inducing_bounds)} does "
+                f"not match number of levels {n_levels}"
+            )
+        bounds_list = inducing_bounds
+    else:
+        bounds_list = [inducing_bounds] * n_levels
+
     if initializer is None:
-        initializer = RandomUniformInitializer(inducing_bounds)
+        initializer_list: List[InducingInitializer[Array]] = [
+            RandomUniformInitializer(b) for b in bounds_list
+        ]
+    elif isinstance(initializer, list):
+        if len(initializer) != n_levels:
+            raise ValueError(
+                f"initializer list length {len(initializer)} does not "
+                f"match number of levels {n_levels}"
+            )
+        initializer_list = initializer
+    else:
+        initializer_list = [initializer] * n_levels
 
     rng = np.random.RandomState(seed)
     dag = nx.DiGraph()
@@ -225,16 +268,17 @@ def build_multilevel_dgp(
                 parent_start=base_nvars, bkd=bkd,
             )
 
+        m_i = num_inducing_list[i]
         kernel = kernel_factory(layer_nvars, bkd)
-        locs = initializer.initialize(num_inducing, layer_nvars, bkd, rng)
+        locs = initializer_list[i].initialize(m_i, layer_nvars, bkd, rng)
         ip = InducingPoints(
             nvars=layer_nvars,
-            num_inducing=num_inducing,
+            num_inducing=m_i,
             bkd=bkd,
             inducing_locations=locs,
-            inducing_bounds=inducing_bounds,
+            inducing_bounds=bounds_list[i],
         )
-        vd = GaussianVariationalDistribution(num_inducing, bkd)
+        vd = GaussianVariationalDistribution(m_i, bkd)
         lik = GaussianLikelihood(noise_std, noise_bounds, bkd)
 
         layers[i] = DGPLayer(
