@@ -217,12 +217,12 @@ class TestAnalyticalAllocator:
         return stat, costs
 
     def test_default_allocator_factory_gmf_chain(self, bkd):
-        """Returns proxy for GMF with chain index."""
+        """Returns ACVAllocator for GMF with chain index."""
         stat, costs = self._create_mfmc_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
         allocator = default_allocator_factory(est)
-        assert isinstance(allocator, _MFMCAnalyticalProxyAllocator)
+        assert isinstance(allocator, ACVAllocator)
 
     def test_default_allocator_factory_gmf_non_chain(self, bkd):
         """Returns ACVAllocator for GMF with non-chain index."""
@@ -299,13 +299,13 @@ class TestAllocatorFactory:
         costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
 
-    def test_factory_returns_proxy_for_gmf_chain(self, bkd):
-        """Returns proxy for GMF with chain index."""
+    def test_factory_returns_acv_for_gmf_chain(self, bkd):
+        """Returns ACVAllocator for GMF with chain index."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
         allocator = default_allocator_factory(est)
-        assert isinstance(allocator, _MFMCAnalyticalProxyAllocator)
+        assert isinstance(allocator, ACVAllocator)
 
     def test_factory_returns_acv_for_gmf_non_chain(self, bkd):
         """Returns ACVAllocator for GMF with non-chain index."""
@@ -517,10 +517,9 @@ class TestProxyAllocators:
         chain_index = bkd.array([0, 1], dtype=int)
         target_cost = 1000.0
 
-        # GMF with chain index -> proxy allocator
+        # GMF with chain index -> proxy allocator (instantiated directly)
         gmf_est = GMFEstimator(stat, costs, recursion_index=chain_index)
-        gmf_allocator = default_allocator_factory(gmf_est)
-        assert isinstance(gmf_allocator, _MFMCAnalyticalProxyAllocator)
+        gmf_allocator = _MFMCAnalyticalProxyAllocator(gmf_est)
         gmf_result = gmf_allocator.allocate(target_cost)
         assert gmf_result.success
 
@@ -549,10 +548,9 @@ class TestProxyAllocators:
         chain_index = bkd.array([0, 1], dtype=int)
         target_cost = 1000.0
 
-        # GRD with chain index -> proxy allocator
+        # GRD with chain index -> proxy allocator (instantiated directly)
         grd_est = GRDEstimator(stat, costs, recursion_index=chain_index)
-        grd_allocator = default_allocator_factory(grd_est)
-        assert isinstance(grd_allocator, _MLMCAnalyticalProxyAllocator)
+        grd_allocator = _MLMCAnalyticalProxyAllocator(grd_est)
         grd_result = grd_allocator.allocate(target_cost)
         assert grd_result.success
 
@@ -575,14 +573,15 @@ class TestProxyAllocators:
             rtol=1e-10,
         )
 
-    def test_proxy_mfmc_fallback(self, bkd):
-        """Proxy falls back to optimization when MFMC formula fails."""
-        # Create correlations NOT ordered by decreasing correlation
-        # Model 2 more correlated with HF than model 1
+    def test_proxy_mfmc_fallback_on_negative_partitions(self, bkd):
+        """Proxy falls back to optimization when analytical formula
+        produces negative partition ratios."""
+        # Correlations NOT ordered by decreasing correlation
+        # so analytical MFMC formula produces negative partitions
         nmodels = 3
         cov = np.eye(nmodels)
-        cov[0, 1] = cov[1, 0] = 0.3  # Low correlation
-        cov[0, 2] = cov[2, 0] = 0.9  # High correlation
+        cov[0, 1] = cov[1, 0] = 0.3
+        cov[0, 2] = cov[2, 0] = 0.9
         cov[1, 2] = cov[2, 1] = 0.2
 
         stat = MultiOutputMean(1, bkd)
@@ -591,14 +590,23 @@ class TestProxyAllocators:
 
         chain_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=chain_index)
-        allocator = default_allocator_factory(est)
-        # Should still get proxy allocator type
-        assert isinstance(allocator, _MFMCAnalyticalProxyAllocator)
-        # But allocation should fall back to optimization and still succeed
+        allocator = _MFMCAnalyticalProxyAllocator(est)
+        # Should fall back to numerical optimizer and succeed
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
+        # All partition samples must be non-negative
+        for i in range(len(result.npartition_samples)):
+            assert bkd.to_int(result.npartition_samples[i]) >= 0
 
-    def test_proxy_not_used_for_non_chain_index(self, bkd):
+    def test_factory_returns_acv_for_gmf_chain(self, bkd):
+        """default_allocator_factory returns ACVAllocator for GMF chain."""
+        stat, costs = self._create_mfmc_stat_and_costs(bkd)
+        chain_index = bkd.array([0, 1], dtype=int)
+        est = GMFEstimator(stat, costs, recursion_index=chain_index)
+        allocator = default_allocator_factory(est)
+        assert isinstance(allocator, ACVAllocator)
+
+    def test_factory_returns_acv_for_gmf_non_chain(self, bkd):
         """GMFEstimator with non-chain index gets ACVAllocator."""
         stat, costs = self._create_mfmc_stat_and_costs(bkd)
         non_chain_index = bkd.array([0, 0], dtype=int)
@@ -606,7 +614,15 @@ class TestProxyAllocators:
         allocator = default_allocator_factory(est)
         assert isinstance(allocator, ACVAllocator)
 
-    def test_grd_non_chain_not_proxied(self, bkd):
+    def test_factory_returns_acv_for_grd_chain(self, bkd):
+        """default_allocator_factory returns ACVAllocator for GRD chain."""
+        stat, costs = self._create_mlmc_stat_and_costs(bkd)
+        chain_index = bkd.array([0, 1], dtype=int)
+        est = GRDEstimator(stat, costs, recursion_index=chain_index)
+        allocator = default_allocator_factory(est)
+        assert isinstance(allocator, ACVAllocator)
+
+    def test_factory_returns_acv_for_grd_non_chain(self, bkd):
         """GRDEstimator with non-chain index gets ACVAllocator."""
         stat, costs = self._create_mlmc_stat_and_costs(bkd)
         non_chain_index = bkd.array([0, 0], dtype=int)
@@ -614,8 +630,8 @@ class TestProxyAllocators:
         allocator = default_allocator_factory(est)
         assert isinstance(allocator, ACVAllocator)
 
-    def test_gis_not_proxied(self, bkd):
-        """GISEstimator with chain index still gets ACVAllocator."""
+    def test_factory_returns_acv_for_gis(self, bkd):
+        """GISEstimator with chain index gets ACVAllocator."""
         stat, costs = self._create_mfmc_stat_and_costs(bkd)
         chain_index = bkd.array([0, 1], dtype=int)
         est = GISEstimator(stat, costs, recursion_index=chain_index)

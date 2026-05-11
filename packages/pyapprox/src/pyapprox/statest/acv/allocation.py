@@ -630,6 +630,11 @@ class _MFMCAnalyticalProxyAllocator(Allocator[Array]):
         partition_ratios = self._bkd.hstack(
             (nsample_ratios[0] - 1, self._bkd.diff(nsample_ratios))
         )
+        if self._bkd.to_float(self._bkd.min(partition_ratios)) < -1e-8:
+            raise ValueError(
+                f"Analytical MFMC produced negative partition ratios: "
+                f"{partition_ratios}"
+            )
         objective_value = self._bkd.atleast_1d(log_variance)
         return partition_ratios, objective_value
 
@@ -710,6 +715,11 @@ class _MLMCAnalyticalProxyAllocator(Allocator[Array]):
         for ii in range(1, len(nsample_ratios)):
             partition_ratios.append(nsample_ratios[ii] - partition_ratios[ii - 1])
         partition_ratios = self._bkd.hstack(partition_ratios)
+        if self._bkd.to_float(self._bkd.min(partition_ratios)) < -1e-8:
+            raise ValueError(
+                f"Analytical MLMC produced negative partition ratios: "
+                f"{partition_ratios}"
+            )
         objective_value = self._bkd.atleast_1d(log_variance)
         return partition_ratios, objective_value
 
@@ -750,9 +760,7 @@ def default_allocator_factory(
 
     Routes estimators to the fastest available allocation strategy:
     1. AnalyticalAllocator for MFMC/MLMC (has _allocate_samples_analytical)
-    2. MFMC proxy for GMFEstimator with chain recursion index [0,1,...,M-2]
-    3. MLMC proxy for GRDEstimator with chain recursion index [0,1,...,M-2]
-    4. ACVAllocator (optimization-based) for everything else
+    2. ACVAllocator (optimization-based) for everything else
 
     Parameters
     ----------
@@ -770,15 +778,5 @@ def default_allocator_factory(
     """
     if hasattr(estimator, "_allocate_samples_analytical"):
         return AnalyticalAllocator(estimator)
-
-    from pyapprox.statest.acv.variants import GMFEstimator, GRDEstimator
-
-    if isinstance(estimator, GMFEstimator):
-        if _is_chain_recursion_index(estimator._recursion_index, estimator._bkd):
-            return _MFMCAnalyticalProxyAllocator(estimator)
-
-    if isinstance(estimator, GRDEstimator):
-        if _is_chain_recursion_index(estimator._recursion_index, estimator._bkd):
-            return _MLMCAnalyticalProxyAllocator(estimator)
 
     return ACVAllocator(estimator, optimizer=optimizer)
