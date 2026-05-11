@@ -75,6 +75,7 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
         super().__init__(
             kernel, nvars, inducing_points, likelihood, bkd, mean_function, nugget
         )
+        self._torch_bkd = bkd
 
     def _setup_derivative_methods(self) -> None:
         """Bind autograd-based prediction Jacobian methods."""
@@ -107,7 +108,7 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
         def pred_func(x: torch.Tensor) -> torch.Tensor:
             return self.predict(x[:, None])[:, 0]
 
-        return self._bkd.jacobian(pred_func, x)
+        return self._torch_bkd.jacobian(pred_func, x)
 
     def _jacobian_batch(self, samples: torch.Tensor) -> torch.Tensor:
         """Compute Jacobian of GP mean w.r.t. inputs (batch).
@@ -133,13 +134,13 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
             def pred_func(x: torch.Tensor) -> torch.Tensor:
                 return self.predict(x[:, None])[:, 0]
 
-            jacs.append(self._bkd.jacobian(pred_func, x_i))
+            jacs.append(self._torch_bkd.jacobian(pred_func, x_i))
 
         return torch.stack(jacs, dim=0)
 
     def _configure_loss(self, loss: VariationalGPELBOLoss[torch.Tensor]) -> None:
         """Bind autograd-based jacobian on the loss function."""
-        bkd = self._bkd
+        bkd = self._torch_bkd
 
         def _jacobian_autograd(params: torch.Tensor) -> torch.Tensor:
             if len(params.shape) == 2 and params.shape[1] == 1:

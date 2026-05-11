@@ -2,7 +2,6 @@ from typing import Generic, List, Optional
 
 from pyapprox.util.backends.protocols import (
     Array,
-    ArrayProtocol,
     Backend,
 )
 from pyapprox.util.backends.validation import validate_backends
@@ -93,7 +92,7 @@ class HyperParameterList(Generic[Array]):
             hyp.set_active_indices(active_indices[hyp_indices] - cnt)
             cnt += hyp.nparams()
 
-    def get_active_indices(self) -> ArrayProtocol:
+    def get_active_indices(self) -> Array:
         """
         Get the active indices of the hyperparameters.
 
@@ -154,7 +153,7 @@ class HyperParameterList(Generic[Array]):
             cnt += hyp.nactive_params()
         return cnt
 
-    def get_values(self) -> ArrayProtocol:
+    def get_values(self) -> Array:
         """
         Get the values of the parameters in the user space.
 
@@ -182,7 +181,7 @@ class HyperParameterList(Generic[Array]):
             hyp.set_values(values[cnt : cnt + hyp.nparams()])
             cnt += hyp.nparams()
 
-    def get_bounds(self) -> ArrayProtocol:
+    def get_bounds(self) -> Array:
         """
         Get the flattened bounds of the parameters in the user space.
 
@@ -196,7 +195,7 @@ class HyperParameterList(Generic[Array]):
 
         return self._bkd.vstack([hyp.get_bounds() for hyp in self._hyperparam_list])
 
-    def get_active_values(self) -> ArrayProtocol:
+    def get_active_values(self) -> Array:
         """
         Get the values of the active parameters in the optimization space.
 
@@ -212,7 +211,7 @@ class HyperParameterList(Generic[Array]):
             [hyp.get_active_values() for hyp in self._hyperparam_list]
         )
 
-    def get_active_bounds(self) -> ArrayProtocol:
+    def get_active_bounds(self) -> Array:
         """
         Get the bounds of the active parameters.
 
@@ -228,7 +227,7 @@ class HyperParameterList(Generic[Array]):
             [hyp.get_active_bounds() for hyp in self._hyperparam_list]
         )
 
-    def extract_active(self, full_array: Array) -> ArrayProtocol:
+    def extract_active(self, full_array: Array) -> Array:
         """
         Extract elements corresponding to active parameters from a full array.
 
@@ -265,7 +264,7 @@ class HyperParameterList(Generic[Array]):
 
     def expand_to_full(
         self, active_array: Array, fill_value: float = 0.0
-    ) -> ArrayProtocol:
+    ) -> Array:
         """
         Expand an active-parameter array to full parameter space.
 

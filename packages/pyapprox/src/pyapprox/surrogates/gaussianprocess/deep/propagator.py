@@ -52,7 +52,7 @@ def _count_node_dimensions(dag: "nx.DiGraph") -> int:
     keeps the rule's view of the DAG consistent across all propagator
     methods (forward, sample_forward).
     """
-    return dag.number_of_nodes()
+    return int(dag.number_of_nodes())
 
 
 def _build_node_index(
@@ -86,7 +86,7 @@ class LayerPropagator(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        rule: Optional[PropagationRule] = None,
+        rule: Optional[PropagationRule[Array]] = None,
     ) -> None:
         self._bkd = bkd
         self._rule = rule or MonteCarloRule()
@@ -94,7 +94,7 @@ class LayerPropagator(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def rule(self) -> PropagationRule:
+    def rule(self) -> PropagationRule[Array]:
         return self._rule
 
     def forward(
@@ -149,6 +149,10 @@ class LayerPropagator(Generic[Array]):
                 w = bkd.ones((1,))
                 samples = None
                 if has_children:
+                    if nodes is None:
+                        raise RuntimeError(
+                            "nodes is None but has_children is True"
+                        )
                     col = node_idx[node]
                     eps_col = nodes[:, col]
                     eps = bkd.reshape(eps_col, (n_samples, 1, 1))
@@ -158,14 +162,27 @@ class LayerPropagator(Generic[Array]):
                     )
                 cache[node] = LayerOutputDist(means, variances, w, samples)
             else:
+                if nodes is None or weights is None:
+                    raise RuntimeError(
+                        "nodes/weights are None for non-root node"
+                    )
                 parent_dists = [cache[p] for p in parents]
-                S = parent_dists[0].samples.shape[0]
+                parent_samples_0 = parent_dists[0].samples
+                if parent_samples_0 is None:
+                    raise RuntimeError(
+                        "Parent node has no samples for child propagation"
+                    )
+                S = parent_samples_0.shape[0]
 
                 h_list: List[Array] = []
                 for s in range(S):
-                    parent_samples_s = [
-                        pdist.samples[s] for pdist in parent_dists
-                    ]
+                    parent_samples_s: List[Array] = []
+                    for pdist in parent_dists:
+                        if pdist.samples is None:
+                            raise RuntimeError(
+                                "Parent has no samples for child propagation"
+                            )
+                        parent_samples_s.append(pdist.samples[s])
                     h_list.append(layer.input_builder().build(
                         X, parent_samples_s, bkd,
                     ))

@@ -12,6 +12,8 @@ and the inner expectation is closed-form for Gaussian likelihoods.
 import math
 from typing import Dict, Generic, Hashable, Tuple
 
+import torch
+
 from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
     DeepGaussianProcess,
 )
@@ -128,7 +130,7 @@ class DGPELBOLoss(Generic[Array]):
         )
 
 
-class TorchDGPELBOLoss(DGPELBOLoss[Array]):
+class TorchDGPELBOLoss(DGPELBOLoss[torch.Tensor]):
     """DGP ELBO loss with autograd-based jacobian for torch optimizers.
 
     Parameters are identical to DGPELBOLoss. The jacobian method uses
@@ -138,35 +140,37 @@ class TorchDGPELBOLoss(DGPELBOLoss[Array]):
 
     def __init__(
         self,
-        dgp: DeepGaussianProcess[Array],
-        data: Dict[Hashable, Tuple[Array, Array]],
+        dgp: DeepGaussianProcess[torch.Tensor],
+        data: Dict[Hashable, Tuple[torch.Tensor, torch.Tensor]],
         n_propagation: int = 10,
     ) -> None:
-        if not isinstance(dgp.bkd(), TorchBkd):
+        torch_bkd = dgp.bkd()
+        if not isinstance(torch_bkd, TorchBkd):
             raise TypeError(
                 "TorchDGPELBOLoss requires a TorchBkd backend, "
-                f"got {type(dgp.bkd()).__name__}"
+                f"got {type(torch_bkd).__name__}"
             )
         super().__init__(dgp, data, n_propagation)
+        self._torch_bkd = torch_bkd
 
-    def jacobian(self, params: Array) -> Array:
+    def jacobian(self, params: torch.Tensor) -> torch.Tensor:
         """Gradient of negative ELBO via torch autograd.
 
         Parameters
         ----------
-        params : Array
+        params : torch.Tensor
             Active hyperparameters, shape (nactive,) or (nactive, 1).
 
         Returns
         -------
-        Array
+        torch.Tensor
             Jacobian, shape (1, nactive).
         """
-        bkd = self._bkd
+        bkd = self._torch_bkd
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
 
-        def loss_scalar(p: Array) -> Array:
+        def loss_scalar(p: torch.Tensor) -> torch.Tensor:
             return self(p)[0, 0]
 
         jac = bkd.jacobian(loss_scalar, params)
