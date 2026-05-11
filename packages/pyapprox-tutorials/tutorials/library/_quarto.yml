@@ -148,6 +148,9 @@ website:
                 - uq_with_gp.qmd
                 - adaptive_gp_sampling.qmd
                 - multioutput_gp.qmd
+                - svgp_concept.qmd
+                - dgp_concept.qmd
+                - dgp_multifidelity_concept.qmd
             - section: "Universal Polynomial Networks"
               contents:
                 - supn_surrogates.qmd

@@ -28,6 +28,11 @@ website:
             - gp_separable_kernel_integrals.qmd
             - gp_statistics_workflow.qmd
             - gp_sobol_uncertainty.qmd
+        - section: "Sparse and Deep Gaussian Processes"
+          contents:
+            - svgp_concept.qmd
+            - dgp_concept.qmd
+            - dgp_multifidelity_concept.qmd
         - section: "Advanced Topics"
           contents:
             - optimal_experimental_design.qmd
@@ -54,5 +59,7 @@ execute:
   freeze: auto
 
 jupyter: python3
+
+bibliography: references.bib
 
 notebook-links: true
