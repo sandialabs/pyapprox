@@ -7,7 +7,7 @@ the variational GP's negative ELBO for use with optimizers.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Generic, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
@@ -44,6 +44,7 @@ class VariationalGPELBOLoss(Generic[Array]):
         self._fit_args = fit_args
         self._bkd = gp.bkd()
         self._hyp_list = gp.hyp_list()
+        self.jacobian: Optional[Callable[[Array], Array]] = None
 
     def nvars(self) -> int:
         """Number of active hyperparameters."""

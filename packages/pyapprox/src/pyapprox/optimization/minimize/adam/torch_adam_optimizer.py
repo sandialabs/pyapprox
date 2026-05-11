@@ -4,7 +4,7 @@ Uses torch.optim.Adam (C++ implementation) with single forward+backward
 per iteration. No numpy conversions, no redundant forward pass.
 """
 
-from typing import Optional, Self, cast
+from typing import Optional, Protocol, Self, cast, runtime_checkable
 
 import torch
 
@@ -20,6 +20,16 @@ from pyapprox.optimization.minimize.result_protocol import (
 )
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.util.hyperparameter import HyperParameterList
+
+
+@runtime_checkable
+class _TorchObjectiveProtocol(Protocol):
+    def __call__(self, samples: torch.Tensor) -> torch.Tensor: ...
+    def bkd(self) -> Backend[torch.Tensor]: ...
+    def nvars(self) -> int: ...
+    def nqoi(self) -> int: ...
+    def hyp_list(self) -> HyperParameterList[torch.Tensor]: ...
 
 
 class TorchAdamOptimizer:
@@ -59,7 +69,7 @@ class TorchAdamOptimizer:
         self._maxiter = maxiter
         self._verbosity = verbosity
 
-        self._objective: Optional[ObjectiveProtocol[torch.Tensor]] = None
+        self._objective: Optional[_TorchObjectiveProtocol] = None
         self._bounds: Optional[torch.Tensor] = None
         self._bkd: Optional[TorchBkd] = None
         self._is_bound = False
@@ -76,14 +86,20 @@ class TorchAdamOptimizer:
             raise NotImplementedError(
                 "TorchAdamOptimizer does not support constraints."
             )
-        if not isinstance(objective.bkd(), TorchBkd):
+        if not isinstance(objective, _TorchObjectiveProtocol):
+            raise TypeError(
+                "TorchAdamOptimizer requires an objective with hyp_list(), "
+                f"got {type(objective).__name__}"
+            )
+        bkd = objective.bkd()
+        if not isinstance(bkd, TorchBkd):
             raise TypeError(
                 "TorchAdamOptimizer requires a TorchBkd backend, "
-                f"got {type(objective.bkd()).__name__}"
+                f"got {type(bkd).__name__}"
             )
         self._objective = objective
         self._bounds = bounds
-        self._bkd = objective.bkd()
+        self._bkd = bkd
         self._is_bound = True
         return self
 
@@ -145,7 +161,7 @@ class TorchAdamOptimizer:
 
             opt.zero_grad()
             loss = objective(param)[0, 0]
-            loss.backward()
+            loss.backward()  # type: ignore[no-untyped-call]
             opt.step()
 
             with torch.no_grad():

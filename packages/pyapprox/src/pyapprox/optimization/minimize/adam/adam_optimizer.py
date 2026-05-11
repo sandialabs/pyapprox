@@ -11,6 +11,7 @@ from pyapprox.optimization.minimize.constraints.protocols import (
 )
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
+    ObjectiveWithJacobianProtocol,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -60,7 +61,7 @@ class AdamOptimizer(Generic[Array]):
         self._maxiter = maxiter
         self._verbosity = verbosity
 
-        self._objective: Optional[ObjectiveProtocol[Array]] = None
+        self._objective: Optional[ObjectiveWithJacobianProtocol[Array]] = None
         self._bounds: Optional[Array] = None
         self._bkd: Optional[Backend[Array]] = None
         self._is_bound = False
@@ -91,9 +92,10 @@ class AdamOptimizer(Generic[Array]):
                 "AdamOptimizer does not support constraints."
             )
         validate_objective(objective)
-        if not hasattr(objective, "jacobian"):
+        if not isinstance(objective, ObjectiveWithJacobianProtocol):
             raise TypeError(
-                "AdamOptimizer requires an objective with a jacobian method."
+                "AdamOptimizer requires an objective with a jacobian method, "
+                f"got {type(objective).__name__}"
             )
         self._objective = objective
         self._bounds = bounds
@@ -165,7 +167,7 @@ class AdamOptimizer(Generic[Array]):
             f_val = objective(x_col)
             f_scalar = float(bkd.to_numpy(bkd.reshape(f_val, (-1,)))[0])
 
-            grad = objective.jacobian(x_col)[0]  # type: ignore[union-attr]
+            grad = objective.jacobian(x_col)[0]
 
             m = beta1 * m + (1.0 - beta1) * grad
             v = beta2 * v + (1.0 - beta2) * grad * grad

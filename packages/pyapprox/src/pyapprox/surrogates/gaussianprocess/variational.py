@@ -25,12 +25,12 @@ from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (
     InducingPoints,
 )
-from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
-    GaussianLikelihood,
-)
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
     InputAffineTransformProtocol,
+)
+from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
+    GaussianLikelihood,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
@@ -94,6 +94,7 @@ class VariationalGaussianProcess(Generic[Array]):
         self._inducing_points = inducing_points
         self._likelihood = likelihood
 
+        self._mean: MeanFunction[Array]
         if mean_function is None:
             self._mean = ZeroMean(bkd)
         else:
@@ -241,7 +242,7 @@ class VariationalGaussianProcess(Generic[Array]):
         return self._likelihood
 
     def hyp_list(self) -> HyperParameterList[Array]:
-        """Return combined hyperparameter list (kernel + mean + inducing + likelihood)."""
+        """Combined hyperparameter list for all components."""
         kernel_hyps = self._kernel.hyp_list().hyperparameters()
         mean_hyps = self._mean.hyp_list().hyperparameters()
         inducing_hyps = self._inducing_points.hyp_list().hyperparameters()
@@ -395,7 +396,7 @@ class VariationalGaussianProcess(Generic[Array]):
         Array
             Posterior mean, shape (nqoi, n_test).
         """
-        if not self.is_fitted():
+        if self._data is None or self._alpha is None:
             raise RuntimeError("GP must be fitted before making predictions")
 
         X = self._input_transform.transform(X)
@@ -428,7 +429,7 @@ class VariationalGaussianProcess(Generic[Array]):
         Array
             Posterior std, shape (nqoi, n_test).
         """
-        if not self.is_fitted():
+        if self._data is None or self._cholesky is None:
             raise RuntimeError("GP must be fitted before making predictions")
 
         bkd = self._bkd
@@ -464,7 +465,7 @@ class VariationalGaussianProcess(Generic[Array]):
         Array
             Posterior covariance, shape (n_test, n_test).
         """
-        if not self.is_fitted():
+        if self._data is None or self._cholesky is None:
             raise RuntimeError("GP must be fitted before making predictions")
 
         bkd = self._bkd
@@ -529,7 +530,13 @@ class VariationalGaussianProcess(Generic[Array]):
             input_transform=input_transform,
         )
         result = fitter.fit(self, X_train, y_train)
-        self._copy_fitted_state_from(result.surrogate())
+        fitted = result.surrogate()
+        if not isinstance(fitted, VariationalGaussianProcess):
+            raise TypeError(
+                "Fitter returned unexpected surrogate type: "
+                f"{type(fitted).__name__}"
+            )
+        self._copy_fitted_state_from(fitted)
 
     def __repr__(self) -> str:
         fitted_str = "fitted" if self.is_fitted() else "not fitted"

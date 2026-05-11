@@ -7,7 +7,7 @@ is delegated to a LayerPropagator strategy object.
 """
 
 import copy
-from typing import Dict, Generic, Hashable, List, Optional, Tuple
+from typing import Dict, Generic, Hashable, List, Optional
 
 import networkx as nx
 
@@ -16,7 +16,7 @@ from pyapprox.surrogates.gaussianprocess.deep.propagator import (
     LayerPropagator,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 
 
 class DeepGaussianProcess(Generic[Array]):
@@ -65,7 +65,7 @@ class DeepGaussianProcess(Generic[Array]):
         self._n_propagation = n_propagation
         self._fitted = False
 
-        self._leaf_nodes = [
+        self._leaf_nodes: List[Hashable] = [
             n for n in dag.nodes() if dag.out_degree(n) == 0
         ]
 
@@ -153,7 +153,7 @@ class DeepGaussianProcess(Generic[Array]):
 
     def hyp_list(self) -> HyperParameterList[Array]:
         """Aggregated hyperparameters from all layers in topological order."""
-        hyps: List = []
+        hyps: List[HyperParameter[Array]] = []
         for node in nx.topological_sort(self._dag):
             hyps += self._layers[node].hyp_list().hyperparameters()
         return HyperParameterList(hyps)

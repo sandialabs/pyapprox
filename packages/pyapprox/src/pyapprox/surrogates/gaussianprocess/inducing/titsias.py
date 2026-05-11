@@ -4,7 +4,7 @@ Computes the closed-form optimal q(u) from Titsias (2009) in whitened
 form, for use as initialization or as a test reference.
 """
 
-from typing import Generic, Tuple
+from typing import Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 

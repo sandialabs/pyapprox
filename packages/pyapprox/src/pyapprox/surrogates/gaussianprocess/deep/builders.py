@@ -1,10 +1,9 @@
 """Builder functions for common Deep GP architectures."""
 
-from typing import Callable, Generic, List, Optional, Tuple
-
-import numpy as np
+from typing import Callable, Dict, Hashable, List, Optional, Tuple
 
 import networkx as nx
+import numpy as np
 
 from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
     DeepGaussianProcess,
@@ -27,12 +26,12 @@ from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
     GaussianLikelihood,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
+    MeanFunction,
     ParentPassthroughMean,
     ZeroMean,
 )
 from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
-
 
 KernelFactory = Callable[[int, Backend[Array]], Kernel[Array]]
 
@@ -41,7 +40,7 @@ def build_single_fidelity_dgp(
     n_layers: int,
     nvars: int,
     num_inducing: int,
-    kernel_factory: KernelFactory,
+    kernel_factory: KernelFactory[Array],
     bkd: Backend[Array],
     noise_std: float = 0.1,
     noise_bounds: Tuple[float, float] = (1e-6, 1.0),
@@ -104,8 +103,9 @@ def build_single_fidelity_dgp(
     for i in range(n_layers - 1):
         dag.add_edge(i, i + 1)
 
-    layers = {}
+    layers: Dict[Hashable, DGPLayer[Array]] = {}
     for i in range(n_layers):
+        mean: MeanFunction[Array]
         if i == 0:
             layer_nvars = nvars
             mean = ZeroMean(bkd)
@@ -142,7 +142,7 @@ def build_single_fidelity_dgp(
 def build_multilevel_dgp(
     level_nvars: List[int],
     num_inducing: int,
-    kernel_factory: KernelFactory,
+    kernel_factory: KernelFactory[Array],
     bkd: Backend[Array],
     noise_std: float = 0.1,
     noise_bounds: Tuple[float, float] = (1e-6, 1.0),
@@ -212,9 +212,10 @@ def build_multilevel_dgp(
     for i in range(n_levels - 1):
         dag.add_edge(i, i + 1)
 
-    layers = {}
+    layers: Dict[Hashable, DGPLayer[Array]] = {}
     for i in range(n_levels):
         base_nvars = level_nvars[i]
+        mean: MeanFunction[Array]
         if i == 0:
             layer_nvars = base_nvars
             mean = ZeroMean(bkd)

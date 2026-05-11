@@ -7,14 +7,13 @@ nodes array is one chain path through all L stochastic layers.
 Data rules handle mini-batching for the ELBO data term.
 """
 
-from typing import Generic, List, Optional, Protocol, Tuple, runtime_checkable
+from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
 import numpy as np
 from numpy.polynomial.hermite_e import hermegauss
 from scipy.stats import norm, qmc
 
 from pyapprox.util.backends.protocols import Array, Backend
-
 
 # ---------------------------------------------------------------------------
 # Propagation quadrature (L-dim joint protocol)

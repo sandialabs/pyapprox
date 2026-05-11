@@ -24,11 +24,10 @@ from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
-    ZeroMean,
 )
 from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 
 
 class DGPLayer(Generic[Array]):
@@ -123,7 +122,7 @@ class DGPLayer(Generic[Array]):
         return self._inducing_points.nvars()
 
     def hyp_list(self) -> HyperParameterList[Array]:
-        hyps: List = (
+        hyps: List[HyperParameter[Array]] = (
             self._kernel.hyp_list().hyperparameters()
             + self._mean.hyp_list().hyperparameters()
             + self._inducing_points.hyp_list().hyperparameters()

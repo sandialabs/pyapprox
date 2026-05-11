@@ -50,7 +50,7 @@ class ConstantKernel(Kernel[Array]):
         self._log_constant = LogHyperParameter(
             name="constant_value",
             nparams=1,
-            user_values=[constant_value],
+            user_values=constant_value,
             user_bounds=constant_value_bounds,
             bkd=bkd,
             fixed=fixed,
