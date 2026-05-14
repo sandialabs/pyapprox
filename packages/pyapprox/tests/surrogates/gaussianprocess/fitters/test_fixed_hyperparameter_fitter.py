@@ -76,22 +76,20 @@ class TestGPFixedHyperparameterFitter:
         nll = result.neg_log_marginal_likelihood()
         assert np.isfinite(float(bkd.to_numpy(nll)))
 
-    def test_result_callable(self, bkd) -> None:
-        """Result should be callable (delegates to surrogate)."""
+    def test_surrogate_callable(self, bkd) -> None:
         gp = self._make_gp(bkd)
         fitter = GPFixedHyperparameterFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
 
-        pred = result(self.X_test)
+        pred = result.surrogate()(self.X_test)
         assert pred.shape == (1, self.n_test)
 
-    def test_result_predict_std(self, bkd) -> None:
-        """Result predict_std should return positive values."""
+    def test_surrogate_predict_std(self, bkd) -> None:
         gp = self._make_gp(bkd)
         fitter = GPFixedHyperparameterFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
 
-        std = result.predict_std(self.X_test)
+        std = result.surrogate().predict_std(self.X_test)
         assert std.shape == (1, self.n_test)
         assert bkd.all_bool(std > 0)
 

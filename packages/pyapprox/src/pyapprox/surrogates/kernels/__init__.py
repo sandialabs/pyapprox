@@ -72,6 +72,7 @@ from .composition import (
     SeparableProductKernel,
     SumKernel,
 )
+from .kernel_on_dimensions import KernelOnDimensions
 from .constant import ConstantKernel
 from .iid_gaussian_noise import IIDGaussianNoise
 from .linear import LinearKernel
@@ -147,4 +148,6 @@ __all__ = [
     "IndependentMultiOutputKernel",
     "LinearCoregionalizationKernel",
     "MultiLevelKernel",
+    # Dimension selection
+    "KernelOnDimensions",
 ]

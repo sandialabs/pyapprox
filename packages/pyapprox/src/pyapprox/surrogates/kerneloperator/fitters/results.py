@@ -1,60 +1,36 @@
-"""Result classes for GP fitting operations.
+"""Result classes for kernel operator fitting operations."""
 
-All attributes accessed via methods per CLAUDE.md conventions.
-"""
+from __future__ import annotations
 
-from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional
 
+from pyapprox.surrogates.kerneloperator.surrogate import (
+    KernelOperatorSurrogate,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-@runtime_checkable
-class PredictiveGPSurrogateProtocol(Protocol, Generic[Array]):
-    """Minimal protocol for fitted GP surrogates that can predict."""
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        ...
-
-    def __call__(self, X: Array) -> Array:
-        """Predict posterior mean at X."""
-        ...
-
-    def predict(self, X: Array) -> Array:
-        """Predict posterior mean at X."""
-        ...
-
-    def predict_std(self, X: Array) -> Array:
-        """Predict posterior standard deviation at X."""
-        ...
-
-
-S = TypeVar("S", bound=PredictiveGPSurrogateProtocol)  # type: ignore[type-arg]
-
-
-class GPFitResult(Generic[Array, S]):
-    """Result from GP fitting without hyperparameter optimization.
-
-    Returned by GPDirectFitter (fixed hyperparameters, Cholesky + alpha only).
+class KernelOperatorFitResult(Generic[Array]):
+    """Result from kernel operator fitting without hyperparameter optimization.
 
     Parameters
     ----------
-    surrogate : S
-        The fitted GP instance.
+    surrogate : KernelOperatorSurrogate[Array]
+        The fitted surrogate.
     neg_log_marginal_likelihood : Array
-        Scalar negative log marginal likelihood at the fitted state.
+        Scalar NLL at the fitted state.
     """
 
     def __init__(
         self,
-        surrogate: S,
+        surrogate: KernelOperatorSurrogate[Array],
         neg_log_marginal_likelihood: Array,
-    ):
+    ) -> None:
         self._surrogate = surrogate
         self._nll = neg_log_marginal_likelihood
 
-    def surrogate(self) -> S:
-        """Return the fitted GP surrogate."""
+    def surrogate(self) -> KernelOperatorSurrogate[Array]:
+        """Return the fitted surrogate."""
         return self._surrogate
 
     def neg_log_marginal_likelihood(self) -> Array:
@@ -66,42 +42,39 @@ class GPFitResult(Generic[Array, S]):
         return self._surrogate.bkd()
 
 
-class GPOptimizedFitResult(Generic[Array, S]):
-    """Result from GP fitting with hyperparameter optimization.
-
-    Returned by GPHyperparameterFitter.
+class KernelOperatorOptimizedFitResult(Generic[Array]):
+    """Result from kernel operator fitting with hyperparameter optimization.
 
     Parameters
     ----------
-    surrogate : S
-        The fitted GP with optimized hyperparameters.
+    surrogate : KernelOperatorSurrogate[Array]
+        The fitted surrogate with optimized hyperparameters.
     neg_log_marginal_likelihood : Array
-        Scalar NLL at the optimal hyperparameters.
+        Scalar NLL at optimal hyperparameters.
     initial_hyperparameters : Array
         Hyperparameter values before optimization.
     optimized_hyperparameters : Array
         Hyperparameter values after optimization.
     optimization_result : object or None
-        The raw result from the optimizer, or None if no optimization
-        was performed (all hyperparameters inactive).
+        Raw optimizer result, or None if no optimization was performed.
     """
 
     def __init__(
         self,
-        surrogate: S,
+        surrogate: KernelOperatorSurrogate[Array],
         neg_log_marginal_likelihood: Array,
         initial_hyperparameters: Array,
         optimized_hyperparameters: Array,
         optimization_result: Optional[object],
-    ):
+    ) -> None:
         self._surrogate = surrogate
         self._nll = neg_log_marginal_likelihood
         self._initial_hyps = initial_hyperparameters
         self._optimized_hyps = optimized_hyperparameters
         self._opt_result = optimization_result
 
-    def surrogate(self) -> S:
-        """Return the fitted GP surrogate with optimized hyperparameters."""
+    def surrogate(self) -> KernelOperatorSurrogate[Array]:
+        """Return the fitted surrogate with optimized hyperparameters."""
         return self._surrogate
 
     def neg_log_marginal_likelihood(self) -> Array:

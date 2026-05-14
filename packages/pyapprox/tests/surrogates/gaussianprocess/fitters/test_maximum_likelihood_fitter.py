@@ -117,14 +117,13 @@ class TestGPMaximumLikelihoodFitter:
         optimized = bkd.to_numpy(result.optimized_hyperparameters())
         np.testing.assert_array_equal(initial, optimized)
 
-    def test_result_callable(self, bkd) -> None:
-        """Result should be callable."""
+    def test_surrogate_callable(self, bkd) -> None:
         self._setup_data(bkd)
         gp = self._make_gp(bkd)
         fitter = GPMaximumLikelihoodFitter(bkd)
         result = fitter.fit(gp, self.X_train, self.y_train)
 
-        pred = result(self.X_test)
+        pred = result.surrogate()(self.X_test)
         assert pred.shape == (1, self.n_test)
 
     def test_custom_optimizer(self, bkd) -> None:

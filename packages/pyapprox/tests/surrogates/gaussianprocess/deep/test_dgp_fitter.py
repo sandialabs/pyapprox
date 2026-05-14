@@ -170,11 +170,9 @@ class TestDGPFitterSingleLayer:
         result = fitter.fit(dgp, data)
 
         X_test = bkd.array(rng.randn(1, 3))
-        bkd.assert_allclose(result.predict(X_test),
-                            result.surrogate().predict(X_test),
-                            rtol=1e-12)
-        bkd.assert_allclose(result(X_test),
-                            result.surrogate().predict(X_test),
+        surr = result.surrogate()
+        bkd.assert_allclose(surr.predict(X_test),
+                            surr(X_test),
                             rtol=1e-12)
 
     def test_clone_independence(self, torch_bkd):
