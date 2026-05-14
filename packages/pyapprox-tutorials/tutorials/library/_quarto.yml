@@ -155,6 +155,10 @@ website:
                 - svgp_concept.qmd
                 - dgp_concept.qmd
                 - dgp_multifidelity_concept.qmd
+            - section: "Operator Learning"
+              contents:
+                - operator_learning_concept.qmd
+                - kerneloperator_usage.qmd
             - section: "Universal Polynomial Networks"
               contents:
                 - supn_surrogates.qmd

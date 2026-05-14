@@ -203,6 +203,20 @@ from ._multifidelity_advanced import (  # noqa: F401
     plot_pilot_sensitivity,
     plot_pilot_tradeoff,
 )
+from ._operator_learning import (  # noqa: F401
+    plot_convergence_with_N,
+    plot_convergence_with_ncodes,
+    plot_data_sampling_pipeline,
+    plot_encode_regress_decode,
+    plot_function_predictions,
+    plot_grid_independence,
+    plot_parity_and_calibration,
+    plot_pca_spectra,
+    plot_scalar_vs_operator,
+    plot_training_pairs,
+    sample_log_diffusion_field,
+    solve_elliptic_1d,
+)
 from ._pce import (  # noqa: F401
     plot_accuracy_vs_n,
     plot_coefficient_decay,
