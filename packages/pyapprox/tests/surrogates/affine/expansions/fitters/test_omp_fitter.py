@@ -175,15 +175,86 @@ class TestOMPFitter:
         with pytest.raises(ValueError, match="max_nonzeros"):
             OMPFitter(bkd, max_nonzeros=0)
 
-    def test_multi_qoi_raises(self, bkd) -> None:
-        """nqoi > 1 raises ValueError."""
+    def test_multi_qoi_returns_direct_result(self, bkd) -> None:
+        """nqoi > 1 returns DirectSolverResult by default."""
+        from pyapprox.surrogates.affine.expansions.fitters.results import (
+            DirectSolverResult,
+        )
+
         expansion = self._create_expansion(bkd, nvars=2, max_level=3, nqoi=2)
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
         values = bkd.asarray(np.random.randn(2, 30))
 
         fitter = OMPFitter(bkd, max_nonzeros=5)
-        with pytest.raises(ValueError, match="nqoi=1"):
-            fitter.fit(expansion, samples, values)
+        result = fitter.fit(expansion, samples, values)
+        assert isinstance(result, DirectSolverResult)
+        assert result.params().shape == (expansion.nterms(), 2)
+
+    def test_multi_qoi_diagnostics_raises(self, bkd) -> None:
+        """return_diagnostics=True with nqoi > 1 raises ValueError."""
+        expansion = self._create_expansion(bkd, nvars=2, max_level=3, nqoi=2)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
+        values = bkd.asarray(np.random.randn(2, 30))
+
+        fitter = OMPFitter(bkd, max_nonzeros=5)
+        with pytest.raises(ValueError, match="return_diagnostics"):
+            fitter.fit(expansion, samples, values, return_diagnostics=True)
+
+    def test_single_qoi_no_diagnostics(self, bkd) -> None:
+        """return_diagnostics=False with nqoi=1 returns DirectSolverResult."""
+        from pyapprox.surrogates.affine.expansions.fitters.results import (
+            DirectSolverResult,
+        )
+
+        expansion = self._create_expansion(bkd, nvars=2, max_level=3)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, 30)))
+        values = bkd.asarray(np.random.randn(1, 30))
+
+        fitter = OMPFitter(bkd, max_nonzeros=5)
+        result = fitter.fit(expansion, samples, values, return_diagnostics=False)
+        assert isinstance(result, DirectSolverResult)
+        assert not isinstance(result, OMPResult)
+
+    def test_multi_qoi_recovers_sparse_signal(self, bkd) -> None:
+        """OMP recovers a known sparse signal with nqoi=2."""
+        nvars = 1
+        max_level = 19  # 20 terms
+
+        # Create target with known sparse coefficients for 2 QoIs
+        target_expansion = self._create_expansion(
+            bkd, nvars=nvars, max_level=max_level, nqoi=2,
+        )
+        nterms = target_expansion.nterms()
+        true_coef = bkd.zeros((nterms, 2))
+        # QoI 0: nonzero at indices 0, 2
+        true_coef[0, 0] = 1.0
+        true_coef[2, 0] = -0.5
+        # QoI 1: nonzero at indices 1, 5
+        true_coef[1, 1] = 0.7
+        true_coef[5, 1] = 0.3
+        target_expansion = target_expansion.with_params(true_coef)
+
+        # Generate noiseless data
+        nsamples = 100
+        samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
+        values = target_expansion(samples)
+
+        # Fit with multi-QoI OMP
+        fit_expansion = self._create_expansion(
+            bkd, nvars=nvars, max_level=max_level, nqoi=2,
+        )
+        fitter = OMPFitter(bkd, max_nonzeros=5, rtol=1e-10)
+        result = fitter.fit(fit_expansion, samples, values)
+
+        # Evaluate at test points
+        ntest = 50
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, ntest)))
+        target_values = target_expansion(test_samples)
+        fitted_values = result(test_samples)
+
+        assert fitted_values.shape == (2, ntest)
+        rel_error = bkd.norm(fitted_values - target_values) / bkd.norm(target_values)
+        assert float(rel_error) < 1e-8
 
     def test_accessors(self, bkd) -> None:
         """Accessors return correct values."""

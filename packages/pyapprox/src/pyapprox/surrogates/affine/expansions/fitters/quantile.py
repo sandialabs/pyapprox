@@ -17,7 +17,10 @@ class QuantileFitter(Generic[Array]):
 
     where ρ_τ(u) = u(τ - I(u < 0)) is the check function (pinball loss).
 
-    Only supports nqoi=1 (single quantity of interest).
+    Only supports nqoi=1. TODO: support nqoi>1 by delegating to
+    QuantileRegressionSolver (which already loops over QoIs via
+    SingleQoiSolverMixin); requires DirectSolverResult to store
+    per-QoI diagnostics.
 
     Parameters
     ----------

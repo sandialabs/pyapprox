@@ -144,7 +144,11 @@ class ConservativeQuantileFitter(Generic[Array]):
     The Average Value at Risk (CVaR) at level beta is the expected value
     of X given X >= VaR_beta.
 
-    Only supports nqoi=1 (single quantity of interest).
+    Only supports nqoi=1. TODO: support nqoi>1; requires defining
+    per-QoI conservative adjustments and extending DirectSolverResult
+    to report per-QoI risk measure values. The underlying
+    QuantileRegressionSolver already loops over QoIs via
+    SingleQoiSolverMixin.
 
     Parameters
     ----------
