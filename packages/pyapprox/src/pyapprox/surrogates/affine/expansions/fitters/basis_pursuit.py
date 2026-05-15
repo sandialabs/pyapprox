@@ -18,7 +18,10 @@ class BasisPursuitFitter(Generic[Array]):
 
     For sparse recovery when data is exactly reproducible.
 
-    Only supports nqoi=1 (single quantity of interest).
+    Only supports nqoi=1. TODO: support nqoi>1 by delegating to
+    BasisPursuitSolver (which already loops over QoIs via
+    SingleQoiSolverMixin); requires SparseResult to report per-QoI
+    sparsity patterns and supports.
 
     Parameters
     ----------

@@ -1,9 +1,10 @@
 """Orthogonal Matching Pursuit (OMP) fitter for sparse recovery."""
 
-from typing import Generic, List, Optional
+from typing import Generic, List, Literal, Optional, Union, overload
 
-from pyapprox.optimization.linear.sparse import OMPTerminationFlag
+from pyapprox.optimization.linear.sparse import OMPSolver, OMPTerminationFlag
 from pyapprox.surrogates.affine.expansions.fitters.results import (
+    DirectSolverResult,
     OMPResult,
 )
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
@@ -17,7 +18,13 @@ class OMPFitter(Generic[Array]):
     with the residual. Requires expansion with `basis_matrix()` and
     `with_params()` methods.
 
-    Only supports nqoi=1 (single quantity of interest).
+    Supports any nqoi. For nqoi=1 the default returns an ``OMPResult``
+    with full OMP diagnostics (support, selection order, residual
+    history, termination flag). For nqoi>1 the default returns a
+    ``DirectSolverResult`` (params + surrogate only) to avoid storing
+    per-QoI metadata. Pass ``return_diagnostics=True`` to force an
+    ``OMPResult`` (nqoi=1 only) or ``return_diagnostics=False`` to
+    force a lightweight ``DirectSolverResult``.
 
     Parameters
     ----------
@@ -59,12 +66,46 @@ class OMPFitter(Generic[Array]):
         """Return relative tolerance for residual."""
         return self._rtol
 
+    @overload
     def fit(
         self,
         expansion: BasisExpansionProtocol[Array],
         samples: Array,
         values: Array,
-    ) -> OMPResult[Array, BasisExpansionProtocol[Array]]:
+        return_diagnostics: Literal[True],
+    ) -> OMPResult[Array, BasisExpansionProtocol[Array]]: ...
+
+    @overload
+    def fit(
+        self,
+        expansion: BasisExpansionProtocol[Array],
+        samples: Array,
+        values: Array,
+        return_diagnostics: Literal[False],
+    ) -> DirectSolverResult[Array, BasisExpansionProtocol[Array]]: ...
+
+    @overload
+    def fit(
+        self,
+        expansion: BasisExpansionProtocol[Array],
+        samples: Array,
+        values: Array,
+        return_diagnostics: None = ...,
+    ) -> Union[
+        OMPResult[Array, BasisExpansionProtocol[Array]],
+        DirectSolverResult[Array, BasisExpansionProtocol[Array]],
+    ]: ...
+
+    def fit(
+        self,
+        expansion: BasisExpansionProtocol[Array],
+        samples: Array,
+        values: Array,
+        return_diagnostics: Optional[bool] = None,
+    ) -> Union[
+        OMPResult[Array, BasisExpansionProtocol[Array]],
+        DirectSolverResult[Array, BasisExpansionProtocol[Array]],
+    ]:
         """Fit via Orthogonal Matching Pursuit.
 
         Parameters
@@ -74,18 +115,21 @@ class OMPFitter(Generic[Array]):
         samples : Array
             Input samples. Shape: (nvars, nsamples)
         values : Array
-            Target values. Shape: (1, nsamples) or (nsamples,).
-            Only nqoi=1 supported.
+            Target values. Shape: (nqoi, nsamples) or (nsamples,) for nqoi=1.
+        return_diagnostics : bool, optional
+            If True, return OMPResult with full diagnostics (nqoi=1 only).
+            If False, return DirectSolverResult (params + surrogate only).
+            If None (default), True for nqoi=1, False for nqoi>1.
 
         Returns
         -------
-        OMPResult
-            Result containing fitted expansion and OMP-specific information.
+        OMPResult or DirectSolverResult
+            OMPResult when diagnostics requested, DirectSolverResult otherwise.
 
         Raises
         ------
         ValueError
-            If nqoi > 1.
+            If return_diagnostics=True and nqoi > 1.
         """
         bkd = self._bkd
 
@@ -93,12 +137,47 @@ class OMPFitter(Generic[Array]):
         if values.ndim == 1:
             values = bkd.reshape(values, (1, -1))
 
-        # Validate single QoI
-        if values.shape[0] != 1:
-            raise ValueError(f"OMPFitter only supports nqoi=1, got {values.shape[0]}")
+        nqoi = values.shape[0]
+
+        # Auto-select: diagnostics for nqoi=1, lightweight for nqoi>1
+        if return_diagnostics is None:
+            return_diagnostics = nqoi == 1
+
+        if return_diagnostics and nqoi != 1:
+            raise ValueError(
+                "return_diagnostics=True requires nqoi=1, "
+                f"got nqoi={nqoi}"
+            )
 
         # Get basis matrix: (nsamples, nterms)
         Phi = expansion.basis_matrix(samples)
+
+        if not return_diagnostics:
+            # Delegate to OMPSolver which handles any nqoi via
+            # SingleQoiSolverMixin looping
+            solver = OMPSolver(
+                bkd,
+                max_nonzeros=self._max_nonzeros,
+                rtol=self._rtol,
+            )
+            coef = solver.solve(Phi, values.T)
+            # Create fitted expansion (immutable pattern)
+            fitted_expansion = expansion.with_params(coef)
+            return DirectSolverResult(
+                surrogate=fitted_expansion,
+                params=coef,
+            )
+
+        return self._fit_with_diagnostics(expansion, Phi, values, bkd)
+
+    def _fit_with_diagnostics(
+        self,
+        expansion: BasisExpansionProtocol[Array],
+        Phi: Array,
+        values: Array,
+        bkd: Backend[Array],
+    ) -> OMPResult[Array, BasisExpansionProtocol[Array]]:
+        """Run OMP for nqoi=1 and collect full diagnostics."""
         nsamples, nterms = Phi.shape
 
         # Transpose values for solver: (nsamples, 1)

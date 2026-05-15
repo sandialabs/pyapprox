@@ -21,7 +21,10 @@ class BPDNFitter(Generic[Array]):
     This is the penalized (Lagrangian) form of L1-regularized least squares,
     also known as LASSO regression.
 
-    Only supports nqoi=1 (single quantity of interest).
+    Only supports nqoi=1. TODO: support nqoi>1 by delegating to
+    BasisPursuitDenoisingSolver (which already loops over QoIs via
+    SingleQoiSolverMixin); requires SparseResult to report per-QoI
+    sparsity patterns and supports.
 
     Parameters
     ----------

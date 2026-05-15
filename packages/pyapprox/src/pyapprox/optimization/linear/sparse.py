@@ -97,7 +97,6 @@ class OMPSolver(SingleQoiSolverMixin, LinearSystemSolver[Array], Generic[Array])
         Array
             Sparse coefficients c. Shape: (nterms, 1)
         """
-        self._validate_single_qoi(values)
 
         nsamples, nterms = basis_matrix.shape
         bkd = self._bkd
@@ -211,7 +210,6 @@ class BasisPursuitSolver(
         Array
             Sparse coefficients c. Shape: (nterms, 1)
         """
-        self._validate_single_qoi(values)
 
         # Import scipy for LP solver
         from scipy import sparse
@@ -334,7 +332,6 @@ class BasisPursuitDenoisingSolver(
         Array
             Sparse coefficients c. Shape: (nterms, 1)
         """
-        self._validate_single_qoi(values)
 
         bkd = self._bkd
         A = basis_matrix

@@ -104,23 +104,34 @@ class LinearSystemSolver(ABC, Generic[Array]):
 
 
 class SingleQoiSolverMixin:
-    """Mixin that enforces single QoI constraint.
+    """Mixin for solvers that solve one QoI at a time.
 
-    Some solvers (e.g., sparse, quantile) only support single QoI.
+    Automatically handles multi-QoI input by solving each QoI
+    independently and concatenating the results.
     """
 
-    def _validate_single_qoi(self, values: Array) -> None:
-        """Validate that values has single QoI.
+    def solve(self, basis_matrix: Array, values: Array) -> Array:
+        """Solve for coefficients, looping over QoIs if needed.
 
         Parameters
         ----------
+        basis_matrix : Array
+            Basis matrix Φ. Shape: (nsamples, nterms)
         values : Array
-            Target values. Shape: (nsamples, nqoi)
+            Target values y. Shape: (nsamples, nqoi)
 
-        Raises
-        ------
-        ValueError
-            If nqoi > 1.
+        Returns
+        -------
+        Array
+            Coefficients c. Shape: (nterms, nqoi)
         """
-        if values.ndim > 1 and values.shape[1] > 1:
-            raise ValueError(f"Solver only supports single QoI, got {values.shape[1]}")
+        if values.ndim == 1:
+            values = self._bkd.reshape(values, (-1, 1))
+        nqoi = values.shape[1]
+        if nqoi == 1:
+            return super().solve(basis_matrix, values)
+        cols = []
+        for qi in range(nqoi):
+            cols.append(super().solve(basis_matrix, values[:, qi:qi+1]))
+        return self._bkd.concatenate(cols, axis=1)
+

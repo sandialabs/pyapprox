@@ -96,7 +96,6 @@ class QuantileRegressionSolver(
         Array
             Coefficients c. Shape: (nterms, 1)
         """
-        self._validate_single_qoi(values)
 
         import numpy as np
         from scipy.optimize import linprog
@@ -215,7 +214,6 @@ class ExpectileRegressionSolver(
         Array
             Coefficients c. Shape: (nterms, 1)
         """
-        self._validate_single_qoi(values)
 
         bkd = self._bkd
         A = basis_matrix
