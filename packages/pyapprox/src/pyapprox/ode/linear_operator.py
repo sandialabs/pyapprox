@@ -97,3 +97,56 @@ class TransposeLinearOperator(Generic[Array]):
 
     def apply_transpose(self, vec: Array) -> Array:
         return self._op.apply(vec)
+
+
+class BlockDiagonalLinearOperator(Generic[Array]):
+    """Block-diagonal operator: k blocks of size (m, m).
+
+    Stores blocks as a (k, m, m) array. Uses backend-batched linalg
+    routines for solve/apply, giving O(k * m^3) cost instead of
+    O((k*m)^3) for a dense operator.
+    """
+
+    def __init__(self, blocks: Array, bkd: Backend[Array]) -> None:
+        if blocks.ndim != 3:
+            raise ValueError(
+                f"blocks must be 3D (k, m, m), got shape {blocks.shape}"
+            )
+        if blocks.shape[1] != blocks.shape[2]:
+            raise ValueError(
+                f"blocks must be square per block, got shape {blocks.shape}"
+            )
+        self._blocks = blocks
+        self._bkd = bkd
+        self._nblocks: int = blocks.shape[0]
+        self._block_size: int = blocks.shape[1]
+
+    def solve(self, rhs: Array) -> Array:
+        rhs_3d = self._bkd.reshape(rhs, (self._nblocks, self._block_size, 1))
+        sol_3d = self._bkd.solve(self._blocks, rhs_3d)
+        return self._bkd.reshape(sol_3d, (self._nblocks * self._block_size,))
+
+    def apply(self, vec: Array) -> Array:
+        vec_2d = self._bkd.reshape(vec, (self._nblocks, self._block_size))
+        result_2d = self._bkd.einsum("kij,kj->ki", self._blocks, vec_2d)
+        return self._bkd.reshape(result_2d, (self._nblocks * self._block_size,))
+
+    def solve_transpose(self, rhs: Array) -> Array:
+        rhs_3d = self._bkd.reshape(rhs, (self._nblocks, self._block_size, 1))
+        blocks_T = self._bkd.transpose(self._blocks, (0, 2, 1))
+        sol_3d = self._bkd.solve(blocks_T, rhs_3d)
+        return self._bkd.reshape(sol_3d, (self._nblocks * self._block_size,))
+
+    def apply_transpose(self, vec: Array) -> Array:
+        vec_2d = self._bkd.reshape(vec, (self._nblocks, self._block_size))
+        result_2d = self._bkd.einsum("kji,kj->ki", self._blocks, vec_2d)
+        return self._bkd.reshape(result_2d, (self._nblocks * self._block_size,))
+
+    def as_matrix(self) -> Array:
+        n = self._nblocks * self._block_size
+        full = self._bkd.zeros((n, n))
+        for i in range(self._nblocks):
+            s = i * self._block_size
+            e = s + self._block_size
+            full[s:e, s:e] = self._blocks[i]
+        return full

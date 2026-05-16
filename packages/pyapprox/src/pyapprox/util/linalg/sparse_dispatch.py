@@ -43,7 +43,7 @@ def sparse_or_dense_solve(
     NotImplementedError
         If A is sparse and b has more than one column.
     """
-    if issparse(A):
+    if isinstance(A, spmatrix):
         A_csc = csc_matrix(A) if A.format != "csc" else A
         if b.ndim > 1:
             raise NotImplementedError(
