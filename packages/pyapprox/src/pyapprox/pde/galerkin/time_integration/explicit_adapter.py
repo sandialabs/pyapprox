@@ -17,13 +17,16 @@ RK4) work unchanged. Adding a new integrator requires only a new stepper
 class and a registry entry — no adapter changes.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 import numpy as np
-import scipy.linalg
-from scipy.sparse import issparse
+from scipy.sparse import spmatrix
 
-from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
+from pyapprox.ode.mass_matrix import (
+    IdentityMassMatrix,
+    MassMatrixProtocol,
+    create_mass_matrix,
+)
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -68,25 +71,41 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
         nstates = physics.mass_matrix().shape[0]
         self._mass = IdentityMassMatrix(nstates, self._bkd)
 
-    def _setup_mass(self, physics: object) -> None:
-        """Build and factor the BC-modified mass matrix."""
+    def _setup_mass(self, physics: GalerkinPhysicsProtocol[Array]) -> None:
+        """Build and factor the BC-modified mass matrix, preserving sparsity."""
+        from scipy.sparse import csc_matrix, lil_matrix
+
         M_raw = physics.mass_matrix()
-        M_np = (
-            M_raw.toarray().copy()
-            if issparse(M_raw)
-            else self._bkd.to_numpy(M_raw).copy()
-        )
         d_dofs = self._d_dof_indices_np
 
-        if len(d_dofs) > 0:
-            M_np[d_dofs, :] = 0.0
-            M_np[d_dofs, d_dofs] = 1.0
-
         if self._lumped_mass:
-            self._m_diag_np = M_np.sum(axis=1)
-            # Safety: Dirichlet rows already have sum = 1.0
+            # Lumped mass: row-sum diagonal, Dirichlet rows already sum to 1.0
+            if isinstance(M_raw, spmatrix):
+                M_np = np.asarray(M_raw.toarray())
+            else:
+                M_np = self._bkd.to_numpy(M_raw).copy()
+            if len(d_dofs) > 0:
+                M_np[d_dofs, :] = 0.0
+                M_np[d_dofs, d_dofs] = 1.0
+            self._m_diag_np: Optional[np.ndarray] = M_np.sum(axis=1)
+            self._m_bc: Optional[MassMatrixProtocol[Array]] = None
         else:
-            self._m_lu = scipy.linalg.lu_factor(M_np)
+            # Consistent mass: use create_mass_matrix for cached factorization
+            self._m_diag_np = None
+            if isinstance(M_raw, spmatrix):
+                M_mod = lil_matrix(M_raw)
+                if len(d_dofs) > 0:
+                    M_mod[d_dofs, :] = 0.0
+                    M_mod[d_dofs, d_dofs] = 1.0
+                self._m_bc = create_mass_matrix(csc_matrix(M_mod), self._bkd)
+            else:
+                M_np = self._bkd.to_numpy(M_raw).copy()
+                if len(d_dofs) > 0:
+                    M_np[d_dofs, :] = 0.0
+                    M_np[d_dofs, d_dofs] = 1.0
+                self._m_bc = create_mass_matrix(
+                    self._bkd.asarray(M_np), self._bkd
+                )
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
@@ -136,11 +155,15 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
             F_np[self._d_dof_indices_np] = 0.0
 
         if self._lumped_mass:
+            if self._m_diag_np is None:
+                raise RuntimeError("lumped mass diagonal not initialized")
             f_np = F_np / self._m_diag_np
-        else:
-            f_np = scipy.linalg.lu_solve(self._m_lu, F_np)
-
-        return self._bkd.asarray(f_np.astype(np.float64))
+            return self._bkd.asarray(f_np, dtype=self._bkd.double_dtype())
+        if self._m_bc is None:
+            raise RuntimeError("BC-modified mass matrix not initialized")
+        return self._m_bc.solve(
+            self._bkd.asarray(F_np, dtype=self._bkd.double_dtype())
+        )
 
     def jacobian(self, state: Array) -> Array:
         """Compute state Jacobian df/dy = M_bc^{-1} * dF/du.
@@ -156,14 +179,22 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
             Jacobian. Shape: (nstates, nstates)
         """
         J_F = self._physics.jacobian(state, self._time)
-        J_np = J_F.toarray().copy() if issparse(J_F) else self._bkd.to_numpy(J_F).copy()
+        if isinstance(J_F, spmatrix):
+            J_np = J_F.toarray().copy()
+        else:
+            J_np = self._bkd.to_numpy(J_F).copy()
 
         if self._lumped_mass:
+            if self._m_diag_np is None:
+                raise RuntimeError("lumped mass diagonal not initialized")
             result_np = J_np / self._m_diag_np[:, None]
-        else:
-            result_np = scipy.linalg.lu_solve(self._m_lu, J_np)
-
-        return self._bkd.asarray(result_np.astype(np.float64))
+            return self._bkd.asarray(
+                result_np, dtype=self._bkd.double_dtype()
+            )
+        if self._m_bc is None:
+            raise RuntimeError("BC-modified mass matrix not initialized")
+        J_arr = self._bkd.asarray(J_np, dtype=self._bkd.double_dtype())
+        return self._m_bc.solve(J_arr)
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """Return identity mass matrix (real M absorbed into f)."""

@@ -284,46 +284,67 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
 
     def _set_param_via_parameterization(self, param: Array) -> None:
         """Set parameter via parameterization."""
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
         self._current_params_1d = param
-        # apply is on the protocol; use assert to narrow None
-        assert self._parameterization is not None
         self._parameterization.apply(self._physics, param)
 
     def _param_jacobian_via_parameterization(self, state: Array) -> Array:
         """Compute param Jacobian via parameterization."""
-        return self._parameterization.param_jacobian(
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
+        fn = getattr(self._parameterization, "param_jacobian")
+        result: Array = fn(
             self._physics, state, self._time, self._current_params_1d
         )
+        return result
 
     def _initial_param_jacobian_via_parameterization(self) -> Array:
         """Compute initial param Jacobian via parameterization."""
-        return self._parameterization.initial_param_jacobian(
-            self._physics, self._current_params_1d
-        )
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
+        fn = getattr(self._parameterization, "initial_param_jacobian")
+        result: Array = fn(self._physics, self._current_params_1d)
+        return result
 
     def _param_param_hvp_via_parameterization(
         self, state: Array, adj_state: Array, vvec: Array
     ) -> Array:
         """Compute param-param HVP via parameterization."""
-        return self._parameterization.param_param_hvp(
-            self._physics, state, self._time, self._current_params_1d, adj_state, vvec
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
+        fn = getattr(self._parameterization, "param_param_hvp")
+        result: Array = fn(
+            self._physics, state, self._time, self._current_params_1d,
+            adj_state, vvec,
         )
+        return result
 
     def _state_param_hvp_via_parameterization(
         self, state: Array, adj_state: Array, vvec: Array
     ) -> Array:
         """Compute state-param HVP via parameterization."""
-        return self._parameterization.state_param_hvp(
-            self._physics, state, self._time, self._current_params_1d, adj_state, vvec
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
+        fn = getattr(self._parameterization, "state_param_hvp")
+        result: Array = fn(
+            self._physics, state, self._time, self._current_params_1d,
+            adj_state, vvec,
         )
+        return result
 
     def _param_state_hvp_via_parameterization(
         self, state: Array, adj_state: Array, wvec: Array
     ) -> Array:
         """Compute param-state HVP via parameterization."""
-        return self._parameterization.param_state_hvp(
-            self._physics, state, self._time, self._current_params_1d, adj_state, wvec
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
+        fn = getattr(self._parameterization, "param_state_hvp")
+        result: Array = fn(
+            self._physics, state, self._time, self._current_params_1d,
+            adj_state, wvec,
         )
+        return result
 
     def bc_flux_param_sensitivity(
         self,

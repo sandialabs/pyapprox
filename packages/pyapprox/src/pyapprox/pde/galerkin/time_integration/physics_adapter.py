@@ -189,6 +189,8 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
 
     def _set_param_via_parameterization(self, param: Array) -> None:
         """Set parameter values through parameterization."""
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
         self._current_params_1d = param
         self._parameterization.apply(self._physics, param)
 
@@ -197,21 +199,27 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         state: Array,
     ) -> Array:
         """Compute parameter Jacobian through parameterization."""
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
         if self._current_params_1d is None:
             raise RuntimeError("set_param() must be called before param_jacobian()")
-        return self._parameterization.param_jacobian(
+        fn = getattr(self._parameterization, "param_jacobian")
+        result: Array = fn(
             self._physics, state, self._time, self._current_params_1d
         )
+        return result
 
     def _initial_param_jacobian_via_parameterization(self) -> Array:
         """Get initial condition Jacobian through parameterization."""
+        if self._parameterization is None:
+            raise RuntimeError("parameterization is None")
         if self._current_params_1d is None:
             raise RuntimeError(
                 "set_param() must be called before initial_param_jacobian()"
             )
-        return self._parameterization.initial_param_jacobian(
-            self._physics, self._current_params_1d
-        )
+        fn = getattr(self._parameterization, "initial_param_jacobian")
+        result: Array = fn(self._physics, self._current_params_1d)
+        return result
 
     # =========================================================================
     # HVP Methods (optional, from physics or parameterization)
@@ -219,7 +227,9 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
 
     def _state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """Compute (d^2F/du^2)w contracted with adjoint."""
-        return self._physics.state_state_hvp(state, adj_state, wvec, self._time)
+        fn = getattr(self._physics, "state_state_hvp")
+        result: Array = fn(state, adj_state, wvec, self._time)
+        return result
 
     def __repr__(self) -> str:
         parts = [

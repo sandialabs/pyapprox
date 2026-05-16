@@ -15,7 +15,7 @@ for a batch of initial conditions.
     pragmatic short-term fix for the O(nsamples) Python-loop bottleneck.
 """
 
-from typing import Any, Generic, Optional, Type
+from typing import Any, Callable, Generic, Optional, Type
 
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerStepper,
@@ -53,7 +53,7 @@ class FlowODEResidual(Generic[Array]):
 
     def __init__(
         self,
-        vf: object,
+        vf: Callable[[Array], Array],
         bkd: Backend[Array],
         nstates: int,
         conditioning: Optional[Array] = None,
@@ -94,7 +94,7 @@ class FlowODEResidual(Generic[Array]):
         else:
             vf_input = self._bkd.vstack([t_col, x_col])
 
-        result = self._vf(vf_input)  # type: ignore[operator]
+        result = self._vf(vf_input)
         return result[:, 0]  # (d,)
 
     def jacobian(self, state: Array) -> Array:
@@ -121,7 +121,7 @@ class FlowODEResidual(Generic[Array]):
 
 
 def _batched_vf_eval(
-    vf: object,
+    vf: Callable[[Array], Array],
     t: float,
     x: Array,
     bkd: Backend[Array],
@@ -153,11 +153,11 @@ def _batched_vf_eval(
         vf_input = bkd.vstack([t_row, x, c])
     else:
         vf_input = bkd.vstack([t_row, x])
-    return vf(vf_input)  # type: ignore[operator]
+    return vf(vf_input)
 
 
 def _integrate_euler_batch(
-    vf: object,
+    vf: Callable[[Array], Array],
     x: Array,
     t_start: float,
     dt: float,
@@ -175,7 +175,7 @@ def _integrate_euler_batch(
 
 
 def _integrate_heun_batch(
-    vf: object,
+    vf: Callable[[Array], Array],
     x: Array,
     t_start: float,
     dt: float,
@@ -194,7 +194,7 @@ def _integrate_heun_batch(
 
 
 def _integrate_persample_fallback(
-    vf: object,
+    vf: Callable[[Array], Array],
     x0_batch: Array,
     t_start: float,
     t_end: float,
@@ -233,7 +233,7 @@ def _integrate_persample_fallback(
 
 
 def integrate_flow(
-    vf: object,
+    vf: Callable[[Array], Array],
     x0_batch: Array,
     t_start: float,
     t_end: float,
