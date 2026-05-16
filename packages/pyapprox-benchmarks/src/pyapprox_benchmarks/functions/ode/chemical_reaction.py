@@ -21,11 +21,16 @@ References:
 from typing import Generic, Optional
 
 from pyapprox.ode.mass_matrix import IdentityMassMatrix
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
 
-class ChemicalReactionResidual(Generic[Array]):
+class ChemicalReactionResidual(
+    DefaultNewtonJacobianMixin[Array], Generic[Array]
+):
     """
     Chemical reaction ODE residual.
 

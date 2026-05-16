@@ -1,13 +1,15 @@
 from typing import Generic, Optional
 
-from pyapprox.ode.implicit_steppers.protocols import (
-    ImplicitODEResidualProtocol,
-)
 from pyapprox.ode.mass_matrix import IdentityMassMatrix
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class NonLinearDecoupledODE(Generic[Array], ImplicitODEResidualProtocol[Array]):
+class NonLinearDecoupledODE(
+    DefaultNewtonJacobianMixin[Array], Generic[Array]
+):
     """
     Nonlinear decoupled ODE system.
 

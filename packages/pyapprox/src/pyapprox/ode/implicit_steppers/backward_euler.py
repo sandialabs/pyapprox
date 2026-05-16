@@ -16,8 +16,8 @@ Split into three classes via mixin composition:
 from typing import Generic
 
 from pyapprox.ode.linear_operator import (
-    MatrixOperator,
     LinearOperatorProtocol,
+    TransposeLinearOperator,
 )
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
@@ -31,7 +31,6 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature + implicit
@@ -57,6 +56,9 @@ class BackwardEulerStepper(
     def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
+    def _newton_coefficient(self) -> float:
+        return self._deltat
+
     def __call__(self, state: Array) -> Array:
         self._residual.set_time(self._time + self._deltat)
         return self._residual.mass_matrix().apply(
@@ -66,8 +68,9 @@ class BackwardEulerStepper(
     def jacobian(self, state: Array) -> Array:
         r"""Compute :math:`dR/dy_n = M - \Delta t \, (df/dy)`."""
         self._residual.set_time(self._time + self._deltat)
-        return self._residual.mass_matrix().as_matrix(
-        ) - self._deltat * self._residual.jacobian(state)
+        return self._residual.newton_jacobian(
+            state, self._newton_coefficient()
+        ).as_matrix()
 
     # -- SensitivityMixin --
 
@@ -125,11 +128,10 @@ class BackwardEulerAdjoint(
     ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - \Delta t \, J)^T`."""
         self._residual.set_time(self._time)
-        matrix = (
-            self._residual.mass_matrix().as_matrix()
-            - self._deltat * self._residual.jacobian(fsol_n)
-        ).T
-        return MatrixOperator(matrix, self._bkd)
+        op = self._residual.newton_jacobian(
+            fsol_n, self._newton_coefficient()
+        )
+        return TransposeLinearOperator(op)
 
     def adjoint_off_diag_jacobian(
         self, fsol_n: Array, deltat_np1: float
@@ -141,8 +143,10 @@ class BackwardEulerAdjoint(
         self, final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
         r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
-        drdu = self.jacobian(final_fwd_sol)
-        return solve_maybe_sparse(self._bkd, drdu.T, -final_dqdu)
+        op = self._residual.newton_jacobian(
+            final_fwd_sol, self._newton_coefficient()
+        )
+        return op.solve_transpose(-final_dqdu)
 
 
 # =========================================================================

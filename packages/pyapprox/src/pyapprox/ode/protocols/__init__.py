@@ -38,6 +38,9 @@ from .base import (
     TimeSteppingResidualBase,
 )
 from .ode_residual import (
+    ImplicitODEResidualProtocol,
+    ImplicitODEResidualWithHVPProtocol,
+    ImplicitODEResidualWithParamJacobianProtocol,
     ODEResidualProtocol,
     ODEResidualWithHVPProtocol,
     ODEResidualWithParamJacobianProtocol,
@@ -55,6 +58,10 @@ __all__ = [
     "ODEResidualProtocol",
     "ODEResidualWithParamJacobianProtocol",
     "ODEResidualWithHVPProtocol",
+    # Implicit ODE Residual Protocols
+    "ImplicitODEResidualProtocol",
+    "ImplicitODEResidualWithParamJacobianProtocol",
+    "ImplicitODEResidualWithHVPProtocol",
     # Time Stepping Residual Protocols
     "TimeSteppingResidualProtocol",
     "SensitivityStepperProtocol",

@@ -1,9 +1,10 @@
 """Linear operator protocol and concrete implementations.
 
 Used by the adjoint solver to represent the diagonal Jacobian block
-(dR/dy_n)^T. Explicit steppers return a MassMatrixTransposeOperator
-(free for identity mass), while implicit steppers return a
-DenseMatrixOperator wrapping the full (M - dt*J)^T.
+(dR/dy_n)^T, and by implicit steppers for the Newton Jacobian
+M - coefficient*J. Explicit steppers return a MassMatrixTransposeOperator
+(free for identity mass), while implicit steppers return a MatrixOperator
+wrapping the full assembled matrix.
 """
 
 from typing import Generic, Protocol, runtime_checkable
@@ -22,6 +23,10 @@ class LinearOperatorProtocol(Protocol, Generic[Array]):
     def apply(self, vec: Array) -> Array: ...
 
     def as_matrix(self) -> Array: ...
+
+    def solve_transpose(self, rhs: Array) -> Array: ...
+
+    def apply_transpose(self, vec: Array) -> Array: ...
 
 
 class MassMatrixTransposeOperator(Generic[Array]):
@@ -42,6 +47,12 @@ class MassMatrixTransposeOperator(Generic[Array]):
     def as_matrix(self) -> Array:
         return self._mass.as_matrix().T
 
+    def solve_transpose(self, rhs: Array) -> Array:
+        return self._mass.solve(rhs)
+
+    def apply_transpose(self, vec: Array) -> Array:
+        return self._mass.apply(vec)
+
 
 class MatrixOperator(Generic[Array]):
     """Wraps a pre-assembled dense or sparse matrix. No caching of factorization."""
@@ -58,3 +69,31 @@ class MatrixOperator(Generic[Array]):
 
     def as_matrix(self) -> Array:
         return self._matrix
+
+    def solve_transpose(self, rhs: Array) -> Array:
+        return solve_maybe_sparse(self._bkd, self._matrix.T, rhs)
+
+    def apply_transpose(self, vec: Array) -> Array:
+        return self._bkd.dot(self._matrix.T, vec)
+
+
+class TransposeLinearOperator(Generic[Array]):
+    """Lazy transpose: swaps solve/solve_transpose, apply/apply_transpose."""
+
+    def __init__(self, op: LinearOperatorProtocol[Array]) -> None:
+        self._op = op
+
+    def solve(self, rhs: Array) -> Array:
+        return self._op.solve_transpose(rhs)
+
+    def apply(self, vec: Array) -> Array:
+        return self._op.apply_transpose(vec)
+
+    def as_matrix(self) -> Array:
+        return self._op.as_matrix().T
+
+    def solve_transpose(self, rhs: Array) -> Array:
+        return self._op.solve(rhs)
+
+    def apply_transpose(self, vec: Array) -> Array:
+        return self._op.apply(vec)
