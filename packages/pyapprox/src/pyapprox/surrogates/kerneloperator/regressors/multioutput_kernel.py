@@ -5,7 +5,15 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Generic, List, Optional, Tuple
 
-from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    MultiOutputGPMaximumLikelihoodFitter,
+)
+from pyapprox.surrogates.gaussianprocess.multioutput import (
+    MultiOutputGP,
+)
+from pyapprox.surrogates.kernels.multioutput.protocols import (
+    MultiOutputKernelProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
@@ -39,18 +47,20 @@ class MultiOutputKernelLatentRegressor(Generic[Array]):
 
     def __init__(
         self,
-        kernel: object,
+        kernel: MultiOutputKernelProtocol[Array],
         ncodes_in: int,
         ncodes_out: int,
         bkd: Backend[Array],
         nugget: float = 1e-6,
     ) -> None:
-        if hasattr(kernel, "noutputs") and kernel.noutputs() != ncodes_out:  # type: ignore[union-attr]
+        if kernel.noutputs() != ncodes_out:
             raise ValueError(
-                f"kernel.noutputs() ({kernel.noutputs()}) must equal "  # type: ignore[union-attr]
+                f"kernel.noutputs() ({kernel.noutputs()}) must equal "
                 f"ncodes_out ({ncodes_out})"
             )
-        self._gp = MultiOutputGP(kernel, nugget)  # type: ignore[arg-type]
+        self._gp: MultiOutputGP[Array] = MultiOutputGP(
+            kernel, nugget
+        )
         self._ncodes_in = ncodes_in
         self._ncodes_out = ncodes_out
         self._bkd = bkd
@@ -108,16 +118,14 @@ class MultiOutputKernelLatentRegressor(Generic[Array]):
         V: Array,
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
     ) -> Tuple[Array, Array, Optional[object]]:
-        """Fit with hyperparameter optimization via MultiOutputGPMaximumLikelihoodFitter.
+        """Fit with hyperparameter optimization.
 
         Returns (initial_hyps, optimized_hyps, opt_result).
         """
-        from pyapprox.surrogates.gaussianprocess.fitters.multioutput_fitter import (
-            MultiOutputGPMaximumLikelihoodFitter,
-        )
-
         X_list, y_list = self._to_list_format(U, V)
-        fitter = MultiOutputGPMaximumLikelihoodFitter(self._bkd, optimizer)
+        fitter = MultiOutputGPMaximumLikelihoodFitter(
+            self._bkd, optimizer
+        )
         gp_result = fitter.fit(self._gp, X_list, y_list)
         self._gp = gp_result.surrogate()  # type: ignore[assignment]
         return (

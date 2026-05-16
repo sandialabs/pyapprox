@@ -8,6 +8,9 @@ from typing import TYPE_CHECKING, Generic, Optional, Tuple
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
@@ -103,10 +106,6 @@ class ScalarKernelLatentRegressor(Generic[Array]):
 
         Returns (initial_hyps, optimized_hyps, opt_result).
         """
-        from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
-            GPMaximumLikelihoodFitter,
-        )
-
         fitter = GPMaximumLikelihoodFitter(self._bkd, optimizer)
         gp_result = fitter.fit(self._gp, U, V)
         self._gp = gp_result.surrogate()  # type: ignore[assignment]
