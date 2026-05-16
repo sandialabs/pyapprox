@@ -741,7 +741,7 @@ class TestTimeResidualHVP:
                 # The off-diagonal jacobian gives dR_{n+1}/dy_n, which for FE is
                 # -(M + dt*J). So dR/dy_{n-1} is similar.
                 jac = (
-                    -self._time_residual._residual.mass_matrix(len(y_nm1_flat))
+                    -self._time_residual._residual.mass_matrix().as_matrix()
                     - self._deltat * self._time_residual._residual.jacobian(y_nm1_flat)
                 )
                 return (jac.T @ self._adj_state.reshape(-1, 1)).reshape(1, -1)

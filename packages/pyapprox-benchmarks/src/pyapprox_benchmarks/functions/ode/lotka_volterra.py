@@ -10,6 +10,7 @@ for testing adjoint gradient and HVP computations.
 
 from typing import Generic, Optional
 
+from pyapprox.ode.mass_matrix import IdentityMassMatrix
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
@@ -51,6 +52,7 @@ class LotkaVolterraResidual(Generic[Array]):
         self._param: Optional[Array] = None
         self._growth_rates: Optional[Array] = None  # r
         self._alpha: Optional[Array] = None  # A (competition matrix)
+        self._mass = IdentityMassMatrix(nspecies, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -134,13 +136,8 @@ class LotkaVolterraResidual(Generic[Array]):
 
         return diag_part + off_diag
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """Return the identity mass matrix."""
-        return self._bkd.eye(nstates)
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix to a vector (identity, returns vec)."""
-        return vec
+    def mass_matrix(self) -> IdentityMassMatrix:
+        return self._mass
 
     def param_jacobian(self, state: Array) -> Array:
         """

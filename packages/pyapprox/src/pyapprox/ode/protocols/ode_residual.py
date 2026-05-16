@@ -16,6 +16,7 @@ ODEResidualWithHVPProtocol
 
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -87,42 +88,14 @@ class ODEResidualProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def mass_matrix(self, nstates: int) -> Array:
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """
-        Return the mass matrix M.
-
-        For standard ODEs, this is the identity matrix.
-        For DAEs, this may be singular.
-
-        Parameters
-        ----------
-        nstates : int
-            Number of states.
+        Return the mass matrix value object.
 
         Returns
         -------
-        Array
-            Mass matrix. Shape: (nstates, nstates)
-        """
-        ...
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """
-        Apply mass matrix to a vector: M @ vec.
-
-        Default implementations should return mass_matrix(len(vec)) @ vec.
-        Override for custom mass matrix application (e.g., sparse,
-        block-diagonal, or singular mass matrices).
-
-        Parameters
-        ----------
-        vec : Array
-            Vector to multiply. Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            Result M @ vec. Shape: (nstates,)
+        MassMatrixProtocol[Array]
+            Mass matrix with apply, solve, and transpose operations.
         """
         ...
 
@@ -155,9 +128,7 @@ class ODEResidualWithParamJacobianProtocol(Protocol, Generic[Array]):
 
     def jacobian(self, state: Array) -> Array: ...
 
-    def mass_matrix(self, nstates: int) -> Array: ...
-
-    def apply_mass_matrix(self, vec: Array) -> Array: ...
+    def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
 
     def nparams(self) -> int:
         """
@@ -243,9 +214,7 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
 
     def jacobian(self, state: Array) -> Array: ...
 
-    def mass_matrix(self, nstates: int) -> Array: ...
-
-    def apply_mass_matrix(self, vec: Array) -> Array: ...
+    def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
 
     def nparams(self) -> int: ...
 

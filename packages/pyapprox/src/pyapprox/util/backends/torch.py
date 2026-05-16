@@ -941,6 +941,24 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         )
 
     @staticmethod
+    def lu_factor(
+        array: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        LU, pivots = torch.linalg.lu_factor(array)
+        return cast(torch.Tensor, LU), cast(torch.Tensor, pivots)
+
+    @staticmethod
+    def lu_solve(
+        LU: torch.Tensor,
+        pivots: torch.Tensor,
+        rhs: torch.Tensor,
+        adjoint: bool = False,
+    ) -> torch.Tensor:
+        rhs_2d = rhs[:, None] if rhs.ndim == 1 else rhs
+        result = torch.linalg.lu_solve(LU, pivots, rhs_2d, adjoint=adjoint)
+        return cast(torch.Tensor, result[:, 0] if rhs.ndim == 1 else result)
+
+    @staticmethod
     def index_update(
         array: torch.Tensor,
         index: Union[int, Tuple[int, ...]],

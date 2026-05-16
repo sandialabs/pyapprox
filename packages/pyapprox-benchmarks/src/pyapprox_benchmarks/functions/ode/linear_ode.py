@@ -10,6 +10,7 @@ The analytical solution is available for verification.
 
 from typing import Generic, Optional
 
+from pyapprox.ode.mass_matrix import IdentityMassMatrix
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
@@ -45,6 +46,7 @@ class LinearODEResidual(Generic[Array]):
         self._param: Optional[Array] = None
         self._nstates = Amat.shape[0]
         self._nparams = Bmat.shape[1]
+        self._mass = IdentityMassMatrix(self._nstates, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -108,25 +110,8 @@ class LinearODEResidual(Generic[Array]):
         """
         return self._Amat
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """
-        Return the identity mass matrix.
-
-        Parameters
-        ----------
-        nstates : int
-            Number of states.
-
-        Returns
-        -------
-        Array
-            Mass matrix. Shape: (nstates, nstates)
-        """
-        return self._bkd.eye(nstates)
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix to a vector (identity, returns vec)."""
-        return vec
+    def mass_matrix(self) -> IdentityMassMatrix:
+        return self._mass
 
     def param_jacobian(self, state: Array) -> Array:
         """
@@ -230,6 +215,7 @@ class QuadraticODEResidual(Generic[Array]):
         self._param: Optional[Array] = None
         self._nstates = Amat.shape[0]
         self._nparams = 2  # p[0] = quadratic coeff, p[1] = constant
+        self._mass = IdentityMassMatrix(self._nstates, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -295,13 +281,8 @@ class QuadraticODEResidual(Generic[Array]):
         p0 = float(self._param[0, 0])
         return self._Amat + 2.0 * p0 * self._bkd.diag(state)
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """Return the identity mass matrix."""
-        return self._bkd.eye(nstates)
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix to a vector (identity, returns vec)."""
-        return vec
+    def mass_matrix(self) -> IdentityMassMatrix:
+        return self._mass
 
     def param_jacobian(self, state: Array) -> Array:
         """
