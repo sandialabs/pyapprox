@@ -196,13 +196,6 @@ class PerSliceStrategy(Generic[Array]):
         assert self._slice_coefs is not None
         return self._slice_coefs
 
-    def set_slice_coefs(self, coefs: list[Array]) -> None:
-        """Set per-slice coefficients and rebuild interpolators."""
-        self._slice_coefs = coefs
-        self._n_basis = coefs[0].shape[0]
-        self._nqoi = coefs[0].shape[1]
-        self._build_coef_interpolators(self._bkd)
-
     def n_basis(self) -> int:
         return self._n_basis
 
