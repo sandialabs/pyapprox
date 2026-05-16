@@ -324,7 +324,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         essential (Dirichlet) DOFs only.
         """
         dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
-        mass = self._adjoint_inner.native_residual.mass_matrix(fsol_0.shape[0]).T
+        mass = self._adjoint_inner.native_residual.mass_matrix().as_matrix().T
         mass = self._physics.apply_bc_to_mass(mass)
         drduT_offdiag = self.adjoint_off_diag_jacobian(fsol_0, deltat_1)
         return self._bkd.solve(mass, -drduT_offdiag @ asol_1 - dqdu_0)

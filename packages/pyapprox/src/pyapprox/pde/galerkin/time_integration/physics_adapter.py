@@ -6,8 +6,7 @@ Galerkin physics provides: M * du/dt = F(u, t)
 This adapter returns raw (unmodified) quantities:
   f(y, t) = spatial_residual(y, t)   (no Dirichlet row zeroing)
   jacobian = spatial_jacobian(y, t)  (no Dirichlet row replacement)
-  mass_matrix = M                    (raw FEM mass matrix)
-  apply_mass_matrix(v) = M @ v
+  mass_matrix() = MassMatrixProtocol wrapping raw FEM mass matrix
 
 Dirichlet BCs are enforced by ConstrainedTimeStepResidual, which wraps
 the stepper and applies R[d] = y[d] - g(t), J[d,:] = e_d after the
@@ -20,8 +19,7 @@ physics coefficients and computes chain-rule Jacobians.
 
 from typing import Generic, Optional, Tuple
 
-from scipy.sparse import issparse
-
+from pyapprox.ode.mass_matrix import MassMatrixProtocol, create_mass_matrix
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
 )
@@ -37,8 +35,8 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
     Returns raw M, F, J_F -- no BC modifications:
     - f(y) = spatial_residual(y, t) (unmodified)
     - jacobian(y) = spatial_jacobian(y, t) (unmodified)
-    - mass_matrix = M (raw FEM mass matrix)
-    - apply_mass_matrix(v) = M @ v
+    - mass_matrix() = MassMatrixProtocol wrapping M
+    - mass_matrix().apply(v) = M @ v
 
     Dirichlet BCs are applied externally by ConstrainedTimeStepResidual.
 
@@ -83,8 +81,8 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None
 
-        # Cache raw mass matrix
-        self._mass_cached = physics.mass_matrix()
+        # Cache mass matrix as value-object (handles sparse via splu)
+        self._mass = create_mass_matrix(physics.mass_matrix(), self._bkd)
 
         # Setup optional methods based on parameterization capabilities
         self._setup_optional_methods()
@@ -163,40 +161,9 @@ class GalerkinPhysicsODEAdapter(Generic[Array]):
         """
         return self._physics.spatial_jacobian(state, self._time)
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """Return the raw FEM mass matrix.
-
-        Parameters
-        ----------
-        nstates : int
-            Number of states.
-
-        Returns
-        -------
-        Array
-            Mass matrix M. Shape: (nstates, nstates)
-        """
-        return self._mass_cached
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix to a vector: M @ vec.
-
-        Parameters
-        ----------
-        vec : Array
-            Vector to multiply. Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            M @ vec. Shape: (nstates,)
-        """
-        # Use @ with to_numpy because mass matrix may be sparse (scipy).
-        # Cannot use bkd.dot() — it doesn't handle sparse matrices.
-        if issparse(self._mass_cached):
-            vec_np = self._bkd.to_numpy(vec)
-            return self._bkd.asarray(self._mass_cached @ vec_np)
-        return self._bkd.dot(self._mass_cached, vec)
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
+        """Return the FEM mass matrix as a value-object."""
+        return self._mass
 
     def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
         """Return Dirichlet DOF indices and values at given time.

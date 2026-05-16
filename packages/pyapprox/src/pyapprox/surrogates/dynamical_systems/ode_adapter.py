@@ -7,6 +7,7 @@ localized in this single class.
 
 from typing import Generic
 
+from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
 from pyapprox.surrogates.dynamical_systems.protocols import (
     ParametricVectorFieldProtocol,
 )
@@ -20,7 +21,7 @@ class VectorFieldODEAdapter(Generic[Array]):
     - __call__(state: (n,)) -> vf(state[:, None])[:, 0] -> (n,)
     - jacobian(state: (n,)) -> vf.state_jacobian(state[:, None])[0] -> (n, n)
     - param_jacobian(state: (n,)) -> vf.param_jacobian(state[:, None])[0]
-    - mass_matrix(n) -> eye(n) (standard ODE)
+    - mass_matrix() -> IdentityMassMatrix (standard ODE)
     - set_param(param) -> vf.hyp_list().set_active_values(param)
     - initial_param_jacobian() -> zeros(n, nparams)
 
@@ -42,6 +43,7 @@ class VectorFieldODEAdapter(Generic[Array]):
         self._vf = vector_field
         self._bkd = vector_field.bkd()
         self._time: float = 0.0
+        self._mass = IdentityMassMatrix(vector_field.nstates(), self._bkd)
         self._setup_derivative_methods()
 
     def _setup_derivative_methods(self) -> None:
@@ -95,35 +97,9 @@ class VectorFieldODEAdapter(Generic[Array]):
         jac_batch = self._vf.state_jacobian(states_2d)
         return jac_batch[0]
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """Return identity mass matrix.
-
-        Parameters
-        ----------
-        nstates : int
-            Number of states.
-
-        Returns
-        -------
-        Array
-            Identity matrix. Shape: (nstates, nstates)
-        """
-        return self._bkd.eye(nstates)
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply identity mass matrix (no-op).
-
-        Parameters
-        ----------
-        vec : Array
-            Shape: (nstates,)
-
-        Returns
-        -------
-        Array
-            Shape: (nstates,)
-        """
-        return vec
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
+        """Return identity mass matrix."""
+        return self._mass
 
     def _nparams(self) -> int:
         return self._vf.hyp_list().nactive_params()

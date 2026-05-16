@@ -17,12 +17,13 @@ RK4) work unchanged. Adding a new integrator requires only a new stepper
 class and a registry entry — no adapter changes.
 """
 
-from typing import Generic, Optional
+from typing import Generic
 
 import numpy as np
 import scipy.linalg
 from scipy.sparse import issparse
 
+from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -63,8 +64,9 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
         # Build BC-modified mass matrix and factor/lump
         self._setup_mass(physics)
 
-        # Cache identity for mass_matrix() method
-        self._identity_cached: Optional[Array] = None
+        # Effective mass is identity (real M absorbed into f)
+        nstates = physics.mass_matrix().shape[0]
+        self._mass = IdentityMassMatrix(nstates, self._bkd)
 
     def _setup_mass(self, physics: object) -> None:
         """Build and factor the BC-modified mass matrix."""
@@ -163,29 +165,9 @@ class GalerkinExplicitODEAdapter(Generic[Array]):
 
         return self._bkd.asarray(result_np.astype(np.float64))
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """Return the identity matrix.
-
-        Since M is absorbed into f = M_bc^{-1} * F, the effective mass
-        matrix for the stepper is identity.
-
-        Parameters
-        ----------
-        nstates : int
-            Number of states.
-
-        Returns
-        -------
-        Array
-            Identity matrix. Shape: (nstates, nstates)
-        """
-        if self._identity_cached is None:
-            self._identity_cached = self._bkd.eye(nstates)
-        return self._identity_cached
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix to a vector (identity since M absorbed into f)."""
-        return vec
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
+        """Return identity mass matrix (real M absorbed into f)."""
+        return self._mass
 
     def __repr__(self) -> str:
         return (
