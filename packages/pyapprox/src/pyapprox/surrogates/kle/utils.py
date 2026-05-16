@@ -68,13 +68,16 @@ def sort_eigenpairs(
     # Sort by eigenvalue descending, then by magnitude of first
     # eigenvector entry (for tie-breaking across platforms)
     rounded_vals = bkd.asarray(np.round(bkd.to_numpy(eig_vals), decimals=12))
-    tuples = zip(
-        bkd.arange(nterms, dtype=int),
-        rounded_vals,
-        -bkd.abs(eig_vecs[0, :]),
+    sorted_tuples = sorted(
+        zip(
+            bkd.arange(nterms, dtype=int),
+            rounded_vals,
+            -bkd.abs(eig_vecs[0, :]),
+        ),
+        key=lambda tup: (tup[1], tup[2]),
+        reverse=True,
     )
-    tuples = sorted(tuples, key=lambda tup: (tup[1], tup[2]), reverse=True)
-    II = bkd.hstack([tup[0] for tup in tuples])
+    II = bkd.hstack([tup[0] for tup in sorted_tuples])
     return eig_vals[II], eig_vecs[:, II]
 
 

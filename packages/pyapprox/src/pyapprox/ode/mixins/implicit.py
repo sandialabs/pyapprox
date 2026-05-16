@@ -17,6 +17,10 @@ class ImplicitStepperMixin(ABC, Generic[Array]):
     Provides linsolve via residual's newton_jacobian operator. The
     stepper-specific coefficient (dt for BE, dt/2 for CN) is defined
     once per stepper in _newton_coefficient.
+
+    Concrete steppers must declare:
+        _residual: ImplicitODEResidualProtocol[Array]
+    to narrow the base class annotation and enable newton_jacobian access.
     """
 
     if TYPE_CHECKING:
