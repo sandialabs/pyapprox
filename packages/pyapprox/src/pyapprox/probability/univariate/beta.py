@@ -112,6 +112,9 @@ class _BetaCDFNewtonResidual(Generic[Array]):
         pdf_vals = self._marginal(iterate_2d)
         return res / pdf_vals[0]
 
+    def is_one_step_solvable(self) -> bool:
+        return False
+
 
 class BetaMarginal(Generic[Array]):
     """

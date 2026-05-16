@@ -20,6 +20,8 @@ wrapper based on the inner stepper's protocol level.
 
 from typing import Generic, Tuple, cast, overload
 
+from pyapprox.ode.linear_operator import LinearOperatorProtocol, MatrixOperator
+
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithParamJacobianProtocol,
@@ -132,6 +134,11 @@ class BCEnforcingForwardResidual(Generic[Array]):
     def is_explicit(self) -> bool:
         """Return whether scheme is explicit."""
         return bool(self._inner.is_explicit())
+
+    def is_one_step_solvable(self) -> bool:
+        # TODO: when True (explicit stepper), linsolve does a redundant
+        # identity solve. Could return residual directly + BC fixup.
+        return bool(self._inner.is_one_step_solvable())
 
     def has_prev_state_hessian(self) -> bool:
         """Return whether R_{n+1} depends on f(y_n)."""
@@ -289,14 +296,16 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
             return None
         return {"dflux_n_dp": dflux_n_dp}
 
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+    def adjoint_diag_jacobian(
+        self, fsol_n: Array
+    ) -> LinearOperatorProtocol[Array]:
         """Adjoint diagonal block: transpose of BC-enforced forward Jacobian.
 
         self.jacobian() calls physics.apply_boundary_conditions(), producing
         the correct BC-enforced forward Jacobian for ALL BC types and ALL
         solver types. Its transpose is the correct adjoint diagonal block.
         """
-        return self.jacobian(fsol_n).T
+        return MatrixOperator(self.jacobian(fsol_n).T, self._bkd)
 
     def adjoint_off_diag_jacobian(
         self, fsol_n: Array, deltat_np1: float
@@ -323,7 +332,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         """
         final_dqdu = self.zero_adjoint_rhs(final_dqdu)
         drduT_diag = self.adjoint_diag_jacobian(final_fwd_sol)
-        return self._bkd.solve(drduT_diag, -final_dqdu)
+        return drduT_diag.solve(-final_dqdu)
 
     def adjoint_final_solution(
         self,

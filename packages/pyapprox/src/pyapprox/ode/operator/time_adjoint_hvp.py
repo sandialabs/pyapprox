@@ -570,7 +570,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
             )
 
-            s_sols[:, nn] = self._bkd.solve(drduT_diag, rhs)
+            s_sols[:, nn] = drduT_diag.solve(rhs)
 
         # Final step at t=0: solve M^T s_0 = rhs.
         # At t=0 there is no time-step residual R_0, so the diagonal block

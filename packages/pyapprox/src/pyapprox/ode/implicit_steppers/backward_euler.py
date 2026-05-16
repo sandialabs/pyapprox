@@ -15,6 +15,10 @@ Split into three classes via mixin composition:
 
 from typing import Generic
 
+from pyapprox.ode.linear_operator import (
+    MatrixOperator,
+    LinearOperatorProtocol,
+)
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
@@ -70,6 +74,9 @@ class BackwardEulerStepper(
     def is_explicit(self) -> bool:
         return False
 
+    def is_one_step_solvable(self) -> bool:
+        return False
+
     def has_prev_state_hessian(self) -> bool:
         return False
 
@@ -113,13 +120,16 @@ class BackwardEulerAdjoint(
         self._residual.set_time(self._time + self._deltat)
         return -self._deltat * self._adjoint_residual.param_jacobian(fsol_n)
 
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+    def adjoint_diag_jacobian(
+        self, fsol_n: Array
+    ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - \Delta t \, J)^T`."""
         self._residual.set_time(self._time)
-        return (
+        matrix = (
             self._residual.mass_matrix().as_matrix()
             - self._deltat * self._residual.jacobian(fsol_n)
         ).T
+        return MatrixOperator(matrix, self._bkd)
 
     def adjoint_off_diag_jacobian(
         self, fsol_n: Array, deltat_np1: float

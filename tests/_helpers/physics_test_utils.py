@@ -168,6 +168,9 @@ class PhysicsNewtonResidual(Generic[Array]):
         )
         return self._bkd.solve(jacobian_bc, prev_residual)
 
+    def is_one_step_solvable(self) -> bool:
+        return False
+
 
 class PhysicsTestBase:
     """Base class for physics tests with derivative checking utilities.

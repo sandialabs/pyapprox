@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Generic, cast
 
+from pyapprox.ode.linear_operator import LinearOperatorProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithParamJacobianProtocol,
@@ -56,7 +57,9 @@ class AdjointMixin(ABC, Generic[Array]):
         return self._param_jacobian_impl(fsol_nm1, fsol_n)
 
     @abstractmethod
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+    def adjoint_diag_jacobian(
+        self, fsol_n: Array
+    ) -> LinearOperatorProtocol[Array]:
         """Compute the diagonal Jacobian block for adjoint solve: (dR/dy_n)^T."""
         ...
 
