@@ -7,17 +7,31 @@ both scipy sparse matrices and dense numpy arrays.
 from __future__ import annotations
 
 import warnings
-from typing import Any, Union
+from typing import Any, Union, overload
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import issparse, spmatrix
+from scipy.sparse import spmatrix
 
 # Re-export for backward compatibility
 from pyapprox.util.linalg.sparse_dispatch import (  # noqa: F401
     solve_maybe_sparse,
     sparse_or_dense_solve,
 )
+
+
+@overload
+def apply_dirichlet_rows(
+    matrix: NDArray[np.floating[Any]],
+    dof_indices: NDArray[np.integer[Any]],
+) -> NDArray[np.floating[Any]]: ...
+
+
+@overload
+def apply_dirichlet_rows(
+    matrix: spmatrix,
+    dof_indices: NDArray[np.integer[Any]],
+) -> spmatrix: ...
 
 
 def apply_dirichlet_rows(
@@ -41,7 +55,7 @@ def apply_dirichlet_rows(
     sparse matrix or ndarray
         Modified matrix (same type as input).
     """
-    if issparse(matrix):
+    if isinstance(matrix, spmatrix):
         mat = matrix.tocsr().copy()
         indptr = mat.indptr
         data = mat.data

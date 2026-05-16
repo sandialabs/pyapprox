@@ -12,6 +12,10 @@ Split into three classes via mixin composition:
 
 from typing import Generic
 
+from pyapprox.ode.linear_operator import (
+    LinearOperatorProtocol,
+    MassMatrixTransposeOperator,
+)
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
@@ -62,6 +66,9 @@ class ForwardEulerStepper(
     # -- SensitivityMixin --
 
     def is_explicit(self) -> bool:
+        return True
+
+    def is_one_step_solvable(self) -> bool:
         return True
 
     def has_prev_state_hessian(self) -> bool:
@@ -115,9 +122,11 @@ class ForwardEulerAdjoint(
         self._adjoint_residual.set_time(self._time)
         return -self._deltat * self._adjoint_residual.param_jacobian(fsol_nm1)
 
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+    def adjoint_diag_jacobian(
+        self, fsol_n: Array
+    ) -> LinearOperatorProtocol[Array]:
         r"""Return :math:`(dR/dy_n)^T = M^T` (explicit, so Jacobian is mass matrix)."""
-        return self._adjoint_residual.mass_matrix().as_matrix().T
+        return MassMatrixTransposeOperator(self._adjoint_residual.mass_matrix())
 
     def adjoint_off_diag_jacobian(
         self, fsol_n: Array, deltat_np1: float

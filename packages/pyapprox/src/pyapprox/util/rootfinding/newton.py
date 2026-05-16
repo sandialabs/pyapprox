@@ -14,6 +14,8 @@ class NewtonSolverResidualProtocol(Protocol, Generic[Array]):
 
     def linsolve(self, state: Array, prev_residual: Array) -> Array: ...
 
+    def is_one_step_solvable(self) -> bool: ...
+
 
 class NewtonSolverOptions:
     """
@@ -111,6 +113,12 @@ class NewtonSolver(Generic[Array]):
             raise ValueError("must call set_residual")
         iterate = init_iterate
         residual = self._residual(iterate)
+
+        # Fast path: one Newton step is exact for linear residuals
+        if self._residual.is_one_step_solvable():
+            delta = self._residual.linsolve(iterate, residual)
+            return self._update_iterate(iterate, delta)
+
         residual_norms = [self._bkd.norm(residual)]
         it = 0
         if self._verbosity > 1:

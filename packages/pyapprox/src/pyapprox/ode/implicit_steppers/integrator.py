@@ -16,7 +16,6 @@ from pyapprox.ode.protocols.time_stepping import (
 )
 from pyapprox.ode.protocols.type_guards import is_hvp_enabled
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
@@ -203,7 +202,7 @@ class TimeIntegrator(Generic[Array]):
         )
 
         rhs = -drduT_offdiag @ asol_np1 - dqdu_n
-        return solve_maybe_sparse(self._bkd, drduT_diag, rhs)
+        return drduT_diag.solve(rhs)
 
     def solve_adjoint(self, fwd_sols: Array, times: Array, param: Array) -> Array:
         """

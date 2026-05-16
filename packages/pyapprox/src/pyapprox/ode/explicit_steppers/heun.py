@@ -14,6 +14,10 @@ Split into three classes via mixin composition:
 
 from typing import Generic
 
+from pyapprox.ode.linear_operator import (
+    LinearOperatorProtocol,
+    MassMatrixTransposeOperator,
+)
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
@@ -76,6 +80,9 @@ class HeunStepper(
     # -- SensitivityMixin --
 
     def is_explicit(self) -> bool:
+        return True
+
+    def is_one_step_solvable(self) -> bool:
         return True
 
     def has_prev_state_hessian(self) -> bool:
@@ -170,8 +177,10 @@ class HeunAdjoint(
             )
         )
 
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
-        return self._adjoint_residual.mass_matrix().as_matrix().T
+    def adjoint_diag_jacobian(
+        self, fsol_n: Array
+    ) -> LinearOperatorProtocol[Array]:
+        return MassMatrixTransposeOperator(self._adjoint_residual.mass_matrix())
 
     def adjoint_off_diag_jacobian(
         self, fsol_n: Array, deltat_np1: float

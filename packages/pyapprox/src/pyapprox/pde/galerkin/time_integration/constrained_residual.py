@@ -18,7 +18,7 @@ TODO: Consider letting the residual specify its required solve type
 from typing import Generic
 
 import numpy as np
-from scipy.sparse import issparse
+from scipy.sparse import spmatrix
 
 from pyapprox.ode.protocols.time_stepping import TimeSteppingResidualProtocol
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
@@ -103,6 +103,9 @@ class ConstrainedTimeStepResidual(Generic[Array]):
             return self._bkd.asarray(R_np.astype(np.float64))
         return R
 
+    def is_one_step_solvable(self) -> bool:
+        return bool(self._stepper.is_one_step_solvable())
+
     def linsolve(self, state: Array, residual: Array) -> Array:
         """Solve constrained linear system.
 
@@ -125,7 +128,7 @@ class ConstrainedTimeStepResidual(Generic[Array]):
         d_dofs, _ = self._adapter.dirichlet_dof_info(self._bc_time)
         d_dofs_np = self._bkd.to_numpy(d_dofs).astype(np.intp)
         if len(d_dofs_np) > 0:
-            if issparse(J):
+            if isinstance(J, spmatrix):
                 J = apply_dirichlet_rows(J, d_dofs_np)
             else:
                 J_np = self._bkd.to_numpy(J).copy()

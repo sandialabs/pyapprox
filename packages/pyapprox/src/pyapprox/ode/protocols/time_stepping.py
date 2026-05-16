@@ -21,6 +21,7 @@ PrevStepHVPEnabledTimeSteppingResidualProtocol
 
 from typing import Generic, Protocol, Tuple, runtime_checkable
 
+from pyapprox.ode.linear_operator import LinearOperatorProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithParamJacobianProtocol,
@@ -110,6 +111,17 @@ class TimeSteppingResidualProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def is_one_step_solvable(self) -> bool:
+        """Return True if R(y_n) = 0 is linear in y_n with constant Jacobian.
+
+        When True, one Newton step is exact (no iteration needed).
+        True for explicit steppers (Forward Euler, Heun) where the
+        Jacobian is the mass matrix alone. False for implicit steppers
+        (Backward Euler, Crank-Nicolson) where f(y_n) introduces
+        state-dependent nonlinearity.
+        """
+        ...
+
 
 @runtime_checkable
 class SensitivityStepperProtocol(Protocol, Generic[Array]):
@@ -129,6 +141,8 @@ class SensitivityStepperProtocol(Protocol, Generic[Array]):
     def jacobian(self, state: Array) -> Array: ...
 
     def linsolve(self, state: Array, residual: Array) -> Array: ...
+
+    def is_one_step_solvable(self) -> bool: ...
 
     @property
     def native_residual(self) -> ODEResidualProtocol[Array]:
@@ -207,6 +221,8 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def linsolve(self, state: Array, residual: Array) -> Array: ...
 
+    def is_one_step_solvable(self) -> bool: ...
+
     @property
     def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]:
         """Return the underlying ODE residual."""
@@ -259,11 +275,14 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
+    def adjoint_diag_jacobian(
+        self, fsol_n: Array
+    ) -> LinearOperatorProtocol[Array]:
         """
-        Compute the diagonal Jacobian block for adjoint solve.
+        Return a LinearOperator representing (dR/dy_n)^T.
 
-        This is the transpose (dR/dy_n)^T evaluated at time t_n.
+        The integrator calls .solve(rhs) on the returned object.
+        For explicit steppers with identity mass this is a no-op.
 
         Parameters
         ----------
@@ -272,8 +291,8 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
         Returns
         -------
-        Array
-            (dR/dy_n)^T. Shape: (nstates, nstates)
+        LinearOperatorProtocol[Array]
+            Operator whose .solve(rhs) solves (dR/dy_n)^T x = rhs.
         """
         ...
 
@@ -427,6 +446,8 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def linsolve(self, state: Array, residual: Array) -> Array: ...
 
+    def is_one_step_solvable(self) -> bool: ...
+
     @property
     def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]: ...
 
@@ -440,7 +461,9 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array: ...
 
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array: ...
+    def adjoint_diag_jacobian(
+        self, fsol_n: Array
+    ) -> LinearOperatorProtocol[Array]: ...
 
     def adjoint_off_diag_jacobian(self, fsol_n: Array, deltat_np1: float) -> Array: ...
 
@@ -596,6 +619,8 @@ class PrevStepHVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def linsolve(self, state: Array, residual: Array) -> Array: ...
 
+    def is_one_step_solvable(self) -> bool: ...
+
     @property
     def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]: ...
 
@@ -609,7 +634,9 @@ class PrevStepHVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array: ...
 
-    def adjoint_diag_jacobian(self, fsol_n: Array) -> Array: ...
+    def adjoint_diag_jacobian(
+        self, fsol_n: Array
+    ) -> LinearOperatorProtocol[Array]: ...
 
     def adjoint_off_diag_jacobian(self, fsol_n: Array, deltat_np1: float) -> Array: ...
 

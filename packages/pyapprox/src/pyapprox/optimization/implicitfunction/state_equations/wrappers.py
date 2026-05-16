@@ -135,3 +135,6 @@ class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
         jacobian = self.jacobian(iterate1d)
         # newton requires 1D array as output of linsolve
         return self._bkd.solve(jacobian, prev_residual)[:, 0]
+
+    def is_one_step_solvable(self) -> bool:
+        return False
