@@ -26,9 +26,9 @@ from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.quadrature import QuadratureMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
-    ODEResidualProtocol,
-    ODEResidualWithHVPProtocol,
-    ODEResidualWithParamJacobianProtocol,
+    ImplicitODEResidualProtocol,
+    ImplicitODEResidualWithHVPProtocol,
+    ImplicitODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array
 
@@ -53,7 +53,9 @@ class BackwardEulerStepper(
         R(y_n) = M (y_n - y_{n-1}) - \Delta t \, f(y_n, t_n) = 0
     """
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
+    _residual: ImplicitODEResidualProtocol[Array]
+
+    def __init__(self, residual: ImplicitODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
     def _newton_coefficient(self) -> float:
@@ -113,8 +115,10 @@ class BackwardEulerAdjoint(
 ):
     """Backward Euler with adjoint capability for gradient computation."""
 
+    _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
+
     def __init__(
-        self, residual: ODEResidualWithParamJacobianProtocol[Array]
+        self, residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
     ) -> None:
         super().__init__(residual)
 
@@ -169,7 +173,9 @@ class BackwardEulerHVP(
         \frac{d^2 R}{d(\cdot)^2} = -\Delta t \, \frac{d^2 f}{d(\cdot)^2}
     """
 
-    def __init__(self, residual: ODEResidualWithHVPProtocol[Array]) -> None:
+    _residual: ImplicitODEResidualWithHVPProtocol[Array]
+
+    def __init__(self, residual: ImplicitODEResidualWithHVPProtocol[Array]) -> None:
         super().__init__(residual)
 
     def state_state_hvp(

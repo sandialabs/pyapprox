@@ -27,9 +27,9 @@ from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.quadrature import QuadratureMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
-    ODEResidualProtocol,
-    ODEResidualWithHVPProtocol,
-    ODEResidualWithParamJacobianProtocol,
+    ImplicitODEResidualProtocol,
+    ImplicitODEResidualWithHVPProtocol,
+    ImplicitODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array
 
@@ -56,7 +56,9 @@ class CrankNicolsonStepper(
         \bigl[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)\bigr] = 0
     """
 
-    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
+    _residual: ImplicitODEResidualProtocol[Array]
+
+    def __init__(self, residual: ImplicitODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
     def _newton_coefficient(self) -> float:
@@ -137,8 +139,10 @@ class CrankNicolsonAdjoint(
 ):
     """Crank-Nicolson with adjoint capability for gradient computation."""
 
+    _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
+
     def __init__(
-        self, residual: ODEResidualWithParamJacobianProtocol[Array]
+        self, residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
     ) -> None:
         super().__init__(residual)
 
@@ -226,7 +230,9 @@ class CrankNicolsonHVP(
     :math:`R_{n+1}`).
     """
 
-    def __init__(self, residual: ODEResidualWithHVPProtocol[Array]) -> None:
+    _residual: ImplicitODEResidualWithHVPProtocol[Array]
+
+    def __init__(self, residual: ImplicitODEResidualWithHVPProtocol[Array]) -> None:
         super().__init__(residual)
 
     # -- HVPMixin: current-step HVP methods --
