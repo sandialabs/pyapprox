@@ -12,6 +12,10 @@ schedule, …) from the rest of the pipeline.
 
 from typing import Callable, Generic, Optional, Tuple
 
+import numpy as np
+
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.univariate import create_basis_1d
 from pyapprox.util.backends.protocols import Array, Backend
 
 QuadRule1D = Callable[[int], Tuple[Array, Array]]
@@ -133,9 +137,6 @@ def gauss_legendre_rule(bkd: Backend[Array]) -> QuadRule1D:
     Returns a callable ``(n) -> (nodes, weights)`` where nodes has
     shape ``(n,)`` and weights has shape ``(n,)``.
     """
-    from pyapprox.probability import UniformMarginal
-    from pyapprox.surrogates.affine.univariate import create_basis_1d
-
     basis = create_basis_1d(UniformMarginal(0.0, 1.0, bkd), bkd)
 
     def rule(n: int) -> Tuple[Array, Array]:
@@ -152,9 +153,6 @@ def gauss_hermite_rule(bkd: Backend[Array]) -> QuadRule1D:
     Returns a callable ``(n) -> (nodes, weights)`` where nodes has
     shape ``(n,)`` and weights has shape ``(n,)``.
     """
-    from pyapprox.probability import GaussianMarginal
-    from pyapprox.surrogates.affine.univariate import create_basis_1d
-
     basis = create_basis_1d(GaussianMarginal(0.0, 1.0, bkd), bkd)
 
     def rule(n: int) -> Tuple[Array, Array]:
@@ -208,7 +206,6 @@ def mc_rule(bkd: Backend[Array], seed: int = 0) -> QuadRule1D:
     Returns a callable ``(n) -> (nodes, weights)`` where nodes are
     i.i.d. draws from N(0, 1) and weights are uniform 1/n.
     """
-    import numpy as np
 
     def rule(n: int) -> Tuple[Array, Array]:
         rng = np.random.RandomState(seed)
@@ -354,7 +351,6 @@ def mc_pair_rule(
     seed : int
         Random seed.
     """
-    import numpy as np
 
     def rule(n: int) -> Tuple[Array, Array, Array]:
         rng = np.random.RandomState(seed)
