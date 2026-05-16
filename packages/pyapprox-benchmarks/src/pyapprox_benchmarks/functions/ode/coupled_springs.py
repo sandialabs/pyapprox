@@ -11,11 +11,14 @@ Implements a two-mass spring system with friction:
 from typing import Generic, Optional
 
 from pyapprox.ode.mass_matrix import IdentityMassMatrix
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
 
-class CoupledSpringsResidual(Generic[Array]):
+class CoupledSpringsResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
     Coupled springs ODE residual.
 

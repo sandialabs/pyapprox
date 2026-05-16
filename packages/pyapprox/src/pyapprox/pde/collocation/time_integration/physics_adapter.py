@@ -14,6 +14,9 @@ only if the underlying physics supports them.
 from typing import Any, Generic, Optional, cast
 
 from pyapprox.ode.mass_matrix import MassMatrixProtocol, create_mass_matrix
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
@@ -21,7 +24,9 @@ from pyapprox.pde.parameterizations.protocol import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class PhysicsToODEResidualAdapter(Generic[Array]):
+class PhysicsToODEResidualAdapter(
+    DefaultNewtonJacobianMixin[Array], Generic[Array]
+):
     """Adapter from Physics to ODEResidualProtocol.
 
     Wraps a collocation Physics object to provide the ODEResidualProtocol

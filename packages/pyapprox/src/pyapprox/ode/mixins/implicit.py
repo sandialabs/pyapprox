@@ -1,32 +1,40 @@
-"""Implicit stepper mixin providing linsolve."""
+"""Implicit stepper mixin providing linsolve via newton_jacobian."""
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Generic
 
+from pyapprox.ode.protocols.ode_residual import (
+    ImplicitODEResidualProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class ImplicitStepperMixin(ABC, Generic[Array]):
     """Mixin for implicit steppers (backward Euler, Crank-Nicolson).
 
-    Provides linsolve using the Jacobian. Declares jacobian as abstract
-    so mypy can verify the call.
+    Provides linsolve via residual's newton_jacobian operator. The
+    stepper-specific coefficient (dt for BE, dt/2 for CN) is defined
+    once per stepper in _newton_coefficient.
     """
 
     if TYPE_CHECKING:
         _bkd: Backend[Array]
+        _residual: ImplicitODEResidualProtocol[Array]
+        _deltat: float
+        _time: float
 
     @abstractmethod
-    def jacobian(self, state: Array) -> Array:
-        """Compute the Jacobian dR/dy_n.
+    def _newton_coefficient(self) -> float:
+        """Stepper-specific coefficient for Newton Jacobian.
 
-        Declared here, implemented by concrete class.
+        BackwardEuler: self._deltat. CrankNicolson: 0.5 * self._deltat.
+        Internal to the stepper hierarchy, not exposed externally.
         """
         ...
 
     def linsolve(self, state: Array, residual: Array) -> Array:
-        """Solve the linear system J dy = residual."""
-        return solve_maybe_sparse(self._bkd, self.jacobian(state), residual)
+        """Solve (M - coeff*J) dy = residual via residual's newton_jacobian."""
+        op = self._residual.newton_jacobian(state, self._newton_coefficient())
+        return op.solve(residual)

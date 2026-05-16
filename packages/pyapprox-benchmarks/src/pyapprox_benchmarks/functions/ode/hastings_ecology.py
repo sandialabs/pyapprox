@@ -14,12 +14,16 @@ References:
 from typing import Generic, Optional
 
 from pyapprox.ode.mass_matrix import IdentityMassMatrix
-
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
 
-class HastingsEcologyResidual(Generic[Array]):
+class HastingsEcologyResidual(
+    DefaultNewtonJacobianMixin[Array], Generic[Array]
+):
     """
     Hastings ecology ODE residual.
 

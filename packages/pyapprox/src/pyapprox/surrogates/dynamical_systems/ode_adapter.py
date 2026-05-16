@@ -8,13 +8,16 @@ localized in this single class.
 from typing import Generic
 
 from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.surrogates.dynamical_systems.protocols import (
     ParametricVectorFieldProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class VectorFieldODEAdapter(Generic[Array]):
+class VectorFieldODEAdapter(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """Adapts a ParametricVectorField to ODEResidualWithParamJacobianProtocol.
 
     Shape translations (all in one place):

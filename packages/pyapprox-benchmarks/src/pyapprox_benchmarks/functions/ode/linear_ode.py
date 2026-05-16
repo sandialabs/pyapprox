@@ -11,11 +11,14 @@ The analytical solution is available for verification.
 from typing import Generic, Optional
 
 from pyapprox.ode.mass_matrix import IdentityMassMatrix
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
 
-class LinearODEResidual(Generic[Array]):
+class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
     Linear ODE residual: f(y, t; p) = A·y + B·p.
 
@@ -186,7 +189,7 @@ class LinearODEResidual(Generic[Array]):
         )
 
 
-class QuadraticODEResidual(Generic[Array]):
+class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
     Quadratic ODE residual for testing HVP computation.
 

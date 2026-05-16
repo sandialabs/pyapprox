@@ -12,10 +12,16 @@ ODEResidualWithParamJacobianProtocol
     Adds parameter Jacobian for gradient computation.
 ODEResidualWithHVPProtocol
     Adds HVP methods for Hessian-vector products.
+
+Implicit variants (add newton_jacobian for structure-aware Newton solves):
+ImplicitODEResidualProtocol
+ImplicitODEResidualWithParamJacobianProtocol
+ImplicitODEResidualWithHVPProtocol
 """
 
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.ode.linear_operator import LinearOperatorProtocol
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -303,3 +309,102 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
             lambda^T (d^2f/dp^2) v. Shape: (nparams,)
         """
         ...
+
+
+# =========================================================================
+# Implicit ODE residual protocols (method re-declaration style)
+# =========================================================================
+
+
+@runtime_checkable
+class ImplicitODEResidualProtocol(Protocol, Generic[Array]):
+    """ODE residual capable of constructing its Newton Jacobian operator.
+
+    Used by implicit steppers (BackwardEuler, CrankNicolson). The operator
+    M - coefficient * J(state) is returned as a LinearOperator, enabling
+    structure-aware solves (block-diagonal, sparse-factored, etc.).
+    """
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def __call__(self, state: Array) -> Array: ...
+
+    def set_time(self, time: float) -> None: ...
+
+    def jacobian(self, state: Array) -> Array: ...
+
+    def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
+
+    def newton_jacobian(
+        self, state: Array, coefficient: float
+    ) -> LinearOperatorProtocol[Array]: ...
+
+
+@runtime_checkable
+class ImplicitODEResidualWithParamJacobianProtocol(Protocol, Generic[Array]):
+    """Implicit ODE residual with parameter sensitivity."""
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def __call__(self, state: Array) -> Array: ...
+
+    def set_time(self, time: float) -> None: ...
+
+    def jacobian(self, state: Array) -> Array: ...
+
+    def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
+
+    def newton_jacobian(
+        self, state: Array, coefficient: float
+    ) -> LinearOperatorProtocol[Array]: ...
+
+    def nparams(self) -> int: ...
+
+    def set_param(self, param: Array) -> None: ...
+
+    def param_jacobian(self, state: Array) -> Array: ...
+
+    def initial_param_jacobian(self) -> Array: ...
+
+
+@runtime_checkable
+class ImplicitODEResidualWithHVPProtocol(Protocol, Generic[Array]):
+    """Implicit ODE residual with HVP support."""
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def __call__(self, state: Array) -> Array: ...
+
+    def set_time(self, time: float) -> None: ...
+
+    def jacobian(self, state: Array) -> Array: ...
+
+    def mass_matrix(self) -> MassMatrixProtocol[Array]: ...
+
+    def newton_jacobian(
+        self, state: Array, coefficient: float
+    ) -> LinearOperatorProtocol[Array]: ...
+
+    def nparams(self) -> int: ...
+
+    def set_param(self, param: Array) -> None: ...
+
+    def param_jacobian(self, state: Array) -> Array: ...
+
+    def initial_param_jacobian(self) -> Array: ...
+
+    def state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array
+    ) -> Array: ...
+
+    def state_param_hvp(
+        self, state: Array, adj_state: Array, vvec: Array
+    ) -> Array: ...
+
+    def param_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array
+    ) -> Array: ...
+
+    def param_param_hvp(
+        self, state: Array, adj_state: Array, vvec: Array
+    ) -> Array: ...

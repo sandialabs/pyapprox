@@ -20,6 +20,9 @@ physics coefficients and computes chain-rule Jacobians.
 from typing import Generic, Optional, Tuple
 
 from pyapprox.ode.mass_matrix import MassMatrixProtocol, create_mass_matrix
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
 )
@@ -29,7 +32,9 @@ from pyapprox.pde.parameterizations.protocol import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class GalerkinPhysicsODEAdapter(Generic[Array]):
+class GalerkinPhysicsODEAdapter(
+    DefaultNewtonJacobianMixin[Array], Generic[Array]
+):
     """Adapter from GalerkinPhysics to ODEResidualProtocol.
 
     Returns raw M, F, J_F -- no BC modifications:
