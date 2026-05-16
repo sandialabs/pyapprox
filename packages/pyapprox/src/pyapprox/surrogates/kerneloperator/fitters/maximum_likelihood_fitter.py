@@ -37,10 +37,12 @@ class KernelOperatorMaximumLikelihoodFitter(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    input_encoder_factories : List[Callable[[Array, Backend[Array]], FunctionEncoderProtocol[Array]]]
-        Factories for input encoders. Each called as factory(data, bkd).
-    output_encoder_factories : List[Callable[[Array, Backend[Array]], FunctionEncoderProtocol[Array]]]
-        Factories for output encoders. Each called as factory(data, bkd).
+    input_encoder_factories : List[Callable]
+        Factories for input encoders.
+        Signature: (data: Array, bkd: Backend) -> FunctionEncoderProtocol.
+    output_encoder_factories : List[Callable]
+        Factories for output encoders.
+        Signature: (data: Array, bkd: Backend) -> FunctionEncoderProtocol.
     kernel : object
         Scalar kernel or MultiOutputKernelProtocol.
     nugget : float
@@ -52,8 +54,16 @@ class KernelOperatorMaximumLikelihoodFitter(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        input_encoder_factories: List[Callable[[Array, Backend[Array]], FunctionEncoderProtocol[Array]]],
-        output_encoder_factories: List[Callable[[Array, Backend[Array]], FunctionEncoderProtocol[Array]]],
+        input_encoder_factories: List[
+            Callable[
+                [Array, Backend[Array]], FunctionEncoderProtocol[Array]
+            ]
+        ],
+        output_encoder_factories: List[
+            Callable[
+                [Array, Backend[Array]], FunctionEncoderProtocol[Array]
+            ]
+        ],
         kernel: object,
         nugget: float = 1e-6,
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,

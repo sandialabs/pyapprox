@@ -5,10 +5,11 @@ and NLL gradient correctness — not just training-point interpolation.
 """
 
 import numpy as np
-import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
+)
+from pyapprox.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss,
 )
 from pyapprox.surrogates.kerneloperator.encoders.identity import (
     IdentityFunctionEncoder,
@@ -21,9 +22,6 @@ from pyapprox.surrogates.kerneloperator.fitters.maximum_likelihood_fitter import
 )
 from pyapprox.surrogates.kerneloperator.regressors.scalar_kernel import (
     ScalarKernelLatentRegressor,
-)
-from pyapprox.surrogates.gaussianprocess.gp_loss import (
-    GPNegativeLogMarginalLikelihoodLoss,
 )
 from pyapprox.surrogates.kernels.linear import LinearKernel
 from pyapprox.surrogates.kernels.matern import Matern52Kernel

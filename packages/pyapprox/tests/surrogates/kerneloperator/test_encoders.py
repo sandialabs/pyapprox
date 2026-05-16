@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from pyapprox.surrogates.kerneloperator.encoders.identity import (
     IdentityFunctionEncoder,
 )

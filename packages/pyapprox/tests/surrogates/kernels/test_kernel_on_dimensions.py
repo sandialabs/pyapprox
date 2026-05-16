@@ -1,13 +1,11 @@
 import numpy as np
 import pytest
-
 from pyapprox.surrogates.kernels.composition import ProductKernel
 from pyapprox.surrogates.kernels.kernel_on_dimensions import (
     KernelOnDimensions,
 )
 from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
-    SquaredExponentialKernel,
 )
 
 

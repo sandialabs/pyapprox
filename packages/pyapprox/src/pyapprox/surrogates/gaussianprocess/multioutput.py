@@ -22,11 +22,8 @@ from pyapprox.optimization.minimize.protocols import (
 from pyapprox.surrogates.gaussianprocess.multioutput_data import (
     MultiOutputGPTrainingData,
 )
-from pyapprox.surrogates.kernels.multioutput import (
-    DAGMultiOutputKernel,
-    IndependentMultiOutputKernel,
-    LinearCoregionalizationKernel,
-    MultiLevelKernel,
+from pyapprox.surrogates.kernels.multioutput.protocols import (
+    MultiOutputKernelProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
@@ -113,24 +110,18 @@ class MultiOutputGP(Generic[Array]):
 
     def __init__(
         self,
-        kernel: Union[
-            IndependentMultiOutputKernel[Array],
-            LinearCoregionalizationKernel[Array],
-            MultiLevelKernel[Array],
-            DAGMultiOutputKernel[Array],
-        ],
+        kernel: MultiOutputKernelProtocol[Array],
         nugget: float = 1e-6,
     ):
-        """
-        Initialize the MultiOutputGP.
+        """Initialize the MultiOutputGP.
 
         Parameters
         ----------
-        kernel : IndependentMultiOutputKernel, LinearCoregionalizationKernel,
-                 MultiLevelKernel, or DAGMultiOutputKernel
+        kernel : MultiOutputKernelProtocol[Array]
             Multi-output kernel.
         nugget : float, optional
-            Small value added to diagonal for numerical stability. Default: 1e-6.
+            Small value added to diagonal for numerical
+            stability. Default: 1e-6.
         """
         self._kernel = kernel
         self._nugget = nugget
@@ -188,20 +179,8 @@ class MultiOutputGP(Generic[Array]):
         """
         return self._bkd
 
-    def kernel(
-        self,
-    ) -> Union[
-        IndependentMultiOutputKernel[Array],
-        LinearCoregionalizationKernel[Array],
-    ]:
-        """
-        Return the multi-output kernel.
-
-        Returns
-        -------
-        kernel : IndependentMultiOutputKernel or LinearCoregionalizationKernel
-            The multi-output kernel.
-        """
+    def kernel(self) -> MultiOutputKernelProtocol[Array]:
+        """Return the multi-output kernel."""
         return self._kernel
 
     def hyp_list(self) -> HyperParameterList[Array]:

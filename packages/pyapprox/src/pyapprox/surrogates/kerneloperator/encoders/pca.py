@@ -111,7 +111,7 @@ class PCAFunctionEncoder(Generic[Array]):
 
         if ncodes is not None:
             n = ncodes
-        else:
+        elif variance_fraction is not None:
             cumvar = bkd.cumsum(S * S)
             total_var = cumvar[-1]
             ratios = cumvar / total_var
@@ -123,6 +123,11 @@ class PCAFunctionEncoder(Generic[Array]):
                     break
             else:
                 n = len(S)
+        else:
+            raise ValueError(
+                "Exactly one of ncodes or variance_fraction "
+                "must be provided"
+            )
 
         basis = U[:, :n]
         return cls(basis, mean, bkd)

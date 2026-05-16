@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from pyapprox.surrogates.kerneloperator.protocols import (
     LatentRegressorProtocol,
 )
