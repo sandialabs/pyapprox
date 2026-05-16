@@ -71,6 +71,7 @@ from .gaussian import (
 
 # Joint distributions
 from .joint import (
+    GroupIndependentJoint,
     IndependentJoint,
 )
 
@@ -158,6 +159,7 @@ __all__ = [
     "compute_normalization",
     "plot_gaussian_2d_contour",
     # Joint distributions
+    "GroupIndependentJoint",
     "IndependentJoint",
     # Transforms
     "GaussianTransform",
