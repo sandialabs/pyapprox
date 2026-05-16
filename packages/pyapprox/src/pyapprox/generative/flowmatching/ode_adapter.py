@@ -24,6 +24,7 @@ from pyapprox.ode.explicit_steppers.heun import HeunStepper
 from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
 )
+from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
@@ -44,6 +45,8 @@ class FlowODEResidual(Generic[Array]):
         Vector field, ``(nvars_in, ns) -> (d, ns)``.
     bkd : Backend[Array]
         Computational backend.
+    nstates : int
+        Number of state variables (dimension d).
     conditioning : Array, optional
         Conditioning variables for this sample, shape ``(m, 1)``.
     """
@@ -52,12 +55,14 @@ class FlowODEResidual(Generic[Array]):
         self,
         vf: object,
         bkd: Backend[Array],
+        nstates: int,
         conditioning: Optional[Array] = None,
     ) -> None:
         self._vf = vf
         self._bkd = bkd
         self._conditioning = conditioning
         self._time: float = 0.0
+        self._mass = IdentityMassMatrix(nstates, bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -110,35 +115,9 @@ class FlowODEResidual(Generic[Array]):
         d = state.shape[0]
         return self._bkd.zeros((d, d))
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """Return identity mass matrix.
-
-        Parameters
-        ----------
-        nstates : int
-            Number of states.
-
-        Returns
-        -------
-        Array
-            Identity matrix, shape ``(nstates, nstates)``.
-        """
-        return self._bkd.eye(nstates)
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix (identity) to vector.
-
-        Parameters
-        ----------
-        vec : Array
-            Vector, shape ``(d,)``.
-
-        Returns
-        -------
-        Array
-            Same vector unchanged, shape ``(d,)``.
-        """
-        return vec
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
+        """Return identity mass matrix."""
+        return self._mass
 
 
 def _batched_vf_eval(
@@ -225,6 +204,7 @@ def _integrate_persample_fallback(
     stepper_cls: Type[Any] = ForwardEulerStepper,
 ) -> Array:
     """Per-sample integration fallback for non-standard steppers."""
+    d = x0_batch.shape[0]
     nsamples = x0_batch.shape[1]
     results = []
     for i in range(nsamples):
@@ -232,7 +212,7 @@ def _integrate_persample_fallback(
         if c is not None:
             c_i = bkd.reshape(c[:, i], (-1, 1))  # (m, 1)
 
-        ode_res = FlowODEResidual(vf, bkd, conditioning=c_i)
+        ode_res = FlowODEResidual(vf, bkd, d, conditioning=c_i)
         stepper = stepper_cls(ode_res)
         newton = NewtonSolver(stepper)
         newton.set_options(maxiters=1)

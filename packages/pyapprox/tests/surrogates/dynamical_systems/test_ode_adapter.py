@@ -153,14 +153,15 @@ class TestVectorFieldODEAdapter:
     def test_mass_matrix(self, bkd):
         vf = _make_vf(bkd)
         adapter = VectorFieldODEAdapter(vf)
-        M = adapter.mass_matrix(2)
-        bkd.assert_allclose(M, bkd.eye(2))
+        mass = adapter.mass_matrix()
+        assert mass.is_identity()
+        bkd.assert_allclose(mass.as_matrix(), bkd.eye(2))
 
-    def test_apply_mass_matrix(self, bkd):
+    def test_mass_matrix_apply(self, bkd):
         vf = _make_vf(bkd)
         adapter = VectorFieldODEAdapter(vf)
         vec = bkd.array([3.0, -1.0])
-        bkd.assert_allclose(adapter.apply_mass_matrix(vec), vec)
+        bkd.assert_allclose(adapter.mass_matrix().apply(vec), vec)
 
     def test_set_time(self, bkd):
         vf = _make_vf(bkd)

@@ -22,7 +22,7 @@ class TestFlowODEResidual:
         def dummy_vf(x):
             return bkd.zeros((1, x.shape[1]))
 
-        res = FlowODEResidual(dummy_vf, bkd)
+        res = FlowODEResidual(dummy_vf, bkd, nstates=1)
         assert isinstance(res, ODEResidualProtocol)
 
     def test_constant_vf(self, bkd) -> None:
@@ -33,7 +33,7 @@ class TestFlowODEResidual:
             vf_input.shape[1]
             return c_val * bkd.ones_like(vf_input[0:1, :])  # (2, ns)
 
-        res = FlowODEResidual(const_vf, bkd)
+        res = FlowODEResidual(const_vf, bkd, nstates=2)
         res.set_time(0.5)
         state = bkd.array([10.0, 20.0])
         result = res(state)
@@ -45,7 +45,7 @@ class TestFlowODEResidual:
         def vf(x):
             return bkd.zeros((d, x.shape[1]))
 
-        res = FlowODEResidual(vf, bkd)
+        res = FlowODEResidual(vf, bkd, nstates=d)
         res.set_time(0.0)
         state = bkd.zeros((d,))
         result = res(state)
@@ -62,7 +62,7 @@ class TestFlowODEResidual:
             return c_part  # (1, 1) since d=m=1
 
         c_val = bkd.array([[3.0]])  # (1, 1)
-        res = FlowODEResidual(cond_vf, bkd, conditioning=c_val)
+        res = FlowODEResidual(cond_vf, bkd, nstates=1, conditioning=c_val)
         res.set_time(0.0)
         state = bkd.array([0.0])
         result = res(state)
@@ -74,7 +74,7 @@ class TestFlowODEResidual:
         def vf(x):
             return bkd.zeros((d, x.shape[1]))
 
-        res = FlowODEResidual(vf, bkd)
+        res = FlowODEResidual(vf, bkd, nstates=d)
         state = bkd.zeros((d,))
         jac = res.jacobian(state)
         bkd.assert_allclose(jac, bkd.zeros((d, d)), rtol=1e-12)
@@ -83,17 +83,18 @@ class TestFlowODEResidual:
         def vf(x):
             return bkd.zeros((2, x.shape[1]))
 
-        res = FlowODEResidual(vf, bkd)
-        M = res.mass_matrix(2)
-        bkd.assert_allclose(M, bkd.eye(2), rtol=1e-12)
+        res = FlowODEResidual(vf, bkd, nstates=2)
+        mass = res.mass_matrix()
+        assert mass.is_identity()
+        bkd.assert_allclose(mass.as_matrix(), bkd.eye(2), rtol=1e-12)
 
-    def test_apply_mass_matrix_is_identity(self, bkd) -> None:
+    def test_mass_matrix_apply(self, bkd) -> None:
         def vf(x):
             return bkd.zeros((2, x.shape[1]))
 
-        res = FlowODEResidual(vf, bkd)
+        res = FlowODEResidual(vf, bkd, nstates=2)
         vec = bkd.array([1.0, 2.0])
-        bkd.assert_allclose(res.apply_mass_matrix(vec), vec, rtol=1e-12)
+        bkd.assert_allclose(res.mass_matrix().apply(vec), vec, rtol=1e-12)
 
 
 class TestIntegrateFlow:

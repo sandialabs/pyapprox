@@ -13,6 +13,7 @@ only if the underlying physics supports them.
 
 from typing import Any, Generic, Optional, cast
 
+from pyapprox.ode.mass_matrix import MassMatrixProtocol, create_mass_matrix
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
@@ -66,6 +67,7 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         self._time = 0.0
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None
+        self._mass = create_mass_matrix(physics.mass_matrix(), bkd)
         self._setup_derivative_methods()
 
     def _setup_derivative_methods(self) -> None:
@@ -161,27 +163,9 @@ class PhysicsToODEResidualAdapter(Generic[Array]):
         """
         return self._physics.jacobian(state, self._time)
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """Return the mass matrix.
-
-        For standard ODEs, this is the identity matrix.
-        For DAEs, this may be singular.
-
-        Parameters
-        ----------
-        nstates : int
-            Number of states (unused, present for protocol compatibility).
-
-        Returns
-        -------
-        Array
-            Mass matrix. Shape: (nstates, nstates)
-        """
-        return self._physics.mass_matrix()
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix to a vector. Identity for standard collocation."""
-        return self._physics.apply_mass_matrix(vec)
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
+        """Return the mass matrix."""
+        return self._mass
 
     # =========================================================================
     # Optional methods (dynamically bound if physics supports them)

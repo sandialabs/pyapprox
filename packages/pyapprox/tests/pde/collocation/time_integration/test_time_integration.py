@@ -109,10 +109,9 @@ class TestPhysicsToODEResidualAdapter:
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         adapter = PhysicsToODEResidualAdapter(physics, bkd)
 
-        mass = adapter.mass_matrix(npts)
-        expected = bkd.eye(npts)
-
-        bkd.assert_allclose(mass, expected, atol=1e-14)
+        mass = adapter.mass_matrix()
+        assert mass.is_identity()
+        bkd.assert_allclose(mass.as_matrix(), bkd.eye(npts), atol=1e-14)
 
     def test_adapter_with_boundary_conditions(self, bkd):
         """Test that BCs are applied via physics.apply_boundary_conditions.

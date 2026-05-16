@@ -66,16 +66,16 @@ class TestPhysicsAdapterBase:
         """Test mass matrix has correct shape."""
         bkd = numpy_bkd
         self._setup(bkd)
-        M = self.adapter.mass_matrix(self.physics.nstates())
-        assert M.shape == (self.physics.nstates(), self.physics.nstates())
+        n = self.physics.nstates()
+        M = self.adapter.mass_matrix().as_matrix()
+        assert M.shape == (n, n)
 
     def test_mass_matrix_cached(self, numpy_bkd) -> None:
         """Test mass matrix is cached."""
         bkd = numpy_bkd
         self._setup(bkd)
-        M1 = self.adapter.mass_matrix(self.physics.nstates())
-        M2 = self.adapter.mass_matrix(self.physics.nstates())
-        # Check they are the same object (cached)
+        M1 = self.adapter.mass_matrix()
+        M2 = self.adapter.mass_matrix()
         assert M1 is M2
 
     def test_set_time(self, numpy_bkd) -> None:
