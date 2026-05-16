@@ -16,24 +16,6 @@ class ParametricVectorFieldProtocol(Protocol, Generic[Array]):
 
     Models autonomous ODEs dx/dt = F_eta(x) where eta is a learnable
     parameter vector managed by HyperParameterList.
-
-    Required Methods
-    ----------------
-    bkd()
-        Get the computational backend.
-    nstates()
-        Number of state variables (= input and output dimension).
-    hyp_list()
-        HyperParameterList managing the learnable parameters.
-    __call__(states)
-        Evaluate F_eta at given states.
-
-    Optional Methods (dynamically bound via hasattr)
-    -------------------------------------------------
-    state_jacobian(states)
-        dF/dx at each sample. Shape: (nsamples, nstates, nstates).
-    param_jacobian(states)
-        dF/d_eta (active params only). Shape: (nsamples, nstates, nactive).
     """
 
     def bkd(self) -> Backend[Array]: ...
@@ -54,6 +36,36 @@ class ParametricVectorFieldProtocol(Protocol, Generic[Array]):
         -------
         Array
             Vector field values. Shape: (nstates, nsamples)
+        """
+        ...
+
+    def state_jacobian(self, states: Array) -> Array:
+        """Compute dF/dx at each sample.
+
+        Parameters
+        ----------
+        states : Array
+            Shape: (nstates, nsamples)
+
+        Returns
+        -------
+        Array
+            Shape: (nsamples, nstates, nstates)
+        """
+        ...
+
+    def param_jacobian(self, states: Array) -> Array:
+        """Compute dF/d_eta (active params only) at each sample.
+
+        Parameters
+        ----------
+        states : Array
+            Shape: (nstates, nsamples)
+
+        Returns
+        -------
+        Array
+            Shape: (nsamples, nstates, nactive_params)
         """
         ...
 

@@ -31,6 +31,10 @@ from pyapprox.ode.protocols.time_stepping import (
     SensitivityStepperProtocol,
 )
 from pyapprox.pde.collocation.physics.base import AbstractPhysics
+from pyapprox.pde.collocation.protocols.boundary import (
+    BoundaryConditionProtocol,
+    BoundaryConditionWithParamJacobianProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 # =========================================================================
@@ -234,6 +238,14 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         result = self._adjoint_inner.param_jacobian(fsol_nm1, fsol_n)
         if hasattr(self._physics, "boundary_conditions"):
             for bc in self._physics.boundary_conditions():
+                if not isinstance(
+                    bc, BoundaryConditionWithParamJacobianProtocol
+                ):
+                    raise TypeError(
+                        f"BC {type(bc).__name__} must satisfy "
+                        f"BoundaryConditionWithParamJacobianProtocol "
+                        f"for parameter sensitivity"
+                    )
                 phys_sens = self._build_bc_physical_sensitivities(
                     bc, fsol_n, self._t_np1
                 )
@@ -248,7 +260,10 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         return result
 
     def _build_bc_physical_sensitivities(
-        self, bc: object, state_1d: Array, time: float
+        self,
+        bc: BoundaryConditionProtocol[Array],
+        state_1d: Array,
+        time: float,
     ) -> object:
         """Build physical sensitivities dict for one BC's param_jacobian.
 
@@ -261,7 +276,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
             return None
         if not hasattr(bc, "normal_operator"):
             return None
-        normal_op = bc.normal_operator()
+        normal_op = getattr(bc, "normal_operator")()
         if not (
             hasattr(normal_op, "has_coefficient_dependence")
             and normal_op.has_coefficient_dependence()

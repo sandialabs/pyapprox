@@ -395,11 +395,11 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
 
     @staticmethod
     def ndtr(array: torch.Tensor) -> torch.Tensor:
-        return torch.special.ndtr(array)
+        return cast(torch.Tensor, torch.special.ndtr(array))
 
     @staticmethod
     def log_ndtr(array: torch.Tensor) -> torch.Tensor:
-        return torch.special.log_ndtr(array)
+        return cast(torch.Tensor, torch.special.log_ndtr(array))
 
     @staticmethod
     def gammaln(array: torch.Tensor) -> torch.Tensor:
