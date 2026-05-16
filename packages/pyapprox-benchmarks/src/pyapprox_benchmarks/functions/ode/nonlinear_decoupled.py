@@ -3,6 +3,7 @@ from typing import Generic, Optional
 from pyapprox.ode.implicit_steppers.protocols import (
     ImplicitODEResidualProtocol,
 )
+from pyapprox.ode.mass_matrix import IdentityMassMatrix
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -46,6 +47,7 @@ class NonLinearDecoupledODE(Generic[Array], ImplicitODEResidualProtocol[Array]):
         self._time = 0.0
         self.set_parameters(self._bkd.array([0.0, 0.0]))
         self._init_cond: Optional[Array] = None
+        self._mass = IdentityMassMatrix(nstates, bkd)
 
     def bkd(self) -> Backend[Array]:
         """
@@ -134,22 +136,5 @@ class NonLinearDecoupledODE(Generic[Array], ImplicitODEResidualProtocol[Array]):
             b *= 2 + self._time
         return self._bkd.diag(-2 * b * sol)
 
-    def mass_matrix(self, nvars: int) -> Array:
-        """
-        Get the mass matrix for the ODE system.
-
-        Parameters
-        ----------
-        nvars : int
-            Number of variables.
-
-        Returns
-        -------
-        Array
-            Mass matrix.
-        """
-        return self._bkd.eye(nvars, dtype=self._bkd.double_dtype())
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix to a vector (identity, returns vec)."""
-        return vec
+    def mass_matrix(self) -> IdentityMassMatrix:
+        return self._mass

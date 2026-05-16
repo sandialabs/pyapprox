@@ -13,6 +13,8 @@ References:
 
 from typing import Generic, Optional
 
+from pyapprox.ode.mass_matrix import IdentityMassMatrix
+
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
@@ -40,6 +42,7 @@ class HastingsEcologyResidual(Generic[Array]):
         validate_backend(bkd)
         self._bkd = bkd
         self._nstates = 3
+        self._mass = IdentityMassMatrix(3, bkd)
         self._nparams = 9  # 6 physical params + 3 initial conditions
         self._time = 0.0
         self._param: Optional[Array] = None
@@ -144,13 +147,8 @@ class HastingsEcologyResidual(Generic[Array]):
             axis=0,
         )
 
-    def mass_matrix(self, nstates: int) -> Array:
-        """Return the identity mass matrix."""
-        return self._bkd.eye(nstates)
-
-    def apply_mass_matrix(self, vec: Array) -> Array:
-        """Apply mass matrix to a vector (identity, returns vec)."""
-        return vec
+    def mass_matrix(self) -> IdentityMassMatrix:
+        return self._mass
 
     def param_jacobian(self, state: Array) -> Array:
         """

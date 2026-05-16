@@ -25,7 +25,6 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature
@@ -64,15 +63,15 @@ class HeunStepper(
         self._residual.set_time(self._time + self._deltat)
         k2 = self._residual(next_state)
 
-        return self._residual.apply_mass_matrix(
+        return self._residual.mass_matrix().apply(
             state - self._prev_state
         ) - 0.5 * self._deltat * (k1 + k2)
 
     def jacobian(self, state: Array) -> Array:
-        return self._residual.mass_matrix(state.shape[0])
+        return self._residual.mass_matrix().as_matrix()
 
     def linsolve(self, state: Array, residual: Array) -> Array:
-        return solve_maybe_sparse(self._bkd, self.jacobian(state), residual)
+        return self._residual.mass_matrix().solve(residual)
 
     # -- SensitivityMixin --
 
@@ -104,7 +103,7 @@ class HeunStepper(
         self._residual.set_time(self._time + deltat)
         k2_jac = self._residual.jacobian(k2_state)
 
-        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+        mass = self._residual.mass_matrix().as_matrix()
 
         # dR/dy_{n-1} = -(M + (Δt/2)·(J1 + J2·(M + Δt·J1)))
         return -(mass + 0.5 * deltat * (k1_jac + k2_jac @ (mass + deltat * k1_jac)))
@@ -172,7 +171,7 @@ class HeunAdjoint(
         )
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
-        return self._adjoint_residual.mass_matrix(fsol_n.shape[0]).T
+        return self._adjoint_residual.mass_matrix().as_matrix().T
 
     def adjoint_off_diag_jacobian(
         self, fsol_n: Array, deltat_np1: float
@@ -198,7 +197,7 @@ class HeunAdjoint(
         self._residual.set_time(self._time + deltat_np1)
         k2_jac = self._residual.jacobian(k2_state)
 
-        mass = self._residual.mass_matrix(fsol_n.shape[0])
+        mass = self._residual.mass_matrix().as_matrix()
 
         jac = -(
             mass + 0.5 * deltat_np1 * (k1_jac + k2_jac @ (mass + deltat_np1 * k1_jac))
@@ -253,7 +252,7 @@ class HeunHVP(
         self._residual.set_time(self._time)
         k1 = self._residual(fsol_nm1)
         J1 = self._residual.jacobian(fsol_nm1)
-        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+        mass = self._residual.mass_matrix().as_matrix()
 
         k1_ss_hvp = self._hvp_residual.state_state_hvp(fsol_nm1, adj_state, wvec)
 
@@ -308,7 +307,7 @@ class HeunHVP(
         self._residual.set_time(self._time)
         k1 = self._residual(fsol_nm1)
         J1 = self._residual.jacobian(fsol_nm1)
-        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+        mass = self._residual.mass_matrix().as_matrix()
         dk1_dp = self._adjoint_residual.param_jacobian(fsol_nm1)
 
         k1_sp_hvp = self._hvp_residual.state_param_hvp(fsol_nm1, adj_state, vvec)
@@ -373,7 +372,7 @@ class HeunHVP(
         self._residual.set_time(self._time)
         k1 = self._residual(fsol_nm1)
         J1 = self._residual.jacobian(fsol_nm1)
-        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+        mass = self._residual.mass_matrix().as_matrix()
         dk1_dp = self._adjoint_residual.param_jacobian(fsol_nm1)
 
         k1_ps_hvp = self._hvp_residual.param_state_hvp(fsol_nm1, adj_state, wvec)

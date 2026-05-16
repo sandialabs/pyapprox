@@ -65,15 +65,14 @@ class CrankNicolsonStepper(
         self._residual.set_time(self._time + self._deltat)
         next_res = self._residual(state)
 
-        return self._residual.apply_mass_matrix(
+        return self._residual.mass_matrix().apply(
             state - self._prev_state
         ) - 0.5 * self._deltat * (current_res + next_res)
 
     def jacobian(self, state: Array) -> Array:
         r"""Compute :math:`dR/dy_n = M - (\Delta t/2) \, (df/dy)|_{y_n}`."""
         self._residual.set_time(self._time + self._deltat)
-        return self._residual.mass_matrix(
-            state.shape[0]
+        return self._residual.mass_matrix().as_matrix(
         ) - 0.5 * self._deltat * self._residual.jacobian(state)
 
     # -- SensitivityMixin --
@@ -103,7 +102,7 @@ class CrankNicolsonStepper(
         where :math:`J_{n-1} = (df/dy)|_{y_{n-1}}`.
         """
         self._residual.set_time(self._time)
-        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+        mass = self._residual.mass_matrix().as_matrix()
         jac = self._residual.jacobian(fsol_nm1)
         return -(mass + 0.5 * deltat * jac)
 
@@ -154,7 +153,7 @@ class CrankNicolsonAdjoint(
         r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2) \, J)^T`."""
         self._residual.set_time(self._time)
         return (
-            self._residual.mass_matrix(fsol_n.shape[0])
+            self._residual.mass_matrix().as_matrix()
             - 0.5 * self._deltat * self._residual.jacobian(fsol_n)
         ).T
 
@@ -170,7 +169,7 @@ class CrankNicolsonAdjoint(
         """
         self._residual.set_time(self._time)
         return -(
-            self._residual.mass_matrix(fsol_n.shape[0])
+            self._residual.mass_matrix().as_matrix()
             + 0.5 * deltat_np1 * self._residual.jacobian(fsol_n)
         ).T
 

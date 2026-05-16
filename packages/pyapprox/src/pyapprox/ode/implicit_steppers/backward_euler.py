@@ -55,15 +55,14 @@ class BackwardEulerStepper(
 
     def __call__(self, state: Array) -> Array:
         self._residual.set_time(self._time + self._deltat)
-        return self._residual.apply_mass_matrix(
+        return self._residual.mass_matrix().apply(
             state - self._prev_state
         ) - self._deltat * self._residual(state)
 
     def jacobian(self, state: Array) -> Array:
         r"""Compute :math:`dR/dy_n = M - \Delta t \, (df/dy)`."""
         self._residual.set_time(self._time + self._deltat)
-        return self._residual.mass_matrix(
-            state.shape[0]
+        return self._residual.mass_matrix().as_matrix(
         ) - self._deltat * self._residual.jacobian(state)
 
     # -- SensitivityMixin --
@@ -81,7 +80,7 @@ class BackwardEulerStepper(
 
         The :math:`f(y_n)` term does not depend on :math:`y_{n-1}`.
         """
-        return -self._residual.mass_matrix(fsol_nm1.shape[0])
+        return -self._residual.mass_matrix().as_matrix()
 
     # -- QuadratureMixin --
 
@@ -118,7 +117,7 @@ class BackwardEulerAdjoint(
         r"""Compute :math:`(dR/dy_n)^T = (M - \Delta t \, J)^T`."""
         self._residual.set_time(self._time)
         return (
-            self._residual.mass_matrix(fsol_n.shape[0])
+            self._residual.mass_matrix().as_matrix()
             - self._deltat * self._residual.jacobian(fsol_n)
         ).T
 
@@ -126,7 +125,7 @@ class BackwardEulerAdjoint(
         self, fsol_n: Array, deltat_np1: float
     ) -> Array:
         r"""Compute :math:`(dR_{n+1}/dy_n)^T = -M^T`."""
-        return -self._residual.mass_matrix(fsol_n.shape[0]).T
+        return -self._residual.mass_matrix().as_matrix().T
 
     def adjoint_initial_condition(
         self, final_fwd_sol: Array, final_dqdu: Array

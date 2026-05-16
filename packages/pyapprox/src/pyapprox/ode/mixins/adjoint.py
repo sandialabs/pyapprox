@@ -10,7 +10,6 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class AdjointMixin(ABC, Generic[Array]):
@@ -100,8 +99,11 @@ class AdjointMixin(ABC, Generic[Array]):
         """Compute the adjoint at initial time (final step of backward sweep).
 
         Solves: M^T lambda_0 = -B_1^T lambda_1 - dQ/dy_0
+
+        At t=0 there is no time-step residual, so the diagonal block is
+        the mass matrix alone (not M - dt*J as in interior steps).
         """
-        drduT_diag = self._adjoint_residual.mass_matrix(fsol_0.shape[0]).T
+        mass = self._adjoint_residual.mass_matrix()
         drduT_offdiag = self.adjoint_off_diag_jacobian(fsol_0, deltat_1)
         rhs = -drduT_offdiag @ asol_1 - dqdu_0
-        return solve_maybe_sparse(self._bkd, drduT_diag, rhs)
+        return mass.solve_transpose(rhs)

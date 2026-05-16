@@ -572,13 +572,14 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
             s_sols[:, nn] = self._bkd.solve(drduT_diag, rhs)
 
-        # Final step at t=0
+        # Final step at t=0: solve M^T s_0 = rhs.
+        # At t=0 there is no time-step residual R_0, so the diagonal block
+        # is the mass matrix alone (not M - dt*J as in the interior loop).
+        # This holds for all current steppers (FE, Heun, BE, CN).
         deltat_1 = self._bkd.to_float(times[1] - times[0])
         t0 = self._bkd.to_float(times[0])
         self._time_residual.set_time(t0, deltat_1, fwd_sols[:, 0])
-        drduT_diag = self._time_residual.native_residual.mass_matrix(
-            fwd_sols.shape[0]
-        ).T
+        mass = self._time_residual.native_residual.mass_matrix()
         drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
             fwd_sols[:, 0], deltat_1
         )
@@ -592,7 +593,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             - self._bkd.flatten(qss_hvp)
             - self._bkd.flatten(qsp_hvp)
         )
-        s_sols[:, 0] = self._bkd.solve(drduT_diag, rhs)
+        s_sols[:, 0] = mass.solve_transpose(rhs)
 
         return s_sols
 

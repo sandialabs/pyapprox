@@ -1044,6 +1044,48 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def lu_factor(array: Array) -> Tuple[Array, Array]:
+        """Compact LU factorization with pivots.
+
+        Parameters
+        ----------
+        array : Array
+            Square matrix to factorize.
+
+        Returns
+        -------
+        LU : Array
+            Compact LU factor (L and U packed in one matrix).
+        pivots : Array
+            Pivot indices.
+        """
+        ...
+
+    @staticmethod
+    def lu_solve(
+        LU: Array, pivots: Array, rhs: Array, adjoint: bool = False
+    ) -> Array:
+        """Solve a linear system given a compact LU factorization.
+
+        Parameters
+        ----------
+        LU : Array
+            Compact LU factor from lu_factor.
+        pivots : Array
+            Pivot indices from lu_factor.
+        rhs : Array
+            Right-hand side. Shape: (n,) or (n, k).
+        adjoint : bool
+            If True, solve A^T x = rhs instead of A x = rhs.
+
+        Returns
+        -------
+        Array
+            Solution. Same shape as rhs.
+        """
+        ...
+
+    @staticmethod
     def index_update(
         array: Array,
         index: Union[int, Tuple[int, ...]],

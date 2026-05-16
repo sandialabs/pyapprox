@@ -23,7 +23,6 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature
@@ -50,15 +49,15 @@ class ForwardEulerStepper(
 
     def __call__(self, state: Array) -> Array:
         self._residual.set_time(self._time)
-        return self._residual.apply_mass_matrix(
+        return self._residual.mass_matrix().apply(
             state - self._prev_state
         ) - self._deltat * self._residual(self._prev_state)
 
     def jacobian(self, state: Array) -> Array:
-        return self._residual.mass_matrix(state.shape[0])
+        return self._residual.mass_matrix().as_matrix()
 
     def linsolve(self, state: Array, residual: Array) -> Array:
-        return solve_maybe_sparse(self._bkd, self.jacobian(state), residual)
+        return self._residual.mass_matrix().solve(residual)
 
     # -- SensitivityMixin --
 
@@ -80,7 +79,7 @@ class ForwardEulerStepper(
         where :math:`J = df/dy|_{y_{n-1}}`.
         """
         self._residual.set_time(self._time)
-        mass = self._residual.mass_matrix(fsol_nm1.shape[0])
+        mass = self._residual.mass_matrix().as_matrix()
         jac = self._residual.jacobian(fsol_nm1)
         return -mass - deltat * jac
 
@@ -118,7 +117,7 @@ class ForwardEulerAdjoint(
 
     def adjoint_diag_jacobian(self, fsol_n: Array) -> Array:
         r"""Return :math:`(dR/dy_n)^T = M^T` (explicit, so Jacobian is mass matrix)."""
-        return self._adjoint_residual.mass_matrix(fsol_n.shape[0]).T
+        return self._adjoint_residual.mass_matrix().as_matrix().T
 
     def adjoint_off_diag_jacobian(
         self, fsol_n: Array, deltat_np1: float
@@ -127,7 +126,7 @@ class ForwardEulerAdjoint(
         self._adjoint_residual.set_time(self._time)
         return -(
             deltat_np1 * self._adjoint_residual.jacobian(fsol_n)
-            + self._adjoint_residual.mass_matrix(fsol_n.shape[0])
+            + self._adjoint_residual.mass_matrix().as_matrix()
         ).T
 
     def adjoint_initial_condition(

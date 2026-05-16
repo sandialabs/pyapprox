@@ -762,6 +762,25 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         )
 
     @staticmethod
+    def lu_factor(
+        array: NDArray[Any],
+    ) -> Tuple[NDArray[Any], NDArray[Any]]:
+        lu, piv = scipy.linalg.lu_factor(array)
+        return cast(NDArray[Any], lu), cast(NDArray[Any], piv)
+
+    @staticmethod
+    def lu_solve(
+        LU: NDArray[Any],
+        pivots: NDArray[Any],
+        rhs: NDArray[Any],
+        adjoint: bool = False,
+    ) -> NDArray[Any]:
+        return cast(
+            NDArray[Any],
+            scipy.linalg.lu_solve((LU, pivots), rhs, trans=1 if adjoint else 0),
+        )
+
+    @staticmethod
     def index_update(
         array: NDArray[Any],
         index: Union[int, Tuple[int, ...]],
