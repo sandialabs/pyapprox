@@ -7,7 +7,7 @@ from typing import Generic
 
 from pyapprox.surrogates.dynamical_systems.dataset import SnapshotDataset
 from pyapprox.surrogates.dynamical_systems.protocols import (
-    ParametricVectorFieldProtocol,
+    LearnedFunctionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -23,44 +23,47 @@ class DerivativeMatchingLoss(Generic[Array]):
     - __call__(params: (nvars, 1)) -> (1, 1)
     - jacobian(params: (nvars, 1)) -> (1, nvars)
 
-    jacobian is dynamically bound only if the vector field has
-    param_jacobian.
-
     Parameters
     ----------
-    vector_field : ParametricVectorFieldProtocol[Array]
-        Parametric vector field to evaluate.
+    learned_function : LearnedFunctionProtocol[Array]
+        Learned function to evaluate.
     dataset : SnapshotDataset[Array]
         Training data with states and derivatives.
     """
 
     def __init__(
         self,
-        vector_field: ParametricVectorFieldProtocol[Array],
+        learned_function: LearnedFunctionProtocol[Array],
         dataset: SnapshotDataset[Array],
     ):
-        if not isinstance(vector_field, ParametricVectorFieldProtocol):
+        if not isinstance(learned_function, LearnedFunctionProtocol):
             raise TypeError(
-                f"vector_field must satisfy ParametricVectorFieldProtocol, "
-                f"got {type(vector_field).__name__}"
+                f"learned_function must satisfy LearnedFunctionProtocol, "
+                f"got {type(learned_function).__name__}"
             )
-        self._vf = vector_field
+        if dataset.nstates_input() != learned_function.nvars():
+            raise ValueError(
+                f"dataset.nstates_input()={dataset.nstates_input()} != "
+                f"learned_function.nvars()={learned_function.nvars()}"
+            )
+        if dataset.nstates_output() != learned_function.nqoi():
+            raise ValueError(
+                f"dataset.nstates_output()={dataset.nstates_output()} != "
+                f"learned_function.nqoi()={learned_function.nqoi()}"
+            )
+        self._lf = learned_function
         self._dataset = dataset
-        self._bkd = vector_field.bkd()
+        self._bkd = learned_function.bkd()
         self._states = dataset.states()
         self._derivs = dataset.derivatives()
         self._nsamples = dataset.nsamples()
-        self._setup_derivative_methods()
-
-    def _setup_derivative_methods(self) -> None:
-        if hasattr(self._vf, "param_jacobian"):
-            self.jacobian = self._jacobian
+        self.jacobian = self._jacobian
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
     def nvars(self) -> int:
-        return self._vf.hyp_list().nactive_params()
+        return self._lf.hyp_list().nactive_params()
 
     def nqoi(self) -> int:
         return 1
@@ -78,8 +81,8 @@ class DerivativeMatchingLoss(Generic[Array]):
         Array
             Shape: (1, 1)
         """
-        self._vf.hyp_list().set_active_values(params[:, 0])
-        residual = self._vf(self._states) - self._derivs
+        self._lf.hyp_list().set_active_values(params[:, 0])
+        residual = self._lf(self._states) - self._derivs
         loss = self._bkd.sum(residual * residual) / (2.0 * self._nsamples)
         return self._bkd.reshape(loss, (1, 1))
 
@@ -96,15 +99,12 @@ class DerivativeMatchingLoss(Generic[Array]):
         Array
             Shape: (1, nvars)
         """
-        self._vf.hyp_list().set_active_values(params[:, 0])
-        residual = self._vf(self._states) - self._derivs
-        # residual: (nstates, nsamples)
-        # param_jacobian: (nsamples, nstates, nactive)
-        pjac = self._vf.param_jacobian(self._states)
-        # dL/d_eta = (1/N) sum_i residual_i^T @ pjac_i
-        # residual.T: (nsamples, nstates) -> unsqueeze to (nsamples, 1, nstates)
-        # pjac: (nsamples, nstates, nactive)
-        # einsum: sum over samples and states
+        self._lf.hyp_list().set_active_values(params[:, 0])
+        residual = self._lf(self._states) - self._derivs
+        # residual: (nqoi, nsamples)
+        # jacobian_wrt_params: (nsamples, nqoi, nactive)
+        pjac = self._lf.jacobian_wrt_params(self._states)
+        # einsum: "ji,ijk->k" sums over samples (j) and qoi (i)
         grad = self._bkd.einsum(
             "ji,ijk->k", residual, pjac
         ) / self._nsamples

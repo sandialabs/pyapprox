@@ -31,9 +31,17 @@ class TestSnapshotDataset:
         import pytest
 
         states = bkd.array(np.zeros((3, 10)))
-        derivs = bkd.array(np.zeros((2, 10)))
-        with pytest.raises(ValueError, match="shape"):
+        derivs = bkd.array(np.zeros((2, 8)))
+        with pytest.raises(ValueError, match="nsamples"):
             SnapshotDataset(states, derivs, bkd)
+
+    def test_rectangular_states_derivatives_allowed(self, bkd):
+        states = bkd.array(np.zeros((3, 10)))
+        derivs = bkd.array(np.zeros((2, 10)))
+        ds = SnapshotDataset(states, derivs, bkd)
+        assert ds.nstates_input() == 3
+        assert ds.nstates_output() == 2
+        assert ds.nsamples() == 10
 
     def test_times_length_mismatch_raises(self, bkd):
         import pytest

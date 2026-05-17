@@ -19,9 +19,12 @@ class SnapshotDataset(Generic[Array]):
     Parameters
     ----------
     states : Array
-        State snapshots. Shape: (nstates, nsamples)
+        State snapshots (may include auxiliary rows like parameters).
+        Shape: (nstates_input, nsamples)
     derivatives : Array
-        Time derivatives dx/dt at each snapshot. Shape: (nstates, nsamples)
+        Time derivatives dx/dt at each snapshot.
+        Shape: (nstates_output, nsamples). May have fewer rows than states
+        when states includes auxiliary (non-dynamic) rows.
     bkd : Backend[Array]
         Computational backend.
     times : Array, optional
@@ -40,10 +43,10 @@ class SnapshotDataset(Generic[Array]):
             raise ValueError(f"states must be 2D, got {states.ndim}D")
         if derivatives.ndim != 2:
             raise ValueError(f"derivatives must be 2D, got {derivatives.ndim}D")
-        if states.shape != derivatives.shape:
+        if states.shape[1] != derivatives.shape[1]:
             raise ValueError(
-                f"states shape {states.shape} != derivatives shape "
-                f"{derivatives.shape}"
+                f"states nsamples {states.shape[1]} != derivatives nsamples "
+                f"{derivatives.shape[1]}"
             )
         if times is not None and times.shape[0] != states.shape[1]:
             raise ValueError(
@@ -72,6 +75,14 @@ class SnapshotDataset(Generic[Array]):
     def nstates(self) -> int:
         return self._states.shape[0]
 
+    def nstates_input(self) -> int:
+        """Number of input state rows (may include auxiliaries)."""
+        return self._states.shape[0]
+
+    def nstates_output(self) -> int:
+        """Number of output derivative rows (dynamic states only)."""
+        return self._derivatives.shape[0]
+
     def nsamples(self) -> int:
         return self._states.shape[1]
 
@@ -95,6 +106,9 @@ class SnapshotDataset(Generic[Array]):
             Computational backend.
         fd_method : str
             Finite difference method: 'central', 'forward', or 'backward'.
+            Should match the time-stepping scheme order: 'backward' for
+            backward Euler, 'forward' for forward Euler, 'central' for
+            Crank-Nicolson or other second-order methods.
 
         Returns
         -------
@@ -165,7 +179,12 @@ class SnapshotDataset(Generic[Array]):
         ]
         all_states = bkd.hstack([d.states() for d in datasets])
         all_derivs = bkd.hstack([d.derivatives() for d in datasets])
-        all_times = bkd.concatenate([d.times() for d in datasets])
+        times_arrays: List[Array] = []
+        for d in datasets:
+            t = d.times()
+            assert t is not None
+            times_arrays.append(t)
+        all_times = bkd.concatenate(times_arrays)
         return cls(
             states=all_states, derivatives=all_derivs, bkd=bkd, times=all_times
         )
