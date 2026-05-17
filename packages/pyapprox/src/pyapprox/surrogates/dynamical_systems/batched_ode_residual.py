@@ -88,8 +88,14 @@ class BatchedBoundODEResidual(Generic[Array]):
     def nparams(self) -> int:
         return self._lf.hyp_list().nactive_params()
 
+    def get_param(self) -> Array:
+        return self._lf.hyp_list().get_active_values()
+
     def set_param(self, param: Array) -> None:
         self._lf.hyp_list().set_active_values(param)
+
+    def learned_function(self) -> "LearnedFunctionProtocol[Array]":
+        return self._lf
 
     def __call__(self, state: Array) -> Array:
         """Evaluate f(state). Shape: (n_dynamic*k,) -> (n_dynamic*k,)."""
