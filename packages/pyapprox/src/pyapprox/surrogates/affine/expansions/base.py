@@ -50,18 +50,13 @@ class BasisExpansion(Generic[Array]):
         self._solver = solver
 
         # Initialize coefficients to zeros
-        self._coef: Optional[Array] = None
-        self._initialize_coefficients()
+        self._coef: Array = self._bkd.zeros((basis.nterms(), nqoi))
 
         # HyperParameterList[Array] for optimization (created lazily)
         self._hyp_list: Optional[HyperParameterList[Array]] = None
 
         # Dynamically bind derivative methods based on basis capabilities
         self._setup_derivative_methods()
-
-    def _initialize_coefficients(self) -> None:
-        """Initialize coefficients to zeros."""
-        self._coef = self._bkd.zeros((self.nterms(), self._nqoi))
 
     def _setup_derivative_methods(self) -> None:
         """Dynamically bind derivative methods based on basis capabilities.
@@ -71,14 +66,19 @@ class BasisExpansion(Generic[Array]):
         underlying basis supports them. This allows gradient-based optimizers
         to check for method availability via hasattr().
         """
+        self._jac_basis: Optional[BasisHasJacobianProtocol[Array]] = None
+        self._hess_basis: Optional[BasisHasHessianProtocol[Array]] = None
+
         # Batch methods
         if isinstance(self._basis, BasisHasJacobianProtocol):
+            self._jac_basis = self._basis
             self.jacobian_batch = self._jacobian_batch
             # Single-sample methods
             self.jacobian = self._jacobian
 
         # Hessian methods only available for nqoi=1
         if isinstance(self._basis, BasisHasHessianProtocol) and self._nqoi == 1:
+            self._hess_basis = self._basis
             self.hessian_batch = self._hessian_batch
             self.hessian = self._hessian
             self.hvp = self._hvp
@@ -291,6 +291,7 @@ class BasisExpansion(Generic[Array]):
         Array
             Values at samples. Shape: (nqoi, nsamples)
         """
+        self.sync_params()
         # basis(samples): (nsamples, nterms)
         # coef: (nterms, nqoi)
         # result: (nsamples, nqoi) -> transpose to (nqoi, nsamples)
@@ -309,10 +310,13 @@ class BasisExpansion(Generic[Array]):
         Array
             Jacobians. Shape: (nsamples, nqoi, nvars)
         """
+        self.sync_params()
+        if self._jac_basis is None:
+            raise RuntimeError("jacobian_batch called but basis lacks jacobian")
         # basis.jacobian_batch(samples): (nsamples, nterms, nvars)
         # coef: (nterms, nqoi)
         # result: (nsamples, nqoi, nvars)
-        basis_jac = self._basis.jacobian_batch(samples)
+        basis_jac = self._jac_basis.jacobian_batch(samples)
         return self._bkd.einsum("ijk,jl->ilk", basis_jac, self._coef)
 
     def _hessian_batch(self, samples: Array) -> Array:
@@ -337,10 +341,12 @@ class BasisExpansion(Generic[Array]):
             raise ValueError(
                 f"Hessian only supported for nqoi=1, got nqoi={self._nqoi}"
             )
+        if self._hess_basis is None:
+            raise RuntimeError("hessian_batch called but basis lacks hessian")
         # basis.hessian_batch(samples): (nsamples, nterms, nvars, nvars)
         # coef: (nterms, 1)
         # result: (nsamples, 1, nvars, nvars) -> squeeze to (nsamples, nvars, nvars)
-        basis_hess = self._basis.hessian_batch(samples)
+        basis_hess = self._hess_basis.hessian_batch(samples)
         result = self._bkd.einsum("ijkl,jm->imkl", basis_hess, self._coef)
         return result[:, 0, :, :]
 
@@ -447,7 +453,9 @@ class BasisExpansion(Generic[Array]):
         weighted_coef = self._bkd.reshape(weighted_coef, (-1, 1))  # (nterms, 1)
 
         # Compute basis Hessians
-        basis_hess = self._basis.hessian_batch(sample)
+        if self._hess_basis is None:
+            raise RuntimeError("whvp called but basis lacks hessian")
+        basis_hess = self._hess_basis.hessian_batch(sample)
         # (1, nterms, nvars, nvars)
 
         # Weighted Hessian: einsum over terms

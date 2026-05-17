@@ -1235,3 +1235,47 @@ class TestMixedBasisExpansion:
 
         hess = pce.hessian_batch(samples)
         assert hess.shape == (nsamples, 3, 3)
+
+
+class TestHypListSyncRegression:
+    """Regression test: __call__ and jacobian_batch must reflect hyp_list changes."""
+
+    def test_call_syncs_after_set_active_values(self, bkd):
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
+        indices = compute_hyperbolic_indices(2, 2, 1.0, bkd)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+        expansion = BasisExpansion(basis, bkd, nqoi=1)
+
+        rng = np.random.RandomState(0)
+        coef = bkd.array(rng.randn(expansion.nterms(), 1))
+        expansion.set_coefficients(coef)
+
+        samples = bkd.array(rng.randn(2, 5))
+        out_original = expansion(samples)
+
+        new_coef = coef + 1.0
+        expansion.hyp_list().set_active_values(bkd.flatten(new_coef))
+        out_updated = expansion(samples)
+
+        assert not bkd.allclose(out_original, out_updated, atol=1e-10)
+
+    def test_jacobian_batch_syncs_after_set_active_values(self, bkd):
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
+        indices = compute_hyperbolic_indices(2, 2, 1.0, bkd)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+        expansion = BasisExpansion(basis, bkd, nqoi=2)
+
+        rng = np.random.RandomState(1)
+        coef = bkd.array(rng.randn(expansion.nterms(), 2))
+        expansion.set_coefficients(coef)
+
+        samples = bkd.array(rng.randn(2, 3))
+        jac_original = expansion.jacobian_batch(samples)
+
+        new_coef = coef * 2.0
+        expansion.hyp_list().set_active_values(bkd.flatten(new_coef))
+        jac_updated = expansion.jacobian_batch(samples)
+
+        bkd.assert_allclose(jac_updated, 2.0 * jac_original, rtol=1e-12)

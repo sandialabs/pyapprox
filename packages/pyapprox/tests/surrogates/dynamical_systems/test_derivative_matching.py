@@ -1,13 +1,10 @@
-"""Tests for DerivativeMatchingLoss."""
+"""Tests for DerivativeMatchingLoss with BasisExpansion."""
 
 import numpy as np
 import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -18,100 +15,144 @@ from pyapprox.surrogates.dynamical_systems.dataset import SnapshotDataset
 from pyapprox.surrogates.dynamical_systems.losses.derivative_matching import (
     DerivativeMatchingLoss,
 )
-from pyapprox.surrogates.dynamical_systems.vector_fields import (
-    BasisExpansionVectorField,
+from pyapprox.surrogates.dynamical_systems.protocols import (
+    LearnedFunctionProtocol,
 )
 
 
-def _make_vf_and_data(bkd, nvars=2, max_level=2, nsamples=50, seed=0):
-    marginals = [UniformMarginal(-2.0, 2.0, bkd) for _ in range(nvars)]
+def _make_expansion(bkd, nvars, nqoi, max_level=3):
+    marginals = [UniformMarginal(-3.0, 3.0, bkd) for _ in range(nvars)]
     bases_1d = create_bases_1d(marginals, bkd)
     indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
     basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
-    exp = BasisExpansion(basis, bkd, nqoi=nvars)
-    rng = np.random.RandomState(seed)
-    true_coef = bkd.array(rng.randn(exp.nterms(), nvars))
-    exp.set_coefficients(bkd.copy(true_coef))
-    vf = BasisExpansionVectorField(exp)
-    states = bkd.array(rng.uniform(-1, 1, (nvars, nsamples)))
-    derivs = bkd.copy(vf(states))
-    dataset = SnapshotDataset(states, derivs, bkd)
-    return vf, dataset, true_coef
+    expansion = BasisExpansion(basis, bkd, nqoi=nqoi)
+    rng = np.random.RandomState(99)
+    coef = bkd.array(rng.randn(expansion.nterms(), nqoi) * 0.1)
+    expansion.set_coefficients(coef)
+    return expansion
+
+
+def _vdp_rhs(states, mu, bkd):
+    x1 = states[0:1, :]
+    x2 = states[1:2, :]
+    return bkd.vstack([x2, mu * (1 - x1**2) * x2 - x1])
 
 
 class TestDerivativeMatchingLoss:
     def test_protocol_conformance(self, bkd):
-        vf, dataset, _ = _make_vf_and_data(bkd)
-        loss = DerivativeMatchingLoss(vf, dataset)
-        assert isinstance(loss, FunctionWithJacobianProtocol)
+        expansion = _make_expansion(bkd, nvars=2, nqoi=2)
+        assert isinstance(expansion, LearnedFunctionProtocol)
 
-    def test_nvars_nqoi(self, bkd):
-        vf, dataset, _ = _make_vf_and_data(bkd)
-        loss = DerivativeMatchingLoss(vf, dataset)
-        assert loss.nvars() == vf.hyp_list().nactive_params()
-        assert loss.nqoi() == 1
+    def test_loss_at_true_params_is_small(self, bkd):
+        expansion = _make_expansion(bkd, nvars=2, nqoi=2, max_level=5)
 
-    def test_call_shape(self, bkd):
-        vf, dataset, _ = _make_vf_and_data(bkd)
-        loss = DerivativeMatchingLoss(vf, dataset)
-        params = vf.hyp_list().get_active_values()
-        result = loss(params[:, None])
-        assert result.shape == (1, 1)
-
-    def test_zero_at_true_params(self, bkd):
-        vf, dataset, true_coef = _make_vf_and_data(bkd)
-        loss = DerivativeMatchingLoss(vf, dataset)
-        params = bkd.flatten(true_coef)
-        result = loss(params[:, None])
-        bkd.assert_allclose(result, bkd.zeros((1, 1)), atol=1e-12)
-
-    def test_positive_at_wrong_params(self, bkd):
-        vf, dataset, true_coef = _make_vf_and_data(bkd)
-        loss = DerivativeMatchingLoss(vf, dataset)
-        rng = np.random.RandomState(99)
-        wrong_params = bkd.array(rng.randn(loss.nvars(), 1))
-        result = loss(wrong_params)
-        assert bkd.to_numpy(result[0, 0]) > 0.0
-
-    def test_jacobian_shape(self, bkd):
-        vf, dataset, _ = _make_vf_and_data(bkd)
-        loss = DerivativeMatchingLoss(vf, dataset)
-        params = vf.hyp_list().get_active_values()
-        jac = loss.jacobian(params[:, None])
-        assert jac.shape == (1, loss.nvars())
-
-    def test_jacobian_zero_at_true_params(self, bkd):
-        vf, dataset, true_coef = _make_vf_and_data(bkd)
-        loss = DerivativeMatchingLoss(vf, dataset)
-        params = bkd.flatten(true_coef)
-        jac = loss.jacobian(params[:, None])
-        bkd.assert_allclose(jac, bkd.zeros((1, loss.nvars())), atol=1e-10)
-
-    def test_jacobian_derivative_check(self, bkd):
-        vf, dataset, _ = _make_vf_and_data(bkd, nsamples=20)
-        loss = DerivativeMatchingLoss(vf, dataset)
+        n_train = 500
         rng = np.random.RandomState(42)
-        params = bkd.array(rng.randn(loss.nvars(), 1))
+        states = bkd.array(rng.uniform(-2, 2, (2, n_train)))
+        derivs = _vdp_rhs(states, mu=1.0, bkd=bkd)
+
+        from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
+            LeastSquaresFitter,
+        )
+        fitter = LeastSquaresFitter(bkd)
+        fitted = fitter.fit(expansion, states, derivs).surrogate()
+
+        dataset = SnapshotDataset(states, derivs, bkd)
+        loss = DerivativeMatchingLoss(fitted, dataset)
+
+        eta = fitted.hyp_list().get_active_values()
+        sample = bkd.reshape(eta, (eta.shape[0], 1))
+        val = loss(sample)
+        assert float(val[0, 0]) < 1e-4
+
+    def test_loss_increases_at_perturbed_params(self, bkd):
+        expansion = _make_expansion(bkd, nvars=2, nqoi=2, max_level=4)
+
+        n_train = 300
+        rng = np.random.RandomState(42)
+        states = bkd.array(rng.uniform(-2, 2, (2, n_train)))
+        derivs = _vdp_rhs(states, mu=1.0, bkd=bkd)
+
+        from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
+            LeastSquaresFitter,
+        )
+        fitted = LeastSquaresFitter(bkd).fit(expansion, states, derivs).surrogate()
+
+        dataset = SnapshotDataset(states, derivs, bkd)
+        loss = DerivativeMatchingLoss(fitted, dataset)
+
+        eta = fitted.hyp_list().get_active_values()
+        sample = bkd.reshape(eta, (eta.shape[0], 1))
+        val_at_opt = float(loss(sample)[0, 0])
+
+        perturbed = eta + bkd.array(np.random.RandomState(7).randn(eta.shape[0]) * 0.1)
+        sample_perturbed = bkd.reshape(perturbed, (perturbed.shape[0], 1))
+        val_perturbed = float(loss(sample_perturbed)[0, 0])
+
+        assert val_perturbed > val_at_opt
+
+    def test_jacobian_via_derivative_checker(self, bkd):
+        expansion = _make_expansion(bkd, nvars=2, nqoi=2, max_level=3)
+
+        n_train = 200
+        rng = np.random.RandomState(42)
+        states = bkd.array(rng.uniform(-2, 2, (2, n_train)))
+        derivs = _vdp_rhs(states, mu=1.0, bkd=bkd)
+
+        from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
+            LeastSquaresFitter,
+        )
+        fitted = LeastSquaresFitter(bkd).fit(expansion, states, derivs).surrogate()
+
+        dataset = SnapshotDataset(states, derivs, bkd)
+        loss = DerivativeMatchingLoss(fitted, dataset)
+
+        eta = fitted.hyp_list().get_active_values()
+        sample = bkd.reshape(eta, (eta.shape[0], 1))
+
         checker = DerivativeChecker(loss)
-        errors = checker.check_derivatives(params)
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        errors = checker.check_derivatives(sample)
+        ratio = checker.error_ratio(errors[0])
+        assert float(ratio) <= 1e-6, f"error_ratio={float(ratio):.2e}"
 
-    def test_loss_decreases_toward_optimum(self, bkd):
-        vf, dataset, true_coef = _make_vf_and_data(bkd)
-        loss = DerivativeMatchingLoss(vf, dataset)
+    def test_parametric_jacobian_via_derivative_checker(self, bkd):
+        expansion = _make_expansion(bkd, nvars=3, nqoi=2, max_level=3)
+
         rng = np.random.RandomState(42)
-        far_params = bkd.array(rng.randn(loss.nvars()))
-        true_params = bkd.flatten(true_coef)
-        mid_params = 0.5 * far_params + 0.5 * true_params
-        loss_far = bkd.to_numpy(loss(far_params[:, None])[0, 0])
-        loss_mid = bkd.to_numpy(loss(mid_params[:, None])[0, 0])
-        loss_true = bkd.to_numpy(loss(true_params[:, None])[0, 0])
-        assert loss_far > loss_mid
-        assert loss_mid > loss_true
+        n_train = 300
+        states_2d = bkd.array(rng.uniform(-2, 2, (2, n_train)))
+        mu_row = bkd.full((1, n_train), 1.0)
+        aug_states = bkd.vstack([states_2d, mu_row])
+        derivs = _vdp_rhs(states_2d, mu=1.0, bkd=bkd)
 
-    def test_invalid_vf_raises(self, bkd):
+        from pyapprox.surrogates.affine.expansions.fitters.least_squares import (
+            LeastSquaresFitter,
+        )
+        fitted = LeastSquaresFitter(bkd).fit(expansion, aug_states, derivs).surrogate()
+
+        dataset = SnapshotDataset(aug_states, derivs, bkd)
+        loss = DerivativeMatchingLoss(fitted, dataset)
+
+        eta = fitted.hyp_list().get_active_values()
+        sample = bkd.reshape(eta, (eta.shape[0], 1))
+
+        checker = DerivativeChecker(loss)
+        errors = checker.check_derivatives(sample)
+        ratio = checker.error_ratio(errors[0])
+        assert float(ratio) <= 1e-6, f"error_ratio={float(ratio):.2e}"
+
+    def test_invalid_nvars_raises(self, bkd):
+        expansion = _make_expansion(bkd, nvars=3, nqoi=2)
         states = bkd.array(np.zeros((2, 10)))
         derivs = bkd.array(np.zeros((2, 10)))
         dataset = SnapshotDataset(states, derivs, bkd)
-        with pytest.raises(TypeError, match="ParametricVectorFieldProtocol"):
-            DerivativeMatchingLoss("not a vf", dataset)
+        with pytest.raises(ValueError, match="nstates_input"):
+            DerivativeMatchingLoss(expansion, dataset)
+
+    def test_invalid_nqoi_raises(self, bkd):
+        expansion = _make_expansion(bkd, nvars=2, nqoi=3)
+        states = bkd.array(np.zeros((2, 10)))
+        derivs = bkd.array(np.zeros((2, 10)))
+        dataset = SnapshotDataset(states, derivs, bkd)
+        with pytest.raises(ValueError, match="nstates_output"):
+            DerivativeMatchingLoss(expansion, dataset)

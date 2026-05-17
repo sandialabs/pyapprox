@@ -1,7 +1,17 @@
 """Protocols for dynamical systems learning.
 
-Defines the contracts for vector fields, encoders, and datasets used
-throughout the module.
+Defines the contracts for learned functions (surrogates), encoders,
+and related objects used throughout the module.
+
+Protocol Hierarchy
+------------------
+LearnedFunctionProtocol
+    Base tier: any surrogate that can be evaluated, differentiated w.r.t.
+    inputs and parameters, and cloned with new parameters.
+LinearInParamsLearnedFunctionProtocol
+    Refinement adding a design matrix for closed-form derivative matching.
+EncoderProtocol
+    State-space encoder (linear or nonlinear).
 """
 
 from typing import Generic, Protocol, runtime_checkable
@@ -11,61 +21,178 @@ from pyapprox.util.hyperparameter import HyperParameterList
 
 
 @runtime_checkable
-class ParametricVectorFieldProtocol(Protocol, Generic[Array]):
-    """Protocol for parametric vector fields F_eta(x): R^n -> R^n.
+class LearnedFunctionProtocol(Protocol, Generic[Array]):
+    """Protocol for learned function approximators F_eta(x): R^nvars -> R^nqoi.
 
-    Models autonomous ODEs dx/dt = F_eta(x) where eta is a learnable
-    parameter vector managed by HyperParameterList.
+    This is the base tier that any surrogate must satisfy for use with
+    BatchedBoundODEResidual, DerivativeMatchingLoss, and gradient-based
+    fitting. Supports non-square mappings (nvars != nqoi).
     """
 
     def bkd(self) -> Backend[Array]: ...
 
-    def nstates(self) -> int: ...
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
 
     def hyp_list(self) -> HyperParameterList[Array]: ...
 
-    def __call__(self, states: Array) -> Array:
-        """Evaluate F_eta at given states.
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate F_eta at given samples.
 
         Parameters
         ----------
-        states : Array
-            State vectors. Shape: (nstates, nsamples)
+        samples : Array
+            Input samples. Shape: (nvars, nsamples)
 
         Returns
         -------
         Array
-            Vector field values. Shape: (nstates, nsamples)
+            Output values. Shape: (nqoi, nsamples)
         """
         ...
 
-    def state_jacobian(self, states: Array) -> Array:
+    def jacobian_batch(self, samples: Array) -> Array:
         """Compute dF/dx at each sample.
 
         Parameters
         ----------
-        states : Array
-            Shape: (nstates, nsamples)
+        samples : Array
+            Shape: (nvars, nsamples)
 
         Returns
         -------
         Array
-            Shape: (nsamples, nstates, nstates)
+            Shape: (nsamples, nqoi, nvars)
         """
         ...
 
-    def param_jacobian(self, states: Array) -> Array:
+    def jacobian_wrt_params(self, samples: Array) -> Array:
         """Compute dF/d_eta (active params only) at each sample.
 
         Parameters
         ----------
-        states : Array
-            Shape: (nstates, nsamples)
+        samples : Array
+            Shape: (nvars, nsamples)
 
         Returns
         -------
         Array
-            Shape: (nsamples, nstates, nactive_params)
+            Shape: (nsamples, nqoi, nactive_params)
+        """
+        ...
+
+    def with_params(self, params: Array) -> "LearnedFunctionProtocol[Array]":
+        """Return a copy with new parameter values.
+
+        Parameters
+        ----------
+        params : Array
+            New parameter values. Shape depends on implementation
+            (e.g., (nterms, nqoi) for BasisExpansion).
+
+        Returns
+        -------
+        LearnedFunctionProtocol[Array]
+            New instance with updated parameters.
+        """
+        ...
+
+
+@runtime_checkable
+class LinearInParamsLearnedFunctionProtocol(Protocol, Generic[Array]):
+    """Learned function that is linear in its parameters.
+
+    Adds a design matrix method enabling closed-form fitting via
+    LinearInParamsFitter. All LearnedFunctionProtocol methods are
+    re-declared for runtime_checkable isinstance checks.
+    """
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def hyp_list(self) -> HyperParameterList[Array]: ...
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate F_eta at given samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Shape: (nqoi, nsamples)
+        """
+        ...
+
+    def jacobian_batch(self, samples: Array) -> Array:
+        """Compute dF/dx at each sample.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Shape: (nsamples, nqoi, nvars)
+        """
+        ...
+
+    def jacobian_wrt_params(self, samples: Array) -> Array:
+        """Compute dF/d_eta (active params only) at each sample.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Shape: (nsamples, nqoi, nactive_params)
+        """
+        ...
+
+    def with_params(
+        self, params: Array
+    ) -> "LinearInParamsLearnedFunctionProtocol[Array]":
+        """Return a copy with new parameter values.
+
+        Parameters
+        ----------
+        params : Array
+            New parameter values. Shape: (nterms, nqoi).
+
+        Returns
+        -------
+        LinearInParamsLearnedFunctionProtocol[Array]
+            New instance with updated parameters.
+        """
+        ...
+
+    def derivative_matching_design_matrix(self, samples: Array) -> Array:
+        """Return the design matrix for derivative matching.
+
+        For a function linear in parameters, the output at each sample
+        is Phi(x) @ coeffs, so fitting reduces to a linear solve.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Design matrix. Shape: (nsamples, nterms)
         """
         ...
 
