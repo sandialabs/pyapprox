@@ -75,6 +75,14 @@ class TimeIntegrator(Generic[Array]):
         """Return the backend."""
         return self._bkd
 
+    def ntimes(self) -> int:
+        """Return the number of time points (including initial time)."""
+        import math
+        nsteps = math.ceil(
+            (self._final_time - self._init_time - 1e-12) / self._deltat
+        )
+        return nsteps + 1
+
     def set_functional(
         self, functional: TransientFunctionalWithJacobianProtocol[Array]
     ) -> None:
