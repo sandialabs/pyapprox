@@ -177,6 +177,13 @@ website:
             - kle_introduction.qmd
             - kle_mesh_and_data_driven.qmd
             - kle_spde.qmd
+        - section: "Dynamical Systems"
+          contents:
+            - dynamical_systems_learning_concept.qmd
+            - derivative_matching_usage.qmd
+            - parametric_dynamical_systems_usage.qmd
+            - hamiltonian_systems_concept.qmd
+            - learning_hamiltonians_usage.qmd
         - section: "Optimization Under Uncertainty"
           contents:
             - design_under_uncertainty.qmd

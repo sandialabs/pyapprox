@@ -131,10 +131,10 @@ $$
 This is a nonlinear equation in $y_n$ that requires Newton iteration.
 
 ```{python}
-from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerResidual
+from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerStepper
 
 # Wrap the ODE residual for Backward Euler
-time_residual = BackwardEulerResidual(residual)
+time_residual = BackwardEulerStepper(residual)
 
 print(f"Time stepping method: {type(time_residual).__name__}")
 ```
@@ -144,9 +144,9 @@ print(f"Time stepping method: {type(time_residual).__name__}")
 For higher accuracy, use Crank-Nicolson:
 
 ```{python}
-from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonResidual
+from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonStepper
 
-cn_residual = CrankNicolsonResidual(residual)
+cn_residual = CrankNicolsonStepper(residual)
 print(f"Crank-Nicolson is 2nd order accurate")
 ```
 
@@ -225,29 +225,26 @@ plt.tight_layout()
 plt.show()
 ```
 
-## Using the Benchmark Integrator
+## Choosing a Different Stepper
 
-For convenience, ODE benchmarks provide a pre-configured integrator:
-
-```{python}
-# Much simpler: use problem.integrator()
-residual = problem.residual()
-residual.set_param(problem.nominal_parameters())
-
-integrator = problem.integrator()  # Uses backward_euler by default
-solutions, times = integrator.solve(bkd.flatten(problem.initial_condition()))
-
-print(f"Final state: {solutions[:, -1]}")
-```
-
-### Choosing a Different Stepper
+We can easily swap the time stepping method by using a different stepper class:
 
 ```{python}
-# Use Crank-Nicolson for higher accuracy
-integrator_cn = problem.integrator(stepper="crank_nicolson")
+from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonStepper
+
+residual_cn = problem.residual()
+residual_cn.set_param(problem.nominal_parameters())
+
+cn_stepper = CrankNicolsonStepper(residual_cn)
+newton_cn = NewtonSolver(cn_stepper)
+integrator_cn = TimeIntegrator(
+    init_time=time_config.init_time,
+    final_time=time_config.final_time,
+    deltat=time_config.deltat,
+    newton_solver=newton_cn,
+)
 solutions_cn, times_cn = integrator_cn.solve(bkd.flatten(problem.initial_condition()))
 
-# Compare final states
 print(f"Backward Euler final: {solutions[:, -1]}")
 print(f"Crank-Nicolson final: {solutions_cn[:, -1]}")
 print(f"Difference: {bkd.to_numpy(solutions[:, -1] - solutions_cn[:, -1])}")
@@ -260,14 +257,14 @@ Let's see how the time step affects accuracy:
 ```{python}
 def solve_with_deltat(deltat):
     """Solve ODE with a specific time step."""
-    from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerResidual
+    from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerStepper
     from pyapprox.util.rootfinding.newton import NewtonSolver
     from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 
     residual = problem.residual()
     residual.set_param(problem.nominal_parameters())
 
-    time_residual = BackwardEulerResidual(residual)
+    time_residual = BackwardEulerStepper(residual)
     newton_solver = NewtonSolver(time_residual)
     integrator = TimeIntegrator(
         init_time=0.0,
@@ -302,16 +299,16 @@ for i, dt in enumerate(deltats[:-1]):
 - **Time Stepper**: Wraps residual for a specific method (Backward Euler, Crank-Nicolson)
 - **Newton Solver**: Solves nonlinear equations at each implicit step
 - **Time Integrator**: Orchestrates the full forward solve
-- **Benchmark convenience**: Use `problem.integrator()` for pre-configured integration
 
 ## Available Time Steppers
 
 | Import Path | Method |
 |-------------|--------|
-| `implicit_steppers.backward_euler.BackwardEulerResidual` | Backward Euler (1st order) |
-| `implicit_steppers.crank_nicolson.CrankNicolsonResidual` | Crank-Nicolson (2nd order) |
-| `explicit_steppers.forward_euler.ForwardEulerResidual` | Forward Euler (1st order) |
-| `explicit_steppers.heun.HeunResidual` | Heun's method (2nd order) |
+| `implicit_steppers.backward_euler.BackwardEulerStepper` | Backward Euler (1st order) |
+| `implicit_steppers.crank_nicolson.CrankNicolsonStepper` | Crank-Nicolson (2nd order) |
+| `implicit_steppers.implicit_midpoint.ImplicitMidpointStepper` | Implicit midpoint (2nd order, symplectic) |
+| `explicit_steppers.forward_euler.ForwardEulerStepper` | Forward Euler (1st order) |
+| `explicit_steppers.heun.HeunStepper` | Heun's method (2nd order) |
 
 ## Exercises
 

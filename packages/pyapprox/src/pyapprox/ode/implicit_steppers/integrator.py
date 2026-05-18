@@ -1,8 +1,9 @@
 """
-Time integrator with adjoint support for gradient computation.
+Time integrator with optional adjoint and HVP support.
 
-Provides forward solve, adjoint solve, and gradient computation via
-the discrete adjoint method.
+Provides forward solve for any time-stepping residual. Adjoint solve
+and gradient computation require AdjointEnabledTimeSteppingResidualProtocol.
+Hessian-vector products require HVPEnabledTimeSteppingResidualProtocol.
 """
 
 from typing import Generic, Optional, Tuple
@@ -13,6 +14,7 @@ from pyapprox.ode.functionals.protocols import (
 from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
+    TimeSteppingResidualProtocol,
 )
 from pyapprox.ode.protocols.type_guards import is_hvp_enabled
 from pyapprox.ode.step_context import StepContext
@@ -22,10 +24,12 @@ from pyapprox.util.rootfinding.newton import NewtonSolver
 
 class TimeIntegrator(Generic[Array]):
     """
-    Time integrator with adjoint support for gradient computation.
+    Time integrator with optional adjoint and HVP support.
 
-    This class integrates time-dependent problems forward in time using a
-    Newton solver, and computes gradients via the discrete adjoint method.
+    Forward solve works with any TimeSteppingResidualProtocol. Adjoint
+    and gradient methods require AdjointEnabledTimeSteppingResidualProtocol;
+    HVP methods require HVPEnabledTimeSteppingResidualProtocol. Capability
+    is checked lazily when the method is called, not at construction.
 
     Parameters
     ----------
@@ -36,8 +40,7 @@ class TimeIntegrator(Generic[Array]):
     deltat : float
         Time step size.
     newton_solver : NewtonSolver
-        Newton solver for solving the residual equations. The solver's
-        residual must implement AdjointEnabledTimeSteppingResidualProtocol.
+        Newton solver for solving the residual equations.
     verbosity : int, optional
         Verbosity level. Defaults to 0.
     """
@@ -50,18 +53,14 @@ class TimeIntegrator(Generic[Array]):
         newton_solver: NewtonSolver[Array],
         verbosity: int = 0,
     ):
-        time_residual = newton_solver.residual()
-        if not isinstance(
-            time_residual, AdjointEnabledTimeSteppingResidualProtocol
-        ):
+        residual = newton_solver.residual()
+        if not isinstance(residual, TimeSteppingResidualProtocol):
             raise TypeError(
-                f"Newton solver's residual must satisfy "
-                f"AdjointEnabledTimeSteppingResidualProtocol, "
-                f"got {type(time_residual).__name__}"
+                "Newton solver residual must satisfy "
+                "TimeSteppingResidualProtocol, "
+                f"got {type(residual).__name__}"
             )
-        self._time_residual: AdjointEnabledTimeSteppingResidualProtocol[Array] = (
-            time_residual
-        )
+        self._time_residual: TimeSteppingResidualProtocol[Array] = residual
         self._bkd = self._time_residual.bkd()
         self._init_time = init_time
         self._final_time = final_time
@@ -152,16 +151,30 @@ class TimeIntegrator(Generic[Array]):
         states = self._bkd.stack(states_list, axis=1)
         return states, self._bkd.asarray(times_list)
 
+    def _require_adjoint(
+        self,
+    ) -> AdjointEnabledTimeSteppingResidualProtocol[Array]:
+        """Narrow to adjoint-capable, raising TypeError if unavailable."""
+        res = self._time_residual
+        if isinstance(res, AdjointEnabledTimeSteppingResidualProtocol):
+            return res
+        raise TypeError(
+            "Adjoint/gradient methods require the stepper to satisfy "
+            "AdjointEnabledTimeSteppingResidualProtocol, "
+            f"got {type(res).__name__}"
+        )
+
     def time_residual(self) -> AdjointEnabledTimeSteppingResidualProtocol[Array]:
-        """Return the time stepping residual."""
-        return self._time_residual
+        """Return the time stepping residual narrowed to adjoint-capable."""
+        return self._require_adjoint()
 
     def hvp_time_residual(
         self,
     ) -> Optional[HVPEnabledTimeSteppingResidualProtocol[Array]]:
         """Return the time residual narrowed to HVP capability, or None."""
-        if is_hvp_enabled(self._time_residual):
-            return self._time_residual
+        res = self._time_residual
+        if isinstance(res, HVPEnabledTimeSteppingResidualProtocol):
+            return res
         return None
 
     # =========================================================================
@@ -202,8 +215,9 @@ class TimeIntegrator(Generic[Array]):
         Array
             Adjoint solution at time step n. Shape: (nstates,)
         """
-        drduT_diag = self._time_residual.adjoint_diag_jacobian(ctx, fsol_n)
-        drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
+        residual = self._require_adjoint()
+        drduT_diag = residual.adjoint_diag_jacobian(ctx, fsol_n)
+        drduT_offdiag = residual.adjoint_off_diag_jacobian(
             next_ctx, y_curr_of_next
         )
 
@@ -228,6 +242,8 @@ class TimeIntegrator(Generic[Array]):
         Array
             Adjoint solution trajectory. Shape: (nstates, ntimes)
         """
+        residual = self._require_adjoint()
+
         if not self._bkd.allclose(
             times[-1], self._bkd.asarray(self._final_time), atol=1e-12
         ):
@@ -247,10 +263,10 @@ class TimeIntegrator(Generic[Array]):
             t_prev=float(times[-2]), deltat=deltat_n, y_prev=fwd_sols[:, -2]
         )
 
-        dqdu_final = self._time_residual.zero_adjoint_rhs(dqdu[:, -1])
+        dqdu_final = residual.zero_adjoint_rhs(dqdu[:, -1])
 
         adj_sols = self._bkd.copy(adj_sols)
-        adj_sols[:, -1] = self._time_residual.adjoint_initial_condition(
+        adj_sols[:, -1] = residual.adjoint_initial_condition(
             ctx_final, fwd_sols[:, -1], dqdu_final
         )
 
@@ -270,7 +286,7 @@ class TimeIntegrator(Generic[Array]):
                 y_prev=fwd_sols[:, nn],
             )
 
-            dqdu_n = self._time_residual.zero_adjoint_rhs(dqdu[:, nn])
+            dqdu_n = residual.zero_adjoint_rhs(dqdu[:, nn])
 
             adj_sols[:, nn] = self.adjoint_step(
                 ctx_n,
@@ -291,9 +307,9 @@ class TimeIntegrator(Generic[Array]):
             y_prev=fwd_sols[:, 0],
         )
 
-        dqdu_0 = self._time_residual.zero_adjoint_rhs(dqdu[:, 0])
+        dqdu_0 = residual.zero_adjoint_rhs(dqdu[:, 0])
 
-        adj_sols[:, 0] = self._time_residual.adjoint_final_solution(
+        adj_sols[:, 0] = residual.adjoint_final_solution(
             ctx_1,
             fwd_sols[:, 1],
             adj_sols[:, 1],
@@ -351,6 +367,8 @@ class TimeIntegrator(Generic[Array]):
         Array
             Gradient dQ/dp. Shape: (1, nparams)
         """
+        residual = self._require_adjoint()
+
         if self._functional is None:
             raise RuntimeError("Must call set_functional() first")
         # Direct parameter dependence of functional
@@ -365,7 +383,7 @@ class TimeIntegrator(Generic[Array]):
         )
         self._time_residual.bind(ctx_init)
 
-        drdp_init = self._time_residual.initial_param_jacobian()
+        drdp_init = residual.initial_param_jacobian()
         # Prepend zeros for functional-only parameters
         n_unique = self._functional.nunique_params()
         if n_unique > 0:
@@ -381,7 +399,7 @@ class TimeIntegrator(Generic[Array]):
                 y_prev=fwd_sols[:, ii],
             )
 
-            drdp = self._time_residual.param_jacobian(
+            drdp = residual.param_jacobian(
                 ctx_ii, fwd_sols[:, ii + 1]
             )
             # Prepend zeros for functional-only parameters

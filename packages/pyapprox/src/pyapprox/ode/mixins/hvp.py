@@ -10,7 +10,7 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualWithHVPProtocol,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class HVPMixin(ABC, Generic[Array]):
@@ -26,6 +26,7 @@ class HVPMixin(ABC, Generic[Array]):
     """
 
     if TYPE_CHECKING:
+        _bkd: Backend[Array]
         _residual: ODEResidualProtocol[Array]
 
     @property
