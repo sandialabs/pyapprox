@@ -11,7 +11,7 @@ Split into three classes via mixin composition:
 
 - CrankNicolsonStepper: core + sensitivity + quadrature + implicit
 - CrankNicolsonAdjoint: + adjoint methods
-- CrankNicolsonHVP: + HVP + PrevStepHVP methods
+- CrankNicolsonHVP: + HVP methods (same-step + cross-step)
 """
 
 from typing import Generic
@@ -22,7 +22,7 @@ from pyapprox.ode.linear_operator import (
 )
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
-from pyapprox.ode.mixins.hvp import HVPMixin, PrevStepHVPMixin
+from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.quadrature import QuadratureMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
@@ -31,6 +31,7 @@ from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualWithHVPProtocol,
     ImplicitODEResidualWithParamJacobianProtocol,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
 
 # =========================================================================
@@ -62,24 +63,24 @@ class CrankNicolsonStepper(
         super().__init__(residual)
 
     def _newton_coefficient(self) -> float:
-        return 0.5 * self._deltat
+        return 0.5 * self._ctx.deltat
 
     def __call__(self, state: Array) -> Array:
         # f(y_{n-1}, t_{n-1})
-        self._residual.set_time(self._time)
-        current_res = self._residual(self._prev_state)
+        self._residual.set_time(self._ctx.t_prev)
+        current_res = self._residual(self._ctx.y_prev)
 
         # f(y_n, t_n)
-        self._residual.set_time(self._time + self._deltat)
+        self._residual.set_time(self._ctx.t_curr)
         next_res = self._residual(state)
 
         return self._residual.mass_matrix().apply(
-            state - self._prev_state
-        ) - 0.5 * self._deltat * (current_res + next_res)
+            state - self._ctx.y_prev
+        ) - 0.5 * self._ctx.deltat * (current_res + next_res)
 
     def jacobian(self, state: Array) -> Array:
         r"""Compute :math:`dR/dy_n = M - (\Delta t/2) \, (df/dy)|_{y_n}`."""
-        self._residual.set_time(self._time + self._deltat)
+        self._residual.set_time(self._ctx.t_curr)
         return self._residual.newton_jacobian(
             state, self._newton_coefficient()
         ).as_matrix()
@@ -93,16 +94,10 @@ class CrankNicolsonStepper(
         return False
 
     def has_prev_state_hessian(self) -> bool:
-        r"""Return True: :math:`R_{n+1}` depends on :math:`f(y_n)`.
-
-        Crank-Nicolson :math:`R_n` depends on both :math:`y_{n-1}` and
-        :math:`y_n`, so when computing :math:`d^2 L / dy_n^2` we need the
-        contribution from :math:`R_{n+1}`'s dependence on :math:`y_n`.
-        """
         return True
 
     def sensitivity_off_diag_jacobian(
-        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+        self, ctx: StepContext[Array], y_curr: Array
     ) -> Array:
         r"""Compute :math:`dR_n/dy_{n-1} = -(M + (\Delta t/2) \, J_{n-1})`.
 
@@ -113,10 +108,10 @@ class CrankNicolsonStepper(
 
         where :math:`J_{n-1} = (df/dy)|_{y_{n-1}}`.
         """
-        self._residual.set_time(self._time)
+        self._residual.set_time(ctx.t_prev)
         mass = self._residual.mass_matrix().as_matrix()
-        jac = self._residual.jacobian(fsol_nm1)
-        return -(mass + 0.5 * deltat * jac)
+        jac = self._residual.jacobian(ctx.y_prev)
+        return -(mass + 0.5 * ctx.deltat * jac)
 
     # -- QuadratureMixin --
 
@@ -146,7 +141,9 @@ class CrankNicolsonAdjoint(
     ) -> None:
         super().__init__(residual)
 
-    def _param_jacobian_impl(self, fsol_nm1: Array, fsol_n: Array) -> Array:
+    def _param_jacobian_impl(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> Array:
         r"""Compute :math:`dR/dp`.
 
         .. math::
@@ -155,26 +152,26 @@ class CrankNicolsonAdjoint(
             \Bigl[\frac{df}{dp}\Big|_{y_{n-1}, t_{n-1}}
             + \frac{df}{dp}\Big|_{y_n, t_n}\Bigr]
         """
-        self._residual.set_time(self._time)
-        current_param_jac = self._adjoint_residual.param_jacobian(fsol_nm1)
+        self._residual.set_time(ctx.t_prev)
+        current_param_jac = self._adjoint_residual.param_jacobian(ctx.y_prev)
 
-        self._residual.set_time(self._time + self._deltat)
-        next_param_jac = self._adjoint_residual.param_jacobian(fsol_n)
+        self._residual.set_time(ctx.t_curr)
+        next_param_jac = self._adjoint_residual.param_jacobian(y_curr)
 
-        return -0.5 * self._deltat * (current_param_jac + next_param_jac)
+        return -0.5 * ctx.deltat * (current_param_jac + next_param_jac)
 
     def adjoint_diag_jacobian(
-        self, fsol_n: Array
+        self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2) \, J)^T`."""
-        self._residual.set_time(self._time)
+        self._residual.set_time(ctx.t_curr)
         op = self._residual.newton_jacobian(
-            fsol_n, self._newton_coefficient()
+            y_curr, 0.5 * ctx.deltat
         )
         return TransposeLinearOperator(op)
 
     def adjoint_off_diag_jacobian(
-        self, fsol_n: Array, deltat_np1: float
+        self, next_ctx: StepContext[Array], y_curr_of_next: Array
     ) -> Array:
         r"""Compute :math:`(dR_{n+1}/dy_n)^T`.
 
@@ -183,29 +180,29 @@ class CrankNicolsonAdjoint(
             \Bigl(\frac{dR_{n+1}}{dy_n}\Bigr)^T
             = -\bigl(M + \tfrac{\Delta t_{n+1}}{2} \, J_n\bigr)^T
         """
-        self._residual.set_time(self._time)
+        self._residual.set_time(next_ctx.t_prev)
         return -(
             self._residual.mass_matrix().as_matrix()
-            + 0.5 * deltat_np1 * self._residual.jacobian(fsol_n)
+            + 0.5 * next_ctx.deltat * self._residual.jacobian(next_ctx.y_prev)
         ).T
 
     def adjoint_initial_condition(
-        self, final_fwd_sol: Array, final_dqdu: Array
+        self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
         r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
+        self._residual.set_time(ctx.t_curr)
         op = self._residual.newton_jacobian(
-            final_fwd_sol, self._newton_coefficient()
+            final_fwd_sol, 0.5 * ctx.deltat
         )
         return op.solve_transpose(-final_dqdu)
 
 
 # =========================================================================
-# HVP level: + four HVP methods + three PrevStep HVP methods
+# HVP level: + HVP methods (same-step + cross-step)
 # =========================================================================
 
 
 class CrankNicolsonHVP(
-    PrevStepHVPMixin[Array],
     HVPMixin[Array],
     CrankNicolsonAdjoint[Array],
     Generic[Array],
@@ -227,7 +224,8 @@ class CrankNicolsonHVP(
 
     The ``prev_*`` methods compute the :math:`R_{n+1}` contribution
     evaluated at :math:`y_n` (which acts as :math:`y_{n-1}` for
-    :math:`R_{n+1}`).
+    :math:`R_{n+1}`). They use ``next_ctx.deltat`` (= dt_{n+1}), fixing
+    the non-uniform dt bug in the old implementation.
     """
 
     _residual: ImplicitODEResidualWithHVPProtocol[Array]
@@ -235,142 +233,124 @@ class CrankNicolsonHVP(
     def __init__(self, residual: ImplicitODEResidualWithHVPProtocol[Array]) -> None:
         super().__init__(residual)
 
-    # -- HVPMixin: current-step HVP methods --
+    # -- Same-step HVP methods --
 
     def state_state_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2R/dy_n^2) w = -(\Delta t/2) \, (d^2f/dy^2)|_{y_n} \, w`.
-
-        The :math:`f(y_{n-1})` term does not contribute because
-        :math:`y_{n-1}` is fixed.
-        """
-        self._residual.set_time(self._time + self._deltat)
+        r"""Compute :math:`(d^2R/dy_n^2) w = -(\Delta t/2) \, (d^2f/dy^2)|_{y_n} \, w`."""
+        self._residual.set_time(ctx.t_curr)
         return (
             -0.5
-            * self._deltat
-            * self._hvp_residual.state_state_hvp(fsol_n, adj_state, wvec)
+            * ctx.deltat
+            * self._hvp_residual.state_state_hvp(y_curr, adj_state, wvec)
         )
 
     def state_param_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2R/dy_n \, dp) v =
-        -(\Delta t/2) \, (d^2f/dy \, dp)|_{y_n} \, v`.
-
-        Only the :math:`f(y_n)` term contributes; :math:`y_{n-1}` is
-        independent of :math:`y_n`.
-        """
-        self._residual.set_time(self._time + self._deltat)
+        r"""Compute :math:`(d^2R/dy_n \, dp) v`."""
+        self._residual.set_time(ctx.t_curr)
         return (
             -0.5
-            * self._deltat
-            * self._hvp_residual.state_param_hvp(fsol_n, adj_state, vvec)
+            * ctx.deltat
+            * self._hvp_residual.state_param_hvp(y_curr, adj_state, vvec)
         )
 
     def param_state_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2R/dp \, dy_n) w =
-        -(\Delta t/2) \, (d^2f/dp \, dy)|_{y_n} \, w`.
-
-        Only the :math:`f(y_n)` term contributes; :math:`y_{n-1}` is fixed.
-        """
-        self._residual.set_time(self._time + self._deltat)
+        r"""Compute :math:`(d^2R/dp \, dy_n) w`."""
+        self._residual.set_time(ctx.t_curr)
         return (
             -0.5
-            * self._deltat
-            * self._hvp_residual.param_state_hvp(fsol_n, adj_state, wvec)
+            * ctx.deltat
+            * self._hvp_residual.param_state_hvp(y_curr, adj_state, wvec)
         )
 
     def param_param_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2R/dp^2) v`.
-
-        .. math::
-
-            \frac{d^2 R}{dp^2} v = -\frac{\Delta t}{2}
-            \Bigl[\frac{d^2 f}{dp^2}\Big|_{y_{n-1}} v
-            + \frac{d^2 f}{dp^2}\Big|_{y_n} v\Bigr]
-
-        Both terms contribute because both :math:`f(y_{n-1}, p)` and
-        :math:`f(y_n, p)` depend on :math:`p`.
-        """
+        r"""Compute :math:`(d^2R/dp^2) v`."""
         # Contribution from y_{n-1} term
-        self._residual.set_time(self._time)
+        self._residual.set_time(ctx.t_prev)
         hvp_nm1 = self._hvp_residual.param_param_hvp(
-            fsol_nm1, adj_state, vvec
+            ctx.y_prev, adj_state, vvec
         )
 
         # Contribution from y_n term
-        self._residual.set_time(self._time + self._deltat)
-        hvp_n = self._hvp_residual.param_param_hvp(fsol_n, adj_state, vvec)
+        self._residual.set_time(ctx.t_curr)
+        hvp_n = self._hvp_residual.param_param_hvp(y_curr, adj_state, vvec)
 
-        return -0.5 * self._deltat * (hvp_nm1 + hvp_n)
+        return -0.5 * ctx.deltat * (hvp_nm1 + hvp_n)
 
-    # -- PrevStepHVPMixin: cross-step HVP methods --
-    #
-    # These compute R_{n+1}'s dependence on y_n (which acts as y_{n-1}
-    # for R_{n+1}).  Needed because has_prev_state_hessian() = True.
+    # -- Cross-step HVP methods --
+    # Use next_ctx.deltat (= dt_{n+1}), not self._ctx.deltat (= dt_n).
+    # This is the structural fix for the non-uniform dt bug.
 
     def prev_state_state_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2 R_{n+1}/dy_n^2) w =
-        -(\Delta t/2) \, (d^2f/dy^2)|_{y_n} \, w`.
-
-        Evaluates the :math:`f(y_n)` contribution from :math:`R_{n+1}`.
-        """
+        r"""Compute :math:`(d^2 R_{n+1}/dy_n^2) w`."""
+        self._residual.set_time(next_ctx.t_prev)
         return (
             -0.5
-            * self._deltat
-            * self._hvp_residual.state_state_hvp(fsol_n, adj_state, wvec)
+            * next_ctx.deltat
+            * self._hvp_residual.state_state_hvp(
+                next_ctx.y_prev, adj_state, wvec
+            )
         )
 
     def prev_state_param_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2 R_{n+1}/dy_n \, dp) v =
-        -(\Delta t/2) \, (d^2f/dy \, dp)|_{y_n} \, v`."""
+        r"""Compute :math:`(d^2 R_{n+1}/dy_n \, dp) v`."""
+        self._residual.set_time(next_ctx.t_prev)
         return (
             -0.5
-            * self._deltat
-            * self._hvp_residual.state_param_hvp(fsol_n, adj_state, vvec)
+            * next_ctx.deltat
+            * self._hvp_residual.state_param_hvp(
+                next_ctx.y_prev, adj_state, vvec
+            )
         )
 
     def prev_param_state_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2 R_{n+1}/dp \, dy_n) w =
-        -(\Delta t/2) \, (d^2f/dp \, dy)|_{y_n} \, w`."""
+        r"""Compute :math:`(d^2 R_{n+1}/dp \, dy_n) w`."""
+        self._residual.set_time(next_ctx.t_prev)
         return (
             -0.5
-            * self._deltat
-            * self._hvp_residual.param_state_hvp(fsol_n, adj_state, wvec)
+            * next_ctx.deltat
+            * self._hvp_residual.param_state_hvp(
+                next_ctx.y_prev, adj_state, wvec
+            )
         )

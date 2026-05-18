@@ -16,7 +16,6 @@ Time Stepping Residuals (framework):
         -> SensitivityStepperProtocol
             -> AdjointEnabledTimeSteppingResidualProtocol
                 -> HVPEnabledTimeSteppingResidualProtocol
-                    -> PrevStepHVPEnabledTimeSteppingResidualProtocol
 
 Base Classes:
     TimeSteppingResidualBase
@@ -24,12 +23,9 @@ Base Classes:
 
 Time Handling
 -------------
-Time is incorporated via stateful `set_time()` methods rather than explicit
-arguments. This keeps the Newton solver generic (just solves R(y)=0).
-
-- ODE residual: `set_time(time)` sets current time
-- Time stepping residual: `set_time(time, deltat, prev_state)` sets context
-- Integrator calls set_time before each evaluation
+Newton-facing methods read from bound state via ``bind(ctx)``.
+Post-hoc methods (adjoint, HVP, param_jacobian) take their
+``StepContext`` as explicit parameters — no mutable state reads.
 """
 
 from .base import (
@@ -48,7 +44,6 @@ from .ode_residual import (
 from .time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
-    PrevStepHVPEnabledTimeSteppingResidualProtocol,
     SensitivityStepperProtocol,
     TimeSteppingResidualProtocol,
 )
@@ -67,7 +62,6 @@ __all__ = [
     "SensitivityStepperProtocol",
     "AdjointEnabledTimeSteppingResidualProtocol",
     "HVPEnabledTimeSteppingResidualProtocol",
-    "PrevStepHVPEnabledTimeSteppingResidualProtocol",
     # Base Classes and Mixins
     "TimeSteppingResidualBase",
     "ParamJacobianCapableMixin",

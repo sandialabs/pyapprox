@@ -24,6 +24,7 @@ from pyapprox.ode.implicit_steppers.backward_euler import (
     BackwardEulerHVP,
     BackwardEulerStepper,
 )
+from pyapprox.ode.step_context import StepContext
 
 
 class TestBCEnforcingTimeResidual:
@@ -94,7 +95,8 @@ class TestBCEnforcingTimeResidual:
         )
 
         # --- BCEnforcingForwardResidual ---
-        s["bc_residual"].set_time(t_n, deltat, prev_state)
+        ctx = StepContext(t_prev=t_n, deltat=deltat, y_prev=prev_state)
+        s["bc_residual"].bind(ctx)
         bc_residual_val = s["bc_residual"](y)
         bc_jacobian_val = s["bc_residual"].jacobian(y)
 
@@ -111,7 +113,8 @@ class TestBCEnforcingTimeResidual:
         prev_state = s["state"]
         y = bkd.copy(prev_state)
 
-        s["bc_residual"].set_time(0.0, deltat, prev_state)
+        ctx = StepContext(t_prev=0.0, deltat=deltat, y_prev=prev_state)
+        s["bc_residual"].bind(ctx)
         jac = s["bc_residual"].jacobian(y)
 
         # Check boundary rows are identity
@@ -133,7 +136,8 @@ class TestBCEnforcingTimeResidual:
         prev_state = s["state"]
         y = bkd.copy(prev_state)
 
-        s["bc_residual"].set_time(0.0, deltat, prev_state)
+        ctx = StepContext(t_prev=0.0, deltat=deltat, y_prev=prev_state)
+        s["bc_residual"].bind(ctx)
         res = s["bc_residual"](y)
 
         # For zero Dirichlet BCs: residual at boundary = u[boundary] - 0
@@ -179,7 +183,8 @@ class TestBCEnforcingTimeResidual:
         prev_state = s["state"]
         y = bkd.copy(prev_state)
 
-        s["bc_residual"].set_time(0.0, deltat, prev_state)
+        ctx = StepContext(t_prev=0.0, deltat=deltat, y_prev=prev_state)
+        s["bc_residual"].bind(ctx)
         res = s["bc_residual"](y)
         delta = s["bc_residual"].linsolve(y, res)
 
@@ -198,7 +203,8 @@ class TestBCEnforcingTimeResidual:
         y = bkd.copy(prev_state)
 
         bc_res = s["bc_residual"]
-        bc_res.set_time(t_n, deltat, prev_state)
+        ctx = StepContext(t_prev=t_n, deltat=deltat, y_prev=prev_state)
+        bc_res.bind(ctx)
 
         # Manual Newton iteration
         for _ in range(20):

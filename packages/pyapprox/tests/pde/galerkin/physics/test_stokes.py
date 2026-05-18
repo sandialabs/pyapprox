@@ -40,6 +40,7 @@ from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
     StokesTimeStepResidual,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Backend
 
 # ---------------------------------------------------------------------------
@@ -582,7 +583,7 @@ class TestParametrizedTransientStokes:
         t = 0.0
 
         for step in range(nsteps):
-            stepper.set_time(t, dt, y)
+            stepper.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             y = stepper.solve_step()
             t += dt
 

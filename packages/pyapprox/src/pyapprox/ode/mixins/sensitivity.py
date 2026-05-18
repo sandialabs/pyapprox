@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Generic
 
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
 
 
@@ -26,7 +27,7 @@ class SensitivityMixin(ABC, Generic[Array]):
 
     @abstractmethod
     def sensitivity_off_diag_jacobian(
-        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+        self, ctx: StepContext[Array], y_curr: Array
     ) -> Array:
         """Compute dR_n/dy_{n-1} for forward sensitivity propagation."""
         ...

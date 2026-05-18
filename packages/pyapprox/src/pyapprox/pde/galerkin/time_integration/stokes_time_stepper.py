@@ -22,6 +22,7 @@ from typing import Generic, Optional
 import numpy as np
 from scipy.sparse import issparse
 
+from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -99,25 +100,20 @@ class StokesTimeStepResidual(Generic[Array]):
 
         return M
 
-    def set_time(self, time: float, deltat: float, prev_state: Array) -> None:
-        """Set the current time step parameters.
+    def bind(self, ctx: StepContext[Array]) -> None:
+        """Bind a step context for the current time step.
 
         Parameters
         ----------
-        time : float
-            Time at the START of the time step (t_{n-1}).
-        deltat : float
-            Time step size.
-        prev_state : Array
-            Solution at previous time step y_{n-1}.
+        ctx : StepContext
+            Immutable context with t_prev, deltat, y_prev.
         """
-        self._time = time
-        self._deltat = deltat
-        self._prev_state = prev_state
+        self._time = ctx.t_prev
+        self._deltat = ctx.deltat
+        self._prev_state = ctx.y_prev
 
-        # For Crank-Nicolson, precompute F(y_{n-1}, t_{n-1})
         if self._method == "crank_nicolson":
-            self._prev_F = self._physics.residual(prev_state, time)
+            self._prev_F = self._physics.residual(ctx.y_prev, ctx.t_prev)
 
     def __call__(self, state: Array) -> Array:
         """Evaluate the time-stepping residual R(y_n).

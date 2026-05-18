@@ -15,6 +15,7 @@ from pyapprox.ode.protocols.time_stepping import (
     HVPEnabledTimeSteppingResidualProtocol,
 )
 from pyapprox.ode.protocols.type_guards import is_hvp_enabled
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
@@ -112,7 +113,8 @@ class TimeIntegrator(Generic[Array]):
         Array
             State at the next time step. Shape: (nstates,)
         """
-        self._time_residual.set_time(self._time, deltat, state)
+        ctx = StepContext(t_prev=self._time, deltat=deltat, y_prev=state)
+        self._time_residual.bind(ctx)
         state = self._newton_solver.solve(state)
         self._time += deltat
         if self._verbosity >= 1:
@@ -168,12 +170,12 @@ class TimeIntegrator(Generic[Array]):
 
     def adjoint_step(
         self,
+        ctx: StepContext[Array],
+        next_ctx: StepContext[Array],
         fsol_n: Array,
         asol_np1: Array,
         dqdu_n: Array,
-        deltat_n: float,
-        deltat_np1: float,
-        time_n: float,
+        y_curr_of_next: Array,
     ) -> Array:
         """
         Perform a single backward adjoint step.
@@ -182,31 +184,27 @@ class TimeIntegrator(Generic[Array]):
 
         Parameters
         ----------
+        ctx : StepContext
+            Context for step n.
+        next_ctx : StepContext
+            Context for step n+1.
         fsol_n : Array
             Forward solution at time step n. Shape: (nstates,)
         asol_np1 : Array
             Adjoint solution at time step n+1. Shape: (nstates,)
         dqdu_n : Array
             Gradient dQ/dy at time step n. Shape: (nstates,)
-        deltat_n : float
-            Time step size from n-1 to n.
-        deltat_np1 : float
-            Time step size from n to n+1.
-        time_n : float
-            Time at step n.
+        y_curr_of_next : Array
+            Solution at time n+1. Shape: (nstates,)
 
         Returns
         -------
         Array
             Adjoint solution at time step n. Shape: (nstates,)
         """
-        self._time = time_n
-        self._time_residual.set_time(time_n, deltat_n, fsol_n)
-
-        # Adjoint Jacobian functions already apply transpose
-        drduT_diag = self._time_residual.adjoint_diag_jacobian(fsol_n)
+        drduT_diag = self._time_residual.adjoint_diag_jacobian(ctx, fsol_n)
         drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
-            fsol_n, deltat_np1
+            next_ctx, y_curr_of_next
         )
 
         rhs = -drduT_offdiag @ asol_np1 - dqdu_n
@@ -244,47 +242,66 @@ class TimeIntegrator(Generic[Array]):
         adj_sols = self._bkd.zeros(fwd_sols.shape)
 
         # Initial condition for adjoint at final time
-        # deltat_n = t_N - t_{N-1}
-        self._time = float(times[-2])
         deltat_n = float(times[-1] - times[-2])
-        self._time_residual.set_time(self._time, deltat_n, fwd_sols[:, -2])
+        ctx_final = StepContext(
+            t_prev=float(times[-2]), deltat=deltat_n, y_prev=fwd_sols[:, -2]
+        )
 
         dqdu_final = self._time_residual.zero_adjoint_rhs(dqdu[:, -1])
 
         adj_sols = self._bkd.copy(adj_sols)
         adj_sols[:, -1] = self._time_residual.adjoint_initial_condition(
-            fwd_sols[:, -1], dqdu_final
+            ctx_final, fwd_sols[:, -1], dqdu_final
         )
 
         # Backward sweep from N-2 to 1
         for nn in range(fwd_sols.shape[1] - 2, 0, -1):
-            deltat_np1 = deltat_n
             deltat_n = float(times[nn] - times[nn - 1])
+            deltat_np1 = float(times[nn + 1] - times[nn])
+
+            ctx_n = StepContext(
+                t_prev=float(times[nn - 1]),
+                deltat=deltat_n,
+                y_prev=fwd_sols[:, nn - 1],
+            )
+            next_ctx = StepContext(
+                t_prev=float(times[nn]),
+                deltat=deltat_np1,
+                y_prev=fwd_sols[:, nn],
+            )
 
             dqdu_n = self._time_residual.zero_adjoint_rhs(dqdu[:, nn])
 
             adj_sols[:, nn] = self.adjoint_step(
+                ctx_n,
+                next_ctx,
                 fwd_sols[:, nn],
                 adj_sols[:, nn + 1],
                 dqdu_n,
-                deltat_n,
-                deltat_np1,
-                float(times[nn]),
+                fwd_sols[:, nn + 1],
             )
 
         # Final adjoint step at t=0
-        deltat_np1 = deltat_n
-        deltat_n = float(times[1] - times[0])
-        self._time = float(times[0])
-        self._time_residual.set_time(self._time, deltat_n, fwd_sols[:, 0])
+        deltat_0 = float(times[1] - times[0])
+        ctx_0 = StepContext(
+            t_prev=float(times[0]),
+            deltat=deltat_0,
+            y_prev=fwd_sols[:, 0],
+        )
+        next_ctx_0 = StepContext(
+            t_prev=float(times[0]),
+            deltat=deltat_0,
+            y_prev=fwd_sols[:, 0],
+        )
 
         dqdu_0 = self._time_residual.zero_adjoint_rhs(dqdu[:, 0])
 
         adj_sols[:, 0] = self._time_residual.adjoint_final_solution(
+            ctx_0,
+            next_ctx_0,
             fwd_sols[:, 0],
             adj_sols[:, 1],
             dqdu_0,
-            deltat_np1,
         )
 
         return adj_sols
@@ -345,11 +362,12 @@ class TimeIntegrator(Generic[Array]):
         grad = self._bkd.copy(dqdp)
 
         # Initial condition contribution (if initial condition depends on params)
-        self._time_residual.set_time(
-            float(times[0]),
-            float(times[1] - times[0]),
-            fwd_sols[:, 0],
+        ctx_init = StepContext(
+            t_prev=float(times[0]),
+            deltat=float(times[1] - times[0]),
+            y_prev=fwd_sols[:, 0],
         )
+        self._time_residual.bind(ctx_init)
 
         drdp_init = self._time_residual.initial_param_jacobian()
         # Prepend zeros for functional-only parameters
@@ -361,14 +379,14 @@ class TimeIntegrator(Generic[Array]):
 
         # Accumulate contributions from each time step
         for ii in range(len(times) - 1):
-            self._time_residual.set_time(
-                float(times[ii]),
-                float(times[ii + 1] - times[ii]),
-                fwd_sols[:, ii],
+            ctx_ii = StepContext(
+                t_prev=float(times[ii]),
+                deltat=float(times[ii + 1] - times[ii]),
+                y_prev=fwd_sols[:, ii],
             )
 
             drdp = self._time_residual.param_jacobian(
-                fwd_sols[:, ii], fwd_sols[:, ii + 1]
+                ctx_ii, fwd_sols[:, ii + 1]
             )
             # Prepend zeros for functional-only parameters
             n_unique = self._functional.nunique_params()

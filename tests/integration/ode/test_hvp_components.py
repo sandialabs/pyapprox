@@ -25,6 +25,7 @@ from pyapprox.ode.explicit_steppers.forward_euler import (
 from pyapprox.ode.implicit_steppers.backward_euler import (
     BackwardEulerHVP,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 
 # =============================================================================
@@ -493,12 +494,12 @@ class TimeResidualStateHVPWrapper(Generic[Array]):
         self,
         time_residual,
         adj_state: Array,
-        fsol_nm1: Array,
+        ctx: StepContext[Array],
         bkd_: Backend[Array],
     ):
         self._time_residual = time_residual
         self._adj_state = adj_state
-        self._fsol_nm1 = fsol_nm1
+        self._ctx = ctx
         self._bkd = bkd_
 
     def bkd(self) -> Backend[Array]:
@@ -517,20 +518,16 @@ class TimeResidualStateHVPWrapper(Generic[Array]):
 
     def jacobian(self, state: Array) -> Array:
         """Return d/dy_n [λ^T · (dR/dy_n)]."""
-        # For Backward Euler: dR/dy_n = M - dt*J_f
-        # d²R/dy_n² = -dt * d²f/dy²
-        # λ^T · d²R/dy_n² is what we need
         fsol_n = state.flatten()
         result = self._bkd.zeros((self.nqoi(), self.nvars()))
         result = self._bkd.copy(result)
 
-        # Use HVP to compute each column
         for j in range(self.nvars()):
             ej = self._bkd.zeros((self.nvars(),))
             ej = self._bkd.copy(ej)
             ej[j] = 1.0
             hvp_col = self._time_residual.state_state_hvp(
-                self._fsol_nm1, fsol_n, self._adj_state.flatten(), ej
+                self._ctx, fsol_n, self._adj_state.flatten(), ej
             )
             result[:, j] = hvp_col
         return result
@@ -548,13 +545,13 @@ class TimeResidualParamHVPWrapper(Generic[Array]):
         self,
         time_residual,
         adj_state: Array,
-        fsol_nm1: Array,
+        ctx: StepContext[Array],
         fsol_n: Array,
         bkd_: Backend[Array],
     ):
         self._time_residual = time_residual
         self._adj_state = adj_state
-        self._fsol_nm1 = fsol_nm1
+        self._ctx = ctx
         self._fsol_n = fsol_n
         self._bkd = bkd_
 
@@ -571,7 +568,7 @@ class TimeResidualParamHVPWrapper(Generic[Array]):
         """Return λ^T · (d²R/dp dy_n) · w."""
         wvec_flat = wvec.flatten()
         hvp = self._time_residual.param_state_hvp(
-            self._fsol_nm1, self._fsol_n, self._adj_state.flatten(), wvec_flat
+            self._ctx, self._fsol_n, self._adj_state.flatten(), wvec_flat
         )
         return hvp.reshape(1, -1)
 
@@ -587,7 +584,7 @@ class TimeResidualParamHVPWrapper(Generic[Array]):
             ej = self._bkd.copy(ej)
             ej[j] = 1.0
             hvp_col = self._time_residual.param_state_hvp(
-                self._fsol_nm1, self._fsol_n, self._adj_state.flatten(), ej
+                self._ctx, self._fsol_n, self._adj_state.flatten(), ej
             )
             result[:, j] = hvp_col
         return result
@@ -614,7 +611,8 @@ class TestTimeResidualHVP:
         # Set up the time step
         deltat = 0.1
         fsol_nm1 = bkd.asarray(np.array([1.0, 0.8]))
-        time_residual.set_time(0.0, deltat, fsol_nm1)
+        ctx = StepContext(t_prev=0.0, deltat=deltat, y_prev=fsol_nm1)
+        time_residual.bind(ctx)
 
         # Create test state and adjoint
         fsol_n = bkd.asarray(np.array([0.95, 0.75]))
@@ -622,7 +620,7 @@ class TestTimeResidualHVP:
 
         # Wrap for derivative checking
         wrapper = TimeResidualStateHVPWrapper(
-            time_residual, adj_state, fsol_nm1, bkd
+            time_residual, adj_state, ctx, bkd
         )
 
         # Check derivatives
@@ -660,7 +658,8 @@ class TestTimeResidualHVP:
         # Set up the time step
         deltat = 0.1
         fsol_nm1 = bkd.asarray(np.array([1.0, 0.8]))
-        time_residual.set_time(0.0, deltat, fsol_nm1)
+        ctx = StepContext(t_prev=0.0, deltat=deltat, y_prev=fsol_nm1)
+        time_residual.bind(ctx)
 
         # Create test state and adjoint
         fsol_n = bkd.asarray(np.array([0.95, 0.75]))
@@ -668,7 +667,7 @@ class TestTimeResidualHVP:
 
         # Wrap for derivative checking
         wrapper = TimeResidualParamHVPWrapper(
-            time_residual, adj_state, fsol_nm1, fsol_n, bkd
+            time_residual, adj_state, ctx, fsol_n, bkd
         )
 
         # Check derivatives
@@ -735,11 +734,9 @@ class TestTimeResidualHVP:
                 return len(self._adj_state)
 
             def __call__(self, y_nm1):
-                # dR/dy_{n-1} = -M - dt * df/dy_{n-1}
                 y_nm1_flat = y_nm1.flatten()
-                self._time_residual.set_time(0.0, self._deltat, y_nm1_flat)
-                # The off-diagonal jacobian gives dR_{n+1}/dy_n, which for FE is
-                # -(M + dt*J). So dR/dy_{n-1} is similar.
+                ctx = StepContext(t_prev=0.0, deltat=self._deltat, y_prev=y_nm1_flat)
+                self._time_residual.bind(ctx)
                 jac = (
                     -self._time_residual._residual.mass_matrix().as_matrix()
                     - self._deltat * self._time_residual._residual.jacobian(y_nm1_flat)
@@ -747,17 +744,17 @@ class TestTimeResidualHVP:
                 return (jac.T @ self._adj_state.reshape(-1, 1)).reshape(1, -1)
 
             def jacobian(self, y_nm1):
-                # d/dy_{n-1} [λ^T · dR/dy_{n-1}] = λ^T · d²R/dy_{n-1}²
                 y_nm1_flat = y_nm1.flatten()
-                self._time_residual.set_time(0.0, self._deltat, y_nm1_flat)
+                ctx = StepContext(t_prev=0.0, deltat=self._deltat, y_prev=y_nm1_flat)
+                self._time_residual.bind(ctx)
                 result = bkd.zeros((self.nqoi(), self.nvars()))
                 result = bkd.copy(result)
                 for j in range(self.nvars()):
                     ej = bkd.zeros((self.nvars(),))
                     ej = bkd.copy(ej)
                     ej[j] = 1.0
-                    hvp_col = self._time_residual.state_state_hvp(
-                        y_nm1_flat, self._fsol_n, self._adj_state.flatten(), ej
+                    hvp_col = self._time_residual.prev_state_state_hvp(
+                        ctx, self._fsol_n, self._adj_state.flatten(), ej
                     )
                     result[:, j] = hvp_col
                 return result

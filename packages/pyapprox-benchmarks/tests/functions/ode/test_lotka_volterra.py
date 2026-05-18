@@ -65,9 +65,8 @@ class TestLotkaVolterraResidual:
 
     def test_mass_matrix_is_identity(self):
         """Test that mass matrix is identity."""
-        mass = self._residual.mass_matrix(self._nspecies)
-        expected = self._bkd.eye(self._nspecies)
-        self._bkd.assert_allclose(mass, expected, rtol=1e-14, atol=1e-14)
+        mass = self._residual.mass_matrix()
+        assert mass.is_identity()
 
 
 class TestLotkaVolterraWithTimeAdjoint:

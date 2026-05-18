@@ -32,6 +32,7 @@ from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 # =========================================================================
@@ -199,7 +200,7 @@ class TestTransientElasticity2D:
 
         for step in range(nsteps):
             t_np1 = t + dt
-            stepper.set_time(t, dt, y)
+            stepper.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             constrained.set_bc_time(t_np1)
 
             # Inject Dirichlet values into initial guess
