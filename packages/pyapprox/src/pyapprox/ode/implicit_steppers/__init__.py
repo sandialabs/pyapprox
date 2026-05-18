@@ -10,6 +10,11 @@ from pyapprox.ode.implicit_steppers.crank_nicolson import (
     CrankNicolsonHVP,
     CrankNicolsonStepper,
 )
+from pyapprox.ode.implicit_steppers.implicit_midpoint import (
+    ImplicitMidpointAdjoint,
+    ImplicitMidpointHVP,
+    ImplicitMidpointStepper,
+)
 
 __all__ = [
     "BackwardEulerStepper",
@@ -18,4 +23,7 @@ __all__ = [
     "CrankNicolsonStepper",
     "CrankNicolsonAdjoint",
     "CrankNicolsonHVP",
+    "ImplicitMidpointStepper",
+    "ImplicitMidpointAdjoint",
+    "ImplicitMidpointHVP",
 ]

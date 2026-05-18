@@ -30,6 +30,9 @@ from pyapprox.ode.implicit_steppers.backward_euler import (
 from pyapprox.ode.implicit_steppers.crank_nicolson import (
     CrankNicolsonHVP,
 )
+from pyapprox.ode.implicit_steppers.implicit_midpoint import (
+    ImplicitMidpointHVP,
+)
 from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
 )
@@ -152,7 +155,11 @@ class TestAdjointHVP:
         return fd_hvp.T  # Convert (1, nparams) to (nparams, 1)
 
     def _check_hvp_stepper_linear_ode_mse(
-        self, stepper_class, bkd, error_ratio_tol: float = 1e-6
+        self,
+        stepper_class,
+        bkd,
+        error_ratio_tol: float = 1e-6,
+        newton_atol: float = 1e-7,
     ) -> None:
         """
         Check HVP for linear ODE with MSE functional using DerivativeChecker.
@@ -169,6 +176,7 @@ class TestAdjointHVP:
 
         # Create Newton solver
         newton_solver = NewtonSolver(time_residual)
+        newton_solver.set_options(atol=newton_atol, rtol=newton_atol)
 
         # Create integrator
         init_time = 0.0
@@ -231,7 +239,11 @@ class TestAdjointHVP:
         assert hvp_ratio < error_ratio_tol
 
     def _check_hvp_stepper_quadratic_ode(
-        self, stepper_class, bkd, error_ratio_tol: float = 1e-6
+        self,
+        stepper_class,
+        bkd,
+        error_ratio_tol: float = 1e-6,
+        newton_atol: float = 1e-7,
     ) -> None:
         """
         Check HVP for quadratic ODE with endpoint functional using
@@ -249,6 +261,7 @@ class TestAdjointHVP:
 
         # Create Newton solver
         newton_solver = NewtonSolver(time_residual)
+        newton_solver.set_options(atol=newton_atol, rtol=newton_atol)
 
         # Create integrator - use only 3 time steps to minimize accumulated
         # numerical errors while still testing multi-step behavior
@@ -315,6 +328,12 @@ class TestAdjointHVP:
         """Test HVP for Heun with linear ODE + MSE."""
         self._check_hvp_stepper_linear_ode_mse(HeunHVP, bkd)
 
+    def test_implicit_midpoint_hvp_linear_ode_mse(self, bkd) -> None:
+        """Test HVP for Implicit Midpoint with linear ODE + MSE."""
+        self._check_hvp_stepper_linear_ode_mse(
+            ImplicitMidpointHVP, bkd, newton_atol=1e-10,
+        )
+
     def test_backward_euler_hvp_quadratic_ode(self, bkd) -> None:
         """Test HVP for Backward Euler with quadratic ODE."""
         self._check_hvp_stepper_quadratic_ode(BackwardEulerHVP, bkd)
@@ -329,7 +348,7 @@ class TestAdjointHVP:
         tests pass with 1e-6 tolerance). Uses relaxed tolerance of 1e-4.
         """
         self._check_hvp_stepper_quadratic_ode(
-            CrankNicolsonHVP, bkd, error_ratio_tol=1e-4
+            CrankNicolsonHVP, bkd, newton_atol=1e-10
         )
 
     def test_forward_euler_hvp_quadratic_ode(self, bkd) -> None:
@@ -340,8 +359,18 @@ class TestAdjointHVP:
         """Test HVP for Heun with quadratic ODE."""
         self._check_hvp_stepper_quadratic_ode(HeunHVP, bkd)
 
+    def test_implicit_midpoint_hvp_quadratic_ode(self, bkd) -> None:
+        """Test HVP for Implicit Midpoint with quadratic ODE."""
+        self._check_hvp_stepper_quadratic_ode(
+            ImplicitMidpointHVP, bkd, newton_atol=1e-10,
+        )
+
     def _check_hvp_stepper_quadratic_ode_mse(
-        self, stepper_class, bkd, error_ratio_tol: float = 1e-6
+        self,
+        stepper_class,
+        bkd,
+        error_ratio_tol: float = 1e-6,
+        newton_atol: float = 1e-7,
     ) -> None:
         """
         Check HVP for quadratic ODE with MSE functional using DerivativeChecker.
@@ -361,6 +390,7 @@ class TestAdjointHVP:
 
         # Create Newton solver
         newton_solver = NewtonSolver(time_residual)
+        newton_solver.set_options(atol=newton_atol, rtol=newton_atol)
 
         # Create integrator - use only 3 time steps
         init_time = 0.0
@@ -436,7 +466,7 @@ class TestAdjointHVP:
         numerical conditioning issues. Uses relaxed tolerance of 1e-4.
         """
         self._check_hvp_stepper_quadratic_ode_mse(
-            CrankNicolsonHVP, bkd, error_ratio_tol=1e-4
+            CrankNicolsonHVP, bkd, newton_atol=1e-10
         )
 
     def test_forward_euler_hvp_quadratic_ode_mse(self, bkd) -> None:
@@ -446,6 +476,12 @@ class TestAdjointHVP:
     def test_heun_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Heun with quadratic ODE + MSE."""
         self._check_hvp_stepper_quadratic_ode_mse(HeunHVP, bkd)
+
+    def test_implicit_midpoint_hvp_quadratic_ode_mse(self, bkd) -> None:
+        """Test HVP for Implicit Midpoint with quadratic ODE + MSE."""
+        self._check_hvp_stepper_quadratic_ode_mse(
+            ImplicitMidpointHVP, bkd, newton_atol=1e-10,
+        )
 
     # =================================================================
     # Non-autonomous (time-modulated quadratic) tests
@@ -574,6 +610,14 @@ class TestAdjointHVP:
             HeunHVP, bkd, final_time=0.3, deltat=0.1,
         )
 
+    def test_implicit_midpoint_gradient_time_modulated_uniform(
+        self, bkd,
+    ) -> None:
+        self._check_gradient_stepper_time_modulated(
+            ImplicitMidpointHVP, bkd, final_time=0.3, deltat=0.1,
+            newton_atol=1e-10,
+        )
+
     # -- Uniform dt, HVP --
     # All fail: time_adjoint_hvp.py passes wrong time context to HVP methods
     # for non-autonomous ODEs (Bug Class 1 — timing convention ambiguity)
@@ -596,6 +640,14 @@ class TestAdjointHVP:
     def test_heun_hvp_time_modulated_uniform(self, bkd) -> None:
         self._check_hvp_stepper_time_modulated(
             HeunHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    def test_implicit_midpoint_hvp_time_modulated_uniform(
+        self, bkd,
+    ) -> None:
+        self._check_hvp_stepper_time_modulated(
+            ImplicitMidpointHVP, bkd, final_time=0.3, deltat=0.1,
+            newton_atol=1e-10,
         )
 
     # -- Non-uniform dt, gradient --
@@ -628,6 +680,14 @@ class TestAdjointHVP:
             HeunHVP, bkd, final_time=0.37, deltat=0.1,
         )
 
+    def test_implicit_midpoint_gradient_time_modulated_nonuniform(
+        self, bkd,
+    ) -> None:
+        self._check_gradient_stepper_time_modulated(
+            ImplicitMidpointHVP, bkd, final_time=0.37, deltat=0.1,
+            newton_atol=1e-10,
+        )
+
     # -- Non-uniform dt, HVP --
 
     def test_backward_euler_hvp_time_modulated_nonuniform(
@@ -656,6 +716,14 @@ class TestAdjointHVP:
     def test_heun_hvp_time_modulated_nonuniform(self, bkd) -> None:
         self._check_hvp_stepper_time_modulated(
             HeunHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    def test_implicit_midpoint_hvp_time_modulated_nonuniform(
+        self, bkd,
+    ) -> None:
+        self._check_hvp_stepper_time_modulated(
+            ImplicitMidpointHVP, bkd, final_time=0.37, deltat=0.1,
+            newton_atol=1e-10,
         )
 
     # =================================================================

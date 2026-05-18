@@ -121,3 +121,32 @@ class HVPMixin(ABC, Generic[Array]):
     ) -> Array:
         """Compute (d^2R_{n+1}/dp dy_n)w contracted with adjoint."""
         ...
+
+    def state_prev_state_hvp(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        adj_state: Array,
+        wvec_prev: Array,
+    ) -> Array:
+        """Compute adj^T * d^2R_n/(dy_n dy_{n-1}) * w_{n-1}.
+
+        Nonzero only when y_n and y_{n-1} enter f through a shared
+        evaluation point (e.g. implicit midpoint). Default returns zero.
+        """
+        return self._bkd.zeros(wvec_prev.shape)
+
+    def prev_state_curr_state_hvp(
+        self,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
+        adj_state: Array,
+        wvec_curr_of_next: Array,
+    ) -> Array:
+        """Compute adj^T * d^2R_{n+1}/(dy_n dy_{n+1}) * w_{n+1}.
+
+        By Schwarz symmetry same bilinear form as state_prev_state_hvp
+        but evaluated at R_{n+1}'s midpoint. Default returns zero.
+        """
+        return self._bkd.zeros(wvec_curr_of_next.shape)
+

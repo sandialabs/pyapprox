@@ -297,22 +297,23 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def adjoint_final_solution(
         self,
         ctx: StepContext[Array],
-        next_ctx: StepContext[Array],
-        fsol_0: Array,
+        y_curr: Array,
         asol_1: Array,
         dqdu_0: Array,
     ) -> Array:
         """
         Compute the adjoint at initial time (final step of backward sweep).
 
+        Symmetric with adjoint_initial_condition: ctx describes R_1
+        (the first forward step), ctx.y_prev = y_0, y_curr = y_1.
+
         Parameters
         ----------
         ctx : StepContext
-            Context at t=0.
-        next_ctx : StepContext
-            Context for the first step (needed for off-diag).
-        fsol_0 : Array
-            Forward solution at initial time. Shape: (nstates,)
+            Context for the first forward step R_1.
+        y_curr : Array
+            Forward solution at step 1 (terminal state of R_1).
+            Shape: (nstates,)
         asol_1 : Array
             Adjoint solution at time step 1. Shape: (nstates,)
         dqdu_0 : Array
@@ -408,8 +409,7 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def adjoint_final_solution(
         self,
         ctx: StepContext[Array],
-        next_ctx: StepContext[Array],
-        fsol_0: Array,
+        y_curr: Array,
         asol_1: Array,
         dqdu_0: Array,
     ) -> Array: ...
@@ -479,3 +479,20 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
         adj_state: Array,
         wvec: Array,
     ) -> Array: ...
+
+    def state_prev_state_hvp(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        adj_state: Array,
+        wvec_prev: Array,
+    ) -> Array: ...
+
+    def prev_state_curr_state_hvp(
+        self,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
+        adj_state: Array,
+        wvec_curr_of_next: Array,
+    ) -> Array: ...
+
