@@ -20,6 +20,7 @@ from pyapprox.pde.collocation.time_integration.collocation_model import (
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -268,18 +269,28 @@ class TransientForwardModel(Generic[Array]):
 
         if hasattr(time_residual, "initial_param_jacobian"):
             deltat_0 = float(times[1] - times[0])
-            time_residual.set_time(float(times[0]), deltat_0, fwd_sols[:, 0])
+            ctx_0 = StepContext(
+                t_prev=float(times[0]),
+                deltat=deltat_0,
+                y_prev=fwd_sols[:, 0],
+            )
+            time_residual.bind(ctx_0)
             W_prev = time_residual.initial_param_jacobian()
 
         for nn in range(1, ntimes):
             deltat_n = float(times[nn] - times[nn - 1])
-            time_residual.set_time(float(times[nn - 1]), deltat_n, fwd_sols[:, nn - 1])
+            ctx_nn = StepContext(
+                t_prev=float(times[nn - 1]),
+                deltat=deltat_n,
+                y_prev=fwd_sols[:, nn - 1],
+            )
+            time_residual.bind(ctx_nn)
 
             drdy_n = time_residual.jacobian(fwd_sols[:, nn])
             drdy_nm1 = time_residual.sensitivity_off_diag_jacobian(
-                fwd_sols[:, nn - 1], fwd_sols[:, nn], deltat_n
+                ctx_nn, fwd_sols[:, nn]
             )
-            drdp_n = time_residual.param_jacobian(fwd_sols[:, nn - 1], fwd_sols[:, nn])
+            drdp_n = time_residual.param_jacobian(ctx_nn, fwd_sols[:, nn])
 
             rhs = bkd.dot(drdy_nm1, W_prev) + drdp_n
             W_prev = -bkd.solve(drdy_n, rhs)

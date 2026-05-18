@@ -32,6 +32,7 @@ from pyapprox.pde.galerkin.time_integration.explicit_adapter import (
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsODEAdapter,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
@@ -192,7 +193,8 @@ class GalerkinModel(Generic[Array]):
             dt = float(times[ii + 1] - times[ii])
 
             if is_explicit:
-                stepper.set_time(t_n, dt, state)
+                ctx = StepContext(t_prev=t_n, deltat=dt, y_prev=state)
+                stepper.bind(ctx)
                 state = state - stepper(state)
                 # Inject Dirichlet values at t_{n+1}
                 t_np1 = t_n + dt
@@ -205,9 +207,10 @@ class GalerkinModel(Generic[Array]):
                     state = bkd.asarray(state_np.astype(np.float64))
             else:
                 t_np1 = t_n + dt
-                # Set stepper with unmodified prev_state (has g(t_n)
+                # Bind stepper with unmodified prev_state (has g(t_n)
                 # from converged previous step or initial condition)
-                stepper.set_time(t_n, dt, state)
+                ctx = StepContext(t_prev=t_n, deltat=dt, y_prev=state)
+                stepper.bind(ctx)
                 # Set constraint time for Dirichlet enforcement
                 constrained.set_bc_time(t_np1)
                 # Only the initial guess gets g(t_{n+1})

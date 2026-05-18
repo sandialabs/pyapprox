@@ -10,9 +10,8 @@ BCEnforcingForwardResidual
 BCEnforcingAdjointResidual
     Wraps AdjointEnabledTimeSteppingResidualProtocol: + adjoint methods.
 BCEnforcingHVPResidual
-    Wraps HVPEnabledTimeSteppingResidualProtocol: + 4 core HVP methods.
-BCEnforcingPrevStepHVPResidual
-    Wraps PrevStepHVPEnabledTimeSteppingResidualProtocol: + 3 prev_* HVPs.
+    Wraps HVPEnabledTimeSteppingResidualProtocol: + all HVP methods
+    (4 same-step + 3 cross-step).
 
 Use ``create_bc_enforcing_residual()`` factory to create the appropriate
 wrapper based on the inner stepper's protocol level.
@@ -29,9 +28,9 @@ from pyapprox.ode.protocols.ode_residual import (
 from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
-    PrevStepHVPEnabledTimeSteppingResidualProtocol,
     SensitivityStepperProtocol,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.pde.collocation.protocols.boundary import (
     BoundaryConditionProtocol,
@@ -47,7 +46,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 class BCEnforcingForwardResidual(Generic[Array]):
     """Wraps a SensitivityStepperProtocol and applies collocation BCs.
 
-    Provides forward solve methods (bkd, set_time, __call__, jacobian,
+    Provides forward solve methods (bkd, bind, __call__, jacobian,
     linsolve) and sensitivity methods (is_explicit, has_prev_state_hessian,
     sensitivity_off_diag_jacobian, native_residual).
 
@@ -81,10 +80,10 @@ class BCEnforcingForwardResidual(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def set_time(self, time: float, deltat: float, prev_state: Array) -> None:
-        """Set time stepping context and track t_{n+1}."""
-        self._inner.set_time(time, deltat, prev_state)
-        self._t_np1 = time + deltat
+    def bind(self, ctx: StepContext[Array]) -> None:
+        """Bind the step context and track t_{n+1}."""
+        self._inner.bind(ctx)
+        self._t_np1 = ctx.t_curr
 
     def __call__(self, state: Array) -> Array:
         """Evaluate residual with BCs applied at t_{n+1}."""
@@ -117,7 +116,7 @@ class BCEnforcingForwardResidual(Generic[Array]):
         return self._inner.native_residual
 
     def sensitivity_off_diag_jacobian(
-        self, fsol_nm1: Array, fsol_n: Array, deltat: float
+        self, ctx: StepContext[Array], y_curr: Array
     ) -> Array:
         """Forward sensitivity off-diagonal block with BC rows zeroed.
 
@@ -125,7 +124,7 @@ class BCEnforcingForwardResidual(Generic[Array]):
         state). The inner stepper returns the raw -M without BC enforcement,
         so we must zero those rows explicitly.
         """
-        result = self._inner.sensitivity_off_diag_jacobian(fsol_nm1, fsol_n, deltat)
+        result = self._inner.sensitivity_off_diag_jacobian(ctx, y_curr)
         result = self._bkd.copy(result)
         for idx in self._row_replaced:
             result[idx, :] = 0.0
@@ -240,9 +239,11 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         """Access the underlying ODE residual (narrowed to ParamJacobian)."""
         return self._adjoint_inner.native_residual
 
-    def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
+    def param_jacobian(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> Array:
         """Compute parameter Jacobian dR/dp with BC corrections."""
-        result = self._adjoint_inner.param_jacobian(fsol_nm1, fsol_n)
+        result = self._adjoint_inner.param_jacobian(ctx, y_curr)
         if hasattr(self._physics, "boundary_conditions"):
             for bc in self._physics.boundary_conditions():
                 if not isinstance(
@@ -254,12 +255,12 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
                         f"for parameter sensitivity"
                     )
                 phys_sens = self._build_bc_physical_sensitivities(
-                    bc, fsol_n, self._t_np1
+                    bc, y_curr, ctx.t_curr
                 )
                 result = bc.apply_to_param_jacobian(
                     result,
-                    fsol_n,
-                    self._t_np1,
+                    y_curr,
+                    ctx.t_curr,
                     physical_sensitivities=phys_sens,
                 )
         else:
@@ -297,7 +298,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         return {"dflux_n_dp": dflux_n_dp}
 
     def adjoint_diag_jacobian(
-        self, fsol_n: Array
+        self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
         """Adjoint diagonal block: transpose of BC-enforced forward Jacobian.
 
@@ -305,24 +306,26 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         the correct BC-enforced forward Jacobian for ALL BC types and ALL
         solver types. Its transpose is the correct adjoint diagonal block.
         """
-        return MatrixOperator(self.jacobian(fsol_n).T, self._bkd)
+        return MatrixOperator(self.jacobian(y_curr).T, self._bkd)
 
     def adjoint_off_diag_jacobian(
-        self, fsol_n: Array, deltat_np1: float
+        self, next_ctx: StepContext[Array], y_curr_of_next: Array
     ) -> Array:
         """Adjoint off-diagonal block: B_{n+1}^T with BC columns zeroed.
 
         B_n[b,:] = 0 at DOFs where the solver replaced the residual row.
         In the transpose, this means B_n^T[:,b] = 0 -- zero columns, not rows.
         """
-        result = self._adjoint_inner.adjoint_off_diag_jacobian(fsol_n, deltat_np1)
+        result = self._adjoint_inner.adjoint_off_diag_jacobian(
+            next_ctx, y_curr_of_next
+        )
         result = self._bkd.copy(result)
         for idx in self._row_replaced:
             result[:, idx] = 0.0
         return result
 
     def adjoint_initial_condition(
-        self, final_fwd_sol: Array, final_dqdu: Array
+        self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
         """Compute adjoint IC using BC-enforced Jacobian.
 
@@ -331,15 +334,16 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         We must solve with the BC-wrapped adjoint_diag_jacobian instead.
         """
         final_dqdu = self.zero_adjoint_rhs(final_dqdu)
-        drduT_diag = self.adjoint_diag_jacobian(final_fwd_sol)
+        drduT_diag = self.adjoint_diag_jacobian(ctx, final_fwd_sol)
         return drduT_diag.solve(-final_dqdu)
 
     def adjoint_final_solution(
         self,
+        ctx: StepContext[Array],
+        next_ctx: StepContext[Array],
         fsol_0: Array,
         asol_1: Array,
         dqdu_0: Array,
-        deltat_1: float,
     ) -> Array:
         """Compute adjoint at initial time using BC-enforced mass matrix.
 
@@ -350,7 +354,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
         mass = self._adjoint_inner.native_residual.mass_matrix().as_matrix().T
         mass = self._physics.apply_bc_to_mass(mass)
-        drduT_offdiag = self.adjoint_off_diag_jacobian(fsol_0, deltat_1)
+        drduT_offdiag = self.adjoint_off_diag_jacobian(next_ctx, fsol_0)
         return self._bkd.solve(mass, -drduT_offdiag @ asol_1 - dqdu_0)
 
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
@@ -364,14 +368,16 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
 
 
 # =========================================================================
-# Level 3: + Core HVP (4 methods)
+# Level 3: + HVP (4 same-step + 3 cross-step)
 # =========================================================================
 
 
 class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
-    """Extends BCEnforcingAdjointResidual with four core HVP methods.
+    """Extends BCEnforcingAdjointResidual with all HVP methods.
 
-    Wraps an HVPEnabledTimeSteppingResidualProtocol.
+    Wraps an HVPEnabledTimeSteppingResidualProtocol, which now includes
+    both same-step (state_state_hvp, etc.) and cross-step (prev_state_state_hvp,
+    etc.) methods for all steppers.
 
     Parameters
     ----------
@@ -396,10 +402,12 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         """Typed accessor for inner as HVPEnabled. Safe via constructor."""
         return cast(HVPEnabledTimeSteppingResidualProtocol[Array], self._inner)
 
+    # -- Same-step HVP methods --
+
     def state_state_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
@@ -407,7 +415,7 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
 
         Second derivatives of replaced BC rows are zero for all BC types.
         """
-        result = self._hvp_inner.state_state_hvp(fsol_nm1, fsol_n, adj_state, wvec)
+        result = self._hvp_inner.state_state_hvp(ctx, y_curr, adj_state, wvec)
         result = self._bkd.copy(result)
         for idx in self._row_replaced:
             result[idx] = 0.0
@@ -415,8 +423,8 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
 
     def state_param_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
@@ -424,7 +432,7 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
 
         Second derivatives of replaced BC rows are zero for all BC types.
         """
-        result = self._hvp_inner.state_param_hvp(fsol_nm1, fsol_n, adj_state, vvec)
+        result = self._hvp_inner.state_param_hvp(ctx, y_curr, adj_state, vvec)
         result = self._bkd.copy(result)
         for idx in self._row_replaced:
             result[idx] = 0.0
@@ -432,101 +440,66 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
 
     def param_state_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
         """Compute (d^2R/dp dy_n)w contracted with adjoint."""
-        return self._hvp_inner.param_state_hvp(fsol_nm1, fsol_n, adj_state, wvec)
+        return self._hvp_inner.param_state_hvp(ctx, y_curr, adj_state, wvec)
 
     def param_param_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
         """Compute (d^2R/dp^2)v contracted with adjoint."""
-        return self._hvp_inner.param_param_hvp(fsol_nm1, fsol_n, adj_state, vvec)
+        return self._hvp_inner.param_param_hvp(ctx, y_curr, adj_state, vvec)
 
-
-# =========================================================================
-# Level 4: + Prev-step HVP (3 methods, CN only)
-# =========================================================================
-
-
-class BCEnforcingPrevStepHVPResidual(BCEnforcingHVPResidual[Array], Generic[Array]):
-    """Extends BCEnforcingHVPResidual with cross-step HVP methods.
-
-    Wraps a PrevStepHVPEnabledTimeSteppingResidualProtocol (Crank-Nicolson).
-
-    Parameters
-    ----------
-    time_residual : PrevStepHVPEnabledTimeSteppingResidualProtocol
-        The underlying time stepping residual with prev_* HVP support.
-    physics : AbstractPhysics
-        Collocation physics with boundary conditions.
-    bkd : Backend
-        Computational backend.
-    """
-
-    def __init__(
-        self,
-        time_residual: PrevStepHVPEnabledTimeSteppingResidualProtocol[Array],
-        physics: AbstractPhysics[Array],
-        bkd: Backend[Array],
-    ) -> None:
-        super().__init__(time_residual, physics, bkd)
-
-    @property
-    def _prev_hvp_inner(
-        self,
-    ) -> PrevStepHVPEnabledTimeSteppingResidualProtocol[Array]:
-        """Typed accessor for inner as PrevStepHVPEnabled. Safe via constructor."""
-        return cast(
-            PrevStepHVPEnabledTimeSteppingResidualProtocol[Array], self._inner
-        )
+    # -- Cross-step HVP methods --
 
     def prev_state_state_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
         """Compute (d^2R_{n+1}/dy_n^2) w contracted with adjoint."""
-        return self._prev_hvp_inner.prev_state_state_hvp(fsol_n, adj_state, wvec)
+        return self._hvp_inner.prev_state_state_hvp(
+            next_ctx, y_curr_of_next, adj_state, wvec
+        )
 
     def prev_state_param_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
         """Compute (d^2R_{n+1}/dy_n dp) v contracted with adjoint."""
-        return self._prev_hvp_inner.prev_state_param_hvp(fsol_n, adj_state, vvec)
+        return self._hvp_inner.prev_state_param_hvp(
+            next_ctx, y_curr_of_next, adj_state, vvec
+        )
 
     def prev_param_state_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
         """Compute (d^2R_{n+1}/dp dy_n) w contracted with adjoint."""
-        return self._prev_hvp_inner.prev_param_state_hvp(fsol_n, adj_state, wvec)
+        return self._hvp_inner.prev_param_state_hvp(
+            next_ctx, y_curr_of_next, adj_state, wvec
+        )
 
 
 # =========================================================================
 # Factory
 # =========================================================================
-
-
-@overload
-def create_bc_enforcing_residual(
-    inner: PrevStepHVPEnabledTimeSteppingResidualProtocol[Array],
-    physics: AbstractPhysics[Array],
-    bkd: Backend[Array],
-) -> BCEnforcingPrevStepHVPResidual[Array]: ...
 
 
 @overload
@@ -577,8 +550,6 @@ def create_bc_enforcing_residual(
     BCEnforcingForwardResidual
         The appropriate BC wrapper (may be a subclass).
     """
-    if isinstance(inner, PrevStepHVPEnabledTimeSteppingResidualProtocol):
-        return BCEnforcingPrevStepHVPResidual(inner, physics, bkd)
     if isinstance(inner, HVPEnabledTimeSteppingResidualProtocol):
         return BCEnforcingHVPResidual(inner, physics, bkd)
     if isinstance(inner, AdjointEnabledTimeSteppingResidualProtocol):

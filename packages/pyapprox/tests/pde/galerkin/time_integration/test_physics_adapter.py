@@ -20,6 +20,7 @@ from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import GalerkinPhysicsODEAdapter
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 from pyapprox.ode.implicit_steppers import BackwardEulerHVP
+from pyapprox.ode.step_context import StepContext
 
 
 class TestPhysicsAdapterBase:
@@ -103,7 +104,7 @@ class TestPhysicsAdapterBase:
 
         # Set time stepping context
         dt = 0.01
-        stepper.set_time(0.0, dt, u0)
+        stepper.bind(StepContext(t_prev=0.0, deltat=dt, y_prev=u0))
 
         # Evaluate residual (this tests the interface compatibility)
         res = stepper(u0)
@@ -125,7 +126,7 @@ class TestPhysicsAdapterBase:
 
         # Set time stepping context
         dt = 0.001
-        stepper.set_time(0.0, dt, u0)
+        stepper.bind(StepContext(t_prev=0.0, deltat=dt, y_prev=u0))
 
         # Simple Newton iteration for one time step
         u_new = bkd.copy(u0)
@@ -151,7 +152,7 @@ class TestPhysicsAdapterBase:
 
         # Set up single time step
         dt = 0.001
-        stepper.set_time(0.0, dt, u)
+        stepper.bind(StepContext(t_prev=0.0, deltat=dt, y_prev=u))
 
         # Track residual norms during Newton iteration
         u_new = bkd.copy(u)

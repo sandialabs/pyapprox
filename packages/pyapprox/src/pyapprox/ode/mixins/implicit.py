@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Generic
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualProtocol,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -26,14 +27,13 @@ class ImplicitStepperMixin(ABC, Generic[Array]):
     if TYPE_CHECKING:
         _bkd: Backend[Array]
         _residual: ImplicitODEResidualProtocol[Array]
-        _deltat: float
-        _time: float
+        _ctx: StepContext[Array]
 
     @abstractmethod
     def _newton_coefficient(self) -> float:
         """Stepper-specific coefficient for Newton Jacobian.
 
-        BackwardEuler: self._deltat. CrankNicolson: 0.5 * self._deltat.
+        BackwardEuler: self._ctx.deltat. CrankNicolson: 0.5 * self._ctx.deltat.
         Internal to the stepper hierarchy, not exposed externally.
         """
         ...

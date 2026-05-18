@@ -10,6 +10,7 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithParamJacobianProtocol,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -27,8 +28,7 @@ class AdjointMixin(ABC, Generic[Array]):
     if TYPE_CHECKING:
         _residual: ODEResidualProtocol[Array]
         _bkd: Backend[Array]
-        _time: float
-        _deltat: float
+        _ctx: StepContext[Array]
 
     @property
     def _adjoint_residual(
@@ -48,31 +48,35 @@ class AdjointMixin(ABC, Generic[Array]):
         return self._adjoint_residual
 
     @abstractmethod
-    def _param_jacobian_impl(self, fsol_nm1: Array, fsol_n: Array) -> Array:
+    def _param_jacobian_impl(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> Array:
         """Compute the parameter Jacobian dR/dp for one time step."""
         ...
 
-    def param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
+    def param_jacobian(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> Array:
         """Compute the parameter Jacobian dR/dp for one time step."""
-        return self._param_jacobian_impl(fsol_nm1, fsol_n)
+        return self._param_jacobian_impl(ctx, y_curr)
 
     @abstractmethod
     def adjoint_diag_jacobian(
-        self, fsol_n: Array
+        self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
         """Compute the diagonal Jacobian block for adjoint solve: (dR/dy_n)^T."""
         ...
 
     @abstractmethod
     def adjoint_off_diag_jacobian(
-        self, fsol_n: Array, deltat_np1: float
+        self, next_ctx: StepContext[Array], y_curr_of_next: Array
     ) -> Array:
         """Compute the off-diagonal Jacobian for adjoint coupling."""
         ...
 
     @abstractmethod
     def adjoint_initial_condition(
-        self, final_fwd_sol: Array, final_dqdu: Array
+        self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
         """Compute the initial condition for backward adjoint solve."""
         ...
@@ -94,10 +98,11 @@ class AdjointMixin(ABC, Generic[Array]):
 
     def adjoint_final_solution(
         self,
+        ctx: StepContext[Array],
+        next_ctx: StepContext[Array],
         fsol_0: Array,
         asol_1: Array,
         dqdu_0: Array,
-        deltat_1: float,
     ) -> Array:
         """Compute the adjoint at initial time (final step of backward sweep).
 
@@ -107,6 +112,6 @@ class AdjointMixin(ABC, Generic[Array]):
         the mass matrix alone (not M - dt*J as in interior steps).
         """
         mass = self._adjoint_residual.mass_matrix()
-        drduT_offdiag = self.adjoint_off_diag_jacobian(fsol_0, deltat_1)
+        drduT_offdiag = self.adjoint_off_diag_jacobian(next_ctx, fsol_0)
         rhs = -drduT_offdiag @ asol_1 - dqdu_0
         return mass.solve_transpose(rhs)

@@ -40,6 +40,7 @@ from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
+from pyapprox.ode.step_context import StepContext
 from tests._helpers.markers import slow_test
 
 # =========================================================================
@@ -589,7 +590,7 @@ class TestManualNewtonWithConstraint:
         for step in range(nsteps):
             t_np1 = t + dt
             # Set stepper with unmodified prev_state
-            stepper.set_time(t, dt, y)
+            stepper.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             # Set constraint time
             constrained.set_bc_time(t_np1)
             # Initial guess with Dirichlet values injected
@@ -665,7 +666,7 @@ class TestManualNewtonWithConstraint:
 
         for step in range(nsteps):
             t_np1 = t + dt
-            stepper.set_time(t, dt, y)
+            stepper.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             constrained.set_bc_time(t_np1)
             d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)

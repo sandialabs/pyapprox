@@ -8,6 +8,7 @@ Backward Euler, Crank-Nicolson, Heun, etc.).
 from abc import ABC, abstractmethod
 from typing import Generic, Tuple, cast
 
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
@@ -79,22 +80,9 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
         """Get the backend used for computations."""
         return self._bkd
 
-    def set_time(self, time: float, deltat: float, prev_state: Array) -> None:
-        """
-        Set the time stepping context.
-
-        Parameters
-        ----------
-        time : float
-            Time at start of step.
-        deltat : float
-            Time step size.
-        prev_state : Array
-            State at previous time step.
-        """
-        self._time = time
-        self._deltat = deltat
-        self._prev_state = prev_state
+    def bind(self, ctx: StepContext[Array]) -> None:
+        """Bind the step context for Newton-facing methods."""
+        self._ctx = ctx
 
     @abstractmethod
     def __call__(self, state: Array) -> Array:
@@ -128,7 +116,9 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
             self.param_state_hvp = self._param_state_hvp
             self.param_param_hvp = self._param_param_hvp
 
-    def _param_jacobian(self, fsol_nm1: Array, fsol_n: Array) -> Array:
+    def _param_jacobian(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> Array:
         """Default implementation - subclasses should override."""
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement _param_jacobian"
@@ -136,8 +126,8 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
 
     def _state_state_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
@@ -148,8 +138,8 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
 
     def _state_param_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
@@ -160,8 +150,8 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
 
     def _param_state_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
@@ -172,8 +162,8 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
 
     def _param_param_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
@@ -229,11 +219,12 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
 
     def __repr__(self) -> str:
         """Return string representation."""
+        ctx = getattr(self, '_ctx', None)
         return (
             f"{self.__class__.__name__}(\n"
             f"  residual={type(self._residual).__name__},\n"
             f"  backend={type(self._bkd).__name__},\n"
-            f"  time={getattr(self, '_time', None)},\n"
-            f"  deltat={getattr(self, '_deltat', None)},\n"
+            f"  t_prev={ctx.t_prev if ctx else None},\n"
+            f"  deltat={ctx.deltat if ctx else None},\n"
             ")"
         )

@@ -1,4 +1,4 @@
-"""HVP mixins for Hessian-vector product computation."""
+"""HVP mixin for Hessian-vector product computation."""
 
 from __future__ import annotations
 
@@ -9,11 +9,16 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithHVPProtocol,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
 
 
 class HVPMixin(ABC, Generic[Array]):
-    """Mixin providing four HVP methods for second-order adjoint computation.
+    """Mixin providing HVP methods for second-order adjoint computation.
+
+    Provides four same-step HVP methods and three cross-step prev_*
+    methods. All steppers implement prev_* (BE returns zero, FE/Heun
+    delegate to state_*_hvp).
 
     Requires the underlying ODE residual to support HVP methods
     (ODEResidualWithHVPProtocol). Enforced by the concrete stepper's
@@ -36,11 +41,13 @@ class HVPMixin(ABC, Generic[Array]):
         """Get the underlying ODE residual (narrowed to HVP capable)."""
         return self._hvp_residual
 
+    # -- Same-step HVP methods --
+
     @abstractmethod
     def state_state_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
@@ -50,8 +57,8 @@ class HVPMixin(ABC, Generic[Array]):
     @abstractmethod
     def state_param_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
@@ -61,8 +68,8 @@ class HVPMixin(ABC, Generic[Array]):
     @abstractmethod
     def param_state_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
@@ -72,34 +79,21 @@ class HVPMixin(ABC, Generic[Array]):
     @abstractmethod
     def param_param_hvp(
         self,
-        fsol_nm1: Array,
-        fsol_n: Array,
+        ctx: StepContext[Array],
+        y_curr: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
         """Compute (d^2R/dp^2)v contracted with adjoint."""
         ...
 
-
-class PrevStepHVPMixin(ABC, Generic[Array]):
-    """Mixin for cross-step HVP methods (Crank-Nicolson only).
-
-    Provides prev_state_state_hvp, prev_state_param_hvp, prev_param_state_hvp
-    for schemes where R_{n+1} depends on f(y_n).
-    """
-
-    if TYPE_CHECKING:
-        _residual: ODEResidualProtocol[Array]
-
-    @property
-    def _hvp_residual(self) -> ODEResidualWithHVPProtocol[Array]:
-        """Typed access to the ODE residual as HVP capable."""
-        return cast(ODEResidualWithHVPProtocol[Array], self._residual)
+    # -- Cross-step HVP methods --
 
     @abstractmethod
     def prev_state_state_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
@@ -109,7 +103,8 @@ class PrevStepHVPMixin(ABC, Generic[Array]):
     @abstractmethod
     def prev_state_param_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         vvec: Array,
     ) -> Array:
@@ -119,7 +114,8 @@ class PrevStepHVPMixin(ABC, Generic[Array]):
     @abstractmethod
     def prev_param_state_hvp(
         self,
-        fsol_n: Array,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
         adj_state: Array,
         wvec: Array,
     ) -> Array:
