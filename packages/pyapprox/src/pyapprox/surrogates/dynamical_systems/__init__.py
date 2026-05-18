@@ -10,6 +10,8 @@ from pyapprox.surrogates.dynamical_systems.encoders import (
 )
 from pyapprox.surrogates.dynamical_systems.fitters import (
     FixedPoissonVariableHamiltonianDerivativeMatchingFitter,
+    TrajectoryMatchingFitResult,
+    TrajectoryMatchingFitter,
     VariablePoissonFixedHamiltonianDerivativeMatchingFitter,
 )
 from pyapprox.surrogates.dynamical_systems.losses import (
@@ -37,6 +39,8 @@ __all__ = [
     "LearnedFunctionProtocol",
     "LinearEncoder",
     "SnapshotDataset",
+    "TrajectoryMatchingFitResult",
+    "TrajectoryMatchingFitter",
     "TrajectoryMatchingLoss",
     "VariablePoissonFixedHamiltonianDerivativeMatchingFitter",
     "VariablePoissonFixedHamiltonianSurrogate",
