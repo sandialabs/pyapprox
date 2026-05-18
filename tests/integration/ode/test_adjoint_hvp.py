@@ -15,6 +15,9 @@ from pyapprox_benchmarks.functions.ode.linear_ode import (
     LinearODEResidual,
     QuadraticODEResidual,
 )
+from pyapprox_benchmarks.functions.ode.time_modulated_quadratic import (
+    TimeModulatedQuadraticODE,
+)
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerHVP,
 )
@@ -443,6 +446,249 @@ class TestAdjointHVP:
     def test_heun_hvp_quadratic_ode_mse(self, bkd) -> None:
         """Test HVP for Heun with quadratic ODE + MSE."""
         self._check_hvp_stepper_quadratic_ode_mse(HeunHVP, bkd)
+
+    # =================================================================
+    # Non-autonomous (time-modulated quadratic) tests
+    # =================================================================
+
+    def _create_time_modulated_quadratic_problem(self, bkd):
+        """Create a non-autonomous quadratic ODE: f = g(t)*(A·y + p0·y² + p1)."""
+        np.random.seed(42)
+        nstates = 2
+        Amat = bkd.asarray(np.array([[-1.0, 0.1], [0.1, -2.0]]))
+        ode_residual = TimeModulatedQuadraticODE(Amat, bkd)
+        nparams = ode_residual.nparams()
+        return ode_residual, nstates, nparams
+
+    def _check_gradient_stepper_time_modulated(
+        self,
+        stepper_class,
+        bkd,
+        final_time: float = 0.3,
+        deltat: float = 0.1,
+        error_ratio_tol: float = 1e-6,
+    ) -> None:
+        """Check adjoint gradient for non-autonomous ODE via DerivativeChecker."""
+        ode_residual, nstates, nparams = (
+            self._create_time_modulated_quadratic_problem(bkd)
+        )
+        time_residual = stepper_class(ode_residual)
+        newton_solver = NewtonSolver(time_residual)
+        integrator = TimeIntegrator(0.0, final_time, deltat, newton_solver)
+
+        functional = EndpointFunctional(
+            state_idx=0, nstates=nstates, nparams=nparams, bkd=bkd,
+        )
+
+        operator = TimeAdjointOperatorWithHVP(integrator, functional)
+
+        param = bkd.asarray(np.array([[0.1], [0.5]]))
+        init_state = bkd.asarray(np.array([0.5, 0.3]))
+
+        wrapper = TimeAdjointOperatorWrapper(operator, init_state, bkd)
+        checker = DerivativeChecker(wrapper)
+        direction = bkd.asarray(np.random.randn(nparams, 1))
+        direction = direction / bkd.norm(direction)
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+
+        errors = checker.check_derivatives(
+            param, direction=direction, fd_eps=fd_eps, relative=True,
+            verbosity=0,
+        )
+        jac_ratio = float(checker.error_ratio(errors[0]))
+        assert jac_ratio < error_ratio_tol
+
+    def _check_hvp_stepper_time_modulated(
+        self,
+        stepper_class,
+        bkd,
+        final_time: float = 0.3,
+        deltat: float = 0.1,
+        error_ratio_tol: float = 1e-6,
+    ) -> None:
+        """Check HVP for non-autonomous ODE via DerivativeChecker."""
+        ode_residual, nstates, nparams = (
+            self._create_time_modulated_quadratic_problem(bkd)
+        )
+        time_residual = stepper_class(ode_residual)
+        newton_solver = NewtonSolver(time_residual)
+        integrator = TimeIntegrator(0.0, final_time, deltat, newton_solver)
+
+        functional = EndpointFunctional(
+            state_idx=0, nstates=nstates, nparams=nparams, bkd=bkd,
+        )
+
+        operator = TimeAdjointOperatorWithHVP(integrator, functional)
+
+        param = bkd.asarray(np.array([[0.1], [0.5]]))
+        init_state = bkd.asarray(np.array([0.5, 0.3]))
+
+        if not hasattr(time_residual, "state_state_hvp"):
+            pytest.skip(f"HVP not available for {stepper_class.__name__}")
+
+        wrapper = TimeAdjointOperatorWrapper(operator, init_state, bkd)
+        checker = DerivativeChecker(wrapper)
+        direction = bkd.asarray(np.random.randn(nparams, 1))
+        direction = direction / bkd.norm(direction)
+        fd_eps = bkd.flip(bkd.logspace(-14, 0, 15))
+
+        errors = checker.check_derivatives(
+            param, direction=direction, fd_eps=fd_eps, relative=True,
+            verbosity=0,
+        )
+        jac_ratio = float(checker.error_ratio(errors[0]))
+        assert jac_ratio < error_ratio_tol
+
+        hvp_ratio = float(checker.error_ratio(errors[1]))
+        assert hvp_ratio < error_ratio_tol
+
+    # -- Uniform dt, gradient --
+
+    def test_backward_euler_gradient_time_modulated_uniform(
+        self, bkd,
+    ) -> None:
+        self._check_gradient_stepper_time_modulated(
+            BackwardEulerHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    def test_crank_nicolson_gradient_time_modulated_uniform(
+        self, bkd,
+    ) -> None:
+        self._check_gradient_stepper_time_modulated(
+            CrankNicolsonHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    def test_forward_euler_gradient_time_modulated_uniform(
+        self, bkd,
+    ) -> None:
+        self._check_gradient_stepper_time_modulated(
+            ForwardEulerHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    def test_heun_gradient_time_modulated_uniform(self, bkd) -> None:
+        self._check_gradient_stepper_time_modulated(
+            HeunHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    # -- Uniform dt, HVP --
+    # All fail: time_adjoint_hvp.py passes wrong time context to HVP methods
+    # for non-autonomous ODEs (Bug Class 1 — timing convention ambiguity)
+
+    @pytest.mark.xfail(
+        reason="HVP time context wrong for non-autonomous ODEs",
+        strict=True,
+    )
+    def test_backward_euler_hvp_time_modulated_uniform(self, bkd) -> None:
+        self._check_hvp_stepper_time_modulated(
+            BackwardEulerHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    @pytest.mark.xfail(
+        reason="HVP time context wrong for non-autonomous ODEs",
+        strict=True,
+    )
+    def test_crank_nicolson_hvp_time_modulated_uniform(self, bkd) -> None:
+        self._check_hvp_stepper_time_modulated(
+            CrankNicolsonHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    @pytest.mark.xfail(
+        reason="HVP time context wrong for non-autonomous ODEs",
+        strict=True,
+    )
+    def test_forward_euler_hvp_time_modulated_uniform(self, bkd) -> None:
+        self._check_hvp_stepper_time_modulated(
+            ForwardEulerHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    @pytest.mark.xfail(
+        reason="HVP time context wrong for non-autonomous ODEs",
+        strict=True,
+    )
+    def test_heun_hvp_time_modulated_uniform(self, bkd) -> None:
+        self._check_hvp_stepper_time_modulated(
+            HeunHVP, bkd, final_time=0.3, deltat=0.1,
+        )
+
+    # -- Non-uniform dt, gradient --
+
+    def test_backward_euler_gradient_time_modulated_nonuniform(
+        self, bkd,
+    ) -> None:
+        self._check_gradient_stepper_time_modulated(
+            BackwardEulerHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    @pytest.mark.xfail(
+        reason="CN adjoint_off_diag reads self._deltat instead of dt_{n+1}",
+        strict=True,
+    )
+    def test_crank_nicolson_gradient_time_modulated_nonuniform(
+        self, bkd,
+    ) -> None:
+        self._check_gradient_stepper_time_modulated(
+            CrankNicolsonHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    def test_forward_euler_gradient_time_modulated_nonuniform(
+        self, bkd,
+    ) -> None:
+        self._check_gradient_stepper_time_modulated(
+            ForwardEulerHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    def test_heun_gradient_time_modulated_nonuniform(self, bkd) -> None:
+        self._check_gradient_stepper_time_modulated(
+            HeunHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    # -- Non-uniform dt, HVP --
+
+    @pytest.mark.xfail(
+        reason="HVP time context wrong for non-autonomous ODEs",
+        strict=True,
+    )
+    def test_backward_euler_hvp_time_modulated_nonuniform(
+        self, bkd,
+    ) -> None:
+        self._check_hvp_stepper_time_modulated(
+            BackwardEulerHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    @pytest.mark.xfail(
+        reason="HVP time context wrong + CN prev_* dt bug",
+        strict=True,
+    )
+    def test_crank_nicolson_hvp_time_modulated_nonuniform(
+        self, bkd,
+    ) -> None:
+        self._check_hvp_stepper_time_modulated(
+            CrankNicolsonHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    @pytest.mark.xfail(
+        reason="HVP time context wrong for non-autonomous ODEs",
+        strict=True,
+    )
+    def test_forward_euler_hvp_time_modulated_nonuniform(
+        self, bkd,
+    ) -> None:
+        self._check_hvp_stepper_time_modulated(
+            ForwardEulerHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    @pytest.mark.xfail(
+        reason="HVP time context wrong for non-autonomous ODEs",
+        strict=True,
+    )
+    def test_heun_hvp_time_modulated_nonuniform(self, bkd) -> None:
+        self._check_hvp_stepper_time_modulated(
+            HeunHVP, bkd, final_time=0.37, deltat=0.1,
+        )
+
+    # =================================================================
+    # End non-autonomous tests
+    # =================================================================
 
     def test_hvp_linearity(self, bkd) -> None:
         """Test that HVP is linear: H*(alpha*v) = alpha*H*v."""

@@ -8,6 +8,9 @@ from pyapprox_benchmarks.functions.ode.ode_qoi import (
     ODETimeConfig,
     SingleStateEndpointODEFunctional,
 )
+from pyapprox_benchmarks.functions.ode.time_modulated_quadratic import (
+    TimeModulatedQuadraticODE,
+)
 
 __all__ = [
     "ODETimeConfig",
@@ -16,4 +19,5 @@ __all__ = [
     "AllStatesEndpointODEFunctional",
     "SingleStateEndpointODEFunctional",
     "MaxODEFunctional",
+    "TimeModulatedQuadraticODE",
 ]
