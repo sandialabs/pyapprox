@@ -8,8 +8,6 @@ Protocol Hierarchy
 LearnedFunctionProtocol
     Base tier: any surrogate that can be evaluated, differentiated w.r.t.
     inputs and parameters, and cloned with new parameters.
-LinearInParamsLearnedFunctionProtocol
-    Refinement adding a design matrix for closed-form derivative matching.
 EncoderProtocol
     State-space encoder (linear or nonlinear).
 """
@@ -95,104 +93,6 @@ class LearnedFunctionProtocol(Protocol, Generic[Array]):
         -------
         LearnedFunctionProtocol[Array]
             New instance with updated parameters.
-        """
-        ...
-
-
-@runtime_checkable
-class LinearInParamsLearnedFunctionProtocol(Protocol, Generic[Array]):
-    """Learned function that is linear in its parameters.
-
-    Adds a design matrix method enabling closed-form fitting via
-    LinearInParamsFitter. All LearnedFunctionProtocol methods are
-    re-declared for runtime_checkable isinstance checks.
-    """
-
-    def bkd(self) -> Backend[Array]: ...
-
-    def nvars(self) -> int: ...
-
-    def nqoi(self) -> int: ...
-
-    def hyp_list(self) -> HyperParameterList[Array]: ...
-
-    def __call__(self, samples: Array) -> Array:
-        """Evaluate F_eta at given samples.
-
-        Parameters
-        ----------
-        samples : Array
-            Shape: (nvars, nsamples)
-
-        Returns
-        -------
-        Array
-            Shape: (nqoi, nsamples)
-        """
-        ...
-
-    def jacobian_batch(self, samples: Array) -> Array:
-        """Compute dF/dx at each sample.
-
-        Parameters
-        ----------
-        samples : Array
-            Shape: (nvars, nsamples)
-
-        Returns
-        -------
-        Array
-            Shape: (nsamples, nqoi, nvars)
-        """
-        ...
-
-    def jacobian_wrt_params(self, samples: Array) -> Array:
-        """Compute dF/d_eta (active params only) at each sample.
-
-        Parameters
-        ----------
-        samples : Array
-            Shape: (nvars, nsamples)
-
-        Returns
-        -------
-        Array
-            Shape: (nsamples, nqoi, nactive_params)
-        """
-        ...
-
-    def with_params(
-        self, params: Array
-    ) -> "LinearInParamsLearnedFunctionProtocol[Array]":
-        """Return a copy with new parameter values.
-
-        Parameters
-        ----------
-        params : Array
-            New parameter values. Shape: (nterms, nqoi).
-
-        Returns
-        -------
-        LinearInParamsLearnedFunctionProtocol[Array]
-            New instance with updated parameters.
-        """
-        ...
-
-    def derivative_matching_design_matrix(self, samples: Array) -> Array:
-        """Return the design matrix for derivative matching.
-
-        For a function linear in parameters, the output at each sample
-        is Phi(x) @ coeffs, so fitting reduces to a linear solve.
-
-        Parameters
-        ----------
-        samples : Array
-            Shape: (nvars, nsamples)
-
-        Returns
-        -------
-        Array
-            Design matrix. Shape: (nsamples, nterms)
         """
         ...
 

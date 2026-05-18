@@ -173,10 +173,11 @@ class TrajectoryMatchingFitter(Generic[Array]):
                 self._bkd.full((nparams, 1), np.inf),
             ])
 
+        optimizer: BindableOptimizerProtocol[Array]
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
-            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
+            optimizer = ScipyTrustConstrOptimizer[Array](verbosity=0, maxiter=1000)
 
         optimizer.bind(loss, bounds)
 
