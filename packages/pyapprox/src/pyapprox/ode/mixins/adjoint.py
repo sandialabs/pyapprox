@@ -99,8 +99,7 @@ class AdjointMixin(ABC, Generic[Array]):
     def adjoint_final_solution(
         self,
         ctx: StepContext[Array],
-        next_ctx: StepContext[Array],
-        fsol_0: Array,
+        y_curr: Array,
         asol_1: Array,
         dqdu_0: Array,
     ) -> Array:
@@ -108,10 +107,10 @@ class AdjointMixin(ABC, Generic[Array]):
 
         Solves: M^T lambda_0 = -B_1^T lambda_1 - dQ/dy_0
 
-        At t=0 there is no time-step residual, so the diagonal block is
-        the mass matrix alone (not M - dt*J as in interior steps).
+        Symmetric with adjoint_initial_condition: ctx describes R_1
+        (the first forward step), ctx.y_prev = y_0, y_curr = y_1.
         """
         mass = self._adjoint_residual.mass_matrix()
-        drduT_offdiag = self.adjoint_off_diag_jacobian(next_ctx, fsol_0)
+        drduT_offdiag = self.adjoint_off_diag_jacobian(ctx, y_curr)
         rhs = -drduT_offdiag @ asol_1 - dqdu_0
         return mass.solve_transpose(rhs)

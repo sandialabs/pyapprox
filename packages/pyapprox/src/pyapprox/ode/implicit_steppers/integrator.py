@@ -282,13 +282,10 @@ class TimeIntegrator(Generic[Array]):
             )
 
         # Final adjoint step at t=0
+        # ctx_1 describes R_1 (the first forward step):
+        # ctx_1.y_prev = y_0, y_curr = y_1
         deltat_0 = float(times[1] - times[0])
-        ctx_0 = StepContext(
-            t_prev=float(times[0]),
-            deltat=deltat_0,
-            y_prev=fwd_sols[:, 0],
-        )
-        next_ctx_0 = StepContext(
+        ctx_1 = StepContext(
             t_prev=float(times[0]),
             deltat=deltat_0,
             y_prev=fwd_sols[:, 0],
@@ -297,9 +294,8 @@ class TimeIntegrator(Generic[Array]):
         dqdu_0 = self._time_residual.zero_adjoint_rhs(dqdu[:, 0])
 
         adj_sols[:, 0] = self._time_residual.adjoint_final_solution(
-            ctx_0,
-            next_ctx_0,
-            fwd_sols[:, 0],
+            ctx_1,
+            fwd_sols[:, 1],
             adj_sols[:, 1],
             dqdu_0,
         )

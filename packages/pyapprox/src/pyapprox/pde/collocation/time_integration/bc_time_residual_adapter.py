@@ -340,8 +340,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
     def adjoint_final_solution(
         self,
         ctx: StepContext[Array],
-        next_ctx: StepContext[Array],
-        fsol_0: Array,
+        y_curr: Array,
         asol_1: Array,
         dqdu_0: Array,
     ) -> Array:
@@ -354,7 +353,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
         mass = self._adjoint_inner.native_residual.mass_matrix().as_matrix().T
         mass = self._physics.apply_bc_to_mass(mass)
-        drduT_offdiag = self.adjoint_off_diag_jacobian(next_ctx, fsol_0)
+        drduT_offdiag = self.adjoint_off_diag_jacobian(ctx, y_curr)
         return self._bkd.solve(mass, -drduT_offdiag @ asol_1 - dqdu_0)
 
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
@@ -494,6 +493,30 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         """Compute (d^2R_{n+1}/dp dy_n) w contracted with adjoint."""
         return self._hvp_inner.prev_param_state_hvp(
             next_ctx, y_curr_of_next, adj_state, wvec
+        )
+
+    def state_prev_state_hvp(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        adj_state: Array,
+        wvec_prev: Array,
+    ) -> Array:
+        """Compute adj^T * d^2R_n/(dy_n dy_{n-1}) * w_{n-1}."""
+        return self._hvp_inner.state_prev_state_hvp(
+            ctx, y_curr, adj_state, wvec_prev
+        )
+
+    def prev_state_curr_state_hvp(
+        self,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
+        adj_state: Array,
+        wvec_curr_of_next: Array,
+    ) -> Array:
+        """Compute adj^T * d^2R_{n+1}/(dy_n dy_{n+1}) * w_{n+1}."""
+        return self._hvp_inner.prev_state_curr_state_hvp(
+            next_ctx, y_curr_of_next, adj_state, wvec_curr_of_next
         )
 
 

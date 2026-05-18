@@ -296,6 +296,14 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             ctx_N, fwd_sols[:, -1], adj_sols[:, -1], v_res,
         )
 
+        # Mixed derivative: d²R_N/(dy_N dy_{N-1}) · w_{N-1}
+        # Nonzero for IM (both endpoints enter f through shared midpoint)
+        if ntimes > 2:
+            mixed_N = hvp_residual.state_prev_state_hvp(
+                ctx_N, fwd_sols[:, -1], adj_sols[:, -1], w_sols[:, -2],
+            )
+            rss_hvp = rss_hvp + mixed_N
+
         rhs_N = (
             -(self._bkd.flatten(qss_hvp) + rss_hvp)
             - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
@@ -350,7 +358,17 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 adj_sols[:, nn + 1], v_res,
             )
 
-            rss_hvp = rss_hvp_n + rss_hvp_np1
+            # Mixed derivatives (nonzero for IM)
+            mixed_same = hvp_residual.state_prev_state_hvp(
+                ctx_n, fwd_sols[:, nn],
+                adj_sols[:, nn], w_sols[:, nn - 1],
+            )
+            mixed_cross = hvp_residual.prev_state_curr_state_hvp(
+                next_ctx, fwd_sols[:, nn + 1],
+                adj_sols[:, nn + 1], w_sols[:, nn + 1],
+            )
+
+            rss_hvp = rss_hvp_n + rss_hvp_np1 + mixed_same + mixed_cross
             rsp_hvp = rsp_hvp_n + rsp_hvp_np1
 
             rhs = (
@@ -362,30 +380,39 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             s_sols[:, nn] = drduT_diag.solve(rhs)
 
         # Final step at t=0
-        ctx_0 = StepContext(
+        ctx_1 = StepContext(
             t_prev=self._bkd.to_float(times[0]),
             deltat=self._bkd.to_float(times[1] - times[0]),
             y_prev=fwd_sols[:, 0],
         )
-        self._time_residual.bind(ctx_0)
+        self._time_residual.bind(ctx_1)
         mass = self._time_residual.native_residual.mass_matrix()
 
-        next_ctx_0 = StepContext(
-            t_prev=self._bkd.to_float(times[0]),
-            deltat=self._bkd.to_float(times[1] - times[0]),
-            y_prev=fwd_sols[:, 0],
-        )
         drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
-            next_ctx_0, fwd_sols[:, 1]
+            ctx_1, fwd_sols[:, 1]
         )
 
         qss_hvp = self._functional.state_state_hvp(fwd_sols, param, 0, w_sols[:, 0:1])
         qsp_hvp = self._functional.state_param_hvp(fwd_sols, param, 0, vvec)
 
+        # Cross-step HVP: R_1 depends on y_0 as prev_state
+        rss_hvp_1 = hvp_residual.prev_state_state_hvp(
+            ctx_1, fwd_sols[:, 1], adj_sols[:, 1], w_sols[:, 0],
+        )
+        rsp_hvp_1 = hvp_residual.prev_state_param_hvp(
+            ctx_1, fwd_sols[:, 1], adj_sols[:, 1], v_res,
+        )
+
+        # Mixed derivative: d²R_1/(dy_0 dy_1) · w_1
+        mixed_cross_1 = hvp_residual.prev_state_curr_state_hvp(
+            ctx_1, fwd_sols[:, 1], adj_sols[:, 1], w_sols[:, 1],
+        )
+        rss_hvp_1 = rss_hvp_1 + mixed_cross_1
+
         rhs = (
             -drduT_offdiag @ s_sols[:, 1]
-            - self._bkd.flatten(qss_hvp)
-            - self._bkd.flatten(qsp_hvp)
+            - (self._bkd.flatten(qss_hvp) + rss_hvp_1)
+            - (self._bkd.flatten(qsp_hvp) + rsp_hvp_1)
         )
         s_sols[:, 0] = mass.solve_transpose(rhs)
 
@@ -421,6 +448,20 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
 
         n_unique = self._functional.nunique_params()
         v_res = vvec[n_unique:] if n_unique > 0 else vvec
+
+        # Cross-step contribution at y_0: R_1 depends on y_0 as prev_state
+        ctx_1 = self._make_ctx(times, 1, fwd_sols)
+        rps_hvp_0 = hvp_residual.prev_param_state_hvp(
+            ctx_1, fwd_sols[:, 1], adj_sols[:, 1], w_sols[:, 0],
+        )
+        if rps_hvp_0.ndim == 1:
+            rps_hvp_0 = self._bkd.reshape(rps_hvp_0, (-1, 1))
+        if n_unique > 0:
+            rps_full = self._bkd.zeros((nparams, 1))
+            rps_full = self._bkd.copy(rps_full)
+            rps_full[n_unique:] = rps_hvp_0
+            rps_hvp_0 = rps_full
+        hvp += rps_hvp_0
 
         # Contributions from each time step — unified loop
         for nn in range(1, len(times)):
