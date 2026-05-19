@@ -9,7 +9,9 @@ Concrete implementations are in variants.py:
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Generic, List, Optional
+from typing import TYPE_CHECKING, Callable, Generic, List, Optional, Sequence
+
+import numpy as np
 
 from pyapprox.statest.groupacv.optimization import (
     GroupACVLogDetObjective,
@@ -20,6 +22,8 @@ from pyapprox.statest.groupacv.utils import (
     get_model_subsets,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+from pyapprox.statest.statistics import MultiOutputVariance
 
 if TYPE_CHECKING:
     from pyapprox.statest.groupacv.allocation import (
@@ -66,6 +70,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         model_subsets: Optional[List[Array]] = None,
         asketch: Optional[Array] = None,
         use_pseudo_inv: bool = True,
+        known_mean_models: Optional[Sequence[int]] = None,
+        known_means: Optional[Array] = None,
     ):
         from pyapprox.statest.statistics import (
             MultiOutputMean,
@@ -104,6 +110,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         self._npartition_samples_lb = 0  # 1e-5
         self._asketch = self._validate_asketch(asketch)
 
+        self._setup_known_means(known_mean_models, known_means)
+
         # Source of truth attributes (None until allocation is set)
         self._allocation: Optional["GroupACVAllocationResult[Array]"] = None
         self._npartition_samples: Optional[Array] = None
@@ -120,6 +128,100 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    def _setup_known_means(
+        self,
+        known_mean_models: Optional[Sequence[int]],
+        known_means: Optional[Array],
+    ) -> None:
+        nstats = self._stat.nstats()
+        nqoi = self._stat.nqoi()
+
+        if known_mean_models is None and known_means is None:
+            self._has_known_means = False
+            self._nT_stats = self._nmodels * nstats
+            self._known_values = None
+            self._T_stat_indices: List[int] = list(
+                range(self._nmodels * nstats)
+            )
+            self._K_stat_indices: List[int] = []
+            return
+
+        if known_mean_models is None or known_means is None:
+            raise ValueError(
+                "known_mean_models and known_means must both be provided "
+                "or both be None"
+            )
+
+        km_list = list(known_mean_models)
+        if len(km_list) == 0:
+            self._has_known_means = False
+            self._nT_stats = self._nmodels * nstats
+            self._known_values = None
+            self._T_stat_indices = list(range(self._nmodels * nstats))
+            self._K_stat_indices = []
+            return
+
+        if isinstance(self._stat, MultiOutputVariance):
+            raise ValueError(
+                "known_mean_models not supported for variance-only "
+                "estimation (MultiOutputVariance has no mean slots)"
+            )
+
+        if 0 in km_list:
+            raise ValueError(
+                "Model 0 (high-fidelity) cannot have a known mean"
+            )
+        if len(set(km_list)) != len(km_list):
+            raise ValueError("known_mean_models contains duplicate indices")
+        for idx in km_list:
+            if idx < 1 or idx >= self._nmodels:
+                raise ValueError(
+                    f"known_mean_models index {idx} out of range "
+                    f"[1, {self._nmodels})"
+                )
+
+        known_means_arr = self._bkd.asarray(known_means)
+        if known_means_arr.shape != (len(km_list), nqoi):
+            raise ValueError(
+                f"known_means shape {known_means_arr.shape} must be "
+                f"({len(km_list)}, {nqoi})"
+            )
+        if not self._bkd.all_bool(self._bkd.isfinite(known_means_arr)):
+            raise ValueError("known_means contains non-finite values")
+
+        self._has_known_means = True
+        # Assumes means occupy the first nqoi stat-slots per model.
+        # This matches MultiOutputMean (nstats==nqoi, all mean slots) and
+        # MultiOutputMeanAndVariance (means first, then variance entries).
+        self._known_values = np.full((self._nmodels, nstats), np.nan)
+        for ii, model_l in enumerate(km_list):
+            for qq in range(nqoi):
+                self._known_values[model_l, qq] = float(
+                    known_means_arr[ii, qq]
+                )
+
+        self._T_stat_indices = []
+        self._K_stat_indices = []
+        for m in range(self._nmodels):
+            for s in range(nstats):
+                flat = m * nstats + s
+                if np.isnan(self._known_values[m, s]):
+                    self._T_stat_indices.append(flat)
+                else:
+                    self._K_stat_indices.append(flat)
+        self._nT_stats = len(self._T_stat_indices)
+
+        self._R_full = self._R
+        self._restriction_matrices_full = list(self._restriction_matrices)
+        self._asketch_full = self._asketch
+
+        T = self._T_stat_indices
+        self._restriction_matrices = [
+            Rk[T, :] for Rk in self._restriction_matrices_full
+        ]
+        self._R = self._bkd.hstack(self._restriction_matrices)
+        self._asketch = self._asketch_full[:, T]
 
     def nsubsets(self) -> int:
         """Return the number of subsets."""
@@ -322,7 +424,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         # TODO instead of applying R matrices just collect correct rows
         # and columns
         psi_reg_mat = (
-            self._bkd.eye(self.nmodels() * self._stat.nstats()) * self._reg_blue
+            self._bkd.eye(self._nT_stats) * self._reg_blue
         )
         # sigma_reg_mat = self._bkd.eye(Sigma.shape[0]) * self._reg_blue
         # print(Sigma)
@@ -842,6 +944,23 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         alpha = self._traditional_acv_weights()
         return self._group_to_traditional_estimators_from_alpha(subset_ests, alpha)
 
+    def _compute_correction(self, beta: Array) -> Array:
+        """Deterministic correction from known-mean models.
+
+        Computes sum_{(l,s) in K_stat} s_{(l,s)} * q_{(l,s)}
+        where s_full = R_full @ beta.T and q are the known values.
+        """
+        nstats = self._stat.nstats()
+        nstats_output = self._asketch.shape[0]
+        s_full = self._R_full @ beta.T
+        correction = self._bkd.zeros((nstats_output,))
+        assert self._known_values is not None
+        for flat_idx in self._K_stat_indices:
+            model = flat_idx // nstats
+            slot = flat_idx % nstats
+            correction = correction + s_full[flat_idx, :] * self._known_values[model, slot]
+        return correction
+
     def __call__(self, values_per_model: List[Array]) -> Array:
         """Compute the GroupACV estimate from model values.
 
@@ -857,7 +976,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             The GroupACV estimate
         """
         values_per_subset = self._separate_values_per_model(values_per_model)
-        return self._estimate(values_per_subset)
+        stochastic_est = self._estimate(values_per_subset)
+        if not self._has_known_means:
+            return stochastic_est
+        beta = self._grouped_acv_beta(self.optimized_sigma())
+        return stochastic_est - self._compute_correction(beta)
 
     def _reduce_model_sample_splits(
         self,

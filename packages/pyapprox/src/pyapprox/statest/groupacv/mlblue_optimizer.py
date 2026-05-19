@@ -133,9 +133,10 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
     def _cvxpy_psi(self, nsps_cvxpy: CvxpyExpression) -> CvxpyExpression:
         """Construct the psi matrix as a cvxpy expression."""
         Psi = self._est._psi_blocks_flat @ nsps_cvxpy
+        n = self._est._nT_stats
         Psi = self._cvxpy.reshape(
             Psi,
-            (self._est.nmodels(), self._est.nmodels()),
+            (n, n),
             order="F",
         )
         return Psi

@@ -4,7 +4,7 @@ This module provides the MLBLUEEstimator class, a specialized GroupACV
 estimator for Multi-Level Best Linear Unbiased Estimation.
 """
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional, Sequence
 
 import numpy as np
 
@@ -52,6 +52,8 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         model_subsets: List[Array] = None,
         asketch: Array = None,
         use_pseudo_inv: bool = True,
+        known_mean_models: Optional[Sequence[int]] = None,
+        known_means: Optional[Array] = None,
     ):
         super().__init__(
             stat,
@@ -60,6 +62,8 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
             model_subsets,
             asketch=asketch,
             use_pseudo_inv=use_pseudo_inv,
+            known_mean_models=known_mean_models,
+            known_means=known_means,
         )
         self._best_model_indices = self._bkd.arange(len(costs))
 
@@ -73,26 +77,28 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         self._obj_jac = True
 
     def _compute_psi_blocks(self) -> List[Array]:
+        # For mean-only estimation, covariance blocks are independent of which
+        # means are known. For future variance estimation with known means,
+        # C^k depends on whether mu_l is used for centering — this function
+        # would need the known-value mask passed to the stat class.
         submats = []
         for ii, subset in enumerate(self._subsets):
-            R = self._restriction_matrix(subset)
+            Rk = self._restriction_matrices[ii]
             submat = self._bkd.multidot(
                 (
-                    R.T,
+                    Rk,
                     self._inv(self._stat._cov[np.ix_(subset, subset)]),
-                    R,
+                    Rk.T,
                 )
             )
             submats.append(submat)
         return submats
 
     def _psi_matrix(self, npartition_samples: Array) -> Array:
-        psi = self._bkd.eye(self.nmodels() * self._stat.nstats()) * self._reg_blue
-        psi += self._bkd.reshape(self._psi_blocks_flat @ npartition_samples,
-            (
-                self.nmodels() * self._stat.nstats(),
-                self.nmodels() * self._stat.nstats(),
-            )
+        n = self._nT_stats
+        psi = self._bkd.eye(n) * self._reg_blue
+        psi += self._bkd.reshape(
+            self._psi_blocks_flat @ npartition_samples, (n, n)
         )
         return psi
 
