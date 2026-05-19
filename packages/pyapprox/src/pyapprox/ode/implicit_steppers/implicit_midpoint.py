@@ -4,7 +4,8 @@ The implicit midpoint method is a second-order implicit time integrator:
 
 .. math::
 
-    M (y_n - y_{n-1}) - \Delta t \, f\!\bigl(y_{\mathrm{mid}},\, t_{\mathrm{mid}}\bigr) = 0
+    M (y_n - y_{n-1}) - \Delta t \, f\!\bigl(
+    y_{\mathrm{mid}},\, t_{\mathrm{mid}}\bigr) = 0
 
 where :math:`y_{\mathrm{mid}} = (y_n + y_{n-1})/2` and
 :math:`t_{\mathrm{mid}} = t_{n-1} + \Delta t/2`.
@@ -28,7 +29,6 @@ from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
-from pyapprox.ode.mixins.quadrature import QuadratureMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualProtocol,
@@ -45,7 +45,6 @@ from pyapprox.util.backends.protocols import Array
 
 class ImplicitMidpointStepper(
     SensitivityMixin[Array],
-    QuadratureMixin[Array],
     ImplicitStepperMixin[Array],
     CoreStepperMixin[Array],
     Generic[Array],
@@ -119,11 +118,9 @@ class ImplicitMidpointStepper(
 
     # -- QuadratureMixin --
 
-    def _get_quadrature_class(self) -> type:
-        from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-            PiecewiseConstantMidpoint,
-        )
-        return PiecewiseConstantMidpoint
+    def quadrature_samples_weights(self, times: Array) -> tuple:
+        """Midpoint quadrature (interval midpoints, interval widths)."""
+        return (times[:-1] + times[1:]) / 2, self._bkd.diff(times)
 
 
 # =========================================================================
@@ -148,7 +145,8 @@ class ImplicitMidpointAdjoint(
     def _param_jacobian_impl(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> Array:
-        r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_{\mathrm{mid}}, t_{\mathrm{mid}}}`."""
+        r"""Compute :math:`dR/dp = -\Delta t
+        \, (df/dp)|_{y_{\mathrm{mid}}, t_{\mathrm{mid}}}`."""
         y_mid = self._midpoint_state(ctx, y_curr)
         self._set_midpoint_time(ctx)
         return -ctx.deltat * self._adjoint_residual.param_jacobian(y_mid)
@@ -156,7 +154,8 @@ class ImplicitMidpointAdjoint(
     def adjoint_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> LinearOperatorProtocol[Array]:
-        r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2) \, J(y_{\mathrm{mid}}))^T`."""
+        r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2)
+        \, J(y_{\mathrm{mid}}))^T`."""
         y_mid = self._midpoint_state(ctx, y_curr)
         self._set_midpoint_time(ctx)
         op = self._residual.newton_jacobian(y_mid, 0.5 * ctx.deltat)
@@ -297,7 +296,8 @@ class ImplicitMidpointHVP(
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`-(\Delta t_{n+1}/4) \, (d^2f/dy^2)|_{y_{\mathrm{mid},n+1}} \, w`."""
+        r"""Compute :math:`-(\Delta t_{n+1}/4)
+        \, (d^2f/dy^2)|_{y_{\mathrm{mid},n+1}} \, w`."""
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
         self._set_midpoint_time(next_ctx)
         return (
@@ -313,7 +313,8 @@ class ImplicitMidpointHVP(
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        r"""Compute :math:`-(\Delta t_{n+1}/2) \, (d^2f/dy\,dp)|_{y_{\mathrm{mid},n+1}} \, v`."""
+        r"""Compute :math:`-(\Delta t_{n+1}/2)
+        \, (d^2f/dy\,dp)|_{y_{\mathrm{mid},n+1}} \, v`."""
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
         self._set_midpoint_time(next_ctx)
         return (
@@ -329,7 +330,8 @@ class ImplicitMidpointHVP(
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`-(\Delta t_{n+1}/2) \, (d^2f/dp\,dy)|_{y_{\mathrm{mid},n+1}} \, w`."""
+        r"""Compute :math:`-(\Delta t_{n+1}/2)
+        \, (d^2f/dp\,dy)|_{y_{\mathrm{mid},n+1}} \, w`."""
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
         self._set_midpoint_time(next_ctx)
         return (
@@ -348,7 +350,8 @@ class ImplicitMidpointHVP(
         adj_state: Array,
         wvec_prev: Array,
     ) -> Array:
-        r"""Compute :math:`\lambda^T \, \partial^2 R_n/(\partial y_n \, \partial y_{n-1}) \, w_{n-1}`."""
+        r"""Compute :math:`\lambda^T \, \partial^2 R_n
+        /(\partial y_n \, \partial y_{n-1}) \, w_{n-1}`."""
         y_mid = self._midpoint_state(ctx, y_curr)
         self._set_midpoint_time(ctx)
         return (
@@ -364,7 +367,8 @@ class ImplicitMidpointHVP(
         adj_state: Array,
         wvec_curr_of_next: Array,
     ) -> Array:
-        r"""Compute :math:`\lambda^T \, \partial^2 R_{n+1}/(\partial y_n \, \partial y_{n+1}) \, w_{n+1}`."""
+        r"""Compute :math:`\lambda^T \, \partial^2 R_{n+1}
+        /(\partial y_n \, \partial y_{n+1}) \, w_{n+1}`."""
         y_mid = self._midpoint_state(next_ctx, y_curr_of_next)
         self._set_midpoint_time(next_ctx)
         return (

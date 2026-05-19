@@ -62,6 +62,13 @@ class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
                 )
 
         super().__init__(bases_1d, bkd, indices)
+        self._phys_bases_1d = bases_1d
+
+    def get_univariate_basis(
+        self, dim: int
+    ) -> PhysicalDomainBasis1DProtocol[Array]:
+        """Return the physical-domain univariate basis for a dimension."""
+        return self._phys_bases_1d[dim]
 
     def univariate_quadrature(
         self, dim: int, npoints: Optional[int] = None
@@ -82,7 +89,7 @@ class OrthonormalPolynomialBasis(MultiIndexBasis[Array], Generic[Array]):
         weights : Array
             Quadrature weights. Shape: (npoints,)
         """
-        basis = self._bases_1d[dim]
+        basis = self._phys_bases_1d[dim]
         if npoints is None:
             npoints = basis.nterms()
         # Ensure basis has enough terms for requested quadrature points

@@ -72,9 +72,9 @@ from .composition import (
     SeparableProductKernel,
     SumKernel,
 )
-from .kernel_on_dimensions import KernelOnDimensions
 from .constant import ConstantKernel
 from .iid_gaussian_noise import IIDGaussianNoise
+from .kernel_on_dimensions import KernelOnDimensions
 from .linear import LinearKernel
 from .matern import (
     ExponentialKernel,

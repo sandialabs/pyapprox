@@ -10,7 +10,6 @@ from pyapprox.optimization.linear import (
     RidgeRegressionSolver,
 )
 from pyapprox.surrogates.affine.expansions import (
-    pce_arithmetic,
     pce_statistics,
 )
 from pyapprox.surrogates.affine.expansions.base import BasisExpansion
@@ -99,6 +98,4 @@ __all__ = [
     "PCEDimensionReducer",
     # Statistics module
     "pce_statistics",
-    # Arithmetic module
-    "pce_arithmetic",
 ]

@@ -19,7 +19,6 @@ from pyapprox.ode.linear_operator import (
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
-from pyapprox.ode.mixins.quadrature import QuadratureMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
@@ -36,7 +35,6 @@ from pyapprox.util.backends.protocols import Array
 
 class ForwardEulerStepper(
     SensitivityMixin[Array],
-    QuadratureMixin[Array],
     CoreStepperMixin[Array],
     Generic[Array],
 ):
@@ -93,11 +91,9 @@ class ForwardEulerStepper(
 
     # -- QuadratureMixin --
 
-    def _get_quadrature_class(self) -> type:
-        from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-            PiecewiseConstantLeft,
-        )
-        return PiecewiseConstantLeft
+    def quadrature_samples_weights(self, times: Array) -> tuple:
+        """Left-constant quadrature (left endpoints, interval widths)."""
+        return times[:-1], self._bkd.diff(times)
 
 
 # =========================================================================
@@ -222,7 +218,8 @@ class ForwardEulerHVP(
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`d^2R_{k+1}/dy_k^2 = -\Delta t_{k+1} \, (d^2f/dy^2)|_{y_k}`."""
+        r"""Compute :math:`d^2R_{k+1}/dy_k^2 = -\Delta t_{k+1}
+        \, (d^2f/dy^2)|_{y_k}`."""
         self._hvp_residual.set_time(next_ctx.t_prev)
         return -next_ctx.deltat * self._hvp_residual.state_state_hvp(
             next_ctx.y_prev, adj_state, wvec
@@ -235,7 +232,8 @@ class ForwardEulerHVP(
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        r"""Compute :math:`d^2R_{k+1}/(dy_k \, dp) = -\Delta t_{k+1} \, (d^2f/(dy \, dp))|_{y_k}`."""
+        r"""Compute :math:`d^2R_{k+1}/(dy_k \, dp) = -\Delta t_{k+1}
+        \, (d^2f/(dy \, dp))|_{y_k}`."""
         self._hvp_residual.set_time(next_ctx.t_prev)
         return -next_ctx.deltat * self._hvp_residual.state_param_hvp(
             next_ctx.y_prev, adj_state, vvec
@@ -248,7 +246,8 @@ class ForwardEulerHVP(
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`d^2R_{k+1}/(dp \, dy_k) = -\Delta t_{k+1} \, (d^2f/(dp \, dy))|_{y_k}`."""
+        r"""Compute :math:`d^2R_{k+1}/(dp \, dy_k) = -\Delta t_{k+1}
+        \, (d^2f/(dp \, dy))|_{y_k}`."""
         self._hvp_residual.set_time(next_ctx.t_prev)
         return -next_ctx.deltat * self._hvp_residual.param_state_hvp(
             next_ctx.y_prev, adj_state, wvec

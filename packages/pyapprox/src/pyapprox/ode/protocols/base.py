@@ -55,7 +55,7 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
     Subclasses must implement:
     - __call__(state)
     - jacobian(state) [for implicit methods]
-    - _get_quadrature_class()
+    - quadrature_samples_weights(times)
     """
 
     def __init__(self, residual: ODEResidualProtocol[Array]):
@@ -176,12 +176,9 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
     # Template Methods (shared implementations for all steppers)
     # =========================================================================
 
+    @abstractmethod
     def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
-        """
-        Compute quadrature rule consistent with time discretization.
-
-        Uses template method pattern - subclasses override _get_quadrature_class()
-        to specify their quadrature type.
+        """Compute quadrature rule consistent with time discretization.
 
         Parameters
         ----------
@@ -191,29 +188,11 @@ class TimeSteppingResidualBase(ABC, Generic[Array]):
         Returns
         -------
         quadx : Array
-            Quadrature sample points. Shape: (ntimes,)
+            Quadrature sample points. Shape depends on rule:
+            (ntimes-1,) for constant rules, (ntimes,) for linear.
         quadw : Array
-            Quadrature weights. Shape: (ntimes,)
-        """
-        quadrature_class = self._get_quadrature_class()
-        quadrature = quadrature_class(times, self._bkd)
-        quadx, quadw = quadrature.quadrature_rule()
-        # Flatten weights if needed
-        if quadw.ndim > 1:
-            quadw = quadw[:, 0]
-        return quadx, quadw
-
-    @abstractmethod
-    def _get_quadrature_class(self) -> type:
-        """
-        Return the quadrature class for this time stepper.
-
-        Override in subclass to specify the quadrature type.
-
-        Returns
-        -------
-        type
-            Quadrature class (e.g., PiecewiseConstantLeft, PiecewiseLinear)
+            Quadrature weights. Shape: (ntimes-1,) for constant
+            rules, (ntimes,) for linear (trapezoidal).
         """
         raise NotImplementedError
 

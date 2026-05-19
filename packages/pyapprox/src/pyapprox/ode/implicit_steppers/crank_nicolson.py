@@ -24,7 +24,6 @@ from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
-from pyapprox.ode.mixins.quadrature import QuadratureMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualProtocol,
@@ -41,7 +40,6 @@ from pyapprox.util.backends.protocols import Array
 
 class CrankNicolsonStepper(
     SensitivityMixin[Array],
-    QuadratureMixin[Array],
     ImplicitStepperMixin[Array],
     CoreStepperMixin[Array],
     Generic[Array],
@@ -115,11 +113,15 @@ class CrankNicolsonStepper(
 
     # -- QuadratureMixin --
 
-    def _get_quadrature_class(self) -> type:
-        from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-            PiecewiseLinear,
-        )
-        return PiecewiseLinear
+    def quadrature_samples_weights(self, times: Array) -> tuple:
+        """Trapezoidal quadrature (nodes, trapezoidal weights)."""
+        weights = self._bkd.zeros(times.shape)
+        for ii in range(times.shape[0]):
+            if ii > 0:
+                weights[ii] = weights[ii] + 0.5 * (times[ii] - times[ii - 1])
+            if ii < times.shape[0] - 1:
+                weights[ii] = weights[ii] + 0.5 * (times[ii + 1] - times[ii])
+        return times, weights
 
 
 # =========================================================================
@@ -242,7 +244,8 @@ class CrankNicolsonHVP(
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        r"""Compute :math:`(d^2R/dy_n^2) w = -(\Delta t/2) \, (d^2f/dy^2)|_{y_n} \, w`."""
+        r"""Compute :math:`(d^2R/dy_n^2) w = -(\Delta t/2)
+        \, (d^2f/dy^2)|_{y_n} \, w`."""
         self._residual.set_time(ctx.t_curr)
         return (
             -0.5

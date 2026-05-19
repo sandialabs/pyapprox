@@ -9,25 +9,33 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 class QuadratureMixin(ABC, Generic[Array]):
-    """Mixin providing quadrature_samples_weights via template method.
+    """Mixin providing quadrature_samples_weights.
 
-    Subclasses override _get_quadrature_class() to specify their
-    quadrature type.
+    Subclasses override quadrature_samples_weights to return the
+    quadrature rule matching their time discretization.
     """
 
     if TYPE_CHECKING:
         _bkd: Backend[Array]
 
     @abstractmethod
-    def _get_quadrature_class(self) -> type:
-        """Return the quadrature class for this time stepper."""
-        ...
+    def quadrature_samples_weights(
+        self, times: Array
+    ) -> Tuple[Array, Array]:
+        """Compute quadrature rule consistent with time discretization.
 
-    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
-        """Compute quadrature rule consistent with time discretization."""
-        quadrature_class = self._get_quadrature_class()
-        quadrature = quadrature_class(times, self._bkd)
-        quadx, quadw = quadrature.quadrature_rule()
-        if quadw.ndim > 1:
-            quadw = quadw[:, 0]
-        return quadx, quadw
+        Parameters
+        ----------
+        times : Array
+            Time nodes. Shape: (ntimes,)
+
+        Returns
+        -------
+        quadx : Array
+            Quadrature sample points. Shape depends on rule:
+            (ntimes-1,) for constant rules, (ntimes,) for linear.
+        quadw : Array
+            Quadrature weights. Shape: (ntimes-1,) for constant
+            rules, (ntimes,) for linear (trapezoidal).
+        """
+        ...

@@ -21,7 +21,6 @@ from pyapprox.ode.linear_operator import (
 from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
-from pyapprox.ode.mixins.quadrature import QuadratureMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
@@ -38,7 +37,6 @@ from pyapprox.util.backends.protocols import Array
 
 class HeunStepper(
     SensitivityMixin[Array],
-    QuadratureMixin[Array],
     CoreStepperMixin[Array],
     Generic[Array],
 ):
@@ -114,15 +112,20 @@ class HeunStepper(
         mass = self._residual.mass_matrix().as_matrix()
 
         # dR/dy_{n-1} = -(M + (Δt/2)·(J1 + J2·(M + Δt·J1)))
-        return -(mass + 0.5 * ctx.deltat * (k1_jac + k2_jac @ (mass + ctx.deltat * k1_jac)))
+        inner = k1_jac + k2_jac @ (mass + ctx.deltat * k1_jac)
+        return -(mass + 0.5 * ctx.deltat * inner)
 
     # -- QuadratureMixin --
 
-    def _get_quadrature_class(self) -> type:
-        from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-            PiecewiseLinear,
-        )
-        return PiecewiseLinear
+    def quadrature_samples_weights(self, times: Array) -> tuple:
+        """Trapezoidal quadrature (nodes, trapezoidal weights)."""
+        weights = self._bkd.zeros(times.shape)
+        for ii in range(times.shape[0]):
+            if ii > 0:
+                weights[ii] = weights[ii] + 0.5 * (times[ii] - times[ii - 1])
+            if ii < times.shape[0] - 1:
+                weights[ii] = weights[ii] + 0.5 * (times[ii + 1] - times[ii])
+        return times, weights
 
 
 # =========================================================================
@@ -211,9 +214,10 @@ class HeunAdjoint(
 
         mass = self._residual.mass_matrix().as_matrix()
 
-        jac = -(
-            mass + 0.5 * next_ctx.deltat * (k1_jac + k2_jac @ (mass + next_ctx.deltat * k1_jac))
+        inner = k1_jac + k2_jac @ (
+            mass + next_ctx.deltat * k1_jac
         )
+        jac = -(mass + 0.5 * next_ctx.deltat * inner)
         return jac.T
 
     def adjoint_initial_condition(

@@ -11,7 +11,7 @@ j-th univariate basis function in dimension d.
 """
 
 from abc import ABC
-from typing import Generic, List, Optional
+from typing import Generic, List, Optional, Sequence
 
 from pyapprox.surrogates.affine.basis.dispatch import (
     get_basis_eval_impl,
@@ -45,12 +45,12 @@ class MultiIndexBasis(ABC, Generic[Array]):
 
     def __init__(
         self,
-        bases_1d: List[Basis1DProtocol[Array]],
+        bases_1d: Sequence[Basis1DProtocol[Array]],
         bkd: Backend[Array],
         indices: Optional[Array] = None,
     ):
         self._bkd = bkd
-        self._bases_1d = bases_1d
+        self._bases_1d: Sequence[Basis1DProtocol[Array]] = bases_1d
         self._indices: Optional[Array] = None
 
         # Check for derivative support

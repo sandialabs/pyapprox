@@ -18,7 +18,6 @@ from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.hyperparameter import HyperParameterList
 
 
 class BatchedBoundODEResidual(Generic[Array]):

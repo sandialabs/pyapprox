@@ -12,7 +12,7 @@ Algorithm:
 5. Accumulate HVP from Lagrangian terms at each time step
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Generic, Tuple
 
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianAndHVPProtocol,
