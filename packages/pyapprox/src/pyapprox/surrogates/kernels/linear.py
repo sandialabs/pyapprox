@@ -5,7 +5,7 @@ A GP with this kernel is equivalent to Bayesian linear regression.
 
 from typing import Optional, Tuple
 
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameterList,

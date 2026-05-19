@@ -15,7 +15,8 @@ from pyapprox.surrogates.gaussianprocess.input_transform import (
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
-from pyapprox.surrogates.kernels.protocols import Kernel, KernelProtocol
+from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 

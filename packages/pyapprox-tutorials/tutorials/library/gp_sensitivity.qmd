@@ -131,7 +131,7 @@ import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.sensitivity import IshigamiBenchmark
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.kernels.composition import SeparableProductKernel
+from pyapprox.surrogates.kernels.base import SeparableProductKernel
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,

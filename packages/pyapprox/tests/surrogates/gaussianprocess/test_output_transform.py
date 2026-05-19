@@ -19,7 +19,7 @@ from pyapprox.surrogates.gaussianprocess.output_transform import (
     IdentityOutputTransform,
     OutputStandardScaler,
 )
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     SeparableProductKernel,
 )
 from pyapprox.surrogates.kernels.matern import (

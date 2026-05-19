@@ -81,19 +81,21 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     PiecewiseQuadratic,
 )
 
+# Transform utilities
+from pyapprox.surrogates.affine.univariate.registry import (
+    get_transform_from_marginal,
+)
+
 # Physical-domain basis wrappers
 from pyapprox.surrogates.affine.univariate.transformed import (
     NativeBasis1D,
     TransformedBasis1D,
 )
-
-# Transform utilities
 from pyapprox.surrogates.affine.univariate.transforms import (
     BoundedAffineTransform1D,
     IdentityTransform1D,
     UnboundedAffineTransform1D,
     Univariate1DTransformProtocol,
-    get_transform_from_marginal,
 )
 
 __all__ = [

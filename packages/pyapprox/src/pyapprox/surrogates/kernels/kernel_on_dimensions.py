@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Generic, List
 
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.surrogates.kernels.protocols import (
-    Kernel,
     KernelHasHVPWrtX1Protocol,
     KernelHasJacobianProtocol,
     KernelHasParameterJacobianProtocol,

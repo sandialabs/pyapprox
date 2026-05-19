@@ -7,7 +7,7 @@ base separable kernel and variance scaling factor.
 
 from typing import Tuple, cast
 
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     ProductKernel,
     SumKernel,
 )

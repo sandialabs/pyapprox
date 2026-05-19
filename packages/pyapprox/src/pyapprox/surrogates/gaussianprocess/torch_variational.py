@@ -27,7 +27,7 @@ from pyapprox.surrogates.gaussianprocess.variational import (
 from pyapprox.surrogates.gaussianprocess.variational_loss import (
     VariationalGPELBOLoss,
 )
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.validation import validate_backends
 

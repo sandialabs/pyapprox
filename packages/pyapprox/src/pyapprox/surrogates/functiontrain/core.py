@@ -1,6 +1,6 @@
 """FunctionTrain core - a single tensor in the train decomposition."""
 
-from typing import Dict, Generic, List, Self, Tuple
+from typing import Generic, List, Self, Tuple
 
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -138,23 +138,6 @@ class FunctionTrainCore(Generic[Array]):
         """
         return self._basisexps[ii][jj].basis_matrix(sample_1d)
 
-    def get_nparams(self, ii: int, jj: int) -> int:
-        """Get number of trainable parameters for a specific expansion.
-
-        Parameters
-        ----------
-        ii : int
-            Left rank index.
-        jj : int
-            Right rank index.
-
-        Returns
-        -------
-        int
-            Number of trainable parameters for this expansion.
-        """
-        return int(self._basisexps[ii][jj].nparams())
-
     def get_nterms(self, ii: int, jj: int) -> int:
         """Get number of basis terms for a specific expansion.
 
@@ -171,17 +154,6 @@ class FunctionTrainCore(Generic[Array]):
             Number of basis terms for this expansion.
         """
         return self._basisexps[ii][jj].nterms()
-
-    def total_nterms(self) -> int:
-        """Return total number of basis terms across all expansions.
-
-        This is the number of columns in the full Jacobian.
-        """
-        total = 0
-        for ii in range(self._r_left):
-            for jj in range(self._r_right):
-                total += self._basisexps[ii][jj].nterms()
-        return total
 
     def get_trainable_indices(self) -> List[int]:
         """Get column indices in full Jacobian that correspond to trainable params.
@@ -479,27 +451,6 @@ class FunctionTrainCore(Generic[Array]):
                 # Extract the single variable dimension: (nsamples, nqoi)
                 result[ii, jj] = jac[:, :, 0]
         return result
-
-    def eval_cached(self, sample_1d: Array, cache: "Dict[int, Array]") -> Array:
-        """Evaluate core using cached basis matrices.
-
-        Parameters
-        ----------
-        sample_1d : Array
-            Univariate samples. Shape: (1, nsamples)
-        cache : Dict[int, Array]
-            Pre-computed basis matrices from cache_basis_matrices.
-
-        Returns
-        -------
-        Array
-            Core values. Shape: (r_left, r_right, nsamples, nqoi)
-        """
-        from pyapprox.surrogates.functiontrain.compute import (
-            core_eval_cached,
-        )
-
-        return core_eval_cached(self, sample_1d, cache, self._bkd)
 
     def __repr__(self) -> str:
         return f"FunctionTrainCore(ranks={self.ranks()})"

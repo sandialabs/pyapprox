@@ -13,8 +13,8 @@ Caching keeps the fit cost to one run per Quarto render.
 from __future__ import annotations
 
 import numpy as np
+from pyapprox.surrogates.kernels.base import Kernel
 
-from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.util.hyperparameter import HyperParameterList
 
 try:
@@ -581,9 +581,6 @@ def _fit_mfdgp_cutajar_kernel():
     )
     from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
         DeepGaussianProcess,
-    )
-    from pyapprox.surrogates.gaussianprocess.deep.initializers import (
-        CustomInitializer,
     )
     from pyapprox.surrogates.gaussianprocess.deep.layer import DGPLayer
     from pyapprox.surrogates.gaussianprocess.deep.propagator import (

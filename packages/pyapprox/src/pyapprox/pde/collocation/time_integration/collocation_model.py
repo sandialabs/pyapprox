@@ -21,14 +21,14 @@ from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
 )
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
+from pyapprox.pde.collocation.protocols.physics import (
+    ParameterizationProtocol,
+)
 from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
     create_bc_enforcing_residual,
 )
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
     PhysicsToODEResidualAdapter,
-)
-from pyapprox.pde.parameterizations.protocol import (
-    ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver

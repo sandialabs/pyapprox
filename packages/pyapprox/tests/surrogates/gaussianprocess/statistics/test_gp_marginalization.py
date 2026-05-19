@@ -18,7 +18,7 @@ from pyapprox.surrogates.gaussianprocess.statistics import (
 from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
     MarginalizedGP,
 )
-from pyapprox.surrogates.kernels.composition import SeparableProductKernel
+from pyapprox.surrogates.kernels.base import SeparableProductKernel
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,

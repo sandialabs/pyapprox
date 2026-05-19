@@ -25,7 +25,7 @@ from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
 )
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 

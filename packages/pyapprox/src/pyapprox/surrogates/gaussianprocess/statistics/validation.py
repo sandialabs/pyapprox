@@ -9,7 +9,7 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import ZeroMean
 from pyapprox.surrogates.gaussianprocess.protocols import (
     GaussianProcessProtocol,
 )
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     ProductKernel,
     SumKernel,
 )

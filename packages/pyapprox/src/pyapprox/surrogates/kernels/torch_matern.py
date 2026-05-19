@@ -14,7 +14,7 @@ Use with TorchExactGaussianProcess which computes derivatives via autograd.
 import math
 from typing import Any, Tuple
 
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 

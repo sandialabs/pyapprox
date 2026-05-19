@@ -31,7 +31,7 @@ from pyapprox.surrogates.gaussianprocess.statistics.validation import (
     validate_separable_kernel,
     validate_zero_mean,
 )
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     ProductKernel,
     SeparableProductKernel,
 )

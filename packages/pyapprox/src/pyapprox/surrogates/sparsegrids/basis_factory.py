@@ -62,10 +62,10 @@ from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
 from pyapprox.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.surrogates.affine.univariate.registry import (
     _lookup_analytical,
+    get_transform_from_marginal,
 )
 from pyapprox.surrogates.affine.univariate.transforms import (
     Univariate1DTransformProtocol,
-    get_transform_from_marginal,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

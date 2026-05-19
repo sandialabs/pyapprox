@@ -58,7 +58,7 @@ Product of multiple kernels.
 
 **Example:**
 ```python
-from pyapprox.surrogates.kernels.composition import ProductKernel
+from pyapprox.surrogates.kernels.base import ProductKernel
 
 k1 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
 k2 = MaternKernel(1.5, [0.5], (0.1, 10.0), 1, bkd)
@@ -75,7 +75,7 @@ Sum of multiple kernels.
 
 **Example:**
 ```python
-from pyapprox.surrogates.kernels.composition import SumKernel
+from pyapprox.surrogates.kernels.base import SumKernel
 
 k_sum = SumKernel([k1, k2], bkd)
 

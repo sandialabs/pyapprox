@@ -11,14 +11,14 @@ from typing import Generic
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
-from pyapprox.pde.decomposition.interface.interpolation import (
-    lagrange_interpolation_matrix,
-)
 from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
     LegendrePolynomial1D,
 )
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
+)
+from pyapprox.surrogates.affine.univariate.lagrange import (
+    univariate_lagrange_polynomial,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -102,7 +102,7 @@ class CollocationQuadrature1D(Generic[Array]):
         gl_wts_scaled = scale * self._gl_wts
 
         # Build Lagrange interpolation matrix: L[k, j] = L_j(gl_mapped_k)
-        L = lagrange_interpolation_matrix(
+        L = univariate_lagrange_polynomial(
             self._ref_nodes, gl_mapped, bkd
         )  # shape (n_gl, npts)
 

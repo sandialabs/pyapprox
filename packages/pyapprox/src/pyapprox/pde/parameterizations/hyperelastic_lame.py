@@ -7,11 +7,11 @@ residual_mu/lamda_sensitivity methods (same as YoungModulusParameterization).
 
 from typing import Generic, List
 
-from pyapprox.pde.collocation.protocols.basis import (
-    TensorProductBasisProtocol,
-)
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    DerivativeMatrixBasisProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -196,7 +196,7 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
 
 def create_hyperelastic_youngs_modulus_parameterization(
     bkd: Backend[Array],
-    basis: TensorProductBasisProtocol[Array],
+    basis: DerivativeMatrixBasisProtocol[Array],
     field_map: FieldMapProtocol[Array],
     poisson_ratio: float,
 ) -> HyperelasticYoungsModulusParameterization[Array]:
@@ -206,7 +206,7 @@ def create_hyperelastic_youngs_modulus_parameterization(
     ----------
     bkd : Backend
         Computational backend.
-    basis : TensorProductBasisProtocol
+    basis : DerivativeMatrixBasisProtocol
         Collocation basis.
     field_map : FieldMapProtocol
         Field map for Young's modulus.

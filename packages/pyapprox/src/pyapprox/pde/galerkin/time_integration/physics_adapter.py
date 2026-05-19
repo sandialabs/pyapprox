@@ -25,8 +25,6 @@ from pyapprox.ode.mixins.default_newton_jacobian import (
 )
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
-)
-from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

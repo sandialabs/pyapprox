@@ -25,7 +25,7 @@ from pyapprox.surrogates.gaussianprocess.gp_loss import (
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
 )
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.validation import validate_backends
 

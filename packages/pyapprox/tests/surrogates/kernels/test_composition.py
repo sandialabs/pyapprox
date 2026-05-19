@@ -10,7 +10,7 @@ from pyapprox.interface.functions.fromcallable.hessian import (
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     ProductKernel,
     SeparableProductKernel,
     SumKernel,

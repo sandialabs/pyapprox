@@ -32,6 +32,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple, Type
 
+from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -272,6 +273,68 @@ def _get_scipy_discrete_probability_masses(
 _register_builtins()
 
 
+def get_transform_from_marginal(
+    marginal: MarginalProtocol[Array], bkd: Backend[Array]
+) -> Any:
+    """Get the appropriate transform for a marginal distribution.
+
+    This function uses the marginal registry to determine the correct
+    transform for a given marginal type. For unregistered marginals,
+    falls back to bounded/unbounded transforms based on `is_bounded()`.
+
+    Parameters
+    ----------
+    marginal : Any
+        Marginal distribution instance (e.g., UniformMarginal, GaussianMarginal).
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Univariate1DTransformProtocol
+        Transform mapping between marginal's physical domain and canonical domain.
+
+    Raises
+    ------
+    ValueError
+        If no transform can be determined for the marginal.
+
+    Examples
+    --------
+    >>> from pyapprox.util.backends.numpy import NumpyBkd
+    >>> from pyapprox.probability import UniformMarginal, GaussianMarginal
+    >>> bkd = NumpyBkd()
+    >>> marginal = UniformMarginal(-1.0, 1.0, bkd)
+    >>> transform = get_transform_from_marginal(marginal, bkd)
+    >>> # Returns BoundedAffineTransform1D(lb=0.0, ub=1.0)
+    """
+    from pyapprox.surrogates.affine.univariate.transforms import (
+        BoundedAffineTransform1D,
+        IdentityTransform1D,
+    )
+
+    # Check analytical registry first
+    entry = _lookup_analytical(marginal)
+    if entry is not None:
+        return entry.transform_factory(marginal, bkd)
+
+    # Discrete marginals don't use transforms (physical domain polynomials)
+    entry_discrete = _lookup_discrete(marginal)
+    if entry_discrete is not None:
+        return IdentityTransform1D(bkd)
+
+    # Fallback for custom marginals based on is_bounded()
+    if hasattr(marginal, "is_bounded") and marginal.is_bounded():
+        lb, ub = marginal.bounds()
+        return BoundedAffineTransform1D(bkd, lb, ub)
+
+    raise ValueError(
+        f"Cannot determine transform for marginal type {type(marginal).__name__}. "
+        "Register it with register_analytical_marginal() "
+        "or ensure is_bounded() is defined."
+    )
+
+
 __all__ = [
     "AnalyticalMarginalEntry",
     "DiscreteMarginalEntry",
@@ -281,4 +344,5 @@ __all__ = [
     "register_discrete_marginal",
     "_lookup_analytical",
     "_lookup_discrete",
+    "get_transform_from_marginal",
 ]
