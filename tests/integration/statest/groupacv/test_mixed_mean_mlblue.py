@@ -149,7 +149,7 @@ class TestKnownMeanValidation:
         stat = MultiOutputVariance(1, bkd)
         W = bkd.eye(nmodels)
         stat.set_pilot_quantities(cov, W)
-        with pytest.raises(ValueError, match="variance-only"):
+        with pytest.raises(ValueError, match="no mean slots"):
             MLBLUEEstimator(
                 stat, costs,
                 known_mean_models=[1],
@@ -291,6 +291,38 @@ class TestAllKnownMeansRecoversCVEstimator:
         est_cv_val = est_cv(values_per_model)
         bkd.assert_allclose(est_mlblue_val, est_cv_val, rtol=1e-8)
 
+    def test_all_known_variance_equals_cv_floor(self, bkd) -> None:
+        nmodels = 5
+        bench = _poly_benchmark(bkd, nmodels)
+        cov = bench.ensemble_covariance()
+        costs = bench.problem().costs()
+        means = bench.ensemble_means()
+
+        subsets = [bkd.asarray(list(range(nmodels)), dtype=int)]
+        stat = _make_stat(bkd, cov, 1)
+        est = MLBLUEEstimator(
+            stat, costs, model_subsets=subsets,
+            known_mean_models=list(range(1, nmodels)),
+            known_means=means[1:],
+        )
+        nsamples = 100.0
+        nps = bkd.full((est.nsubsets(),), nsamples)
+        est.set_allocation(_make_allocation(est, nps))
+
+        cov_np = np.asarray(cov)
+        sigma0_sq = cov_np[0, 0]
+        C_LL = cov_np[1:, 1:]
+        C_0L = cov_np[0, 1:]
+        R2 = C_0L @ np.linalg.solve(C_LL, C_0L) / sigma0_sq
+        expected_var = sigma0_sq * (1 - R2) / nsamples
+
+        actual_var = float(est.optimized_covariance()[0, 0])
+        bkd.assert_allclose(
+            bkd.asarray([actual_var]),
+            bkd.asarray([expected_var]),
+            rtol=1e-10,
+        )
+
 
 class TestVarianceMonotonicity:
     """Variance decreases (or stays equal) as |K| grows."""
@@ -407,9 +439,11 @@ class TestEmpiricalUnbiasedness:
         means_np = np.array(means).ravel()
 
         L = np.linalg.cholesky(cov_np)
-        nsamples_per_model_0 = int(nsamps_per[0])
+        # Single group => all models share the same sample count
+        nsamples_int = int(nsamps_per[0])
+        assert np.all(nsamps_per == nsamples_int)
         for trial in range(ntrials):
-            z = np.random.randn(nmodels, nsamples_per_model_0)
+            z = np.random.randn(nmodels, nsamples_int)
             raw = L @ z
             values_per_model = [
                 bkd.asarray(raw[ii:ii+1, :] + means_np[ii])
@@ -461,13 +495,15 @@ class TestAnalyticalVsEmpiricalVariance:
         analytical_var = float(est.optimized_covariance()[0, 0])
 
         nsamps_per = np.array(est._compute_nsamples_per_model(nps), dtype=int)
-        nsamples_per_model_0 = int(nsamps_per[0])
+        # Single group => all models share the same sample count
+        nsamples_int = int(nsamps_per[0])
+        assert np.all(nsamps_per == nsamples_int)
         ntrials = 10000
         estimates = np.empty(ntrials)
         means_np = np.array(means).ravel()
         L = np.linalg.cholesky(cov_np)
         for trial in range(ntrials):
-            z = np.random.randn(nmodels, nsamples_per_model_0)
+            z = np.random.randn(nmodels, nsamples_int)
             raw = L @ z
             values_per_model = [
                 bkd.asarray(raw[ii:ii+1, :] + means_np[ii])
@@ -587,7 +623,8 @@ class TestSDPSmoke:
             known_mean_models=[1],
             known_means=means[1:2],
         )
-        # SDP only supports nstats=1, multi-QoI has nstats=nqoi>1
+        # Pre-existing SDP limitation (not related to known means):
+        # Schur complement formulation requires scalar objective (nstats=1)
         with pytest.raises(RuntimeError, match="single outputs"):
             optimizer = MLBLUESPDAllocationOptimizer(est)
             optimizer.optimize(target_cost=10.0)
