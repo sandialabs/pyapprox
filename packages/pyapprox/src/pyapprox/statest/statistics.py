@@ -674,22 +674,26 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         """The number of statistics computed"""
         raise NotImplementedError
 
-    def mean_slot_indices(self) -> List[int]:
-        """Per-model stat-slot indices that hold mean estimates.
+    def stat_slot_indices(self, stat_name: str) -> List[int]:
+        """Per-model stat-slot indices for a given statistic type.
+
+        Parameters
+        ----------
+        stat_name : str
+            Name of the statistic: ``"mean"`` or ``"variance"``.
 
         Returns
         -------
         List[int]
-            Indices into the per-model stat vector where means reside.
-            Length equals ``nqoi()``.
+            Indices into the per-model stat vector for that statistic.
 
         Raises
         ------
-        TypeError
-            If the statistic has no mean slots (e.g. variance-only).
+        ValueError
+            If ``stat_name`` is not available on this stat class.
         """
-        raise TypeError(
-            f"{type(self).__name__} does not have mean slots"
+        raise ValueError(
+            f"'{stat_name}' not available on {type(self).__name__}"
         )
 
     @abstractmethod
@@ -796,8 +800,12 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
     def nstats(self) -> int:
         return self.nqoi()
 
-    def mean_slot_indices(self) -> List[int]:
-        return list(range(self.nqoi()))
+    def stat_slot_indices(self, stat_name: str) -> List[int]:
+        if stat_name == "mean":
+            return list(range(self.nqoi()))
+        raise ValueError(
+            f"'{stat_name}' not available on {type(self).__name__}"
+        )
 
     def sample_estimate(self, values: Array) -> Array:
         """Compute sample mean estimate.
@@ -1035,8 +1043,18 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
             return self._nqoi ** 2
         return self._tril_idx_flat.shape[0]  # self.nqoi() ** 2
 
+    def stat_slot_indices(self, stat_name: str) -> List[int]:
+        if stat_name == "variance":
+            return list(range(self.nstats()))
+        raise ValueError(
+            f"'{stat_name}' not available on {type(self).__name__}"
+        )
+
     def sample_estimate(self, values: Array) -> Array:
         """Compute sample variance estimate.
+
+        Centers on the sample mean (not a known population mean) so the
+        unbiased estimator covariance depends only on V and W matrices.
 
         Parameters
         ----------
@@ -1332,11 +1350,21 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             raise RuntimeError("Must call set_pilot_quantities() first")
         return self.nqoi() + self._tril_idx_flat.shape[0]
 
-    def mean_slot_indices(self) -> List[int]:
-        return list(range(self.nqoi()))
+    def stat_slot_indices(self, stat_name: str) -> List[int]:
+        if stat_name == "mean":
+            return list(range(self.nqoi()))
+        if stat_name == "variance":
+            return list(range(self.nqoi(), self.nstats()))
+        raise ValueError(
+            f"'{stat_name}' not available on {type(self).__name__}"
+        )
 
     def sample_estimate(self, values: Array) -> Array:
         """Compute sample mean and variance estimate.
+
+        Variance component centers on the sample mean (not a known
+        population mean) so the estimator covariance depends on V, W,
+        and B matrices.
 
         Parameters
         ----------
