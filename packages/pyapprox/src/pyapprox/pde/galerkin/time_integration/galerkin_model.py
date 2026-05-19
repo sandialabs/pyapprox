@@ -19,6 +19,7 @@ from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
 )
@@ -32,7 +33,6 @@ from pyapprox.pde.galerkin.time_integration.explicit_adapter import (
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsODEAdapter,
 )
-from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 

@@ -1,10 +1,11 @@
 """Polynomial Chaos Expansion (PCE) implementation.
 
 A PCE represents a function as a linear combination of orthonormal
-polynomial basis functions: f(x) ≈ Σ_i c_i ψ_i(x), where ψ_i are
+polynomial basis functions: f(x) = Σ_i c_i ψ_i(x), where ψ_i are
 orthonormal with respect to the input probability measure.
 """
 
+import copy
 from typing import Any, Generic, List, Optional, Union
 
 from pyapprox.probability.protocols.distribution import MarginalProtocol
@@ -13,17 +14,16 @@ from pyapprox.surrogates.affine.basis import (
 )
 from pyapprox.surrogates.affine.expansions.base import BasisExpansion
 from pyapprox.surrogates.affine.expansions.pce_arithmetic import (
-    add_constant_to_pce,
-    add_pce,
-    multiply_pce,
-    multiply_pce_by_constant,
-    pce_power,
+    _add_polynomials,
+    _compute_product_coeffs_1d,
+    _multiply_multivariate_orthonormal_polynomial_expansions,
 )
 from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.protocols import (
     LinearSystemSolverProtocol,
+    PhysicalDomainBasis1DProtocol,
 )
 from pyapprox.surrogates.affine.univariate.factory import (
     create_basis_1d,
@@ -33,6 +33,41 @@ from pyapprox.surrogates.affine.univariate.transformed import (
     TransformedBasis1D,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+def _polynomial_type(
+    basis: PhysicalDomainBasis1DProtocol[Array],
+) -> type:
+    """Extract the polynomial family type from a physical-domain basis."""
+    if isinstance(basis, TransformedBasis1D):
+        return type(basis.polynomial())
+    if isinstance(basis, NativeBasis1D):
+        return type(basis.polynomial())
+    return type(basis)
+
+
+def _validate_compatible_bases(
+    pce1: "PolynomialChaosExpansion[Array]",
+    pce2: "PolynomialChaosExpansion[Array]",
+) -> None:
+    """Validate two PCEs have compatible univariate basis types."""
+    if pce1.nvars() != pce2.nvars():
+        raise ValueError(
+            f"Cannot combine PCEs with different nvars: "
+            f"{pce1.nvars()} vs {pce2.nvars()}"
+        )
+    basis1 = pce1._ortho_basis()
+    basis2 = pce2._ortho_basis()
+    for dd in range(pce1.nvars()):
+        b1 = basis1.get_univariate_basis(dd)
+        b2 = basis2.get_univariate_basis(dd)
+        poly_type1 = _polynomial_type(b1)
+        poly_type2 = _polynomial_type(b2)
+        if poly_type1 != poly_type2:
+            raise TypeError(
+                f"Incompatible bases in dimension {dd}: "
+                f"{poly_type1.__name__} vs {poly_type2.__name__}"
+            )
 
 
 class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
@@ -79,17 +114,24 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
                 f"basis must be OrthonormalPolynomialBasis, got {type(basis).__name__}"
             )
         super().__init__(basis, bkd, nqoi, solver)
+        self._ortho: OrthonormalPolynomialBasis[Array] = basis
+
+    def _ortho_basis(self) -> OrthonormalPolynomialBasis[Array]:
+        """Return the typed orthonormal polynomial basis."""
+        return self._ortho
 
     def get_indices(self) -> Array:
         """Return multi-indices. Shape: (nvars, nterms)."""
-        return self._basis.get_indices()
+        return self._ortho.get_indices()
 
     def _get_constant_index(self) -> int:
         """Return index of the constant basis function."""
         indices = self.get_indices()
         # Constant term has all zeros
         index_sums = self._bkd.sum(indices, axis=0)
-        const_mask = index_sums == 0
+        const_mask = self._bkd.equal(
+            index_sums, self._bkd.zeros(index_sums.shape)
+        )
         const_indices = self._bkd.nonzero(const_mask)
         if len(const_indices[0]) == 0:
             raise ValueError("Basis does not contain constant term")
@@ -270,6 +312,121 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         self.set_coefficients(coef)
 
     # ------------------------------------------------------------------
+    # Internal construction helper
+    # ------------------------------------------------------------------
+
+    def _copy_with_expansion(
+        self, new_indices: Array, new_coeffs: Array
+    ) -> "PolynomialChaosExpansion[Array]":
+        """Create a new PCE with different indices and coefficients.
+
+        Deep-copies the basis, sets new indices on the copy, then constructs
+        a fresh PCE via __init__ (correct _coef shape, fresh _hyp_list).
+        """
+        new_basis = copy.deepcopy(self._ortho)
+        new_basis.set_indices(new_indices)
+        result = PolynomialChaosExpansion(new_basis, self._bkd, self._nqoi)
+        result.set_coefficients(new_coeffs)
+        return result
+
+    # ------------------------------------------------------------------
+    # Arithmetic implementation methods
+    # ------------------------------------------------------------------
+
+    def _add_pce(
+        self,
+        other: "PolynomialChaosExpansion[Array]",
+        sign: float = 1.0,
+    ) -> "PolynomialChaosExpansion[Array]":
+        _validate_compatible_bases(self, other)
+        indices_list = [self.get_indices(), other.get_indices()]
+        coeffs_list = [
+            self.get_coefficients(),
+            sign * other.get_coefficients(),
+        ]
+        new_indices, new_coeffs = _add_polynomials(
+            self._bkd, indices_list, coeffs_list
+        )
+        return self._copy_with_expansion(new_indices, new_coeffs)
+
+    def _add_constant(self, constant: float) -> "PolynomialChaosExpansion[Array]":
+        result = copy.deepcopy(self)
+        const_idx = result._get_constant_index()
+        coef = result.get_coefficients()
+        new_row = coef[const_idx, :] + constant
+        new_coef = self._bkd.concatenate(
+            [
+                coef[:const_idx, :],
+                self._bkd.reshape(new_row, (1, -1)),
+                coef[const_idx + 1 :, :],
+            ],
+            axis=0,
+        )
+        result.set_coefficients(new_coef)
+        result._hyp_list = None
+        return result
+
+    def _mul_constant(self, constant: float) -> "PolynomialChaosExpansion[Array]":
+        result = copy.deepcopy(self)
+        result.set_coefficients(self.get_coefficients() * constant)
+        result._hyp_list = None
+        return result
+
+    def _mul_pce(
+        self, other: "PolynomialChaosExpansion[Array]"
+    ) -> "PolynomialChaosExpansion[Array]":
+        _validate_compatible_bases(self, other)
+        bkd = self._bkd
+
+        if self.nterms() >= other.nterms():
+            poly1, poly2 = self, other
+        else:
+            poly1, poly2 = other, self
+
+        poly1_basis_copy = copy.deepcopy(poly1._ortho_basis())
+
+        max_degrees1 = bkd.max(poly1.get_indices(), axis=1)
+        max_degrees2 = bkd.max(poly2.get_indices(), axis=1)
+
+        product_coefs_1d = _compute_product_coeffs_1d(
+            bkd, poly1_basis_copy, max_degrees1, max_degrees2
+        )
+
+        new_indices, new_coeffs = (
+            _multiply_multivariate_orthonormal_polynomial_expansions(
+                bkd,
+                product_coefs_1d,
+                poly1.get_indices(),
+                poly1.get_coefficients(),
+                poly2.get_indices(),
+                poly2.get_coefficients(),
+            )
+        )
+
+        return self._copy_with_expansion(new_indices, new_coeffs)
+
+    def _power(self, order: int) -> "PolynomialChaosExpansion[Array]":
+        if not isinstance(order, int):
+            raise TypeError(
+                "Power order must be an integer, "
+                f"got {type(order).__name__}"
+            )
+        if order < 0:
+            raise ValueError(f"Power order must be non-negative, got {order}")
+
+        if order == 0:
+            const_indices = self._bkd.zeros(
+                (self.nvars(), 1), dtype=self._bkd.int64_dtype()
+            )
+            ones_coef = self._bkd.ones((1, self.nqoi()))
+            return self._copy_with_expansion(const_indices, ones_coef)
+
+        result = copy.deepcopy(self)
+        for _ in range(2, order + 1):
+            result = result._mul_pce(self)
+        return result
+
+    # ------------------------------------------------------------------
     # Arithmetic operators
     # ------------------------------------------------------------------
 
@@ -277,9 +434,9 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         self, other: Union["PolynomialChaosExpansion[Array]", float, int]
     ) -> "PolynomialChaosExpansion[Array]":
         if isinstance(other, (float, int)):
-            return add_constant_to_pce(self, float(other))
+            return self._add_constant(float(other))
         if isinstance(other, PolynomialChaosExpansion):
-            return add_pce(self, other, sign=1.0)
+            return self._add_pce(other, sign=1.0)
         return NotImplemented
 
     def __radd__(
@@ -291,24 +448,24 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         self, other: Union["PolynomialChaosExpansion[Array]", float, int]
     ) -> "PolynomialChaosExpansion[Array]":
         if isinstance(other, (float, int)):
-            return add_constant_to_pce(self, -float(other))
+            return self._add_constant(-float(other))
         if isinstance(other, PolynomialChaosExpansion):
-            return add_pce(self, other, sign=-1.0)
+            return self._add_pce(other, sign=-1.0)
         return NotImplemented
 
     def __rsub__(self, other: Union[float, int]) -> "PolynomialChaosExpansion[Array]":
         if isinstance(other, (float, int)):
-            result = multiply_pce_by_constant(self, -1.0)
-            return add_constant_to_pce(result, float(other))
+            result = self._mul_constant(-1.0)
+            return result._add_constant(float(other))
         return NotImplemented
 
     def __mul__(
         self, other: Union["PolynomialChaosExpansion[Array]", float, int]
     ) -> "PolynomialChaosExpansion[Array]":
         if isinstance(other, (float, int)):
-            return multiply_pce_by_constant(self, float(other))
+            return self._mul_constant(float(other))
         if isinstance(other, PolynomialChaosExpansion):
-            return multiply_pce(self, other)
+            return self._mul_pce(other)
         return NotImplemented
 
     def __rmul__(
@@ -317,7 +474,7 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         return self.__mul__(other)
 
     def __pow__(self, order: int) -> "PolynomialChaosExpansion[Array]":
-        return pce_power(self, order)
+        return self._power(order)
 
     def __repr__(self) -> str:
         return (
@@ -326,11 +483,8 @@ class PolynomialChaosExpansion(BasisExpansion[Array], Generic[Array]):
         )
 
 
-_PhysicalDomainBasis1D = Union[TransformedBasis1D[Array], NativeBasis1D[Array]]
-
-
 def create_pce(
-    bases_1d: List[_PhysicalDomainBasis1D[Array]],
+    bases_1d: List[PhysicalDomainBasis1DProtocol[Array]],
     max_level: int,
     bkd: Backend[Array],
     pnorm: float = 1.0,
@@ -369,7 +523,7 @@ def create_pce(
 def get_basis_from_marginal(
     marginal: MarginalProtocol[Array],
     bkd: Backend[Array],
-) -> _PhysicalDomainBasis1D[Array]:
+) -> PhysicalDomainBasis1DProtocol[Array]:
     """Get physical-domain basis for a marginal distribution.
 
     Uses the marginal registry to select the optimal polynomial family
@@ -386,7 +540,7 @@ def get_basis_from_marginal(
 
     Returns
     -------
-    TransformedBasis1D or NativeBasis1D
+    PhysicalDomainBasis1DProtocol
         Physical-domain basis that accepts samples from marginal's support.
 
     Examples

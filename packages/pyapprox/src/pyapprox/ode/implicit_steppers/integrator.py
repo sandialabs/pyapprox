@@ -16,7 +16,6 @@ from pyapprox.ode.protocols.time_stepping import (
     HVPEnabledTimeSteppingResidualProtocol,
     TimeSteppingResidualProtocol,
 )
-from pyapprox.ode.protocols.type_guards import is_hvp_enabled
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver

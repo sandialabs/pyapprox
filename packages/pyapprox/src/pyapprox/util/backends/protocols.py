@@ -485,6 +485,9 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def equal(a: Array, b: Array) -> Array: ...
+
+    @staticmethod
     def isfinite(array: Array) -> Array: ...
 
     @staticmethod

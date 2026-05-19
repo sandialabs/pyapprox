@@ -14,13 +14,13 @@ from pyapprox.ode.functionals.all_states_endpoint import (
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
+from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
-from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
 
 

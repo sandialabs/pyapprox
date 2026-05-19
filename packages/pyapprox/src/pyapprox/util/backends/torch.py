@@ -410,6 +410,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.digamma(array)
 
     @staticmethod
+    def equal(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        return torch.eq(a, b)
+
+    @staticmethod
     def isfinite(array: torch.Tensor) -> torch.Tensor:
         return torch.isfinite(array)
 

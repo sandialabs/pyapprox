@@ -23,7 +23,6 @@ from pyapprox.ode.mixins.adjoint import AdjointMixin
 from pyapprox.ode.mixins.core import CoreStepperMixin
 from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
-from pyapprox.ode.mixins.quadrature import QuadratureMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
     ImplicitODEResidualProtocol,
@@ -40,7 +39,6 @@ from pyapprox.util.backends.protocols import Array
 
 class BackwardEulerStepper(
     SensitivityMixin[Array],
-    QuadratureMixin[Array],
     ImplicitStepperMixin[Array],
     CoreStepperMixin[Array],
     Generic[Array],
@@ -97,11 +95,9 @@ class BackwardEulerStepper(
 
     # -- QuadratureMixin --
 
-    def _get_quadrature_class(self) -> type:
-        from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-            PiecewiseConstantRight,
-        )
-        return PiecewiseConstantRight
+    def quadrature_samples_weights(self, times: Array) -> tuple:
+        """Right-constant quadrature (right endpoints, interval widths)."""
+        return times[1:], self._bkd.diff(times)
 
 
 # =========================================================================

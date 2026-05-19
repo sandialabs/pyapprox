@@ -20,7 +20,6 @@ wrapper based on the inner stepper's protocol level.
 from typing import Generic, Tuple, cast, overload
 
 from pyapprox.ode.linear_operator import LinearOperatorProtocol, MatrixOperator
-
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
     ODEResidualWithParamJacobianProtocol,

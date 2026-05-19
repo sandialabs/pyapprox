@@ -1,70 +1,23 @@
-"""Arithmetic operations for Polynomial Chaos Expansions.
+"""Low-level arithmetic helpers for orthonormal polynomial expansions.
 
-Provides addition, subtraction, multiplication, and exponentiation of PCE
-objects. All operations return new PCE instances without modifying the inputs.
+Pure math utilities for adding and multiplying polynomial expansions
+represented as (indices, coefficients) pairs. No PCE class imports.
 
 All operations preserve PyTorch autograd computation graphs. The only int()
 calls are on integer index arrays (multi-indices used for hashing), never
 on autograd-tracked coefficient values.
 """
 
-import copy
-from typing import TYPE_CHECKING, List, Tuple
+from typing import List, Tuple
 
 import numpy as np
 
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product, outer_product
 
-if TYPE_CHECKING:
-    from pyapprox.surrogates.affine.expansions.pce import (
-        PolynomialChaosExpansion,
-    )
-
-
 # ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
-
-
-def _validate_compatible_bases(
-    pce1: "PolynomialChaosExpansion[Array]",
-    pce2: "PolynomialChaosExpansion[Array]",
-) -> None:
-    """Validate two PCEs have compatible univariate basis types.
-
-    PCEs can only be combined if they share the same polynomial type
-    in each dimension. The index sets may differ.
-
-    Raises
-    ------
-    ValueError
-        If number of variables differs.
-    TypeError
-        If univariate polynomial types differ in any dimension.
-    """
-    if pce1.nvars() != pce2.nvars():
-        raise ValueError(
-            f"Cannot combine PCEs with different nvars: "
-            f"{pce1.nvars()} vs {pce2.nvars()}"
-        )
-    basis1 = pce1.get_basis()
-    basis2 = pce2.get_basis()
-    for dd in range(pce1.nvars()):
-        b1 = basis1.get_univariate_basis(dd)
-        b2 = basis2.get_univariate_basis(dd)
-        poly_type1 = type(b1.polynomial())
-        poly_type2 = type(b2.polynomial())
-        if poly_type1 != poly_type2:
-            raise TypeError(
-                f"Incompatible bases in dimension {dd}: "
-                f"{poly_type1.__name__} vs {poly_type2.__name__}"
-            )
-
-
-# ---------------------------------------------------------------------------
-# Index grouping (replaces legacy _group_like_terms which used
-# bkd.unique(axis=1, return_inverse=True) - not available in typing backend)
+# Index grouping
 # ---------------------------------------------------------------------------
 
 
@@ -96,7 +49,6 @@ def _group_like_terms(
     kk = 0
     for ii in range(indices.shape[1]):
         col = indices[:, ii]
-        # Polynomial hash for the multi-index column (integer values only)
         key = 0
         for dd in range(col.shape[0]):
             key = 31 * key + int(col[dd])
@@ -138,109 +90,6 @@ def _add_polynomials(
 
 
 # ---------------------------------------------------------------------------
-# Result PCE construction
-# ---------------------------------------------------------------------------
-
-
-def _create_result_pce(
-    source_pce: "PolynomialChaosExpansion[Array]",
-    new_indices: Array,
-    new_coeffs: Array,
-) -> "PolynomialChaosExpansion[Array]":
-    """Create a new PCE with updated indices and coefficients.
-
-    Deep-copies the source, updates basis indices and coefficients,
-    and resets the cached hyperparameter list.
-    """
-    result = copy.deepcopy(source_pce)
-    result._basis.set_indices(new_indices)
-    result._initialize_coefficients()
-    result.set_coefficients(new_coeffs)
-    result._hyp_list = None
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Addition / subtraction
-# ---------------------------------------------------------------------------
-
-
-def add_pce(
-    pce1: "PolynomialChaosExpansion[Array]",
-    pce2: "PolynomialChaosExpansion[Array]",
-    sign: float = 1.0,
-) -> "PolynomialChaosExpansion[Array]":
-    """Add (or subtract) two PCEs.
-
-    Parameters
-    ----------
-    pce1, pce2 : PolynomialChaosExpansion
-    sign : float
-        Scale factor for pce2 coefficients. Use 1.0 for add, -1.0 for sub.
-
-    Returns
-    -------
-    PolynomialChaosExpansion
-        New PCE whose evaluation equals pce1(x) + sign * pce2(x).
-    """
-    _validate_compatible_bases(pce1, pce2)
-    bkd = pce1.bkd()
-    indices_list = [pce1.get_indices(), pce2.get_indices()]
-    coeffs_list = [
-        pce1.get_coefficients(),
-        sign * pce2.get_coefficients(),
-    ]
-    new_indices, new_coeffs = _add_polynomials(bkd, indices_list, coeffs_list)
-    return _create_result_pce(pce1, new_indices, new_coeffs)
-
-
-def add_constant_to_pce(
-    pce: "PolynomialChaosExpansion[Array]",
-    constant: float,
-) -> "PolynomialChaosExpansion[Array]":
-    """Add a scalar constant to a PCE.
-
-    The constant is added to the coefficient of the constant basis term
-    (the term with all-zero multi-index).
-
-    Returns
-    -------
-    PolynomialChaosExpansion
-        New PCE whose evaluation equals pce(x) + constant.
-    """
-    result = copy.deepcopy(pce)
-    bkd = result.bkd()
-    const_idx = result._get_constant_index()
-    coef = result.get_coefficients()
-    # Build new coefficient array preserving autograd graph
-    new_row = coef[const_idx, :] + constant
-    new_coef = bkd.concatenate(
-        [coef[:const_idx, :], bkd.reshape(new_row, (1, -1)), coef[const_idx + 1 :, :]],
-        axis=0,
-    )
-    result.set_coefficients(new_coef)
-    result._hyp_list = None
-    return result
-
-
-def multiply_pce_by_constant(
-    pce: "PolynomialChaosExpansion[Array]",
-    constant: float,
-) -> "PolynomialChaosExpansion[Array]":
-    """Multiply a PCE by a scalar constant.
-
-    Returns
-    -------
-    PolynomialChaosExpansion
-        New PCE whose evaluation equals constant * pce(x).
-    """
-    result = copy.deepcopy(pce)
-    result.set_coefficients(pce.get_coefficients() * constant)
-    result._hyp_list = None
-    return result
-
-
-# ---------------------------------------------------------------------------
 # Triangular indexing helpers (pure Python, ports from legacy util/linalg.py)
 # ---------------------------------------------------------------------------
 
@@ -274,7 +123,8 @@ def _flattened_lower_tri_index(ii: int, jj: int, M: int, N: int) -> int:
 
 
 def _compute_product_coeffs_1d(
-    basis: "PolynomialChaosExpansion[Array]",
+    bkd: Backend[Array],
+    orthonormal_basis: OrthonormalPolynomialBasis[Array],
     max_degrees1: Array,
     max_degrees2: Array,
 ) -> List[List[Array]]:
@@ -286,8 +136,10 @@ def _compute_product_coeffs_1d(
 
     Parameters
     ----------
-    basis : PolynomialChaosExpansion
-        Source PCE (used to access 1D bases and backend).
+    bkd : Backend[Array]
+        Computational backend.
+    orthonormal_basis : OrthonormalPolynomialBasis[Array]
+        The multivariate orthonormal polynomial basis.
     max_degrees1, max_degrees2 : Array
         Maximum degree per dimension for each operand.
         max_degrees1[dd] >= max_degrees2[dd] for all dd.
@@ -298,33 +150,28 @@ def _compute_product_coeffs_1d(
         product_coefs_1d[dd][kk] gives the projection coefficients for
         the kk-th (d1, d2) pair in dimension dd.
     """
-    bkd = basis.bkd()
-    orthonormal_basis = basis.get_basis()
+    nvars = orthonormal_basis.nvars()
     product_coefs_1d: List[List[Array]] = []
 
-    for dd in range(basis.nvars()):
+    for dd in range(nvars):
         max_degree1 = int(max_degrees1[dd])
         max_degree2 = int(max_degrees2[dd])
         max_degree = max_degree1 + max_degree2
         nquad_points = max_degree + 1
 
         basis_1d = orthonormal_basis.get_univariate_basis(dd)
-        # Ensure enough terms for the product degree
         if basis_1d.nterms() < nquad_points:
             basis_1d.set_nterms(nquad_points)
 
         x_quad, w_quad = basis_1d.gauss_quadrature_rule(nquad_points)
-        # Flatten weights to 1D
         w_quad = bkd.ravel(w_quad)
 
-        # Evaluate orthonormal basis at quadrature points
         ortho_basis_matrix = basis_1d(x_quad)  # (nquad_points, nterms_1d)
 
         product_coefs_1d.append([])
         for d1 in range(max_degree1 + 1):
             for d2 in range(min(d1 + 1, max_degree2 + 1)):
                 product_vals = ortho_basis_matrix[:, d1] * ortho_basis_matrix[:, d2]
-                # Spectral projection: c_k = Σ_j w_j * product(x_j) * ψ_k(x_j)
                 coefs = (
                     (w_quad * product_vals)[:, None].T
                     @ ortho_basis_matrix[:, : d1 + d2 + 1]
@@ -345,7 +192,7 @@ def _compute_multivariate_orthonormal_basis_product(
 ) -> Tuple[Array, Array]:
     """Compute product of two multivariate basis functions in orthonormal basis.
 
-    Re-expresses ψ_i(x) * ψ_j(x) as Σ_k c_k ψ_k(x).
+    Re-expresses psi_i(x) * psi_j(x) as sum_k c_k psi_k(x).
 
     Parameters
     ----------
@@ -389,7 +236,6 @@ def _compute_multivariate_orthonormal_basis_product(
             product_coefs = bkd.ravel(outer_product(bkd, coefs_1d))[:, None]
             active_product_indices = cartesian_product(bkd, indices_1d)
         else:
-            # Single active variable: no need for outer/cartesian product
             product_coefs = coefs_1d[0][:, None]
             active_product_indices = indices_1d[0][None, :]
 
@@ -398,32 +244,13 @@ def _compute_multivariate_orthonormal_basis_product(
         active_product_indices = active_product_indices[:, II]
         product_coefs = product_coefs[II]
 
-        # Build full-dimensional index array with zeros for inactive vars
-        product_indices = bkd.zeros(
-            (nvars, active_product_indices.shape[1]),
-            dtype=bkd.int64_dtype(),
-        )
-        # Assign active variable rows
-        rows = []
-        for idx_in_active, dd in enumerate(active_vars):
-            row = bkd.zeros(
-                (1, active_product_indices.shape[1]),
-                dtype=bkd.int64_dtype(),
-            )
-            row = row + active_product_indices[idx_in_active : idx_in_active + 1, :]
-            rows.append((int(dd), row))
-
-        for dd_int, row in rows:
-            # Build product_indices by concatenating rows in correct order
-            pass
-
-        # Simpler approach: build row-by-row
-        index_rows = []
+        # Build full-dimensional index array
         active_set = set(int(dd) for dd in active_vars)
         active_idx_map = {}
         for idx_in_active, dd in enumerate(active_vars):
             active_idx_map[int(dd)] = idx_in_active
 
+        index_rows = []
         for dd in range(nvars):
             if dd in active_set:
                 index_rows.append(
@@ -493,7 +320,6 @@ def _multiply_multivariate_orthonormal_polynomial_expansions(
                     max_degrees2,
                 )
             )
-            # Scale by both input coefficients (preserves autograd)
             product_coefs_iijj = (
                 product_coefs * poly_coefficients1[ii, :] * poly_coefficients2[jj, :]
             )
@@ -501,106 +327,3 @@ def _multiply_multivariate_orthonormal_polynomial_expansions(
             basis_indices.append(product_indices)
 
     return _add_polynomials(bkd, basis_indices, basis_coefs)
-
-
-def multiply_pce(
-    pce1: "PolynomialChaosExpansion[Array]",
-    pce2: "PolynomialChaosExpansion[Array]",
-) -> "PolynomialChaosExpansion[Array]":
-    """Multiply two PCEs using spectral projection.
-
-    Parameters
-    ----------
-    pce1, pce2 : PolynomialChaosExpansion
-
-    Returns
-    -------
-    PolynomialChaosExpansion
-        New PCE whose evaluation equals pce1(x) * pce2(x).
-    """
-    _validate_compatible_bases(pce1, pce2)
-    bkd = pce1.bkd()
-
-    # Order so poly1 has more terms (optimization for the double loop)
-    if pce1.nterms() >= pce2.nterms():
-        poly1, poly2 = pce1, pce2
-    else:
-        poly1, poly2 = pce2, pce1
-
-    # Deep copy only for the quadrature computation (which calls set_nterms
-    # and may mutate the 1D bases). The original coefficients are used in
-    # the multiplication to preserve autograd graphs.
-    poly1_copy = copy.deepcopy(poly1)
-
-    max_degrees1 = bkd.max(poly1.get_indices(), axis=1)
-    max_degrees2 = bkd.max(poly2.get_indices(), axis=1)
-
-    product_coefs_1d = _compute_product_coeffs_1d(
-        poly1_copy, max_degrees1, max_degrees2
-    )
-
-    # Use original (non-copied) coefficients to preserve autograd graph
-    new_indices, new_coeffs = _multiply_multivariate_orthonormal_polynomial_expansions(
-        bkd,
-        product_coefs_1d,
-        poly1.get_indices(),
-        poly1.get_coefficients(),
-        poly2.get_indices(),
-        poly2.get_coefficients(),
-    )
-
-    return _create_result_pce(pce1, new_indices, new_coeffs)
-
-
-# ---------------------------------------------------------------------------
-# Power
-# ---------------------------------------------------------------------------
-
-
-def pce_power(
-    pce: "PolynomialChaosExpansion[Array]",
-    order: int,
-) -> "PolynomialChaosExpansion[Array]":
-    """Raise a PCE to a non-negative integer power.
-
-    Parameters
-    ----------
-    pce : PolynomialChaosExpansion
-    order : int
-        Non-negative integer exponent.
-
-    Returns
-    -------
-    PolynomialChaosExpansion
-        New PCE whose evaluation equals pce(x) ** order.
-
-    Raises
-    ------
-    TypeError
-        If order is not an integer.
-    ValueError
-        If order is negative.
-    """
-    if not isinstance(order, int):
-        raise TypeError(f"Power order must be an integer, got {type(order).__name__}")
-    if order < 0:
-        raise ValueError(f"Power order must be non-negative, got {order}")
-
-    bkd = pce.bkd()
-
-    if order == 0:
-        # Return constant 1 polynomial
-        result = copy.deepcopy(pce)
-        const_indices = bkd.zeros((pce.nvars(), 1), dtype=bkd.int64_dtype())
-        result._basis.set_indices(const_indices)
-        result._initialize_coefficients()
-        ones_coef = bkd.ones((1, pce.nqoi()))
-        result.set_coefficients(ones_coef)
-        result._hyp_list = None
-        return result
-
-    # order >= 1: start with a copy and multiply iteratively
-    result = copy.deepcopy(pce)
-    for _ in range(2, order + 1):
-        result = multiply_pce(result, pce)
-    return result
