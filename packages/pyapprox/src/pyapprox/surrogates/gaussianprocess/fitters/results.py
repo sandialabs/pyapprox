@@ -1,7 +1,4 @@
-"""Result classes for GP fitting operations.
-
-All attributes accessed via methods per CLAUDE.md conventions.
-"""
+"""Result classes for GP fitting operations."""
 
 from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
 

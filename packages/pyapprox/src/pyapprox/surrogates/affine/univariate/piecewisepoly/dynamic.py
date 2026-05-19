@@ -166,7 +166,6 @@ class DynamicPiecewiseBasis(Generic[Array]):
         if self._nterms == 0:
             raise ValueError("Must call set_nterms before evaluation")
 
-        # Strict shape validation per CLAUDE.md conventions
         if samples.ndim != 2 or samples.shape[0] != 1:
             raise ValueError(
                 f"Expected samples shape (1, nsamples), got {samples.shape}"

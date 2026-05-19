@@ -488,7 +488,6 @@ class IndependentJoint(Generic[Array]):
         """
         Return the domain of the joint distribution.
 
-        Returns bounds as (nvars, 2) per CLAUDE.md conventions.
         For bounded marginals, uses interval(1.0). For unbounded, uses [-inf, inf].
 
         Returns

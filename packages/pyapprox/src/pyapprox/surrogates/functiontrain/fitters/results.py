@@ -12,8 +12,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 class MSEFitterResult(Generic[Array]):
     """Result from MSE-based gradient optimization.
 
-    All attributes are accessed via methods per CLAUDE.md convention.
-
     Only exposes attributes guaranteed by the optimizer result protocol.
     Use optimizer_result().get_raw_result() for optimizer-specific attributes
     like number of iterations.

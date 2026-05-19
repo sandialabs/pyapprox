@@ -1,7 +1,6 @@
 """Tests for jacobian_wrt_params methods in FunctionTrain components.
 
-Tests validate Jacobian computations using DerivativeChecker per CLAUDE.md convention.
-Tests cover:
+Tests validate Jacobian computations using DerivativeChecker. Tests cover:
 - ConstantExpansion (no trainable params)
 - FunctionTrainCore (per-core Jacobian)
 - FunctionTrain (full Jacobian via forward-backward sweep)

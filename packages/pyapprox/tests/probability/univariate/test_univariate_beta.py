@@ -452,7 +452,6 @@ class TestBetaMarginalParametrized:
         base_eps = bkd.asarray([1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8])
         fd_eps = base_eps * max(1.0, scale / 10.0)
         errors = checker.check_derivatives(sample, fd_eps=fd_eps)
-        # Use relaxed tolerance for numerical derivatives per CLAUDE.md
         assert float(checker.error_ratio(errors[0])) <= 1e-5
 
 

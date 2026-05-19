@@ -1,7 +1,6 @@
 """Tests for FunctionTrain loss functions.
 
-Tests validate FunctionTrainMSELoss gradient accuracy using DerivativeChecker
-per CLAUDE.md convention.
+Tests validate FunctionTrainMSELoss gradient accuracy using DerivativeChecker.
 """
 
 import numpy as np

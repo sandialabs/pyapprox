@@ -95,7 +95,6 @@ class TestBasisExpansion:
         nsamples = 15
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         values = exp(samples)
-        # Shape should be (nqoi, nsamples) per CLAUDE.md convention
         assert values.shape == (2, nsamples)
 
     def test_jacobian_batch_shape(self, bkd):
@@ -121,7 +120,6 @@ class TestBasisExpansion:
         nsamples = 5
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
         hess = exp.hessian_batch(samples)
-        # Shape should be (nsamples, nvars, nvars) per CLAUDE.md convention
         assert hess.shape == (nsamples, 2, 2)
 
     def test_hessian_batch_not_available_for_multi_qoi(self, bkd):

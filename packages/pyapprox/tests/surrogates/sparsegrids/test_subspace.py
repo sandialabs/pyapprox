@@ -99,7 +99,7 @@ class TestBasisSetup:
         For DynamicPiecewiseBasis, the npoints argument is used to set
         the number of nodes (via set_nterms), enabling use with sparse grids.
 
-        Per CLAUDE.md conventions, quadrature rules return 2D shapes:
+        Quadrature rules return 2D shapes:
         - points: (1, nterms) matching (nvars, nsamples) with nvars=1
         - weights: (nterms, 1) matching (nqoi, nsamples) with nqoi=1
         """
