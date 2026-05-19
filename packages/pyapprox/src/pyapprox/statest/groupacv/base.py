@@ -9,9 +9,15 @@ Concrete implementations are in variants.py:
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Generic, List, Optional, Sequence
-
-import numpy as np
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from pyapprox.statest.groupacv.optimization import (
     GroupACVLogDetObjective,
@@ -22,8 +28,6 @@ from pyapprox.statest.groupacv.utils import (
     get_model_subsets,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
-from pyapprox.statest.statistics import MultiOutputVariance
 
 if TYPE_CHECKING:
     from pyapprox.statest.groupacv.allocation import (
@@ -162,10 +166,12 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             self._K_stat_indices = []
             return
 
-        if isinstance(self._stat, MultiOutputVariance):
+        try:
+            self._stat.mean_slot_indices()
+        except TypeError:
             raise ValueError(
                 "known_mean_models not supported for variance-only "
-                "estimation (MultiOutputVariance has no mean slots)"
+                "estimation (stat class has no mean slots)"
             )
 
         if 0 in km_list:
@@ -191,14 +197,15 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             raise ValueError("known_means contains non-finite values")
 
         self._has_known_means = True
-        # Assumes means occupy the first nqoi stat-slots per model.
-        # This matches MultiOutputMean (nstats==nqoi, all mean slots) and
-        # MultiOutputMeanAndVariance (means first, then variance entries).
-        self._known_values = np.full((self._nmodels, nstats), np.nan)
+        mean_slots = self._stat.mean_slot_indices()
+        nan_val = float("nan")
+        self._known_values = self._bkd.full(
+            (self._nmodels, nstats), nan_val
+        )
         for ii, model_l in enumerate(km_list):
-            for qq in range(nqoi):
-                self._known_values[model_l, qq] = float(
-                    known_means_arr[ii, qq]
+            for q_idx, slot in enumerate(mean_slots):
+                self._known_values[model_l, slot] = (
+                    known_means_arr[ii, q_idx]
                 )
 
         self._T_stat_indices = []
@@ -206,7 +213,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         for m in range(self._nmodels):
             for s in range(nstats):
                 flat = m * nstats + s
-                if np.isnan(self._known_values[m, s]):
+                if not bool(
+                    self._bkd.all_bool(
+                        self._bkd.isfinite(self._known_values[m:m+1, s:s+1])
+                    )
+                ):
                     self._T_stat_indices.append(flat)
                 else:
                     self._K_stat_indices.append(flat)
@@ -277,7 +288,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def _check_cov(self, cov: Array, costs: Array) -> tuple[Array, Array]:
         if cov.shape[0] != len(costs):
-            print(cov.shape, costs.shape)
             raise ValueError("cov and costs are inconsistent")
         return cov, self._bkd.asarray(costs)
 
@@ -406,14 +416,15 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         )
 
     def _sigma(self, npartition_samples: Array) -> Array:
-        Sigma = _grouped_acv_sigma(
+        sigma_blocks = _grouped_acv_sigma(
             self.nmodels(),
             self._nintersect_samples(npartition_samples),
             self._subsets,
             self._stat,
         )
-        Sigma = self._bkd.vstack([self._bkd.hstack(row) for row in Sigma])
-        return Sigma
+        return self._bkd.vstack(
+            [self._bkd.hstack(row) for row in sigma_blocks]
+        )
 
     def _inv(self, mat: Array) -> Array:
         if self._use_pseudo_inv:
@@ -426,11 +437,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         psi_reg_mat = (
             self._bkd.eye(self._nT_stats) * self._reg_blue
         )
-        # sigma_reg_mat = self._bkd.eye(Sigma.shape[0]) * self._reg_blue
-        # print(Sigma)
         return (
             self._bkd.multidot(
-                # [self._R, self._inv(Sigma + sigma_reg_mat), self._R.T]
                 [self._R, self._inv(Sigma), self._R.T]
             )
             + psi_reg_mat
@@ -442,7 +450,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def _psi_inv_from_npartition_samples(self, npartition_samples: Array) -> Array:
         psi = self._psi_matrix(npartition_samples)
-        # print(self._bkd.cond(psi), "COND")
         psi_inv = self._inv(psi)
         return psi_inv
 
@@ -719,7 +726,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                     [
                         samples[
                             :,
-                            partition_splits[idx] : partition_splits[idx + 1],
+                            self._bkd.to_int(
+                                partition_splits[idx]
+                            ) : self._bkd.to_int(
+                                partition_splits[idx + 1]
+                            ),
                         ]
                         for idx in active_partitions
                     ]
@@ -754,7 +765,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         for ii in range(self.nmodels()):
             active_partitions = self._bkd.where(self._partitions_per_model[ii])[0]
             splits = self._bkd.full((self.npartitions(), 2), -1, dtype=int)
-            lb, ub = self._bkd.to_int(0), self._bkd.to_int(0)
+            lb = self._bkd.zeros((), dtype=self._bkd.int64_dtype())
+            ub = self._bkd.zeros((), dtype=self._bkd.int64_dtype())
             for idx in active_partitions:
                 ub += partition_splits[idx + 1] - partition_splits[idx]
                 splits[idx] = self._bkd.array([lb, ub])
@@ -776,6 +788,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             Values for each subset. Each array has shape (nqoi*nmodels_in_subset,
             nsamples_in_subset).
         """
+        self._ensure_allocation()
+        if self._nsamples_per_model is None:
+            raise RuntimeError("nsamples_per_model must be set")
         if len(values_per_model) != self.nmodels():
             msg = "len(values_per_model) {0} != nmodels {1}".format(
                 len(values_per_model), self.nmodels()
@@ -821,11 +836,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         beta = self._bkd.stack(
             [
                 self._bkd.multidot(
-                    (
+                    [
                         self._inv(sigma),
                         self._R.T,
                         self._bkd.solve(psi_matrix, asketch),
-                    )
+                    ]
                 )
                 for asketch in self._asketch
             ],
@@ -836,7 +851,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
     def _estimate(self, values_per_subset: List[Array]) -> Array:
         beta = self._grouped_acv_beta(self.optimized_sigma())
         ll, mm = 0, 0
-        acv_stat = 0
+        acv_stat: Array = self._bkd.zeros((beta.shape[0],))
         for kk in range(self.nsubsets()):
             mm += len(self._subsets[kk])
             # values shape is (nqoi*nmodels_in_subset, nsamples), check nsamples > 0
@@ -885,60 +900,39 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def _group_to_traditional_estimators_from_alpha(
         self, subset_ests: List[Array], alpha: Array
-    ) -> Array:
+    ) -> Tuple[Array, Array, Array]:
         beta = self._grouped_acv_beta(self.optimized_sigma())
         # beta shape (nstats, sum_s\insubsets nstats * nmodels_in_subset(s)
         Q0 = self._bkd.zeros((self._stat.nstats(),))
         Qe = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
         Qu = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
-        # zeros = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
         for ii, subset in enumerate(self._subsets):
             beta_tilde = self._extract_from_flattened_subset_matrix(beta, ii)
-            # print(subset)
-            # print(beta)
-            # print(beta_tilde)
             B0_tilde = beta_tilde[:, : self._stat.nstats()]
             BL_tilde = beta_tilde[:, self._stat.nstats() :]
             R = self._restriction_matrix(subset)
             Q_tilde = R.T @ subset_ests[ii]
             Q0_tilde = Q_tilde[: self._stat.nstats()]
             QL_tilde = Q_tilde[self._stat.nstats() :]
-            # print("\n", subset)
-            # print(beta)
-            # print(subset_ests[ii])
-            # print(Q_tilde, "QT")
-            # print(Q0_tilde, "Q0")
-            # print(B0_tilde, "B0")
-            # print(QL_tilde, "QL")
-            # print(BL_tilde, "BL")
-            # print(subset_ests[ii])
             Q0 += B0_tilde @ Q0_tilde
-            # print(BL_tilde.shape, zeros.shape, alpha.shape)
-            # we = self._bkd.maximum(BL_tilde, zeros) / alpha
-            # wu = -self._bkd.minimum(BL_tilde, zeros) / alpha
             nstats = self._stat.nstats()
-            # print(alpha.shape, beta.shape, Qe.shape)
             for kk in range(beta.shape[0]):
                 for ll in range(1, self._nmodels):
-                    print(
-                        kk,
-                        ll,
-                        (ll - 1) * nstats + kk,
-                        BL_tilde.shape,
-                        alpha.shape,
+                    zero = self._bkd.zeros(())
+                    bl_kk = BL_tilde[kk, (ll - 1) * nstats + kk]
+                    wu = (
+                        (1 / alpha[kk, (ll - 1) * nstats + kk])
+                        * self._bkd.maximum(bl_kk, zero)
                     )
-                    wu = (1 / alpha[kk, (ll - 1) * nstats + kk]) * max(
-                        BL_tilde[kk, (ll - 1) * nstats + kk], 0.0
-                    )
-                    we = -(1 / alpha[kk, (ll - 1) * nstats + kk]) * min(
-                        BL_tilde[kk, (ll - 1) * nstats + kk], 0.0
+                    we = (
+                        -(1 / alpha[kk, (ll - 1) * nstats + kk])
+                        * self._bkd.minimum(bl_kk, zero)
                     )
                     Qe[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * we
                     Qu[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * wu
-            # print(Qe)
         return Q0, Qe, Qu
 
-    def _group_to_traditional_estimators(self, subset_ests: List[Array]) -> Array:
+    def _group_to_traditional_estimators(self, subset_ests: List[Array]) -> Tuple[Array, Array, Array]:
         # Implement equations (15) in arxiv paper
         # wu = w_l^{k,u} and  we = w_l^{k,e} from arxiv paper
         alpha = self._traditional_acv_weights()
@@ -1002,42 +996,50 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         npilot_samples: int,
         samples_per_model: List[Array],
     ) -> tuple[List[Array], Optional[Array]]:
+        if self._npartition_samples is None:
+            raise RuntimeError("npartition_samples must be set")
+        if self._nsamples_per_model is None:
+            raise RuntimeError("nsamples_per_model must be set")
         active_hf_subsets = self._bkd.where(self._partitions_per_model[0] == 1)[0]
-        partition_id = active_hf_subsets[
+        part_id = self._bkd.to_int(active_hf_subsets[
             self._bkd.argmax(self._npartition_samples[active_hf_subsets])
-        ]
+        ])
         removed_samples = None
-        for model_id in self._subsets[partition_id]:
-            if npilot_samples > self._npartition_samples[partition_id]:
+        for model_id_arr in self._subsets[part_id]:
+            mid = self._bkd.to_int(model_id_arr)
+            if npilot_samples > self._npartition_samples[part_id]:
                 msg = "Too many pilot values {0}+>{1}".format(
                     npilot_samples,
-                    self._npartition_samples[partition_id],
+                    self._npartition_samples[part_id],
                 )
                 raise ValueError(msg)
             if (
-                samples_per_model[model_id].shape[1]
-                != self._nsamples_per_model[model_id]
+                samples_per_model[mid].shape[1]
+                != self._nsamples_per_model[mid]
             ):
                 raise ValueError("samples per model has the wrong size")
             splits, removed_split = self._reduce_model_sample_splits(
-                model_id, partition_id, npilot_samples
+                mid, part_id, npilot_samples
             )
-            # removed samples must be computed before samples_per_model is
-            # redefined below
+            rs0 = self._bkd.to_int(removed_split[0])
+            rs1 = self._bkd.to_int(removed_split[1])
             if removed_samples is None:
-                removed_samples = samples_per_model[model_id][
-                    :, removed_split[0] : removed_split[1]
-                ]
+                removed_samples = samples_per_model[mid][:, rs0:rs1]
             else:
                 assert self._bkd.allclose(
                     removed_samples,
-                    samples_per_model[model_id][:, removed_split[0] : removed_split[1]],
+                    samples_per_model[mid][:, rs0:rs1],
                 )
-            samples_per_model[model_id] = self._bkd.hstack(
+            samples_per_model[mid] = self._bkd.hstack(
                 [
-                    samples_per_model[model_id][:, splits[idx, 0] : splits[idx, 1]]
+                    samples_per_model[mid][
+                        :,
+                        self._bkd.to_int(splits[idx, 0]) : self._bkd.to_int(
+                            splits[idx, 1]
+                        ),
+                    ]
                     for idx in self._bkd.where(
-                        self._partitions_per_model[model_id] == 1
+                        self._partitions_per_model[mid] == 1
                     )[0]
                 ]
             )
@@ -1065,6 +1067,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             Shape: (nqoi, nsamples_for_model + npilot_samples)
         """
         self._ensure_allocation()
+        if self._npartition_samples is None:
+            raise RuntimeError("npartition_samples must be set")
         # nsamples is shape[1] for (nqoi, nsamples) convention
         npilot_values = pilot_values[0].shape[1]
         if self._bkd.to_float(self._bkd.max(
@@ -1077,31 +1081,30 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
         new_values_per_model = [self._bkd.copy(v) for v in values_per_model]
         active_hf_subsets = self._bkd.where(self._partitions_per_model[0] == 1)[0]
-        partition_id = active_hf_subsets[
+        part_id = self._bkd.to_int(active_hf_subsets[
             self._bkd.argmax(self._npartition_samples[active_hf_subsets])
-        ]
+        ])
         splits_per_model = self.sample_splits()
-        for model_id in self._subsets[partition_id]:
-            npilot_values = pilot_values[model_id].shape[1]
+        for model_id_arr in self._subsets[part_id]:
+            mid = self._bkd.to_int(model_id_arr)
+            npilot_values = pilot_values[mid].shape[1]
             if npilot_values != pilot_values[0].shape[1]:
                 msg = "Must have the same number of pilot values "
                 msg += "for each model"
                 raise ValueError(msg)
-            if npilot_values > self._npartition_samples[partition_id]:
+            if npilot_values > self._npartition_samples[part_id]:
                 raise ValueError(
                     "Too many pilot values {0}>{1}".format(
-                        npilot_values + values_per_model[model_id].shape[1],
-                        self._npartition_samples[partition_id],
+                        npilot_values + values_per_model[mid].shape[1],
+                        self._npartition_samples[part_id],
                     )
                 )
-            lb, ub = splits_per_model[model_id][partition_id]
-            # Pilot samples become first samples of the chosen partition
-            # For (nqoi, nsamples) convention, concatenate along columns
-            new_values_per_model[model_id] = self._bkd.hstack(
+            lb = self._bkd.to_int(splits_per_model[mid][part_id][0])
+            new_values_per_model[mid] = self._bkd.hstack(
                 (
-                    values_per_model[model_id][:, :lb],
-                    pilot_values[model_id],
-                    values_per_model[model_id][:, lb:],
+                    values_per_model[mid][:, :lb],
+                    pilot_values[mid],
+                    values_per_model[mid][:, lb:],
                 )
             )
         return new_values_per_model
@@ -1112,7 +1115,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         criteria = self.optimized_criteria()
         criteria_val = self._bkd.to_float(self._bkd.flatten(criteria)[0])
         rep = "{0}(criteria={1:.3g}".format(self.__class__.__name__, criteria_val)
+        target_cost = self._target_cost if self._target_cost is not None else 0.0
         rep += " target_cost={0:.5g}, nsamples={1})".format(
-            self._target_cost, self._nsamples_per_model
+            target_cost, self._nsamples_per_model
         )
         return rep

@@ -373,6 +373,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return cast(NDArray[Any], np.floor(array))
 
     @staticmethod
+    def floor_divide(
+        array: NDArray[Any], divisor: "int | NDArray[Any]"
+    ) -> NDArray[Any]:
+        return cast(NDArray[Any], np.floor_divide(array, divisor))
+
+    @staticmethod
     def ceil(array: NDArray[Any]) -> NDArray[Any]:
         return cast(NDArray[Any], np.ceil(array))
 

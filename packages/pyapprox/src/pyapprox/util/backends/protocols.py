@@ -511,6 +511,9 @@ class Backend(Protocol, Generic[Array]):
     def floor(array: Array) -> Array: ...
 
     @staticmethod
+    def floor_divide(array: Array, divisor: "int | Array") -> Array: ...
+
+    @staticmethod
     def ceil(array: Array) -> Array: ...
 
     @staticmethod

@@ -674,6 +674,24 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         """The number of statistics computed"""
         raise NotImplementedError
 
+    def mean_slot_indices(self) -> List[int]:
+        """Per-model stat-slot indices that hold mean estimates.
+
+        Returns
+        -------
+        List[int]
+            Indices into the per-model stat vector where means reside.
+            Length equals ``nqoi()``.
+
+        Raises
+        ------
+        TypeError
+            If the statistic has no mean slots (e.g. variance-only).
+        """
+        raise TypeError(
+            f"{type(self).__name__} does not have mean slots"
+        )
+
     @abstractmethod
     def sample_estimate(self, values: Array) -> Array:
         raise NotImplementedError
@@ -777,6 +795,9 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
 
     def nstats(self) -> int:
         return self.nqoi()
+
+    def mean_slot_indices(self) -> List[int]:
+        return list(range(self.nqoi()))
 
     def sample_estimate(self, values: Array) -> Array:
         """Compute sample mean estimate.
@@ -1311,6 +1332,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             raise RuntimeError("Must call set_pilot_quantities() first")
         return self.nqoi() + self._tril_idx_flat.shape[0]
 
+    def mean_slot_indices(self) -> List[int]:
+        return list(range(self.nqoi()))
+
     def sample_estimate(self, values: Array) -> Array:
         """Compute sample mean and variance estimate.
 
@@ -1356,6 +1380,14 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         )
 
     def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
+        if (
+            self._cov is None
+            or self._W is None
+            or self._V is None
+            or self._B is None
+            or self._tril_idx_flat is None
+        ):
+            raise RuntimeError("must call set_pilot_quantities first")
         block_11 = self._cov[: self._nqoi, : self._nqoi] / nhf_samples
         cov_est = _covariance_of_variance_estimator(
             self._W[: self._nqoi**2, : self._nqoi**2],
@@ -1416,6 +1448,15 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
     def _get_discrepancy_covariances(
         self, Gmat: Array, gvec: Array, Hmat: Array, hvec: Array
     ) -> Tuple[Array, Array]:
+        if (
+            self._cov is None
+            or self._V is None
+            or self._W is None
+            or self._B is None
+            or self._lf_delta_idx is None
+            or self._hf_delta_idx is None
+        ):
+            raise RuntimeError("must call set_pilot_quantities first")
         CF, cf = _get_multioutput_acv_mean_and_variance_discrepancy_covariances(
             self._cov,
             self._V,
@@ -1474,6 +1515,8 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         self, nmodels: int, nqoi: int, model_idx: Array,
         qoi_idx: Optional[Array] = None
     ) -> Tuple[Array, ...]:
+        if self._cov is None or self._W is None or self._B is None:
+            raise RuntimeError("must call set_pilot_quantities first")
         if qoi_idx is None:
             qoi_idx = self._bkd.arange(nqoi)
         cov_sub = _nqoi_nqoi_subproblem(
@@ -1546,7 +1589,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         nstats = self.nstats()
         nmodels_in_subset = subset.shape[0] // nstats
         for ii in range(nmodels_in_subset):
-            model_id = self._bkd.to_int(subset[cnt] // nstats)
+            model_id = self._bkd.to_int(
+                self._bkd.floor_divide(subset[cnt], nstats)
+            )
             mean_idx.append(
                 subset[cnt : cnt + self._nqoi] -
                 self._tril_idx_flat.shape[0] * model_id
@@ -1562,7 +1607,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         cnt = self._nqoi  # skip means of first model
         nmodels_in_subset = subset.shape[0] // nstats
         for ii in range(nmodels_in_subset):
-            model_id = self._bkd.to_int(subset[cnt - self._nqoi] // nstats)
+            model_id = self._bkd.to_int(
+                self._bkd.floor_divide(subset[cnt - self._nqoi], nstats)
+            )
             var_idx.append(
                 subset[cnt : cnt + self._tril_idx_flat.shape[0]]
                 - self._nqoi * (model_id + 1)
@@ -1584,6 +1631,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             or self._Vcomp is None
             or self._Wcomp is None
             or self._Bcomp is None
+            or self._tril_idx_flat is None
         ):
             raise RuntimeError("must call set_pilot_quantities")
 
@@ -1612,10 +1660,12 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         nqoi = self.nqoi()
         ncov_stats = self._tril_idx_flat.shape[0]
         model_ids0: Array = self._bkd.asarray(
-            subset0[::nstats] // nstats, dtype=self._bkd.int64_dtype()
+            self._bkd.floor_divide(subset0[::nstats], nstats),
+            dtype=self._bkd.int64_dtype(),
         )
         model_ids1: Array = self._bkd.asarray(
-            subset1[::nstats] // nstats, dtype=self._bkd.int64_dtype()
+            self._bkd.floor_divide(subset1[::nstats], nstats),
+            dtype=self._bkd.int64_dtype(),
         )
         rows = []
         for ii in range(model_ids0.shape[0]):

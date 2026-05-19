@@ -445,6 +445,12 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.floor(array)
 
     @staticmethod
+    def floor_divide(
+        array: torch.Tensor, divisor: "int | torch.Tensor"
+    ) -> torch.Tensor:
+        return torch.floor_divide(array, divisor)
+
+    @staticmethod
     def ceil(array: torch.Tensor) -> torch.Tensor:
         return torch.ceil(array)
 
