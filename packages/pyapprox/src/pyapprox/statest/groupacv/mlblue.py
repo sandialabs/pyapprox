@@ -4,7 +4,7 @@ This module provides the MLBLUEEstimator class, a specialized GroupACV
 estimator for Multi-Level Best Linear Unbiased Estimation.
 """
 
-from typing import TYPE_CHECKING, List, Optional, Sequence
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -52,9 +52,24 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         model_subsets: List[Array] = None,
         asketch: Array = None,
         use_pseudo_inv: bool = True,
-        known_mean_models: Optional[Sequence[int]] = None,
-        known_means: Optional[Array] = None,
+        known_quantities: Optional[Dict[Tuple[int, str], Array]] = None,
     ):
+        from pyapprox.statest.statistics import (
+            MultiOutputMeanAndVariance,
+            MultiOutputVariance,
+        )
+
+        if isinstance(stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
+            raise NotImplementedError(
+                "MLBLUEEstimator precomputes per-group psi blocks assuming "
+                "the covariance of per-group estimators is (1/m) * "
+                "Cov(Q_l, Q_l'). This identity holds for mean estimation "
+                "but not for variance or mean+variance estimation (which "
+                "has additional 1/(m-1) terms). Use GroupACVEstimatorIS "
+                "with known_quantities for IS-style variance estimation; "
+                "it computes psi correctly through the stat class's "
+                "_group_acv_sigma_block method."
+            )
         super().__init__(
             stat,
             costs,
@@ -62,8 +77,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
             model_subsets,
             asketch=asketch,
             use_pseudo_inv=use_pseudo_inv,
-            known_mean_models=known_mean_models,
-            known_means=known_means,
+            known_quantities=known_quantities,
         )
         self._best_model_indices = self._bkd.arange(len(costs))
 

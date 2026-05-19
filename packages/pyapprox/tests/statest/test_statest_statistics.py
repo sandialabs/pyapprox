@@ -422,3 +422,86 @@ class TestMultiOutputMeanAndVariance:
             bkd.asarray([subset_stat._B.shape[0], subset_stat._B.shape[1]]),
             bkd.asarray([nsub * nqoi, nsub * nqoi**2]),
         )
+
+
+class TestStatSlotIndices:
+    """Tests for stat_slot_indices on all stat classes."""
+
+    def test_mean_nqoi1(self, numpy_bkd) -> None:
+        stat = MultiOutputMean(1, numpy_bkd)
+        assert stat.stat_slot_indices("mean") == [0]
+
+    def test_mean_nqoi3(self, numpy_bkd) -> None:
+        stat = MultiOutputMean(3, numpy_bkd)
+        assert stat.stat_slot_indices("mean") == [0, 1, 2]
+
+    def test_mean_rejects_variance(self, numpy_bkd) -> None:
+        stat = MultiOutputMean(1, numpy_bkd)
+        with pytest.raises(ValueError, match="not available"):
+            stat.stat_slot_indices("variance")
+
+    def test_mean_rejects_invalid(self, numpy_bkd) -> None:
+        stat = MultiOutputMean(1, numpy_bkd)
+        with pytest.raises(ValueError, match="not available"):
+            stat.stat_slot_indices("banana")
+
+    def test_variance_nqoi1(self, numpy_bkd) -> None:
+        stat = MultiOutputVariance(1, numpy_bkd)
+        assert stat.stat_slot_indices("variance") == [0]
+
+    def test_variance_nqoi2_tril(self, numpy_bkd) -> None:
+        nmodels, nqoi = 2, 2
+        stat = MultiOutputVariance(nqoi, numpy_bkd)
+        cov = numpy_bkd.eye(nmodels * nqoi)
+        W = numpy_bkd.eye(nmodels * nqoi**2)
+        stat.set_pilot_quantities(cov, W)
+        assert stat.stat_slot_indices("variance") == [0, 1, 2]
+
+    def test_variance_rejects_mean(self, numpy_bkd) -> None:
+        stat = MultiOutputVariance(1, numpy_bkd)
+        with pytest.raises(ValueError, match="not available"):
+            stat.stat_slot_indices("mean")
+
+    def test_variance_rejects_invalid(self, numpy_bkd) -> None:
+        stat = MultiOutputVariance(1, numpy_bkd)
+        with pytest.raises(ValueError, match="not available"):
+            stat.stat_slot_indices("invalid")
+
+    def test_mean_and_variance_nqoi1(self, numpy_bkd) -> None:
+        nmodels, nqoi = 2, 1
+        stat = MultiOutputMeanAndVariance(nqoi, numpy_bkd)
+        n = nmodels * nqoi
+        nsq = nmodels * nqoi**2
+        stat.set_pilot_quantities(
+            numpy_bkd.eye(n),
+            numpy_bkd.eye(nsq),
+            numpy_bkd.zeros((n, nsq)),
+        )
+        assert stat.stat_slot_indices("mean") == [0]
+        assert stat.stat_slot_indices("variance") == [1]
+
+    def test_mean_and_variance_nqoi2(self, numpy_bkd) -> None:
+        nmodels, nqoi = 2, 2
+        stat = MultiOutputMeanAndVariance(nqoi, numpy_bkd)
+        n = nmodels * nqoi
+        nsq = nmodels * nqoi**2
+        stat.set_pilot_quantities(
+            numpy_bkd.eye(n),
+            numpy_bkd.eye(nsq),
+            numpy_bkd.zeros((n, nsq)),
+        )
+        assert stat.stat_slot_indices("mean") == [0, 1]
+        assert stat.stat_slot_indices("variance") == [2, 3, 4]
+
+    def test_mean_and_variance_rejects_invalid(self, numpy_bkd) -> None:
+        nmodels, nqoi = 2, 1
+        stat = MultiOutputMeanAndVariance(nqoi, numpy_bkd)
+        n = nmodels * nqoi
+        nsq = nmodels * nqoi**2
+        stat.set_pilot_quantities(
+            numpy_bkd.eye(n),
+            numpy_bkd.eye(nsq),
+            numpy_bkd.zeros((n, nsq)),
+        )
+        with pytest.raises(ValueError, match="not available"):
+            stat.stat_slot_indices("invalid")

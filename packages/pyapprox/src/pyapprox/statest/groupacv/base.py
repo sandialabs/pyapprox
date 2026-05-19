@@ -12,10 +12,10 @@ from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Callable,
+    Dict,
     Generic,
     List,
     Optional,
-    Sequence,
     Tuple,
 )
 
@@ -74,8 +74,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         model_subsets: Optional[List[Array]] = None,
         asketch: Optional[Array] = None,
         use_pseudo_inv: bool = True,
-        known_mean_models: Optional[Sequence[int]] = None,
-        known_means: Optional[Array] = None,
+        known_quantities: Optional[Dict[Tuple[int, str], Array]] = None,
     ):
         from pyapprox.statest.statistics import (
             MultiOutputMean,
@@ -114,7 +113,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         self._npartition_samples_lb = 0  # 1e-5
         self._asketch = self._validate_asketch(asketch)
 
-        self._setup_known_means(known_mean_models, known_means)
+        self._setup_known_quantities(known_quantities)
 
         # Source of truth attributes (None until allocation is set)
         self._allocation: Optional["GroupACVAllocationResult[Array]"] = None
@@ -133,16 +132,16 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         """Return the backend."""
         return self._bkd
 
-    def _setup_known_means(
+    def _setup_known_quantities(
         self,
-        known_mean_models: Optional[Sequence[int]],
-        known_means: Optional[Array],
+        known_quantities: Optional[Dict[Tuple[int, str], Array]],
     ) -> None:
-        nstats = self._stat.nstats()
-        nqoi = self._stat.nqoi()
+        from pyapprox.statest.statistics import MultiOutputMeanAndVariance
 
-        if known_mean_models is None and known_means is None:
-            self._has_known_means = False
+        nstats = self._stat.nstats()
+
+        if not known_quantities:
+            self._has_known_quantities = False
             self._nT_stats = self._nmodels * nstats
             self._known_values = None
             self._T_stat_indices: List[int] = list(
@@ -151,62 +150,55 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             self._K_stat_indices: List[int] = []
             return
 
-        if known_mean_models is None or known_means is None:
-            raise ValueError(
-                "known_mean_models and known_means must both be provided "
-                "or both be None"
-            )
-
-        km_list = list(known_mean_models)
-        if len(km_list) == 0:
-            self._has_known_means = False
-            self._nT_stats = self._nmodels * nstats
-            self._known_values = None
-            self._T_stat_indices = list(range(self._nmodels * nstats))
-            self._K_stat_indices = []
-            return
-
-        try:
-            self._stat.mean_slot_indices()
-        except TypeError:
-            raise ValueError(
-                "known_mean_models not supported for variance-only "
-                "estimation (stat class has no mean slots)"
-            )
-
-        if 0 in km_list:
-            raise ValueError(
-                "Model 0 (high-fidelity) cannot have a known mean"
-            )
-        if len(set(km_list)) != len(km_list):
-            raise ValueError("known_mean_models contains duplicate indices")
-        for idx in km_list:
-            if idx < 1 or idx >= self._nmodels:
+        for (model_idx, stat_name), values in known_quantities.items():
+            if model_idx == 0:
                 raise ValueError(
-                    f"known_mean_models index {idx} out of range "
+                    "Model 0 (high-fidelity) cannot have known quantities"
+                )
+            if model_idx < 1 or model_idx >= self._nmodels:
+                raise ValueError(
+                    f"Model index {model_idx} out of range "
                     f"[1, {self._nmodels})"
                 )
+            slots = self._stat.stat_slot_indices(stat_name)
+            values_arr = self._bkd.asarray(values)
+            if values_arr.shape != (len(slots),):
+                raise ValueError(
+                    f"known_quantities[({model_idx}, '{stat_name}')] "
+                    f"shape {values_arr.shape} must be ({len(slots)},)"
+                )
+            if not self._bkd.all_bool(self._bkd.isfinite(values_arr)):
+                raise ValueError(
+                    f"known_quantities[({model_idx}, '{stat_name}')] "
+                    f"contains non-finite values"
+                )
 
-        known_means_arr = self._bkd.asarray(known_means)
-        if known_means_arr.shape != (len(km_list), nqoi):
-            raise ValueError(
-                f"known_means shape {known_means_arr.shape} must be "
-                f"({len(km_list)}, {nqoi})"
-            )
-        if not self._bkd.all_bool(self._bkd.isfinite(known_means_arr)):
-            raise ValueError("known_means contains non-finite values")
+        if isinstance(self._stat, MultiOutputMeanAndVariance):
+            models_with_keys: Dict[int, List[str]] = {}
+            for model_idx, stat_name in known_quantities:
+                models_with_keys.setdefault(model_idx, []).append(stat_name)
+            for model_idx, keys in models_with_keys.items():
+                has_mean = "mean" in keys
+                has_var = "variance" in keys
+                if has_mean != has_var:
+                    present = "mean" if has_mean else "variance"
+                    missing = "variance" if has_mean else "mean"
+                    raise ValueError(
+                        f"MultiOutputMeanAndVariance requires per-model "
+                        f"all-or-nothing: model {model_idx} has known "
+                        f"{present} but not {missing}"
+                    )
 
-        self._has_known_means = True
-        mean_slots = self._stat.mean_slot_indices()
+        self._has_known_quantities = True
         nan_val = float("nan")
         self._known_values = self._bkd.full(
             (self._nmodels, nstats), nan_val
         )
-        for ii, model_l in enumerate(km_list):
-            for q_idx, slot in enumerate(mean_slots):
-                self._known_values[model_l, slot] = (
-                    known_means_arr[ii, q_idx]
-                )
+        for (model_idx, stat_name), values in known_quantities.items():
+            slots = self._stat.stat_slot_indices(stat_name)
+            values_arr = self._bkd.asarray(values)
+            for q_idx, slot in enumerate(slots):
+                self._known_values[model_idx, slot] = values_arr[q_idx]
 
         self._T_stat_indices = []
         self._K_stat_indices = []
@@ -972,7 +964,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         """
         values_per_subset = self._separate_values_per_model(values_per_model)
         stochastic_est = self._estimate(values_per_subset)
-        if not self._has_known_means:
+        if not self._has_known_quantities:
             return stochastic_est
         beta = self._grouped_acv_beta(self.optimized_sigma())
         return stochastic_est - self._compute_correction(beta)
