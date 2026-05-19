@@ -410,7 +410,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.digamma(array)
 
     @staticmethod
-    def equal(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    def equal(a: torch.Tensor, b: "float | int | torch.Tensor") -> torch.Tensor:
         return torch.eq(a, b)
 
     @staticmethod
