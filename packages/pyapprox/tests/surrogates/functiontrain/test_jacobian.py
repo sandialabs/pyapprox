@@ -1,7 +1,6 @@
 """Tests for jacobian methods (w.r.t. inputs) in FunctionTrain components.
 
-Tests validate Jacobian computations using DerivativeChecker per CLAUDE.md convention.
-Tests cover:
+Tests validate Jacobian computations using DerivativeChecker. Tests cover:
 - ConstantExpansion (zero jacobian for constants)
 - FunctionTrainCore (per-core input Jacobian)
 - FunctionTrain (full input Jacobian via forward-backward sweep)

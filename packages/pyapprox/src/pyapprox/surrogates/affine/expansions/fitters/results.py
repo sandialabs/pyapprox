@@ -1,7 +1,4 @@
-"""Result classes for fitting operations.
-
-All attributes accessed via methods per CLAUDE.md conventions.
-"""
+"""Result classes for fitting operations."""
 
 from typing import (
     Any,
@@ -38,8 +35,6 @@ class DirectSolverResult(Generic[Array, S]):
 
     Contains only essential fields - no expensive diagnostics like
     condition number or rank that would require additional SVD computation.
-
-    All attributes are accessed via methods per CLAUDE.md convention.
 
     Parameters
     ----------
@@ -93,8 +88,6 @@ class SparseResult(Generic[Array, S]):
     """Result from sparse estimation (LASSO, BPDN, etc.).
 
     Extends DirectSolverResult pattern with sparsity-specific fields.
-
-    All attributes are accessed via methods per CLAUDE.md convention.
 
     Parameters
     ----------
@@ -177,8 +170,6 @@ class OMPResult(Generic[Array, S]):
 
     Extends SparseResult pattern with OMP-specific fields:
     selection order and residual history.
-
-    All attributes are accessed via methods per CLAUDE.md convention.
 
     Parameters
     ----------
@@ -277,8 +268,6 @@ class CVSelectionResult(Generic[Array, S]):
     """Result from cross-validation-based model selection.
 
     Wraps the best fit result plus CV diagnostics for all candidates.
-
-    All attributes are accessed via methods per CLAUDE.md convention.
 
     Parameters
     ----------

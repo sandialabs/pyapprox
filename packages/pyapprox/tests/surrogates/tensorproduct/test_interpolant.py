@@ -193,8 +193,7 @@ class TestTensorProductInterpolant:
     def test_derivatives_with_checker(self, bkd) -> None:
         """Test jacobian and hessian using DerivativeChecker.
 
-        Uses the standard DerivativeChecker from the interface module
-        as per CLAUDE.md conventions.
+        Uses the standard DerivativeChecker from the interface module.
         """
         interp = self._make_interpolant(bkd, 2, 5)
         samples = interp.get_samples()

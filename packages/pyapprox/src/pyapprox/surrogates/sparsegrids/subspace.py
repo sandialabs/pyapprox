@@ -51,7 +51,7 @@ class TensorProductSubspace(Generic[Array]):
 
     Notes
     -----
-    Values have shape (nqoi, nsamples) following CLAUDE.md conventions:
+    Values have shape (nqoi, nsamples):
     - Output f(X) (batch): (nqoi, nsamples) - QoIs as rows, samples as columns
 
     Examples

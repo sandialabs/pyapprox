@@ -1,7 +1,7 @@
 """Tests for BasisExpansion derivative implementations.
 
 Tests validate Jacobian and Hessian computations for BasisExpansion
-using DerivativeChecker per CLAUDE.md convention. Tests cover:
+using DerivativeChecker. Tests cover:
 - Legendre polynomials (uniform distribution)
 - Hermite polynomials (Gaussian distribution)
 - Laguerre polynomials (gamma distribution)

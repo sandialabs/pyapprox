@@ -647,4 +647,3 @@ pyapprox/typing/tutorials/
 - `BUILD.md` - Building and deploying tutorials
 - `scripts/estimate_tutorial_time.py` - Tutorial time estimation
 - `pyapprox/typing/benchmarks/CONVENTIONS.md` - Benchmark conventions
-- `CLAUDE.md` - Project-wide coding conventions

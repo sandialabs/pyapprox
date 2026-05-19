@@ -20,8 +20,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 class VIFitResult(Generic[Array]):
     """Result from variational inference fitting.
 
-    All attributes are accessed via methods per CLAUDE.md convention.
-
     Parameters
     ----------
     neg_elbo : float
