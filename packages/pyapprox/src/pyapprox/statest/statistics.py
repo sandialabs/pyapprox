@@ -44,7 +44,7 @@ def _get_nsamples_intersect(
     nsamples_intersect = bkd.zeros(
         (2 * nmodels, 2 * nmodels), dtype=bkd.double_dtype())
     for ii in range(2 * nmodels):
-        mask = (bkd.asarray(allocation_mat[:, ii] == 1))
+        mask = bkd.equal(allocation_mat[:, ii], 1)
         nsamples_intersect[ii] = bkd.sum(nsubset_samples[mask], axis=0)
     return nsamples_intersect
 
@@ -64,7 +64,7 @@ def _get_nsamples_subset(
     nmodels = allocation_mat.shape[0]
     nsamples_subset = bkd.zeros((2 * nmodels, ), dtype=bkd.double_dtype())
     for ii in range(2 * nmodels):
-        mask = (bkd.asarray(allocation_mat[:, ii] == 1))
+        mask = bkd.equal(allocation_mat[:, ii], 1)
         nsamples_subset[ii] = bkd.sum(npartition_samples[mask])
     return nsamples_subset
 

@@ -375,7 +375,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         partitions_per_model = self._bkd.full((self.nmodels(), npartitions), 0.0)
         for ii, model_subset in enumerate(self._model_subsets):
             # Use bkd.asarray for boolean mask to avoid mypy comparison-overlap
-            mask = (self._bkd.asarray(self._allocation_mat[ii]) == 1.0)
+            mask = self._bkd.equal(self._allocation_mat[ii], 1.0)
             for m_id in model_subset:
                 partitions_per_model[m_id, mask] = 1.0
         return partitions_per_model
@@ -400,7 +400,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         for ii, subset_ii in enumerate(self._subsets):
             for jj, subset_jj in enumerate(self._subsets):
                 # partitions are shared when sum of allocation entry is 2
-                mask = (self._bkd.asarray(amat[ii] + amat[jj]) == 2.0)
+                mask = self._bkd.equal(amat[ii] + amat[jj], 2.0)
                 partition_intersect[ii, jj, mask] = 1.0
         return partition_intersect
 
@@ -798,7 +798,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             raise ValueError(msg)
         for ii in range(self.nmodels()):
             # values shape is (nqoi, nsamples), so nsamples is shape[1]
-            if values_per_model[ii].shape[1] != self._nsamples_per_model[ii]:
+            nsamples_ii = self._bkd.to_int(self._nsamples_per_model[ii])
+            if values_per_model[ii].shape[1] != nsamples_ii:
                 msg = "{0} != {1}".format(
                     "values_per_model[{0}].shape[1]: {1}".format(
                         ii, values_per_model[ii].shape[1]
@@ -1000,7 +1001,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             raise RuntimeError("npartition_samples must be set")
         if self._nsamples_per_model is None:
             raise RuntimeError("nsamples_per_model must be set")
-        active_hf_subsets = self._bkd.where(self._partitions_per_model[0] == 1)[0]
+        active_hf_subsets = self._bkd.where(
+            self._bkd.equal(self._partitions_per_model[0], 1)
+        )[0]
         part_id = self._bkd.to_int(active_hf_subsets[
             self._bkd.argmax(self._npartition_samples[active_hf_subsets])
         ])
@@ -1015,7 +1018,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                 raise ValueError(msg)
             if (
                 samples_per_model[mid].shape[1]
-                != self._nsamples_per_model[mid]
+                != self._bkd.to_int(self._nsamples_per_model[mid])
             ):
                 raise ValueError("samples per model has the wrong size")
             splits, removed_split = self._reduce_model_sample_splits(
@@ -1039,7 +1042,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                         ),
                     ]
                     for idx in self._bkd.where(
-                        self._partitions_per_model[mid] == 1
+                        self._bkd.equal(self._partitions_per_model[mid], 1)
                     )[0]
                 ]
             )
@@ -1080,7 +1083,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             raise ValueError(msg)
 
         new_values_per_model = [self._bkd.copy(v) for v in values_per_model]
-        active_hf_subsets = self._bkd.where(self._partitions_per_model[0] == 1)[0]
+        active_hf_subsets = self._bkd.where(
+            self._bkd.equal(self._partitions_per_model[0], 1)
+        )[0]
         part_id = self._bkd.to_int(active_hf_subsets[
             self._bkd.argmax(self._npartition_samples[active_hf_subsets])
         ])
