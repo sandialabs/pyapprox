@@ -111,35 +111,43 @@ class MultiOutputEnsembleBenchmark(
         ]
 
     def _create_psd_models(self) -> List[MultiOutputModelFunction[Array]]:
-        """Create the PSD model functions with perturbation terms."""
+        """Create PSD model functions with high-frequency perturbations.
+
+        Each LF model QoI gets a unique sin(n*pi*x) perturbation (odd n,
+        so zero-mean) at amplitude eps=0.1.  The high frequencies are
+        mutually orthogonal on [0,1] and orthogonal to the polynomial
+        backbone, breaking the near-collinearities of the standard variant
+        (cond ~ 1e17 -> ~ 2e3) while preserving cross-model correlations.
+        """
         bkd = self._bkd
-        eps0 = 1.0
-        eps1 = 1e-1
-        eps2 = 1e-2
+        pi = math.pi
+        eps = 0.1
 
         def f0(samples: Array) -> Array:
             x = samples[0, :]
             return bkd.vstack([
                 math.sqrt(11) * x**5,
-                x**4 + eps0 * bkd.cos(2.2 * math.pi * x),
-                bkd.sin(2 * math.pi * x),
+                x**4 + bkd.cos(2.2 * pi * x),
+                bkd.sin(2 * pi * x),
             ])
 
         def f1(samples: Array) -> Array:
             x = samples[0, :]
             return bkd.vstack([
-                math.sqrt(7) * x**3,
-                math.sqrt(7) * x**2,
-                bkd.cos((2 + eps1) * math.pi * x + math.pi / 2),
+                math.sqrt(7) * x**3 + eps * bkd.sin(11 * pi * x),
+                math.sqrt(7) * x**2 + eps * bkd.sin(13 * pi * x),
+                bkd.cos(2.1 * pi * x + pi / 2)
+                + eps * bkd.sin(15 * pi * x),
             ])
 
         def f2(samples: Array) -> Array:
             x = samples[0, :]
             return bkd.vstack([
-                math.sqrt(3) / 2 * x**2 + x,
-                math.sqrt(3) / 2 * x
-                + bkd.cos(math.pi * x * 2.0 + 2.1) * eps2,
-                bkd.cos(2 * math.pi * x + math.pi / 4),
+                math.sqrt(3) / 2 * x**2 + x
+                + eps * bkd.sin(17 * pi * x),
+                math.sqrt(3) / 2 * x + eps * bkd.sin(19 * pi * x),
+                bkd.cos(2 * pi * x + pi / 4)
+                + eps * bkd.sin(21 * pi * x),
             ])
 
         return [
