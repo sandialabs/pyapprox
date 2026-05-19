@@ -2,11 +2,11 @@
 
 from typing import Callable, Generic, List, Optional
 
-from pyapprox.pde.collocation.protocols.basis import (
-    TensorProductBasisProtocol,
-)
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    DerivativeMatrixBasisProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -125,7 +125,7 @@ class DiffusionParameterization(Generic[Array]):
 
 def create_diffusion_parameterization(
     bkd: Backend[Array],
-    basis: TensorProductBasisProtocol[Array],
+    basis: DerivativeMatrixBasisProtocol[Array],
     field_map: FieldMapProtocol[Array],
     time_modulation: Optional[Callable[[float], float]] = None,
 ) -> DiffusionParameterization[Array]:
@@ -135,7 +135,7 @@ def create_diffusion_parameterization(
     ----------
     bkd : Backend
         Computational backend.
-    basis : TensorProductBasisProtocol
+    basis : DerivativeMatrixBasisProtocol
         Collocation basis.
     field_map : FieldMapProtocol
         Field map for diffusion.

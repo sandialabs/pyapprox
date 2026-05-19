@@ -85,7 +85,7 @@ from pyapprox_benchmarks.pde.cantilever_beam import (
     MESH_PATHS,
 )
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.kernels.composition import SeparableProductKernel
+from pyapprox.surrogates.kernels.base import SeparableProductKernel
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,

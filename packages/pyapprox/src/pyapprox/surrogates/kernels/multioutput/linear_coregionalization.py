@@ -7,7 +7,7 @@ between outputs using the linear model of coregionalization formulation.
 
 from typing import Generic, List, Optional, Union
 
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 

@@ -210,7 +210,7 @@ $$ {#eq-sum}
 
 ```{python}
 #| eval: false
-from pyapprox.surrogates.kernels.composition import SumKernel
+from pyapprox.surrogates.kernels.base import SumKernel
 
 # Periodic component + smooth trend
 k_periodic = PeriodicKernel(...)
@@ -232,7 +232,7 @@ $$ {#eq-product}
 
 ```{python}
 #| eval: false
-from pyapprox.surrogates.kernels.composition import ProductKernel
+from pyapprox.surrogates.kernels.base import ProductKernel
 
 k1 = MaternKernel(...)
 k2 = LinearKernel(...)  # Varying amplitude

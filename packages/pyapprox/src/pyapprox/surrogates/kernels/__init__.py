@@ -66,8 +66,9 @@ Multi-output kernel:
 >>> K = mo_kernel(X_list)  # Shape: (15, 15)
 """
 
-from .composition import (
+from .base import (
     CompositionKernel,
+    Kernel,
     ProductKernel,
     SeparableProductKernel,
     SumKernel,
@@ -90,7 +91,6 @@ from .multioutput import (
     MultiOutputKernelProtocol,
 )
 from .protocols import (
-    Kernel,
     KernelHasHVPWrtParamsProtocol,
     KernelHasHVPWrtX1Protocol,
     KernelHasJacobianProtocol,

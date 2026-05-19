@@ -17,15 +17,17 @@ True
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, List, Optional
+from typing import Generic, List, Optional, Protocol, runtime_checkable
 
 from pyapprox.surrogates.affine.indices.utils import indices_pnorm
 from pyapprox.util.backends.protocols import Array, Backend
 
-if TYPE_CHECKING:
-    from pyapprox.surrogates.affine.indices.generators import (
-        IterativeIndexGenerator,
-    )
+
+@runtime_checkable
+class _IndexCountProvider(Protocol):
+    """Minimal interface for tracking index count."""
+
+    def nindices(self) -> int: ...
 
 
 class AdmissibilityCriteria(ABC, Generic[Array]):
@@ -151,10 +153,10 @@ class MaxIndicesCriteria(AdmissibilityCriteria[Array], Generic[Array]):
     def __init__(self, max_nindices: int, bkd: Backend[Array]):
         self._max_nindices = max_nindices
         self._bkd = bkd
-        self._generator: Optional["IterativeIndexGenerator[Array]"] = None
+        self._generator: Optional[_IndexCountProvider] = None
         self._count: int = 0
 
-    def set_generator(self, generator: "IterativeIndexGenerator[Array]") -> None:
+    def set_generator(self, generator: _IndexCountProvider) -> None:
         """Set the index generator to track index count."""
         self._generator = generator
         self._count = generator.nindices()

@@ -16,7 +16,8 @@ from typing import Tuple, cast
 
 import numpy as np
 
-from pyapprox.surrogates.kernels.protocols import Kernel, NumbaScalarKernelFn
+from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.surrogates.kernels.protocols import NumbaScalarKernelFn
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 

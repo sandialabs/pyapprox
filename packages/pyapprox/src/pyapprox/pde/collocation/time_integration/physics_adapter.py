@@ -18,7 +18,7 @@ from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
-from pyapprox.pde.parameterizations.protocol import (
+from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

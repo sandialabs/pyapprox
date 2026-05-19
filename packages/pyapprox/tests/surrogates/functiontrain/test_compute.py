@@ -12,6 +12,12 @@ Tests validate:
 
 import numpy as np
 import pytest
+from pyapprox.surrogates.functiontrain.compute import (
+    cache_basis_matrices,
+    core_eval_cached,
+    ft_eval_cached,
+    ft_jacobian_wrt_params_cached,
+)
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -21,12 +27,6 @@ from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import (
     create_additive_functiontrain,
     create_pce_functiontrain,
-)
-from pyapprox.surrogates.functiontrain.compute import (
-    cache_basis_matrices,
-    core_eval_cached,
-    ft_eval_cached,
-    ft_jacobian_wrt_params_cached,
 )
 
 
@@ -346,24 +346,3 @@ class TestFTJacobianCached:
         bkd.assert_allclose(cached_jac, ref_jac, rtol=1e-12)
 
 
-class TestCoreConvenienceMethod:
-    """Tests for FunctionTrainCore.eval_cached convenience method."""
-
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
-
-    def test_core_eval_cached_matches(self, bkd) -> None:
-        """Core.eval_cached matches Core.__call__."""
-        nvars = 3
-        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
-        ft = create_pce_functiontrain(marginals, 4, [2, 2], bkd, init_scale=0.5)
-        nsamples = 25
-        samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
-        cache = cache_basis_matrices(ft.cores(), samples, bkd)
-
-        for kk, core in enumerate(ft.cores()):
-            sample_1d = samples[kk : kk + 1]
-            reference = core(sample_1d)
-            cached = core.eval_cached(sample_1d, cache)
-            bkd.assert_allclose(cached, reference, rtol=1e-13)

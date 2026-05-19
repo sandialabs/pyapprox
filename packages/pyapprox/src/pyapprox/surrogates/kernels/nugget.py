@@ -6,8 +6,8 @@ from typing import Generic
 
 import numpy as np
 
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.surrogates.kernels.protocols import (
-    Kernel,
     KernelHasJacobianProtocol,
     KernelProtocol,
     NumbaScalarKernelFn,

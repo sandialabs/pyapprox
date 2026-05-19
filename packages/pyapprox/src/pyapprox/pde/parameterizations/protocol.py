@@ -1,8 +1,21 @@
-"""ParameterizationProtocol: maps parameter vector to physics input."""
+"""Protocols for parameterizations module."""
 
 from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array
+
+
+@runtime_checkable
+class DerivativeMatrixBasisProtocol(Protocol, Generic[Array]):
+    """Minimal basis interface needed by parameterization factories.
+
+    Any TensorProductBasisProtocol or BasisProtocol satisfies this
+    via structural subtyping.
+    """
+
+    def ndim(self) -> int: ...
+
+    def derivative_matrix(self, order: int, dim: int) -> Array: ...
 
 
 @runtime_checkable

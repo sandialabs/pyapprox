@@ -7,7 +7,7 @@ and identically distributed Gaussian noise in Gaussian process regression.
 
 from typing import Tuple
 
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 

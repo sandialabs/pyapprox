@@ -9,10 +9,10 @@ from typing import Dict, Generic, List, Optional, Tuple, Union
 
 import networkx as nx
 
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.surrogates.kernels.multioutput.dag_kernel import (
     DAGMultiOutputKernel,
 )
-from pyapprox.surrogates.kernels.protocols import Kernel
 from pyapprox.surrogates.kernels.scalings import (
     ScalingFunctionProtocol,
 )

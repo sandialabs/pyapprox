@@ -34,7 +34,7 @@ from pyapprox.surrogates.gaussianprocess.statistics import (
     GaussianProcessStatistics,
     SeparableKernelIntegralCalculator,
 )
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     SeparableProductKernel,
 )
 from pyapprox.surrogates.kernels.matern import (

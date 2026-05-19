@@ -31,7 +31,7 @@ from pyapprox.surrogates.gaussianprocess.statistics import (
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
 )
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     SeparableProductKernel,
 )
 from pyapprox.surrogates.kernels.matern import (

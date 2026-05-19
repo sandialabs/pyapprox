@@ -8,7 +8,6 @@ This module provides polynomial scaling functions that can be used for:
 """
 
 from typing import (
-    TYPE_CHECKING,
     Generic,
     List,
     Protocol,
@@ -16,17 +15,12 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.surrogates.kernels.base import ProductKernel, SumKernel
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameter,
     HyperParameterList,
 )
-
-if TYPE_CHECKING:
-    from pyapprox.surrogates.kernels.composition import (
-        ProductKernel,
-        SumKernel,
-    )
 
 
 @runtime_checkable
@@ -356,16 +350,12 @@ class PolynomialScaling(Generic[Array]):
         n2 = X2.shape[1]
         return self._bkd.zeros((n1, n2, nvars))
 
-    def __mul__(self, other: "PolynomialScaling[Array]") -> "ProductKernel[Array]":
+    def __mul__(self, other: "PolynomialScaling[Array]") -> ProductKernel[Array]:
         """Multiply two kernels."""
-        from pyapprox.surrogates.kernels.composition import ProductKernel
-
         return ProductKernel(self, other)
 
-    def __add__(self, other: "PolynomialScaling[Array]") -> "SumKernel[Array]":
+    def __add__(self, other: "PolynomialScaling[Array]") -> SumKernel[Array]:
         """Add two kernels."""
-        from pyapprox.surrogates.kernels.composition import SumKernel
-
         return SumKernel(self, other)
 
     def jacobian_wrt_params(self, X: Array) -> Array:
@@ -650,14 +640,10 @@ class ScalingKernel(Generic[Array]):
         # For polynomial scaling (degree 0 or 1), second derivative is zero
         return self._bkd.zeros((nvars, n1, n2))
 
-    def __mul__(self, other: "ScalingKernel[Array]") -> "ProductKernel[Array]":
+    def __mul__(self, other: "ScalingKernel[Array]") -> ProductKernel[Array]:
         """Multiply two kernels."""
-        from pyapprox.surrogates.kernels.composition import ProductKernel
-
         return ProductKernel(self, other)
 
-    def __add__(self, other: "ScalingKernel[Array]") -> "SumKernel[Array]":
+    def __add__(self, other: "ScalingKernel[Array]") -> SumKernel[Array]:
         """Add two kernels."""
-        from pyapprox.surrogates.kernels.composition import SumKernel
-
         return SumKernel(self, other)

@@ -19,7 +19,7 @@ from pyapprox.surrogates.gaussianprocess.statistics.gp_dimension_reducer import 
 from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
     MarginalizedGP,
 )
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     SeparableProductKernel,
 )
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel

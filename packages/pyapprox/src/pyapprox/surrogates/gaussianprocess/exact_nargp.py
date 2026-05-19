@@ -36,7 +36,7 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ParentPassthroughMean,
     ZeroMean,
 )
-from pyapprox.surrogates.kernels.protocols import Kernel
+from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
 
 

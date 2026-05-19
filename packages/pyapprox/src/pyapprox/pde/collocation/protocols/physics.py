@@ -310,3 +310,17 @@ class PhysicsWithHVPProtocol(Protocol, Generic[Array]):
             HVP result. Shape: (nparams,)
         """
         ...
+
+
+@runtime_checkable
+class ParameterizationProtocol(Protocol, Generic[Array]):
+    """Minimal interface for physics parameterizations.
+
+    Maps a parameter vector to physics inputs. Implementations live in
+    pde.parameterizations; this protocol is defined here so collocation
+    can depend on the interface without importing that module.
+    """
+
+    def nparams(self) -> int: ...
+
+    def apply(self, physics: object, params_1d: Array) -> None: ...

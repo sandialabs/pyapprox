@@ -130,7 +130,7 @@ kernel = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)
 ### Composing Kernels
 
 ```python
-from pyapprox.surrogates.kernels.composition import ProductKernel, SumKernel
+from pyapprox.surrogates.kernels.base import ProductKernel, SumKernel
 
 # Product of kernels
 k1 = MaternKernel(2.5, [1.0], (0.1, 10.0), 1, bkd)

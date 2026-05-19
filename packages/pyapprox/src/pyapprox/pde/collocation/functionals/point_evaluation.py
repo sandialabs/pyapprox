@@ -12,8 +12,8 @@ from typing import Generic
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
-from pyapprox.pde.decomposition.interface.interpolation import (
-    lagrange_interpolation_matrix,
+from pyapprox.surrogates.affine.univariate.lagrange import (
+    univariate_lagrange_polynomial,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -61,7 +61,7 @@ class PointEvaluationFunctional(Generic[Array]):
             target = bkd.asarray([eval_point])  # shape (1,)
 
         # Build interpolation row: L_j(x*) for j = 0..npts-1
-        self._interp_row = lagrange_interpolation_matrix(
+        self._interp_row = univariate_lagrange_polynomial(
             ref_nodes, target, bkd
         )  # shape (1, npts)
 
