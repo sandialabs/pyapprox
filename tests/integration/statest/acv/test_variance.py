@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pytest
+import torch
 
 from pyapprox_benchmarks.statest import (
     MultiOutputEnsembleBenchmark,
@@ -441,6 +442,7 @@ class TestEstimatorVariances:
 
     @pytest.fixture(autouse=True)
     def _setup(self):
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     def _check_estimator_variances(
@@ -600,6 +602,7 @@ class TestDiscrepancyCovariances:
     @pytest.fixture(autouse=True)
     def _setup(self):
         np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     @pytest.mark.parametrize(

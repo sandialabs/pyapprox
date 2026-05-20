@@ -8,6 +8,7 @@ Tests use typing array convention: (nqoi, nsamples) for outputs.
 
 import numpy as np
 import pytest
+import torch
 
 from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -41,6 +42,7 @@ class TestACVLogDeterminantObjectiveGradients:
     @pytest.fixture(autouse=True)
     def _setup(self):
         np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     def _create_estimator(self, est_type: str, nmodels: int = 3, nqoi: int = 1):
@@ -135,6 +137,7 @@ class TestACVPartitionConstraintGradients:
     @pytest.fixture(autouse=True)
     def _setup(self):
         np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     def _create_estimator(self, est_type: str, nmodels: int = 3):
@@ -197,6 +200,7 @@ class TestMFMCOptimalSolutionGradients:
     @pytest.fixture(autouse=True)
     def _setup(self):
         np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     @slow_test
@@ -273,6 +277,7 @@ class TestMLMCOptimalSolutionGradients:
     @pytest.fixture(autouse=True)
     def _setup(self):
         np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     @slow_test
@@ -387,6 +392,7 @@ class TestDerivativeCheckerConvergence:
     @pytest.fixture(autouse=True)
     def _setup(self):
         np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     @pytest.mark.parametrize(

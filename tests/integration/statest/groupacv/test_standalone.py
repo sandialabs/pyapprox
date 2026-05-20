@@ -1440,8 +1440,9 @@ class TestGroupACVAllocationOptimizerTorchOnly:
         stat.set_pilot_quantities(cov)
         est = MLBLUEEstimator(stat, costs)
 
-        # Use MLBLUE's default objective (has analytical derivatives)
-        obj = est.default_objective()
+        from pyapprox.statest.groupacv.optimization import MLBLUEObjective
+
+        obj = MLBLUEObjective(self._bkd)
         allocator = GroupACVAllocationOptimizer(est, objective=obj)
         result = allocator.optimize(target_cost=100, min_nhf_samples=1)
 

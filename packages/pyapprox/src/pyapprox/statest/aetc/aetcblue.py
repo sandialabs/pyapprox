@@ -4,16 +4,19 @@ This module implements the AETCBLUE class which uses MLBLUEEstimator
 for optimal sample allocation in the exploitation phase.
 """
 
+from __future__ import annotations
+
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pyapprox.statest.aetc.base import AETC
+from pyapprox.statest.aetc.base import AETC, ExploreResult, SamplerProtocol
 from pyapprox.statest.groupacv import (
     GroupACVAllocationOptimizer,
     GroupACVAllocationResult,
     MLBLUEEstimator,
     default_groupacv_optimizer,
 )
+from pyapprox.statest.groupacv.optimization import MLBLUEObjective
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -47,7 +50,7 @@ class AETCBLUE(AETC[Array]):
     def __init__(
         self,
         models: List[Callable[[Array], Array]],
-        rvs: Callable[[int], Array],
+        rvs: SamplerProtocol[Array],
         costs: Optional[Array],
         oracle_stats: Optional[List[Array]],
         bkd: Backend[Array],
@@ -116,7 +119,10 @@ class AETCBLUE(AETC[Array]):
 
         # Set target cost and allocate samples using new API
         target_cost = 10 * bkd.to_float(costs_S[0])
-        allocator = GroupACVAllocationOptimizer(est, optimizer=self._optimizer)
+        objective: MLBLUEObjective[Array] = MLBLUEObjective(bkd)
+        allocator = GroupACVAllocationOptimizer(
+            est, optimizer=self._optimizer, objective=objective,
+        )
         result = allocator.optimize(
             target_cost, min_nhf_samples=0, round_nsamples=round_nsamples
         )
@@ -128,14 +134,8 @@ class AETCBLUE(AETC[Array]):
             est.npartition_samples(),
         )
 
-        # Get k2 from the estimator's optimized criteria (same as legacy)
-        # Note: optimized_criteria is the objective value from the optimizer,
-        # which is NOT the same as logdet(covariance). Legacy uses
-        # k2 = est.optimized_criteria().squeeze() * target_cost
-        criteria = est.optimized_criteria()
-        if hasattr(criteria, "squeeze"):
-            criteria = criteria.squeeze()
-        elif criteria.ndim > 0:
+        criteria = result.objective_value
+        if criteria.ndim > 0:
             criteria = bkd.ravel(criteria)[0]
         k2 = criteria * target_cost
 
@@ -144,7 +144,7 @@ class AETCBLUE(AETC[Array]):
         return k2, nsamples_per_subset
 
     def _create_exploit_estimator(
-        self, result: Tuple[Any, ...]
+        self, result: ExploreResult[Array]
     ) -> MLBLUEEstimator[Array]:
         """Create MLBLUEEstimator for exploitation phase.
 
@@ -161,6 +161,8 @@ class AETCBLUE(AETC[Array]):
         bkd = self._bkd
         best_subset = result[1]
         beta_Sp, Sigma_best_S, rounded_nsamples_per_subset = result[3:6]
+        if self._costs is None:
+            raise RuntimeError("Costs must be set")
         costs_best_S = self._costs[best_subset + 1]
         beta_best_S = beta_Sp[1:]
 
@@ -191,7 +193,7 @@ class AETCBLUE(AETC[Array]):
         return est
 
     def get_exploit_samples(
-        self, result: Tuple[Any, ...], random_states: Optional[Any] = None
+        self, result: ExploreResult[Array], random_states: Optional[Any] = None
     ) -> Tuple[List[Array], List[int]]:
         """Get samples for exploitation phase.
 
@@ -209,6 +211,7 @@ class AETCBLUE(AETC[Array]):
         best_subset_HF : List[int]
             Indices of models in best subset (1-indexed for HF model).
         """
+        rvs: Callable[[int], Array]
         if random_states is not None:
             rvs = partial(self._rvs, random_states=random_states)
         else:
@@ -224,7 +227,7 @@ class AETCBLUE(AETC[Array]):
         return samples_per_model, best_subset_HF
 
     def find_exploit_mean(
-        self, values_per_model: List[Array], result: Tuple[Any, ...]
+        self, values_per_model: List[Array], result: ExploreResult[Array]
     ) -> Array:
         """Compute exploitation mean estimate using MLBLUE.
 
@@ -254,7 +257,7 @@ class AETCBLUE(AETC[Array]):
 
         return beta_Sp[0, 0] + product
 
-    def exploit(self, result: Tuple[Any, ...]) -> Array:
+    def exploit(self, result: ExploreResult[Array]) -> Array:
         """Run exploitation phase to compute final estimate.
 
         Parameters
@@ -277,12 +280,12 @@ class AETCBLUE(AETC[Array]):
 
         return self.find_exploit_mean(values_per_model, result)
 
-    def _explore_result_to_dict(self, result: Tuple[Any, ...]) -> Dict[str, Any]:
+    def _explore_result_to_dict(self, result: ExploreResult[Array]) -> Dict[str, Any]:
         """Convert exploration result tuple to dictionary.
 
         Parameters
         ----------
-        result : Tuple
+        result : ExploreResult
             Exploration result tuple.
 
         Returns
@@ -290,6 +293,8 @@ class AETCBLUE(AETC[Array]):
         Dict[str, Any]
             Dictionary with named result fields.
         """
+        if self._costs is None:
+            raise RuntimeError("Costs must be set")
         return {
             "nexplore_samples": result[0],
             "subset": result[1],

@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generic, Optional
 
-from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
 from pyapprox.statest.groupacv.optimization import (
     MLBLUEObjective,
 )
+from pyapprox.statest.groupacv.result import GroupACVAllocationResult
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.optional_deps import import_optional_dependency
 

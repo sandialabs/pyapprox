@@ -7,7 +7,7 @@ approach for sample allocation in the exploitation phase.
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from pyapprox.statest.aetc.base import AETC
+from pyapprox.statest.aetc.base import AETC, ExploreResult, SamplerProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -36,7 +36,7 @@ class AETCMC(AETC[Array]):
     def __init__(
         self,
         models: List[Callable[[Array], Array]],
-        rvs: Callable[[int], Array],
+        rvs: SamplerProtocol[Array],
         costs: Optional[Array],
         oracle_stats: Optional[List[Array]],
         bkd: Backend[Array],
@@ -81,7 +81,7 @@ class AETCMC(AETC[Array]):
         return k2, 1 / exploit_cost * bkd.ones((1,))
 
     def get_exploit_samples(
-        self, result: Tuple[Any, ...], random_states: Optional[Any] = None
+        self, result: ExploreResult[Array], random_states: Optional[Any] = None
     ) -> Tuple[List[Array], List[int]]:
         """Get samples for exploitation phase.
 
@@ -101,6 +101,7 @@ class AETCMC(AETC[Array]):
         best_subset_HF : List[int]
             Indices of models in best subset (1-indexed for HF model).
         """
+        rvs: Callable[[int], Array]
         if random_states is not None:
             rvs = partial(self._rvs, random_states=random_states)
         else:
@@ -124,7 +125,7 @@ class AETCMC(AETC[Array]):
         return samples_per_model, best_subset_HF
 
     def find_exploit_mean(
-        self, values_per_model: List[Array], result: Tuple[Any, ...]
+        self, values_per_model: List[Array], result: ExploreResult[Array]
     ) -> Array:
         """Compute exploitation mean estimate using MC approach.
 
@@ -156,7 +157,7 @@ class AETCMC(AETC[Array]):
 
         return beta_Sp[0, 0] + product
 
-    def exploit(self, result: Tuple[Any, ...]) -> Array:
+    def exploit(self, result: ExploreResult[Array]) -> Array:
         """Run exploitation phase to compute final estimate.
 
         Parameters
@@ -179,7 +180,7 @@ class AETCMC(AETC[Array]):
 
         return self.find_exploit_mean(values_per_model, result)
 
-    def _explore_result_to_dict(self, result: Tuple[Any, ...]) -> Dict[str, Any]:
+    def _explore_result_to_dict(self, result: ExploreResult[Array]) -> Dict[str, Any]:
         """Convert exploration result tuple to dictionary.
 
         Parameters
@@ -192,6 +193,8 @@ class AETCMC(AETC[Array]):
         Dict[str, Any]
             Dictionary with named result fields.
         """
+        if self._costs is None:
+            raise RuntimeError("Costs must be set")
         return {
             "nexplore_samples": result[0],
             "subset": result[1],

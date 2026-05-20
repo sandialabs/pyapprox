@@ -1,5 +1,7 @@
 """Search for optimal GroupACV estimator configurations."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -15,8 +17,12 @@ from pyapprox.statest.strategies import ModelSubsetStrategy, QoISubsetStrategy
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
-    from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
+    from pyapprox.optimization.minimize.protocols import (
+        BindableOptimizerProtocol,
+    )
     from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
+    from pyapprox.statest.groupacv.optimization import GroupACVObjective
+    from pyapprox.statest.groupacv.result import GroupACVAllocationResult
     from pyapprox.statest.statistics import MultiOutputStatistic
 
 
@@ -92,8 +98,8 @@ class GroupACVSearch(Generic[Array]):
         estimator_classes: Optional[List[Type["BaseGroupACVEstimator[Array]"]]] = None,
         model_strategy: Optional[ModelSubsetStrategy] = None,
         qoi_strategy: Optional[QoISubsetStrategy] = None,
-        optimizer: Optional[object] = None,
-        objective: Optional[object] = None,
+        optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
+        objective: Optional[GroupACVObjective[Array]] = None,
     ) -> None:
         from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
         from pyapprox.statest.strategies import (
@@ -109,8 +115,8 @@ class GroupACVSearch(Generic[Array]):
         self._estimator_classes = estimator_classes or [MLBLUEEstimator]
         self._model_strategy = model_strategy or AllModelsStrategy()
         self._qoi_strategy = qoi_strategy or AllQoIStrategy()
-        self._optimizer = optimizer
-        self._objective = objective
+        self._optimizer: Optional[BindableOptimizerProtocol[Array]] = optimizer
+        self._objective: Optional[GroupACVObjective[Array]] = objective
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -166,7 +172,7 @@ class GroupACVSearch(Generic[Array]):
 
         for est_class, model_indices, qoi_indices in self._iter_configs():
             estimator = self._create_estimator(est_class, model_indices, qoi_indices)
-            allocator = GroupACVAllocationOptimizer(
+            allocator: GroupACVAllocationOptimizer[Array] = GroupACVAllocationOptimizer(
                 estimator,
                 optimizer=self._optimizer,
                 objective=self._objective,

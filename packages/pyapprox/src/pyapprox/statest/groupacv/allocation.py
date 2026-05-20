@@ -1,30 +1,28 @@
 """Sample allocation optimization for GroupACV estimators."""
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Generic, Optional
 
+from pyapprox.statest.groupacv.optimization import (
+    GroupACVCostConstraint,
+    GroupACVLogDetObjective,
+    GroupACVObjective,
+)
+from pyapprox.statest.groupacv.result import GroupACVAllocationResult
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
-    from pyapprox.optimization.minimize.chained.chained_optimizer import (
-        ChainedOptimizer,
-    )
     from pyapprox.optimization.minimize.protocols import (
         BindableOptimizerProtocol,
     )
-    from pyapprox.statest.groupacv.base import GroupACVEstimator
-    from pyapprox.statest.groupacv.optimization import (
-        GroupACVCostConstraint,
-        GroupACVObjective,
-    )
+    from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
 
 
-def default_groupacv_optimizer() -> "ChainedOptimizer[Array]":
+def default_groupacv_optimizer() -> "BindableOptimizerProtocol[Array]":
     """Create the default optimizer for GroupACV sample allocation.
 
     Returns
     -------
-    ChainedOptimizer
+    BindableOptimizerProtocol
         A chained optimizer with differential evolution followed by
         trust-constr refinement.
     """
@@ -38,46 +36,20 @@ def default_groupacv_optimizer() -> "ChainedOptimizer[Array]":
         ScipyTrustConstrOptimizer,
     )
 
-    global_opt = ScipyDifferentialEvolutionOptimizer(
-        maxiter=100,
-        polish=False,
-        seed=1,
-        tol=1e-8,
-        raise_on_failure=False,
+    global_opt: ScipyDifferentialEvolutionOptimizer[Array] = (
+        ScipyDifferentialEvolutionOptimizer(
+            maxiter=100,
+            polish=False,
+            seed=1,
+            tol=1e-8,
+            raise_on_failure=False,
+        )
     )
-    local_opt = ScipyTrustConstrOptimizer(
+    local_opt: ScipyTrustConstrOptimizer[Array] = ScipyTrustConstrOptimizer(
         gtol=1e-8,
         maxiter=1000,
     )
     return ChainedOptimizer(global_opt, local_opt)
-
-
-@dataclass
-class GroupACVAllocationResult(Generic[Array]):
-    """Allocation result for GroupACV estimators.
-
-    Attributes
-    ----------
-    npartition_samples : Array
-        Partition sample counts. Shape (npartitions,).
-    nsamples_per_model : Array
-        Sample counts per model. Shape (nmodels,).
-    actual_cost : float
-        Actual computational cost.
-    objective_value : Array
-        Objective value. Shape (1,).
-    success : bool
-        Whether allocation succeeded.
-    message : str
-        Status message.
-    """
-
-    npartition_samples: Array
-    nsamples_per_model: Array
-    actual_cost: float
-    objective_value: Array  # Shape (1,) - keeps autograd graph
-    success: bool
-    message: str = ""
 
 
 class GroupACVAllocationOptimizer(Generic[Array]):
@@ -90,13 +62,13 @@ class GroupACVAllocationOptimizer(Generic[Array]):
 
     Parameters
     ----------
-    estimator : GroupACVEstimator
+    estimator : BaseGroupACVEstimator
         The estimator to optimize allocation for.
     optimizer : BindableOptimizerProtocol, optional
         Optimizer to use. If None, uses default chained optimizer
         (differential evolution + trust-constr).
     objective : GroupACVObjective, optional
-        Objective function. If None, uses estimator's default_objective().
+        Objective function. If None, uses GroupACVLogDetObjective.
     constraint : GroupACVCostConstraint, optional
         Constraint function. If None, creates default cost constraint.
 
@@ -119,7 +91,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
 
     def __init__(
         self,
-        estimator: "GroupACVEstimator[Array]",
+        estimator: "BaseGroupACVEstimator[Array]",
         optimizer: Optional["BindableOptimizerProtocol[Array]"] = None,
         objective: Optional["GroupACVObjective[Array]"] = None,
         constraint: Optional["GroupACVCostConstraint[Array]"] = None,
@@ -130,22 +102,18 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         # Use default optimizer if not provided
         if optimizer is None:
             optimizer = default_groupacv_optimizer()
-        self._optimizer = optimizer
+        self._optimizer: "BindableOptimizerProtocol[Array]" = optimizer
 
         # Use default objective if not provided
         if objective is None:
-            objective = estimator.default_objective()
-        self._objective = objective
+            objective = GroupACVLogDetObjective(estimator._bkd)
+        self._objective: GroupACVObjective[Array] = objective
         self._objective.set_estimator(estimator)
 
         # Use default constraint if not provided
         if constraint is None:
-            from pyapprox.statest.groupacv.optimization import (
-                GroupACVCostConstraint,
-            )
-
             constraint = GroupACVCostConstraint(self._bkd)
-        self._constraint = constraint
+        self._constraint: GroupACVCostConstraint[Array] = constraint
         self._constraint.set_estimator(estimator)
 
     def optimize(
@@ -191,7 +159,15 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         )
 
         # Bind optimizer
-        self._optimizer.bind(self._objective, bounds, [self._constraint])
+        # GroupACVObjective satisfies FunctionProtocol structurally;
+        # GroupACVCostConstraint satisfies NonlinearConstraintProtocol
+        # structurally. Cast to satisfy mypy since ABC vs Protocol
+        # structural subtyping is not inferred.
+        self._optimizer.bind(
+            self._objective,  # type: ignore[arg-type]
+            bounds,
+            [self._constraint],  # type: ignore[list-item]
+        )
 
         # Get initial guess
         if init_guess is None:
@@ -210,7 +186,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
                 ),
                 objective_value=self._bkd.array([float("inf")]),
                 success=False,
-                message=f"Optimization failed: {result.message()}",
+                message="Optimization failed",
             )
 
         # Extract result (optimizer returns (nvars, 1), we store (nvars,))
@@ -232,7 +208,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
             npartition_samples=npartition_samples,
             nsamples_per_model=nsamples_per_model,
             actual_cost=actual_cost,
-            objective_value=obj_value.flatten(),  # Shape (1,)
+            objective_value=self._bkd.flatten(obj_value),
             success=True,
             message="",
         )
