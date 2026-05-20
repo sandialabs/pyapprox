@@ -4,11 +4,12 @@ This module provides the MLBLUEEstimator class, a specialized GroupACV
 estimator for Multi-Level Best Linear Unbiased Estimation.
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.statest.groupacv.optimization import MLBLUEObjective
 from pyapprox.statest.groupacv.variants import GroupACVEstimatorIS
 from pyapprox.util.backends.protocols import Array
 
@@ -49,8 +50,8 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         stat: "MultiOutputStatistic[Array]",
         costs: Array,
         reg_blue: float = 0,
-        model_subsets: List[Array] = None,
-        asketch: Array = None,
+        model_subsets: Optional[List[Array]] = None,
+        asketch: Optional[Array] = None,
         use_pseudo_inv: bool = True,
         known_quantities: Optional[Dict[Tuple[int, str], Array]] = None,
     ):
@@ -98,12 +99,15 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         submats = []
         for ii, subset in enumerate(self._subsets):
             Rk = self._restriction_matrices[ii]
+            cov = self._stat._cov
+            if cov is None:
+                raise RuntimeError("Pilot covariance not set on stat")
             submat = self._bkd.multidot(
-                (
+                [
                     Rk,
-                    self._inv(self._stat._cov[np.ix_(subset, subset)]),
+                    self._inv(cov[np.ix_(subset, subset)]),
                     Rk.T,
-                )
+                ]
             )
             submats.append(submat)
         return submats
@@ -130,18 +134,15 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
             Estimated means for each model
         """
         asketch = self._bkd.copy(self._asketch)
-        means = self._bkd.empty(self.nmodels())
+        means = self._bkd.empty((self.nmodels(),))
         if self._stat.nstats() > 1:
             raise NotImplementedError(
                 "Must adjust this function to work for multiple outputs"
             )
         for ii in range(self.nmodels()):
-            self._asketch = self._bkd.full((self.nmodels()), 0.0)
+            self._asketch = self._bkd.full((self.nmodels(),), 0.0)
             self._asketch[ii] = 1.0
             means[ii] = self._estimate(values_per_subset)
         self._asketch = asketch
         return means
 
-    def default_objective(self) -> MLBLUEObjective[Array]:
-        """Return the default MLBLUE objective with analytical derivatives."""
-        return MLBLUEObjective(self._bkd)

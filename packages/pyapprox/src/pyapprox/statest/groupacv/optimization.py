@@ -4,8 +4,10 @@ This module provides objective functions and constraints for
 GroupACV sample allocation optimization.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, Optional
+from typing import TYPE_CHECKING, Callable, Generic, List, Optional, Tuple
 
 import numpy as np
 
@@ -13,7 +15,7 @@ from pyapprox.statest.groupacv.utils import _grouped_acv_sigma
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
-    from pyapprox.statest.groupacv.base import GroupACVEstimator
+    from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
 
 
 class GroupACVObjective(ABC, Generic[Array]):
@@ -23,28 +25,29 @@ class GroupACVObjective(ABC, Generic[Array]):
     """
 
     def __init__(self, bkd: Optional[Backend[Array]] = None):
-        """
-        Initialize the objective.
+        self._bkd: Optional[Backend[Array]] = bkd
+        self._est: Optional[BaseGroupACVEstimator[Array]] = None
 
-        Parameters
-        ----------
-        bkd : Backend[Array], optional
-            Backend for array operations. Set via set_estimator() if not provided.
-        """
-        self._bkd = bkd
-        self._est = None
+    def _ensure_bound(
+        self,
+    ) -> Tuple[Backend[Array], BaseGroupACVEstimator[Array]]:
+        if self._bkd is None or self._est is None:
+            raise RuntimeError("Call set_estimator() before using objective")
+        return self._bkd, self._est
 
     def bkd(self) -> Backend[Array]:
-        return self._bkd
+        bkd, _ = self._ensure_bound()
+        return bkd
 
-    def set_estimator(self, estimator: "GroupACVEstimator[Array]") -> None:
+    def set_estimator(self, estimator: BaseGroupACVEstimator[Array]) -> None:
         """Set the estimator and update backend."""
         self._est = estimator
         self._bkd = self._est._bkd
 
     def nvars(self) -> int:
         """Number of optimization variables (npartitions)."""
-        return int(self._est.npartitions())
+        _, est = self._ensure_bound()
+        return int(est.npartitions())
 
     def nqoi(self) -> int:
         """Number of quantities of interest (always 1 for scalar objective)."""
@@ -89,9 +92,9 @@ class GroupACVObjective(ABC, Generic[Array]):
 
     def _scalar_objective_wrapper(self, npartition_samples_1d: Array) -> Array:
         """Wrapper that returns scalar for bkd.jacobian compatibility."""
+        bkd, _ = self._ensure_bound()
         result = self._objective_wrapper(npartition_samples_1d)
-        # Flatten to scalar for jacobian computation
-        return self._bkd.flatten(result)[0]
+        return bkd.flatten(result)[0]
 
     def jacobian(self, npartition_samples: Array) -> Array:
         """
@@ -107,7 +110,17 @@ class GroupACVObjective(ABC, Generic[Array]):
         Array (1, nvars)
             Jacobian row vector
         """
-        jac = self._bkd.jacobian(
+        bkd, _ = self._ensure_bound()
+        # bkd.jacobian is only on TorchBkd (autograd); not on Backend protocol
+        bkd_jacobian: Optional[
+            Callable[[Callable[[Array], Array], Array], Array]
+        ] = getattr(bkd, "jacobian", None)
+        if bkd_jacobian is None:
+            raise NotImplementedError(
+                "AD jacobian requires TorchBkd; override jacobian() "
+                "for other backends"
+            )
+        jac = bkd_jacobian(
             self._scalar_objective_wrapper, npartition_samples[:, 0]
         )
         return jac[None, ...]
@@ -120,11 +133,12 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
     """
 
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
-        trace = self._bkd.trace(
-            self._est._covariance_from_npartition_samples(npartition_samples_1d)
+        bkd, est = self._ensure_bound()
+        trace = bkd.trace(
+            est._covariance_from_npartition_samples(npartition_samples_1d)
         )
         # conversion below is necessary for torch
-        return self._bkd.hstack((trace,))[:, None]
+        return bkd.hstack((trace,))[:, None]
 
 
 class GroupACVLogDetObjective(GroupACVObjective[Array]):
@@ -134,17 +148,18 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
     """
 
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
-        cov = self._est._covariance_from_npartition_samples(npartition_samples_1d)
-        sign, logdet = self._bkd.slogdet(cov)
+        bkd, est = self._ensure_bound()
+        cov = est._covariance_from_npartition_samples(npartition_samples_1d)
+        sign, logdet = bkd.slogdet(cov)
         if logdet < -1e16:
             # when cov is singular logdet returns np.inf
             # make sure to return positive value to indicate
             # to minimizer this is a bad point. Only really is
             # an issue if starting from poor initial guess or using
             # global optimizer
-            return self._bkd.asarray([[np.inf]])
+            return bkd.asarray([[np.inf]])
         # conversion below is necessary for torch
-        return self._bkd.hstack((logdet,))[:, None]
+        return bkd.hstack((logdet,))[:, None]
 
 
 class MLBLUEObjective(GroupACVTraceObjective[Array]):
@@ -164,30 +179,31 @@ class MLBLUEObjective(GroupACVTraceObjective[Array]):
         Objective is e^T X e so
         grad is e^T X^{-1} d_mX X^{-1} e = gamma^T(d_mX)gamma
         """
+        bkd, est = self._ensure_bound()
         # compute sigma blocks with npartition_samples = 1
         Sigma_blocks = _grouped_acv_sigma(
-            self._est.nmodels(),
-            self._bkd.eye(npartition_samples.shape[0]),
-            self._est._subsets,
-            self._est._stat,
+            est.nmodels(),
+            bkd.eye(npartition_samples.shape[0]),
+            est._subsets,
+            est._stat,
         )
         # compute psi matrix with partition sizes
-        psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
-        psi_inv = self._est._inv(psi_matrix)
-        Rmats = self._est._restriction_matrices
-        jacobian = 0
-        for kk in range(self._est._stat.nstats()):
-            gamma = psi_inv @ self._est._asketch[kk : kk + 1].T
-            jacobian += self._bkd.hstack(
+        psi_matrix = est._psi_matrix(npartition_samples[:, 0])
+        psi_inv = est._inv(psi_matrix)
+        Rmats = est._restriction_matrices
+        jacobian: Array = bkd.zeros((1, npartition_samples.shape[0]))
+        for kk in range(est._stat.nstats()):
+            gamma = psi_inv @ est._asketch[kk : kk + 1].T
+            jacobian = jacobian + bkd.hstack(
                 [
-                    self._bkd.multidot(
-                        (
+                    bkd.multidot(
+                        [
                             -gamma.T,
                             Rmats[ii],
-                            self._est._inv(Sigma_blocks[ii][ii]),
+                            est._inv(Sigma_blocks[ii][ii]),
                             Rmats[ii].T,
                             gamma,
-                        )
+                        ]
                     )
                     for ii in range(len(Sigma_blocks))
                 ]
@@ -205,35 +221,37 @@ class MLBLUEObjective(GroupACVTraceObjective[Array]):
         Hessian is gamma^T(d_nX)xi + xi^Td_nX^{-1}gamma
         = eta^T + eta, where eta = xi^Td_nX^{-1}gamma
         """
+        bkd, est = self._ensure_bound()
         Sigma_blocks = _grouped_acv_sigma(
-            self._est.nmodels(),
-            self._bkd.eye(npartition_samples.shape[0]),
-            self._est._subsets,
-            self._est._stat,
+            est.nmodels(),
+            bkd.eye(npartition_samples.shape[0]),
+            est._subsets,
+            est._stat,
         )
-        psi_matrix = self._est._psi_matrix(npartition_samples[:, 0])
-        psi_inv = self._est._inv(psi_matrix)
-        Rmats = self._est._restriction_matrices
-        hess = [
-            [0 for jj in range(len(Sigma_blocks))] for ii in range(len(Sigma_blocks))
+        psi_matrix = est._psi_matrix(npartition_samples[:, 0])
+        psi_inv = est._inv(psi_matrix)
+        Rmats = est._restriction_matrices
+        nblocks = len(Sigma_blocks)
+        hess: List[List[Array]] = [
+            [bkd.zeros((1, 1)) for _jj in range(nblocks)]
+            for _ii in range(nblocks)
         ]
         sigma_invs = [
-            self._est._inv(Sigma_blocks[ii][ii]) for ii in range(len(Sigma_blocks))
+            est._inv(Sigma_blocks[ii][ii]) for ii in range(nblocks)
         ]
         psi_derivs = [
-            self._bkd.multidot((Rmats[ii], sigma_invs[ii], Rmats[ii].T))
-            for ii in range(len(Sigma_blocks))
+            bkd.multidot([Rmats[ii], sigma_invs[ii], Rmats[ii].T])
+            for ii in range(nblocks)
         ]
-        for kk in range(self._est._stat.nstats()):
-            gamma = psi_inv @ self._est._asketch[kk : kk + 1].T
-            for ii in range(len(Sigma_blocks)):
-                xi = self._bkd.multidot((psi_inv, psi_derivs[ii], gamma))
-                for jj in range(ii, len(Sigma_blocks)):
-                    eta = self._bkd.multidot((xi.T, psi_derivs[jj], gamma))
-                    hess[ii][jj] += eta.T + eta
+        for kk in range(est._stat.nstats()):
+            gamma = psi_inv @ est._asketch[kk : kk + 1].T
+            for ii in range(nblocks):
+                xi = bkd.multidot([psi_inv, psi_derivs[ii], gamma])
+                for jj in range(ii, nblocks):
+                    eta = bkd.multidot([xi.T, psi_derivs[jj], gamma])
+                    hess[ii][jj] = hess[ii][jj] + eta.T + eta
                     hess[jj][ii] = hess[ii][jj]
-        hess = self._bkd.vstack([self._bkd.hstack(row) for row in hess])
-        return hess
+        return bkd.vstack([bkd.hstack(row) for row in hess])
 
     def hvp(self, npartition_samples: Array, vec: Array) -> Array:
         """Compute Hessian-vector product.
@@ -273,17 +291,30 @@ class GroupACVCostConstraint(Generic[Array]):
         bkd : Backend[Array], optional
             Backend for array operations. Set via set_estimator() if not provided.
         """
-        self._bkd = bkd
-        self._est: Optional["GroupACVEstimator[Array]"] = None
+        self._bkd: Optional[Backend[Array]] = bkd
+        self._est: Optional[BaseGroupACVEstimator[Array]] = None
         self._target_cost: Optional[float] = None
         self._min_nhf_samples: Optional[int] = None
         self._lb: Optional[Array] = None
         self._ub: Optional[Array] = None
 
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
+    def _ensure_bound(
+        self,
+    ) -> Tuple[Backend[Array], BaseGroupACVEstimator[Array]]:
+        if self._bkd is None or self._est is None:
+            raise RuntimeError("Call set_estimator() before using constraint")
+        return self._bkd, self._est
 
-    def set_estimator(self, estimator: "GroupACVEstimator[Array]") -> None:
+    def _ensure_budget(self) -> Tuple[float, int]:
+        if self._target_cost is None or self._min_nhf_samples is None:
+            raise RuntimeError("Call set_budget() before using constraint")
+        return self._target_cost, self._min_nhf_samples
+
+    def bkd(self) -> Backend[Array]:
+        bkd, _ = self._ensure_bound()
+        return bkd
+
+    def set_estimator(self, estimator: BaseGroupACVEstimator[Array]) -> None:
         """Set the estimator and update backend."""
         self._est = estimator
         self._bkd = self._est._bkd
@@ -309,18 +340,21 @@ class GroupACVCostConstraint(Generic[Array]):
 
     def _validate_target_cost_min_nhf_samples(self) -> None:
         """Validate that target_cost is sufficient for min_nhf_samples."""
-        lb = self._min_nhf_samples * self._est._costs[0]
-        ub = self._target_cost
+        _, est = self._ensure_bound()
+        target_cost, min_nhf_samples = self._ensure_budget()
+        lb = min_nhf_samples * est._costs[0]
+        ub = target_cost
         if ub < lb:
             msg = "target_cost {0} & cost of min_nhf_samples {1} ".format(
-                self._target_cost, lb
+                target_cost, lb
             )
             msg += "are inconsistent"
             raise ValueError(msg)
 
     def nvars(self) -> int:
         """Number of optimization variables."""
-        return int(self._est.npartitions())
+        _, est = self._ensure_bound()
+        return int(est.npartitions())
 
     def nqoi(self) -> int:
         """Number of constraints (cost + min HF samples)."""
@@ -328,21 +362,27 @@ class GroupACVCostConstraint(Generic[Array]):
 
     def lb(self) -> Array:
         """Lower bounds for constraints."""
+        if self._lb is None:
+            raise RuntimeError("Call set_estimator() before accessing bounds")
         return self._lb
 
     def ub(self) -> Array:
         """Upper bounds for constraints."""
+        if self._ub is None:
+            raise RuntimeError("Call set_estimator() before accessing bounds")
         return self._ub
 
     def _eval_constraint(self, npartition_samples_1d: Array) -> Array:
         """Evaluate constraint values from 1D input."""
-        return self._bkd.array(
+        bkd, est = self._ensure_bound()
+        target_cost, min_nhf_samples = self._ensure_budget()
+        return bkd.array(
             [
-                self._target_cost - self._est._estimator_cost(npartition_samples_1d),
-                self._bkd.sum(
-                    self._est._partitions_per_model[0] * npartition_samples_1d
+                target_cost - est._estimator_cost(npartition_samples_1d),
+                bkd.sum(
+                    est._partitions_per_model[0] * npartition_samples_1d
                 )
-                - self._min_nhf_samples,
+                - min_nhf_samples,
             ]
         )
 
@@ -376,10 +416,11 @@ class GroupACVCostConstraint(Generic[Array]):
         Array (nqoi, nvars)
             Jacobian matrix
         """
-        return self._bkd.vstack(
+        bkd, est = self._ensure_bound()
+        return bkd.vstack(
             (
-                -(self._est._costs[None, :] @ self._est._partitions_per_model),
-                self._est._partitions_per_model[0][None, :],
+                -(est._costs[None, :] @ est._partitions_per_model),
+                est._partitions_per_model[0][None, :],
             )
         )
 
@@ -399,7 +440,8 @@ class GroupACVCostConstraint(Generic[Array]):
         Array (nqoi, nvars, nvars)
             Hessian tensor (all zeros)
         """
-        return self._bkd.zeros(
+        bkd, _ = self._ensure_bound()
+        return bkd.zeros(
             (
                 self.nqoi(),
                 npartition_samples.shape[0],
@@ -427,4 +469,5 @@ class GroupACVCostConstraint(Generic[Array]):
         Array (nvars, 1)
             Weighted Hessian-vector product (all zeros)
         """
-        return self._bkd.zeros((npartition_samples.shape[0], 1))
+        bkd, _ = self._ensure_bound()
+        return bkd.zeros((npartition_samples.shape[0], 1))

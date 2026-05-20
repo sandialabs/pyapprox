@@ -6,7 +6,6 @@ Multi-Level Best Linear Unbiased Estimator (MLBLUE) implementations.
 
 from pyapprox.statest.groupacv.allocation import (
     GroupACVAllocationOptimizer,
-    GroupACVAllocationResult,
     default_groupacv_optimizer,
 )
 from pyapprox.statest.groupacv.base import (
@@ -24,6 +23,9 @@ from pyapprox.statest.groupacv.optimization import (
     GroupACVObjective,
     GroupACVTraceObjective,
     MLBLUEObjective,
+)
+from pyapprox.statest.groupacv.result import (
+    GroupACVAllocationResult,
 )
 from pyapprox.statest.groupacv.search import (
     GroupACVSearch,

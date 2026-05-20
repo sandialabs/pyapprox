@@ -5,11 +5,32 @@ for multi-fidelity Monte Carlo estimation with explore/exploit phases.
 """
 
 from functools import partial
-from typing import Any, Callable, Dict, Generic, List, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 from pyapprox.statest.groupacv.utils import get_model_subsets
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, Array_co, Backend
 from pyapprox.util.linalg import extract_submatrix
+
+ExploreResult = Tuple[
+    int, Array, Array, Array, Array, Array, Array, Array, Array, Array, Array, Array
+]
+
+
+@runtime_checkable
+class SamplerProtocol(Protocol[Array_co]):
+    def __call__(
+        self, nsamples: int, *, random_states: Optional[Any] = None
+    ) -> Array_co: ...
 
 
 class AETC(Generic[Array]):
@@ -38,7 +59,7 @@ class AETC(Generic[Array]):
     def __init__(
         self,
         models: List[Callable[[Array], Array]],
-        rvs: Callable[[int], Array],
+        rvs: SamplerProtocol[Array],
         costs: Optional[Array],
         oracle_stats: Optional[List[Array]],
         bkd: Backend[Array],
@@ -46,9 +67,11 @@ class AETC(Generic[Array]):
         self._bkd = bkd
         self._models = models
         self._nmodels = len(models)
-        if not callable(rvs):
-            raise ValueError("rvs must be callable")
-        self._rvs = rvs
+        if not isinstance(rvs, SamplerProtocol):
+            raise TypeError(
+                f"rvs must satisfy SamplerProtocol, got {type(rvs).__name__}"
+            )
+        self._rvs: SamplerProtocol[Array] = rvs
         self._costs = self._validate_costs(costs)
         self._oracle_stats = oracle_stats
 
@@ -425,9 +448,7 @@ class AETC(Generic[Array]):
         lf_model_subsets: List[Array],
         values: Array,
         alpha: float,
-    ) -> Tuple[
-        int, Array, Array, Array, Array, Array, Array, Array, Array, Array, Array, Array
-    ]:
+    ) -> ExploreResult[Array]:
         """Perform one exploration step.
 
         Parameters
@@ -446,8 +467,11 @@ class AETC(Generic[Array]):
         Tuple containing exploration results.
         """
         bkd = self._bkd
-        nsamples = values.shape[1]  # Typing convention: (nmodels, nsamples)
-        explore_cost = bkd.sum(self._costs)
+        if self._costs is None:
+            raise RuntimeError("Costs must be set before calling _explore_step")
+        costs = self._costs
+        nsamples = values.shape[1]
+        explore_cost = bkd.sum(costs)
 
         # Compute exploitation budget
         exploit_budget = total_budget - nsamples * explore_cost
@@ -461,7 +485,7 @@ class AETC(Generic[Array]):
                 total_budget,
                 values[:1, :],  # HF values (1, nsamples)
                 values[1:, :],  # LF values (nmodels-1, nsamples)
-                self._costs,
+                costs,
                 subset,
                 alpha,
                 exploit_budget,
@@ -485,10 +509,10 @@ class AETC(Generic[Array]):
         ) = best_result
 
         best_subset = lf_model_subsets[best_subset_idx]
-        best_cost = bkd.sum(self._costs[best_subset + 1])
+        best_cost = bkd.sum(costs[best_subset + 1])
 
         # Compute subset group costs
-        best_subset_costs = self._costs[best_subset + 1]
+        best_subset_costs = costs[best_subset + 1]
         best_subset_groups = get_model_subsets(best_subset.shape[0], bkd)
         best_subset_group_costs = bkd.asarray(
             [bkd.sum(best_subset_costs[group]) for group in best_subset_groups]
@@ -532,7 +556,7 @@ class AETC(Generic[Array]):
         lf_model_subsets: Optional[List[Array]] = None,
         alpha: float = 4.0,
         random_states: Optional[Any] = None,
-    ) -> Tuple[Array, Array, Tuple[Any, ...]]:
+    ) -> Tuple[Array, Array, ExploreResult[Array]]:
         """Run exploration phase to find optimal model subset.
 
         Parameters
@@ -552,7 +576,7 @@ class AETC(Generic[Array]):
             Samples used in exploration, shape (nvars, nsamples).
         values : Array
             Model evaluations, shape (nmodels, nsamples).
-        result : Tuple
+        result : ExploreResult
             Exploration result tuple.
         """
         bkd = self._bkd
@@ -563,6 +587,7 @@ class AETC(Generic[Array]):
         lf_model_subsets, max_ncovariates = self._validate_subsets(lf_model_subsets)
 
         # Set up random sampling function
+        rvs: Callable[[int], Array]
         if random_states is not None:
             rvs = partial(self._rvs, random_states=random_states)
         else:
@@ -573,7 +598,7 @@ class AETC(Generic[Array]):
         nexplore_samples_prev = 0
         samples: Optional[Array] = None
         values: Optional[Array] = None
-        last_result: Optional[Tuple[Any, ...]] = None
+        last_result: Optional[ExploreResult[Array]] = None
 
         while nexplore_samples - nexplore_samples_prev > 0:
             nnew_samples = nexplore_samples - nexplore_samples_prev
@@ -586,8 +611,9 @@ class AETC(Generic[Array]):
                 samples = new_samples
                 # Stack models vertically: (nmodels, nsamples)
                 values = bkd.vstack(new_values)
-                assert values.ndim == 2
             else:
+                if samples is None or values is None:
+                    raise RuntimeError("Samples/values unset on non-first iter")
                 # Append new samples: (nvars, total_nsamples)
                 samples = bkd.hstack([samples, new_samples])
                 # Stack new values horizontally: (nmodels, total_nsamples)
@@ -599,11 +625,13 @@ class AETC(Generic[Array]):
             nexplore_samples = result[0]
             last_result = result
 
+        if samples is None or values is None or last_result is None:
+            raise RuntimeError("Explore loop did not execute")
         return samples, values, last_result
 
     def get_exploit_samples(
-        self, result: Tuple[Any, ...], random_states: Optional[Any] = None
-    ) -> Array:
+        self, result: ExploreResult[Array], random_states: Optional[Any] = None
+    ) -> Tuple[List[Array], List[int]]:
         """Get samples for exploitation phase.
 
         Must be implemented by subclasses.
@@ -611,7 +639,7 @@ class AETC(Generic[Array]):
         raise NotImplementedError("Subclasses must implement get_exploit_samples")
 
     def find_exploit_mean(
-        self, values_per_model: List[Array], result: Tuple[Any, ...]
+        self, values_per_model: List[Array], result: ExploreResult[Array]
     ) -> Array:
         """Compute exploitation mean estimate.
 
@@ -619,14 +647,14 @@ class AETC(Generic[Array]):
         """
         raise NotImplementedError("Subclasses must implement find_exploit_mean")
 
-    def exploit(self, result: Tuple[Any, ...]) -> Array:
+    def exploit(self, result: ExploreResult[Array]) -> Array:
         """Run exploitation phase to compute final estimate.
 
         Must be implemented by subclasses.
         """
         raise NotImplementedError("Subclasses must implement exploit")
 
-    def _explore_result_to_dict(self, result: Tuple[Any, ...]) -> Dict[str, Any]:
+    def _explore_result_to_dict(self, result: ExploreResult[Array]) -> Dict[str, Any]:
         """Convert exploration result tuple to dictionary.
 
         Must be implemented by subclasses.
@@ -663,8 +691,8 @@ class AETC(Generic[Array]):
         mean = self.exploit(result)
         if not return_dict:
             return mean, values, result
-        result = self._explore_result_to_dict(result)
-        return mean, values, result
+        result_dict = self._explore_result_to_dict(result)
+        return mean, values, result_dict
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"

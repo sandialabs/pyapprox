@@ -19,10 +19,6 @@ from typing import (
     Tuple,
 )
 
-from pyapprox.statest.groupacv.optimization import (
-    GroupACVLogDetObjective,
-    GroupACVObjective,
-)
 from pyapprox.statest.groupacv.utils import (
     _grouped_acv_sigma,
     get_model_subsets,
@@ -30,7 +26,7 @@ from pyapprox.statest.groupacv.utils import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
-    from pyapprox.statest.groupacv.allocation import (
+    from pyapprox.statest.groupacv.result import (
         GroupACVAllocationResult,
     )
     from pyapprox.statest.statistics import (
@@ -120,12 +116,10 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         self._npartition_samples: Optional[Array] = None
         self._nsamples_per_model: Optional[Array] = None
         self._target_cost: Optional[float] = None
-        self._objective: Optional[GroupACVObjective[Array]] = None
 
         # Cached computed values (lazily computed, invalidated on allocation change)
         self._cached_sigma: Optional[Array] = None
         self._cached_covariance: Optional[Array] = None
-        self._cached_criteria: Optional[Array] = None
         self._cached_sample_splits: Optional[List[Array]] = None
 
     def bkd(self) -> Backend[Array]:
@@ -238,7 +232,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         """Invalidate all cached computed values."""
         self._cached_sigma = None
         self._cached_covariance = None
-        self._cached_criteria = None
         self._cached_sample_splits = None
 
     def _ensure_allocation(self) -> None:
@@ -560,31 +553,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             )
         return self._cached_covariance
 
-    def optimized_criteria(self) -> Array:
-        """Return the optimized criteria value (lazily computed).
-
-        Returns
-        -------
-        Array
-            The objective function value at the current allocation.
-
-        Raises
-        ------
-        RuntimeError
-            If allocation has not been set.
-        """
-        self._ensure_allocation()
-        if self._npartition_samples is None:
-            raise RuntimeError("npartition_samples must be set")
-        if self._cached_criteria is None:
-            if self._objective is not None:
-                obj = self._objective
-            else:
-                obj = self.default_objective()
-            obj.set_estimator(self)
-            self._cached_criteria = obj(self._npartition_samples[:, None])
-        return self._cached_criteria
-
     def sample_splits(self) -> List[Array]:
         """Return sample splits per model (lazily computed).
 
@@ -654,14 +622,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                 )
             )
         return asketch
-
-    def default_objective(self) -> GroupACVObjective[Array]:
-        """Return the default objective function."""
-        return GroupACVLogDetObjective(self._bkd)
-
-    def set_objective(self, objective: GroupACVObjective[Array]) -> None:
-        """Set the objective function."""
-        self._objective = objective
 
     def _get_partition_splits(self, npartition_samples: Array) -> Array:
         """
@@ -925,7 +885,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                     Qu[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * wu
         return Q0, Qe, Qu
 
-    def _group_to_traditional_estimators(self, subset_ests: List[Array]) -> Tuple[Array, Array, Array]:
+    def _group_to_traditional_estimators(
+        self, subset_ests: List[Array]
+    ) -> Tuple[Array, Array, Array]:
         # Implement equations (15) in arxiv paper
         # wu = w_l^{k,u} and  we = w_l^{k,e} from arxiv paper
         alpha = self._traditional_acv_weights()
@@ -941,11 +903,15 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         nstats_output = self._asketch.shape[0]
         s_full = self._R_full @ beta.T
         correction = self._bkd.zeros((nstats_output,))
-        assert self._known_values is not None
+        if self._known_values is None:
+            raise RuntimeError("_known_values must be set for correction")
         for flat_idx in self._K_stat_indices:
             model = flat_idx // nstats
             slot = flat_idx % nstats
-            correction = correction + s_full[flat_idx, :] * self._known_values[model, slot]
+            correction = (
+                correction
+                + s_full[flat_idx, :] * self._known_values[model, slot]
+            )
         return correction
 
     def __call__(self, values_per_model: List[Array]) -> Array:
@@ -1109,8 +1075,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
     def __repr__(self) -> str:
         if not self.has_allocation:
             return "{0}()".format(self.__class__.__name__)
-        criteria = self.optimized_criteria()
-        criteria_val = self._bkd.to_float(self._bkd.flatten(criteria)[0])
+        if self._allocation is None:
+            raise RuntimeError("Allocation not set")
+        criteria_val = self._bkd.to_float(
+            self._bkd.flatten(self._allocation.objective_value)[0]
+        )
         rep = "{0}(criteria={1:.3g}".format(self.__class__.__name__, criteria_val)
         target_cost = self._target_cost if self._target_cost is not None else 0.0
         rep += " target_cost={0:.5g}, nsamples={1})".format(
