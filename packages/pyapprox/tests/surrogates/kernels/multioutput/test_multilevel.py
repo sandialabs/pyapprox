@@ -5,15 +5,15 @@ Tests for MultiLevelKernel with new scaling functions.
 import numpy as np
 import pytest
 import torch
-
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.surrogates.kernels.scalings import (
+    PolynomialScalingFunction,
+)
+from pyapprox.util.backends.torch import TorchBkd
+
 from pyapprox.surrogates.kernels.multioutput import (
     MultiLevelKernel,
 )
-from pyapprox.surrogates.kernels.scalings import (
-    PolynomialScaling,
-)
-from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestMultiLevelKernel:
@@ -23,13 +23,15 @@ class TestMultiLevelKernel:
         self._bkd = bkd
         self._nvars = 1
 
-    def _create_constant_scaling(self, value: float) -> PolynomialScaling:
+    def _create_constant_scaling(self, value: float) -> PolynomialScalingFunction:
         """Helper to create constant scaling using PolynomialScaling with degree 0."""
-        return PolynomialScaling([value], (0.1, 2.0), self._bkd, nvars=self._nvars)
+        return PolynomialScalingFunction(
+            [value], (0.1, 2.0), self._bkd, nvars=self._nvars
+        )
 
-    def _create_linear_scaling(self, c0: float, c1: float) -> PolynomialScaling:
+    def _create_linear_scaling(self, c0: float, c1: float) -> PolynomialScalingFunction:
         """Helper to create linear scaling using PolynomialScaling with degree 1."""
-        return PolynomialScaling([c0, c1], (0.1, 2.0), self._bkd)
+        return PolynomialScalingFunction([c0, c1], (0.1, 2.0), self._bkd)
 
     def test_two_level_constant_scaling(self, bkd):
         """Test two-level kernel with constant scaling."""
@@ -137,8 +139,7 @@ class TestMultiLevelKernel:
 
         # Manually compute K_10 to verify spatially varying scaling
         # rho(-1) = 0.8, rho(0) = 0.9, rho(1) = 1.0
-        # Use eval_scaling to get scaling values, not kernel matrix
-        rho_X1 = rho_0.eval_scaling(X1)  # Shape (2, 1): [[0.8], [1.0]]
+        rho_X1 = rho_0(X1)  # Shape (2, 1): [[0.8], [1.0]]
 
         # K_10 = Cov[f_1, f_0] = Cov[rho*f_0 + delta_1, f_0] = rho(X1) * k0(X1, X0)
         # Note: scaling only applies on level 1 side, not level 0
@@ -278,19 +279,19 @@ class TestMultiLevelKernel:
 
         # Use constant scalings (PolynomialScaling with degree 0)
         scalings = [
-            PolynomialScaling(  # 0 -> 1
+            PolynomialScalingFunction(  # 0 -> 1
                 [0.9],
                 (0.5, 1.5),
                 self._bkd,
                 nvars=self._nvars,
             ),
-            PolynomialScaling(  # 1 -> 2
+            PolynomialScalingFunction(  # 1 -> 2
                 [0.85],
                 (0.5, 1.5),
                 self._bkd,
                 nvars=self._nvars,
             ),
-            PolynomialScaling(  # 2 -> 3
+            PolynomialScalingFunction(  # 2 -> 3
                 [0.8],
                 (0.5, 1.5),
                 self._bkd,
@@ -391,11 +392,12 @@ class TestMultiLevelKernelOptimizeTorch:
 
     def test_optimize_hyperparameters(self):
         """Test hyperparameter optimization for multilevel kernel GP."""
-        from pyapprox.surrogates.gaussianprocess.fitters import (
-            MultiOutputGPMaximumLikelihoodFitter,
-        )
         from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
             TorchMultiOutputGP,
+        )
+
+        from pyapprox.surrogates.gaussianprocess.fitters import (
+            MultiOutputGPMaximumLikelihoodFitter,
         )
 
         np.random.seed(42)
@@ -404,7 +406,7 @@ class TestMultiLevelKernelOptimizeTorch:
         # Create a 2-level kernel
         k0 = Matern52Kernel([1.0], (0.1, 10.0), self._nvars, bkd)
         k1 = Matern52Kernel([0.5], (0.1, 10.0), self._nvars, bkd)
-        rho_0 = PolynomialScaling(
+        rho_0 = PolynomialScalingFunction(
             [0.8],
             (0.01, 5.0),
             bkd,

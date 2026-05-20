@@ -7,7 +7,6 @@ and LinearCoregionalizationKernel with a single GP handling all outputs.
 
 import numpy as np
 import torch
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -23,14 +22,33 @@ from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
     SquaredExponentialKernel,
 )
+from pyapprox.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
+from pyapprox.surrogates.kernels.scalings import (
+    PolynomialScalingFunction,
+    PolynomialScalingKernel,
+)
+from pyapprox.util.backends.torch import TorchBkd
+
 from pyapprox.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
     LinearCoregionalizationKernel,
 )
-from pyapprox.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.util.backends.torch import TorchBkd
 from tests._helpers.markers import slow_test
+
+
+def _bind_autograd_jacobian(loss, bkd):
+    """Bind autograd-based jacobian to a loss for torch derivative checking."""
+    def _jacobian_autograd(params):
+        if len(params.shape) == 2 and params.shape[1] == 1:
+            params = params[:, 0]
+
+        def loss_func(p):
+            return loss(p)[0, 0]
+
+        jac = bkd.jacobian(loss_func, params)
+        return bkd.reshape(jac, (1, len(params)))
+
+    loss.jacobian = _jacobian_autograd
 
 
 class TestMultiOutputGPWithIndependentKernel:
@@ -73,7 +91,7 @@ class TestMultiOutputGPWithIndependentKernel:
             matern = Matern52Kernel(
                 [1.0] * nvars, (0.1, 10.0), nvars, bkd
             )
-            constant = PolynomialScaling(
+            constant = PolynomialScalingKernel(
                 [1.0], (0.1, 10.0), bkd, nvars=nvars
             )
             noise = IIDGaussianNoise(1e-14, (1e-16, 1e-12), bkd)
@@ -298,7 +316,7 @@ class TestMultiOutputGPWithLMCKernel:
             matern = Matern52Kernel(
                 [1.0] * nvars, (0.1, 10.0), nvars, bkd
             )
-            constant = PolynomialScaling(
+            constant = PolynomialScalingKernel(
                 [1.0], (0.1, 10.0), bkd, nvars=nvars
             )
             kernel = constant * matern
@@ -402,7 +420,7 @@ class TestMultiOutputGPOptimization:
             matern = Matern52Kernel(
                 [0.3] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
             )
-            constant = PolynomialScaling(
+            constant = PolynomialScalingKernel(
                 [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars
             )
             kernels.append(constant * matern)
@@ -431,7 +449,7 @@ class TestMultiOutputGPOptimization:
             matern = Matern52Kernel(
                 [0.3] * self.nvars, (0.1, 10.0), self.nvars, self._bkd
             )
-            constant = PolynomialScaling(
+            constant = PolynomialScalingKernel(
                 [1.0], (0.1, 10.0), self._bkd, nvars=self.nvars
             )
             base_kernels.append(constant * matern)
@@ -464,7 +482,9 @@ class TestMultiOutputGPOptimization:
         kernels = []
         for _ in range(self.noutputs):
             matern = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
-            constant = PolynomialScaling([1.0], (0.1, 10.0), bkd, nvars=self.nvars)
+            constant = PolynomialScalingKernel(
+                [1.0], (0.1, 10.0), bkd, nvars=self.nvars
+            )
             kernels.append(constant * matern)
 
         mo_kernel = IndependentMultiOutputKernel(kernels)
@@ -474,7 +494,7 @@ class TestMultiOutputGPOptimization:
         gp._fit_internal(X_list, y_stacked)
 
         loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_stacked))
-        gp._configure_loss(loss)
+        _bind_autograd_jacobian(loss, self._bkd)
 
         checker = DerivativeChecker(loss)
         params = gp.hyp_list().get_active_values()
@@ -509,7 +529,9 @@ class TestMultiOutputGPOptimization:
         base_kernels = []
         for _ in range(2):
             matern = Matern52Kernel([1.0] * self.nvars, (0.1, 10.0), self.nvars, bkd)
-            constant = PolynomialScaling([1.0], (0.1, 10.0), bkd, nvars=self.nvars)
+            constant = PolynomialScalingKernel(
+                [1.0], (0.1, 10.0), bkd, nvars=self.nvars
+            )
             base_kernels.append(constant * matern)
 
         B1 = bkd.array(np.array([[1.0, 0.5], [0.5, 1.0]]))
@@ -524,7 +546,7 @@ class TestMultiOutputGPOptimization:
         gp._fit_internal(X_list, y_stacked)
 
         loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_stacked))
-        gp._configure_loss(loss)
+        _bind_autograd_jacobian(loss, self._bkd)
 
         checker = DerivativeChecker(loss)
         params = gp.hyp_list().get_active_values()
@@ -590,7 +612,10 @@ class TestTorchMultiOutputGPWithMultiLevelKernel:
             for _ in range(self.nlevels)
         ]
         scalings = [
-            PolynomialScaling([1.0], (-3.0, 3.0), bkd, nvars=self.nvars, fixed=False)
+            PolynomialScalingFunction(
+                [1.0], (-3.0, 3.0), bkd,
+                nvars=self.nvars, fixed=False,
+            )
             for _ in range(self.nlevels - 1)
         ]
         return MultiLevelKernel(level_kernels, scalings)
@@ -606,7 +631,7 @@ class TestTorchMultiOutputGPWithMultiLevelKernel:
         gp._fit_internal(X_list, y_list)
 
         loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_list, y_list))
-        gp._configure_loss(loss)
+        _bind_autograd_jacobian(loss, self._bkd)
 
         assert hasattr(loss, "jacobian"), \
             "Autograd jacobian should be bound on loss"

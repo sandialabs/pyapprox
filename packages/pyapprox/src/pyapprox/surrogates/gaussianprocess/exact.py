@@ -9,12 +9,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import TYPE_CHECKING, Generic, Optional
-
-if TYPE_CHECKING:
-    from pyapprox.surrogates.gaussianprocess.gp_loss import (
-        GPNegativeLogMarginalLikelihoodLoss,
-    )
+from typing import Generic, Optional
 
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
@@ -466,15 +461,6 @@ class ExactGaussianProcess(Generic[Array]):
         )
         result = fitter.fit(self, X_train, y_train)
         self._copy_fitted_state_from(result.surrogate())
-
-    def _configure_loss(self, loss: GPNegativeLogMarginalLikelihoodLoss[Array]) -> None:
-        """Configure loss function after creation.
-
-        Override in subclasses to customize gradient computation.
-        For example, TorchExactGaussianProcess overrides this to bind
-        autograd-based jacobian on the loss.
-        """
-        pass
 
     def _fit_internal(self, X_train: Array, y_train: Array) -> None:
         """Internal fit: store data, compute Cholesky, compute alpha.

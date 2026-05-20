@@ -12,7 +12,7 @@ import networkx as nx
 
 from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.surrogates.kernels.scalings import (
-    PolynomialScaling,
+    PolynomialScalingFunction,
     ScalingFunctionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -77,7 +77,7 @@ class DAGMultiOutputKernel(Generic[Array]):
     Examples
     --------
     >>> import networkx as nx
-    >>> from pyapprox.surrogates.kernels import MaternKernel, PolynomialScaling
+    >>> from pyapprox.surrogates.kernels import MaternKernel, PolynomialScalingFunction
     >>> from pyapprox.surrogates.kernels.multioutput import DAGMultiOutputKernel
     >>> from pyapprox.util.backends.numpy import NumpyBkd
     >>> bkd = NumpyBkd()
@@ -93,8 +93,8 @@ class DAGMultiOutputKernel(Generic[Array]):
     >>> k2 = MaternKernel(2.5, [0.5], (0.1, 10.0), 1, bkd)
     >>>
     >>> # Scaling functions for edges (linear: c0 + c1*x)
-    >>> rho_01 = PolynomialScaling([0.9, 0.1], (0.5, 1.5), bkd)  # 0 -> 1
-    >>> rho_12 = PolynomialScaling([0.85, 0.05], (0.5, 1.5), bkd)  # 1 -> 2
+    >>> rho_01 = PolynomialScalingFunction([0.9, 0.1], (0.5, 1.5), bkd)  # 0 -> 1
+    >>> rho_12 = PolynomialScalingFunction([0.85, 0.05], (0.5, 1.5), bkd)  # 1 -> 2
     >>> edge_scalings = {(0, 1): rho_01, (1, 2): rho_12}
     >>>
     >>> # Create kernel
@@ -196,7 +196,7 @@ class DAGMultiOutputKernel(Generic[Array]):
                 self._edge_scalings[(parent, child)] = edge_scalings[(parent, child)]
             else:
                 # Default to constant scaling = 1.0 (degree 0 polynomial)
-                self._edge_scalings[(parent, child)] = PolynomialScaling(
+                self._edge_scalings[(parent, child)] = PolynomialScalingFunction(
                     coefficients=[1.0],
                     bounds=(0.1, 2.0),
                     bkd=self._bkd,
@@ -266,8 +266,7 @@ class DAGMultiOutputKernel(Generic[Array]):
             parent = path[i]
             child = path[i + 1]
             scaling = self._edge_scalings[(parent, child)]
-            # Use eval_scaling to get scalar values, not kernel matrix
-            product = product * scaling.eval_scaling(X)
+            product = product * scaling(X)
 
         return product
 
@@ -618,7 +617,7 @@ class DAGMultiOutputKernel(Generic[Array]):
                                             if (p, c) != edge:
                                                 s = self._edge_scalings[
                                                     (p, c)
-                                                ].eval_scaling(
+                                                ](
                                                     X_for_scaling_i
                                                 )
                                                 scaling_i_other = (
@@ -645,7 +644,7 @@ class DAGMultiOutputKernel(Generic[Array]):
                                             if (p, c) != edge:
                                                 s = self._edge_scalings[
                                                     (p, c)
-                                                ].eval_scaling(
+                                                ](
                                                     X_for_scaling_j
                                                 )
                                                 scaling_j_other = (

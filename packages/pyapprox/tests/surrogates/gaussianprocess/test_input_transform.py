@@ -19,9 +19,7 @@ from typing import Any, List
 
 import numpy as np
 import pytest
-
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
     InputBoundsScaler,
@@ -30,21 +28,23 @@ from pyapprox.surrogates.gaussianprocess.input_transform import (
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputStandardScaler,
 )
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    GaussianProcessStatistics,
-    SeparableKernelIntegralCalculator,
-)
 from pyapprox.surrogates.kernels.base import (
     SeparableProductKernel,
 )
 from pyapprox.surrogates.kernels.matern import (
     SquaredExponentialKernel,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
 from pyapprox.util.backends.protocols import Backend
+
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
+)
 
 _NUGGET = 1e-10
 
@@ -440,7 +440,7 @@ class TestStatisticsWithBothTransformsVsMC:
         k1 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         k2 = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         base_kernel = SeparableProductKernel([k1, k2], bkd)
-        scaling = PolynomialScaling([s], (0.01, 100.0), bkd, nvars=2, fixed=False)
+        scaling = PolynomialScalingKernel([s], (0.01, 100.0), bkd, nvars=2, fixed=False)
         kernel = scaling * base_kernel
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=_NUGGET)
@@ -481,7 +481,9 @@ class TestStatisticsWithBothTransformsVsMC:
         k1_ref = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         k2_ref = SquaredExponentialKernel([1.0], (0.1, 10.0), 1, bkd)
         base_kernel_ref = SeparableProductKernel([k1_ref, k2_ref], bkd)
-        scaling_ref = PolynomialScaling([s], (0.01, 100.0), bkd, nvars=2, fixed=False)
+        scaling_ref = PolynomialScalingKernel(
+            [s], (0.01, 100.0), bkd, nvars=2, fixed=False
+        )
         kernel_ref = scaling_ref * base_kernel_ref
         gp_ref = ExactGaussianProcess(kernel_ref, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_ref.hyp_list().set_all_inactive()

@@ -9,6 +9,9 @@ from pyapprox.surrogates.gaussianprocess.adaptive.protocols import (
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
+from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     InputAffineTransformProtocol,
 )
@@ -217,10 +220,10 @@ class AdaptiveGPBuilder(Generic[Array]):
         if not optimize:
             gp.hyp_list().set_all_inactive()
 
-        gp.fit(
-            self._X_user,
-            self._y_user,
+        fitter = GPMaximumLikelihoodFitter(
+            bkd=self._bkd,
             output_transform=self._output_transform,
             input_transform=self._input_transform,
         )
-        return gp
+        result = fitter.fit(gp, self._X_user, self._y_user)
+        return cast(ExactGaussianProcess[Array], result.surrogate())

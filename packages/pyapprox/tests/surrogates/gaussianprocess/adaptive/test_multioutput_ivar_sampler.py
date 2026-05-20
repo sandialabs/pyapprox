@@ -14,7 +14,6 @@ from typing import List
 
 import numpy as np
 import pytest
-
 from pyapprox.surrogates.gaussianprocess.adaptive.multioutput_ivar_sampler import (
     MultiOutputIVARSampler,
 )
@@ -27,7 +26,8 @@ from pyapprox.surrogates.kernels.matern import (
 from pyapprox.surrogates.kernels.multioutput.multilevel import (
     MultiLevelKernel,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
+
 from tests._helpers.markers import slow_test
 
 
@@ -60,8 +60,10 @@ class TestMultiOutputIVARSampler:
         ]
         # Constant scalings: rho_0(x) = 2.0, rho_1(x) = -3.0
         scalings = [
-            PolynomialScaling([2.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=True),
-            PolynomialScaling([-3.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=True),
+            PolynomialScalingFunction([2.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=True),
+            PolynomialScalingFunction(
+                [-3.0], (-3.0, 3.0), bkd, nvars=nvars, fixed=True
+            ),
         ]
         kernel = MultiLevelKernel(kernels, scalings)
         # Fix all hyperparameters (no optimization)

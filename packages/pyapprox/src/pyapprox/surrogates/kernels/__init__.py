@@ -24,7 +24,8 @@ Kernel Implementations
 
 Scaling Functions
 -----------------
-- PolynomialScaling: Polynomial scaling functions for spatially varying kernels
+- PolynomialScalingFunction: Pure polynomial scaling functions rho(x)
+- PolynomialScalingKernel: Kernel from polynomial scaling K(x,x') = rho(x)*rho(x')
 - ScalingFunctionProtocol: Protocol for scaling functions
 
 Composition Kernels
@@ -105,7 +106,8 @@ from .protocols import (
     SeparableKernelProtocol,
 )
 from .scalings import (
-    PolynomialScaling,
+    PolynomialScalingFunction,
+    PolynomialScalingKernel,
     ScalingFunctionProtocol,
 )
 
@@ -138,7 +140,8 @@ __all__ = [
     "IIDGaussianNoise",
     "LinearKernel",
     # Scaling functions
-    "PolynomialScaling",
+    "PolynomialScalingFunction",
+    "PolynomialScalingKernel",
     # Composition kernels
     "CompositionKernel",
     "ProductKernel",

@@ -18,9 +18,14 @@ from pyapprox.optimization.minimize.protocols import (
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
     GPOptimizedFitResult,
-    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+def _is_torch(bkd: Backend[Array]) -> bool:
+    from pyapprox.util.backends.torch import TorchBkd
+
+    return isinstance(bkd, TorchBkd)
 
 
 class MultiOutputGPFixedHyperparameterFitter(Generic[Array]):
@@ -46,7 +51,7 @@ class MultiOutputGPFixedHyperparameterFitter(Generic[Array]):
         gp: MultiOutputGP[Array],
         X_train_list: List[Array],
         y_train: Union[List[Array], Array],
-    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
+    ) -> GPFitResult[Array, MultiOutputGP[Array]]:
         """Fit multi-output GP without hyperparameter optimization.
 
         Parameters
@@ -109,7 +114,7 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
         gp: MultiOutputGP[Array],
         X_train_list: List[Array],
         y_train: Union[List[Array], Array],
-    ) -> GPOptimizedFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
+    ) -> GPOptimizedFitResult[Array, MultiOutputGP[Array]]:
         """Fit multi-output GP and optimize active hyperparameters.
 
         Parameters
@@ -150,7 +155,22 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
         loss = GPNegativeLogMarginalLikelihoodLoss(
             clone, (clone._X_train_list, clone._y_train_stacked)
         )
-        clone._configure_loss(loss)
+        if _is_torch(self._bkd) and not hasattr(
+            clone._kernel, "jacobian_wrt_params"
+        ):
+            bkd = self._bkd
+
+            def _jacobian_autograd(params: Array) -> Array:
+                if len(params.shape) == 2 and params.shape[1] == 1:
+                    params = params[:, 0]
+
+                def loss_func(p: Array) -> Array:
+                    return loss(p)[0, 0]
+
+                jac = bkd.jacobian(loss_func, params)
+                return bkd.reshape(jac, (1, len(params)))
+
+            loss.jacobian = _jacobian_autograd
 
         bounds = clone.hyp_list().get_active_bounds()
 

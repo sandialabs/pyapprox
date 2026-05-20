@@ -91,10 +91,6 @@ class MultiLevelKernel(Generic[Array]):
     autoregressive structures (tree, diamond, etc.), use DAGMultiOutputKernel
     directly.
 
-    The ``jacobian_wrt_params`` method delegates to the underlying
-    DAGMultiOutputKernel and requires all discrepancy kernels and
-    scalings to implement ``jacobian_wrt_params``.
-
     ``hvp_wrt_params`` is not implemented (inherited limitation from
     DAGMultiOutputKernel).
     """
@@ -229,28 +225,6 @@ class MultiLevelKernel(Generic[Array]):
             If X2_list is provided but length doesn't match nlevels.
         """
         return self._dag_kernel(X1_list, X2_list, block_format)
-
-    def jacobian_wrt_params(
-        self, X1_list: List[Array], X2_list: Optional[List[Array]] = None
-    ) -> Array:
-        """
-        Compute Jacobian of kernel matrix w.r.t. hyperparameters.
-
-        Delegates to the underlying DAGMultiOutputKernel.
-
-        Parameters
-        ----------
-        X1_list : List[Array]
-            Input points for each level.
-        X2_list : Optional[List[Array]]
-            Second set of input points. If None, uses X1_list.
-
-        Returns
-        -------
-        jac : Array
-            Jacobian, shape (n_total, n_total, nparams) where n_total = sum(n_i).
-        """
-        return self._dag_kernel.jacobian_wrt_params(X1_list, X2_list)
 
     def __repr__(self) -> str:
         """

@@ -5,19 +5,15 @@ Analogous to LeastSquaresFitter for basis expansions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Optional, Union
+from typing import TYPE_CHECKING, Generic, Optional
 
 if TYPE_CHECKING:
     from pyapprox.surrogates.gaussianprocess.exact import (
         ExactGaussianProcess,
     )
-    from pyapprox.surrogates.gaussianprocess.variational import (
-        VariationalGaussianProcess,
-    )
 
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
-    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
@@ -74,10 +70,10 @@ class GPFixedHyperparameterFitter(Generic[Array]):
 
     def fit(
         self,
-        gp: Union[ExactGaussianProcess[Array], VariationalGaussianProcess[Array]],
+        gp: ExactGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
-    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
+    ) -> GPFitResult[Array, ExactGaussianProcess[Array]]:
         """Fit GP to data without hyperparameter optimization.
 
         Creates a deep copy of the GP, applies transforms, computes
@@ -85,9 +81,8 @@ class GPFixedHyperparameterFitter(Generic[Array]):
 
         Parameters
         ----------
-        gp : ExactGaussianProcess[Array] or VariationalGaussianProcess[Array]
-            The GP model. Must have ``_clone_unfitted()`` and
-            ``_fit_internal()`` methods.
+        gp : ExactGaussianProcess[Array]
+            The GP model.
         X_train : Array
             Training input data, shape (nvars, n_train).
         y_train : Array

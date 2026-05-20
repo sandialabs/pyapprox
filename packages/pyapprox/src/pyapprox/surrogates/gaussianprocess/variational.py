@@ -264,10 +264,6 @@ class VariationalGaussianProcess(Generic[Array]):
         """Return the current optimizer (None = use default)."""
         return self._optimizer
 
-    def _configure_loss(self, loss) -> None:  # type: ignore[no-untyped-def]
-        """Hook for subclasses to customize the loss (e.g., bind autograd)."""
-        pass
-
     # ---- Core fitting ----
 
     def _fit_internal(self, X_train: Array, y_train: Array) -> None:

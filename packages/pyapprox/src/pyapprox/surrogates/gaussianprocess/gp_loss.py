@@ -8,16 +8,32 @@ once the kernel matrix is formed.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Generic, Tuple, Union
+from typing import Any, Generic, Protocol, Tuple, runtime_checkable
 
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
+from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
-if TYPE_CHECKING:
-    from pyapprox.surrogates.gaussianprocess.exact import (
-        ExactGaussianProcess,
-    )
-    from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
+
+@runtime_checkable
+class GPLossTargetProtocol(Protocol[Array]):
+    """Duck-typed surface that GPNegativeLogMarginalLikelihoodLoss requires.
+
+    Declares the post-fit contract: _alpha, _cholesky, _kernel are
+    populated after _fit_internal(). GP classes declare these as Optional
+    (None before fitting), so mypy will not statically prove conformance,
+    but that is acceptable — the loss only sees them post-fit.
+    """
+
+    _alpha: Array
+    _cholesky: CholeskyFactor[Array]
+    _kernel: KernelProtocol[Array]
+
+    def bkd(self) -> Backend[Array]: ...
+    def hyp_list(self) -> HyperParameterList[Array]: ...
+    def _fit_internal(self, *args: Any, **kwargs: Any) -> None: ...
+    def neg_log_marginal_likelihood(self) -> Array: ...
 
 
 class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
@@ -37,12 +53,13 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
     Parameters
     ----------
-    gp : GP object
-        The Gaussian Process model (ExactGaussianProcess or MultiOutputGP).
-        Must have: bkd(), hyp_list(), fit(), neg_log_marginal_likelihood(),
-        and internal _alpha, _cholesky, _kernel attributes.
+    gp : GPLossTargetProtocol[Array]
+        Any GP satisfying GPLossTargetProtocol protocol (ExactGaussianProcess,
+        MultiOutputGP, etc.). Must have: bkd(), hyp_list(),
+        _fit_internal(), neg_log_marginal_likelihood(), and internal
+        _alpha, _cholesky, _kernel attributes.
     fit_args : tuple
-        Arguments to pass to gp.fit().
+        Arguments to pass to gp._fit_internal().
         For single-output: (X_train, y_train)
         For multi-output: (X_train_list, y_train_stacked)
 
@@ -59,7 +76,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
     def __init__(
         self,
-        gp: Union[ExactGaussianProcess[Array], MultiOutputGP[Array]],
+        gp: GPLossTargetProtocol[Array],
         fit_args: Tuple[Any, ...],
     ):
         self._gp = gp
