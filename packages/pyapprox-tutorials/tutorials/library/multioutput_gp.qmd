@@ -35,7 +35,7 @@ jupyter: python3
 
 After completing this tutorial you will be able to:
 
-- Build a `MultiLevelKernel` from per-level kernels and a `PolynomialScaling`
+- Build a `MultiLevelKernel` from per-level kernels and a `PolynomialScalingFunction`
   correlation function to represent the Kennedy--O'Hagan auto-regressive model
 - Fit and predict with `TorchMultiOutputGP`, including predictive uncertainty bands
 - Compare multi-fidelity and single-fidelity GP surrogates at equal computational
@@ -133,7 +133,7 @@ $f_h = 2\, f_l + \text{offset}$, so the optimal scaling is $\rho \approx 2$.
 ```{python}
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
 from pyapprox.surrogates.gaussianprocess.torch_multioutput import TorchMultiOutputGP
 
 # One SE kernel per fidelity level (the k_k terms in the KO model)
@@ -146,7 +146,7 @@ level_kernels = [
 # We fix rho = 2.0 (the known Forrester relationship) and only
 # optimise the correlation length scales via MLL.
 scalings = [
-    PolynomialScaling([2.0], (-5.0, 5.0), bkd, nvars=nvars, fixed=True),
+    PolynomialScalingFunction([2.0], (-5.0, 5.0), bkd, nvars=nvars, fixed=True),
 ]
 
 mf_kernel = MultiLevelKernel(level_kernels, scalings)
@@ -327,7 +327,7 @@ uncertainty in the HF prediction.
 
 1. Set $\rho = 0.5$ (fixed) and refit. How does the HF prediction quality
    change? What does this tell you about the sensitivity to the scaling value?
-2. Set `fixed=False` on the `PolynomialScaling` to let the GP learn $\rho$.
+2. Set `fixed=False` on the `PolynomialScalingFunction` to let the GP learn $\rho$.
    Does it recover $\rho \approx 2$? If not, try increasing the nugget to
    `1e-4` --- does this help the optimiser find a better minimum?
 3. Reduce the number of LF evaluations from 100 to 20 while keeping 4 HF.

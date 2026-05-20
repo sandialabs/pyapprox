@@ -4,21 +4,21 @@ Tests for Gaussian Process Hessian-vector products with respect to inputs.
 
 import numpy as np
 import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
+from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
+
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.kernels import (
     Matern32Kernel,
     Matern52Kernel,
     SquaredExponentialKernel,
 )
-from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 
 
 class TestGPHVP:
@@ -271,7 +271,7 @@ class TestGPHVPCompositionKernels:
         nvars, X_train, y_train = self._setup(bkd)
 
         # Create composition: scaling * matern + noise
-        scaling = PolynomialScaling([0.8], (0.1, 2.0), bkd, nvars=nvars)
+        scaling = PolynomialScalingKernel([0.8], (0.1, 2.0), bkd, nvars=nvars)
         matern = self._create_matern_kernel(nu, nvars, bkd)
         noise = IIDGaussianNoise(0.01, (0.001, 0.1), bkd)
         kernel = scaling * matern + noise

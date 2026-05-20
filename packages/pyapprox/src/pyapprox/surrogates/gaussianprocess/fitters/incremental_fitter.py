@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
-    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
@@ -56,7 +55,7 @@ class GPIncrementalFitter(Generic[Array]):
         X_train: Array,
         y_train: Array,
         prev_gp: Optional[ExactGaussianProcess[Array]] = None,
-    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
+    ) -> GPFitResult[Array, ExactGaussianProcess[Array]]:
         """Fit GP to data, using incremental update if possible.
 
         If prev_gp is provided and exactly one new point was added,
@@ -80,7 +79,7 @@ class GPIncrementalFitter(Generic[Array]):
         GPFitResult
             Result containing the fitted GP and NLL.
         """
-        if self._can_do_incremental(prev_gp, X_train):
+        if self._can_do_incremental(prev_gp, X_train) and prev_gp is not None:
             result = self._fit_incremental(gp, X_train, y_train, prev_gp)
             if result is not None:
                 return result
@@ -109,10 +108,8 @@ class GPIncrementalFitter(Generic[Array]):
         gp: ExactGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
-        prev_gp: Optional[ExactGaussianProcess[Array]],
-    ) -> Optional[
-        GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]
-    ]:
+        prev_gp: ExactGaussianProcess[Array],
+    ) -> Optional[GPFitResult[Array, ExactGaussianProcess[Array]]]:
         """Perform rank-1 Cholesky update.
 
         Returns None if the update fails (e.g., non-positive diagonal),
@@ -194,7 +191,7 @@ class GPIncrementalFitter(Generic[Array]):
         gp: ExactGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
-    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
+    ) -> GPFitResult[Array, ExactGaussianProcess[Array]]:
         """Fall back to full Cholesky factorization."""
         from pyapprox.surrogates.gaussianprocess.fitters.fixed_hyperparameter_fitter import (  # noqa: E501
             GPFixedHyperparameterFitter,

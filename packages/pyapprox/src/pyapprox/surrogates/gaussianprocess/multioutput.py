@@ -9,12 +9,7 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import TYPE_CHECKING, Generic, List, Optional, Tuple, Union
-
-if TYPE_CHECKING:
-    from pyapprox.surrogates.gaussianprocess.gp_loss import (
-        GPNegativeLogMarginalLikelihoodLoss,
-    )
+from typing import Generic, List, Optional, Tuple, Union
 
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
@@ -365,13 +360,6 @@ class MultiOutputGP(Generic[Array]):
         )
         result = fitter.fit(self, X_train_list, y_train)
         self._copy_fitted_state_from(result.surrogate())
-
-    def _configure_loss(self, loss: GPNegativeLogMarginalLikelihoodLoss[Array]) -> None:
-        """Configure loss function after creation.
-
-        Override in subclasses to customize gradient computation.
-        """
-        pass
 
     def _fit_internal(
         self, X_train_list: List[Array], y_train: Union[List[Array], Array]

@@ -6,9 +6,11 @@ import pytest
 
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.exact_nargp import (
+    ExactNARGPModel,
+)
+from pyapprox.surrogates.gaussianprocess.fitters import (
     ExactNARGPFitter,
     ExactNARGPFitResult,
-    ExactNARGPModel,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ParentPassthroughMean,

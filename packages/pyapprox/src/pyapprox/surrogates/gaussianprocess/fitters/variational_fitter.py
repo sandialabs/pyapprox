@@ -18,7 +18,6 @@ from pyapprox.optimization.minimize.protocols import (
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPFitResult,
     GPOptimizedFitResult,
-    PredictiveGPSurrogateProtocol,
 )
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
@@ -28,6 +27,12 @@ from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+def _is_torch(bkd: Backend[Array]) -> bool:
+    from pyapprox.util.backends.torch import TorchBkd
+
+    return isinstance(bkd, TorchBkd)
 
 
 class VariationalGPFixedHyperparameterFitter(Generic[Array]):
@@ -65,7 +70,7 @@ class VariationalGPFixedHyperparameterFitter(Generic[Array]):
         gp: VariationalGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
-    ) -> GPFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
+    ) -> GPFitResult[Array, VariationalGaussianProcess[Array]]:
         """Fit variational GP without hyperparameter optimization.
 
         Parameters
@@ -145,7 +150,7 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
         gp: VariationalGaussianProcess[Array],
         X_train: Array,
         y_train: Array,
-    ) -> GPOptimizedFitResult[Array, PredictiveGPSurrogateProtocol[Array]]:
+    ) -> GPOptimizedFitResult[Array, VariationalGaussianProcess[Array]]:
         """Fit variational GP and optimize active hyperparameters.
 
         Parameters
@@ -195,7 +200,22 @@ class VariationalGPMaximumLikelihoodFitter(Generic[Array]):
         )
 
         loss = VariationalGPELBOLoss(clone, (clone._data.X(), clone._data.y()))
-        clone._configure_loss(loss)
+        if _is_torch(self._bkd) and not hasattr(
+            clone._kernel, "jacobian_wrt_params"
+        ):
+            bkd = self._bkd
+
+            def _jacobian_autograd(params: Array) -> Array:
+                if len(params.shape) == 2 and params.shape[1] == 1:
+                    params = params[:, 0]
+
+                def loss_func(p: Array) -> Array:
+                    return loss(p)[0, 0]
+
+                jac = bkd.jacobian(loss_func, params)
+                return bkd.reshape(jac, (1, len(params)))
+
+            loss.jacobian = _jacobian_autograd
 
         bounds = clone.hyp_list().get_active_bounds()
 

@@ -4,22 +4,24 @@ Tests for scaling functions.
 
 import numpy as np
 import pytest
+from pyapprox.surrogates.kernels.scalings import (
+    PolynomialScalingFunction,
+    PolynomialScalingKernel,
+)
 
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 
-
-class TestPolynomialScaling:
-    """Base class for PolynomialScaling tests."""
+class TestPolynomialScalingFunction:
+    """Tests for PolynomialScalingFunction (pure scaling function)."""
 
     def test_constant_scaling(self, bkd):
         """Test degree 0 (constant) scaling."""
         _nvars = 1
         _bounds = (0.1, 2.0)
         # rho(x) = 0.8 (constant)
-        scaling = PolynomialScaling([0.8], _bounds, bkd, nvars=_nvars)
+        scaling = PolynomialScalingFunction([0.8], _bounds, bkd, nvars=_nvars)
 
         X = bkd.array([[-1.0, 0.0, 1.0]])
-        rho = scaling.eval_scaling(X)
+        rho = scaling(X)
 
         # All values should be 0.8
         expected = bkd.ones((3, 1)) * 0.8
@@ -29,10 +31,10 @@ class TestPolynomialScaling:
         """Test that constant scaling has zero spatial Jacobian."""
         _nvars = 1
         _bounds = (0.1, 2.0)
-        scaling = PolynomialScaling([0.8], _bounds, bkd, nvars=_nvars)
+        scaling = PolynomialScalingFunction([0.8], _bounds, bkd, nvars=_nvars)
 
         X = bkd.array([[-1.0, 0.0, 1.0]])
-        jac_x = scaling.jacobian_scaling(X)
+        jac_x = scaling.jacobian(X)
 
         # Spatial derivative should be zero
         expected = bkd.zeros((3, 1))
@@ -42,7 +44,7 @@ class TestPolynomialScaling:
         """Test parameter Jacobian for constant scaling."""
         _nvars = 1
         _bounds = (0.1, 2.0)
-        scaling = PolynomialScaling([0.8], _bounds, bkd, nvars=_nvars)
+        scaling = PolynomialScalingFunction([0.8], _bounds, bkd, nvars=_nvars)
 
         X = bkd.array([[-1.0, 0.0, 1.0]])
         jac_params = scaling.jacobian_wrt_params(X)
@@ -55,10 +57,10 @@ class TestPolynomialScaling:
         """Test degree 1 (linear) scaling in 1D."""
         _bounds = (0.1, 2.0)
         # rho(x) = 0.9 + 0.1*x
-        scaling = PolynomialScaling([0.9, 0.1], _bounds, bkd)
+        scaling = PolynomialScalingFunction([0.9, 0.1], _bounds, bkd)
 
         X = bkd.array([[-1.0, 0.0, 1.0]])
-        rho = scaling.eval_scaling(X)
+        rho = scaling(X)
 
         # Expected: [0.8, 0.9, 1.0]
         expected = bkd.array([[0.8], [0.9], [1.0]])
@@ -68,10 +70,10 @@ class TestPolynomialScaling:
         """Test spatial Jacobian for linear scaling in 1D."""
         _bounds = (0.1, 2.0)
         # rho(x) = 0.9 + 0.1*x
-        scaling = PolynomialScaling([0.9, 0.1], _bounds, bkd)
+        scaling = PolynomialScalingFunction([0.9, 0.1], _bounds, bkd)
 
         X = bkd.array([[-1.0, 0.0, 1.0]])
-        jac_x = scaling.jacobian_scaling(X)
+        jac_x = scaling.jacobian(X)
 
         # d_rho/d_x = 0.1 (constant slope)
         expected = bkd.ones((3, 1)) * 0.1
@@ -81,7 +83,7 @@ class TestPolynomialScaling:
         """Test parameter Jacobian for linear scaling in 1D."""
         _bounds = (0.1, 2.0)
         # rho(x) = 0.9 + 0.1*x
-        scaling = PolynomialScaling([0.9, 0.1], _bounds, bkd)
+        scaling = PolynomialScalingFunction([0.9, 0.1], _bounds, bkd)
 
         X = bkd.array([[-1.0, 0.0, 1.0]])
         jac_params = scaling.jacobian_wrt_params(X)
@@ -96,11 +98,11 @@ class TestPolynomialScaling:
         """Test degree 1 (linear) scaling in 2D."""
         _bounds = (0.1, 2.0)
         # rho(x1, x2) = 1.0 + 0.5*x1 + 0.3*x2
-        scaling = PolynomialScaling([1.0, 0.5, 0.3], _bounds, bkd)
+        scaling = PolynomialScalingFunction([1.0, 0.5, 0.3], _bounds, bkd)
 
         # Test points: (0, 0), (1, 0), (0, 1), (1, 1)
         X = bkd.array([[0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0]])
-        rho = scaling.eval_scaling(X)
+        rho = scaling(X)
 
         # Expected: [1.0, 1.5, 1.3, 1.8]
         expected = bkd.array([[1.0], [1.5], [1.3], [1.8]])
@@ -110,10 +112,10 @@ class TestPolynomialScaling:
         """Test spatial Jacobian for linear scaling in 2D."""
         _bounds = (0.1, 2.0)
         # rho(x1, x2) = 1.0 + 0.5*x1 + 0.3*x2
-        scaling = PolynomialScaling([1.0, 0.5, 0.3], _bounds, bkd)
+        scaling = PolynomialScalingFunction([1.0, 0.5, 0.3], _bounds, bkd)
 
         X = bkd.array([[0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0]])
-        jac_x = scaling.jacobian_scaling(X)
+        jac_x = scaling.jacobian(X)
 
         # d_rho/d_x1 = 0.5, d_rho/d_x2 = 0.3 (constant gradients)
         expected = bkd.hstack(
@@ -125,7 +127,7 @@ class TestPolynomialScaling:
         """Test parameter Jacobian for linear scaling in 2D."""
         _bounds = (0.1, 2.0)
         # rho(x1, x2) = 1.0 + 0.5*x1 + 0.3*x2
-        scaling = PolynomialScaling([1.0, 0.5, 0.3], _bounds, bkd)
+        scaling = PolynomialScalingFunction([1.0, 0.5, 0.3], _bounds, bkd)
 
         X = bkd.array([[0.0, 1.0], [0.0, 0.0]])
         jac_params = scaling.jacobian_wrt_params(X)
@@ -140,7 +142,7 @@ class TestPolynomialScaling:
         """Test that hyperparameters respect bounds."""
         _nvars = 1
         _bounds = (0.1, 2.0)
-        scaling = PolynomialScaling([0.8], _bounds, bkd, nvars=_nvars)
+        scaling = PolynomialScalingFunction([0.8], _bounds, bkd, nvars=_nvars)
 
         hyp_list = scaling.hyp_list()
         assert hyp_list.nparams() == 1
@@ -154,7 +156,7 @@ class TestPolynomialScaling:
     def test_hyperparameter_update(self, bkd):
         """Test updating hyperparameters."""
         _bounds = (0.1, 2.0)
-        scaling = PolynomialScaling([0.8, 0.2], _bounds, bkd)
+        scaling = PolynomialScalingFunction([0.8, 0.2], _bounds, bkd)
 
         # Update parameters
         hyp_list = scaling.hyp_list()
@@ -163,7 +165,7 @@ class TestPolynomialScaling:
 
         # Evaluate with new parameters
         X = bkd.array([[0.0, 1.0]])
-        rho = scaling.eval_scaling(X)
+        rho = scaling(X)
 
         # Expected: [0.9, 1.05]
         expected = bkd.array([[0.9], [1.05]])
@@ -173,7 +175,7 @@ class TestPolynomialScaling:
         """Test fixed (non-trainable) parameters."""
         _nvars = 1
         _bounds = (0.1, 2.0)
-        scaling = PolynomialScaling(
+        scaling = PolynomialScalingFunction(
             [0.8], _bounds, bkd, nvars=_nvars, fixed=True
         )
 
@@ -185,32 +187,32 @@ class TestPolynomialScaling:
         """Test that degree 0 requires nvars parameter."""
         _bounds = (0.1, 2.0)
         with pytest.raises(ValueError):
-            PolynomialScaling([0.8], _bounds, bkd)
+            PolynomialScalingFunction([0.8], _bounds, bkd)
 
     def test_degree_inferred_from_coefficients(self, bkd):
         """Test that nvars is correctly inferred for degree 1."""
         _bounds = (0.1, 2.0)
         # 1D: 2 coefficients
-        scaling_1d = PolynomialScaling([0.9, 0.1], _bounds, bkd)
+        scaling_1d = PolynomialScalingFunction([0.9, 0.1], _bounds, bkd)
         assert scaling_1d.nvars() == 1
 
         # 2D: 3 coefficients
-        scaling_2d = PolynomialScaling([1.0, 0.5, 0.3], _bounds, bkd)
+        scaling_2d = PolynomialScalingFunction([1.0, 0.5, 0.3], _bounds, bkd)
         assert scaling_2d.nvars() == 2
 
         # 3D: 4 coefficients
-        scaling_3d = PolynomialScaling([1.0, 0.5, 0.3, 0.2], _bounds, bkd)
+        scaling_3d = PolynomialScalingFunction([1.0, 0.5, 0.3, 0.2], _bounds, bkd)
         assert scaling_3d.nvars() == 3
 
     def test_hvp_wrt_x1(self, bkd):
         """
         Test HVP returns zeros (scaling doesn't depend on x).
 
-        Since PolynomialScaling of degree 0 (constant) doesn't depend on x,
+        Since PolynomialScalingKernel of degree 0 (constant) doesn't depend on x,
         its Hessian is zero, and thus HVP should always return zeros.
         """
-        # Test degree 0 (constant) scaling
-        scaling = PolynomialScaling([0.8], (0.1, 2.0), bkd, nvars=2)
+        # Test degree 0 (constant) scaling kernel
+        scaling = PolynomialScalingKernel([0.8], (0.1, 2.0), bkd, nvars=2)
 
         # Test points
         X1 = bkd.array(np.random.randn(2, 3))

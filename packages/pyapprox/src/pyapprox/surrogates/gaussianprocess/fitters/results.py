@@ -1,32 +1,10 @@
 """Result classes for GP fitting operations."""
 
-from typing import Generic, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Generic, Optional, TypeVar
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array
 
-
-@runtime_checkable
-class PredictiveGPSurrogateProtocol(Protocol, Generic[Array]):
-    """Minimal protocol for fitted GP surrogates that can predict."""
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        ...
-
-    def __call__(self, X: Array) -> Array:
-        """Predict posterior mean at X."""
-        ...
-
-    def predict(self, X: Array) -> Array:
-        """Predict posterior mean at X."""
-        ...
-
-    def predict_std(self, X: Array) -> Array:
-        """Predict posterior standard deviation at X."""
-        ...
-
-
-S = TypeVar("S", bound=PredictiveGPSurrogateProtocol)  # type: ignore[type-arg]
+S = TypeVar("S")
 
 
 class GPFitResult(Generic[Array, S]):
@@ -57,10 +35,6 @@ class GPFitResult(Generic[Array, S]):
     def neg_log_marginal_likelihood(self) -> Array:
         """Return the negative log marginal likelihood at fitted state."""
         return self._nll
-
-    def bkd(self) -> Backend[Array]:
-        """Return backend from surrogate."""
-        return self._surrogate.bkd()
 
 
 class GPOptimizedFitResult(Generic[Array, S]):
@@ -116,7 +90,3 @@ class GPOptimizedFitResult(Generic[Array, S]):
     def optimization_result(self) -> Optional[object]:
         """Return the raw optimizer result, or None if no optimization."""
         return self._opt_result
-
-    def bkd(self) -> Backend[Array]:
-        """Return backend from surrogate."""
-        return self._surrogate.bkd()

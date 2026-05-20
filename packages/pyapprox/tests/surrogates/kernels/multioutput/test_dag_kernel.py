@@ -4,6 +4,7 @@ Tests for DAGMultiOutputKernel.
 
 import networkx as nx
 import numpy as np
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
 
 from pyapprox.surrogates.kernels import (
     Matern52Kernel,
@@ -12,7 +13,6 @@ from pyapprox.surrogates.kernels import (
 from pyapprox.surrogates.kernels.multioutput import (
     DAGMultiOutputKernel,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
 
 
 def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd):
@@ -36,13 +36,15 @@ class TestDAGMultiOutputKernel:
         self._bkd = bkd
         self._nvars = 1
 
-    def _create_constant_scaling(self, value: float) -> PolynomialScaling:
+    def _create_constant_scaling(self, value: float) -> PolynomialScalingFunction:
         """Helper to create constant scaling using PolynomialScaling with degree 0."""
-        return PolynomialScaling([value], (0.1, 2.0), self._bkd, nvars=self._nvars)
+        return PolynomialScalingFunction(
+            [value], (0.1, 2.0), self._bkd, nvars=self._nvars
+        )
 
-    def _create_linear_scaling(self, c0: float, c1: float) -> PolynomialScaling:
+    def _create_linear_scaling(self, c0: float, c1: float) -> PolynomialScalingFunction:
         """Helper to create linear scaling using PolynomialScaling with degree 1."""
-        return PolynomialScaling([c0, c1], (0.1, 2.0), self._bkd)
+        return PolynomialScalingFunction([c0, c1], (0.1, 2.0), self._bkd)
 
     def test_sequential_structure(self, bkd):
         """Test sequential structure: 0 -> 1 -> 2."""
@@ -265,7 +267,7 @@ class TestDAGMultiOutputKernel:
 
         # K_10[i,j] = rho(X1[i]) * k0(X1[i], X0[j])
         # Note: only the scaling on the higher-fidelity side (output 1) applies
-        rho_X1 = edge_scalings[(0, 1)].eval_scaling(X1)  # [[0.8], [1.0]]
+        rho_X1 = edge_scalings[(0, 1)](X1)  # [[0.8], [1.0]]
 
         K_10_expected = rho_X1 * k0(X1, X0)
 
@@ -354,8 +356,12 @@ class TestDAGMultiOutputKernel:
 
         # Use constant scalings (PolynomialScaling with degree 0)
         edge_scalings = {
-            (0, 1): PolynomialScaling([0.9], (0.5, 1.5), self._bkd, nvars=self._nvars),
-            (0, 2): PolynomialScaling([0.85], (0.5, 1.5), self._bkd, nvars=self._nvars),
+            (0, 1): PolynomialScalingFunction(
+                [0.9], (0.5, 1.5), self._bkd, nvars=self._nvars
+            ),
+            (0, 2): PolynomialScalingFunction(
+                [0.85], (0.5, 1.5), self._bkd, nvars=self._nvars
+            ),
         }
 
         dag_kernel = DAGMultiOutputKernel(dag, kernels, edge_scalings)

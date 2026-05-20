@@ -18,7 +18,7 @@ from pyapprox.surrogates.kernels.protocols import (
     KernelProtocol,
     SeparableKernelProtocol,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -100,7 +100,7 @@ def _decompose_kernel(
         # Check both orderings
         scaling, base = None, None
         for a, b in [(k1, k2), (k2, k1)]:
-            if isinstance(a, PolynomialScaling) and a.degree() == 0:
+            if isinstance(a, PolynomialScalingKernel) and a.degree() == 0:
                 if isinstance(b, SeparableKernelProtocol):
                     scaling, base = a, b
                     break
@@ -115,9 +115,10 @@ def _decompose_kernel(
             )
 
         # ProductKernel but not the expected pattern
-        if isinstance(k1, PolynomialScaling) or isinstance(k2, PolynomialScaling):
-            scaling_comp = k1 if isinstance(k1, PolynomialScaling) else k2
-            other_comp = k2 if isinstance(k1, PolynomialScaling) else k1
+        if (isinstance(k1, PolynomialScalingKernel)
+                or isinstance(k2, PolynomialScalingKernel)):
+            scaling_comp = k1 if isinstance(k1, PolynomialScalingKernel) else k2
+            other_comp = k2 if isinstance(k1, PolynomialScalingKernel) else k1
 
             if scaling_comp.degree() != 0:
                 raise TypeError(

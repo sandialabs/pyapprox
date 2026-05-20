@@ -393,9 +393,10 @@ class TestTorchExactGaussianProcess:
     def test_optimization_via_autograd(self):
         """Test hyperparameter optimization works via autograd (no analytical
         gradients)."""
-        from pyapprox.surrogates.gaussianprocess.gp_loss import (
-            GPNegativeLogMarginalLikelihoodLoss,
+        from pyapprox.surrogates.gaussianprocess.fitters import (
+            GPMaximumLikelihoodFitter,
         )
+        from pyapprox.util.backends.torch import TorchBkd
 
         # TorchMaternKernel lacks jacobian_wrt_params, so optimization
         # must use autograd through loss.__call__()
@@ -403,31 +404,20 @@ class TestTorchExactGaussianProcess:
             nu=2.5, lenscale=[0.5], lenscale_bounds=(0.1, 10.0), nvars=1
         )
         gp = TorchExactGaussianProcess(kernel, nvars=1)
-        # Leave params active so optimization runs
 
         X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
         y_train = torch.sin(X_train[0])[None, :]
 
-        # Create loss and configure via GP hook (as fit() would do)
-        gp._fit_internal(X_train, y_train)
-        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
-        gp._configure_loss(loss)
-
         assert not hasattr(kernel, "jacobian_wrt_params")
-        assert hasattr(
-            loss, "jacobian"
-        ), "Autograd jacobian should be bound by _configure_loss"
 
-        # Compute loss and gradient
-        params = gp.hyp_list().get_active_values()
-        nll = loss(params)
-        grad = loss.jacobian(params)
+        bkd = TorchBkd()
+        fitter = GPMaximumLikelihoodFitter(bkd)
+        result = fitter.fit(gp, X_train, y_train)
+        fitted_gp = result.surrogate()
 
-        assert nll.shape == (1, 1)
-        assert grad.shape == (1, len(params))
-
-        # Gradient should be finite
-        assert torch.all(torch.isfinite(grad))
+        assert fitted_gp.is_fitted()
+        nll = result.neg_log_marginal_likelihood()
+        assert torch.all(torch.isfinite(nll))
 
     def test_fit_optimizes_hyperparameters(self):
         """Test that fit() optimizes hyperparameters using autograd gradients."""

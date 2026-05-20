@@ -20,7 +20,7 @@ from pyapprox.surrogates.kernels.protocols import (
     KernelProtocol,
     SeparableKernelProtocol,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
 from pyapprox.util.backends.protocols import Array
 
 
@@ -91,7 +91,7 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
         if k1 is not None and k2 is not None:
             for a, b in [(k1, k2), (k2, k1)]:
                 if (
-                    isinstance(a, PolynomialScaling)
+                    isinstance(a, PolynomialScalingKernel)
                     and a.degree() == 0
                     and isinstance(b, SeparableKernelProtocol)
                 ):

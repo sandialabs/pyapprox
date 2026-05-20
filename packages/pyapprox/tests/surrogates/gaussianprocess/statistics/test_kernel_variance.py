@@ -10,13 +10,7 @@ import math
 
 import numpy as np
 import pytest
-
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    GaussianProcessStatistics,
-    SeparableKernelIntegralCalculator,
-)
 from pyapprox.surrogates.gaussianprocess.statistics.decompose import (
     _decompose_kernel,
 )
@@ -32,9 +26,15 @@ from pyapprox.surrogates.kernels.matern import (
 from pyapprox.surrogates.kernels.protocols import (
     SeparableKernelProtocol,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
+)
+
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 
 
@@ -64,10 +64,12 @@ def _create_scaled_kernel(
     length_scales,
     bkd,
 ):
-    """Create PolynomialScaling([s]) * SeparableProductKernel."""
+    """Create PolynomialScalingKernel([s]) * SeparableProductKernel."""
     base = _create_separable_kernel(length_scales, bkd)
     nvars = len(length_scales)
-    scaling = PolynomialScaling([s_value], (0.01, 100.0), bkd, nvars=nvars, fixed=False)
+    scaling = PolynomialScalingKernel(
+        [s_value], (0.01, 100.0), bkd, nvars=nvars, fixed=False
+    )
     return scaling * base
 
 
@@ -123,16 +125,16 @@ class TestKernelDecomposition:
         assert base is kernel
 
     def test_scaled_separable_extracts_s_squared(self, bkd) -> None:
-        """PolynomialScaling([s]) * SeparableKernel -> (base, s**2)."""
+        """PolynomialScalingKernel([s]) * SeparableKernel -> (base, s**2)."""
         scaled = _create_scaled_kernel(3.0, [1.0, 0.5], bkd)
         base, s2 = _decompose_kernel(scaled, bkd)
         assert isinstance(base, SeparableKernelProtocol)
         bkd.assert_allclose(s2, bkd.asarray(9.0))
 
     def test_reversed_order(self, bkd) -> None:
-        """SeparableKernel * PolynomialScaling([s]) -> (base, s**2)."""
+        """SeparableKernel * PolynomialScalingKernel([s]) -> (base, s**2)."""
         base_kernel = _create_separable_kernel([1.0], bkd)
-        scaling = PolynomialScaling(
+        scaling = PolynomialScalingKernel(
             [2.0], (0.01, 100.0), bkd, nvars=1, fixed=False
         )
         # Reversed: base * scaling
@@ -145,7 +147,7 @@ class TestKernelDecomposition:
         """Non-constant PolynomialScaling raises TypeError."""
         base_kernel = _create_separable_kernel([1.0, 0.5], bkd)
         # Linear scaling (degree 1, 3 coefficients for 2 vars)
-        scaling = PolynomialScaling(
+        scaling = PolynomialScalingKernel(
             [1.0, 0.5, 0.3], (0.01, 100.0), bkd, fixed=False
         )
         product = scaling * base_kernel
@@ -158,8 +160,8 @@ class TestKernelDecomposition:
         # so test with something that doesn't. Use a raw ProductKernel of
         # two non-protocol kernels.
 
-        k1 = PolynomialScaling([2.0], (0.01, 100.0), bkd, nvars=2, fixed=False)
-        k2 = PolynomialScaling([3.0], (0.01, 100.0), bkd, nvars=2, fixed=False)
+        k1 = PolynomialScalingKernel([2.0], (0.01, 100.0), bkd, nvars=2, fixed=False)
+        k2 = PolynomialScalingKernel([3.0], (0.01, 100.0), bkd, nvars=2, fixed=False)
         product = k1 * k2
         with pytest.raises(TypeError):
             _decompose_kernel(product, bkd)
@@ -195,7 +197,7 @@ class TestKernelDiagonal:
 
 
 class TestUnitScalingEquivalence:
-    """PolynomialScaling([1.0]) * base gives identical statistics to base."""
+    """PolynomialScalingKernel([1.0]) * base gives identical statistics to base."""
 
     def _setup(self, bkd):
         np.random.seed(42)

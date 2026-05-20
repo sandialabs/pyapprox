@@ -1,13 +1,6 @@
 """Tests for MultiOutputGP fitters."""
 
 import numpy as np
-
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPFitResult,
-    GPOptimizedFitResult,
-    MultiOutputGPFixedHyperparameterFitter,
-    MultiOutputGPMaximumLikelihoodFitter,
-)
 from pyapprox.surrogates.gaussianprocess.multioutput import (
     MultiOutputGP,
 )
@@ -15,11 +8,18 @@ from pyapprox.surrogates.kernels.iid_gaussian_noise import (
     IIDGaussianNoise,
 )
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
+from pyapprox.util.backends.torch import TorchBkd
+
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPFitResult,
+    GPOptimizedFitResult,
+    MultiOutputGPFixedHyperparameterFitter,
+    MultiOutputGPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
 )
-from pyapprox.surrogates.kernels.scalings import PolynomialScaling
-from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestMultiOutputGPFixedFitter:
@@ -60,7 +60,7 @@ class TestMultiOutputGPFixedFitter:
                 bkd,
                 fixed=fixed,
             )
-            constant = PolynomialScaling(
+            constant = PolynomialScalingKernel(
                 [1.0],
                 (0.1, 10.0),
                 bkd,
@@ -172,7 +172,7 @@ class TestMultiOutputGPMLFitterTorch:
                 self._bkd,
                 fixed=fixed,
             )
-            constant = PolynomialScaling(
+            constant = PolynomialScalingKernel(
                 [1.0],
                 (0.1, 10.0),
                 self._bkd,

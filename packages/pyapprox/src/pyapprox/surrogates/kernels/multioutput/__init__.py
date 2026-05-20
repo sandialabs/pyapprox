@@ -18,7 +18,8 @@ Kernel Implementations
 
 Supporting Classes
 ------------------
-- PolynomialScaling: Polynomial scaling functions ρ(x) = c0 + c1*x1 + ... + cd*xd
+- PolynomialScalingFunction: Polynomial scaling ρ(x) = c0 + c1*x1 + ...
+- PolynomialScalingKernel: Kernel from polynomial scaling K(x,x') = ρ(x)*ρ(x')
 - CovarianceHyperParameter: Learnable covariance matrices via hyperspherical
 parameterization
 
@@ -39,7 +40,7 @@ Basic multi-output kernel:
 DAG-based autoregressive kernel:
 
 >>> import networkx as nx
->>> from pyapprox.surrogates.kernels import PolynomialScaling
+>>> from pyapprox.surrogates.kernels import PolynomialScalingFunction
 >>> from pyapprox.surrogates.kernels.multioutput import DAGMultiOutputKernel
 >>> # Define structure: 0 -> 1 -> 2 <- 3 (diamond)
 >>> dag = nx.DiGraph()
@@ -50,7 +51,8 @@ DAG-based autoregressive kernel:
 """
 
 from ..scalings import (
-    PolynomialScaling,
+    PolynomialScalingFunction,
+    PolynomialScalingKernel,
     ScalingFunctionProtocol,
 )
 from .covariance_hyperparameter import CovarianceHyperParameter
@@ -70,6 +72,7 @@ __all__ = [
     "MultiLevelKernel",
     "DAGMultiOutputKernel",
     # Supporting classes
-    "PolynomialScaling",
+    "PolynomialScalingFunction",
+    "PolynomialScalingKernel",
     "CovarianceHyperParameter",
 ]

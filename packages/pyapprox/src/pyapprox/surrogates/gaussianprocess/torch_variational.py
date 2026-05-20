@@ -24,9 +24,6 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import (
 from pyapprox.surrogates.gaussianprocess.variational import (
     VariationalGaussianProcess,
 )
-from pyapprox.surrogates.gaussianprocess.variational_loss import (
-    VariationalGPELBOLoss,
-)
 from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.backends.validation import validate_backends
@@ -137,22 +134,6 @@ class TorchVariationalGaussianProcess(VariationalGaussianProcess[torch.Tensor]):
             jacs.append(self._torch_bkd.jacobian(pred_func, x_i))
 
         return torch.stack(jacs, dim=0)
-
-    def _configure_loss(self, loss: VariationalGPELBOLoss[torch.Tensor]) -> None:
-        """Bind autograd-based jacobian on the loss function."""
-        bkd = self._torch_bkd
-
-        def _jacobian_autograd(params: torch.Tensor) -> torch.Tensor:
-            if len(params.shape) == 2 and params.shape[1] == 1:
-                params = params[:, 0]
-
-            def loss_func(p: torch.Tensor) -> torch.Tensor:
-                return loss(p)[0, 0]
-
-            jac = bkd.jacobian(loss_func, params)
-            return bkd.reshape(jac, (1, len(params)))
-
-        loss.jacobian = _jacobian_autograd
 
     def __repr__(self) -> str:
         fitted_str = "fitted" if self.is_fitted() else "not fitted"

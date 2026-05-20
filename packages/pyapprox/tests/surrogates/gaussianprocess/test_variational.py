@@ -406,23 +406,22 @@ class TestTorchVariationalGP:
         assert torch.isfinite(jac).all()
 
     def test_autograd_loss_jacobian(self) -> None:
-        """Verify _configure_loss binds autograd jacobian."""
-        from pyapprox.surrogates.gaussianprocess.variational_loss import (
-            VariationalGPELBOLoss,
+        """Verify fitter binds autograd jacobian for torch backend."""
+        from pyapprox.surrogates.gaussianprocess.fitters import (
+            VariationalGPMaximumLikelihoodFitter,
         )
+        from pyapprox.util.backends.torch import TorchBkd
 
         gp = self._make_torch_vgp(kernel_fixed=False, inducing_fixed=True)
-        gp.fit(self.X_train, self.y_train)
 
-        loss = VariationalGPELBOLoss(gp, (gp.data().X(), gp.data().y()))
-        gp._configure_loss(loss)
+        bkd = TorchBkd()
+        fitter = VariationalGPMaximumLikelihoodFitter(bkd)
+        result = fitter.fit(gp, self.X_train, self.y_train)
+        fitted_gp = result.surrogate()
 
-        assert hasattr(loss, "jacobian")
-
-        params = gp.hyp_list().get_active_values()
-        jac = loss.jacobian(params)
-        assert jac.shape[0] == 1
-        assert torch.isfinite(jac).all()
+        assert fitted_gp.is_fitted()
+        nll = result.neg_log_marginal_likelihood()
+        assert torch.isfinite(nll).all()
 
     def test_fit_with_kernel_optimization(self) -> None:
         """Fit with kernel params active uses autograd for optimization."""

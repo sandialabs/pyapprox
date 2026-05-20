@@ -145,7 +145,7 @@ def _fit_ar1():
     from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
         TorchMultiOutputGP,
     )
-    from pyapprox.surrogates.kernels.scalings import PolynomialScaling
+    from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
     from pyapprox.util.backends.torch import TorchBkd
 
     from pyapprox.surrogates.kernels.multioutput import (
@@ -170,7 +170,7 @@ def _fit_ar1():
     k_high = _se_kernel_factory(1, bkd)
 
     # Constant scaling rho_{0->1}(x) = c0 (Kennedy-O'Hagan AR1)
-    rho = PolynomialScaling(
+    rho = PolynomialScalingFunction(
         coefficients=[1.0],
         bounds=(-3.0, 3.0),
         bkd=bkd,
@@ -240,7 +240,7 @@ def _fit_nargp():
         return _FIT_CACHE["nargp"]
 
     import networkx as nx
-    from pyapprox.surrogates.gaussianprocess.exact_nargp import (
+    from pyapprox.surrogates.gaussianprocess.fitters import (
         ExactNARGPFitter,
     )
     from pyapprox.util.backends.torch import TorchBkd
