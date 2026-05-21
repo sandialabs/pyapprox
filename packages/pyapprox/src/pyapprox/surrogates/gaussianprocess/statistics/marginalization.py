@@ -108,8 +108,12 @@ class MarginalizedGP(Generic[Array]):
     >>> gp = ExactGaussianProcess(kernel, 3, bkd)
     >>> X = bkd.array(np.random.rand(3, 10) * 2 - 1)
     >>> y = bkd.array(np.random.rand(10, 1))
-    >>> from pyapprox.surrogates.gaussianprocess.fitters import GPMaximumLikelihoodFitter
-    >>> gp = GPMaximumLikelihoodFitter(bkd).fit(gp, X, y).surrogate()
+    >>> from pyapprox.surrogates.gaussianprocess.fitters import (
+    ...     GPMaximumLikelihoodFitter,
+    ... )
+    >>> gp = GPMaximumLikelihoodFitter(bkd).fit(
+    ...     gp, X, y
+    ... ).surrogate()
     >>>
     >>> marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(3)]
     >>> factories = create_basis_factories(marginals, bkd, "gauss")

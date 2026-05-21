@@ -77,8 +77,12 @@ class TorchExactGaussianProcess(ExactGaussianProcess[torch.Tensor]):
     >>> gp.hyp_list().set_all_inactive()
     >>> X_train = torch.randn(1, 20, dtype=torch.float64)
     >>> y_train = torch.sin(X_train[0])[None, :]  # Shape: (nqoi, n_train)
-    >>> from pyapprox.surrogates.gaussianprocess.fitters import GPFixedHyperparameterFitter
-    >>> gp = GPFixedHyperparameterFitter(TorchBkd()).fit(gp, X_train, y_train).surrogate()
+    >>> from pyapprox.surrogates.gaussianprocess.fitters import (
+    ...     GPFixedHyperparameterFitter,
+    ... )
+    >>> gp = GPFixedHyperparameterFitter(TorchBkd()).fit(
+    ...     gp, X_train, y_train
+    ... ).surrogate()
     >>>
     >>> # Predict with gradients
     >>> X_test = torch.randn(1, 5, dtype=torch.float64)
