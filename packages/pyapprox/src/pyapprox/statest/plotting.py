@@ -150,8 +150,7 @@ def plot_estimator_variance_reductions(
     Parameters
     ----------
     optimized_estimators : list
-        Estimators that have already been allocated (via
-        ``allocate_samples``).
+        Fitted estimators (e.g. FittedACVEstimator, FittedMCEstimator).
     est_labels : list of str
         Label for each estimator bar.
     ax : matplotlib.axes.Axes
@@ -174,10 +173,10 @@ def plot_estimator_variance_reductions(
     est_covs = []
     sf_covs = []
     for est in optimized_estimators:
-        est_cov = est.optimized_covariance()
+        est_cov = est.covariance()
         bkd = est._bkd
         est_det = bkd.to_float(bkd.flatten(est_cov)[0])
-        nhf = bkd.to_int(est._rounded_target_cost / est._costs[0])
+        nhf = bkd.to_int(est.actual_cost() / est._template._costs[0])
         sf_cov = est._stat.high_fidelity_estimator_covariance(nhf)
         sf_det = bkd.to_float(bkd.flatten(sf_cov)[0])
         var_red.append(sf_det / est_det if est_det > 0 else 0.0)

@@ -12,6 +12,7 @@ import pytest
 from pyapprox_benchmarks.statest.multioutput_ensemble import (
     MultiOutputEnsembleBenchmark,
 )
+from pyapprox.statest.allocation import CVAllocator
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.groupacv import (
     GroupACVEstimatorIS,
@@ -377,7 +378,7 @@ class TestCVRecoveryVariance:
         est_gacv.set_allocation(_make_allocation(est_gacv, nps))
 
         est_cv = CVEstimator(stat_cv, costs, lowfi_stats=lowfi_stats)
-        est_cv.allocate_samples(float(bkd.sum(costs)) * nsamples)
+        fitted_cv = CVAllocator(est_cv).allocate(float(bkd.sum(costs)) * nsamples)
 
         np.random.seed(123)
         nsamples_int = int(nsamples)
@@ -387,7 +388,7 @@ class TestCVRecoveryVariance:
         ]
 
         est_gacv_val = est_gacv(values_per_model)
-        est_cv_val = est_cv(values_per_model)
+        est_cv_val = fitted_cv(values_per_model)
         bkd.assert_allclose(est_gacv_val, est_cv_val, rtol=1e-8)
 
     @pytest.mark.parametrize("stat_type,qoi_idx", STAT_CONFIGS)
@@ -442,11 +443,11 @@ class TestCVRecoveryVariance:
         est_gacv.set_allocation(_make_allocation(est_gacv, nps))
 
         est_cv = CVEstimator(stat_cv, costs, lowfi_stats=lowfi_stats)
-        est_cv.allocate_samples(float(bkd.sum(costs)) * nsamples)
+        fitted_cv = CVAllocator(est_cv).allocate(float(bkd.sum(costs)) * nsamples)
 
         bkd.assert_allclose(
             est_gacv.optimized_covariance(),
-            est_cv.optimized_covariance(),
+            fitted_cv.covariance(),
             rtol=1e-8,
         )
 

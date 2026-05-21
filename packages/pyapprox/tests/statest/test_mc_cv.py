@@ -7,8 +7,9 @@ Integration tests with benchmarks will be added in Phase 8.
 import numpy as np
 import pytest
 
-from pyapprox.statest.cv_estimator import CVEstimator
-from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.allocation import CVAllocator, MCAllocator
+from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
+from pyapprox.statest.mc_estimator import FittedMCEstimator, MCEstimator
 from pyapprox.statest.statistics import MultiOutputMean
 
 
@@ -32,8 +33,8 @@ class TestMCEstimator:
             bkd.asarray([est._nmodels]), bkd.asarray([nmodels])
         )
 
-    def test_allocate_samples(self, bkd) -> None:
-        """Test allocate_samples computes correct sample count."""
+    def test_allocate_via_allocator(self, bkd) -> None:
+        """Test MCAllocator computes correct sample count."""
         nqoi = 2
         nmodels = 1
         stat = MultiOutputMean(nqoi, bkd)
@@ -42,15 +43,15 @@ class TestMCEstimator:
         costs = bkd.array([2.0])
         est = MCEstimator(stat, costs)
         target_cost = 100.0
-        est.allocate_samples(target_cost)
+        fitted = MCAllocator(est).allocate(target_cost)
         # With cost=2.0 and target_cost=100, nsamples = floor(100/2) = 50
         bkd.assert_allclose(
-            bkd.asarray([est._rounded_nsamples_per_model[0]]),
+            bkd.asarray([fitted.nsamples_per_model()[0]]),
             bkd.asarray([50]),
         )
 
-    def test_optimized_covariance(self, bkd) -> None:
-        """Test optimized_covariance returns correct shape."""
+    def test_covariance(self, bkd) -> None:
+        """Test covariance returns correct shape."""
         nqoi = 2
         nmodels = 1
         stat = MultiOutputMean(nqoi, bkd)
@@ -58,8 +59,8 @@ class TestMCEstimator:
         stat.set_pilot_quantities(cov)
         costs = bkd.array([1.0])
         est = MCEstimator(stat, costs)
-        est.allocate_samples(100.0)
-        opt_cov = est.optimized_covariance()
+        fitted = MCAllocator(est).allocate(100.0)
+        opt_cov = fitted.covariance()
         # Shape should be (nqoi, nqoi)
         bkd.assert_allclose(
             bkd.asarray([opt_cov.shape[0], opt_cov.shape[1]]),
@@ -76,12 +77,12 @@ class TestMCEstimator:
         stat.set_pilot_quantities(cov)
         costs = bkd.array([1.0])
         est = MCEstimator(stat, costs)
-        est.allocate_samples(100.0)
+        fitted = MCAllocator(est).allocate(100.0)
 
         def rvs(nsamples):
             return bkd.asarray(np.random.randn(nvars, int(nsamples)))
 
-        samples = est.generate_samples_per_model(rvs)
+        samples = fitted.generate_samples_per_model(rvs)
         # Should return list with one entry
         bkd.assert_allclose(
             bkd.asarray([len(samples)]), bkd.asarray([1])
@@ -103,10 +104,10 @@ class TestMCEstimator:
         stat.set_pilot_quantities(cov)
         costs = bkd.array([1.0])
         est = MCEstimator(stat, costs)
-        est.allocate_samples(10.0)  # 10 samples
+        fitted = MCAllocator(est).allocate(10.0)  # 10 samples
         # Create values with known mean, using typing convention (nqoi, nsamples)
         values = bkd.ones((nqoi, 10)) * 3.0
-        result = est(values)
+        result = fitted(values)
         expected = bkd.ones((nqoi,)) * 3.0
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
@@ -119,11 +120,11 @@ class TestMCEstimator:
         stat.set_pilot_quantities(cov)
         costs = bkd.array([1.0])
         est = MCEstimator(stat, costs)
-        est.allocate_samples(10.0)  # 10 samples
+        fitted = MCAllocator(est).allocate(10.0)  # 10 samples
         # Wrong number of samples, using typing convention (nqoi, nsamples)
         values = bkd.ones((nqoi, 5))
         with pytest.raises(ValueError):
-            est(values)
+            fitted(values)
 
     def test_covariance_formula(self, bkd) -> None:
         """Test covariance is cov/nsamples for mean statistic."""
@@ -136,8 +137,8 @@ class TestMCEstimator:
         costs = bkd.array([1.0])
         est = MCEstimator(stat, costs)
         nsamples = 100
-        est.allocate_samples(float(nsamples))
-        opt_cov = est.optimized_covariance()
+        fitted = MCAllocator(est).allocate(float(nsamples))
+        opt_cov = fitted.covariance()
         # For mean, estimator covariance = cov / nsamples
         expected = bkd.eye(nqoi) * (variance / nsamples)
         bkd.assert_allclose(opt_cov, expected, rtol=1e-12)
@@ -177,8 +178,8 @@ class TestCVEstimator:
         with pytest.raises(ValueError):
             CVEstimator(stat, costs, lowfi_stats)
 
-    def test_allocate_samples(self, bkd) -> None:
-        """Test allocate_samples computes correct sample count."""
+    def test_allocate_via_allocator(self, bkd) -> None:
+        """Test CVAllocator computes correct sample count."""
         nqoi = 2
         nmodels = 2
         stat = MultiOutputMean(nqoi, bkd)
@@ -188,10 +189,10 @@ class TestCVEstimator:
         lowfi_stats = bkd.zeros((nmodels - 1, nqoi))
         est = CVEstimator(stat, costs, lowfi_stats)
         target_cost = 90.0
-        est.allocate_samples(target_cost)
+        fitted = CVAllocator(est).allocate(target_cost)
         # nsamples = floor(90 / 3) = 30
         bkd.assert_allclose(
-            bkd.asarray([est._rounded_npartition_samples[0]]),
+            bkd.asarray([fitted.nsamples_per_model()[0]]),
             bkd.asarray([30]),
         )
 
@@ -206,12 +207,12 @@ class TestCVEstimator:
         costs = bkd.array([1.0, 0.5, 0.25])
         lowfi_stats = bkd.zeros((nmodels - 1, nqoi))
         est = CVEstimator(stat, costs, lowfi_stats)
-        est.allocate_samples(100.0)
+        fitted = CVAllocator(est).allocate(100.0)
 
         def rvs(nsamples):
             return bkd.asarray(np.random.randn(nvars, int(nsamples)))
 
-        samples = est.generate_samples_per_model(rvs)
+        samples = fitted.generate_samples_per_model(rvs)
         # Should return list with nmodels entries
         bkd.assert_allclose(
             bkd.asarray([len(samples)]), bkd.asarray([nmodels])
@@ -223,7 +224,7 @@ class TestCVEstimator:
             )
 
     def test_weights(self, bkd) -> None:
-        """Test _weights computes optimal control variate weights."""
+        """Test weights are computed after fitting."""
         nqoi = 1
         nmodels = 2
         stat = MultiOutputMean(nqoi, bkd)
@@ -233,9 +234,9 @@ class TestCVEstimator:
         costs = bkd.array([1.0, 0.5])
         lowfi_stats = bkd.zeros((nmodels - 1, nqoi))
         est = CVEstimator(stat, costs, lowfi_stats)
-        est.allocate_samples(100.0)
-        # Weights should be set after allocation
-        assert est._optimized_weights is not None
+        fitted = CVAllocator(est).allocate(100.0)
+        # Weights should be set after fitting
+        assert fitted.weights() is not None
 
     def test_call(self, bkd) -> None:
         """Test __call__ computes CV estimate correctly."""
@@ -249,14 +250,15 @@ class TestCVEstimator:
         # Known low-fidelity mean
         lowfi_stats = bkd.array([[0.0]])
         est = CVEstimator(stat, costs, lowfi_stats)
-        est.allocate_samples(float(nsamples) * costs.sum())
+        fitted = CVAllocator(est).allocate(float(nsamples) * costs.sum())
 
         # Create values for both models using typing convention (nqoi, nsamples)
-        hf_values = bkd.ones((nqoi, nsamples)) * 2.0
-        lf_values = bkd.ones((nqoi, nsamples)) * 1.0
+        actual_nsamples = int(fitted.nsamples_per_model()[0])
+        hf_values = bkd.ones((nqoi, actual_nsamples)) * 2.0
+        lf_values = bkd.ones((nqoi, actual_nsamples)) * 1.0
         values_per_model = [hf_values, lf_values]
 
-        result = est(values_per_model)
+        result = fitted(values_per_model)
         # Result should be scalar-ish (nqoi,)
         bkd.assert_allclose(
             bkd.asarray([result.shape[0]]), bkd.asarray([nqoi])
@@ -272,14 +274,14 @@ class TestCVEstimator:
         costs = bkd.array([1.0, 0.5])
         lowfi_stats = bkd.zeros((nmodels - 1, nqoi))
         est = CVEstimator(stat, costs, lowfi_stats)
-        est.allocate_samples(10.0)
+        fitted = CVAllocator(est).allocate(10.0)
 
         # Pass list instead of proper array type
         values_per_model = [[[1.0]], [[0.5]]]
         with pytest.raises(ValueError):
-            est(values_per_model)
+            fitted(values_per_model)
 
-    def test_optimized_covariance_reduced(self, bkd) -> None:
+    def test_covariance_reduced(self, bkd) -> None:
         """Test CV estimator has lower variance than MC."""
         nqoi = 1
         nmodels = 2
@@ -290,7 +292,7 @@ class TestCVEstimator:
         costs = bkd.array([1.0, 0.1])
         lowfi_stats = bkd.zeros((nmodels - 1, nqoi))
         cv_est = CVEstimator(stat, costs, lowfi_stats)
-        cv_est.allocate_samples(100.0)
+        cv_fitted = CVAllocator(cv_est).allocate(100.0)
 
         # Compare to MC with same budget
         mc_stat = MultiOutputMean(nqoi, bkd)
@@ -298,10 +300,10 @@ class TestCVEstimator:
         mc_stat.set_pilot_quantities(mc_cov)
         mc_costs = bkd.array([1.0])
         mc_est = MCEstimator(mc_stat, mc_costs)
-        mc_est.allocate_samples(100.0)
+        mc_fitted = MCAllocator(mc_est).allocate(100.0)
 
         # CV variance should be less than or equal to MC variance
-        cv_var = cv_est.optimized_covariance()[0, 0]
-        mc_var = mc_est.optimized_covariance()[0, 0]
+        cv_var = cv_fitted.covariance()[0, 0]
+        mc_var = mc_fitted.covariance()[0, 0]
         # With high correlation, CV should reduce variance
         assert float(cv_var) <= float(mc_var)

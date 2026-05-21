@@ -13,6 +13,7 @@ These tests use the typing array convention: (nqoi, nsamples) for outputs.
 
 import numpy as np
 import pytest
+import torch
 
 from pyapprox_benchmarks.statest import (
     MultiOutputEnsembleBenchmark,
@@ -43,14 +44,14 @@ def _allocate_with_slsqp(est, target_cost: float):
         ScipySLSQPOptimizer,
     )
     from pyapprox.statest.acv.allocation import default_allocator_factory
+    from pyapprox.statest.acv.base import FittedACVEstimator
 
     optimizer = ScipySLSQPOptimizer(maxiter=500)
     allocator = default_allocator_factory(est, optimizer=optimizer)
     result = allocator.allocate(target_cost)
     if not result.success:
         raise RuntimeError(f"Allocation failed: {result.message}")
-    est.set_allocation(result)
-    return result
+    return FittedACVEstimator(est, result)
 
 
 def _get_stat(stat_type: str, nqoi: int, bkd):
@@ -169,18 +170,17 @@ class TestBootstrapEstimator:
 
         if est_type == "cv":
             lowfi_stats = self._bkd.zeros((nmodels - 1, nqoi))
-            est = CVEstimator(stat, costs, lowfi_stats)
+            template = CVEstimator(stat, costs, lowfi_stats)
         else:
-            est = MCEstimator(stat, costs)
+            template = MCEstimator(stat, costs)
 
-        allocate_with_allocator(est, target_cost)
+        fitted = allocate_with_allocator(template, target_cost)
 
         # Generate values
         np.random.seed(456)
-        nsamples_per_model = [
-            int(est._rounded_nsamples_per_model[ii]) for ii in range(nmodels)
-        ]
-        max_samples = max(nsamples_per_model)
+        nspm = fitted.nsamples_per_model()
+        nsamples_list = [int(nspm[ii]) for ii in range(nmodels)]
+        max_samples = max(nsamples_list)
 
         # Generate correlated values
         L = np.linalg.cholesky(cov.numpy())
@@ -188,15 +188,15 @@ class TestBootstrapEstimator:
 
         values_per_model = []
         for ii in range(nmodels):
-            n = nsamples_per_model[ii]
+            n = nsamples_list[ii]
             vals = base[ii * nqoi : (ii + 1) * nqoi, :n]
             values_per_model.append(self._bkd.asarray(vals))
 
         # Bootstrap
-        bootstrap_mean, bootstrap_cov = est.bootstrap(values_per_model, nbootstraps)
+        bootstrap_mean, bootstrap_cov = fitted.bootstrap(values_per_model, nbootstraps)
 
         # Compare to analytical covariance
-        analytical_cov = est.optimized_covariance()
+        analytical_cov = fitted.covariance()
         self._bkd.assert_allclose(bootstrap_cov, analytical_cov, atol=1e-1, rtol=3e-1)
 
     @pytest.mark.parametrize(
@@ -226,29 +226,28 @@ class TestBootstrapEstimator:
         costs = self._bkd.array([1.0, 0.1, 0.01])
         recursion_index = self._bkd.array([0, 1], dtype=int)
 
-        est = _get_estimator(
+        template = _get_estimator(
             est_type, stat, costs, self._bkd, recursion_index=recursion_index
         )
-        allocate_with_allocator(est, target_cost)
+        fitted = allocate_with_allocator(template, target_cost)
 
         # Generate samples and values
         np.random.seed(789)
-        nsamples_per_model = [
-            int(est._rounded_nsamples_per_model[ii]) for ii in range(nmodels)
-        ]
-        max_samples = max(nsamples_per_model)
+        nspm = fitted.nsamples_per_model()
+        nsamples_list = [int(nspm[ii]) for ii in range(nmodels)]
+        max_samples = max(nsamples_list)
 
         L = np.linalg.cholesky(cov.numpy())
         base = L @ np.random.randn(nmodels * nqoi, max_samples)
 
         values_per_model = []
         for ii in range(nmodels):
-            n = nsamples_per_model[ii]
+            n = nsamples_list[ii]
             vals = base[ii * nqoi : (ii + 1) * nqoi, :n]
             values_per_model.append(self._bkd.asarray(vals))
 
-        bootstrap_mean, bootstrap_cov = est.bootstrap(values_per_model, nbootstraps)
-        analytical_cov = est.optimized_covariance()
+        bootstrap_mean, bootstrap_cov = fitted.bootstrap(values_per_model, nbootstraps)
+        analytical_cov = fitted.covariance()
 
         self._bkd.assert_allclose(bootstrap_cov, analytical_cov, atol=1e-1, rtol=5e-1)
 
@@ -318,12 +317,12 @@ class TestEstimatorVariance:
         if est_type == "cv":
             kwargs["lowfi_stats"] = self._bkd.zeros((nmodels - 1, stat.nstats()))
 
-        est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
-        allocate_with_allocator(est, target_cost)
+        template = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
+        fitted = allocate_with_allocator(template, target_cost)
 
         # Compute MC variance
-        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), est, ntrials)
-        analytical_cov = est.optimized_covariance()
+        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), fitted, ntrials)
+        analytical_cov = fitted.covariance()
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
 
@@ -365,8 +364,8 @@ class TestEstimatorVariance:
         if est_type == "cv":
             kwargs["lowfi_stats"] = self._bkd.zeros((nmodels - 1, stat.nstats()))
 
-        est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
-        allocate_with_allocator(est, target_cost)
+        template = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
+        fitted = allocate_with_allocator(template, target_cost)
 
         # Compute MC variance using subproblem models
         def rvs(nsamples):
@@ -375,16 +374,16 @@ class TestEstimatorVariance:
 
         estimates = []
         for _ in range(ntrials):
-            samples_per_model = est.generate_samples_per_model(rvs)
+            samples_per_model = fitted.generate_samples_per_model(rvs)
             values_per_model = [
                 model(samples) for model, samples in zip(models, samples_per_model)
             ]
-            est_val = est(values_per_model)
+            est_val = fitted(values_per_model)
             estimates.append(est_val)
 
         estimates = self._bkd.stack(estimates)
         mc_cov = self._bkd.cov(estimates, rowvar=False, ddof=1)
-        analytical_cov = est.optimized_covariance()
+        analytical_cov = fitted.covariance()
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
 
@@ -423,11 +422,11 @@ class TestEstimatorVariance:
         stat.set_pilot_quantities(cov)
 
         rec_idx = self._bkd.array(recursion_index, dtype=int)
-        est = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
-        allocate_with_allocator(est, target_cost)
+        template = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
+        fitted = allocate_with_allocator(template, target_cost)
 
-        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), est, ntrials)
-        analytical_cov = est.optimized_covariance()
+        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), fitted, ntrials)
+        analytical_cov = fitted.covariance()
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
 
@@ -533,14 +532,14 @@ class TestPolynomialEnsemble:
         if recursion_index is not None:
             kwargs["recursion_index"] = self._bkd.array(recursion_index, dtype=int)
 
-        est = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
+        template = _get_estimator(est_type, stat, costs, self._bkd, **kwargs)
         if est_type == "gmf" and nmodels >= 5:
-            _allocate_with_slsqp(est, target_cost)
+            fitted = _allocate_with_slsqp(template, target_cost)
         else:
-            allocate_with_allocator(est, target_cost)
+            fitted = allocate_with_allocator(template, target_cost)
 
-        analytical_cov = est.optimized_covariance()
-        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), est, ntrials)
+        analytical_cov = fitted.covariance()
+        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), fitted, ntrials)
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=2e-1, atol=1e-2)
 
@@ -575,22 +574,21 @@ class TestInsertPilotSamples:
         costs = self._bkd.array([1.0, 0.5, 0.25])
         rec_idx = self._bkd.array(recursion_index, dtype=int)
 
-        est = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
-        allocate_with_allocator(est, 200.0)
+        template = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
+        fitted = allocate_with_allocator(template, 200.0)
 
-        nsamples_per_model = [
-            int(est._rounded_nsamples_per_model[ii]) for ii in range(nmodels)
-        ]
+        nspm = fitted.nsamples_per_model()
+        nsamples_list = [int(nspm[ii]) for ii in range(nmodels)]
 
         pilot_values = [
             self._bkd.ones((nqoi, npilot)) * (ii + 1) for ii in range(nmodels)
         ]
         sample_values = [
-            self._bkd.ones((nqoi, max(0, nsamples_per_model[ii] - npilot))) * (ii + 10)
+            self._bkd.ones((nqoi, max(0, nsamples_list[ii] - npilot))) * (ii + 10)
             for ii in range(nmodels)
         ]
 
-        combined = est.insert_pilot_values(pilot_values, sample_values)
+        combined = fitted.insert_pilot_values(pilot_values, sample_values)
 
         self._bkd.assert_allclose(
             self._bkd.asarray([len(combined)]), self._bkd.asarray([nmodels])
@@ -603,6 +601,7 @@ class TestEstimatorReproducibility:
     @pytest.fixture(autouse=True)
     def _setup(self):
         np.random.seed(42)
+        torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
     def test_mc_estimator_reproducible(self) -> None:
@@ -615,16 +614,16 @@ class TestEstimatorReproducibility:
         stat.set_pilot_quantities(cov)
 
         costs = self._bkd.array([1.0])
-        est = MCEstimator(stat, costs)
-        allocate_with_allocator(est, float(nsamples))
+        template = MCEstimator(stat, costs)
+        fitted = allocate_with_allocator(template, float(nsamples))
 
         np.random.seed(123)
         values1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
-        result1 = est(values1)
+        result1 = fitted(values1)
 
         np.random.seed(123)
         values2 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
-        result2 = est(values2)
+        result2 = fitted(values2)
 
         self._bkd.assert_allclose(result1, result2, rtol=1e-12)
 
@@ -640,17 +639,19 @@ class TestEstimatorReproducibility:
 
         lowfi_stats = self._bkd.zeros((nmodels - 1, nqoi))
         costs = self._bkd.array([1.0, 0.5])
-        est = CVEstimator(stat, costs, lowfi_stats)
-        allocate_with_allocator(est, float(nsamples) * costs.sum())
+        template = CVEstimator(stat, costs, lowfi_stats)
+        fitted = allocate_with_allocator(template, float(nsamples) * costs.sum())
+
+        actual_n = int(fitted.nsamples_per_model()[0])
 
         np.random.seed(456)
-        hf1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
-        lf1 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
-        result1 = est([hf1, lf1])
+        hf1 = self._bkd.asarray(np.random.randn(nqoi, actual_n))
+        lf1 = self._bkd.asarray(np.random.randn(nqoi, actual_n))
+        result1 = fitted([hf1, lf1])
 
         np.random.seed(456)
-        hf2 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
-        lf2 = self._bkd.asarray(np.random.randn(nqoi, nsamples))
-        result2 = est([hf2, lf2])
+        hf2 = self._bkd.asarray(np.random.randn(nqoi, actual_n))
+        lf2 = self._bkd.asarray(np.random.randn(nqoi, actual_n))
+        result2 = fitted([hf2, lf2])
 
         self._bkd.assert_allclose(result1, result2, rtol=1e-12)

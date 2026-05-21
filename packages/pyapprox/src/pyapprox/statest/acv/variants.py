@@ -6,10 +6,7 @@ sample allocation strategies.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, List, Tuple, Union
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from typing import Callable, Generic, List, Tuple, Union
 
 import numpy as np
 
@@ -348,7 +345,7 @@ def _get_sample_allocation_matrix_mlmc(nmodels: int, bkd: Backend[Array]) -> Arr
 class GMFEstimator(ACVEstimator[Array], Generic[Array]):
     """Generalized Multifidelity (GMF) estimator."""
 
-    def _create_allocation_matrix(self, recursion_index: Array) -> Array:
+    def _create_allocation_matrix(self, recursion_index: Array) -> None:
         self._allocation_mat = _get_allocation_matrix_gmf(recursion_index, self._bkd)
 
 
@@ -357,7 +354,7 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
     The GIS estimator from Gorodetsky et al. and Bomorito et al
     """
 
-    def _create_allocation_matrix(self, recursion_index: Array) -> Array:
+    def _create_allocation_matrix(self, recursion_index: Array) -> None:
         self._allocation_mat = _get_allocation_matrix_acvis(recursion_index, self._bkd)
 
 
@@ -366,7 +363,7 @@ class GRDEstimator(ACVEstimator[Array], Generic[Array]):
     The GRD estimator.
     """
 
-    def _create_allocation_matrix(self, recursion_index: Array) -> Array:
+    def _create_allocation_matrix(self, recursion_index: Array) -> None:
         self._allocation_mat = _get_allocation_matrix_acvrd(recursion_index, self._bkd)
 
 
@@ -377,7 +374,6 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         self,
         stat: MultiOutputStatistic[Array],
         costs: Union[List[float], Array],
-        opt_criteria: None = None,
         opt_qoi: int = 0,
     ) -> None:
         # Use the sample analytical sample allocation for estimating a scalar
@@ -387,7 +383,6 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
             stat,
             costs,
             recursion_index=stat._bkd.arange(nmodels - 1, dtype=int),
-            opt_criteria=None,
         )
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
@@ -457,7 +452,6 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
         self,
         stat: MultiOutputStatistic[Array],
         costs: Union[List[float], Array],
-        opt_criteria: None = None,
         opt_qoi: int = 0,
     ) -> None:
         """
@@ -472,23 +466,23 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
             stat,
             costs,
             recursion_index=stat._bkd.arange(nmodels - 1),
-            opt_criteria=None,
         )
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
 
-    def _weights(self, CF: Array, cf: Array) -> Array:
-        # raise NotImplementedError("check weights size is correct")
+    def _optimal_weights(self, CF: Array, cf: Array) -> Array:
         return -self._bkd.ones(cf.shape)
 
     def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
         CF, cf = self._get_discrepancy_covariances(npartition_samples)
-        weights = self._weights(CF, cf)
+        weights = self._optimal_weights(CF, cf)
         # cannot use formulation of variance that uses optimal weights
         # must use the more general expression below, e.g. Equation 8
         # from Dixon 2024.
         return self._covariance_non_optimal_weights(
-            self._stat.high_fidelity_estimator_covariance(npartition_samples[0]),
+            self._stat.high_fidelity_estimator_covariance(
+                npartition_samples[0]
+            ),
             weights,
             CF,
             cf,
@@ -535,7 +529,7 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
         objective_value = self._bkd.atleast_1d(log_variance)
         return partition_ratios, objective_value
 
-    def _create_allocation_matrix(self, dummy: Array) -> Array:
+    def _create_allocation_matrix(self, dummy: Array) -> None:
         self._allocation_mat = _get_sample_allocation_matrix_mlmc(
             self._nmodels, self._bkd
         )

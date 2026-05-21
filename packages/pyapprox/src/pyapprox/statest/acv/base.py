@@ -1,13 +1,14 @@
-"""ACVEstimator base class for approximate control variate estimation.
+"""ACVEstimator template and FittedACVEstimator.
 
-This module provides the ACVEstimator class which extends CVEstimator
-with approximate control variate functionality including sample allocation
-optimization.
+ACVEstimator is the immutable template: it maps (target_cost, partition_ratios)
+to estimator covariance but stores no allocation state.
+
+FittedACVEstimator composes (template, ACVAllocationResult) and eagerly
+computes weights/covariance from the discrete (post-rounding) counts.
 """
 
 from abc import abstractmethod
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Generic,
@@ -19,7 +20,8 @@ from typing import (
 
 import numpy as np
 
-from pyapprox.statest.acv.optimization import (
+from pyapprox.statest.acv.result import ACVAllocationResult
+from pyapprox.statest.acv.utils import (
     _combine_acv_samples,
     _combine_acv_values,
 )
@@ -27,26 +29,21 @@ from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.statistics import (
     MultiOutputStatistic,
 )
-from pyapprox.util.backends.protocols import Array
-
-if TYPE_CHECKING:
-    from pyapprox.optimization.minimize.protocols import (
-        BindableOptimizerProtocol,
-    )
-    from pyapprox.statest.acv.allocation import ACVAllocationResult
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ACVEstimator(CVEstimator[Array], Generic[Array]):
-    """Approximate Control Variate estimator base class."""
+    """Approximate Control Variate estimator template.
+
+    Immutable after construction. Maps (target_cost, partition_ratios) to
+    estimator covariance. Stores no allocation state.
+    """
 
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
         costs: Union[List[float], Array],
         recursion_index: Optional[Array] = None,
-        opt_criteria: Optional[Callable[[Array], float]] = None,
-        tree_depth: Optional[int] = None,
-        allow_failures: bool = False,
         npartitions_lower_bound: float = 1e-2,
     ):
         """
@@ -63,180 +60,18 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         recursion_index : Array (nmodels-1)
             The recusion index that specifies which ACV estimator is used
 
-        opt_criteria : callable
-            Function of the the covariance between the high-fidelity
-            QoI estimators with signature
-
-            ``opt_criteria(variance) -> float
-
-        tree_depth: integer (default=None)
-            The maximum depth of the recursion tree.
-            If not None, then recursion_index is ignored.
-
-        allow_failures: boolean (default=False)
-            Allow optimization of estimators to fail when enumerating
-            each recursion tree.
+        npartitions_lower_bound : float
+            Lower bound for partition ratios during optimization.
         """
-        super().__init__(stat, costs, None, opt_criteria=opt_criteria)
+        super().__init__(stat, costs, None)
         self._recursion_index: Optional[Array] = None
-        if tree_depth is not None and recursion_index is not None:
-            msg = "Only tree_depth or recurusion_index must be specified"
-            raise ValueError(msg)
-        if tree_depth is None:
-            self._set_recursion_index(recursion_index)
-        self._tree_depth = tree_depth
-        self._allow_failures = allow_failures
-
-        self._rounded_partition_ratios: Optional[Array] = None
+        self._set_recursion_index(recursion_index)
         self._npartitions = self._nmodels
-        self._optimizer: Optional["BindableOptimizerProtocol"] = None
         self._npartitions_lower_bound = npartitions_lower_bound
 
-        # ACV-specific source of truth
-        self._partition_ratios: Optional[Array] = None
-        self._npartition_samples: Optional[Array] = None
-        # Legacy attributes (set by set_allocation)
-        self._rounded_npartition_samples: Optional[Array] = None
-        self._rounded_nsamples_per_model: Optional[Array] = None
-        self._rounded_target_cost: Optional[float] = None
-        self._optimized_covariance: Optional[Array] = None
-        self._optimized_criteria: Optional[Array] = None
-        self._optimized_CF: Optional[Array] = None
-        self._optimized_cf: Optional[Array] = None
-        self._optimized_weights: Optional[Array] = None
+    # === Template API (pure, allocation-parameterized) ===
 
-    # === Allocation management (new API) ===
-
-    def set_allocation(self, allocation: "ACVAllocationResult[Array]") -> None:
-        """Set allocation from ACVAllocationResult.
-
-        Parameters
-        ----------
-        allocation : ACVAllocationResult
-            The allocation result. Must have success=True.
-
-        Raises
-        ------
-        ValueError
-            If allocation.success is False.
-        """
-        if not allocation.success:
-            raise ValueError(f"Cannot set failed allocation: {allocation.message}")
-        self._allocation = allocation
-        self._partition_ratios = allocation.partition_ratios
-        self._npartition_samples = allocation.npartition_samples
-        self._nsamples_per_model = allocation.nsamples_per_model
-        self._target_cost = allocation.actual_cost
-        self._invalidate_cache()
-
-        # Update legacy attributes for backward compatibility
-        self._rounded_partition_ratios = allocation.partition_ratios
-        self._rounded_npartition_samples = allocation.npartition_samples
-        self._rounded_nsamples_per_model = allocation.nsamples_per_model
-        self._rounded_target_cost = allocation.actual_cost
-        # Pre-compute legacy attributes for backward compatibility
-        self._optimized_covariance = self._covariance_from_npartition_samples(
-            allocation.npartition_samples
-        )
-        self._optimized_criteria = self._optimization_criteria(
-            self._optimized_covariance
-        )
-        self._optimized_CF, self._optimized_cf = self._get_discrepancy_covariances(
-            allocation.npartition_samples
-        )
-        self._optimized_weights = self._weights(self._optimized_CF, self._optimized_cf)
-
-    def allocation(self) -> "ACVAllocationResult[Array]":
-        """Get current allocation.
-
-        Returns
-        -------
-        ACVAllocationResult
-            The current allocation.
-
-        Raises
-        ------
-        RuntimeError
-            If no allocation has been set.
-        """
-        if self._allocation is None:
-            raise RuntimeError(
-                "No allocation set. Call allocate_samples() or set_allocation() first."
-            )
-        return self._allocation
-
-    @property
-    def has_allocation(self) -> bool:
-        """Check if allocation has been set.
-
-        Returns
-        -------
-        bool
-            True if an allocation has been set, False otherwise.
-        """
-        return self._allocation is not None or self._nsamples_per_model is not None
-
-    def _compute_discrepancy_covariances(self) -> Tuple[Array, Array]:
-        """Compute and cache CF, cf discrepancy covariances for ACV."""
-        self._ensure_allocation()
-        if self._cached_discrepancy_covariances is None:
-            if self._npartition_samples is not None:
-                npartition_samples = self._npartition_samples
-            elif self._rounded_npartition_samples is not None:
-                npartition_samples = self._rounded_npartition_samples
-            else:
-                raise RuntimeError("No partition samples available")
-            self._cached_discrepancy_covariances = self._get_discrepancy_covariances(
-                npartition_samples
-            )
-        return self._cached_discrepancy_covariances
-
-    def optimized_covariance(self) -> Array:
-        """Lazily compute and return optimized covariance for ACV."""
-        self._ensure_allocation()
-        if self._cached_covariance is None:
-            if self._npartition_samples is not None:
-                npartition_samples = self._npartition_samples
-            elif self._rounded_npartition_samples is not None:
-                npartition_samples = self._rounded_npartition_samples
-            else:
-                raise RuntimeError("No partition samples available")
-            self._cached_covariance = self._covariance_from_npartition_samples(
-                npartition_samples
-            )
-        return self._cached_covariance
-
-    def allocation_matrix(self) -> Array:
-        """Return the allocation matrix.
-
-        Returns
-        -------
-        Array
-            Allocation matrix. Shape: (npartitions, 2*nmodels).
-        """
-        return self._get_allocation_matrix()
-
-    def npartition_samples(self) -> Array:
-        """Get current partition sample allocation.
-
-        Returns
-        -------
-        Array
-            Number of samples in each partition. Shape (npartitions,).
-
-        Raises
-        ------
-        RuntimeError
-            If allocation has not been set.
-        """
-        self._ensure_allocation()
-        if self._npartition_samples is None:
-            raise RuntimeError("Allocation set but npartition_samples is None")
-        return self._npartition_samples
-
-    # === Optimization mode (continuous, stateless) ===
-
-    def covariance_from_ratios(
+    def covariance_at(
         self, target_cost: float, partition_ratios: Array
     ) -> Array:
         """Compute estimator covariance from continuous partition ratios.
@@ -257,7 +92,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         """
         return self._covariance_from_partition_ratios(target_cost, partition_ratios)
 
-    def npartition_samples_from_ratios(
+    def npartition_samples_at(
         self, target_cost: float, partition_ratios: Array
     ) -> Array:
         """Compute continuous npartition_samples from partition ratios.
@@ -280,26 +115,17 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
             target_cost, partition_ratios
         )
 
-    # === Evaluation mode (discrete, stateful) ===
-
-    def covariance(self) -> Array:
-        """Compute estimator covariance using stored discrete allocation.
+    def allocation_matrix(self) -> Array:
+        """Return the allocation matrix.
 
         Returns
         -------
         Array
-            The estimator covariance matrix.
-
-        Raises
-        ------
-        RuntimeError
-            If no allocation has been set.
+            Allocation matrix. Shape: (npartitions, 2*nmodels).
         """
-        return self._covariance_from_npartition_samples(
-            self.allocation().npartition_samples
-        )
+        return self._get_allocation_matrix()
 
-    # === End of new allocation API ===
+    # === Internal covariance computation ===
 
     def _get_discrepancy_covariances(
         self, npartition_samples: Array
@@ -326,76 +152,6 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         )
         return [self._bkd.asarray(idx, dtype=int) for idx in indices]
 
-    def _get_partition_indices_per_acv_subset(self, bootstrap: bool = False) -> Array:
-        r"""
-        Get the indices, into the flattened array of all samples/values
-        for each model, of each acv subset
-        :math:`\mathcal{Z}_\alpha,\mathcal{Z}_\alpha^*`
-        """
-        partition_indices = self._get_partition_indices(
-            self._rounded_npartition_samples
-        )
-        if bootstrap:
-            npartitions = len(self._rounded_npartition_samples)
-            random_partition_indices = [None for jj in range(npartitions)]
-            random_partition_indices[0] = self._bkd.array(
-                np.random.choice(
-                    np.arange(partition_indices[0].shape[0], dtype=int),
-                    size=partition_indices[0].shape[0],
-                    replace=True,
-                ),
-                dtype=int,
-            )
-            partition_indices_per_acv_subset = [
-                self._bkd.array([], dtype=int),
-                partition_indices[0][random_partition_indices[0]],
-            ]
-        else:
-            partition_indices_per_acv_subset = [
-                self._bkd.array([], dtype=int),
-                partition_indices[0],
-            ]
-        for ii in range(1, self._nmodels):
-            active_partitions = self._bkd.where(
-                (self._allocation_mat[:, 2 * ii] == 1)
-                | (self._allocation_mat[:, 2 * ii + 1] == 1)
-            )[0]
-            subset_indices = [None for ii in range(self._nmodels)]
-            lb, ub = 0, 0
-            for idx in active_partitions:
-                ub += partition_indices[idx].shape[0]
-                subset_indices[idx] = self._bkd.arange(lb, ub, dtype=int)
-                if bootstrap:
-                    if random_partition_indices[idx] is None:
-                        # make sure the same random permutation for partition
-                        # idx is used for all acv_subsets
-                        random_partition_indices[idx] = self._bkd.array(
-                            np.random.choice(
-                                np.arange(ub - lb, dtype=int),
-                                size=ub - lb,
-                                replace=True,
-                            ),
-                            dtype=int,
-                        )
-                    subset_indices[idx] = subset_indices[idx][
-                        random_partition_indices[idx]
-                    ]
-                lb = ub
-            active_partitions_1 = self._bkd.where(
-                (self._allocation_mat[:, 2 * ii] == 1)
-            )[0]
-            active_partitions_2 = self._bkd.where(
-                (self._allocation_mat[:, 2 * ii + 1] == 1)
-            )[0]
-            indices_1 = self._bkd.hstack(
-                [subset_indices[idx] for idx in active_partitions_1]
-            )
-            indices_2 = self._bkd.hstack(
-                [subset_indices[idx] for idx in active_partitions_2]
-            )
-            partition_indices_per_acv_subset += [indices_1, indices_2]
-        return partition_indices_per_acv_subset
-
     def _partition_ratios_to_model_ratios(self, partition_ratios: Array) -> Array:
         """
         Convert the partition ratios defining the number of samples per
@@ -418,8 +174,8 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         return model_ratios
 
     def _get_num_high_fidelity_samples_from_partition_ratios(
-        self, target_cost: int, partition_ratios: Array
-    ) -> float:
+        self, target_cost: float, partition_ratios: Array
+    ) -> Array:
         model_ratios = self._partition_ratios_to_model_ratios(partition_ratios)
         return target_cost / (
             self._costs[0]
@@ -427,7 +183,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         )
 
     def _npartition_samples_from_partition_ratios(
-        self, target_cost: int, partition_ratios: Array
+        self, target_cost: float, partition_ratios: Array
     ) -> Array:
         nhf_samples = self._get_num_high_fidelity_samples_from_partition_ratios(
             target_cost, partition_ratios
@@ -438,7 +194,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         return npartition_samples
 
     def _covariance_from_partition_ratios(
-        self, target_cost: int, partition_ratios: Array
+        self, target_cost: float, partition_ratios: Array
     ) -> Array:
         """
         Get the variance of the Monte Carlo estimator from costs and cov
@@ -449,116 +205,9 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         )
         return self._covariance_from_npartition_samples(npartition_samples)
 
-    def _separate_values_per_model(
-        self, values_per_model: List[Array], bootstrap: bool = False
-    ) -> List[Array]:
-        r"""
-        Separate values per model into the acv subsets associated with
-        :math:`\mathcal{Z}_\alpha,\mathcal{Z}_\alpha^*`
-
-        Parameters
-        ----------
-        values_per_model : List[Array]
-            Model values. Each array has shape (nqoi, nsamples).
-        bootstrap : bool
-            Whether to use bootstrap resampling.
-
-        Returns
-        -------
-        List[Array]
-            ACV subset values. Each array has shape (nqoi, nsamples_subset).
-        """
-        if len(values_per_model) != self._nmodels:
-            msg = "len(values_per_model) {0} != nmodels {1}".format(
-                len(values_per_model), self._nmodels
-            )
-            raise ValueError(msg)
-        for ii in range(self._nmodels):
-            if values_per_model[ii].shape[1] != self._rounded_nsamples_per_model[ii]:
-                msg = "{0} != {1}".format(
-                    "values_per_model[{0}].shape[1]: {1}".format(
-                        ii, values_per_model[ii].shape[1]
-                    ),
-                    "nsamples_per_model[ii]: {0}".format(
-                        self._rounded_nsamples_per_model[ii]
-                    ),
-                )
-                raise ValueError(msg)
-
-        acv_partition_indices = self._get_partition_indices_per_acv_subset(bootstrap)
-        nacv_subsets = len(acv_partition_indices)
-        # Index along axis=1 (samples axis) for (nqoi, nsamples)
-        acv_values = [
-            values_per_model[ii // 2][:, acv_partition_indices[ii]]
-            for ii in range(nacv_subsets)
-        ]
-        return acv_values
-
-    def _separate_samples_per_model(
-        self, samples_per_model: List[Array]
-    ) -> List[Array]:
-        if len(samples_per_model) != self._nmodels:
-            msg = "len(samples_per_model) {0} != nmodels {1}".format(
-                len(samples_per_model), self._nmodels
-            )
-            raise ValueError(msg)
-        for ii in range(self._nmodels):
-            if samples_per_model[ii].shape[1] != self._rounded_nsamples_per_model[ii]:
-                msg = "{0} != {1}".format(
-                    "len(samples_per_model[{0}]): {1}".format(
-                        ii, samples_per_model[ii].shape[0]
-                    ),
-                    "nsamples_per_model[ii]: {0}".format(
-                        self._rounded_nsamples_per_model[ii]
-                    ),
-                )
-                raise ValueError(msg)
-
-        acv_partition_indices = self._get_partition_indices_per_acv_subset()
-        nacv_subsets = len(acv_partition_indices)
-        acv_samples = [
-            samples_per_model[ii // 2][:, acv_partition_indices[ii]]
-            for ii in range(nacv_subsets)
-        ]
-        return acv_samples
-
-    def generate_samples_per_model(
-        self, rvs: Callable[..., Any], npilot_samples: int = 0
-    ) -> List[Array]:
-        ntotal_independent_samples = self._bkd.to_int(
-            self._bkd.sum(self._rounded_npartition_samples) - npilot_samples
-        )
-        independent_samples = rvs(ntotal_independent_samples)
-        samples_per_model = []
-        rounded_npartition_samples = self._bkd.copy(self._rounded_npartition_samples)
-        if npilot_samples > rounded_npartition_samples[0]:
-            raise ValueError(
-                "npilot_samples is larger than optimized first partition size"
-            )
-        rounded_npartition_samples[0] -= npilot_samples
-        rounded_nsamples_per_model = self._compute_nsamples_per_model(
-            rounded_npartition_samples
-        )
-        partition_indices = self._get_partition_indices(rounded_npartition_samples)
-        for ii in range(self._nmodels):
-            active_partitions = self._bkd.where(
-                (self._allocation_mat[:, 2 * ii] == 1)
-                | (self._allocation_mat[:, 2 * ii + 1] == 1)
-            )[0]
-            indices = self._bkd.hstack(
-                [partition_indices[idx] for idx in active_partitions]
-            )
-            if indices.shape[0] != rounded_nsamples_per_model[ii]:
-                msg = "Rounding has caused {0} != {1}".format(
-                    indices.shape[0], rounded_nsamples_per_model[ii]
-                )
-                raise RuntimeError(msg)
-            samples_per_model.append(independent_samples[:, indices])
-        return samples_per_model
-
     def _compute_single_model_nsamples(
         self, npartition_samples: Array, model_id: int
-    ) -> float:
+    ) -> Array:
         active_partitions = self._bkd.where(
             (self._allocation_mat[:, 2 * model_id] == 1)
             | (self._allocation_mat[:, 2 * model_id + 1] == 1)
@@ -567,7 +216,7 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
 
     def _compute_single_model_nsamples_from_partition_ratios(
         self, partition_ratios: Array, target_cost: float, model_id: int
-    ) -> float:
+    ) -> Array:
         npartition_samples = self._npartition_samples_from_partition_ratios(
             target_cost, partition_ratios
         )
@@ -594,42 +243,33 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         est = self._stat.sample_estimate(acv_values[1]) + weights @ deltas
         return est
 
-    def _estimate(
-        self,
-        values_per_model: List[Array],
-        weights: Array,
-        bootstrap: bool = False,
-    ) -> Array:
-        acv_values = self._separate_values_per_model(values_per_model, bootstrap)
-        return self._estimate_from_acv_values(
-            acv_values, weights, len(values_per_model)
+    def _estimator_cost(self, npartition_samples: Array) -> Array:
+        nsamples_per_model = self._compute_nsamples_per_model(npartition_samples)
+        return self._bkd.sum(nsamples_per_model * self._costs)
+
+    def get_npartition_bounds(self, total_cost: float) -> Array:
+        nunknowns = self._npartitions - 1
+        bounds = self._bkd.stack(
+            (
+                self._bkd.full((nunknowns,), self._npartitions_lower_bound),
+                total_cost / self._costs[1:],
+            ),
+            axis=1,
+        )
+        return bounds
+
+    def get_all_recursion_indices(self) -> List[Array]:
+        from pyapprox.statest.acv._recursion_indices import (
+            _get_acv_recursion_indices,
         )
 
-    def __repr__(self) -> str:
-        if self._optimized_criteria is None:
-            if not hasattr(self, "_recursion_index"):
-                return "{0}(stat={1})".format(self.__class__.__name__, self._stat)
-            return "{0}(stat={1}, recursion_index={2})".format(
-                self.__class__.__name__, self._stat, self._recursion_index
-            )
-        rep = "{0}(stat={1}, recursion_index={2}, criteria={3:.3g}".format(
-            self.__class__.__name__,
-            self._stat,
-            self._recursion_index,
-            self._optimized_criteria,
-        )
-        rep += " target_cost={0:.5g}, ratios={1}, nsamples={2})".format(
-            self._rounded_target_cost,
-            self._rounded_partition_ratios,
-            self._rounded_nsamples_per_model,
-        )
-        return rep
+        return _get_acv_recursion_indices(self._nmodels, None)
 
     @abstractmethod
-    def _create_allocation_matrix(self, recursion_index: Array) -> Array:
+    def _create_allocation_matrix(self, recursion_index: Array) -> None:
         r"""
-        Return the allocation matrix corresponding to
-        self._rounded_nsamples_per_model set by _set_optimized_params
+        Set the allocation matrix corresponding to
+        the recursion index.
         """
         raise NotImplementedError
 
@@ -655,149 +295,420 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self._create_allocation_matrix(index)
         self._recursion_index = index
 
+    def __repr__(self) -> str:
+        return "{0}(stat={1}, recursion_index={2})".format(
+            self.__class__.__name__, self._stat, self._recursion_index
+        )
+
+
+class FittedACVEstimator(Generic[Array]):
+    """Frozen ACV estimator with a fixed allocation.
+
+    Composes (template: ACVEstimator, allocation: ACVAllocationResult).
+    Eagerly computes weights and covariance from discrete (post-rounding) counts.
+    """
+
+    def __init__(
+        self,
+        template: ACVEstimator[Array],
+        allocation: ACVAllocationResult[Array],
+    ) -> None:
+        if not allocation.success:
+            raise ValueError(f"Cannot create fitted estimator from failed allocation: "
+                             f"{allocation.message}")
+        bkd = template._bkd
+        if not bkd.is_integer_dtype(allocation.npartition_samples):
+            raise TypeError(
+                f"allocation.npartition_samples must be integer-typed, "
+                f"got dtype={allocation.npartition_samples.dtype}"
+            )
+        if not bkd.is_integer_dtype(allocation.nsamples_per_model):
+            raise TypeError(
+                f"allocation.nsamples_per_model must be integer-typed, "
+                f"got dtype={allocation.nsamples_per_model.dtype}"
+            )
+        self._template = template
+        self._allocation = allocation
+        self._bkd = bkd
+        self._stat = template._stat
+
+        CF, cf = template._get_discrepancy_covariances(allocation.npartition_samples)
+        self._weights_val = template._optimal_weights(CF, cf)
+        self._covariance_val = template._covariance_from_npartition_samples(
+            allocation.npartition_samples
+        )
+        self._criteria_val = template._optimization_criteria(self._covariance_val)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def covariance(self) -> Array:
+        """Return the estimator covariance at the allocated sample count."""
+        return self._covariance_val
+
+    def weights(self) -> Array:
+        """Return the optimal control variate weights."""
+        return self._weights_val
+
+    def nsamples_per_model(self) -> Array:
+        """Return the number of samples allocated to each model."""
+        return self._allocation.nsamples_per_model
+
+    def npartition_samples(self) -> Array:
+        """Return the number of samples per partition."""
+        return self._allocation.npartition_samples
+
+    def partition_ratios(self) -> Array:
+        """Return the partition ratios from the allocation."""
+        return self._allocation.partition_ratios
+
+    def objective_value(self) -> Array:
+        """Return the objective value from the allocation."""
+        return self._allocation.objective_value
+
+    def actual_cost(self) -> float:
+        """Return the actual cost of the allocation."""
+        return self._allocation.actual_cost
+
+    def allocation_matrix(self) -> Array:
+        """Return the allocation matrix from the template."""
+        return self._template.allocation_matrix()
+
+    def generate_samples_per_model(
+        self, rvs: Callable[..., Any], npilot_samples: int = 0
+    ) -> List[Array]:
+        npartition_samples = self._allocation.npartition_samples
+        ntotal_independent_samples = self._bkd.to_int(
+            self._bkd.sum(npartition_samples) - npilot_samples
+        )
+        independent_samples = rvs(ntotal_independent_samples)
+        samples_per_model = []
+        adjusted_npartition_samples = self._bkd.copy(npartition_samples)
+        if npilot_samples > adjusted_npartition_samples[0]:
+            raise ValueError(
+                "npilot_samples is larger than optimized first partition size"
+            )
+        adjusted_npartition_samples[0] -= npilot_samples
+        adjusted_nsamples_per_model = self._template._compute_nsamples_per_model(
+            adjusted_npartition_samples
+        )
+        partition_indices = self._template._get_partition_indices(
+            adjusted_npartition_samples
+        )
+        alloc_mat = self._template._allocation_mat
+        for ii in range(self._template._nmodels):
+            active_partitions = self._bkd.where(
+                (alloc_mat[:, 2 * ii] == 1)
+                | (alloc_mat[:, 2 * ii + 1] == 1)
+            )[0]
+            indices = self._bkd.hstack(
+                [partition_indices[idx] for idx in active_partitions]
+            )
+            if indices.shape[0] != self._bkd.to_int(adjusted_nsamples_per_model[ii]):
+                msg = "Rounding has caused {0} != {1}".format(
+                    indices.shape[0], adjusted_nsamples_per_model[ii]
+                )
+                raise RuntimeError(msg)
+            samples_per_model.append(independent_samples[:, indices])
+        return samples_per_model
+
+    def _get_partition_indices_per_acv_subset(
+        self, bootstrap: bool = False
+    ) -> List[Array]:
+        r"""
+        Get the indices, into the flattened array of all samples/values
+        for each model, of each acv subset
+        :math:`\mathcal{Z}_\alpha,\mathcal{Z}_\alpha^*`
+        """
+        npartition_samples = self._allocation.npartition_samples
+        alloc_mat = self._template._allocation_mat
+        nmodels = self._template._nmodels
+
+        partition_indices = self._template._get_partition_indices(npartition_samples)
+        if bootstrap:
+            npartitions = len(npartition_samples)
+            random_partition_indices = [None for jj in range(npartitions)]
+            random_partition_indices[0] = self._bkd.array(
+                np.random.choice(
+                    np.arange(partition_indices[0].shape[0], dtype=int),
+                    size=partition_indices[0].shape[0],
+                    replace=True,
+                ),
+                dtype=int,
+            )
+            partition_indices_per_acv_subset = [
+                self._bkd.array([], dtype=int),
+                partition_indices[0][random_partition_indices[0]],
+            ]
+        else:
+            partition_indices_per_acv_subset = [
+                self._bkd.array([], dtype=int),
+                partition_indices[0],
+            ]
+        for ii in range(1, nmodels):
+            active_partitions = self._bkd.where(
+                (alloc_mat[:, 2 * ii] == 1)
+                | (alloc_mat[:, 2 * ii + 1] == 1)
+            )[0]
+            subset_indices = [None for _ in range(nmodels)]
+            lb, ub = 0, 0
+            for idx in active_partitions:
+                ub += partition_indices[idx].shape[0]
+                subset_indices[idx] = self._bkd.arange(lb, ub, dtype=int)
+                if bootstrap:
+                    if random_partition_indices[idx] is None:
+                        # make sure the same random permutation for partition
+                        # idx is used for all acv_subsets
+                        random_partition_indices[idx] = self._bkd.array(
+                            np.random.choice(
+                                np.arange(ub - lb, dtype=int),
+                                size=ub - lb,
+                                replace=True,
+                            ),
+                            dtype=int,
+                        )
+                    subset_indices[idx] = subset_indices[idx][
+                        random_partition_indices[idx]
+                    ]
+                lb = ub
+            active_partitions_1 = self._bkd.where(
+                (alloc_mat[:, 2 * ii] == 1)
+            )[0]
+            active_partitions_2 = self._bkd.where(
+                (alloc_mat[:, 2 * ii + 1] == 1)
+            )[0]
+            indices_1 = self._bkd.hstack(
+                [subset_indices[idx] for idx in active_partitions_1]
+            )
+            indices_2 = self._bkd.hstack(
+                [subset_indices[idx] for idx in active_partitions_2]
+            )
+            partition_indices_per_acv_subset += [indices_1, indices_2]
+        return partition_indices_per_acv_subset
+
+    def _separate_values_per_model(
+        self, values_per_model: List[Array], bootstrap: bool = False
+    ) -> List[Array]:
+        r"""
+        Separate values per model into the acv subsets associated with
+        :math:`\mathcal{Z}_\alpha,\mathcal{Z}_\alpha^*`
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model values. Each array has shape (nqoi, nsamples).
+        bootstrap : bool
+            Whether to use bootstrap resampling.
+
+        Returns
+        -------
+        List[Array]
+            ACV subset values. Each array has shape (nqoi, nsamples_subset).
+        """
+        nmodels = self._template._nmodels
+        nsamples_per_model = self._allocation.nsamples_per_model
+        if len(values_per_model) != nmodels:
+            msg = "len(values_per_model) {0} != nmodels {1}".format(
+                len(values_per_model), nmodels
+            )
+            raise ValueError(msg)
+        for ii in range(nmodels):
+            expected = self._bkd.to_int(nsamples_per_model[ii])
+            if values_per_model[ii].shape[1] != expected:
+                msg = "{0} != {1}".format(
+                    "values_per_model[{0}].shape[1]: {1}".format(
+                        ii, values_per_model[ii].shape[1]
+                    ),
+                    "nsamples_per_model[ii]: {0}".format(
+                        nsamples_per_model[ii]
+                    ),
+                )
+                raise ValueError(msg)
+
+        acv_partition_indices = self._get_partition_indices_per_acv_subset(bootstrap)
+        nacv_subsets = len(acv_partition_indices)
+        # Index along axis=1 (samples axis) for (nqoi, nsamples)
+        acv_values = [
+            values_per_model[ii // 2][:, acv_partition_indices[ii]]
+            for ii in range(nacv_subsets)
+        ]
+        return acv_values
+
+    def _separate_samples_per_model(
+        self, samples_per_model: List[Array]
+    ) -> List[Array]:
+        nmodels = self._template._nmodels
+        nsamples_per_model = self._allocation.nsamples_per_model
+        if len(samples_per_model) != nmodels:
+            msg = "len(samples_per_model) {0} != nmodels {1}".format(
+                len(samples_per_model), nmodels
+            )
+            raise ValueError(msg)
+        for ii in range(nmodels):
+            expected = self._bkd.to_int(nsamples_per_model[ii])
+            if samples_per_model[ii].shape[1] != expected:
+                msg = "{0} != {1}".format(
+                    "len(samples_per_model[{0}]): {1}".format(
+                        ii, samples_per_model[ii].shape[0]
+                    ),
+                    "nsamples_per_model[ii]: {0}".format(
+                        nsamples_per_model[ii]
+                    ),
+                )
+                raise ValueError(msg)
+
+        acv_partition_indices = self._get_partition_indices_per_acv_subset()
+        nacv_subsets = len(acv_partition_indices)
+        acv_samples = [
+            samples_per_model[ii // 2][:, acv_partition_indices[ii]]
+            for ii in range(nacv_subsets)
+        ]
+        return acv_samples
+
     def combine_acv_samples(self, acv_samples: List[Array]) -> List[Array]:
         return _combine_acv_samples(
-            self._allocation_mat,
-            self._rounded_npartition_samples,
+            self._template._allocation_mat,
+            self._allocation.npartition_samples,
             acv_samples,
             self._bkd,
         )
 
     def combine_acv_values(self, acv_values: List[Array]) -> List[Array]:
         return _combine_acv_values(
-            self._allocation_mat,
-            self._rounded_npartition_samples,
+            self._template._allocation_mat,
+            self._allocation.npartition_samples,
             acv_values,
             self._bkd,
         )
 
-    def get_npartition_bounds(self, total_cost: float) -> Array:
-        nunknowns = self._npartitions - 1
-        bounds = self._bkd.stack(
-            (
-                self._bkd.full((nunknowns,), self._npartitions_lower_bound),
-                total_cost / self._costs[1:],
-            ),
-            axis=1,
-        )
-        return bounds
-
-    def get_default_optimizer(
+    def _estimate(
         self,
-    ) -> "BindableOptimizerProtocol[Array]":
-        from pyapprox.optimization.minimize.chained.chained_optimizer import (
-            ChainedOptimizer,
-        )
-        from pyapprox.optimization.minimize.scipy.diffevol import (
-            ScipyDifferentialEvolutionOptimizer,
-        )
-        from pyapprox.optimization.minimize.scipy.trust_constr import (
-            ScipyTrustConstrOptimizer,
+        values_per_model: List[Array],
+        weights: Array,
+        bootstrap: bool = False,
+    ) -> Array:
+        acv_values = self._separate_values_per_model(values_per_model, bootstrap)
+        return self._template._estimate_from_acv_values(
+            acv_values, weights, len(values_per_model)
         )
 
-        global_optimizer = ScipyDifferentialEvolutionOptimizer(
-            maxiter=3, raise_on_failure=False
-        )
-        local_optimizer = ScipyTrustConstrOptimizer()
-        optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
-        return optimizer
+    def __call__(self, values_per_model: List[Array]) -> Array:
+        r"""
+        Return the value of the ACV estimator.
 
-    def set_optimizer(
-        self,
-        optimizer: "BindableOptimizerProtocol[Array]",
-    ) -> None:
-        self._optimizer = optimizer
-
-    def _estimator_cost(self, npartition_samples: Array) -> float:
-        nsamples_per_model = self._compute_nsamples_per_model(npartition_samples)
-        return self._bkd.sum(nsamples_per_model * self._costs)
-
-    def _allocate_samples_for_single_recursion(
-        self, target_cost: float,
-    ) -> None:
-        from pyapprox.statest.acv.allocation import (
-            ACVAllocator,
-            default_allocator_factory,
-        )
-
-        if self._optimizer is not None:
-            allocator = ACVAllocator(self, optimizer=self._optimizer)
-        else:
-            allocator = default_allocator_factory(self)
-        result = allocator.allocate(target_cost)
-        if not result.success:
-            raise RuntimeError(
-                "{0} optimizer failed with message {1}".format(self, result.message)
-            )
-        self.set_allocation(result)
-
-    def _get_optimizer_verbosity(self) -> int:
-        """Get verbosity level from the optimizer.
+        Parameters
+        ----------
+        values_per_model : list (nmodels)
+            The values of each model. Each array has shape (nqoi, nsamples).
 
         Returns
         -------
-        int
-            Verbosity level, or 0 if optimizer doesn't support verbosity.
+        est : Array (nstats,)
+            The estimator value.
         """
-        if hasattr(self._optimizer, "local_optimizer_verbosity"):
-            return int(self._optimizer.local_optimizer_verbosity())
-        if hasattr(self._optimizer, "_verbosity"):
-            return int(self._optimizer._verbosity)
-        return 0
-
-    def get_all_recursion_indices(self) -> List[Array]:
-        from pyapprox.statest.acv._recursion_indices import (
-            _get_acv_recursion_indices,
-        )
-
-        return _get_acv_recursion_indices(self._nmodels, self._tree_depth)
-
-    def _allocate_samples_for_all_recursion_indices(
-        self, target_cost: float,
-    ) -> None:
-        from pyapprox.statest.acv.allocation import (
-            ACVAllocator,
-            default_allocator_factory,
-        )
-
-        best_obj = self._bkd.asarray(np.inf)
-        best_result = None
-        best_index = None
-        for index in self.get_all_recursion_indices():
-            self._set_recursion_index(index)
-            if self._optimizer is not None:
-                allocator = ACVAllocator(self, optimizer=self._optimizer)
-            else:
-                allocator = default_allocator_factory(self)
-            result = allocator.allocate(target_cost)
-            if not result.success:
-                if not self._allow_failures:
-                    raise RuntimeError(
-                        "{0} optimizer failed with message {1}".format(
-                            self, result.message
-                        )
-                    )
-                if self._get_optimizer_verbosity() > 0:
-                    print("Optimizer failed")
-                continue
-            obj_val = result.objective_value[0]
-            if self._get_optimizer_verbosity() > 2:
-                msg = "\t\t Recursion: {0} Objective: best {1}, current {2}".format(
-                    index,
-                    best_obj.item(),
-                    obj_val.item(),
+        for vals in values_per_model:
+            if not isinstance(vals, self._bkd.array_type()):
+                raise ValueError(
+                    "vals must be an instance of {0}".format(self._bkd.array_type())
                 )
-                print(msg)
-            if obj_val < best_obj:
-                best_obj = obj_val
-                best_result = result
-                best_index = index
-        if best_result is None:
-            raise RuntimeError("No solutions were found")
-        self._set_recursion_index(best_index)
-        self.set_allocation(best_result)
+        return self._estimate(values_per_model, self._weights_val)
 
-    def allocate_samples(self, target_cost: float) -> None:
-        if self._tree_depth is not None:
-            return self._allocate_samples_for_all_recursion_indices(target_cost)
-        return self._allocate_samples_for_single_recursion(target_cost)
+    def insert_pilot_values(
+        self, pilot_values: List[Array], values_per_model: List[Array]
+    ) -> List[Array]:
+        """Delegate to template's insert_pilot_values."""
+        return self._template.insert_pilot_values(pilot_values, values_per_model)
+
+    def bootstrap(
+        self,
+        values_per_model: List[Array],
+        nbootstraps: int = 1000,
+        mode: str = "values",
+        pilot_values: Optional[List[Array]] = None,
+    ) -> Union[
+        Tuple[Array, Array],
+        Tuple[Array, Array, Array, Array],
+    ]:
+        """Bootstrap variance estimation.
+
+        Parameters
+        ----------
+        values_per_model : List[Array]
+            Model values. Each array has shape (nqoi, nsamples).
+        nbootstraps : int
+            Number of bootstrap iterations.
+        mode : str
+            Bootstrap mode.
+        pilot_values : List[Array], optional
+            Pilot values. Each array has shape (nqoi, npilot).
+        """
+        import copy
+
+        modes = ["values", "values_weights", "weights"]
+        if mode not in modes:
+            raise ValueError("mode must be in {0}".format(modes))
+        if pilot_values is not None and mode not in modes[1:]:
+            raise ValueError("pilot_values given by mode not in {0}".format(modes[1:]))
+        bootstrap_vals = mode in modes[:2]
+        bootstrap_weights = mode in modes[1:]
+        nbootstraps = int(nbootstraps)
+        estimator_vals = []
+        if bootstrap_weights:
+            npilot_samples = pilot_values[0].shape[1]
+            self_stat = copy.deepcopy(self._stat)
+            weights_list = []
+        for kk in range(nbootstraps):
+            if bootstrap_weights:
+                indices = self._bkd.array(
+                    np.random.choice(
+                        np.arange(npilot_samples, dtype=int),
+                        size=npilot_samples,
+                        replace=True,
+                    ),
+                    dtype=int,
+                )
+                boostrap_pilot_values = [vals[:, indices] for vals in pilot_values]
+                self._stat.set_pilot_quantities(
+                    *self._stat.compute_pilot_quantities(boostrap_pilot_values)
+                )
+                CF, cf = self._template._get_discrepancy_covariances(
+                    self._allocation.npartition_samples
+                )
+                weights = self._template._optimal_weights(CF, cf)
+                weights_list.append(self._bkd.flatten(weights))
+            else:
+                weights = self._weights_val
+            estimator_vals.append(
+                self._bkd.flatten(self._estimate(
+                    values_per_model, weights, bootstrap=bootstrap_vals
+                ))
+            )
+        estimator_vals = self._bkd.stack(estimator_vals)
+        bootstrap_values_mean = estimator_vals.mean(axis=0)
+        bootstrap_values_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
+        if bootstrap_weights:
+            self._template._stat = self_stat
+            weights_list = self._bkd.stack(weights_list)
+            bootstrap_weights_mean = weights_list.mean(axis=0)
+            bootstrap_weights_covar = self._bkd.cov(
+                weights_list, rowvar=False, ddof=1
+            )
+            return (
+                bootstrap_values_mean,
+                bootstrap_values_covar,
+                bootstrap_weights_mean,
+                bootstrap_weights_covar,
+            )
+        return (bootstrap_values_mean, bootstrap_values_covar)
+
+    def __repr__(self) -> str:
+        rep = "{0}(criteria={1:.3g}".format(
+            self.__class__.__name__,
+            self._criteria_val,
+        )
+        rep += " target_cost={0:.5g}, nsamples={1})".format(
+            self._allocation.actual_cost,
+            self._allocation.nsamples_per_model,
+        )
+        return rep

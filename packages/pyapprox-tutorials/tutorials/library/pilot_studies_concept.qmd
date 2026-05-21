@@ -56,7 +56,7 @@ workflow on a real problem where population statistics are unknown.
 Every ACV estimator we have built so far has one hidden assumption: the model
 covariance matrix $\boldsymbol{\Sigma}$ is known. This assumption is used in two places:
 
-1. **Sample allocation**: `allocate_samples(P)` solves an optimisation problem that
+1. **Sample allocation**: the allocator solves an optimisation problem that
    depends on $\boldsymbol{\Sigma}$. Without it, you cannot determine how many HF
    and LF samples to take.
 2. **Control variate coefficients**: the optimal weights $\mathbf{H}^*$ or
@@ -126,10 +126,10 @@ the main estimator allocates its samples.
     Stage 2 — Main Estimator
       6. Subtract pilot cost from total budget:  P_main = P − Pp
       7. Set pilot quantities:      stat.set_pilot_quantities(Σ̂)
-      8. Allocate main samples:     estimator.allocate_samples(P_main)
-      9. Generate sample sets:      estimator.generate_samples(variable)
-     10. Evaluate models:           estimator.evaluate_samples(models)
-     11. Compute estimate:          result = estimator(values)
+      8. Allocate main samples:     fitted = allocator.allocate(P_main)
+      9. Generate sample sets:      fitted.generate_samples(variable)
+     10. Evaluate models:           fitted.evaluate_samples(models)
+     11. Compute estimate:          result = fitted(values)
 
 **Always subtract pilot cost** — allocating the full budget $P$ as if the pilot were
 free leads to an over-optimistic allocation and wastes the budget spent on the pilot.
@@ -144,7 +144,7 @@ The pilot study provides three things:
 
 1. **Covariance estimate $\hat{\boldsymbol{\Sigma}}$**: used to set pilot quantities
    via `stat.set_pilot_quantities(cov_hat)`.
-2. **Sample allocation**: `allocate_samples(P - P_p)` is called on the *remaining*
+2. **Sample allocation**: the allocator's `allocate(P - P_p)` is called on the *remaining*
    budget after subtracting the pilot cost.
 3. **Model cost estimates**: the median wall-clock time per model over the pilot
    samples is used as $C_\alpha$ when physical timing (not synthetic ratios) is needed.
@@ -195,7 +195,7 @@ optimism bias.
    wrong if each model is evaluated at different samples?
 
 3. Suppose the pilot covariance estimate is available but very noisy ($N_p = 5$).
-   You observe that `allocate_samples` assigns 0 samples to one model. What is the
+   You observe that the allocator assigns 0 samples to one model. What is the
    likely cause, and how can you diagnose it?
 
 4. For a 10-model ensemble at budget $P=500$, using the rule of thumb $N_p \approx

@@ -45,3 +45,14 @@ class OptimizerResultProtocol(Generic[Array_co], Protocol):
             Solution vector if available, otherwise None.
         """
         ...
+
+    def message(self) -> str:
+        """
+        Get the termination message from the optimizer.
+
+        Returns
+        -------
+        str
+            Description of the termination reason.
+        """
+        ...

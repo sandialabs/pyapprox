@@ -1,25 +1,28 @@
 """Monte Carlo estimator for single-fidelity estimation.
 
 This module provides the base MCEstimator class for computing statistics
-using standard Monte Carlo sampling.
+using standard Monte Carlo sampling, and the FittedMCEstimator which
+holds a frozen allocation.
 """
 
-from typing import Any, Callable, Generic, List, Optional, Tuple, Union
+from typing import Any, Callable, Generic, List, Tuple, Union
 
 import numpy as np
 
-from pyapprox.statest.statistics import MultiOutputStatistic
+from pyapprox.statest.statistics import (
+    MultiOutputStatistic,
+    log_determinant_variance,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 class MCEstimator(Generic[Array]):
-    """Monte Carlo estimator for single-fidelity statistics."""
+    """Monte Carlo estimator template (immutable after construction)."""
 
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
         costs: Union[List[Any], Array],
-        opt_criteria: Callable[..., Any] = None,
     ):
         r"""
         Parameters
@@ -33,14 +36,9 @@ class MCEstimator(Generic[Array]):
         self._bkd = stat._bkd
 
         self._stat, self._costs = self._check_inputs(stat, costs)
-        self._optimization_criteria = self._log_determinant_variance
-
-        self._rounded_nsamples_per_model: Optional[Array] = None
-        self._rounded_npartition_samples: Optional[Array] = None
-        self._rounded_target_cost: Optional[Array] = None
-        self._optimized_criteria: Optional[Array] = None
-        self._optimized_covariance: Optional[Array] = None
-        self._model_labels: Optional[Array] = None
+        self._optimization_criteria: Callable[[Array], Array] = (
+            lambda var: log_determinant_variance(self._bkd, var)
+        )
         self._npartitions = 1
 
     def bkd(self) -> Backend[Array]:
@@ -59,68 +57,64 @@ class MCEstimator(Generic[Array]):
         self._nmodels = stat._nmodels
         return stat, costs
 
-    def _log_determinant_variance(self, variance: Array) -> Array:
-        # Only compute large eigvalues as the variance will
-        # be singular when estimating variance or mean+variance
-        # because of the duplicate entries in
-        # the covariance matrix
-        eigvals = self._bkd.eigh(variance)[0]
-        val = self._bkd.sum(self._bkd.log(eigvals[eigvals > 1e-14]))
-        return val
-
     def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
         """
         Get the variance of the Monte Carlo estimator from costs and cov
         and npartition_samples
         """
-        return self._stat.high_fidelity_estimator_covariance(npartition_samples[0])
+        return self._stat.high_fidelity_estimator_covariance(
+            npartition_samples[0]
+        )
+
+    def __repr__(self) -> str:
+        return "{0}(stat={1}, nqoi={2})".format(
+            self.__class__.__name__, self._stat, self._stat._nqoi
+        )
+
+
+class FittedMCEstimator(Generic[Array]):
+    """Frozen MC estimator with a fixed sample allocation.
+
+    Composes a template MCEstimator with allocation data. All evaluation
+    methods read from the frozen allocation — no mutable state.
+    """
+
+    def __init__(
+        self,
+        template: MCEstimator[Array],
+        nsamples_per_model: Array,
+        actual_cost: float,
+    ) -> None:
+        if not template._bkd.is_integer_dtype(nsamples_per_model):
+            raise TypeError(
+                f"nsamples_per_model must be integer-typed, "
+                f"got dtype={nsamples_per_model.dtype}"
+            )
+        self._template = template
+        self._bkd = template._bkd
+        self._stat = template._stat
+        self._nsamples_per_model = nsamples_per_model
+        self._actual_cost = actual_cost
+        self._covariance_val = template._covariance_from_npartition_samples(
+            nsamples_per_model
+        )
+        self._criteria_val = template._optimization_criteria(self._covariance_val)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def covariance(self) -> Array:
+        """Return the estimator covariance at the allocated sample count."""
+        return self._covariance_val
 
     def nsamples_per_model(self) -> Array:
-        """Return the number of samples allocated to each model.
+        """Return the number of samples allocated to each model."""
+        return self._nsamples_per_model
 
-        Returns
-        -------
-        Array
-            Number of samples per model. Shape: (nmodels,)
-
-        Raises
-        ------
-        ValueError
-            If allocate_samples has not been called.
-        """
-        if self._rounded_nsamples_per_model is None:
-            raise ValueError("Call allocate_samples first.")
-        return self._rounded_nsamples_per_model
-
-    def optimized_covariance(self) -> Array:
-        """
-        Return the estimator covariance at the optimal sample allocation
-        computed using self.allocate_samples()
-        """
-        return self._optimized_covariance
-
-    def allocate_samples(self, target_cost: float) -> None:
-        """
-        Find the optimal number of samples that minimize the metric of the
-        estimator covariance for the specified target cost.
-
-        Parameters
-        ----------
-        target_cost : float
-            The total computational budget that can be used to compute the
-            estimator
-        """
-        self._rounded_nsamples_per_model = self._bkd.asarray(
-            [self._bkd.to_int(self._bkd.floor(target_cost / self._costs[0]))]
-        )
-        self._rounded_npartition_samples = self._rounded_nsamples_per_model
-        est_covariance = self._covariance_from_npartition_samples(
-            self._rounded_npartition_samples
-        )
-        self._optimized_covariance = est_covariance
-        optimized_criteria = self._optimization_criteria(est_covariance)
-        self._rounded_target_cost = self._costs[0] * self._rounded_nsamples_per_model[0]
-        self._optimized_criteria = optimized_criteria
+    def actual_cost(self) -> float:
+        """Return the actual cost of the allocation."""
+        return self._actual_cost
 
     def generate_samples_per_model(self, rvs: Callable[..., Any]) -> List[Array]:
         """
@@ -138,7 +132,7 @@ class MCEstimator(Generic[Array]):
         samples_per_model : list[Array] (1)
             List with one entry Array (nvars, nsamples_per_model[0])
         """
-        return [rvs(self._rounded_nsamples_per_model[0])]
+        return [rvs(self._nsamples_per_model[0])]
 
     def __call__(self, values: Array) -> Array:
         """
@@ -155,18 +149,11 @@ class MCEstimator(Generic[Array]):
         stat_value: Array
             The value of the estimate statistic. Shape: (nstats,)
         """
-        if not isinstance(values, self._bkd.array_type()):
-            raise ValueError(
-                "values must be an {0} but type={1}".format(
-                    self._bkd.array_type(), type(values)
-                )
-            )
-        if (values.ndim != 2) or (
-            values.shape[1] != self._rounded_nsamples_per_model[0]
-        ):
+        nhf = self._bkd.to_int(self._nsamples_per_model[0])
+        if (values.ndim != 2) or (values.shape[1] != nhf):
             msg = "values has the incorrect shape {0} expected {1}".format(
                 values.shape,
-                (self._stat._nqoi, self._rounded_nsamples_per_model[0]),
+                (self._stat._nqoi, nhf),
             )
             raise ValueError(msg)
         return self._stat.sample_estimate(values)
@@ -201,10 +188,9 @@ class MCEstimator(Generic[Array]):
         nbootstraps = int(nbootstraps)
         estimator_vals = self._bkd.empty((nbootstraps, self._stat._nqoi))
         nsamples = values[0].shape[1]
-        indices = self._bkd.arange(nsamples, dtype=int)
         for kk in range(nbootstraps):
             bootstrapped_indices = self._bkd.array(
-                np.random.choice(indices, size=nsamples, replace=True),
+                np.random.choice(nsamples, size=nsamples, replace=True),
                 dtype=int,
             )
             estimator_vals[kk] = self._stat.sample_estimate(
@@ -215,14 +201,9 @@ class MCEstimator(Generic[Array]):
         return bootstrap_mean, bootstrap_covar
 
     def __repr__(self) -> str:
-        if self._optimized_criteria is None:
-            return "{0}(stat={1}, nqoi={2})".format(
-                self.__class__.__name__, self._stat, self._stat._nqoi
-            )
-        rep = "{0}(stat={1}, criteria={2:.3g}".format(
-            self.__class__.__name__, self._stat, self._optimized_criteria
+        return "{0}(criteria={1:.3g}, target_cost={2:.5g}, nsamples={3})".format(
+            self.__class__.__name__,
+            self._bkd.to_float(self._criteria_val),
+            self._actual_cost,
+            self._bkd.to_int(self._nsamples_per_model[0]),
         )
-        rep += " target_cost={0:.5g}, nsamples={1})".format(
-            self._rounded_target_cost, self._rounded_nsamples_per_model[0]
-        )
-        return rep

@@ -14,6 +14,7 @@ from pyapprox_benchmarks.statest.multioutput_ensemble import (
 from pyapprox_benchmarks.statest.polynomial_ensemble import (
     PolynomialEnsembleBenchmark,
 )
+from pyapprox.statest.allocation import CVAllocator
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.groupacv import (
     GroupACVEstimatorNested,
@@ -284,7 +285,7 @@ class TestAllKnownMeansRecoversCVEstimator:
             for qq in range(nqoi):
                 lowfi_stats[ii, qq] = means[ii + 1, qq]
         est_cv = CVEstimator(stat_cv, costs, lowfi_stats=lowfi_stats)
-        est_cv.allocate_samples(float(bkd.sum(costs)) * nsamples)
+        fitted_cv = CVAllocator(est_cv).allocate(float(bkd.sum(costs)) * nsamples)
 
         np.random.seed(123)
         nsamples_int = int(nsamples)
@@ -294,7 +295,7 @@ class TestAllKnownMeansRecoversCVEstimator:
         ]
 
         est_mlblue_val = est_mlblue(values_per_model)
-        est_cv_val = est_cv(values_per_model)
+        est_cv_val = fitted_cv(values_per_model)
         bkd.assert_allclose(est_mlblue_val, est_cv_val, rtol=1e-8)
 
     def test_all_known_variance_equals_cv_floor(self, bkd) -> None:

@@ -36,7 +36,7 @@ class StatisticProtocol(Protocol, Generic[Array]):
         """Compute the statistic from sample values."""
         ...
 
-    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
+    def high_fidelity_estimator_covariance(self, nhf_samples: Array) -> Array:
         """Return the covariance of the high-fidelity estimator."""
         ...
 

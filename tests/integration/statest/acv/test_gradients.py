@@ -310,7 +310,7 @@ class TestMLMCOptimalSolutionGradients:
         # the same covariance function
         def mlmc_cov(npartition_samples):
             CF, cf = est._get_discrepancy_covariances(npartition_samples)
-            weights = est._weights(CF, cf)
+            weights = est._optimal_weights(CF, cf)
             return est._covariance_non_optimal_weights(
                 est._stat.high_fidelity_estimator_covariance(npartition_samples[0]),
                 weights,
@@ -359,7 +359,7 @@ class TestMLMCOptimalSolutionGradients:
         # Set up MLMC-style covariance
         def mlmc_cov(npartition_samples):
             CF, cf = est._get_discrepancy_covariances(npartition_samples)
-            weights = est._weights(CF, cf)
+            weights = est._optimal_weights(CF, cf)
             return est._covariance_non_optimal_weights(
                 est._stat.high_fidelity_estimator_covariance(npartition_samples[0]),
                 weights,

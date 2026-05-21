@@ -179,6 +179,9 @@ from pyapprox_benchmarks.statest import (
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest import MLMCEstimator
 from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.acv.allocation import default_allocator_factory
+from pyapprox.statest.acv.base import FittedACVEstimator
+from pyapprox.statest.allocation import MCAllocator
 
 bkd = NumpyBkd()
 benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
@@ -198,16 +201,17 @@ stat = MultiOutputMean(nqoi, bkd)
 stat.set_pilot_quantities(bkd.asarray(cov_true))
 
 mlmc_est = MLMCEstimator(stat, bkd.asarray(costs))
-mlmc_est.allocate_samples(P)
-N_est = bkd.to_numpy(mlmc_est.nsamples_per_model())
-var_est = float(mlmc_est.optimized_covariance()[0, 0])
+mlmc_fitted = FittedACVEstimator(
+    mlmc_est, default_allocator_factory(mlmc_est).allocate(P))
+N_est = bkd.to_numpy(mlmc_fitted.nsamples_per_model())
+var_est = float(mlmc_fitted.covariance()[0, 0])
 
 # --- MC via estimator ---
 stat_mc = MultiOutputMean(nqoi, bkd)
 stat_mc.set_pilot_quantities(bkd.asarray(cov_true[0:1, 0:1]))
 mc_est = MCEstimator(stat_mc, bkd.asarray(costs[0:1]))
-mc_est.allocate_samples(P)
-var_mc = float(mc_est.optimized_covariance()[0, 0])
+mc_fitted = MCAllocator(mc_est).allocate(P)
+var_mc = float(mc_fitted.covariance()[0, 0])
 
 print(f"MLMC optimized variance: {var_est:.6f}")
 print(f"MC variance:            {var_mc:.6f}")
@@ -215,7 +219,7 @@ print(f"Variance reduction:     {var_mc / var_est:.1f}x")
 ```
 
 ```{python}
-#| fig-cap: "MLMC variance vs total cost: `optimized_covariance()` (lines) compared to empirical variance from 500 independent trials (markers). Both MC (blue) and MLMC (orange) show close agreement, confirming the estimator's variance prediction. The vertical gap is the MLMC improvement factor."
+#| fig-cap: "MLMC variance vs total cost: `covariance()` (lines) compared to empirical variance from 500 independent trials (markers). Both MC (blue) and MLMC (orange) show close agreement, confirming the estimator's variance prediction. The vertical gap is the MLMC improvement factor."
 #| label: fig-variance-vs-cost
 
 from pyapprox_tutorials.figures._hierarchy import plot_variance_vs_cost
@@ -227,15 +231,16 @@ mlmc_vars_pred, mc_vars_pred = [], []
 mlmc_vars_emp, mc_vars_emp = [], []
 
 for P_t in target_costs_sweep:
-    # --- Predicted variance from optimized_covariance ---
+    # --- Predicted variance from covariance ---
     ml_e = MLMCEstimator(stat, bkd.asarray(costs))
-    ml_e.allocate_samples(float(P_t))
-    mlmc_vars_pred.append(float(ml_e.optimized_covariance()[0, 0]))
+    ml_fitted = FittedACVEstimator(
+        ml_e, default_allocator_factory(ml_e).allocate(float(P_t)))
+    mlmc_vars_pred.append(float(ml_fitted.covariance()[0, 0]))
 
     mc_e = MCEstimator(stat_mc, bkd.asarray(costs[0:1]))
-    mc_e.allocate_samples(float(P_t))
-    mc_vars_pred.append(float(mc_e.optimized_covariance()[0, 0]))
-    N_mc = mc_e._rounded_nsamples_per_model[0]
+    mc_fitted_t = MCAllocator(mc_e).allocate(float(P_t))
+    mc_vars_pred.append(float(mc_fitted_t.covariance()[0, 0]))
+    N_mc = mc_fitted_t.nsamples_per_model()[0]
 
     # --- Empirical variance from trials ---
     mc_ests_t = np.empty(n_trials)
@@ -246,10 +251,10 @@ for P_t in target_costs_sweep:
         s_mc = variable.rvs(N_mc)
         mc_ests_t[i] = float(bkd.mean(models[0](s_mc)[0]))
 
-        s_per_m = ml_e.generate_samples_per_model(
+        s_per_m = ml_fitted.generate_samples_per_model(
             lambda n: variable.rvs(int(n)))
         v_per_m = [models[ell](s_per_m[ell]) for ell in range(len(models))]
-        mlmc_ests_t[i] = float(ml_e(v_per_m))
+        mlmc_ests_t[i] = float(ml_fitted(v_per_m))
 
     mc_vars_emp.append(mc_ests_t.var())
     mlmc_vars_emp.append(mlmc_ests_t.var())
@@ -285,21 +290,22 @@ stat_true.set_pilot_quantities(bkd.asarray(cov_true))
 
 P_cmp = 500.0
 mlmc_est = MLMCEstimator(stat_true, bkd.asarray(costs))
-mlmc_est.allocate_samples(P_cmp)
-mlmc_var = float(mlmc_est.optimized_covariance()[0, 0])
+mlmc_fitted_cmp = FittedACVEstimator(
+    mlmc_est, default_allocator_factory(mlmc_est).allocate(P_cmp))
+mlmc_var = float(mlmc_fitted_cmp.covariance()[0, 0])
 
 acv_optimizer = ScipySLSQPOptimizer(maxiter=200)
 ri_mlmc = bkd.asarray(np.arange(M), dtype=int)  # [0, 1, 2, 3]
 acv_est = GRDEstimator(stat_true, bkd.asarray(costs), recursion_index=ri_mlmc)
 acv_allocator = ACVAllocator(acv_est, optimizer=acv_optimizer)
-acv_est.set_allocation(acv_allocator.allocate(P_cmp))
-acv_var = float(acv_est.optimized_covariance()[0, 0])
+acv_fitted = FittedACVEstimator(acv_est, acv_allocator.allocate(P_cmp))
+acv_var = float(acv_fitted.covariance()[0, 0])
 
 mc_stat_cmp = MultiOutputMean(nqoi, bkd)
 mc_stat_cmp.set_pilot_quantities(bkd.asarray(cov_true[0:1, 0:1]))
 mc_est = MCEstimator(mc_stat_cmp, bkd.asarray(costs[0:1]))
-mc_est.allocate_samples(P_cmp)
-mc_var = float(mc_est.optimized_covariance()[0, 0])
+mc_fitted_cmp = MCAllocator(mc_est).allocate(P_cmp)
+mc_var = float(mc_fitted_cmp.covariance()[0, 0])
 
 labels = ["MC", "MLMC\n($\\eta=-1$)", "ACV-GRD\n(optimal weights)"]
 vals   = [mc_var / mc_var, mc_var / mlmc_var, mc_var / acv_var]
@@ -348,7 +354,7 @@ The advantage of optimised weights grows more reliable as the pilot size increas
    cost growth exponents) under which MLMC achieves a smaller constant than plain MC.
 
 4. **(Challenge)** For the polynomial benchmark, compute the optimal allocation
-   analytically using @eq-optimal-N and compare it to the output of `allocate_samples`
+   analytically using @eq-optimal-N and compare it to the output of the allocator
    from the PyApprox API. Are they consistent?
 
 

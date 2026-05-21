@@ -36,7 +36,7 @@ After completing this tutorial, you will be able to:
 
 - Explain why the MSE formulas from the previous tutorial cannot be evaluated directly in practice
 - Use **pilot samples** to estimate the moments ($\boldsymbol{\Sigma}$, $\mathbf{W}$, $\mathbf{B}$) that appear in the MSE formulas
-- Use the PyApprox estimator API (`MultiOutputMeanAndVariance`, `MCEstimator`, `allocate_samples`) to compute the sample budget for a target accuracy
+- Use the PyApprox estimator API (`MultiOutputMeanAndVariance`, `MCEstimator`, `MCAllocator`) to compute the sample budget for a target accuracy
 - Recognize that the budget estimate is itself uncertain and understand how pilot sample size affects its reliability
 
 ## Prerequisites
@@ -89,6 +89,7 @@ from pyapprox.statest.statistics import (
     MultiOutputMeanAndVariance,
 )
 from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.allocation import MCAllocator
 
 bkd = NumpyBkd()
 bm = MultiOutputEnsembleBenchmark(bkd, psd=True)
@@ -154,7 +155,7 @@ PyApprox provides an estimator API that encapsulates the MSE formulas and budget
 1. Create a **stat** object that defines which statistics we want to estimate.
 2. Set the pilot moment estimates on the stat object.
 3. Create an **estimator** (here, `MCEstimator`).
-4. Call `allocate_samples` with a target computational cost to determine the optimal number of samples.
+4. Create an `MCAllocator` and call `allocate` with a target computational cost to determine the optimal number of samples.
 
 ```{python}
 # Step 1-2: Create stat and set pilot quantities
@@ -166,20 +167,20 @@ est = MCEstimator(stat, cost_per_eval)
 
 # Step 4: Allocate samples for a target cost
 target_cost = 500.0
-est.allocate_samples(target_cost)
+fitted = MCAllocator(est).allocate(target_cost)
 print(f"Target cost: {target_cost}")
-print(f"Allocated samples: {est._rounded_nsamples_per_model}")
-print(f"Actual cost: {float(est._rounded_nsamples_per_model[0]) * cost_per_eval:.1f}")
+print(f"Allocated samples: {fitted.nsamples_per_model()}")
+print(f"Actual cost: {float(fitted.nsamples_per_model()[0]) * cost_per_eval:.1f}")
 ```
 
 ### Understanding the Output
 
-The `allocate_samples` call determines how many model evaluations to run. For single-model Monte Carlo, this is simply $M = \lfloor \text{target\_cost} / \text{cost\_per\_eval} \rfloor$. Because the number of samples must be an integer, the actual cost is generally less than the target --- no partial evaluations are allowed. The power of this API becomes apparent with multi-fidelity methods (covered in later tutorials), where it optimally distributes samples across models of different cost and accuracy.
+The `MCAllocator(est).allocate(target_cost)` call determines how many model evaluations to run and returns a fitted allocation object. For single-model Monte Carlo, this is simply $M = \lfloor \text{target\_cost} / \text{cost\_per\_eval} \rfloor$. Because the number of samples must be an integer, the actual cost is generally less than the target --- no partial evaluations are allowed. The power of this API becomes apparent with multi-fidelity methods (covered in later tutorials), where it optimally distributes samples across models of different cost and accuracy.
 
 We can also inspect the **predicted estimator covariance** at this allocation:
 
 ```{python}
-predicted_est_cov = est.optimized_covariance()
+predicted_est_cov = fitted.covariance()
 nstats = stat.nstats()
 print(f"Number of statistics: {nstats}")
 print(f"Predicted estimator covariance shape: {predicted_est_cov.shape}")
@@ -222,7 +223,7 @@ The predicted estimator covariance tells us how precise we *expect* the estimate
 from pyapprox_tutorials.figures._multifidelity_advanced import plot_budget_verification
 
 n_reps = 200
-M_alloc = int(est._rounded_nsamples_per_model[0])
+M_alloc = int(fitted.nsamples_per_model()[0])
 all_means = np.empty((n_reps, nqoi))
 
 for i in range(n_reps):
@@ -307,8 +308,8 @@ B_true = bm.covariance_of_mean_and_variance_estimators_subproblem(
 stat_ref = MultiOutputMeanAndVariance(nqoi, bkd)
 stat_ref.set_pilot_quantities(cov_true, W_true, B_true)
 est_ref = MCEstimator(stat_ref, cost_per_eval)
-est_ref.allocate_samples(target_for_test)
-true_pred_std = float(bkd.sqrt(est_ref.optimized_covariance()[0, 0]))
+fitted_ref = MCAllocator(est_ref).allocate(target_for_test)
+true_pred_std = float(bkd.sqrt(fitted_ref.covariance()[0, 0]))
 
 # Collect all predicted stds first to determine shared x range
 all_pred_stds = {}
@@ -323,8 +324,8 @@ for M_p in pilot_sizes:
         cov_p, W_p, B_p = stat_p.compute_pilot_quantities([v_p])
         stat_p.set_pilot_quantities(cov_p, W_p, B_p)
         est_p = MCEstimator(stat_p, cost_per_eval)
-        est_p.allocate_samples(target_for_test)
-        pred_stds[i] = float(bkd.sqrt(est_p.optimized_covariance()[0, 0]))
+        fitted_p = MCAllocator(est_p).allocate(target_for_test)
+        pred_stds[i] = float(bkd.sqrt(fitted_p.covariance()[0, 0]))
     all_pred_stds[M_p] = pred_stds
 
 fig, axes = plt.subplots(1, len(pilot_sizes), figsize=(14, 3.5), sharey=True)
@@ -365,9 +366,9 @@ stat_full.set_pilot_quantities(cov_hat, W_hat, B_hat)
 
 # 4. Create estimator and allocate budget
 est_full = MCEstimator(stat_full, cost_per_eval)
-est_full.allocate_samples(target_cost)
-print(f"Allocated samples: {est_full._rounded_nsamples_per_model}")
-print(f"Actual cost: {float(est_full._rounded_nsamples_per_model[0]) * cost_per_eval:.1f} "
+fitted_full = MCAllocator(est_full).allocate(target_cost)
+print(f"Allocated samples: {fitted_full.nsamples_per_model()}")
+print(f"Actual cost: {float(fitted_full.nsamples_per_model()[0]) * cost_per_eval:.1f} "
       f"(target: {target_cost})")
 
 # 5. Generate samples and evaluate model
@@ -384,7 +385,7 @@ print(f"\nEstimated mean:  {mean_final}")
 print(f"Estimated covariance (lower triangle): {cov_entries_final}")
 
 # 7. Report predicted accuracy
-pred_cov_full = est_full.optimized_covariance()
+pred_cov_full = fitted_full.covariance()
 for k in range(nqoi):
     print(f"Predicted std of mean(q_{k+1}): {float(bkd.sqrt(pred_cov_full[k,k])):.6f}")
 ```

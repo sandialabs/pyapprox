@@ -130,6 +130,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.int64
 
     @staticmethod
+    def is_integer_dtype(array: torch.Tensor) -> bool:
+        return not array.is_floating_point() and not array.is_complex()
+
+    @staticmethod
     def stack(
         arrays: Union[List[torch.Tensor], Tuple[torch.Tensor, ...]],
         axis: int = 0,

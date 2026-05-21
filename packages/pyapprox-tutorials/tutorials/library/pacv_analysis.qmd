@@ -126,9 +126,11 @@ from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest.acv import GMFEstimator, GRDEstimator, GISEstimator
 from pyapprox.statest.acv.search import ACVSearch
 from pyapprox.statest.acv.allocation import ACVAllocator, default_allocator_factory
+from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.strategies import (
     FixedRecursionStrategy, TreeDepthRecursionStrategy,
 )
+from pyapprox.statest.allocation import MCAllocator
 from pyapprox.statest.plotting import plot_allocation
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 
@@ -168,7 +170,7 @@ for ax, ri, title in zip(
                        allocator_factory=fast_allocator)
     try:
         result = search.search(500.0)
-        plot_allocation(result.estimator, ax, show_partition_sizes=True)
+        plot_allocation(result.best, ax, show_partition_sizes=True)
     except RuntimeError:
         ax.text(0.5, 0.5, "opt. failed", ha="center", va="center",
                 fontsize=9, transform=ax.transAxes)
@@ -213,8 +215,8 @@ axes = np.array(axes).ravel()
 for i, (est, alloc) in enumerate(result_grd.all_allocations):
     ri = bkd.to_numpy(est._recursion_index).astype(int).tolist()
     if alloc.success:
-        est.set_allocation(alloc)
-        plot_allocation(est, axes[i], show_partition_sizes=True)
+        fitted = FittedACVEstimator(est, alloc)
+        plot_allocation(fitted, axes[i], show_partition_sizes=True)
     else:
         axes[i].text(0.5, 0.5, "opt. failed", ha="center", va="center",
                      fontsize=9, transform=axes[i].transAxes)
@@ -261,8 +263,8 @@ axes = np.array(axes).ravel()
 for i, (est, alloc) in enumerate(result_gis.all_allocations):
     ri = bkd.to_numpy(est._recursion_index).astype(int).tolist()
     if alloc.success:
-        est.set_allocation(alloc)
-        plot_allocation(est, axes[i], show_partition_sizes=True)
+        fitted = FittedACVEstimator(est, alloc)
+        plot_allocation(fitted, axes[i], show_partition_sizes=True)
     else:
         axes[i].text(0.5, 0.5, "opt. failed", ha="center", va="center",
                      fontsize=9, transform=axes[i].transAxes)
@@ -344,8 +346,8 @@ fam_cols    = {"gmf": "#8E44AD", "grd": "#2C7FB8", "gis": "#27AE60"}
 fam_names   = {"gmf": "GMF", "grd": "GRD", "gis": "GIS"}
 
 mc_est = MCEstimator(stat, costs[:1])
-mc_est.allocate_samples(500.0)
-mc_var = float(bkd.to_numpy(mc_est.optimized_covariance())[0, 0])
+mc_fitted = MCAllocator(mc_est).allocate(500.0)
+mc_var = float(bkd.to_numpy(mc_fitted.covariance())[0, 0])
 
 # GMF search (GRD and GIS reuse result_grd, result_gis from above)
 search_gmf = ACVSearch(
@@ -366,8 +368,8 @@ for fam, result_fam in [("gmf", result_gmf), ("grd", result_grd), ("gis", result
         ri = bkd.to_numpy(est._recursion_index).astype(int).tolist()
         fam_ri.append(ri)
         if alloc.success:
-            est.set_allocation(alloc)
-            var = float(bkd.to_numpy(est.optimized_covariance())[0, 0])
+            fitted = FittedACVEstimator(est, alloc)
+            var = float(bkd.to_numpy(fitted.covariance())[0, 0])
         else:
             var = mc_var
         fam_vars.append(var / mc_var)

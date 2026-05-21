@@ -5,7 +5,7 @@ combined mean+variance from model evaluations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, List, Optional, Tuple
+from typing import Any, Generic, List, Optional, Tuple, Union
 
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 from pyapprox.util.cartesian import cartesian_product
@@ -642,6 +642,11 @@ def _nqoi_nqoisq_subproblem(
     return B_new
 
 
+def log_determinant_variance(bkd: Backend[Array], variance: Array) -> Array:
+    eigvals = bkd.eigh(variance)[0]
+    return bkd.sum(bkd.log(eigvals[eigvals > 1e-14]))
+
+
 # Base class
 
 
@@ -701,7 +706,7 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         raise NotImplementedError
 
     @abstractmethod
-    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
+    def high_fidelity_estimator_covariance(self, nhf_samples: Array) -> Array:
         raise NotImplementedError
 
     @abstractmethod
@@ -771,9 +776,9 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         self,
         subset0: Array,
         subset1: Array,
-        nsamples_intersect: int,
-        nsamples_subset0: int,
-        nsamples_subset1: int,
+        nsamples_intersect: Union[int, Array],
+        nsamples_subset0: Union[int, Array],
+        nsamples_subset1: Union[int, Array],
     ) -> Array:
         # should resemble high_fidelity_estimator_covariance()
         raise NotImplementedError
@@ -822,7 +827,7 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         """
         return self._bkd.mean(values, axis=1)
 
-    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
+    def high_fidelity_estimator_covariance(self, nhf_samples: Array) -> Array:
         if self._cov is None:
             raise ValueError("set_pilot_quantities must be called first")
         return self._cov[: self._nqoi, : self._nqoi] / nhf_samples
@@ -946,9 +951,9 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         self,
         subset0: Array,
         subset1: Array,
-        nsamples_intersect: int,
-        nsamples_subset0: int,
-        nsamples_subset1: int,
+        nsamples_intersect: Union[int, Array],
+        nsamples_subset0: Union[int, Array],
+        nsamples_subset1: Union[int, Array],
     ) -> Array:
         # should resemble high_fidelity_estimator_covariance()
         if self._cov is None:
@@ -1080,7 +1085,7 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         ]
         return self._bkd.hstack(flat_covs)
 
-    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
+    def high_fidelity_estimator_covariance(self, nhf_samples: Array) -> Array:
         if self._W is None or self._V is None or self._tril_idx_flat is None:
             raise ValueError("set_pilot_quantities must be called first")
         cov_est = _covariance_of_variance_estimator(
@@ -1249,9 +1254,9 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         self,
         subset0: Array,
         subset1: Array,
-        nsamples_intersect: int,
-        nsamples_subset0: int,
-        nsamples_subset1: int,
+        nsamples_intersect: Union[int, Array],
+        nsamples_subset0: Union[int, Array],
+        nsamples_subset1: Union[int, Array],
     ) -> Array:
         # should resemble high_fidelity_estimator_covariance()
         if self._cov is None or self._Vcomp is None or self._Wcomp is None:
@@ -1407,7 +1412,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             ]
         )
 
-    def high_fidelity_estimator_covariance(self, nhf_samples: int) -> Array:
+    def high_fidelity_estimator_covariance(self, nhf_samples: Array) -> Array:
         if (
             self._cov is None
             or self._W is None
@@ -1649,9 +1654,9 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         self,
         subset0: Array,
         subset1: Array,
-        nsamples_intersect: int,
-        nsamples_subset0: int,
-        nsamples_subset1: int,
+        nsamples_intersect: Union[int, Array],
+        nsamples_subset0: Union[int, Array],
+        nsamples_subset1: Union[int, Array],
     ) -> Array:
         # should resemble high_fidelity_estimator_covariance()
         if (

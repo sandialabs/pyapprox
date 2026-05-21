@@ -211,10 +211,11 @@ class TestACVSearch:
                 obj = float(self._bkd.to_numpy(alloc.objective_value)[0])
                 assert obj >= best_obj
 
-    def test_estimator_has_allocation_set(self) -> None:
-        """Returned estimator has allocation set."""
+    def test_best_is_fitted_estimator(self) -> None:
+        """Returned best is a FittedACVEstimator."""
+        from pyapprox.statest.acv.base import FittedACVEstimator
+
         search = ACVSearch(self._stat, self._costs)
         result = search.search(target_cost=1000.0)
 
-        # The estimator should have its allocation set
-        assert result.estimator.has_allocation
+        assert isinstance(result.best, FittedACVEstimator)

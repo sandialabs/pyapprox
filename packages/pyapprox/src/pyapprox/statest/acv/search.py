@@ -17,10 +17,11 @@ if TYPE_CHECKING:
     from pyapprox.statest.acv.base import ACVEstimator
 
 from pyapprox.statest.acv.allocation import (
-    ACVAllocationResult,
     Allocator,
     default_allocator_factory,
 )
+from pyapprox.statest.acv.base import FittedACVEstimator
+from pyapprox.statest.acv.result import ACVAllocationResult
 from pyapprox.statest.acv.strategies import (
     DefaultRecursionStrategy,
     RecursionIndexStrategy,
@@ -39,7 +40,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 class SearchResult(Generic[Array]):
     """Result of estimator configuration search."""
 
-    estimator: "ACVEstimator[Array]"
+    best: FittedACVEstimator[Array]
     allocation: ACVAllocationResult[Array]
     all_allocations: List[Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]]
 
@@ -179,7 +180,7 @@ class ACVSearch(Generic[Array]):
         Returns
         -------
         SearchResult
-            Contains the best estimator/allocation and all candidates.
+            Contains the best fitted estimator and all candidates.
 
         Raises
         ------
@@ -216,7 +217,7 @@ class ACVSearch(Generic[Array]):
         self,
         all_allocations: List[Tuple["ACVEstimator[Array]", ACVAllocationResult[Array]]],
     ) -> SearchResult[Array]:
-        """Build result, selecting best allocation."""
+        """Build result, selecting best allocation and promoting winner."""
         sorted_allocs = sorted(
             all_allocations,
             key=lambda x: (
@@ -226,11 +227,11 @@ class ACVSearch(Generic[Array]):
             ),
         )
 
-        for estimator, allocation in sorted_allocs:
+        for template, allocation in sorted_allocs:
             if allocation.success:
-                estimator.set_allocation(allocation)
+                fitted = FittedACVEstimator(template, allocation)
                 return SearchResult(
-                    estimator=estimator,
+                    best=fitted,
                     allocation=allocation,
                     all_allocations=sorted_allocs,
                     estimator_classes=self._estimator_classes,

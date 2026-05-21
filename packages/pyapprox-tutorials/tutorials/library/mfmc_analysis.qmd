@@ -239,7 +239,10 @@ from pyapprox_benchmarks.statest import (
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
+from pyapprox.statest.acv.allocation import default_allocator_factory
+from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.allocation import MCAllocator
 
 bkd       = NumpyBkd()
 benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
@@ -270,7 +273,7 @@ for a, r in enumerate(r_star):
 ```
 
 ```{python}
-#| fig-cap: "MFMC and MC variance vs total cost: `optimized_covariance()` predictions (lines) compared to empirical variance from 500 independent trials (markers). Close agreement confirms the estimator's variance prediction is accurate."
+#| fig-cap: "MFMC and MC variance vs total cost: `covariance()` predictions (lines) compared to empirical variance from 500 independent trials (markers). Close agreement confirms the estimator's variance prediction is accurate."
 #| label: fig-variance-verify
 
 from pyapprox_tutorials.figures._hierarchy import plot_mfmc_variance_verify
@@ -288,14 +291,16 @@ mfmc_vars_pred, mc_vars_pred = [], []
 mfmc_vars_emp, mc_vars_emp = [], []
 
 for P_t in target_costs_sweep:
-    # --- Predicted variance from optimized_covariance ---
+    # --- Predicted variance from fitted estimator covariance ---
     mf_e = MFMCEstimator(stat, costs_bkd)
-    mf_e.allocate_samples(float(P_t))
-    mfmc_vars_pred.append(float(mf_e.optimized_covariance()[0, 0]))
+    mf_fitted = FittedACVEstimator(
+        mf_e, default_allocator_factory(mf_e).allocate(float(P_t))
+    )
+    mfmc_vars_pred.append(float(mf_fitted.covariance()[0, 0]))
 
     mc_e = MCEstimator(stat_mc, costs=[costs_bkd[0]])
-    mc_e.allocate_samples(float(P_t))
-    mc_vars_pred.append(float(mc_e.optimized_covariance()[0, 0]))
+    mc_fitted = MCAllocator(mc_e).allocate(float(P_t))
+    mc_vars_pred.append(float(mc_fitted.covariance()[0, 0]))
 
     # --- Empirical variance from trials ---
     mc_ests_t = np.empty(n_trials)
@@ -303,12 +308,12 @@ for P_t in target_costs_sweep:
     for i in range(n_trials):
         np.random.seed(i + int(P_t) * 100)
 
-        [s_mc] = mc_e.generate_samples_per_model(variable.rvs)
-        mc_ests_t[i] = bkd.to_numpy(mc_e(models[0](s_mc)))[0]
+        [s_mc] = mc_fitted.generate_samples_per_model(variable.rvs)
+        mc_ests_t[i] = bkd.to_numpy(mc_fitted(models[0](s_mc)))[0]
 
-        s_per_m = mf_e.generate_samples_per_model(variable.rvs)
+        s_per_m = mf_fitted.generate_samples_per_model(variable.rvs)
         v_per_m = [models[a](s_per_m[a]) for a in range(len(models))]
-        mfmc_ests_t[i] = float(mf_e(v_per_m))
+        mfmc_ests_t[i] = float(mf_fitted(v_per_m))
 
     mc_vars_emp.append(mc_ests_t.var())
     mfmc_vars_emp.append(mfmc_ests_t.var())

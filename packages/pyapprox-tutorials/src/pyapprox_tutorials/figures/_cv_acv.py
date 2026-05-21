@@ -508,7 +508,7 @@ def plot_allocation_matrix(ax, est, bkd, show_sizes=True):
 
     Single allocation matrix heatmap for one estimator.
     """
-    A = bkd.to_numpy(est._get_allocation_matrix())
+    A = bkd.to_numpy(est.allocation_matrix())
     p = bkd.to_numpy(est.npartition_samples())
     nrows, ncols = A.shape
     ax.imshow(A, cmap="Blues", aspect="auto", vmin=0, vmax=1)
