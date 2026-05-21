@@ -15,6 +15,9 @@ import math
 import numpy as np
 
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     IdentityOutputTransform,
     OutputStandardScaler,
@@ -116,7 +119,10 @@ class TestOutputTransform:
         # GP with transform
         gp_t = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
-        gp_t.fit(X_train, y_train, output_transform=scaler)
+        result = GPMaximumLikelihoodFitter(
+            bkd, output_transform=scaler
+        ).fit(gp_t, X_train, y_train)
+        gp_t = result.surrogate()
 
         # At training points, prediction should approximate original y
         pred = gp_t.predict(X_train)
@@ -134,12 +140,18 @@ class TestOutputTransform:
         # GP with transform (fits on original, internally scales)
         gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
-        gp_t.fit(X_train, y_train, output_transform=scaler)
+        result = GPMaximumLikelihoodFitter(
+            bkd, output_transform=scaler
+        ).fit(gp_t, X_train, y_train)
+        gp_t = result.surrogate()
 
         # Raw GP (fits on manually scaled data)
         gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
-        gp_r.fit(X_train, y_scaled)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp_r, X_train, y_scaled
+        )
+        gp_r = result.surrogate()
 
         # Test points
         np.random.seed(99)
@@ -164,11 +176,17 @@ class TestOutputTransform:
 
         gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
-        gp_t.fit(X_train, y_train, output_transform=scaler)
+        result = GPMaximumLikelihoodFitter(
+            bkd, output_transform=scaler
+        ).fit(gp_t, X_train, y_train)
+        gp_t = result.surrogate()
 
         gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
-        gp_r.fit(X_train, y_scaled)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp_r, X_train, y_scaled
+        )
+        gp_r = result.surrogate()
 
         np.random.seed(99)
         X_test = bkd.array(np.random.rand(2, 5) * 2 - 1)
@@ -191,11 +209,17 @@ class TestOutputTransform:
 
         gp_t = ExactGaussianProcess(kernel_t, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_t.hyp_list().set_all_inactive()
-        gp_t.fit(X_train, y_train, output_transform=scaler)
+        result = GPMaximumLikelihoodFitter(
+            bkd, output_transform=scaler
+        ).fit(gp_t, X_train, y_train)
+        gp_t = result.surrogate()
 
         gp_r = ExactGaussianProcess(kernel_r, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp_r.hyp_list().set_all_inactive()
-        gp_r.fit(X_train, y_scaled)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp_r, X_train, y_scaled
+        )
+        gp_r = result.surrogate()
 
         np.random.seed(99)
         X_test = bkd.array(np.random.rand(2, 3) * 2 - 1)
@@ -214,7 +238,10 @@ class TestOutputTransform:
 
         gp = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=_NUGGET)
         gp.hyp_list().set_all_inactive()
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         assert gp.output_transform() is None
 

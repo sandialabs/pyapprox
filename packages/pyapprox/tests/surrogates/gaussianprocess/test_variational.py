@@ -9,8 +9,6 @@ Tests are structured progressively:
 
 import numpy as np
 import torch
-from scipy.stats import qmc
-
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
 )
@@ -21,6 +19,12 @@ from pyapprox.surrogates.gaussianprocess.variational import (
 )
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.util.backends.torch import TorchBkd
+from scipy.stats import qmc
+
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+    VariationalGPMaximumLikelihoodFitter,
+)
 
 
 def _sobol_samples(nvars: int, nsamples: int, lb: float, ub: float):
@@ -100,7 +104,10 @@ class TestVariationalGP:
         """Fit with all params inactive -- just computes ELBO and caches."""
         self._setup_data(bkd)
         gp = self._make_gp(bkd)
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
         assert gp.is_fitted()
 
         # ELBO should be finite
@@ -111,7 +118,10 @@ class TestVariationalGP:
         """Predict after fit with no optimization."""
         self._setup_data(bkd)
         gp = self._make_gp(bkd)
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
 
         mean = gp.predict(self.X_train)
         assert mean.shape == (1, self.n_train)
@@ -123,14 +133,20 @@ class TestVariationalGP:
         """__call__ should be alias for predict."""
         self._setup_data(bkd)
         gp = self._make_gp(bkd)
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
         bkd.assert_allclose(gp(self.X_train), gp.predict(self.X_train))
 
     def test_predict_covariance(self, bkd) -> None:
         """Test predict_covariance returns correct shape."""
         self._setup_data(bkd)
         gp = self._make_gp(bkd)
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
         X_test = bkd.array(np.linspace(-1, 1, 5).reshape(1, -1))
         cov = gp.predict_covariance(X_test)
         assert cov.shape == (5, 5)
@@ -139,7 +155,10 @@ class TestVariationalGP:
         """alpha() and cholesky() should be available after fit."""
         self._setup_data(bkd)
         gp = self._make_gp(bkd)
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
 
         alpha = gp.alpha()
         assert alpha.shape == (1, self.n_train)
@@ -188,7 +207,10 @@ class TestVariationalGP:
             likelihood=lik,
             bkd=bkd,
         )
-        vgp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
+            vgp, self.X_train, self.y_train
+        )
+        vgp = result.surrogate()
 
         # Exact GP with nugget = noise_var (predicts latent f, not noisy y)
         kernel_e = Matern52Kernel(
@@ -204,7 +226,10 @@ class TestVariationalGP:
             bkd=bkd,
             nugget=noise_var,
         )
-        egp.fit(self.X_train, self.y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            egp, self.X_train, self.y_train
+        )
+        egp = result.surrogate()
 
         # Compare predictions at test points
         X_test = bkd.array(np.linspace(-0.9, 0.9, 8).reshape(1, -1))
@@ -222,7 +247,10 @@ class TestVariationalGP:
         """Fit with kernel params active, inducing fixed."""
         self._setup_data(bkd)
         gp = self._make_gp(bkd, kernel_fixed=False, inducing_fixed=True)
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
         assert gp.is_fitted()
 
         # ELBO should be finite after optimization
@@ -244,12 +272,12 @@ class TestVariationalGP:
         gp = self._make_gp(bkd)
         in_scaler = InputStandardScaler.from_data(self.X_train, bkd)
         out_scaler = OutputStandardScaler.from_data(self.y_train, bkd)
-        gp.fit(
-            self.X_train,
-            self.y_train,
+        result = VariationalGPMaximumLikelihoodFitter(
+            bkd,
             output_transform=out_scaler,
             input_transform=in_scaler,
-        )
+        ).fit(gp, self.X_train, self.y_train)
+        gp = result.surrogate()
         assert gp.is_fitted()
 
         mean = gp.predict(self.X_train)
@@ -301,7 +329,10 @@ class TestVariationalGP:
             likelihood=lik,
             bkd=bkd,
         )
-        gp.fit(X_train, y_train)
+        result = VariationalGPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Test on held-out points
         X_test = bkd.array(np.linspace(-0.95, 0.95, 50).reshape(1, -1))
@@ -387,7 +418,10 @@ class TestTorchVariationalGP:
     def test_fit_and_predict(self) -> None:
         """Basic fit and predict with Torch VGP."""
         gp = self._make_torch_vgp()
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(self.bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
         assert gp.is_fitted()
 
         mean = gp.predict(self.X_train)
@@ -396,7 +430,10 @@ class TestTorchVariationalGP:
     def test_autograd_prediction_jacobian(self) -> None:
         """Verify autograd-based prediction Jacobian works."""
         gp = self._make_torch_vgp()
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(self.bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
 
         assert hasattr(gp, "jacobian")
 
@@ -407,10 +444,11 @@ class TestTorchVariationalGP:
 
     def test_autograd_loss_jacobian(self) -> None:
         """Verify fitter binds autograd jacobian for torch backend."""
+        from pyapprox.util.backends.torch import TorchBkd
+
         from pyapprox.surrogates.gaussianprocess.fitters import (
             VariationalGPMaximumLikelihoodFitter,
         )
-        from pyapprox.util.backends.torch import TorchBkd
 
         gp = self._make_torch_vgp(kernel_fixed=False, inducing_fixed=True)
 
@@ -426,7 +464,10 @@ class TestTorchVariationalGP:
     def test_fit_with_kernel_optimization(self) -> None:
         """Fit with kernel params active uses autograd for optimization."""
         gp = self._make_torch_vgp(kernel_fixed=False, inducing_fixed=True)
-        gp.fit(self.X_train, self.y_train)
+        result = VariationalGPMaximumLikelihoodFitter(self.bkd).fit(
+            gp, self.X_train, self.y_train
+        )
+        gp = result.surrogate()
         assert gp.is_fitted()
 
         neg_elbo = gp.neg_log_marginal_likelihood()

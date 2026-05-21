@@ -108,6 +108,7 @@ function after conditioning on the training observations.
 #| label: fig-prior-posterior-samples
 
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import GPMaximumLikelihoodFitter
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 from pyapprox_tutorials.figures._gp import plot_prior_posterior_samples
 
@@ -138,7 +139,8 @@ y_obs_arr = bkd_preview.asarray(y_obs)
 X_obs_arr = bkd_preview.asarray(X_obs)
 
 _gp_prior.hyp_list().set_all_inactive()
-_gp_prior.fit(X_obs_arr, y_obs_arr)
+_result = GPMaximumLikelihoodFitter(bkd_preview).fit(_gp_prior, X_obs_arr, y_obs_arr)
+_gp_prior = _result.surrogate()
 
 mu_post  = bkd_preview.to_numpy(_gp_prior.predict(X_grid))[0, :]
 std_post = bkd_preview.to_numpy(_gp_prior.predict_std(X_grid))[0, :]

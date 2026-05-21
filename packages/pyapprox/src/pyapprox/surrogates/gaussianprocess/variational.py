@@ -18,9 +18,6 @@ import copy
 import math
 from typing import Generic, Optional
 
-from pyapprox.optimization.minimize.protocols import (
-    BindableOptimizerProtocol,
-)
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (
     InducingPoints,
@@ -120,9 +117,6 @@ class VariationalGaussianProcess(Generic[Array]):
             IdentityInputTransform(nvars, bkd)
         )
 
-        # Optimizer
-        self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
-
         # Setup derivative methods (overridden in Torch subclass)
         self._setup_derivative_methods()
 
@@ -140,32 +134,6 @@ class VariationalGaussianProcess(Generic[Array]):
         clone._alpha = None
         clone._neg_elbo = None
         return clone
-
-    def _copy_fitted_state_from(
-        self, other: "VariationalGaussianProcess[Array]"
-    ) -> None:
-        """Copy all fitted state from another GP into self.
-
-        Parameters
-        ----------
-        other : VariationalGaussianProcess[Array]
-            The source GP to copy fitted state from.
-        """
-        self._data = other._data
-        self._cholesky = other._cholesky
-        self._alpha = other._alpha
-        self._neg_elbo = other._neg_elbo
-        self._output_transform = other._output_transform
-        self._input_transform = other._input_transform
-        # Copy optimized hyperparameters
-        self._kernel.hyp_list().set_values(other._kernel.hyp_list().get_values())
-        self._mean.hyp_list().set_values(other._mean.hyp_list().get_values())
-        self._inducing_points.hyp_list().set_values(
-            other._inducing_points.hyp_list().get_values()
-        )
-        self._likelihood.hyp_list().set_values(
-            other._likelihood.hyp_list().get_values()
-        )
 
     def _setup_derivative_methods(self) -> None:
         """Override in subclasses for autograd-based derivatives."""
@@ -250,19 +218,6 @@ class VariationalGaussianProcess(Generic[Array]):
         return HyperParameterList(
             kernel_hyps + mean_hyps + inducing_hyps + likelihood_hyps
         )
-
-    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
-        """Set the optimizer for hyperparameter optimization.
-
-        .. deprecated::
-            Pass optimizer to ``VariationalGPMaximumLikelihoodFitter``
-            constructor instead.
-        """
-        self._optimizer = optimizer
-
-    def optimizer(self) -> Optional[BindableOptimizerProtocol[Array]]:
-        """Return the current optimizer (None = use default)."""
-        return self._optimizer
 
     # ---- Core fitting ----
 
@@ -479,60 +434,6 @@ class VariationalGaussianProcess(Generic[Array]):
         return cov
 
     # ---- Fitting with optimization ----
-
-    def fit(
-        self,
-        X_train: Array,
-        y_train: Array,
-        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
-        input_transform: Optional[InputAffineTransformProtocol[Array]] = None,
-    ) -> None:
-        """Fit variational GP and optimize active hyperparameters.
-
-        This is a convenience method that delegates to
-        ``VariationalGPMaximumLikelihoodFitter``. For cleaner separation of
-        concerns, prefer using the fitter directly::
-
-            from pyapprox.surrogates.gaussianprocess.fitters import (
-                VariationalGPMaximumLikelihoodFitter,
-            )
-            fitter = VariationalGPMaximumLikelihoodFitter(bkd, optimizer=...)
-            result = fitter.fit(gp, X_train, y_train)
-            fitted_gp = result.surrogate()
-
-        .. deprecated::
-            Use ``VariationalGPMaximumLikelihoodFitter`` or
-            ``VariationalGPFixedHyperparameterFitter`` directly.
-
-        Parameters
-        ----------
-        X_train : Array
-            Training inputs, shape (nvars, n_train).
-        y_train : Array
-            Training outputs, shape (nqoi, n_train).
-        output_transform : Optional[OutputAffineTransformProtocol[Array]]
-            If provided, y_train is in original space and will be scaled.
-        input_transform : Optional[InputAffineTransformProtocol[Array]]
-            If provided, X_train is in original space and will be scaled.
-        """
-        from pyapprox.surrogates.gaussianprocess.fitters.variational_fitter import (
-            VariationalGPMaximumLikelihoodFitter,
-        )
-
-        fitter = VariationalGPMaximumLikelihoodFitter(
-            bkd=self._bkd,
-            optimizer=self._optimizer,
-            output_transform=output_transform,
-            input_transform=input_transform,
-        )
-        result = fitter.fit(self, X_train, y_train)
-        fitted = result.surrogate()
-        if not isinstance(fitted, VariationalGaussianProcess):
-            raise TypeError(
-                "Fitter returned unexpected surrogate type: "
-                f"{type(fitted).__name__}"
-            )
-        self._copy_fitted_state_from(fitted)
 
     def __repr__(self) -> str:
         fitted_str = "fitted" if self.is_fitted() else "not fitted"

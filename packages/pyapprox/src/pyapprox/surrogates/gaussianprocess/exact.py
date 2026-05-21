@@ -11,9 +11,6 @@ import copy
 import math
 from typing import Generic, Optional
 
-from pyapprox.optimization.minimize.protocols import (
-    BindableOptimizerProtocol,
-)
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
@@ -75,18 +72,16 @@ class ExactGaussianProcess(Generic[Array]):
     >>>
     >>> X_train = bkd.array(np.random.randn(2, 10))
     >>> y_train = bkd.array(np.random.randn(1, 10))  # Shape: (nqoi, n_train)
-    >>> gp.fit(X_train, y_train)  # Fits data AND optimizes hyperparameters
+    >>>
+    >>> from pyapprox.surrogates.gaussianprocess.fitters import (
+    ...     GPMaximumLikelihoodFitter,
+    ... )
+    >>> result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+    >>> gp = result.surrogate()
     >>>
     >>> X_test = bkd.array(np.random.randn(2, 5))
     >>> mean = gp.predict(X_test)
     >>> std = gp.predict_std(X_test)
-
-    Hyperparameter optimization is controlled via:
-
-    1. **Default behavior**: Uses ScipyTrustConstrOptimizer with maxiter=1000
-    2. **Custom optimizer**: Call ``set_optimizer(optimizer)`` before ``fit()``
-    3. **Skip optimization**: Set all hyperparameters inactive via
-       ``gp.hyp_list().set_all_inactive()`` before ``fit()``
 
     Optional Methods
     ----------------
@@ -178,8 +173,6 @@ class ExactGaussianProcess(Generic[Array]):
             IdentityInputTransform(nvars, bkd)
         )
 
-        # Optimizer for hyperparameter tuning (None means use default)
-        self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
 
     def _clone_unfitted(self) -> "ExactGaussianProcess[Array]":
         """Return a deep copy of this GP with fitted state cleared.
@@ -198,26 +191,6 @@ class ExactGaussianProcess(Generic[Array]):
         clone._cholesky = None
         clone._alpha = None
         return clone
-
-    def _copy_fitted_state_from(self, other: "ExactGaussianProcess[Array]") -> None:
-        """Copy all fitted state from another GP into self.
-
-        Centralizes state transfer so future fitted-state additions
-        only need updating in this one method.
-
-        Parameters
-        ----------
-        other : ExactGaussianProcess[Array]
-            The source GP to copy fitted state from.
-        """
-        self._data = other._data
-        self._cholesky = other._cholesky
-        self._alpha = other._alpha
-        self._output_transform = other._output_transform
-        self._input_transform = other._input_transform
-        # Copy optimized hyperparameters
-        self._kernel.hyp_list().set_values(other._kernel.hyp_list().get_values())
-        self._mean.hyp_list().set_values(other._mean.hyp_list().get_values())
 
     def _setup_derivative_methods(self) -> None:
         """
@@ -361,106 +334,6 @@ class ExactGaussianProcess(Generic[Array]):
         # Combine hyperparameter lists
         all_hyps = kernel_hyps.hyperparameters() + mean_hyps.hyperparameters()
         return HyperParameterList(all_hyps)
-
-    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
-        """Set the optimizer for hyperparameter optimization during fit().
-
-        .. deprecated::
-            Pass optimizer to ``GPMaximumLikelihoodFitter`` constructor
-            instead.
-
-        Parameters
-        ----------
-        optimizer : BindableOptimizerProtocol[Array]
-            An optimizer configured with options but NOT bound to an objective.
-            During fit(), the optimizer will be cloned and bound to the
-            negative log marginal likelihood loss function.
-
-        Examples
-        --------
-        >>> from pyapprox.optimization.minimize.scipy.trust_constr import (
-        ...     ScipyTrustConstrOptimizer
-        ... )
-        >>> optimizer = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8)
-        >>> gp.set_optimizer(optimizer)
-        >>> gp.fit(X_train, y_train)
-        """
-        if not isinstance(optimizer, BindableOptimizerProtocol):
-            raise TypeError(
-                f"optimizer must satisfy BindableOptimizerProtocol, "
-                f"got {type(optimizer).__name__}"
-            )
-        self._optimizer = optimizer
-
-    def optimizer(self) -> Optional[BindableOptimizerProtocol[Array]]:
-        """Return the current optimizer (None means use default).
-
-        Returns
-        -------
-        Optional[BindableOptimizerProtocol[Array]]
-            The configured optimizer, or None if using the default
-            ScipyTrustConstrOptimizer.
-        """
-        return self._optimizer
-
-    def fit(
-        self,
-        X_train: Array,
-        y_train: Array,
-        output_transform: Optional[OutputAffineTransformProtocol[Array]] = None,
-        input_transform: Optional[InputAffineTransformProtocol[Array]] = None,
-    ) -> None:
-        """Fit GP to data and optimize active hyperparameters.
-
-        This is a convenience method that delegates to
-        ``GPMaximumLikelihoodFitter``. For cleaner separation of concerns,
-        prefer using the fitter directly::
-
-            from pyapprox.surrogates.gaussianprocess.fitters import (
-                GPMaximumLikelihoodFitter,
-            )
-            fitter = GPMaximumLikelihoodFitter(bkd, optimizer=...)
-            result = fitter.fit(gp, X_train, y_train)
-            fitted_gp = result.surrogate()
-
-        .. deprecated::
-            Use ``GPMaximumLikelihoodFitter`` or
-            ``GPFixedHyperparameterFitter`` directly.
-
-        Parameters
-        ----------
-        X_train : Array
-            Training input data, shape (nvars, n_train).
-        y_train : Array
-            Training output data, shape (nqoi, n_train).
-        output_transform : Optional[OutputAffineTransformProtocol[Array]]
-            If provided, y_train is assumed to be in original space and
-            will be scaled internally. Predictions will be returned in
-            original space.
-        input_transform : Optional[InputAffineTransformProtocol[Array]]
-            If provided, X_train is assumed to be in original space and
-            will be scaled internally. Prediction inputs will be
-            automatically transformed. If None, uses identity transform.
-
-        Raises
-        ------
-        ValueError
-            If data shapes are invalid.
-        RuntimeError
-            If Cholesky factorization fails (matrix not positive definite).
-        """
-        from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (  # noqa: E501
-            GPMaximumLikelihoodFitter,
-        )
-
-        fitter = GPMaximumLikelihoodFitter(
-            bkd=self._bkd,
-            optimizer=self._optimizer,
-            output_transform=output_transform,
-            input_transform=input_transform,
-        )
-        result = fitter.fit(self, X_train, y_train)
-        self._copy_fitted_state_from(result.surrogate())
 
     def _fit_internal(self, X_train: Array, y_train: Array) -> None:
         """Internal fit: store data, compute Cholesky, compute alpha.

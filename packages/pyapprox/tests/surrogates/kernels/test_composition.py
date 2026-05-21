@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -22,6 +21,10 @@ from pyapprox.surrogates.kernels.matern import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
+
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from tests._helpers.markers import slow_test
 
 
@@ -648,14 +651,20 @@ class TestSeparableProductKernel:
         # GP with multi-dim SE kernel
         se_kernel = SquaredExponentialKernel(init_ls, bounds, nvars, bkd)
         gp_se = ExactGaussianProcess(se_kernel, nvars, bkd, nugget=1e-8)
-        gp_se.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp_se, X_train, y_train
+        )
+        gp_se = result.surrogate()
 
         # GP with separable product kernel
         k1 = SquaredExponentialKernel([init_ls[0]], bounds, 1, bkd)
         k2 = SquaredExponentialKernel([init_ls[1]], bounds, 1, bkd)
         sep_kernel = SeparableProductKernel([k1, k2], bkd)
         gp_sep = ExactGaussianProcess(sep_kernel, nvars, bkd, nugget=1e-8)
-        gp_sep.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp_sep, X_train, y_train
+        )
+        gp_sep = result.surrogate()
 
         # Compare optimal hyperparameters
         params_se = gp_se.hyp_list().get_values()

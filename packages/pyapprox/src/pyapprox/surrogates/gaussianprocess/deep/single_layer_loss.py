@@ -73,12 +73,12 @@ class SingleLayerELBOLoss(Generic[Array]):
     def hyp_list(self) -> HyperParameterList[Array]:
         return self._hyp_list
 
-    def __call__(self, params: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """Compute negative ELBO for this layer.
 
         Parameters
         ----------
-        params : Array
+        samples : Array
             Active hyperparameters, shape (nactive,) or (nactive, 1).
 
         Returns
@@ -87,6 +87,7 @@ class SingleLayerELBOLoss(Generic[Array]):
             Negative ELBO, shape (1, 1).
         """
         bkd = self._bkd
+        params = samples
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
 

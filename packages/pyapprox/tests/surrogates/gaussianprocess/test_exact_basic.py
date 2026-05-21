@@ -21,6 +21,9 @@ from pyapprox.surrogates.gaussianprocess import (
     ExactGaussianProcess,
     ZeroMean,
 )
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
     MaternKernel,
@@ -86,7 +89,10 @@ class TestExactGPBasic:
         )
 
         # Fit
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
         assert gp.is_fitted()
 
         # Predict
@@ -127,7 +133,10 @@ class TestExactGPBasic:
             nugget=0.1
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Predict standard deviation
         std = gp.predict_std(X_test)
@@ -167,7 +176,10 @@ class TestExactGPBasic:
             nugget=0.1
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Predict covariance
         cov = gp.predict_covariance(X_test)
@@ -203,7 +215,10 @@ class TestExactGPBasic:
             nugget=1e-8  # Very low noise
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Predict at training points
         mean = gp.predict(X_train)
@@ -238,7 +253,10 @@ class TestExactGPBasic:
             nugget=0.01
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Predict std at training points
         std = gp.predict_std(X_train)
@@ -274,7 +292,10 @@ class TestExactGPBasic:
             nugget=0.1
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Compute NLML
         nlml = gp.neg_log_marginal_likelihood()
@@ -317,7 +338,10 @@ class TestExactGPBasic:
             nugget=0.1
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
         mean = gp.predict(X_test)
 
         assert mean.shape == (1, n_test)
@@ -356,7 +380,10 @@ class TestExactGPBasic:
             nugget=0.1
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
         mean = gp.predict(X_test)
 
         assert mean.shape == (1, n_test)
@@ -392,7 +419,10 @@ class TestExactGPBasic:
             nugget=0.1
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         mean_predict = gp.predict(X_test)  # Shape: (nqoi, n_test)
         mean_call = gp(X_test)  # Shape: (nqoi, n_test) for FunctionProtocol
@@ -457,7 +487,10 @@ class TestExactGPBasic:
         X_train_clean = bkd.array([[0.0, 0.5, 1.0], [0.0, 0.5, 1.0]])
         y_train_clean = bkd.array([[1.0, 2.0, 3.0]])  # Shape: (1, 3)
 
-        gp.fit(X_train_clean, y_train_clean)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train_clean, y_train_clean
+        )
+        gp = result.surrogate()
 
         # Predict at training points - should interpolate exactly
         mean = gp.predict(X_train_clean)
@@ -510,7 +543,10 @@ class TestExactGPBasic:
             nugget=1e-10  # Minimal noise
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Create test points (unseen locations, but within training domain)
         np.random.seed(123)
@@ -564,7 +600,10 @@ class TestExactGPBasic:
             bkd.sin(X_train_1d[0, :]), (1, -1)
         )
 
-        gp.fit(X_train_1d, y_train_1d)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train_1d, y_train_1d
+        )
+        gp = result.surrogate()
 
         # Create plotter and plot
         plotter = Plotter1D(gp, plot_limits=[-2.5, 2.5])
@@ -619,7 +658,10 @@ class TestExactGPBasic:
             nugget=0.01
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Create plotter and plot
         plotter = Plotter2DRectangularDomain(

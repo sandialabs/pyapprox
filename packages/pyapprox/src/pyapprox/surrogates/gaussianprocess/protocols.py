@@ -8,9 +8,6 @@ and covariance predictions.
 
 from typing import Generic, Optional, Protocol, runtime_checkable
 
-from pyapprox.optimization.minimize.protocols import (
-    BindableOptimizerProtocol,
-)
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     InputAffineTransformProtocol,
@@ -72,24 +69,12 @@ class GaussianProcessProtocol(Protocol, Generic[Array]):
 @runtime_checkable
 class FittableGPProtocol(GaussianProcessProtocol[Array], Protocol):
     """
-    Protocol for GPs that can be fitted to training data.
+    Protocol for GPs that have been (or can be) fitted to training data.
 
-    Extends GaussianProcessProtocol with the ability to fit the GP
-    to observed data and check if fitting has been performed.
+    Extends GaussianProcessProtocol with the ability to check if
+    fitting has been performed. Fitting is done via fitter classes
+    (e.g., ``GPMaximumLikelihoodFitter``), not via methods on the GP.
     """
-
-    def fit(self, X_train: Array, y_train: Array) -> None:
-        """
-        Fit the Gaussian Process to training data.
-
-        Parameters
-        ----------
-        X_train : Array
-            Training input data, shape (nvars, n_train).
-        y_train : Array
-            Training output data, shape (nqoi, n_train).
-        """
-        ...
 
     def is_fitted(self) -> bool:
         """
@@ -98,7 +83,7 @@ class FittableGPProtocol(GaussianProcessProtocol[Array], Protocol):
         Returns
         -------
         bool
-            True if fit() has been called successfully, False otherwise.
+            True if the GP has been fitted, False otherwise.
         """
         ...
 
@@ -284,13 +269,8 @@ class TrainableGPProtocol(PredictiveGPProtocol[Array], Protocol):
     Protocol for GPs with trainable hyperparameters.
 
     Extends PredictiveGPProtocol with methods for hyperparameter
-    optimization, including access to the marginal likelihood and
-    optimizer configuration.
-
-    Hyperparameter optimization is integrated into ``fit()``:
-    - By default, ``fit()`` optimizes active hyperparameters
-    - Use ``set_optimizer()`` to configure a custom optimizer
-    - Set all hyperparameters inactive to skip optimization
+    access and marginal likelihood computation. Optimization is
+    performed by fitter classes (e.g., ``GPMaximumLikelihoodFitter``).
     """
 
     def hyp_list(self) -> HyperParameterList[Array]:
@@ -325,36 +305,3 @@ class TrainableGPProtocol(PredictiveGPProtocol[Array], Protocol):
         """
         ...
 
-    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
-        """
-        Set the optimizer for hyperparameter optimization during fit().
-
-        Parameters
-        ----------
-        optimizer : BindableOptimizerProtocol[Array]
-            An optimizer configured with options but NOT bound to an objective.
-            During fit(), the optimizer will be cloned and bound to the
-            negative log marginal likelihood loss function.
-
-        Examples
-        --------
-        >>> from pyapprox.optimization.minimize.scipy.trust_constr import (
-        ...     ScipyTrustConstrOptimizer
-        ... )
-        >>> optimizer = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8)
-        >>> gp.set_optimizer(optimizer)
-        >>> gp.fit(X_train, y_train)
-        """
-        ...
-
-    def optimizer(self) -> Optional[BindableOptimizerProtocol[Array]]:
-        """
-        Return the current optimizer (None means use default).
-
-        Returns
-        -------
-        Optional[BindableOptimizerProtocol[Array]]
-            The configured optimizer, or None if using the default
-            ScipyTrustConstrOptimizer.
-        """
-        ...

@@ -62,12 +62,12 @@ class VariationalGPELBOLoss(Generic[Array]):
         """Return the hyperparameter list."""
         return self._hyp_list
 
-    def __call__(self, params: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """Compute negative ELBO.
 
         Parameters
         ----------
-        params : Array
+        samples : Array
             Active hyperparameters, shape (nactive,) or (nactive, 1).
 
         Returns
@@ -75,6 +75,7 @@ class VariationalGPELBOLoss(Generic[Array]):
         Array
             Negative ELBO, shape (1, 1).
         """
+        params = samples
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
 

@@ -10,30 +10,38 @@ from __future__ import annotations
 
 from typing import Any, Generic, Protocol, Tuple, runtime_checkable
 
-from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
 
 @runtime_checkable
-class GPLossTargetProtocol(Protocol[Array]):
-    """Duck-typed surface that GPNegativeLogMarginalLikelihoodLoss requires.
+class _KernelLikeProtocol(Protocol[Array]):
+    """Minimal kernel interface needed by the loss.
 
-    Declares the post-fit contract: _alpha, _cholesky, _kernel are
-    populated after _fit_internal(). GP classes declare these as Optional
-    (None before fitting), so mypy will not statically prove conformance,
-    but that is acceptable — the loss only sees them post-fit.
+    Both KernelProtocol and MultiOutputKernelProtocol satisfy this.
+    jacobian_wrt_params is discovered via hasattr, not declared here.
     """
 
-    _alpha: Array
-    _cholesky: CholeskyFactor[Array]
-    _kernel: KernelProtocol[Array]
+    def hyp_list(self) -> HyperParameterList[Array]: ...
+
+
+@runtime_checkable
+class GPLossTargetProtocol(Protocol[Array]):
+    """Post-fit interface that GPNegativeLogMarginalLikelihoodLoss requires.
+
+    All methods return non-Optional types and raise RuntimeError if the
+    GP has not been fitted. The loss is only constructed after
+    _fit_internal(), so the raise paths are never hit.
+    """
 
     def bkd(self) -> Backend[Array]: ...
     def hyp_list(self) -> HyperParameterList[Array]: ...
-    def _fit_internal(self, *args: Any, **kwargs: Any) -> None: ...
+    def kernel(self) -> _KernelLikeProtocol[Array]: ...
+    def alpha(self) -> Array: ...
+    def cholesky(self) -> CholeskyFactor[Array]: ...
     def neg_log_marginal_likelihood(self) -> Array: ...
+    def _fit_internal(self, *args: Any, **kwargs: Any) -> None: ...
 
 
 class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
@@ -55,9 +63,8 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
     ----------
     gp : GPLossTargetProtocol[Array]
         Any GP satisfying GPLossTargetProtocol protocol (ExactGaussianProcess,
-        MultiOutputGP, etc.). Must have: bkd(), hyp_list(),
-        _fit_internal(), neg_log_marginal_likelihood(), and internal
-        _alpha, _cholesky, _kernel attributes.
+        MultiOutputGP, etc.). Must have: bkd(), hyp_list(), kernel(),
+        alpha(), cholesky(), _fit_internal(), neg_log_marginal_likelihood().
     fit_args : tuple
         Arguments to pass to gp._fit_internal().
         For single-output: (X_train, y_train)
@@ -101,13 +108,13 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         """Return the hyperparameter list."""
         return self._hyp_list
 
-    def __call__(self, params: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Compute negative log marginal likelihood.
 
         Parameters
         ----------
-        params : Array
+        samples : Array
             Active hyperparameters, shape (nactive,) or (nactive, 1).
 
         Returns
@@ -115,6 +122,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         nll : Array
             Negative log likelihood, shape (1, 1).
         """
+        params = samples
         # Ensure params is 1D
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
@@ -122,8 +130,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         # Update hyperparameters
         self._hyp_list.set_active_values(params)
 
-        # Refit GP with new hyperparameters (use _fit_internal to avoid
-        # recursion, since fit() now calls optimize which calls this loss)
+        # Refit GP with new hyperparameters
         self._gp._fit_internal(*self._fit_args)
 
         # Compute NLL (same formula for both single and multi-output)
@@ -134,7 +141,7 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
 
     def _setup_derivative_methods(self) -> None:
         """Bind jacobian method if kernel supports analytical gradients."""
-        kernel = self._gp._kernel
+        kernel = self._gp.kernel()
         if hasattr(kernel, "jacobian_wrt_params"):
             self.jacobian = self._jacobian_analytical
 
@@ -160,31 +167,25 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
         if len(params.shape) == 2 and params.shape[1] == 1:
             params = params[:, 0]
 
-        # Update and refit (use _fit_internal to avoid recursion)
+        # Update and refit
         self._hyp_list.set_active_values(params)
         self._gp._fit_internal(*self._fit_args)
 
-        # Get alpha and cholesky (common to all GPs)
-        alpha = self._gp._alpha
-        cholesky = self._gp._cholesky
+        # Get alpha and cholesky via public accessors
+        alpha = self._gp.alpha()
+        cholesky = self._gp.cholesky()
 
         grad_values = []
 
         # 1. Kernel hyperparameter gradients (same for all GPs)
-        kernel = self._gp._kernel
+        kernel = self._gp.kernel()
         kernel_hyps = kernel.hyp_list()
 
         if kernel_hyps.nparams() > 0:
-            # Get kernel gradients
-            # For single-output: K_grad = kernel.jacobian_wrt_params(X)
-            # For multi-output: K_grad = kernel.jacobian_wrt_params(X_list)
-            X_data = self._fit_args[0]  # X or X_list
+            X_data = self._fit_args[0]
             K_grad = kernel.jacobian_wrt_params(X_data)
             n_kernel_params = K_grad.shape[2]
 
-            # alpha shape: (nqoi, n_train) for single-output or (n_total, 1) for
-            # multi-output
-            # For single-output, transpose to (n_train, nqoi) for matrix ops
             if alpha.shape[0] < alpha.shape[1]:
                 # Single-output: alpha is (nqoi, n_train), need (n_train, nqoi)
                 alpha_for_kernel = alpha.T
@@ -195,8 +196,6 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
             for i in range(n_kernel_params):
                 dK = K_grad[:, :, i]
 
-                # Gradient formula (same for all GPs):
-                # ∂(-log p)/∂θ = 0.5 * (trace(K^{-1} @ dK) - α^T @ dK @ α)
                 term1 = self._bkd.sum(alpha_for_kernel * (dK @ alpha_for_kernel))
                 Kinv_dK = cholesky.solve(dK)
                 term2 = self._bkd.trace(Kinv_dK)
@@ -205,22 +204,16 @@ class GPNegativeLogMarginalLikelihoodLoss(Generic[Array]):
                 grad_values.append(grad_i)
 
         # 2. Mean function hyperparameter gradients (if mean exists)
-        if hasattr(self._gp, "_mean"):
-            mean_hyps = self._gp._mean.hyp_list()
+        if hasattr(self._gp, "mean"):
+            mean_fn = self._gp.mean()
+            mean_hyps = mean_fn.hyp_list()
 
             if mean_hyps.nparams() > 0:
-                # Get training data
-                # For single-output GP: X_train is first arg
-                # For multi-output GP: X_train_list is first arg
                 X_data = self._fit_args[0]
-
-                # Get mean function Jacobian: shape (nparams, 1, n_train)
-                mean_jac = self._gp._mean.jacobian_wrt_params(X_data)
+                mean_jac = mean_fn.jacobian_wrt_params(X_data)
 
                 for i in range(mean_hyps.nparams()):
-                    # mean_jac[i] has shape (1, n_train), alpha has shape (nqoi,
-                    # n_train)
-                    dm_dtheta = mean_jac[i, :, :]  # Shape: (1, n_train)
+                    dm_dtheta = mean_jac[i, :, :]
                     grad_mean_i = -self._bkd.sum(alpha * dm_dtheta)
                     grad_values.append(grad_mean_i)
 

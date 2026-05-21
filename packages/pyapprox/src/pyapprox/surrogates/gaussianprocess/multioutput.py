@@ -11,9 +11,6 @@ import copy
 import math
 from typing import Generic, List, Optional, Tuple, Union
 
-from pyapprox.optimization.minimize.protocols import (
-    BindableOptimizerProtocol,
-)
 from pyapprox.surrogates.gaussianprocess.multioutput_data import (
     MultiOutputGPTrainingData,
 )
@@ -89,18 +86,17 @@ class MultiOutputGP(Generic[Array]):
     >>> X_train = bkd.array(np.random.randn(1, 10))
     >>> y1 = bkd.reshape(bkd.sin(X_train[0, :]), (1, -1))  # Shape: (1, 10)
     >>> y2 = bkd.reshape(bkd.cos(X_train[0, :]), (1, -1))  # Shape: (1, 10)
-    >>> gp.fit([X_train, X_train], [y1, y2])  # Fits data AND optimizes hyperparameters
+    >>> from pyapprox.surrogates.gaussianprocess.fitters import (
+    ...     MultiOutputGPMaximumLikelihoodFitter,
+    ... )
+    >>> result = MultiOutputGPMaximumLikelihoodFitter(bkd).fit(
+    ...     gp, [X_train, X_train], [y1, y2]
+    ... )
+    >>> gp = result.surrogate()
     >>> # Predict
     >>> X_test = bkd.array(np.random.randn(1, 5))
     >>> mean_list = gp.predict([X_test, X_test])  # Returns list of (1, n_test) arrays
     >>> mean_list, std_list = gp.predict_with_uncertainty([X_test, X_test])
-
-    Hyperparameter optimization is controlled via:
-
-    1. **Default behavior**: Uses ScipyTrustConstrOptimizer with maxiter=1000
-    2. **Custom optimizer**: Call ``set_optimizer(optimizer)`` before ``fit()``
-    3. **Skip optimization**: Set all hyperparameters inactive via
-       ``gp.hyp_list().set_all_inactive()`` before ``fit()``
     """
 
     def __init__(
@@ -124,9 +120,6 @@ class MultiOutputGP(Generic[Array]):
         self._is_fitted = False
         self._data: Optional[MultiOutputGPTrainingData[Array]] = None
 
-        # Optimizer for hyperparameter tuning (None means use default)
-        self._optimizer: Optional[BindableOptimizerProtocol[Array]] = None
-
     def _clone_unfitted(self) -> "MultiOutputGP[Array]":
         """Return a deep copy of this GP with fitted state cleared.
 
@@ -145,23 +138,6 @@ class MultiOutputGP(Generic[Array]):
         if hasattr(clone, "_y_train_stacked"):
             clone._y_train_stacked = None
         return clone
-
-    def _copy_fitted_state_from(self, other: "MultiOutputGP[Array]") -> None:
-        """Copy all fitted state from another GP into self.
-
-        Parameters
-        ----------
-        other : MultiOutputGP[Array]
-            The source GP to copy fitted state from.
-        """
-        self._data = other._data
-        self._is_fitted = other._is_fitted
-        self._cholesky = other._cholesky
-        self._alpha = other._alpha
-        self._X_train_list = other._X_train_list
-        self._y_train_stacked = other._y_train_stacked
-        # Copy optimized hyperparameters
-        self._kernel.hyp_list().set_values(other._kernel.hyp_list().get_values())
 
     def bkd(self) -> Backend[Array]:
         """
@@ -188,47 +164,6 @@ class MultiOutputGP(Generic[Array]):
             The hyperparameter list from the multi-output kernel.
         """
         return self._kernel.hyp_list()
-
-    def set_optimizer(self, optimizer: BindableOptimizerProtocol[Array]) -> None:
-        """Set the optimizer for hyperparameter optimization during fit().
-
-        .. deprecated::
-            Pass optimizer to ``MultiOutputGPMaximumLikelihoodFitter``
-            constructor instead.
-
-        Parameters
-        ----------
-        optimizer : BindableOptimizerProtocol[Array]
-            An optimizer configured with options but NOT bound to an objective.
-            During fit(), the optimizer will be cloned and bound to the
-            negative log marginal likelihood loss function.
-
-        Examples
-        --------
-        >>> from pyapprox.optimization.minimize.scipy.trust_constr import (
-        ...     ScipyTrustConstrOptimizer
-        ... )
-        >>> optimizer = ScipyTrustConstrOptimizer(maxiter=500, gtol=1e-8)
-        >>> gp.set_optimizer(optimizer)
-        >>> gp.fit(X_train_list, y_train_list)
-        """
-        if not isinstance(optimizer, BindableOptimizerProtocol):
-            raise TypeError(
-                f"optimizer must satisfy BindableOptimizerProtocol, "
-                f"got {type(optimizer).__name__}"
-            )
-        self._optimizer = optimizer
-
-    def optimizer(self) -> Optional[BindableOptimizerProtocol[Array]]:
-        """Return the current optimizer (None means use default).
-
-        Returns
-        -------
-        Optional[BindableOptimizerProtocol[Array]]
-            The configured optimizer, or None if using the default
-            ScipyTrustConstrOptimizer.
-        """
-        return self._optimizer
 
     def is_fitted(self) -> bool:
         """
@@ -294,72 +229,6 @@ class MultiOutputGP(Generic[Array]):
         if self._data is None:
             raise RuntimeError("GP must be fitted before accessing data.")
         return self._data
-
-    def fit(
-        self, X_train_list: List[Array], y_train: Union[List[Array], Array]
-    ) -> None:
-        """Fit GP to data and optimize active hyperparameters.
-
-        This is a convenience method that delegates to
-        ``MultiOutputGPMaximumLikelihoodFitter``. For cleaner separation of
-        concerns, prefer using the fitter directly::
-
-            from pyapprox.surrogates.gaussianprocess.fitters import (
-                MultiOutputGPMaximumLikelihoodFitter,
-            )
-            fitter = MultiOutputGPMaximumLikelihoodFitter(bkd, optimizer=...)
-            result = fitter.fit(gp, X_train_list, y_train)
-            fitted_gp = result.surrogate()
-
-        .. deprecated::
-            Use ``MultiOutputGPMaximumLikelihoodFitter`` or
-            ``MultiOutputGPFixedHyperparameterFitter`` directly.
-
-        Parameters
-        ----------
-        X_train_list : List[Array]
-            Training inputs for each output. Each array has shape (nvars, n_i).
-            For most cases, all outputs use same X: X_train_list = [X] * noutputs.
-        y_train : Union[List[Array], Array]
-            Training outputs. Can be provided in two formats:
-            - List format (preferred): List of arrays, each with shape (1, n_i).
-              This follows the standard convention where values are (nqoi, n_samples).
-            - Stacked format (legacy): Single array with shape (sum(n_i), 1).
-              Format: [y_0; y_1; ...; y_{M-1}] where y_i are outputs.
-
-        Raises
-        ------
-        ValueError
-            If lengths don't match or shapes are invalid.
-        RuntimeError
-            If Cholesky factorization fails (matrix not positive definite).
-
-        Examples
-        --------
-        >>> # Standard fit with optimization
-        >>> gp.fit(X_train_list, y_train_list)
-
-        >>> # Custom optimizer
-        >>> from pyapprox.optimization.minimize.scipy.trust_constr import (
-        ...     ScipyTrustConstrOptimizer
-        ... )
-        >>> gp.set_optimizer(ScipyTrustConstrOptimizer(maxiter=500))
-        >>> gp.fit(X_train_list, y_train_list)
-
-        >>> # Skip optimization (fixed hyperparameters)
-        >>> gp.hyp_list().set_all_inactive()
-        >>> gp.fit(X_train_list, y_train_list)
-        """
-        from pyapprox.surrogates.gaussianprocess.fitters.multioutput_fitter import (
-            MultiOutputGPMaximumLikelihoodFitter,
-        )
-
-        fitter = MultiOutputGPMaximumLikelihoodFitter(
-            bkd=self._bkd,
-            optimizer=self._optimizer,
-        )
-        result = fitter.fit(self, X_train_list, y_train)
-        self._copy_fitted_state_from(result.surrogate())
 
     def _fit_internal(
         self, X_train_list: List[Array], y_train: Union[List[Array], Array]

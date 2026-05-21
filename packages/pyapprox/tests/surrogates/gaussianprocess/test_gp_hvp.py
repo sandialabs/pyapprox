@@ -14,6 +14,9 @@ from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
 
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.kernels import (
     Matern32Kernel,
     Matern52Kernel,
@@ -51,7 +54,10 @@ class TestGPHVP:
         )  # Shape: (1, n_train)
 
         # Fit GP
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         return gp, kernel, nvars
 
@@ -279,7 +285,10 @@ class TestGPHVPCompositionKernels:
         # Create and fit GP (with fixed hyperparameters to skip optimization)
         gp = ExactGaussianProcess(kernel=kernel, nvars=nvars, bkd=bkd)
         gp.hyp_list().set_all_inactive()  # Skip optimization for HVP test
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Test point and direction
         x_test = bkd.array(np.random.randn(nvars, 1))

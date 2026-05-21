@@ -10,7 +10,7 @@ the Cutajar 2019 two-stage MF-DGP initialization pattern.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Generic, Hashable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Generic, Hashable, List, Optional, Tuple, cast
 
 if TYPE_CHECKING:
     from pyapprox.surrogates.gaussianprocess.deep.layer import DGPLayer
@@ -25,18 +25,61 @@ from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
 )
 from pyapprox.surrogates.gaussianprocess.deep.single_layer_loss import (
     SingleLayerELBOLoss,
-    TorchSingleLayerELBOLoss,
 )
 from pyapprox.surrogates.gaussianprocess.deep_gp_loss import (
     DGPELBOLoss,
-    TorchDGPELBOLoss,
 )
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPOptimizedFitResult,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.hyperparameter import HyperParameterList
+
+
+def _is_torch(bkd: Backend[Array]) -> bool:
+    from pyapprox.util.backends.torch import TorchBkd
+
+    return isinstance(bkd, TorchBkd)
+
+
+def _bind_autograd_jacobian(
+    loss: DGPELBOLoss[Array],
+    bkd: Backend[Array],
+) -> None:
+    """Dynamically bind an autograd-based jacobian to a loss instance."""
+    _bkd_jacobian = getattr(bkd, "jacobian")
+
+    def _jacobian(params: Array) -> Array:
+        if len(params.shape) == 2 and params.shape[1] == 1:
+            params = params[:, 0]
+
+        def loss_scalar(p: Array) -> Array:
+            return loss(p)[0, 0]
+
+        jac = _bkd_jacobian(loss_scalar, params)
+        return bkd.reshape(jac, (1, len(params)))
+
+    loss.jacobian = _jacobian  # type: ignore[attr-defined]
+
+
+def _bind_autograd_jacobian_single(
+    loss: SingleLayerELBOLoss[Array],
+    bkd: Backend[Array],
+) -> None:
+    """Dynamically bind an autograd-based jacobian to a single-layer loss."""
+    _bkd_jacobian = getattr(bkd, "jacobian")
+
+    def _jacobian(params: Array) -> Array:
+        if len(params.shape) == 2 and params.shape[1] == 1:
+            params = params[:, 0]
+
+        def loss_scalar(p: Array) -> Array:
+            return loss(p)[0, 0]
+
+        jac = _bkd_jacobian(loss_scalar, params)
+        return bkd.reshape(jac, (1, len(params)))
+
+    loss.jacobian = _jacobian  # type: ignore[attr-defined]
 
 
 def _init_variational_mean(
@@ -135,7 +178,18 @@ class DGPMaximumLikelihoodFitter(Generic[Array]):
         -------
         GPOptimizedFitResult
             Result with fitted DGP and optimization metadata.
+
+        Raises
+        ------
+        TypeError
+            If the backend is not TorchBkd (autograd gradients required).
         """
+        if not _is_torch(self._bkd):
+            raise TypeError(
+                "DGP fitting requires TorchBkd for autograd gradients, "
+                f"got {type(self._bkd).__name__}"
+            )
+
         clone = dgp._clone_unfitted()
 
         initial_hyps = self._bkd.array(
@@ -155,13 +209,12 @@ class DGPMaximumLikelihoodFitter(Generic[Array]):
                 optimization_result=None,
             )
 
-        if isinstance(self._bkd, TorchBkd):
-            loss = TorchDGPELBOLoss(clone, data, self._n_propagation)
-        else:
-            loss = DGPELBOLoss(clone, data, self._n_propagation)
+        loss = DGPELBOLoss(clone, data, self._n_propagation)
+        _bind_autograd_jacobian(loss, self._bkd)
 
         bounds = clone.hyp_list().get_active_bounds()
 
+        optimizer: BindableOptimizerProtocol[Array]
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
@@ -169,7 +222,10 @@ class DGPMaximumLikelihoodFitter(Generic[Array]):
                 AdamOptimizer,
             )
 
-            optimizer = AdamOptimizer(lr=1e-2, maxiter=5000, verbosity=0)
+            optimizer = cast(
+                BindableOptimizerProtocol[Array],
+                AdamOptimizer(lr=1e-2, maxiter=5000, verbosity=0),
+            )
 
         optimizer.bind(loss, bounds)
 
@@ -314,7 +370,18 @@ class MFDGPSequentialFitter(Generic[Array]):
         GPOptimizedFitResult
             Result with fitted DGP. neg_log_marginal_likelihood is the
             sum of per-node single-layer ELBOs (what was optimized).
+
+        Raises
+        ------
+        TypeError
+            If the backend is not TorchBkd (autograd gradients required).
         """
+        if not _is_torch(self._bkd):
+            raise TypeError(
+                "DGP fitting requires TorchBkd for autograd gradients, "
+                f"got {type(self._bkd).__name__}"
+            )
+
         bkd = self._bkd
         clone = dgp._clone_unfitted()
 
@@ -356,19 +423,19 @@ class MFDGPSequentialFitter(Generic[Array]):
             if layer.hyp_list().nactive_params() == 0:
                 continue
 
-            if isinstance(bkd, TorchBkd):
-                loss = TorchSingleLayerELBOLoss(layer, h, y_node)
-            else:
-                loss = SingleLayerELBOLoss(layer, h, y_node)
+            loss = SingleLayerELBOLoss(layer, h, y_node)
+            _bind_autograd_jacobian_single(loss, bkd)
 
+            optimizer: BindableOptimizerProtocol[Array]
             if self._optimizer is not None:
                 optimizer = self._optimizer.copy()
             else:
                 from pyapprox.optimization.minimize.adam.adam_optimizer import (
                     AdamOptimizer,
                 )
-                optimizer = AdamOptimizer(
-                    lr=1e-2, maxiter=5000, verbosity=0,
+                optimizer = cast(
+                    BindableOptimizerProtocol[Array],
+                    AdamOptimizer(lr=1e-2, maxiter=5000, verbosity=0),
                 )
 
             bounds = layer.hyp_list().get_active_bounds()

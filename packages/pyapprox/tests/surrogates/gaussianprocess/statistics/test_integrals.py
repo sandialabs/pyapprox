@@ -7,9 +7,6 @@ analytical comparisons, and error handling.
 
 import numpy as np
 import pytest
-
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ConstantMean,
     ZeroMean,
@@ -41,6 +38,12 @@ from pyapprox.surrogates.kernels.matern import (
 )
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
+)
+
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
 )
 
 
@@ -405,7 +408,10 @@ class TestConditionalMethods:
         X_train = bkd.array(np.random.rand(2, self._n_train) * 2 - 1)
         y_train = bkd.array(np.random.rand(self._n_train).reshape(1, -1))
         self._gp.hyp_list().set_all_inactive()
-        self._gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            self._gp, X_train, y_train
+        )
+        self._gp = result.surrogate()
 
         # Create quadrature bases using sparse grid infrastructure
         marginals = [
