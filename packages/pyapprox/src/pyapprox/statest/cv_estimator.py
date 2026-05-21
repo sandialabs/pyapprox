@@ -17,12 +17,15 @@ from typing import (
 
 import numpy as np
 
-from pyapprox.statest.mc_estimator import MCEstimator
-from pyapprox.statest.statistics import MultiOutputStatistic
+from pyapprox.statest._cv_math import optimal_cv_weights
+from pyapprox.statest.statistics import (
+    MultiOutputStatistic,
+    log_determinant_variance,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class CVEstimator(MCEstimator[Array], Generic[Array]):
+class CVEstimator(Generic[Array]):
     """Control variate estimator template (immutable after construction)."""
 
     def __init__(
@@ -31,7 +34,11 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         costs: Union[List[Any], Array],
         lowfi_stats: Optional[Array] = None,
     ):
-        super().__init__(stat, costs)
+        self._bkd = stat._bkd
+        self._stat, self._costs = self._check_inputs(stat, costs)
+        self._optimization_criteria: Callable[[Array], Array] = (
+            lambda var: log_determinant_variance(self._bkd, var)
+        )
         if lowfi_stats is not None:
             if lowfi_stats.shape != (self._nmodels - 1, self._stat.nstats()):
                 raise ValueError(
@@ -43,6 +50,22 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                 )
         self._lowfi_stats = lowfi_stats
         self._best_model_indices = self._bkd.arange(len(costs), dtype=int)
+        self._npartitions = 1
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def _check_inputs(
+        self, stat: MultiOutputStatistic[Array], costs: Union[List[Any], Array]
+    ) -> Tuple[MultiOutputStatistic[Array], Array]:
+        if not isinstance(stat, MultiOutputStatistic):
+            raise ValueError("stat must be an instance of MultiOutputStatistic")
+        costs = self._bkd.atleast_1d(self._bkd.asarray(costs))
+        if costs.ndim != 1:
+            raise ValueError("costs is not a 1D iterable")
+        self._nmodels = stat._nmodels
+        return stat, costs
 
     def _get_discrepancy_covariances(
         self, npartition_samples: Array
@@ -68,24 +91,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         return self._bkd.sum(npartition_samples[0] * self._costs)
 
     def _optimal_weights(self, CF: Array, cf: Array) -> Array:
-        # print(self._bkd.cond(CF), "ACV COND")
-        # return -self._bkd.multidot((self._bkd.pinv(CF), cf.T)).T
-        return -self._bkd.solve(CF, cf.T).T
-
-    def _covariance_non_optimal_weights(
-        self, hf_est_covar: Array, weights: Array, CF: Array, cf: Array
-    ) -> Array:
-        # The expression below, e.g. Equation 8
-        # from Dixon 2024, can be used for non optimal control variate weights
-        # Warning: Even though this function is general,
-        # it should only ever be used for MLMC, because
-        # expression for optimal weights is more efficient
-        return (
-            hf_est_covar
-            + self._bkd.multidot([weights, CF, weights.T])
-            + self._bkd.multidot([cf, weights.T])
-            + self._bkd.multidot([weights, cf.T])
-        )
+        return optimal_cv_weights(self._bkd, CF, cf)
 
     def _estimate(
         self,

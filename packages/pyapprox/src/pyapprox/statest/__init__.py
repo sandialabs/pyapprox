@@ -41,10 +41,6 @@ from pyapprox.statest.plotting import (
     plot_estimator_variance_reductions,
     plot_recursion_dag,
 )
-from pyapprox.statest.protocols import (
-    EstimatorProtocol,
-    StatisticProtocol,
-)
 from pyapprox.statest.search import (
     EstimatorFamily,
     UnifiedSearchResult,
@@ -70,8 +66,6 @@ from pyapprox.statest.strategies import (
 )
 
 __all__ = [
-    "StatisticProtocol",
-    "EstimatorProtocol",
     "MultiOutputStatistic",
     "MultiOutputMean",
     "MultiOutputVariance",

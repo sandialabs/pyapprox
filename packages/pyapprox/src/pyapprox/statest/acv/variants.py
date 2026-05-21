@@ -10,6 +10,7 @@ from typing import Callable, Generic, List, Tuple, Union
 
 import numpy as np
 
+from pyapprox.statest._cv_math import covariance_with_weights
 from pyapprox.statest.acv.base import ACVEstimator
 from pyapprox.statest.acv.optimization import (
     _get_allocation_matrix_acvis,
@@ -28,9 +29,10 @@ def _covariance_to_correlation(cov: Array, bkd: Backend[Array]) -> Array:
 
 
 def _variance_reduction(
-    get_rsquared: "Callable[[Array, Array], Array]",
+    get_rsquared: "Callable[[Array, Array, Backend[Array]], Array]",
     cov: Array,
     nsample_ratios: Array,
+    bkd: Backend[Array],
 ) -> Array:
     r"""
     Compute the variance reduction:
@@ -39,20 +41,23 @@ def _variance_reduction(
 
     Parameters
     ----------
-    cov : np.ndarray (nmodels,nmodels)
+    cov : Array (nmodels, nmodels)
         The covariance C between each of the models. The highest fidelity
         model is the first model, i.e its variance is cov[0,0]
 
-    nsample_ratios : np.ndarray (nmodels-1)
+    nsample_ratios : Array (nmodels-1)
         The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
+    bkd : Backend
+        Array backend.
+
     Returns
     -------
-    gamma : float
+    gamma : Array
         The variance reduction
     """
-    return 1 - get_rsquared(cov, nsample_ratios)
+    return 1 - get_rsquared(cov, nsample_ratios, bkd)
 
 
 def _check_mfmc_model_costs_and_correlations(costs: Array, corr: Array) -> bool:
@@ -75,24 +80,29 @@ def _check_mfmc_model_costs_and_correlations(costs: Array, corr: Array) -> bool:
     return True
 
 
-def _get_rsquared_mfmc(cov: Array, nsample_ratios: Array) -> Array:
+def _get_rsquared_mfmc(
+    cov: Array, nsample_ratios: Array, bkd: Backend[Array]
+) -> Array:
     r"""
     Compute r^2 used to compute the variance reduction  of
     Multifidelity Monte Carlo (MFMC)
 
     Parameters
     ----------
-    cov : np.ndarray (nmodels,nmodels)
+    cov : Array (nmodels, nmodels)
         The covariance C between each of the models. The highest fidelity
         model is the first model, i.e its variance is cov[0,0]
 
-    nsample_ratios : np.ndarray (nmodels-1)
+    nsample_ratios : Array (nmodels-1)
         The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i = r_i*nhf_samples, i=1,...,nmodels-1
 
+    bkd : Backend
+        Array backend.
+
     Returns
     -------
-    rsquared : float
+    rsquared : Array
         The value r^2
     """
     nmodels = cov.shape[0]
@@ -157,23 +167,23 @@ def _allocate_samples_mfmc(
         msg += "high-fidelity model"
         raise RuntimeError(msg)
 
-    r = []
+    r_list: List[Array] = []
     for ii in range(nmodels - 1):
         # Step 3 in Algorithm 2 in Peherstorfer et al 2016
         num = costs[0] * (corr[0, ii] ** 2 - corr[0, ii + 1] ** 2)
         den = costs[ii] * (1 - corr[0, 1] ** 2)
-        r.append(bkd.sqrt(num / den))
+        r_list.append(bkd.sqrt(num / den))
 
     num = costs[0] * corr[0, -1] ** 2
     den = costs[-1] * (1 - corr[0, 1] ** 2)
-    r.append(bkd.sqrt(num / den))
-    r = bkd.array(r)
+    r_list.append(bkd.sqrt(num / den))
+    r = bkd.array(r_list)
 
     # Step 4 in Algorithm 2 in Peherstorfer et al 2016
     nhf_samples = target_cost / bkd.dot(costs, r)
     nsample_ratios = r[1:]
 
-    gamma = _variance_reduction(_get_rsquared_mfmc, cov, nsample_ratios)
+    gamma = _variance_reduction(_get_rsquared_mfmc, cov, nsample_ratios, bkd)
     log_variance = bkd.log(gamma) + bkd.log(cov[0, 0]) - bkd.log(nhf_samples)
     return bkd.atleast_1d(nsample_ratios), log_variance
 
@@ -186,7 +196,9 @@ def _get_sample_allocation_matrix_mfmc(nmodels: int, bkd: Backend[Array]) -> Arr
     return mat
 
 
-def _get_rsquared_mlmc(cov: Array, nsample_ratios: Array) -> Array:
+def _get_rsquared_mlmc(
+    cov: Array, nsample_ratios: Array, bkd: Backend[Array]
+) -> Array:
     r"""
     Compute r^2 used to compute the variance reduction of
     Multilevel Monte Carlo (MLMC)
@@ -195,25 +207,28 @@ def _get_rsquared_mlmc(cov: Array, nsample_ratios: Array) -> Array:
 
     Parameters
     ----------
-    cov : np.ndarray (nmodels,nmodels)
+    cov : Array (nmodels, nmodels)
         The covariance C between each of the models. The highest fidelity
         model is the first model, i.e its variance is cov[0,0]
 
-    nsample_ratios : np.ndarray (nmodels-1)
+    nsample_ratios : Array (nmodels-1)
         The sample ratios r used to specify the number of samples of the
         lower fidelity models, e.g. N_i = r_i*nhf_samples,
         i=1,...,nmodels-1.
         The values r_i correspond to eta_i in Equation 2.24
 
+    bkd : Backend
+        Array backend.
+
     Returns
     -------
-    gamma : float
+    gamma : Array
         The variance reduction
     """
     nmodels = cov.shape[0]
     assert len(nsample_ratios) == nmodels - 1
-    gamma = 0.0
-    rhat = np.ones((nmodels), dtype=float)
+    gamma = bkd.zeros(())
+    rhat = bkd.ones((nmodels,))
     for ii in range(1, nmodels):
         rhat[ii] = nsample_ratios[ii - 1] - rhat[ii - 1]
 
@@ -310,7 +325,7 @@ def _allocate_samples_mlmc(
         bkd.dot(cost_deltas, nsamples_per_delta),
     )
 
-    gamma = _variance_reduction(_get_rsquared_mlmc, cov, nsample_ratios)
+    gamma = _variance_reduction(_get_rsquared_mlmc, cov, nsample_ratios, bkd)
     log_variance = bkd.log(gamma) + bkd.log(cov[0, 0]) - bkd.log(nhf_samples)
     # print(log_variance)
     if bkd.isnan(log_variance):
@@ -392,6 +407,8 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
     ) -> Tuple[Array, Array]:
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
+        if self._stat._cov is None:
+            raise RuntimeError("must call set_pilot_quantities first")
         if not _check_mfmc_model_costs_and_correlations(
             self._costs,
             _covariance_to_correlation(self._stat._cov, self._bkd),
@@ -479,7 +496,8 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
         # cannot use formulation of variance that uses optimal weights
         # must use the more general expression below, e.g. Equation 8
         # from Dixon 2024.
-        return self._covariance_non_optimal_weights(
+        return covariance_with_weights(
+            self._bkd,
             self._stat.high_fidelity_estimator_covariance(
                 npartition_samples[0]
             ),
@@ -491,6 +509,8 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
     def _allocate_samples(
         self, target_cost: float,
     ) -> Tuple[Array, Array]:
+        if self._stat._cov is None:
+            raise RuntimeError("must call set_pilot_quantities first")
         nsample_ratios, val = _allocate_samples_mlmc(
             self._stat._cov[
                 self._opt_qoi :: self._stat._nqoi,

@@ -29,6 +29,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         self._device = (
             torch.device(device) if device is not None else torch.device("cpu")
         )
+        torch.set_default_dtype(torch.float64)
         self._dtype = dtype if dtype is not None else torch.get_default_dtype()
 
     def synchronize(self) -> None:

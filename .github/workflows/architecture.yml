@@ -34,44 +34,9 @@ jobs:
           pip install -e "packages/pyapprox[lint]" --quiet
           pip install import-linter --quiet
 
-      - name: Run import-linter (ratchet mode)
+      - name: Run import-linter
         run: |
-          lint-imports \
-            --config .importlinter \
-            2>&1 | tee import_linter_results.txt || true
-
-          echo "=== Contract Summary ==="
-          grep -E "^(KEPT|BROKEN)" import_linter_results.txt || true
-
-          # Count cycle dependency lines (intra-package cycles)
-          VIOLATIONS=$(grep -c "^- \." import_linter_results.txt || echo "0")
-          echo "Current violations: $VIOLATIONS"
-
-          # Read baseline from committed file
-          BASELINE=$(cat scripts/import_linter_baseline_count.txt 2>/dev/null || echo "0")
-          echo "Baseline violations: $BASELINE"
-
-          # Fail if violations INCREASED (ratchet — never go backward)
-          if [ "$VIOLATIONS" -gt "$BASELINE" ]; then
-            echo ""
-            echo "Architecture violations increased: $BASELINE -> $VIOLATIONS"
-            echo "New violations were introduced. Fix them or update the baseline"
-            echo "with explicit approval."
-            exit 1
-          fi
-
-          # Fail if any non-acyclic contract is broken
-          if grep -q "BROKEN" import_linter_results.txt; then
-            BROKEN=$(grep "BROKEN" import_linter_results.txt | grep -v "circular dependencies" || true)
-            if [ -n "$BROKEN" ]; then
-              echo ""
-              echo "Non-acyclic contracts broken:"
-              echo "$BROKEN"
-              exit 1
-            fi
-          fi
-
-          echo "Architecture violations: $VIOLATIONS (baseline: $BASELINE)"
+          lint-imports --config .importlinter
 
       - name: Upload results artifact
         uses: actions/upload-artifact@v4
