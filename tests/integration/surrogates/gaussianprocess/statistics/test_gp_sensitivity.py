@@ -10,6 +10,10 @@ import numpy as np
 
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPFixedHyperparameterFitter,
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.statistics import (
     GaussianProcessStatistics,
     SeparableKernelIntegralCalculator,
@@ -17,7 +21,7 @@ from pyapprox.surrogates.gaussianprocess.statistics import (
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
 )
-from pyapprox.surrogates.kernels.composition import (
+from pyapprox.surrogates.kernels.base import (
     SeparableProductKernel,
 )
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
@@ -68,7 +72,9 @@ class TestGaussianProcessSensitivity:
             (1, -1)
         )
 
-        gp.fit(X_train, y_train)
+        gp = GPFixedHyperparameterFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         # Marginal distributions
         marginals = [
@@ -250,7 +256,9 @@ class TestKnownFunctions:
 
         # Additive function: f = x_1 + x_2, shape: (nqoi, n_train)
         y_train = bkd.reshape(X_train[0, :] + X_train[1, :], (1, -1))
-        gp.fit(X_train, y_train)
+        gp = GPFixedHyperparameterFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         # Create quadrature bases
         marginals = [
@@ -321,7 +329,9 @@ class TestKnownFunctions:
         y_train = bkd.reshape(
             bkd.sin(math.pi * X_train[0, :]), (1, -1)
         )
-        gp.fit(X_train, y_train)
+        gp = GPFixedHyperparameterFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         # Create quadrature bases
         marginals = [
@@ -383,7 +393,9 @@ class TestKnownFunctions:
 
         # Multiplicative function: f = x_1 * x_2, shape: (nqoi, n_train)
         y_train = bkd.reshape(X_train[0, :] * X_train[1, :], (1, -1))
-        gp.fit(X_train, y_train)
+        gp = GPFixedHyperparameterFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         # Create quadrature bases
         marginals = [
@@ -552,7 +564,9 @@ class TestIshigamiBenchmark:
 
         # Evaluate Ishigami function
         y_train = ishigami(X_train)  # Shape: (nqoi, n_train)
-        gp.fit(X_train, y_train)
+        gp = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         # Generate test points
         n_test = 100
@@ -645,7 +659,9 @@ class TestConditionalPAndU:
         n_train = 10
         X_train = bkd.array(np.random.rand(2, n_train) * 2 - 1)
         y_train = bkd.array(np.random.rand(n_train).reshape(1, -1))
-        gp.fit(X_train, y_train)
+        gp = GPFixedHyperparameterFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         marginals = [
             UniformMarginal(-1.0, 1.0, bkd),
@@ -742,7 +758,9 @@ class TestSobolIndicesOfPosteriorMean:
             (1, -1),
         )
 
-        gp.fit(X_train, y_train)
+        gp = GPFixedHyperparameterFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         marginals = [
             UniformMarginal(-1.0, 1.0, bkd),
@@ -846,7 +864,9 @@ class TestSobolIndicesOfPosteriorMean:
             * bkd.cos(math.pi * X_train[1, :]),
             (1, -1),
         )
-        gp.fit(X_train, y_train)
+        gp = GPFixedHyperparameterFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         marginals = [
             UniformMarginal(-1.0, 1.0, bkd),
@@ -888,7 +908,9 @@ class TestSobolIndicesOfPosteriorMean:
         X1, X2 = bkd.meshgrid(x1, x2)
         X_train = bkd.vstack([bkd.flatten(X1), bkd.flatten(X2)])
         y_train = bkd.reshape(X_train[0, :] + X_train[1, :], (1, -1))
-        gp.fit(X_train, y_train)
+        gp = GPFixedHyperparameterFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         marginals = [
             UniformMarginal(-1.0, 1.0, bkd),
@@ -943,7 +965,9 @@ class TestSobolIndicesOfPosteriorMean:
         n_train = 700
         X_train, _ = sampler.sample(n_train)
         y_train = ishigami(X_train)
-        gp.fit(X_train, y_train)
+        gp = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        ).surrogate()
 
         bases = _create_quadrature_bases(marginals, 40, bkd)
         calc = SeparableKernelIntegralCalculator(
