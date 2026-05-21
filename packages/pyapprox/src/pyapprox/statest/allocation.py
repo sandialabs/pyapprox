@@ -123,7 +123,8 @@ class CVAllocator(Generic[Array]):
         nsamples_float = target_cost / bkd.sum(template._costs)
         nsamples = bkd.to_int(bkd.floor(nsamples_float))
 
-        if isinstance(template._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
+        variance_stats = (MultiOutputVariance, MultiOutputMeanAndVariance)
+        if isinstance(template._stat, variance_stats):
             min_nhf_samples = 2
         else:
             min_nhf_samples = 1
