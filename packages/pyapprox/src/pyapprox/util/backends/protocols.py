@@ -168,6 +168,9 @@ class Backend(Protocol, Generic[Array]):
     def int64_dtype() -> Any: ...
 
     @staticmethod
+    def is_integer_dtype(array: Array) -> bool: ...
+
+    @staticmethod
     def stack(
         arrays: Union[List[Array], Tuple[Array, ...]], axis: int = 0
     ) -> Array: ...

@@ -145,6 +145,7 @@ from pyapprox_benchmarks.statest import (
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.acv import MFMCEstimator
 from pyapprox.statest.acv.allocation import ACVAllocationResult
+from pyapprox.statest.acv.base import FittedACVEstimator
 
 bkd = NumpyBkd()
 benchmark = TunableEnsembleBenchmark(bkd, theta1=np.pi / 2 * 0.95)
@@ -195,14 +196,14 @@ for r in r_values:
         actual_cost=actual_cost,
         success=True,
     )
-    est.set_allocation(alloc)
+    fitted = FittedACVEstimator(est, alloc)
 
     acv_ests = np.empty(n_trials)
     for i in range(n_trials):
         np.random.seed(i)
-        s_hf, s_lf = est.generate_samples_per_model(variable.rvs)
+        s_hf, s_lf = fitted.generate_samples_per_model(variable.rvs)
         acv_ests[i] = bkd.to_numpy(
-            est([hf_model(s_hf), lf_model(s_lf)])
+            fitted([hf_model(s_hf), lf_model(s_lf)])
         )[0]
     empirical_reductions.append(np.var(acv_ests) / mc_var)
 
@@ -409,6 +410,8 @@ from pyapprox.statest import (
 from pyapprox.statest.acv import (
     ACVAllocator, default_allocator_factory,
 )
+from pyapprox.statest.acv.base import FittedACVEstimator
+from pyapprox.statest.allocation import MCAllocator
 from pyapprox.optimization.minimize.scipy.slsqp import (
     ScipySLSQPOptimizer,
 )
@@ -429,18 +432,19 @@ ri_zeros = bkd.zeros(M, dtype=int)
 
 optimizer = ScipySLSQPOptimizer(maxiter=200)
 
-estimators = {
+templates = {
     "MLMC":  MLMCEstimator(stat, costs),
     "MFMC":  MFMCEstimator(stat, costs),
     "ACVMF": GMFEstimator(stat, costs, recursion_index=ri_zeros),
     "ACVIS": GISEstimator(stat, costs, recursion_index=ri_zeros),
 }
-for name, est in estimators.items():
+estimators = {}
+for name, est in templates.items():
     if name in ("MLMC", "MFMC"):
         allocator = default_allocator_factory(est)
     else:
         allocator = ACVAllocator(est, optimizer=optimizer)
-    est.set_allocation(allocator.allocate(target_cost))
+    estimators[name] = FittedACVEstimator(est, allocator.allocate(target_cost))
 
 from pyapprox_tutorials.figures._cv_acv import plot_allocation_matrices
 
@@ -454,7 +458,7 @@ plt.show()
 
 ## Numerical Verification
 
-We verify @eq-acv-min-cov by comparing predicted variance from `optimized_covariance()`
+We verify @eq-acv-min-cov by comparing predicted variance from `covariance()`
 against empirical variance from independent trials.
 
 ```{python}
@@ -477,18 +481,18 @@ def rvs_int(n):
 for P_t in target_costs_sweep:
     # --- Predicted variance ---
     mc_e = MCEstimator(stat, costs)
-    mc_e.allocate_samples(float(P_t))
-    mc_vars_pred.append(float(mc_e.optimized_covariance()[0, 0]))
+    mc_fitted = MCAllocator(mc_e).allocate(float(P_t))
+    mc_vars_pred.append(float(mc_fitted.covariance()[0, 0]))
 
     mf_e = MFMCEstimator(stat, costs)
     mf_allocator = default_allocator_factory(mf_e)
-    mf_e.set_allocation(mf_allocator.allocate(float(P_t)))
-    mfmc_vars_pred.append(float(mf_e.optimized_covariance()[0, 0]))
+    mf_fitted = FittedACVEstimator(mf_e, mf_allocator.allocate(float(P_t)))
+    mfmc_vars_pred.append(float(mf_fitted.covariance()[0, 0]))
 
     acv_e = GMFEstimator(stat, costs, recursion_index=ri_zeros)
     acv_allocator = ACVAllocator(acv_e, optimizer=opt_verify)
-    acv_e.set_allocation(acv_allocator.allocate(float(P_t)))
-    acvmf_vars_pred.append(float(acv_e.optimized_covariance()[0, 0]))
+    acv_fitted = FittedACVEstimator(acv_e, acv_allocator.allocate(float(P_t)))
+    acvmf_vars_pred.append(float(acv_fitted.covariance()[0, 0]))
 
     # --- Empirical variance from trials ---
     mc_ests_t = np.empty(n_trials)
@@ -497,16 +501,16 @@ for P_t in target_costs_sweep:
     for i in range(n_trials):
         np.random.seed(i + int(P_t) * 100)
 
-        [s_mc] = mc_e.generate_samples_per_model(rvs_int)
-        mc_ests_t[i] = float(mc_e(models[0](s_mc)))
+        [s_mc] = mc_fitted.generate_samples_per_model(rvs_int)
+        mc_ests_t[i] = float(mc_fitted(models[0](s_mc)))
 
-        s_mf = mf_e.generate_samples_per_model(rvs_int)
+        s_mf = mf_fitted.generate_samples_per_model(rvs_int)
         v_mf = [models[a](s_mf[a]) for a in range(n_models)]
-        mfmc_ests_t[i] = float(mf_e(v_mf))
+        mfmc_ests_t[i] = float(mf_fitted(v_mf))
 
-        s_acv = acv_e.generate_samples_per_model(rvs_int)
+        s_acv = acv_fitted.generate_samples_per_model(rvs_int)
         v_acv = [models[a](s_acv[a]) for a in range(n_models)]
-        acvmf_ests_t[i] = float(acv_e(v_acv))
+        acvmf_ests_t[i] = float(acv_fitted(v_acv))
 
     mc_vars_emp.append(mc_ests_t.var())
     mfmc_vars_emp.append(mfmc_ests_t.var())
@@ -550,7 +554,7 @@ a lower floor.
 ## Appendix A: Covariance Formulas {#sec-covariance-formulas}
 
 This appendix derives the explicit formulas for $\Sigma_{\Delta\Delta}$ and
-$\Sigma_{\Delta Q_0}$ used internally by `optimized_covariance` and `ACVAllocator`.
+$\Sigma_{\Delta Q_0}$ used internally by `covariance` and `ACVAllocator`.
 
 ### Notation
 

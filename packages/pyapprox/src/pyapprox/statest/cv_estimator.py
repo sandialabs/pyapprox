@@ -1,12 +1,11 @@
 """Control variate estimator for multi-fidelity estimation.
 
-This module provides the CVEstimator class for computing statistics
-using control variate sampling with known low-fidelity statistics.
+This module provides the CVEstimator template class and FittedCVEstimator
+which holds a frozen allocation with precomputed weights.
 """
 
 import copy
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Generic,
@@ -19,28 +18,20 @@ from typing import (
 import numpy as np
 
 from pyapprox.statest.mc_estimator import MCEstimator
-from pyapprox.statest.statistics import (
-    MultiOutputMeanAndVariance,
-    MultiOutputStatistic,
-    MultiOutputVariance,
-)
-from pyapprox.util.backends.protocols import Array
-
-if TYPE_CHECKING:
-    from pyapprox.statest.allocation import CVAllocationResult
+from pyapprox.statest.statistics import MultiOutputStatistic
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class CVEstimator(MCEstimator[Array], Generic[Array]):
-    """Control variate estimator with known low-fidelity statistics."""
+    """Control variate estimator template (immutable after construction)."""
 
     def __init__(
         self,
         stat: MultiOutputStatistic[Array],
         costs: Union[List[Any], Array],
         lowfi_stats: Optional[Array] = None,
-        opt_criteria: Optional[Callable[..., Any]] = None,
     ):
-        super().__init__(stat, costs, opt_criteria=opt_criteria)
+        super().__init__(stat, costs)
         if lowfi_stats is not None:
             if lowfi_stats.shape != (self._nmodels - 1, self._stat.nstats()):
                 raise ValueError(
@@ -51,107 +42,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                     )
                 )
         self._lowfi_stats = lowfi_stats
-
-        # Source of truth (define the allocation state)
-        self._allocation: Optional["CVAllocationResult[Array]"] = None
-        self._nsamples_per_model: Optional[Array] = None
-        self._target_cost: Optional[float] = None
-
-        # Cached computed values (invalidated when allocation changes)
-        self._cached_weights: Optional[Array] = None
-        self._cached_covariance: Optional[Array] = None
-        self._cached_criteria: Optional[Array] = None
-        self._cached_discrepancy_covariances: Optional[Tuple[Array, Array]] = None
-
-        # Legacy attributes (kept for backward compatibility during transition)
-        self._optimized_CF: Optional[Array] = None
-        self._optimized_cf: Optional[Array] = None
-        self._optimized_weights: Optional[Array] = None
-        self._rounded_nsamples_per_model: Optional[Array] = None
-        self._rounded_npartition_samples: Optional[Array] = None
-        self._rounded_target_cost: Optional[float] = None
-        self._optimized_covariance: Optional[Array] = None
-        self._optimized_criteria: Optional[Array] = None
-
         self._best_model_indices = self._bkd.arange(len(costs), dtype=int)
-
-    def _invalidate_cache(self) -> None:
-        """Invalidate all cached computed values."""
-        self._cached_weights = None
-        self._cached_covariance = None
-        self._cached_criteria = None
-        self._cached_discrepancy_covariances = None
-
-    def set_allocation(self, allocation: "CVAllocationResult[Array]") -> None:
-        """Set allocation from AllocationResult.
-
-        Parameters
-        ----------
-        allocation : CVAllocationResult
-            The allocation result. Must have success=True.
-
-        Raises
-        ------
-        ValueError
-            If allocation.success is False.
-        """
-        if not allocation.success:
-            raise ValueError(f"Cannot set failed allocation: {allocation.message}")
-        self._allocation = allocation
-        self._nsamples_per_model = allocation.nsamples_per_model
-        self._target_cost = allocation.actual_cost
-        self._invalidate_cache()
-        # Update legacy attributes for backward compatibility
-        self._rounded_nsamples_per_model = allocation.nsamples_per_model
-        self._rounded_npartition_samples = allocation.nsamples_per_model
-        self._rounded_target_cost = allocation.actual_cost
-
-    @property
-    def has_allocation(self) -> bool:
-        """Check if allocation has been set."""
-        return self._nsamples_per_model is not None
-
-    def _ensure_allocation(self) -> None:
-        """Raise if no allocation has been set."""
-        if not self.has_allocation:
-            raise RuntimeError(
-                "No allocation set. Call allocate_samples() or set_allocation() first."
-            )
-
-    def _compute_discrepancy_covariances(self) -> Tuple[Array, Array]:
-        """Compute and cache CF, cf discrepancy covariances."""
-        self._ensure_allocation()
-        if self._cached_discrepancy_covariances is None:
-            self._cached_discrepancy_covariances = self._get_discrepancy_covariances(
-                self._nsamples_per_model
-            )
-        return self._cached_discrepancy_covariances
-
-    def optimized_weights(self) -> Array:
-        """Lazily compute and return optimized weights."""
-        self._ensure_allocation()
-        if self._cached_weights is None:
-            CF, cf = self._compute_discrepancy_covariances()
-            self._cached_weights = self._weights(CF, cf)
-        return self._cached_weights
-
-    def optimized_covariance(self) -> Array:
-        """Lazily compute and return optimized covariance."""
-        self._ensure_allocation()
-        if self._cached_covariance is None:
-            self._cached_covariance = self._covariance_from_nsamples_per_model(
-                self._nsamples_per_model
-            )
-        return self._cached_covariance
-
-    def optimized_criteria(self) -> Array:
-        """Lazily compute and return optimization criteria value."""
-        self._ensure_allocation()
-        if self._cached_criteria is None:
-            self._cached_criteria = self._optimization_criteria(
-                self.optimized_covariance()
-            )
-        return self._cached_criteria
 
     def _get_discrepancy_covariances(
         self, npartition_samples: Array
@@ -161,7 +52,7 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
     def _covariance_from_nsamples_per_model(self, nsamples_per_model: Array) -> Array:
         """Compute covariance from nsamples_per_model for CV estimator."""
         CF, cf = self._get_discrepancy_covariances(nsamples_per_model)
-        weights = self._weights(CF, cf)
+        weights = self._optimal_weights(CF, cf)
         return self._stat.high_fidelity_estimator_covariance(
             nsamples_per_model[0]
         ) + self._bkd.multidot([weights, cf.T])
@@ -173,144 +64,10 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         """
         return self._covariance_from_nsamples_per_model(npartition_samples)
 
-    def _set_optimized_params_base(
-        self,
-        rounded_npartition_samples: Array,
-        rounded_nsamples_per_model: Array,
-        rounded_target_cost: float,
-    ) -> None:
-        r"""
-        Set the parameters needed to generate samples for evaluating the
-        estimator. This method updates both the new lazy caching system
-        and legacy attributes for backward compatibility.
-
-        Parameters
-        ----------
-        rounded_npartition_samples : Array (npartitions, dtype=int)
-            The number of samples in the independent sample partitions.
-
-        rounded_nsamples_per_model :  Array (nmodels)
-            The number of samples allocated to each model
-
-        rounded_target_cost : float
-            The cost of the new sample allocation
-        """
-        # Update source of truth
-        self._nsamples_per_model = rounded_nsamples_per_model
-        self._target_cost = rounded_target_cost
-        self._invalidate_cache()
-
-        # Legacy attributes (kept for backward compatibility)
-        self._rounded_npartition_samples = rounded_npartition_samples
-        self._rounded_nsamples_per_model = rounded_nsamples_per_model
-        self._rounded_target_cost = rounded_target_cost
-        self._optimized_covariance = self._covariance_from_npartition_samples(
-            self._rounded_npartition_samples
-        )
-        self._optimized_criteria = self._optimization_criteria(
-            self._optimized_covariance
-        )
-        self._optimized_CF, self._optimized_cf = self._get_discrepancy_covariances(
-            self._rounded_npartition_samples
-        )
-        self._optimized_weights = self._weights(self._optimized_CF, self._optimized_cf)
-
-    def nsamples_per_model(self) -> Array:
-        """Return the number of samples allocated to each model.
-
-        Returns
-        -------
-        Array
-            Number of samples per model. Shape: (nmodels,)
-
-        Raises
-        ------
-        ValueError
-            If allocate_samples has not been called.
-        """
-        if not hasattr(self, "_rounded_nsamples_per_model"):
-            raise ValueError("Call allocate_samples first.")
-        return self._rounded_nsamples_per_model
-
-    def _estimator_cost(self, npartition_samples: Array) -> float:
+    def _estimator_cost(self, npartition_samples: Array) -> Array:
         return self._bkd.sum(npartition_samples[0] * self._costs)
 
-    def _set_optimized_params(
-        self, rounded_npartition_samples: Array,
-    ) -> None:
-        rounded_target_cost = self._estimator_cost(rounded_npartition_samples)
-        self._set_optimized_params_base(
-            rounded_npartition_samples,
-            rounded_npartition_samples,
-            rounded_target_cost,
-        )
-
-    def allocate_samples(self, target_cost: float) -> None:
-        """Allocate samples for given budget.
-
-        Parameters
-        ----------
-        target_cost : float
-            Total computational budget.
-        """
-        from pyapprox.statest.allocation import CVAllocationResult
-
-        npartition_samples = [target_cost / self._bkd.sum(self._costs)]
-        n_floor = self._bkd.floor(npartition_samples[0])
-        rounded_npartition_samples = [self._bkd.to_int(n_floor)]
-        if isinstance(self._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
-            min_nhf_samples = 2
-        else:
-            min_nhf_samples = 1
-        if rounded_npartition_samples[0] < min_nhf_samples:
-            msg = "target_cost is to small. Not enough samples of each model"
-            msg += " can be taken {0} < {1}".format(
-                npartition_samples[0], min_nhf_samples
-            )
-            raise ValueError(msg)
-
-        rounded_nsamples_per_model = self._bkd.full(
-            (self._nmodels,), rounded_npartition_samples[0]
-        )
-        rounded_target_cost = self._bkd.sum(self._costs * rounded_nsamples_per_model)
-
-        # Create allocation result and set it
-        allocation = CVAllocationResult(
-            nsamples_per_model=rounded_nsamples_per_model,
-            actual_cost=self._bkd.to_float(rounded_target_cost),
-            objective_value=self._bkd.zeros((1,)),
-            success=True,
-            message="",
-        )
-        self._allocation = allocation
-
-        # Still call the legacy method for backward compatibility
-        self._set_optimized_params_base(
-            rounded_npartition_samples,
-            rounded_nsamples_per_model,
-            rounded_target_cost,
-        )
-
-    def generate_samples_per_model(self, rvs: Callable[..., Any]) -> List[Array]:
-        """
-        Returns the samples needed to the model
-
-        Parameters
-        ----------
-        rvs : callable
-            Function with signature
-
-            `rvs(nsamples)->Array (nvars, nsamples)`
-
-        Returns
-        -------
-        samples_per_model : list[Array] (1)
-            List with one entry Array (nvars, nsamples_per_model[0])
-        """
-        samples = rvs(self._rounded_nsamples_per_model[0])
-        return [self._bkd.copy(samples) for ii in range(self._nmodels)]
-
-    def _weights(self, CF: Array, cf: Array) -> Array:
+    def _optimal_weights(self, CF: Array, cf: Array) -> Array:
         # print(self._bkd.cond(CF), "ACV COND")
         # return -self._bkd.multidot((self._bkd.pinv(CF), cf.T)).T
         return -self._bkd.solve(CF, cf.T).T
@@ -353,26 +110,32 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
             Estimate. Shape: (nstats,)
         """
         if len(values_per_model) != self._nmodels:
-            print(len(self._lowfi_stats), self._nmodels)
             msg = "Must provide the values for each model."
             msg += " {0} != {1}".format(len(values_per_model), self._nmodels)
             raise ValueError(msg)
+        if self._lowfi_stats is None:
+            raise ValueError("lowfi_stats must be set before calling _estimate")
         nsamples = values_per_model[0].shape[1]
         for values in values_per_model[1:]:
             if values.shape[1] != nsamples:
                 msg = "Must provide the same number of samples for each model"
                 raise ValueError(msg)
-            indices = self._bkd.arange(nsamples, dtype=int)
+        indices = self._bkd.arange(nsamples, dtype=int)
         if bootstrap:
             indices = self._bkd.array(
-                np.random.choice(indices, size=indices.shape[0], replace=True),
+                np.random.choice(
+                    self._bkd.to_numpy(indices),
+                    size=nsamples,
+                    replace=True,
+                ),
                 dtype=int,
             )
 
+        lowfi_stats = self._lowfi_stats
         deltas = self._bkd.hstack(
             [
                 self._stat.sample_estimate(values_per_model[ii][:, indices])
-                - self._lowfi_stats[ii - 1]
+                - lowfi_stats[ii - 1]
                 for ii in range(1, self._nmodels)
             ]
         )
@@ -381,27 +144,6 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
             + weights @ deltas
         )
         return est
-
-    def __call__(self, values_per_model: List[Array]) -> Array:
-        r"""
-        Return the value of the Monte Carlo like estimator
-
-        Parameters
-        ----------
-        values_per_model : list (nmodels)
-            The unique values of each model. Each array has shape (nqoi, nsamples).
-
-        Returns
-        -------
-        est : Array (nstats,)
-            The estimator value.
-        """
-        for vals in values_per_model:
-            if not isinstance(vals, self._bkd.array_type()):
-                raise ValueError(
-                    "vals must be an instance of {0}".format(self._bkd.array_type())
-                )
-        return self._estimate(values_per_model, self.optimized_weights())
 
     def insert_pilot_values(
         self, pilot_values: List[Array], values_per_model: List[Array]
@@ -422,32 +164,110 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         List[Array]
             Combined values. Each array has shape (nqoi, npilot + nsamples).
         """
-        new_values_per_model = []
-        for ii in range(self._nmodels):
-            active_partition = (self._allocation_mat[0, 2 * ii] == 1) or (
-                self._allocation_mat[0, 2 * ii + 1] == 1
-            )
-            if active_partition:
-                # hstack along axis=1 (samples axis) for (nqoi, nsamples)
-                new_values_per_model.append(
-                    self._bkd.hstack((pilot_values[ii], values_per_model[ii]))
-                )
-            else:
-                new_values_per_model.append(self._bkd.copy(values_per_model[ii]))
-        return new_values_per_model
+        # CV estimator: all models share samples from the same partition,
+        # so pilot values are always prepended to every model.
+        return [
+            self._bkd.hstack((pilot_values[ii], values_per_model[ii]))
+            for ii in range(self._nmodels)
+        ]
 
     def __repr__(self) -> str:
-        """String representation handling unset allocation."""
-        if not self.has_allocation:
-            return f"{self.__class__.__name__}(allocation=None)"
-        # Convert Array to float for formatting
-        crit = self._bkd.flatten(self.optimized_criteria())[0]
-        criteria_val = self._bkd.to_float(crit)
-        return (
-            f"{self.__class__.__name__}("
-            f"criteria={criteria_val:.3g}, "
-            f"target_cost={self._target_cost:.5g})"
+        return f"{self.__class__.__name__}(stat={self._stat})"
+
+
+class FittedCVEstimator(Generic[Array]):
+    """Frozen CV estimator with a fixed sample allocation and precomputed weights."""
+
+    def __init__(
+        self,
+        template: CVEstimator[Array],
+        nsamples_per_model: Array,
+        actual_cost: float,
+    ) -> None:
+        if not template._bkd.is_integer_dtype(nsamples_per_model):
+            raise TypeError(
+                f"nsamples_per_model must be integer-typed, "
+                f"got dtype={nsamples_per_model.dtype}"
+            )
+        self._template = template
+        self._bkd = template._bkd
+        self._stat = template._stat
+        self._nsamples_per_model = nsamples_per_model
+        self._npartition_samples = nsamples_per_model
+        self._actual_cost = actual_cost
+
+        CF, cf = template._get_discrepancy_covariances(nsamples_per_model)
+        self._weights_val = template._optimal_weights(CF, cf)
+        self._covariance_val = template._covariance_from_npartition_samples(
+            nsamples_per_model
         )
+        self._criteria_val = template._optimization_criteria(self._covariance_val)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def covariance(self) -> Array:
+        """Return the estimator covariance at the allocated sample count."""
+        return self._covariance_val
+
+    def weights(self) -> Array:
+        """Return the optimal control variate weights."""
+        return self._weights_val
+
+    def nsamples_per_model(self) -> Array:
+        """Return the number of samples allocated to each model."""
+        return self._nsamples_per_model
+
+    def actual_cost(self) -> float:
+        """Return the actual cost of the allocation."""
+        return self._actual_cost
+
+    def generate_samples_per_model(self, rvs: Callable[..., Any]) -> List[Array]:
+        """
+        Returns the samples needed to the model
+
+        Parameters
+        ----------
+        rvs : callable
+            Function with signature
+
+            `rvs(nsamples)->Array (nvars, nsamples)`
+
+        Returns
+        -------
+        samples_per_model : list[Array] (nmodels)
+            List with nmodels entries, each Array (nvars, nsamples_per_model[0])
+        """
+        samples = rvs(self._nsamples_per_model[0])
+        return [self._bkd.copy(samples) for ii in range(self._template._nmodels)]
+
+    def __call__(self, values_per_model: List[Array]) -> Array:
+        r"""
+        Return the value of the Monte Carlo like estimator
+
+        Parameters
+        ----------
+        values_per_model : list (nmodels)
+            The unique values of each model. Each array has shape (nqoi, nsamples).
+
+        Returns
+        -------
+        est : Array (nstats,)
+            The estimator value.
+        """
+        for vals in values_per_model:
+            if not isinstance(vals, self._bkd.array_type()):
+                raise ValueError(
+                    "vals must be an instance of {0}".format(self._bkd.array_type())
+                )
+        return self._template._estimate(values_per_model, self._weights_val)
+
+    def insert_pilot_values(
+        self, pilot_values: List[Array], values_per_model: List[Array]
+    ) -> List[Array]:
+        """Delegate to template's insert_pilot_values."""
+        return self._template.insert_pilot_values(pilot_values, values_per_model)
 
     def bootstrap(
         self,
@@ -480,16 +300,22 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
         bootstrap_vals = mode in modes[:2]
         bootstrap_weights = mode in modes[1:]
         nbootstraps = int(nbootstraps)
-        estimator_vals = []
+        estimator_vals_list: List[Array] = []
+        weights_acc: List[Array] = []
+        self_stat = copy.deepcopy(self._stat)
         if bootstrap_weights:
+            if pilot_values is None:
+                raise ValueError(
+                    "pilot_values must be provided for bootstrap_weights"
+                )
             npilot_samples = pilot_values[0].shape[1]
-            self_stat = copy.deepcopy(self._stat)
-            weights_list = []
         for kk in range(nbootstraps):
             if bootstrap_weights:
+                if pilot_values is None:
+                    raise RuntimeError("pilot_values is None")
                 indices = self._bkd.array(
                     np.random.choice(
-                        np.arange(npilot_samples, dtype=int),
+                        npilot_samples,
                         size=npilot_samples,
                         replace=True,
                     ),
@@ -499,26 +325,30 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                 self._stat.set_pilot_quantities(
                     *self._stat.compute_pilot_quantities(boostrap_pilot_values)
                 )
-                CF, cf = self._get_discrepancy_covariances(
-                    self._rounded_npartition_samples
+                CF, cf = self._template._get_discrepancy_covariances(
+                    self._npartition_samples
                 )
-                weights = self._weights(CF, cf)
-                weights_list.append(self._bkd.flatten(weights))
+                weights = self._template._optimal_weights(CF, cf)
+                weights_acc.append(self._bkd.flatten(weights))
             else:
-                weights = self.optimized_weights()
-            estimator_vals.append(
-                self._bkd.flatten(self._estimate(
+                weights = self._weights_val
+            estimator_vals_list.append(
+                self._bkd.flatten(self._template._estimate(
                     values_per_model, weights, bootstrap=bootstrap_vals
                 ))
             )
-        estimator_vals = self._bkd.stack(estimator_vals)
-        bootstrap_values_mean = estimator_vals.mean(axis=0)
-        bootstrap_values_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
+        estimator_vals_arr = self._bkd.stack(estimator_vals_list)
+        bootstrap_values_mean = self._bkd.mean(estimator_vals_arr, axis=0)
+        bootstrap_values_covar = self._bkd.cov(
+            estimator_vals_arr, rowvar=False, ddof=1
+        )
         if bootstrap_weights:
-            self._stat = self_stat
-            weights_list = self._bkd.stack(weights_list)
-            bootstrap_weights_mean = weights_list.mean(axis=0)
-            bootstrap_weights_covar = self._bkd.cov(weights_list, rowvar=False, ddof=1)
+            self._template._stat = self_stat
+            weights_arr = self._bkd.stack(weights_acc)
+            bootstrap_weights_mean = self._bkd.mean(weights_arr, axis=0)
+            bootstrap_weights_covar = self._bkd.cov(
+                weights_arr, rowvar=False, ddof=1
+            )
             return (
                 bootstrap_values_mean,
                 bootstrap_values_covar,
@@ -526,3 +356,12 @@ class CVEstimator(MCEstimator[Array], Generic[Array]):
                 bootstrap_weights_covar,
             )
         return (bootstrap_values_mean, bootstrap_values_covar)
+
+    def __repr__(self) -> str:
+        crit = self._bkd.flatten(self._criteria_val)[0]
+        criteria_val = self._bkd.to_float(crit)
+        return (
+            f"{self.__class__.__name__}("
+            f"criteria={criteria_val:.3g}, "
+            f"target_cost={self._actual_cost:.5g})"
+        )

@@ -5,7 +5,7 @@ allocation matrix construction, and covariance block computation.
 """
 
 from itertools import combinations
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import numpy as np
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def get_model_subsets(
-    nmodels: int, bkd: Backend[Array], max_subset_nmodels: int = None
+    nmodels: int, bkd: Backend[Array], max_subset_nmodels: Optional[int] = None
 ) -> List[Array]:
     """
     Generate all model subsets up to a maximum size.
@@ -140,9 +140,9 @@ def _nest_subsets(
 def _grouped_acv_sigma_block(
     subset0: Array,
     subset1: Array,
-    nsamples_intersect: int,
-    nsamples_subset0: int,
-    nsamples_subset1: int,
+    nsamples_intersect: "int | Array",
+    nsamples_subset0: "int | Array",
+    nsamples_subset1: "int | Array",
     stat: "MultiOutputStatistic[Array]",
 ) -> Array:
     """
@@ -218,8 +218,11 @@ def _grouped_acv_sigma(
     List[List[Array]]
         Nested list of covariance blocks, Sigma[i][j] is the (i,j) block
     """
+    bkd = stat.bkd()
     nsubsets = len(subsets)
-    Sigma = [[None for jj in range(nsubsets)] for ii in range(nsubsets)]
+    Sigma: List[List[Array]] = [
+        [bkd.zeros((0,)) for jj in range(nsubsets)] for ii in range(nsubsets)
+    ]
     for ii, subset0 in enumerate(subsets):
         N_ii = nsamples_intersect[ii, ii]
         Sigma[ii][ii] = _grouped_acv_sigma_block(
@@ -228,7 +231,8 @@ def _grouped_acv_sigma(
         for jj, subset1 in enumerate(subsets[:ii]):
             N_jj = nsamples_intersect[jj, jj]
             Sigma[ii][jj] = _grouped_acv_sigma_block(
-                subset0, subset1, nsamples_intersect[ii, jj], N_ii, N_jj, stat
+                subset0, subset1,
+                nsamples_intersect[ii, jj], N_ii, N_jj, stat,
             )
             Sigma[jj][ii] = Sigma[ii][jj].T
     return Sigma

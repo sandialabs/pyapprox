@@ -45,7 +45,7 @@ class UnifiedSearchResult(Generic[Array]):
         ]
         if self.acv_result is not None and self.acv_objective is not None:
             lines.append(
-                f"  ACV best: {type(self.acv_result.estimator).__name__} "
+                f"  ACV best: {type(self.acv_result.best).__name__} "
                 f"(obj={self.acv_objective:.6f})"
             )
         if self.groupacv_result is not None and self.groupacv_objective is not None:
@@ -132,7 +132,7 @@ def unified_search(
 
     if acv_effective <= groupacv_effective:
         return UnifiedSearchResult(
-            best_estimator=acv_result.estimator,
+            best_estimator=acv_result.best,
             best_objective=acv_effective,
             best_family=EstimatorFamily.ACV,
             acv_result=acv_result,

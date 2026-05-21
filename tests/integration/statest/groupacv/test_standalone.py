@@ -990,25 +990,25 @@ class TestMFMCNestedEstimationTorchOnly:
             )
             gmf_stat.set_pilot_quantities(cov, W, B)
 
-        gmf_est = GMFEstimator(gmf_stat, costs, recursion_index=recursion_index)
-        allocate_with_allocator(gmf_est, target_cost)
+        gmf_template = GMFEstimator(gmf_stat, costs, recursion_index=recursion_index)
+        gmf_fitted = allocate_with_allocator(gmf_template, target_cost)
 
         # Generate samples and values using GMF allocation
         def rvs(n: int):
             return self._bkd.asarray(np.random.rand(1, int(n)))
 
-        samples_per_model = gmf_est.generate_samples_per_model(rvs)
+        samples_per_model = gmf_fitted.generate_samples_per_model(rvs)
         # Values shape: (nqoi, nsamples) - samples in columns
         values_per_model = [
             model(samples) for model, samples in zip(models, samples_per_model)
         ]
 
         # Compute GMF estimate (expects samples in columns)
-        gmf_est_val = gmf_est(values_per_model)
+        gmf_est_val = gmf_fitted(values_per_model)
 
         # Apply GMF sample allocation to GroupACV
         # Create GroupACV allocation from GMF allocation
-        gmf_npartition = gmf_est.npartition_samples()
+        gmf_npartition = gmf_fitted.npartition_samples()
         groupacv_allocation = _make_groupacv_allocation(groupacv_est, gmf_npartition)
         groupacv_est.set_allocation(groupacv_allocation)
 
@@ -1019,7 +1019,7 @@ class TestMFMCNestedEstimationTorchOnly:
         # Check covariances match (use default bkd.allclose tolerances)
         self._bkd.assert_allclose(
             groupacv_est.optimized_covariance(),
-            gmf_est.optimized_covariance(),
+            gmf_fitted.covariance(),
             rtol=1e-05,
             atol=1e-08,
         )

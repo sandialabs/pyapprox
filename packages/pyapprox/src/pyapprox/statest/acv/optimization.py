@@ -2,90 +2,17 @@
 
 This module provides:
 - Allocation matrix functions for different ACV variants
-- Sample/value combination utilities
 - ACVObjective and ACVPartitionConstraint for sample allocation optimization
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Generic, List, Optional
+from typing import Generic, Optional
 
 import numpy as np
 
+from pyapprox.statest.acv.base import ACVEstimator
+from pyapprox.statest.statistics import log_determinant_variance
 from pyapprox.util.backends.protocols import Array, Backend
-
-if TYPE_CHECKING:
-    from pyapprox.statest.acv.base import ACVEstimator
-
-
-def _combine_acv_values(
-    reorder_allocation_mat: Array,
-    npartition_samples: Array,
-    acv_values: List[Any],
-    bkd: Backend[Array],
-) -> List[Array]:
-    r"""
-    Extract the unique values from the sets
-    :math:`f_\alpha(\mathcal{Z}_\alpha), `f_\alpha(\mathcal{Z}_\alpha^*)`
-    for each model :math:`\alpha=0,\ldots,M`
-    """
-    nmodels = len(acv_values)
-    values_per_model = [None for ii in range(nmodels)]
-    values_per_model[0] = acv_values[0][1]
-    for ii in range(1, nmodels):
-        lb, ub = 0, 0
-        lb2, ub2 = 0, 0
-        values_per_model[ii] = []
-        for jj in range(nmodels):
-            found = False
-            if reorder_allocation_mat[jj, 2 * ii] == 1:
-                ub = lb + bkd.to_int(npartition_samples[jj])
-                values_per_model[ii] += [acv_values[ii][0][lb:ub]]
-                lb = ub
-                found = True
-            if reorder_allocation_mat[jj, 2 * ii + 1] == 1:
-                # there is no need to enter here is samle set has already
-                # been added by acv_values[ii][0], hence the use of elseif here
-                ub2 = lb2 + bkd.to_int(npartition_samples[jj])
-                if not found:
-                    values_per_model[ii] += [acv_values[ii][1][lb2:ub2]]
-                lb2 = ub2
-        values_per_model[ii] = bkd.vstack(values_per_model[ii])
-    return values_per_model
-
-
-def _combine_acv_samples(
-    reorder_allocation_mat: Array,
-    npartition_samples: Array,
-    acv_samples: List[Any],
-    bkd: Backend[Array],
-) -> List[Array]:
-    r"""
-    Extract the unique amples from the sets
-    :math:`\mathcal{Z}_\alpha, `\mathcal{Z}_\alpha^*` for each model
-    :math:`\alpha=0,\ldots,M`
-    """
-    nmodels = len(acv_samples)
-    samples_per_model = [None for ii in range(nmodels)]
-    samples_per_model[0] = acv_samples[0][1]
-    for ii in range(1, nmodels):
-        lb, ub = 0, 0
-        lb2, ub2 = 0, 0
-        samples_per_model[ii] = []
-        for jj in range(nmodels):
-            found = False
-            if reorder_allocation_mat[jj, 2 * ii] == 1:
-                ub = lb + bkd.to_int(npartition_samples[jj])
-                samples_per_model[ii] += [acv_samples[ii][0][:, lb:ub]]
-                lb = ub
-                found = True
-            if reorder_allocation_mat[jj, 2 * ii + 1] == 1:
-                ub2 = lb2 + bkd.to_int(npartition_samples[jj])
-                if not found:
-                    # Only add samples if they were not in Z_m^*
-                    samples_per_model[ii] += [acv_samples[ii][1][:, lb2:ub2]]
-                    lb2 = ub2
-                    samples_per_model[ii] = bkd.hstack(samples_per_model[ii])
-    return samples_per_model
 
 
 def _get_allocation_matrix_gmf(recursion_index: Array, bkd: Backend[Array]) -> Array:
@@ -96,7 +23,7 @@ def _get_allocation_matrix_gmf(recursion_index: Array, bkd: Backend[Array]) -> A
     for ii in range(1, nmodels):
         mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
     for ii in range(2, 2 * nmodels):
-        II = bkd.where(mat[:, ii] == 1)[0][-1]
+        II = bkd.where(bkd.equal(mat[:, ii], 1))[0][-1]
         mat[:II, ii] = 1.0
     return mat
 
@@ -136,7 +63,7 @@ class ACVObjective(ABC, Generic[Array]):
     ):
         self._scaling = scaling
         self._bkd = bkd
-        self._est: Optional["ACVEstimator[Array]"] = None
+        self._est: Optional[ACVEstimator[Array]] = None
         self._target_cost: Optional[float] = None
 
     def bkd(self) -> Backend[Array]:
@@ -151,11 +78,7 @@ class ACVObjective(ABC, Generic[Array]):
     def nqoi(self) -> int:
         return 1
 
-    def set_estimator(self, est: "ACVEstimator[Array]") -> None:
-        from pyapprox.statest.acv.base import ACVEstimator
-
-        if not isinstance(est, ACVEstimator):
-            raise ValueError("est must be an instance of ACVEstimator")
+    def set_estimator(self, est: ACVEstimator[Array]) -> None:
         self._est = est
         self._bkd = est._bkd
 
@@ -186,8 +109,7 @@ class ACVLogDeterminantObjective(ACVObjective[Array]):
         # be singular when estimating variance or mean+variance
         # because of the duplicate entries in
         # the covariance matrix
-        eigvals = self._bkd.eigh(est_covariance)[0]
-        return self._bkd.sum(self._bkd.log(eigvals[eigvals > 1e-14]))
+        return log_determinant_variance(self._bkd, est_covariance)
 
 
 class ACVPartitionConstraint(Generic[Array]):
@@ -199,13 +121,9 @@ class ACVPartitionConstraint(Generic[Array]):
 
     def __init__(
         self,
-        est: "ACVEstimator[Array]",
+        est: ACVEstimator[Array],
         target_cost: float,
     ):
-        from pyapprox.statest.acv.base import ACVEstimator
-
-        if not isinstance(est, ACVEstimator):
-            raise ValueError("est must be an instance of ACVEstimator")
         self._est = est
         self._target_cost = target_cost
         self._bkd = est._bkd

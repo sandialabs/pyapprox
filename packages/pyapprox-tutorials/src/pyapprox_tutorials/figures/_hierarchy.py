@@ -77,6 +77,9 @@ def plot_mlmc_vs_mc(axes):
         PolynomialEnsembleBenchmark,
     )
     from pyapprox.statest import MLMCEstimator
+    from pyapprox.statest.acv.allocation import default_allocator_factory
+    from pyapprox.statest.acv.base import FittedACVEstimator
+    from pyapprox.statest.allocation import MCAllocator
     from pyapprox.statest.mc_estimator import MCEstimator
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
@@ -109,25 +112,26 @@ def plot_mlmc_vs_mc(axes):
     mc_stat = MultiOutputMean(nqoi, bkd)
     mc_stat.set_pilot_quantities(cov_pilot[0:1, 0:1])
     mc_est = MCEstimator(mc_stat, costs[0:1])
-    mc_est.allocate_samples(target_cost)
+    mc_fitted = MCAllocator(mc_est).allocate(target_cost)
     mc_means = np.empty(n_trials)
     for i in range(n_trials):
         np.random.seed(i)
-        s = variable.rvs(mc_est._rounded_nsamples_per_model[0])
+        s = variable.rvs(mc_fitted.nsamples_per_model()[0])
         mc_means[i] = float(bkd.mean(models[0](s)[0]))
 
     # MLMC
     mlmc_est = MLMCEstimator(stat, costs)
-    mlmc_est.allocate_samples(target_cost)
+    alloc_result = default_allocator_factory(mlmc_est).allocate(target_cost)
+    mlmc_fitted = FittedACVEstimator(mlmc_est, alloc_result)
     mlmc_means = np.empty(n_trials)
     for i in range(n_trials):
         np.random.seed(i + 10000)
-        samples_per_model = mlmc_est.generate_samples_per_model(
+        samples_per_model = mlmc_fitted.generate_samples_per_model(
             lambda n: variable.rvs(int(n))
         )
         vals = [models[ell](samples_per_model[ell])
                 for ell in range(len(models))]
-        mlmc_means[i] = float(mlmc_est(vals))
+        mlmc_means[i] = float(mlmc_fitted(vals))
 
     all_vals = np.concatenate([mc_means, mlmc_means])
     pad = 0.04 * (all_vals.max() - all_vals.min())
@@ -137,7 +141,7 @@ def plot_mlmc_vs_mc(axes):
         axes,
         [mc_means, mlmc_means],
         ["#2C7FB8", "#E67E22"],
-        [f"MC\n(N = {mc_est._rounded_nsamples_per_model[0]})",
+        [f"MC\n(N = {mc_fitted.nsamples_per_model()[0]})",
          "MLMC\n(optimal allocation)"],
     ):
         ax.hist(ests, bins=50, density=True, color=color, alpha=0.75,

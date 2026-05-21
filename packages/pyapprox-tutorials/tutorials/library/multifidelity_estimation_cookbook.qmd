@@ -71,10 +71,12 @@ from pyapprox.statest import (
     MLMCEstimator, MFMCEstimator, GMFEstimator, GRDEstimator, GISEstimator,
 )
 from pyapprox.statest.acv import ACVAllocator, default_allocator_factory
+from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.search import ACVSearch
 from pyapprox.statest.acv.strategies import (
     FixedRecursionStrategy, TreeDepthRecursionStrategy,
 )
+from pyapprox.statest.allocation import MCAllocator, CVAllocator
 from pyapprox.statest.plotting import (
     plot_allocation, plot_estimator_variance_reductions,
 )
@@ -146,17 +148,17 @@ print(f"Pilot cost: {pilot_cost:.1f}  |  Remaining: {remaining:.1f}")
 est = MFMCEstimator(stat, costs)
 allocator = default_allocator_factory(est)
 result = allocator.allocate(remaining)
-est.set_allocation(result)
+fitted = FittedACVEstimator(est, result)
 
-print(f"Samples per model: {est.nsamples_per_model()}")
-print(f"Predicted std:     {float(est.optimized_covariance()[0,0])**0.5:.6f}")
+print(f"Samples per model: {fitted.nsamples_per_model()}")
+print(f"Predicted std:     {float(fitted.covariance()[0,0])**0.5:.6f}")
 ```
 
 
 ### Stage 3: Generate samples
 
 ```{python}
-samples_per_model = est.generate_samples_per_model(variable.rvs)
+samples_per_model = fitted.generate_samples_per_model(variable.rvs)
 print(f"Sample shapes: {[s.shape for s in samples_per_model]}")
 ```
 
@@ -171,12 +173,12 @@ values_per_model = [models[a](samples_per_model[a]) for a in range(nmodels)]
 ### Stage 5: Compute estimate
 
 ```{python}
-result = est(values_per_model)
+estimate = fitted(values_per_model)
 
 true_mean = float(bkd.to_numpy(benchmark.ensemble_means()[0, 0]))
-print(f"Estimate:  {float(result):.6f}")
+print(f"Estimate:  {float(estimate):.6f}")
 print(f"True mean: {true_mean:.6f}")
-print(f"Error:     {abs(float(result) - true_mean):.6f}")
+print(f"Error:     {abs(float(estimate) - true_mean):.6f}")
 ```
 
 
@@ -186,10 +188,10 @@ print(f"Error:     {abs(float(result) - true_mean):.6f}")
 stat_mc = MultiOutputMean(nqoi, bkd)
 stat_mc.set_pilot_quantities(cov_pilot[:1, :1])
 mc_est = MCEstimator(stat_mc, costs[:1])
-mc_est.allocate_samples(remaining)
+mc_fitted = MCAllocator(mc_est).allocate(remaining)
 
-mc_var  = float(mc_est.optimized_covariance()[0, 0])
-mf_var  = float(est.optimized_covariance()[0, 0])
+mc_var  = float(mc_fitted.covariance()[0, 0])
+mf_var  = float(fitted.covariance()[0, 0])
 print(f"MC std:  {mc_var**0.5:.6f}")
 print(f"MF std:  {mf_var**0.5:.6f}")
 print(f"Variance reduction: {mc_var / mf_var:.1f}×")
@@ -217,8 +219,8 @@ stat_cv = MultiOutputMean(nqoi, bkd)
 stat_cv.set_pilot_quantities(cov_pilot[:2, :2])
 
 est_cv = CVEstimator(stat_cv, costs[:2], lf_means[:1])
-est_cv.allocate_samples(remaining)
-print(f"CV predicted std: {float(est_cv.optimized_covariance()[0,0])**0.5:.6f}")
+fitted_cv = CVAllocator(est_cv).allocate(remaining)
+print(f"CV predicted std: {float(fitted_cv.covariance()[0,0])**0.5:.6f}")
 ```
 
 
@@ -231,11 +233,11 @@ Best when models form a natural refinement hierarchy (mesh levels).
 est_mlmc = MLMCEstimator(stat, costs)
 mlmc_allocator = default_allocator_factory(est_mlmc)
 mlmc_result = mlmc_allocator.allocate(remaining)
-est_mlmc.set_allocation(mlmc_result)
+fitted_mlmc = FittedACVEstimator(est_mlmc, mlmc_result)
 
-N_alloc = est_mlmc.nsamples_per_model()
+N_alloc = fitted_mlmc.nsamples_per_model()
 print(f"MLMC samples per level: {[int(n) for n in N_alloc]}")
-print(f"MLMC predicted std: {float(est_mlmc.optimized_covariance()[0,0])**0.5:.6f}")
+print(f"MLMC predicted std: {float(fitted_mlmc.covariance()[0,0])**0.5:.6f}")
 ```
 
 
@@ -248,10 +250,10 @@ Fast and robust for well-correlated hierarchies.
 est_mfmc = MFMCEstimator(stat, costs)
 mfmc_allocator = default_allocator_factory(est_mfmc)
 mfmc_result = mfmc_allocator.allocate(remaining)
-est_mfmc.set_allocation(mfmc_result)
+fitted_mfmc = FittedACVEstimator(est_mfmc, mfmc_result)
 
-print(f"MFMC samples per model: {[int(n) for n in est_mfmc.nsamples_per_model()]}")
-print(f"MFMC predicted std: {float(est_mfmc.optimized_covariance()[0,0])**0.5:.6f}")
+print(f"MFMC samples per model: {[int(n) for n in fitted_mfmc.nsamples_per_model()]}")
+print(f"MFMC predicted std: {float(fitted_mfmc.covariance()[0,0])**0.5:.6f}")
 ```
 
 ::: {.callout-note}
@@ -302,9 +304,9 @@ specifically need MLMC (which is not an ACV estimator).
 ```{python}
 search_all = ACVSearch(stat, costs, allocator_factory=allocator_factory)
 result_all = search_all.search(remaining)
-best = result_all.estimator
+best = result_all.best
 
-var_best = float(bkd.to_numpy(best.optimized_covariance())[0, 0])
+var_best = float(bkd.to_numpy(best.covariance())[0, 0])
 print(f"Best estimator: {best.__class__.__name__}")
 print(f"Predicted std:  {var_best**0.5:.6f}")
 ```
@@ -316,10 +318,10 @@ print(f"Predicted std:  {var_best**0.5:.6f}")
 search_gmf = ACVSearch(stat, costs, estimator_classes=[GMFEstimator, GRDEstimator],
                        allocator_factory=allocator_factory)
 result_gmf = search_gmf.search(remaining)
-best_gmf = result_gmf.estimator
+best_gmf = result_gmf.best
 
 print(f"Best (GMF+GRD): {best_gmf.__class__.__name__}")
-print(f"Predicted std:  {float(bkd.to_numpy(best_gmf.optimized_covariance())[0,0])**0.5:.6f}")
+print(f"Predicted std:  {float(bkd.to_numpy(best_gmf.covariance())[0,0])**0.5:.6f}")
 ```
 
 
@@ -332,10 +334,10 @@ search_shallow = ACVSearch(
     allocator_factory=allocator_factory,
 )
 result_shallow = search_shallow.search(remaining)
-best_shallow = result_shallow.estimator
+best_shallow = result_shallow.best
 
 print(f"Best (depth≤2): {best_shallow.__class__.__name__}")
-print(f"Predicted std:  {float(bkd.to_numpy(best_shallow.optimized_covariance())[0,0])**0.5:.6f}")
+print(f"Predicted std:  {float(bkd.to_numpy(best_shallow.covariance())[0,0])**0.5:.6f}")
 ```
 
 
@@ -352,9 +354,9 @@ search_fixed = ACVSearch(
 )
 result_fixed = search_fixed.search(remaining)
 
-print(f"Fixed γ={list(ri_star)}: {result_fixed.estimator.__class__.__name__}")
+print(f"Fixed γ={list(ri_star)}: {result_fixed.best.__class__.__name__}")
 print(f"Predicted std: "
-      f"{float(bkd.to_numpy(result_fixed.estimator.optimized_covariance())[0,0])**0.5:.6f}")
+      f"{float(bkd.to_numpy(result_fixed.best.covariance())[0,0])**0.5:.6f}")
 ```
 
 
@@ -403,7 +405,7 @@ stat_mo = MultiOutputMean(nqoi_mo, bkd)
 stat_mo.set_pilot_quantities(cov_mo)
 search_mo = ACVSearch(stat_mo, costs_mo, allocator_factory=allocator_factory)
 result_mo = search_mo.search(100.0)
-cov_moacv = bkd.to_numpy(result_mo.estimator.optimized_covariance())
+cov_moacv = bkd.to_numpy(result_mo.best.covariance())
 
 # SOACV: independent scalar ACV per QoI
 for qi in range(nqoi_mo):
@@ -414,7 +416,7 @@ for qi in range(nqoi_mo):
     stat_qi.set_pilot_quantities(cov_qi)
     search_qi = ACVSearch(stat_qi, costs_mo, allocator_factory=allocator_factory)
     result_qi = search_qi.search(100.0)
-    var_so = float(bkd.to_numpy(result_qi.estimator.optimized_covariance())[0, 0])
+    var_so = float(bkd.to_numpy(result_qi.best.covariance())[0, 0])
     var_mo = cov_moacv[qi, qi]
     gain = (var_so - var_mo) / var_so * 100
     print(f"QoI {qi}: SOACV std={var_so**0.5:.5f}  MOACV std={var_mo**0.5:.5f}  gain={gain:.1f}%")
@@ -436,10 +438,10 @@ search_ens = ACVSearch(
     allocator_factory=allocator_factory,
 )
 result_ens = search_ens.search(remaining, allow_failures=True)
-best_ens = result_ens.estimator
+best_ens = result_ens.best
 
 print(f"Best subset estimator: {best_ens.__class__.__name__}")
-print(f"Predicted std: {float(bkd.to_numpy(best_ens.optimized_covariance())[0,0])**0.5:.6f}")
+print(f"Predicted std: {float(bkd.to_numpy(best_ens.covariance())[0,0])**0.5:.6f}")
 print(f"Candidates evaluated: {result_ens.candidates_evaluated()}")
 print(f"Candidates successful: {result_ens.candidates_successful()}")
 ```
@@ -505,7 +507,7 @@ slsqp_factory = lambda est: default_allocator_factory(est, optimizer=slsqp)
 search_slsqp = ACVSearch(stat, costs, allocator_factory=slsqp_factory)
 result_slsqp = search_slsqp.search(remaining)
 print(f"SLSQP result std: "
-      f"{float(bkd.to_numpy(result_slsqp.estimator.optimized_covariance())[0,0])**0.5:.6f}")
+      f"{float(bkd.to_numpy(result_slsqp.best.covariance())[0,0])**0.5:.6f}")
 ```
 
 ### Budget too small

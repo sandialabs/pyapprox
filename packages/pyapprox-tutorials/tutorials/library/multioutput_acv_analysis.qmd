@@ -246,7 +246,7 @@ stat_mo = MultiOutputMean(nqoi, bkd)
 stat_mo.set_pilot_quantities(cov_true)
 search_mo = ACVSearch(stat_mo, costs)
 result_mo = search_mo.search(100.0)
-est_mo    = result_mo.estimator
+est_mo    = result_mo.best
 
 # Single-output stats (SOACV) for each QoI
 ests_so = []
@@ -258,10 +258,10 @@ for qi in range(nqoi):
     stat_qi.set_pilot_quantities(cov_qi)
     search_qi = ACVSearch(stat_qi, costs)
     result_qi = search_qi.search(100.0)
-    ests_so.append(result_qi.estimator)
+    ests_so.append(result_qi.best)
 
-cov_mo_np = bkd.to_numpy(est_mo.optimized_covariance())
-cov_so_np = np.diag([float(bkd.to_numpy(e.optimized_covariance())[0, 0])
+cov_mo_np = bkd.to_numpy(est_mo.covariance())
+cov_so_np = np.diag([float(bkd.to_numpy(e.covariance())[0, 0])
                      for e in ests_so])
 
 print("MOACV covariance (P=100, true cov):")

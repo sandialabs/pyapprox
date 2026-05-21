@@ -4,13 +4,12 @@ import numpy as np
 import pytest
 
 from pyapprox.statest.acv.allocation import (
-    ACVAllocationResult,
     ACVAllocator,
     AnalyticalAllocator,
-    _MFMCAnalyticalProxyAllocator,
-    _MLMCAnalyticalProxyAllocator,
     default_allocator_factory,
 )
+from pyapprox.statest.acv.base import FittedACVEstimator
+from pyapprox.statest.acv.result import ACVAllocationResult
 from pyapprox.statest.acv.variants import (
     GISEstimator,
     GMFEstimator,
@@ -330,8 +329,8 @@ class TestAllocatorFactory:
         assert isinstance(allocator, AnalyticalAllocator)
 
 
-class TestEstimatorAllocationAPI:
-    """Tests for ACVEstimator allocation management methods."""
+class TestFittedACVEstimator:
+    """Tests for FittedACVEstimator."""
 
     @pytest.fixture(autouse=True)
     def _seed(self):
@@ -353,24 +352,8 @@ class TestEstimatorAllocationAPI:
         costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
         return stat, costs
 
-    def test_estimator_has_allocation_initially_false(self, bkd):
-        """has_allocation returns False before allocation is set."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        assert not est.has_allocation
-
-    def test_estimator_allocation_not_set_raises(self, bkd):
-        """allocation() raises RuntimeError when not set."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        with pytest.raises(RuntimeError) as ctx:
-            est.allocation()
-        assert "No allocation set" in str(ctx.value)
-
-    def test_estimator_set_allocation(self, bkd):
-        """set_allocation() stores allocation and updates internal state."""
+    def test_fitted_from_successful_allocation(self, bkd):
+        """FittedACVEstimator can be created from successful allocation."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
@@ -379,20 +362,13 @@ class TestEstimatorAllocationAPI:
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
 
-        est.set_allocation(result)
+        fitted = FittedACVEstimator(est, result)
+        cov = fitted.covariance()
+        assert len(cov.shape) == 2
+        assert cov.shape[0] == cov.shape[1]
 
-        assert est.has_allocation
-        assert est.allocation() is result
-
-        bkd.assert_allclose(
-            est._rounded_npartition_samples, result.npartition_samples
-        )
-        bkd.assert_allclose(
-            est._rounded_nsamples_per_model, result.nsamples_per_model
-        )
-
-    def test_estimator_set_failed_allocation_raises(self, bkd):
-        """set_allocation() raises ValueError for failed allocation."""
+    def test_fitted_from_failed_allocation_raises(self, bkd):
+        """FittedACVEstimator raises ValueError for failed allocation."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
@@ -401,12 +377,11 @@ class TestEstimatorAllocationAPI:
         result = allocator.allocate(target_cost=0.1)
         assert not result.success
 
-        with pytest.raises(ValueError) as ctx:
-            est.set_allocation(result)
-        assert "Cannot set failed allocation" in str(ctx.value)
+        with pytest.raises(ValueError, match="failed allocation"):
+            FittedACVEstimator(est, result)
 
-    def test_estimator_covariance_from_ratios(self, bkd):
-        """covariance_from_ratios() computes covariance from continuous ratios."""
+    def test_covariance_at(self, bkd):
+        """covariance_at() computes covariance from continuous ratios."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
@@ -414,13 +389,13 @@ class TestEstimatorAllocationAPI:
         partition_ratios = bkd.array([2.0, 5.0])
         target_cost = 500.0
 
-        cov = est.covariance_from_ratios(target_cost, partition_ratios)
+        cov = est.covariance_at(target_cost, partition_ratios)
 
         assert len(cov.shape) == 2
         assert cov.shape[0] == cov.shape[1]
 
-    def test_estimator_npartition_samples_from_ratios(self, bkd):
-        """npartition_samples_from_ratios() computes sample counts from ratios."""
+    def test_npartition_samples_at(self, bkd):
+        """npartition_samples_at() computes sample counts from ratios."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
@@ -428,215 +403,41 @@ class TestEstimatorAllocationAPI:
         partition_ratios = bkd.array([2.0, 5.0])
         target_cost = 500.0
 
-        npartition_samples = est.npartition_samples_from_ratios(
+        npartition_samples = est.npartition_samples_at(
             target_cost, partition_ratios
         )
 
         assert len(npartition_samples) == est._npartitions
         assert all(float(n) > 0 for n in npartition_samples)
 
-    def test_estimator_covariance_requires_allocation(self, bkd):
-        """covariance() raises RuntimeError without allocation."""
-        stat, costs = self._create_stat_and_costs(bkd)
-        recursion_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-
-        with pytest.raises(RuntimeError) as ctx:
-            est.covariance()
-        assert "No allocation set" in str(ctx.value)
-
-    def test_estimator_covariance_with_allocation(self, bkd):
-        """covariance() returns covariance matrix when allocation is set."""
+    def test_covariance_consistency(self, bkd):
+        """FittedACVEstimator.covariance() equals fresh computation from discrete counts."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
         allocator = ACVAllocator(est)
         result = allocator.allocate(target_cost=1000.0)
-        est.set_allocation(result)
+        assert result.success
 
-        cov = est.covariance()
+        fitted = FittedACVEstimator(est, result)
+        fresh_cov = est._covariance_from_npartition_samples(result.npartition_samples)
+        bkd.assert_allclose(fitted.covariance(), fresh_cov)
 
-        assert len(cov.shape) == 2
-        assert cov.shape[0] == cov.shape[1]
-
-    def test_allocate_samples_delegates_to_allocator(self, bkd):
-        """allocate_samples() produces the same result as ACVAllocator."""
+    def test_template_unchanged_after_fitting(self, bkd):
+        """Template estimator is not mutated by FittedACVEstimator creation."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
-        est.allocate_samples(target_cost=1000.0)
-
-        assert est.has_allocation
-        alloc = est.allocation()
-        assert alloc.success
-        assert alloc.actual_cost <= 1000.0
-
-
-class TestProxyAllocators:
-    """Tests for MFMC/MLMC proxy allocators."""
-
-    @pytest.fixture(autouse=True)
-    def _seed(self):
-        np.random.seed(42)
-
-    def _create_mfmc_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Create stat/costs satisfying MFMC hierarchy (decreasing correlation)."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.95 ** max(i, j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-        costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
-        return stat, costs
-
-    def _create_mlmc_stat_and_costs(self, bkd, nmodels: int = 3, nqoi: int = 1):
-        """Create stat/costs satisfying MLMC requirements (decreasing cost)."""
-        nqoi_nmodels = nqoi * nmodels
-        cov = np.eye(nqoi_nmodels)
-        for q in range(nqoi):
-            for i in range(nmodels):
-                for j in range(nmodels):
-                    if i != j:
-                        corr = 0.9 ** abs(i - j)
-                        cov[q * nmodels + i, q * nmodels + j] = corr
-        stat = MultiOutputMean(nqoi, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-        costs = bkd.array([100.0, 10.0, 1.0][:nmodels])
-        return stat, costs
-
-    def test_proxy_mfmc_matches_mfmc_estimator(self, bkd):
-        """GMFEstimator with chain index produces same result as MFMCEstimator."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        chain_index = bkd.array([0, 1], dtype=int)
-        target_cost = 1000.0
-
-        # GMF with chain index -> proxy allocator (instantiated directly)
-        gmf_est = GMFEstimator(stat, costs, recursion_index=chain_index)
-        gmf_allocator = _MFMCAnalyticalProxyAllocator(gmf_est)
-        gmf_result = gmf_allocator.allocate(target_cost)
-        assert gmf_result.success
-
-        # MFMC -> analytical allocator
-        mfmc_est = MFMCEstimator(stat, costs)
-        mfmc_allocator = default_allocator_factory(mfmc_est)
-        assert isinstance(mfmc_allocator, AnalyticalAllocator)
-        mfmc_result = mfmc_allocator.allocate(target_cost)
-        assert mfmc_result.success
-
-        # Partition ratios and objective should match
-        bkd.assert_allclose(
-            gmf_result.partition_ratios,
-            mfmc_result.partition_ratios,
-            rtol=1e-10,
-        )
-        bkd.assert_allclose(
-            gmf_result.objective_value,
-            mfmc_result.objective_value,
-            rtol=1e-10,
-        )
-
-    def test_proxy_mlmc_matches_mlmc_estimator(self, bkd):
-        """GRDEstimator with chain index produces same result as MLMCEstimator."""
-        stat, costs = self._create_mlmc_stat_and_costs(bkd)
-        chain_index = bkd.array([0, 1], dtype=int)
-        target_cost = 1000.0
-
-        # GRD with chain index -> proxy allocator (instantiated directly)
-        grd_est = GRDEstimator(stat, costs, recursion_index=chain_index)
-        grd_allocator = _MLMCAnalyticalProxyAllocator(grd_est)
-        grd_result = grd_allocator.allocate(target_cost)
-        assert grd_result.success
-
-        # MLMC -> analytical allocator
-        mlmc_est = MLMCEstimator(stat, costs)
-        mlmc_allocator = default_allocator_factory(mlmc_est)
-        assert isinstance(mlmc_allocator, AnalyticalAllocator)
-        mlmc_result = mlmc_allocator.allocate(target_cost)
-        assert mlmc_result.success
-
-        # Partition ratios and objective should match
-        bkd.assert_allclose(
-            grd_result.partition_ratios,
-            mlmc_result.partition_ratios,
-            rtol=1e-10,
-        )
-        bkd.assert_allclose(
-            grd_result.objective_value,
-            mlmc_result.objective_value,
-            rtol=1e-10,
-        )
-
-    def test_proxy_mfmc_fallback_on_negative_partitions(self, bkd):
-        """Proxy falls back to optimization when analytical formula
-        produces negative partition ratios."""
-        # Correlations NOT ordered by decreasing correlation
-        # so analytical MFMC formula produces negative partitions
-        nmodels = 3
-        cov = np.eye(nmodels)
-        cov[0, 1] = cov[1, 0] = 0.3
-        cov[0, 2] = cov[2, 0] = 0.9
-        cov[1, 2] = cov[2, 1] = 0.2
-
-        stat = MultiOutputMean(1, bkd)
-        stat.set_pilot_quantities(bkd.array(cov))
-        costs = bkd.array([100.0, 10.0, 1.0])
-
-        chain_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=chain_index)
-        allocator = _MFMCAnalyticalProxyAllocator(est)
-        # Should fall back to numerical optimizer and succeed
+        allocator = ACVAllocator(est)
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
-        # All partition samples must be non-negative
-        for i in range(len(result.npartition_samples)):
-            assert bkd.to_int(result.npartition_samples[i]) >= 0
 
-    def test_factory_returns_acv_for_gmf_chain(self, bkd):
-        """default_allocator_factory returns ACVAllocator for GMF chain."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        chain_index = bkd.array([0, 1], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=chain_index)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
-
-    def test_factory_returns_acv_for_gmf_non_chain(self, bkd):
-        """GMFEstimator with non-chain index gets ACVAllocator."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        non_chain_index = bkd.array([0, 0], dtype=int)
-        est = GMFEstimator(stat, costs, recursion_index=non_chain_index)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
-
-    def test_factory_returns_acv_for_grd_chain(self, bkd):
-        """default_allocator_factory returns ACVAllocator for GRD chain."""
-        stat, costs = self._create_mlmc_stat_and_costs(bkd)
-        chain_index = bkd.array([0, 1], dtype=int)
-        est = GRDEstimator(stat, costs, recursion_index=chain_index)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
-
-    def test_factory_returns_acv_for_grd_non_chain(self, bkd):
-        """GRDEstimator with non-chain index gets ACVAllocator."""
-        stat, costs = self._create_mlmc_stat_and_costs(bkd)
-        non_chain_index = bkd.array([0, 0], dtype=int)
-        est = GRDEstimator(stat, costs, recursion_index=non_chain_index)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
-
-    def test_factory_returns_acv_for_gis(self, bkd):
-        """GISEstimator with chain index gets ACVAllocator."""
-        stat, costs = self._create_mfmc_stat_and_costs(bkd)
-        chain_index = bkd.array([0, 1], dtype=int)
-        est = GISEstimator(stat, costs, recursion_index=chain_index)
-        allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
+        repr_before = repr(est)
+        FittedACVEstimator(est, result)
+        repr_after = repr(est)
+        assert repr_before == repr_after
 
 
 class TestAnalyticalVsNumerical:

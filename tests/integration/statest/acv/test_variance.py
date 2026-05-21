@@ -19,6 +19,7 @@ from pyapprox_benchmarks.statest import (
 )
 from pyapprox.statest.acv.search import ACVSearch
 from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
+from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.variants import (
     ACVEstimator,
     GISEstimator,
@@ -27,8 +28,8 @@ from pyapprox.statest.acv.variants import (
     MFMCEstimator,
     MLMCEstimator,
 )
-from pyapprox.statest.cv_estimator import CVEstimator
-from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
+from pyapprox.statest.mc_estimator import FittedMCEstimator, MCEstimator
 from pyapprox.statest.statistics import (
     MultiOutputMean,
     MultiOutputMeanAndVariance,
@@ -167,21 +168,18 @@ def get_estimator(
             stat,
             costs,
             recursion_index=kwargs.get("recursion_index"),
-            tree_depth=kwargs.get("tree_depth"),
         )
     elif est_type == "grd":
         return GRDEstimator(
             stat,
             costs,
             recursion_index=kwargs.get("recursion_index"),
-            tree_depth=kwargs.get("tree_depth"),
         )
     elif est_type == "gis":
         return GISEstimator(
             stat,
             costs,
             recursion_index=kwargs.get("recursion_index"),
-            tree_depth=kwargs.get("tree_depth"),
         )
     else:
         raise ValueError(f"Unknown est_type: {est_type}")
@@ -191,6 +189,8 @@ def _estimate_components(est, funs, ii: int, bkd: Backend[Array]):
     """Estimate Q, delta, and estimator value for a single trial.
 
     Replicates legacy _estimate_components from factory.py.
+    Works with fitted estimator types (FittedACVEstimator, FittedCVEstimator,
+    FittedMCEstimator).
     """
     random_states = [np.random.RandomState(ii + jj) for jj in range(1)]
 
@@ -204,27 +204,27 @@ def _estimate_components(est, funs, ii: int, bkd: Backend[Array]):
 
     mc_est = est._stat.sample_estimate
 
-    if isinstance(est, ACVEstimator):
+    if isinstance(est, FittedACVEstimator):
         est_val = est(values_per_model)
         acv_values = est._separate_values_per_model(values_per_model)
         Q = mc_est(acv_values[1])
         delta = bkd.hstack(
             [
                 mc_est(acv_values[2 * jj]) - mc_est(acv_values[2 * jj + 1])
-                for jj in range(1, est._nmodels)
+                for jj in range(1, est._template._nmodels)
             ]
         )
-    elif isinstance(est, CVEstimator):
+    elif isinstance(est, FittedCVEstimator):
         est_val = est(values_per_model)
         Q = mc_est(values_per_model[0])
         delta = bkd.hstack(
             [
-                mc_est(values_per_model[jj]) - est._lowfi_stats[jj - 1]
-                for jj in range(1, est._nmodels)
+                mc_est(values_per_model[jj]) - est._template._lowfi_stats[jj - 1]
+                for jj in range(1, est._template._nmodels)
             ]
         )
     else:
-        # MC estimator
+        # FittedMCEstimator
         est_val = est(values_per_model[0])
         Q = mc_est(values_per_model[0])
         delta = Q * 0
@@ -260,13 +260,20 @@ def numerically_compute_estimator_variance(
 
     # HF covariance (from Q)
     hf_covar_numer = bkd.cov(Q, ddof=1, rowvar=False)
-    hf_covar = est._stat.high_fidelity_estimator_covariance(
-        est._rounded_npartition_samples[0]
-    )
+    if isinstance(est, FittedACVEstimator):
+        nps = est.npartition_samples()
+        template = est._template
+    elif isinstance(est, FittedCVEstimator):
+        nps = est._npartition_samples
+        template = est._template
+    else:
+        nps = est.nsamples_per_model()
+        template = est._template
+    hf_covar = est._stat.high_fidelity_estimator_covariance(nps[0])
 
     # Estimator covariance
     covar_numer = bkd.cov(est_vals, ddof=1, rowvar=False)
-    covar = est._covariance_from_npartition_samples(est._rounded_npartition_samples)
+    covar = template._covariance_from_npartition_samples(nps)
 
     if not return_all:
         return hf_covar_numer, hf_covar, covar_numer, covar
@@ -524,14 +531,13 @@ class TestEstimatorVariances:
                 recursion_strategy=TreeDepthRecursionStrategy(max_depth=tree_depth),
             )
             result = search.search(target_cost=target_cost, allow_failures=True)
-            est = result.estimator
+            fitted = result.best
         else:
-            est = get_estimator(
+            template = get_estimator(
                 est_type, stat, costs, max_nmodels=max_nmodels, **kwargs
             )
 
-            # Configure optimizer with higher maxiter for convergence (matches legacy)
-            if hasattr(est, "get_default_optimizer"):
+            if isinstance(template, ACVEstimator):
                 from pyapprox.optimization.minimize.chained.chained_optimizer import (
                     ChainedOptimizer,
                 )
@@ -541,24 +547,36 @@ class TestEstimatorVariances:
                 from pyapprox.optimization.minimize.scipy.trust_constr import (
                     ScipyTrustConstrOptimizer,
                 )
+                from pyapprox.statest.acv.allocation import default_allocator_factory
 
                 global_optimizer = ScipyDifferentialEvolutionOptimizer(
                     maxiter=3, raise_on_failure=False
                 )
                 local_optimizer = ScipyTrustConstrOptimizer(maxiter=1000)
                 optimizer = ChainedOptimizer(global_optimizer, local_optimizer)
-                est.set_optimizer(optimizer)
-
-            allocate_with_allocator(est, target_cost)
+                allocator = default_allocator_factory(template, optimizer=optimizer)
+                alloc_result = allocator.allocate(target_cost)
+                if not alloc_result.success:
+                    raise RuntimeError(
+                        f"Allocation failed: {alloc_result.message}"
+                    )
+                fitted = FittedACVEstimator(template, alloc_result)
+            else:
+                fitted = allocate_with_allocator(template, target_cost)
 
         hfcovar_mc, hfcovar, covar_mc, covar, est_vals, Q, delta = (
-            numerically_compute_estimator_variance(funs, est, ntrials, bkd, True)
+            numerically_compute_estimator_variance(funs, fitted, ntrials, bkd, True)
         )
 
         if est_type != "mc":
             CF_mc = bkd.cov(delta.T, ddof=1)
             cf_mc = bkd.cov(bkd.vstack([Q.T, delta.T]), ddof=1)[:idx, idx:]
-            CF, cf = est._get_discrepancy_covariances(est._rounded_npartition_samples)
+            if isinstance(fitted, FittedACVEstimator):
+                nps = fitted.npartition_samples()
+                CF, cf = fitted._template._get_discrepancy_covariances(nps)
+            else:
+                nps = fitted._npartition_samples
+                CF, cf = fitted._template._get_discrepancy_covariances(nps)
             assert bkd.allclose(CF, CF_mc, atol=atol, rtol=rtol)
             assert bkd.allclose(cf, cf_mc, atol=atol, rtol=rtol)
 
@@ -642,8 +660,8 @@ class TestDiscrepancyCovariances:
         if recursion_index is not None:
             kwargs["recursion_index"] = self._bkd.array(recursion_index, dtype=int)
 
-        est = get_estimator(est_type, stat, costs, **kwargs)
-        allocate_with_allocator(est, target_cost)
+        template = get_estimator(est_type, stat, costs, **kwargs)
+        fitted = allocate_with_allocator(template, target_cost)
 
         Q_list = []
         delta_list = []
@@ -653,12 +671,12 @@ class TestDiscrepancyCovariances:
             return self._bkd.asarray(np.random.rand(1, int(n)))
 
         for _ in range(ntrials):
-            samples_per_model = est.generate_samples_per_model(rvs)
+            samples_per_model = fitted.generate_samples_per_model(rvs)
             values_per_model = [
                 model(samples) for model, samples in zip(models, samples_per_model)
             ]
 
-            acv_values = est._separate_values_per_model(values_per_model)
+            acv_values = fitted._separate_values_per_model(values_per_model)
             Q = mc_est(acv_values[1])
             Q_list.append(Q.flatten())
 
@@ -676,7 +694,8 @@ class TestDiscrepancyCovariances:
         idx = stat.nstats()
         cf_mc = self._bkd.cov(self._bkd.vstack([Q.T, delta.T]), ddof=1)[:idx, idx:]
 
-        CF, cf = est._get_discrepancy_covariances(est._rounded_npartition_samples)
+        nps = fitted.npartition_samples()
+        CF, cf = fitted._template._get_discrepancy_covariances(nps)
 
         self._bkd.assert_allclose(
             self._bkd.asarray([CF.shape[0]]), self._bkd.asarray([CF_mc.shape[0]])

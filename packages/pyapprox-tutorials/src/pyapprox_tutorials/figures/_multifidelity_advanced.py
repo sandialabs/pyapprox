@@ -285,15 +285,11 @@ def plot_mlblue_ceiling(ax):
                     (1, npartition_ratio_base[:est_template._npartitions - 1]
                      * 2**factor)),
             )
-            est_copy = copy.deepcopy(est_template)
-            nsamples_per_model = est_copy._compute_nsamples_per_model(
+            est_cov = est_template._covariance_from_npartition_samples(
                 npartition_samples)
-            est_copy._set_optimized_params_base(
-                npartition_samples, nsamples_per_model,
-                est_copy._estimator_cost(npartition_samples))
-            est_var = bkd.to_float(est_copy._optimized_covariance[0, 0])
+            est_var = bkd.to_float(est_cov[0, 0])
             est_costs.append(
-                bkd.to_float(est_copy._estimator_cost(npartition_samples)))
+                bkd.to_float(est_template._estimator_cost(npartition_samples)))
             est_ratios.append(est_var / mc_var)
         return est_costs, est_ratios
 
@@ -537,8 +533,10 @@ def plot_pacv_enumeration(ax):
         ACVAllocator,
         default_allocator_factory,
     )
+    from pyapprox.statest.acv.base import FittedACVEstimator
     from pyapprox.statest.acv.search import ACVSearch
     from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
+    from pyapprox.statest.allocation import MCAllocator
     from pyapprox.statest.mc_estimator import MCEstimator
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
@@ -555,8 +553,8 @@ def plot_pacv_enumeration(ax):
     stat.set_pilot_quantities(cov)
 
     mc_est = MCEstimator(stat, costs[:1])
-    mc_est.allocate_samples(100.0)
-    mc_var = bkd.to_float(mc_est.optimized_covariance()[0, 0])
+    mc_fitted = MCAllocator(mc_est).allocate(100.0)
+    mc_var = bkd.to_float(mc_fitted.covariance()[0, 0])
 
     _slsqp = ScipySLSQPOptimizer(maxiter=200)
 
@@ -578,8 +576,8 @@ def plot_pacv_enumeration(ax):
     for est, alloc in result.all_allocations:
         if alloc.success:
             try:
-                est.set_allocation(alloc)
-                var = bkd.to_float(est.optimized_covariance()[0, 0])
+                fitted = FittedACVEstimator(est, alloc)
+                var = bkd.to_float(fitted.covariance()[0, 0])
             except np.linalg.LinAlgError:
                 var = mc_var
         else:
@@ -818,11 +816,11 @@ def plot_moacv_vs_soacv(ax):
             result_so = search_so.search(float(P))
         except RuntimeError:
             continue
-        cov_mo_P = bkd.to_numpy(result_mo.estimator.optimized_covariance())
+        cov_mo_P = bkd.to_numpy(result_mo.best.covariance())
         target_costs.append(P)
         mo_vars.append(cov_mo_P[0, 0])
         so_vars.append(bkd.to_float(
-            result_so.estimator.optimized_covariance()[0, 0]))
+            result_so.best.covariance()[0, 0]))
         mc_vars.append(mc_var_q0 / float(P))
 
     ax.loglog(target_costs, mo_vars, "-", color="#8E44AD", lw=2.5,
@@ -893,6 +891,9 @@ def plot_bad_model(ax):
     """
     from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
+    from pyapprox.statest.acv.allocation import default_allocator_factory
+    from pyapprox.statest.acv.base import FittedACVEstimator
+    from pyapprox.statest.allocation import MCAllocator
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
@@ -918,8 +919,8 @@ def plot_bad_model(ax):
         stat_mc = MultiOutputMean(1, bkd)
         stat_mc.set_pilot_quantities(cov)
         mc_est = MCEstimator(stat_mc, costs[:1])
-        mc_est.allocate_samples(P)
-        mc_var = bkd.to_float(mc_est.optimized_covariance()[0, 0])
+        mc_fitted = MCAllocator(mc_est).allocate(P)
+        mc_var = bkd.to_float(mc_fitted.covariance()[0, 0])
         mc_vars.append(mc_var)
 
         best2 = mc_var
@@ -930,8 +931,9 @@ def plot_bad_model(ax):
             stat2.set_pilot_quantities(bkd.array(sub_cov))
             est2 = GMFEstimator(stat2, sub_costs,
                                 recursion_index=bkd.asarray([0]))
-            est2.allocate_samples(P)
-            v = bkd.to_float(est2.optimized_covariance()[0, 0])
+            alloc2 = default_allocator_factory(est2).allocate(P)
+            fitted2 = FittedACVEstimator(est2, alloc2)
+            v = bkd.to_float(fitted2.covariance()[0, 0])
             best2 = min(best2, v)
         two_model_vars.append(best2)
 
@@ -939,8 +941,9 @@ def plot_bad_model(ax):
         stat3.set_pilot_quantities(cov)
         est3 = GMFEstimator(stat3, costs,
                             recursion_index=bkd.asarray([0, 0]))
-        est3.allocate_samples(P)
-        v3 = bkd.to_float(est3.optimized_covariance()[0, 0])
+        alloc3 = default_allocator_factory(est3).allocate(P)
+        fitted3 = FittedACVEstimator(est3, alloc3)
+        v3 = bkd.to_float(fitted3.covariance()[0, 0])
         three_model_vars.append(v3)
 
     rho01_arr = np.array(rho01_vals)
@@ -1015,6 +1018,9 @@ def plot_ensemble_nmodels(ax):
     """
     from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
+    from pyapprox.statest.acv.allocation import default_allocator_factory
+    from pyapprox.statest.acv.base import FittedACVEstimator
+    from pyapprox.statest.allocation import MCAllocator
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
@@ -1038,8 +1044,8 @@ def plot_ensemble_nmodels(ax):
         stat_mc = MultiOutputMean(1, bkd)
         stat_mc.set_pilot_quantities(cov)
         mc_est = MCEstimator(stat_mc, costs[:1])
-        mc_est.allocate_samples(P)
-        mc_var = bkd.to_float(mc_est.optimized_covariance()[0, 0])
+        mc_fitted = MCAllocator(mc_est).allocate(P)
+        mc_var = bkd.to_float(mc_fitted.covariance()[0, 0])
 
         best1 = mc_var
         for idx2 in ([0, 1], [0, 2]):
@@ -1049,8 +1055,9 @@ def plot_ensemble_nmodels(ax):
             stat2.set_pilot_quantities(bkd.array(sub_cov))
             est2 = GMFEstimator(stat2, sub_costs,
                                 recursion_index=bkd.asarray([0]))
-            est2.allocate_samples(P)
-            v = bkd.to_float(est2.optimized_covariance()[0, 0])
+            alloc2 = default_allocator_factory(est2).allocate(P)
+            fitted2 = FittedACVEstimator(est2, alloc2)
+            v = bkd.to_float(fitted2.covariance()[0, 0])
             best1 = min(best1, v)
         best_1lf.append(best1 / mc_var)
 
@@ -1058,8 +1065,9 @@ def plot_ensemble_nmodels(ax):
         stat3.set_pilot_quantities(cov)
         est3 = GMFEstimator(stat3, costs,
                             recursion_index=bkd.asarray([0, 0]))
-        est3.allocate_samples(P)
-        v3 = bkd.to_float(est3.optimized_covariance()[0, 0])
+        alloc3 = default_allocator_factory(est3).allocate(P)
+        fitted3 = FittedACVEstimator(est3, alloc3)
+        v3 = bkd.to_float(fitted3.covariance()[0, 0])
         two_lf.append(v3 / mc_var)
 
     rho01_arr = np.array(rho01_vals)
@@ -1091,6 +1099,9 @@ def plot_pilot_tradeoff(axes):
     """
     from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
     from pyapprox.statest import MCEstimator, MFMCEstimator, MultiOutputMean
+    from pyapprox.statest.acv.allocation import default_allocator_factory
+    from pyapprox.statest.acv.base import FittedACVEstimator
+    from pyapprox.statest.allocation import MCAllocator
     from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
@@ -1107,12 +1118,13 @@ def plot_pilot_tradeoff(axes):
     oracle_stat = MultiOutputMean(nqoi, bkd)
     oracle_stat.set_pilot_quantities(cov_oracle)
     oracle_est = MFMCEstimator(oracle_stat, costs)
-    oracle_est.allocate_samples(P_total)
-    oracle_mse = bkd.to_float(oracle_est.optimized_covariance()[0, 0])
+    oracle_alloc = default_allocator_factory(oracle_est).allocate(P_total)
+    oracle_fitted = FittedACVEstimator(oracle_est, oracle_alloc)
+    oracle_mse = bkd.to_float(oracle_fitted.covariance()[0, 0])
 
     mc_est = MCEstimator(oracle_stat, costs[:1])
-    mc_est.allocate_samples(P_total)
-    mc_mse = bkd.to_float(mc_est.optimized_covariance()[0, 0])
+    mc_fitted = MCAllocator(mc_est).allocate(P_total)
+    mc_mse = bkd.to_float(mc_fitted.covariance()[0, 0])
 
     def single_trial(seed, npilot, budget):
         np.random.seed(seed)
@@ -1123,11 +1135,12 @@ def plot_pilot_tradeoff(axes):
         stat.set_pilot_quantities(cov_hat)
         est = MFMCEstimator(stat, costs)
         try:
-            est.allocate_samples(budget)
+            alloc = default_allocator_factory(est).allocate(budget)
+            fitted = FittedACVEstimator(est, alloc)
             np.random.seed(seed + 1000)
-            s_main = est.generate_samples_per_model(prior.rvs)
+            s_main = fitted.generate_samples_per_model(prior.rvs)
             vals_main = [m(s) for m, s in zip(models, s_main)]
-            return bkd.to_float(est(vals_main))
+            return bkd.to_float(fitted(vals_main))
         except Exception:
             return float("nan")
 
@@ -1216,6 +1229,7 @@ def plot_budget_vs_statistic(stat_configs, cost_per_eval, bkd, ax):
 
     Predicted estimation error vs budget for mean, variance, mean+variance.
     """
+    from pyapprox.statest.allocation import MCAllocator
     from pyapprox.statest.mc_estimator import MCEstimator
 
     budget_values = np.logspace(1, 3.5, 30)
@@ -1225,8 +1239,8 @@ def plot_budget_vs_statistic(stat_configs, cost_per_eval, bkd, ax):
         traces = []
         for budget in budget_values:
             est_temp = MCEstimator(stat_obj, cost_per_eval)
-            est_temp.allocate_samples(float(budget))
-            est_cov = est_temp.optimized_covariance()
+            fitted_temp = MCAllocator(est_temp).allocate(float(budget))
+            est_cov = fitted_temp.covariance()
             traces.append(bkd.to_float(bkd.trace(est_cov)))
         ax.loglog(budget_values, traces, "-o", ms=4, color=color, label=name)
 

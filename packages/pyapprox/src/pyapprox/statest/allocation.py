@@ -1,8 +1,12 @@
-"""Allocation result types for statistical estimators."""
+"""Allocation result types and allocators for MC/CV estimators."""
 
 from dataclasses import dataclass
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.statest.statistics import (
+    MultiOutputMeanAndVariance,
+    MultiOutputVariance,
+)
 from pyapprox.util.backends.protocols import Array, Array_co
 
 
@@ -54,3 +58,87 @@ class CVAllocationResult(Generic[Array]):
     objective_value: Array
     success: bool
     message: str = ""
+
+
+class MCAllocator(Generic[Array]):
+    """Allocator for MC estimators: floor(budget / cost)."""
+
+    def __init__(self, template: "MCEstimator[Array]") -> None:
+        from pyapprox.statest.mc_estimator import MCEstimator
+
+        if not isinstance(template, MCEstimator):
+            raise TypeError(
+                f"MCAllocator requires MCEstimator, got {type(template).__name__}"
+            )
+        self._template = template
+        self._bkd = template._bkd
+
+    def allocate(self, target_cost: float) -> "FittedMCEstimator[Array]":
+        """Allocate samples and return a FittedMCEstimator.
+
+        Parameters
+        ----------
+        target_cost : float
+            Total computational budget.
+
+        Returns
+        -------
+        FittedMCEstimator
+            The fitted estimator with frozen allocation.
+        """
+        from pyapprox.statest.mc_estimator import FittedMCEstimator
+
+        bkd = self._bkd
+        nsamples = bkd.to_int(bkd.floor(target_cost / self._template._costs[0]))
+        nsamples_per_model = bkd.asarray([nsamples], dtype=int)
+        actual_cost = bkd.to_float(self._template._costs[0] * nsamples)
+        return FittedMCEstimator(self._template, nsamples_per_model, actual_cost)
+
+
+class CVAllocator(Generic[Array]):
+    """Allocator for CV estimators: all models get the same sample count."""
+
+    def __init__(self, template: "CVEstimator[Array]") -> None:
+        from pyapprox.statest.cv_estimator import CVEstimator
+
+        if not isinstance(template, CVEstimator):
+            raise TypeError(
+                f"CVAllocator requires CVEstimator, got {type(template).__name__}"
+            )
+        self._template = template
+        self._bkd = template._bkd
+
+    def allocate(self, target_cost: float) -> "FittedCVEstimator[Array]":
+        """Allocate samples and return a FittedCVEstimator.
+
+        Parameters
+        ----------
+        target_cost : float
+            Total computational budget.
+
+        Returns
+        -------
+        FittedCVEstimator
+            The fitted estimator with frozen allocation.
+        """
+        from pyapprox.statest.cv_estimator import FittedCVEstimator
+
+        bkd = self._bkd
+        template = self._template
+
+        nsamples_float = target_cost / bkd.sum(template._costs)
+        nsamples = bkd.to_int(bkd.floor(nsamples_float))
+
+        if isinstance(template._stat, (MultiOutputVariance, MultiOutputMeanAndVariance)):
+            min_nhf_samples = 2
+        else:
+            min_nhf_samples = 1
+        if nsamples < min_nhf_samples:
+            raise ValueError(
+                "target_cost is too small. Not enough samples of each model"
+                " can be taken {0} < {1}".format(nsamples_float, min_nhf_samples)
+            )
+
+        nsamples_per_model = bkd.full((template._nmodels,), nsamples, dtype=int)
+        actual_cost = bkd.to_float(bkd.sum(template._costs * nsamples_per_model))
+        return FittedCVEstimator(template, nsamples_per_model, actual_cost)

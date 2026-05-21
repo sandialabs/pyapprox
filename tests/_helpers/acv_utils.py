@@ -1,50 +1,44 @@
 """ACV test utilities."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Union
 
-if TYPE_CHECKING:
-    from pyapprox.statest.acv.allocation import ACVAllocationResult
+from pyapprox.statest.acv.base import ACVEstimator, FittedACVEstimator
+from pyapprox.statest.acv.allocation import default_allocator_factory
+from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
+from pyapprox.statest.mc_estimator import MCEstimator, FittedMCEstimator
+from pyapprox.statest.allocation import MCAllocator, CVAllocator
 
 
 def allocate_with_allocator(
-    est: Any, target_cost: float,
-) -> Optional[ACVAllocationResult[Any]]:
-    """Allocate samples using the new allocator API.
+    template: Any, target_cost: float,
+) -> Union[FittedMCEstimator, FittedCVEstimator, FittedACVEstimator]:
+    """Allocate samples and return a fitted estimator.
 
-    This function replaces `est.allocate_samples(target_cost)` for all
-    estimators. For ACV estimators, it uses the new allocator/estimator
-    split pattern. For MC/CV estimators (which don't have allocators),
-    it falls back to the direct `allocate_samples()` method.
+    Routes to the correct allocator based on estimator type:
+    - ACVEstimator -> default_allocator_factory -> FittedACVEstimator
+    - CVEstimator -> CVAllocator -> FittedCVEstimator
+    - MCEstimator -> MCAllocator -> FittedMCEstimator
 
     Parameters
     ----------
-    est : Estimator
-        The estimator to allocate samples for.
+    template : Estimator
+        The template estimator.
     target_cost : float
         The total computational budget.
 
     Returns
     -------
-    AllocationResult or None
-        The allocation result for ACV estimators, None for MC/CV.
-
-    Raises
-    ------
-    RuntimeError
-        If allocation fails.
+    FittedMCEstimator or FittedCVEstimator or FittedACVEstimator
+        The fitted estimator with frozen allocation.
     """
-    from pyapprox.statest.acv.base import ACVEstimator
-
-    if isinstance(est, ACVEstimator):
-        from pyapprox.statest.acv.allocation import default_allocator_factory
-
-        allocator = default_allocator_factory(est)
+    if isinstance(template, ACVEstimator):
+        allocator = default_allocator_factory(template)
         result = allocator.allocate(target_cost)
         if not result.success:
             raise RuntimeError(f"Allocation failed: {result.message}")
-        est.set_allocation(result)
-        return result
+        return FittedACVEstimator(template, result)
+    elif isinstance(template, CVEstimator):
+        return CVAllocator(template).allocate(target_cost)
     else:
-        est.allocate_samples(target_cost)
-        return None
+        return MCAllocator(template).allocate(target_cost)

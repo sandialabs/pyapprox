@@ -89,6 +89,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.int64
 
     @staticmethod
+    def is_integer_dtype(array: NDArray[Any]) -> bool:
+        return np.issubdtype(array.dtype, np.integer)
+
+    @staticmethod
     def stack(
         arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
         axis: int = 0,
