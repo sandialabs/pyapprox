@@ -7,15 +7,18 @@ configuration, and fixed hyperparameter handling.
 
 import numpy as np
 import pytest
-
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
+
 from pyapprox.surrogates.gaussianprocess import (
     ConstantMean,
     ExactGaussianProcess,
 )
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 
 
 class TestExactGPOptimization:
@@ -46,8 +49,11 @@ class TestExactGPOptimization:
         # Store initial hyperparameters (before fit)
         params_before = bkd.to_numpy(gp.hyp_list().get_values()).copy()
 
-        # fit() should optimize hyperparameters automatically
-        gp.fit(X_train, y_train)
+        # Fitter should optimize hyperparameters automatically
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Get final hyperparameters
         params_after = bkd.to_numpy(gp.hyp_list().get_values())
@@ -86,8 +92,11 @@ class TestExactGPOptimization:
             kernel, nvars, bkd, mean_function=constant_mean, nugget=0.1
         )
 
-        # fit() should optimize both kernel and mean parameters
-        gp.fit(X_train, y_train)
+        # Fitter should optimize both kernel and mean parameters
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Should have 3 hyperparameters (2 length scales + 1 constant)
         assert gp.hyp_list().nparams() == 3
@@ -131,7 +140,10 @@ class TestExactGPOptimization:
 
         # First fit WITHOUT optimization to get baseline error
         gp.hyp_list().set_all_inactive()
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
         mean_before = gp.predict(X_test)
         error_before = mean_before - y_test
         abs_error_before = bkd.abs(error_before)
@@ -148,7 +160,10 @@ class TestExactGPOptimization:
         gp.hyp_list().set_all_active()
 
         # Now fit WITH optimization
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Predict after optimization
         mean_after = gp.predict(X_test)
@@ -161,7 +176,7 @@ class TestExactGPOptimization:
             f"MSE got worse: {mse_before} -> {mse_after}"
 
     def test_fit_with_custom_optimizer(self, bkd) -> None:
-        """Test fit() with custom optimizer via set_optimizer()."""
+        """Test fit() with custom optimizer via fitter."""
         np.random.seed(42)
         nvars = 2
         n_train = 10
@@ -179,17 +194,16 @@ class TestExactGPOptimization:
 
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        # Set custom optimizer
+        # Use custom optimizer via fitter
         custom_optimizer = ScipyTrustConstrOptimizer(
             maxiter=500, gtol=1e-8, verbosity=0
         )
-        gp.set_optimizer(custom_optimizer)
 
-        # Verify optimizer is set
-        assert gp.optimizer() is not None
-
-        # fit() should use the custom optimizer
-        gp.fit(X_train, y_train)
+        # Fitter should use the custom optimizer
+        result = GPMaximumLikelihoodFitter(
+            bkd, optimizer=custom_optimizer
+        ).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         # Should still make predictions
         mean = gp.predict(X_test)
@@ -220,8 +234,11 @@ class TestExactGPOptimization:
         # Store initial values
         params_before = bkd.to_numpy(gp.hyp_list().get_values()).copy()
 
-        # fit() should only store data (no optimization)
-        gp.fit(X_train, y_train)
+        # Fitter should only store data (no optimization)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Hyperparameters should NOT change
         params_after = bkd.to_numpy(gp.hyp_list().get_values())
@@ -251,25 +268,32 @@ class TestExactGPOptimization:
         X_test = bkd.array(X_test_np)
 
         # Create shared optimizer
-        shared_optimizer = ScipyTrustConstrOptimizer(maxiter=500, verbosity=0)
+        shared_optimizer = ScipyTrustConstrOptimizer(
+            maxiter=500, verbosity=0
+        )
 
-        # Create two GPs with same optimizer
+        # Create two GPs with same optimizer via shared fitter
         kernel1 = Matern52Kernel([2.0, 2.0], (0.1, 10.0), nvars, bkd)
         gp1 = ExactGaussianProcess(kernel1, nvars, bkd, nugget=0.1)
-        gp1.set_optimizer(shared_optimizer)
 
         kernel2 = Matern52Kernel([2.0, 2.0], (0.1, 10.0), nvars, bkd)
         gp2 = ExactGaussianProcess(kernel2, nvars, bkd, nugget=0.1)
-        gp2.set_optimizer(shared_optimizer)
+
+        # Fitter clones the optimizer internally
+        fitter = GPMaximumLikelihoodFitter(
+            bkd, optimizer=shared_optimizer
+        )
 
         # Fitting gp1 should not affect gp2's optimizer
-        gp1.fit(X_train, y_train)
+        result1 = fitter.fit(gp1, X_train, y_train)
+        gp1 = result1.surrogate()
 
         # The shared optimizer should still be unbound
         assert not shared_optimizer.is_bound()
 
         # gp2 should also be able to fit
-        gp2.fit(X_train, y_train)
+        result2 = fitter.fit(gp2, X_train, y_train)
+        gp2 = result2.surrogate()
 
         # Both should make predictions
         mean1 = gp1.predict(X_test)
@@ -277,12 +301,18 @@ class TestExactGPOptimization:
         assert mean1.shape == (1, n_test)
         assert mean2.shape == (1, n_test)
 
-    def test_set_optimizer_validates_protocol(self, bkd) -> None:
-        """Test that set_optimizer validates the protocol."""
+    def test_fitter_rejects_invalid_optimizer(self, bkd) -> None:
+        """Test that fitter rejects an invalid optimizer."""
         nvars = 2
         kernel = Matern52Kernel([1.0, 1.0], (0.1, 10.0), nvars, bkd)
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        # Should raise TypeError for invalid optimizer
-        with pytest.raises(TypeError):
-            gp.set_optimizer("not an optimizer")  # type: ignore
+        X_train = bkd.array(np.random.randn(nvars, 5))
+        y_train = bkd.array(np.random.randn(1, 5))
+
+        # Should raise when fitting with an invalid optimizer
+        with pytest.raises((TypeError, AttributeError)):
+            GPMaximumLikelihoodFitter(
+                bkd,
+                optimizer="not an optimizer",  # type: ignore
+            ).fit(gp, X_train, y_train)

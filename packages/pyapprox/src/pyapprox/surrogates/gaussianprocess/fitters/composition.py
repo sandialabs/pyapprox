@@ -89,17 +89,16 @@ class DGPChainedFitResult(Generic[Array]):
         return list(self._intermediates)
 
     def bkd(self) -> Backend[Array]:
-        return self._final.bkd()
+        return self._final.surrogate().bkd()
 
     def __call__(self, X: Array) -> Array:
-        result: Array = self._final(X)
-        return result
+        return self._final.surrogate()(X)
 
     def predict(self, X: Array) -> Array:
-        return self._final.predict(X)
+        return self._final.surrogate().predict(X)
 
     def predict_std(self, X: Array) -> Array:
-        return self._final.predict_std(X)
+        return self._final.surrogate().predict_std(X)
 
     def __repr__(self) -> str:
         n_stages = len(self._intermediates)

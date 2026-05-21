@@ -9,13 +9,7 @@ import math
 
 import numpy as np
 import pytest
-
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    GaussianProcessStatistics,
-    SeparableKernelIntegralCalculator,
-)
 from pyapprox.surrogates.kernels.base import SeparableProductKernel
 from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
@@ -23,6 +17,15 @@ from pyapprox.surrogates.kernels.matern import (
 )
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
+)
+
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 from tests._helpers.markers import slow_test
 
@@ -66,7 +69,10 @@ class TestSeparableKernelIntegralCalculator:
             bkd.sin(math.pi * X_train[0, :]) * bkd.cos(math.pi * X_train[1, :]), (1, -1)
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Marginal distributions
         marginals = [
@@ -194,7 +200,10 @@ class TestGaussianProcessStatistics:
             bkd.sin(math.pi * X_train[0, :]) * bkd.cos(math.pi * X_train[1, :]), (1, -1)
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Marginal distributions
         marginals = [
@@ -279,7 +288,10 @@ class TestGaussianProcessStatistics:
         gp_large = ExactGaussianProcess(kernel, nvars=2, bkd=bkd, nugget=1e-6)
         # Skip hyperparameter optimization for this test
         gp_large.hyp_list().set_all_inactive()
-        gp_large.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp_large, X_train, y_train
+        )
+        gp_large = result.surrogate()
 
         # Create quadrature bases
         bases_large = _create_quadrature_bases(marginals, 30, bkd)
@@ -335,7 +347,10 @@ class TestMCComparison:
         # Use bkd.sin for backend compatibility
         y_train = bkd.reshape(bkd.sin(3.14159 * X_train[0, :]), (1, -1))
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Marginal distributions
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
@@ -679,7 +694,10 @@ class TestKnownMoments:
         # Evaluate function
         y_train = bkd.reshape(a * X_train[0, :] + b * X_train[1, :] + c, (1, -1))
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Generate test points (different from training)
         n_test = 100
@@ -766,7 +784,10 @@ class TestKnownMoments:
         # Evaluate function - shape: (nqoi, n_train)
         y_train = bkd.reshape(X_train[0, :] ** 2 + X_train[1, :] ** 2, (1, -1))
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Generate test points (different from training)
         n_test = 100
@@ -847,7 +868,10 @@ class TestKnownMoments:
         y_train = bkd.reshape(bkd.sin(pi * X_train[0, :]), (1, -1))
 
         # fit() optimizes hyperparameters by default for best interpolation
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train, y_train
+        )
+        gp = result.surrogate()
 
         # Generate test points (different from training)
         n_test = 100
@@ -911,7 +935,8 @@ class TestValidation:
         gp.hyp_list().set_all_inactive()
         X = bkd.array(np.random.rand(2, 5))
         y = bkd.array(np.random.rand(1, 5))  # Shape: (nqoi, n_train)
-        gp.fit(X, y)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X, y)
+        gp = result.surrogate()
 
         # Only 1 basis for 2D GP
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
@@ -931,7 +956,8 @@ class TestValidation:
         gp.hyp_list().set_all_inactive()
         X = bkd.array(np.random.rand(2, 5))
         y = bkd.array(np.random.rand(1, 5))  # Shape: (nqoi, n_train)
-        gp.fit(X, y)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X, y)
+        gp = result.surrogate()
 
         marginals = [
             UniformMarginal(-1.0, 1.0, bkd),

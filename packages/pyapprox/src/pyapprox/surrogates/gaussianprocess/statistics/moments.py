@@ -108,7 +108,7 @@ class GaussianProcessStatistics(Generic[Array]):
         if not gp.is_fitted():
             raise RuntimeError(
                 "GP must be fitted before computing statistics. "
-                "Call gp.fit(X_train, y_train) first."
+                "Use a fitter (e.g. GPMaximumLikelihoodFitter) first."
             )
 
         self._gp = gp

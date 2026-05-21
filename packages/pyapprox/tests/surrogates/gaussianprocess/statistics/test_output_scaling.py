@@ -21,6 +21,9 @@ import numpy as np
 
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputStandardScaler,
 )
@@ -105,7 +108,10 @@ class TestOutputScaling:
             kernel_a, nvars=2, bkd=bkd, nugget=_NUGGET
         )
         gp_a.hyp_list().set_all_inactive()
-        gp_a.fit(X_train, y_train_scaled)
+        result_a = GPMaximumLikelihoodFitter(bkd).fit(
+            gp_a, X_train, y_train_scaled
+        )
+        gp_a = result_a.surrogate()
 
         # GP B: trains on original data, with transform
         kernel_b = _create_kernel(bkd)
@@ -113,7 +119,10 @@ class TestOutputScaling:
             kernel_b, nvars=2, bkd=bkd, nugget=_NUGGET
         )
         gp_b.hyp_list().set_all_inactive()
-        gp_b.fit(X_train, y_train_orig, output_transform=scaler)
+        result_b = GPMaximumLikelihoodFitter(
+            bkd, output_transform=scaler
+        ).fit(gp_b, X_train, y_train_orig)
+        gp_b = result_b.surrogate()
 
         stats_a = _create_stats(gp_a, marginals, bkd)
         stats_b = _create_stats(gp_b, marginals, bkd)

@@ -15,7 +15,6 @@ from typing import (
     List,
     Optional,
     Tuple,
-    cast,
 )
 
 import networkx as nx
@@ -184,9 +183,7 @@ class ExactNARGPFitter(Generic[Array]):
             )
             result = fitter.fit(gp, h, y_node)
 
-            fitted_gps[node] = cast(
-                ExactGaussianProcess[Array], result.surrogate(),
-            )
+            fitted_gps[node] = result.surrogate()
             input_builders[node] = builder
             per_layer_nll[node] = result.neg_log_marginal_likelihood()
 

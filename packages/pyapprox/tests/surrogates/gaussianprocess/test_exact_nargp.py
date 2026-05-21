@@ -1,22 +1,23 @@
 """Tests for ExactNARGPFitter and ExactNARGPModel."""
 
-import numpy as np
 import networkx as nx
+import numpy as np
 import pytest
-
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.exact_nargp import (
     ExactNARGPModel,
-)
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    ExactNARGPFitter,
-    ExactNARGPFitResult,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ParentPassthroughMean,
     ZeroMean,
 )
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
+
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    ExactNARGPFitResult,
+    ExactNARGPFitter,
+    GPMaximumLikelihoodFitter,
+)
 
 
 def _se_factory(nvars, bkd):
@@ -111,7 +112,10 @@ class TestExactNARGPFitter:
         baseline_gp = ExactGaussianProcess(
             _se_factory(1, bkd), 1, bkd, nugget=1e-6,
         )
-        baseline_gp.fit(X_high, Y_high)
+        result = GPMaximumLikelihoodFitter(bkd).fit(
+            baseline_gp, X_high, Y_high
+        )
+        baseline_gp = result.surrogate()
         baseline_mean = bkd.to_numpy(baseline_gp.predict(X_test)).ravel()
         baseline_rmse = float(np.sqrt(np.mean((baseline_mean - y_truth) ** 2)))
 

@@ -309,6 +309,9 @@ class GaussianProcessEnsemble(Generic[Array]):
         from pyapprox.surrogates.gaussianprocess import (
             ExactGaussianProcess,
         )
+        from pyapprox.surrogates.gaussianprocess.fitters import (
+            GPFixedHyperparameterFitter,
+        )
         from pyapprox.surrogates.gaussianprocess.statistics import (
             GaussianProcessStatistics,
             SeparableKernelIntegralCalculator,
@@ -340,7 +343,9 @@ class GaussianProcessEnsemble(Generic[Array]):
         # Fit once to get Cholesky of k(Z,Z) + nugget*I
         # Use first realization as dummy y — Cholesky depends only on Z
         y_dummy = bkd.reshape(realizations[0, :], (1, -1))
-        gp_z.fit(Z, y_dummy)
+        gp_z = GPFixedHyperparameterFitter(bkd).fit(
+            gp_z, Z, y_dummy
+        ).surrogate()
 
         # Create kernel integral calculator at Z
         # Need quadrature bases for the marginals

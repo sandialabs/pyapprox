@@ -6,7 +6,7 @@ likelihood. Extracts the optimization logic from ExactGaussianProcess.fit().
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Optional
+from typing import TYPE_CHECKING, Generic, Optional, cast
 
 if TYPE_CHECKING:
     from pyapprox.surrogates.gaussianprocess.exact import (
@@ -153,12 +153,14 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
             GPNegativeLogMarginalLikelihoodLoss,
         )
 
+        loss: GPNegativeLogMarginalLikelihoodLoss[Array]
         loss = GPNegativeLogMarginalLikelihoodLoss(
-            clone, (clone._data.X(), clone._data.y())
+            clone, (clone.data().X(), clone.data().y())
         )
         if _is_torch(self._bkd) and not hasattr(
-            clone._kernel, "jacobian_wrt_params"
+            clone.kernel(), "jacobian_wrt_params"
         ):
+            _bkd_jacobian = getattr(self._bkd, "jacobian")
             bkd = self._bkd
 
             def _jacobian_autograd(params: Array) -> Array:
@@ -168,7 +170,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
                 def loss_func(p: Array) -> Array:
                     return loss(p)[0, 0]
 
-                jac = bkd.jacobian(loss_func, params)
+                jac = _bkd_jacobian(loss_func, params)
                 return bkd.reshape(jac, (1, len(params)))
 
             loss.jacobian = _jacobian_autograd
@@ -177,6 +179,7 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
         bounds = clone.hyp_list().get_active_bounds()
 
         # Get optimizer (clone if user-provided to avoid shared state)
+        optimizer: BindableOptimizerProtocol[Array]
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
@@ -184,7 +187,10 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
                 ScipyTrustConstrOptimizer,
             )
 
-            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
+            optimizer = cast(
+                BindableOptimizerProtocol[Array],
+                ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000),
+            )
 
         # Bind optimizer to loss and bounds
         optimizer.bind(loss, bounds)

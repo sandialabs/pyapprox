@@ -7,7 +7,7 @@ It also has no transforms.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, List, Optional, Union
+from typing import TYPE_CHECKING, Generic, List, Optional, Union, cast
 
 if TYPE_CHECKING:
     from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
@@ -152,12 +152,14 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
             GPNegativeLogMarginalLikelihoodLoss,
         )
 
+        loss: GPNegativeLogMarginalLikelihoodLoss[Array]
         loss = GPNegativeLogMarginalLikelihoodLoss(
-            clone, (clone._X_train_list, clone._y_train_stacked)
+            clone, (clone.data().X_list(), clone.data().y_stacked())
         )
         if _is_torch(self._bkd) and not hasattr(
-            clone._kernel, "jacobian_wrt_params"
+            clone.kernel(), "jacobian_wrt_params"
         ):
+            _bkd_jacobian = getattr(self._bkd, "jacobian")
             bkd = self._bkd
 
             def _jacobian_autograd(params: Array) -> Array:
@@ -167,13 +169,14 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
                 def loss_func(p: Array) -> Array:
                     return loss(p)[0, 0]
 
-                jac = bkd.jacobian(loss_func, params)
+                jac = _bkd_jacobian(loss_func, params)
                 return bkd.reshape(jac, (1, len(params)))
 
             loss.jacobian = _jacobian_autograd
 
         bounds = clone.hyp_list().get_active_bounds()
 
+        optimizer: BindableOptimizerProtocol[Array]
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
@@ -181,7 +184,10 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
                 ScipyTrustConstrOptimizer,
             )
 
-            optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000)
+            optimizer = cast(
+                BindableOptimizerProtocol[Array],
+                ScipyTrustConstrOptimizer(verbosity=0, maxiter=1000),
+            )
 
         optimizer.bind(loss, bounds)
 

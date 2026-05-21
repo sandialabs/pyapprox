@@ -32,6 +32,9 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
 )
 
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.statistics import (
     GaussianProcessStatistics,
     SeparableKernelIntegralCalculator,
@@ -81,8 +84,8 @@ def _fit_gp(
         kernel, nvars=nvars, bkd=bkd, nugget=1e-6
     )
     gp.hyp_list().set_all_inactive()
-    gp.fit(X_train, y_train)
-    return gp
+    result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+    return result.surrogate()
 
 
 def _create_stats(
@@ -314,7 +317,8 @@ class TestGPPredictions:
         # Train near origin with short length scales
         X_train = bkd.array([[0.0, 0.01], [0.0, 0.01]])
         y_train = bkd.array([[1.0, 1.1]])
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         # Predict far from training data
         X_far = bkd.array([[10.0], [10.0]])
@@ -335,7 +339,8 @@ class TestGPPredictions:
 
         X_train = bkd.array([[0.0, 0.01], [0.0, 0.01]])
         y_train = bkd.array([[1.0, 1.1]])
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         X_far = bkd.array([[10.0], [10.0]])
         std = gp.predict_std(X_far)

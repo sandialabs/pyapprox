@@ -40,6 +40,9 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
 )
 
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.statistics import (
     GaussianProcessStatistics,
     SeparableKernelIntegralCalculator,
@@ -100,8 +103,8 @@ def _fit_gp(
 ):
     gp = ExactGaussianProcess(kernel, nvars=nvars, bkd=bkd, nugget=nugget)
     gp.hyp_list().set_all_inactive()
-    gp.fit(X_train, y_train)
-    return gp
+    result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+    return result.surrogate()
 
 
 def _create_stats(

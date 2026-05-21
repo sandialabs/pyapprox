@@ -9,13 +9,7 @@ algorithm.
 import math
 
 import numpy as np
-
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    GaussianProcessStatistics,
-    SeparableKernelIntegralCalculator,
-)
 from pyapprox.surrogates.gaussianprocess.statistics.ensemble import (
     GaussianProcessEnsemble,
     SobolThresholdSelector,
@@ -29,6 +23,15 @@ from pyapprox.surrogates.kernels.base import (
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
+)
+
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 from tests._helpers.markers import slow_test
 
@@ -62,7 +65,8 @@ def _make_ensemble(bkd, nugget=1e-6, n_train=15):
         * bkd.cos(math.pi * X_train[1, :]),
         (1, -1),
     )
-    gp.fit(X_train, y_train)
+    result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+    gp = result.surrogate()
 
     marginals = [
         UniformMarginal(-1.0, 1.0, bkd),
@@ -139,7 +143,8 @@ class TestZeroVarianceAtTraining:
         X_train = bkd.array([[-0.5, 0.0, 0.5]])
         y_train = bkd.array([[1.0, 0.0, -1.0]])
         gp.hyp_list().set_all_inactive()
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         std_at_train = gp.predict_std(X_train)
         std_np = bkd.to_numpy(std_at_train)

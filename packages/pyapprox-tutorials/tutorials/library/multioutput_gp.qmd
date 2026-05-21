@@ -191,8 +191,13 @@ total_cost = n_lf * costs_per_eval[0] + n_hf * costs_per_eval[1]
 ## Fitting and Predicting
 
 ```{python}
+from pyapprox.surrogates.gaussianprocess.fitters import MultiOutputGPMaximumLikelihoodFitter
+
 # fit() optimises all active hyperparameters (length scales) via MLL
-mf_gp.fit(samples_list, y_train_list)
+result = MultiOutputGPMaximumLikelihoodFitter(bkd).fit(
+    mf_gp, samples_list, y_train_list
+)
+mf_gp = result.surrogate()
 
 # Predict on a dense grid with uncertainty
 x_test = bkd.asarray(np.linspace(0, 1, 200).reshape(1, -1))

@@ -29,6 +29,9 @@ from pyapprox.surrogates.kernels.scalings import (
 )
 from pyapprox.util.backends.torch import TorchBkd
 
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    MultiOutputGPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
     LinearCoregionalizationKernel,
@@ -105,7 +108,10 @@ class TestMultiOutputGPWithIndependentKernel:
         gp = MultiOutputGP(mo_kernel, nugget=1e-14)
         gp.hyp_list().set_all_inactive()  # Skip optimization for interpolation test
         X_list = [X_train] * noutputs
-        gp.fit(X_list, y_train_stacked)
+        result = MultiOutputGPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_list, y_train_stacked
+        )
+        gp = result.surrogate()
 
         # Predict at training points (should interpolate)
         # predict() returns a list of arrays, each with shape (1, n_train)
@@ -184,7 +190,10 @@ class TestMultiOutputGPWithIndependentKernel:
         # Create and fit GP
         gp = MultiOutputGP(mo_kernel, nugget=1e-14)
         X_train_list = [X_train] * noutputs
-        gp.fit(X_train_list, y_train_stacked)
+        result = MultiOutputGPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_train_list, y_train_stacked
+        )
+        gp = result.surrogate()
 
         # Predict at test points
         X_test_list = [X_test] * noutputs
@@ -340,7 +349,10 @@ class TestMultiOutputGPWithLMCKernel:
         gp = MultiOutputGP(lmc_kernel, nugget=1e-14)
         gp.hyp_list().set_all_inactive()  # Skip optimization for interpolation test
         X_list = [X_train] * noutputs
-        gp.fit(X_list, y_train_stacked)
+        result = MultiOutputGPMaximumLikelihoodFitter(bkd).fit(
+            gp, X_list, y_train_stacked
+        )
+        gp = result.surrogate()
 
         # Predict at training points
         # predict() returns a list of arrays, each with shape (1, n_train)
@@ -431,7 +443,10 @@ class TestMultiOutputGPOptimization:
         initial_params = gp.hyp_list().get_active_values().clone()
 
         X_list = [X_train] * self.noutputs
-        gp.fit(X_list, y_stacked)
+        result = MultiOutputGPMaximumLikelihoodFitter(self._bkd).fit(
+            gp, X_list, y_stacked
+        )
+        gp = result.surrogate()
 
         final_params = gp.hyp_list().get_active_values()
         assert not self._bkd.allclose(initial_params, final_params), \
@@ -466,7 +481,10 @@ class TestMultiOutputGPOptimization:
         initial_params = gp.hyp_list().get_active_values().clone()
 
         X_list = [X_train] * self.noutputs
-        gp.fit(X_list, y_stacked)
+        result = MultiOutputGPMaximumLikelihoodFitter(self._bkd).fit(
+            gp, X_list, y_stacked
+        )
+        gp = result.surrogate()
 
         final_params = gp.hyp_list().get_active_values()
         assert not self._bkd.allclose(initial_params, final_params), \
@@ -668,7 +686,10 @@ class TestTorchMultiOutputGPWithMultiLevelKernel:
 
         initial_params = gp.hyp_list().get_active_values().clone()
 
-        gp.fit(X_list, y_list)
+        result = MultiOutputGPMaximumLikelihoodFitter(self._bkd).fit(
+            gp, X_list, y_list
+        )
+        gp = result.surrogate()
 
         final_params = gp.hyp_list().get_active_values()
         assert not self._bkd.allclose(initial_params, final_params), \

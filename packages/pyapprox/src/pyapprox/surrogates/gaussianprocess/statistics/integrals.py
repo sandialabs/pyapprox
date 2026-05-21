@@ -171,7 +171,8 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
     >>> gp = ExactGaussianProcess(kernel, 2, bkd)
     >>> X = bkd.array(np.random.rand(2, 10) * 2 - 1)
     >>> y = bkd.array(np.random.rand(10, 1))
-    >>> gp.fit(X, y)
+    >>> from pyapprox.surrogates.gaussianprocess.fitters import GPMaximumLikelihoodFitter
+    >>> gp = GPMaximumLikelihoodFitter(bkd).fit(gp, X, y).surrogate()
     >>>
     >>> # Create quadrature bases using sparse grid infrastructure
     >>> marginals = [UniformMarginal(-1.0, 1.0, bkd), UniformMarginal(-1.0, 1.0, bkd)]
@@ -197,7 +198,7 @@ class SeparableKernelIntegralCalculator(Generic[Array]):
         if not gp.is_fitted():
             raise RuntimeError(
                 "GP must be fitted before computing statistics. "
-                "Call gp.fit(X_train, y_train) first."
+                "Use a fitter (e.g. GPMaximumLikelihoodFitter) first."
             )
 
         # Validate kernel is separable

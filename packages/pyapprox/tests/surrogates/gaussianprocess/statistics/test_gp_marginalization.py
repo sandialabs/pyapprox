@@ -9,12 +9,7 @@ import math
 
 import numpy as np
 import pytest
-
 from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
-)
 from pyapprox.surrogates.gaussianprocess.statistics.marginalization import (
     MarginalizedGP,
 )
@@ -22,6 +17,14 @@ from pyapprox.surrogates.kernels.base import SeparableProductKernel
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
+)
+
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    SeparableKernelIntegralCalculator,
 )
 from tests._helpers.markers import slow_test
 
@@ -68,7 +71,8 @@ class TestMarginalizedGP1D:
             (1, -1),
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         # Marginal distributions
         marginals = [
@@ -230,7 +234,8 @@ class TestMarginalizedGP2D:
             (1, -1),
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         # Marginal distributions
         marginals = [
@@ -378,7 +383,8 @@ class TestMarginalizedGPNumerical:
             (1, -1),
         )
 
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         # Marginal distributions
         marginals = [
@@ -493,7 +499,8 @@ class TestMarginalizedGPValidation:
         X_train = bkd.array(np.random.rand(2, 5) * 2 - 1)
         y_train = bkd.array(np.random.rand(5).reshape(1, -1))
         gp.hyp_list().set_all_inactive()
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         marginals = [
             UniformMarginal(-1.0, 1.0, bkd),
@@ -579,7 +586,8 @@ class TestMarginalizedGP1DSpecialCases:
         X_train = bkd.array([[-0.8, -0.3, 0.0, 0.4, 0.9]])
         y_train = bkd.reshape(bkd.sin(3.14159 * X_train[0, :]), (1, -1))
         gp.hyp_list().set_all_inactive()
-        gp.fit(X_train, y_train)
+        result = GPMaximumLikelihoodFitter(bkd).fit(gp, X_train, y_train)
+        gp = result.surrogate()
 
         marginals = [UniformMarginal(-1.0, 1.0, bkd)]
         bases = _create_quadrature_bases(marginals, 20, bkd)
