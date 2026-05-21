@@ -89,7 +89,7 @@ class TreeDepthRecursionStrategy(RecursionIndexStrategy[Array]):
 
     def indices(self, nmodels: int, bkd: Backend[Array]) -> List[Array]:
         # Use tree enumeration from typing.statest.factory
-        return list(get_acv_recursion_indices(nmodels, self.max_depth, bkd))
+        return list(get_acv_recursion_indices(nmodels, bkd, self.max_depth))
 
     def description(self) -> str:
         return f"all recursion trees up to depth {self.max_depth}"

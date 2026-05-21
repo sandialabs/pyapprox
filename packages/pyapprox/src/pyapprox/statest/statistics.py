@@ -396,7 +396,7 @@ def _get_V_from_covariance(cov: Array, nmodels: int, bkd: Backend[Array]) -> Arr
     return bkd.block(V)  # type: ignore
 
 
-def _covariance_of_variance_estimator(W: Array, V: Array, nsamples: int) -> Array:
+def _covariance_of_variance_estimator(W: Array, V: Array, nsamples: Array) -> Array:
     return W / nsamples + V / (nsamples * (nsamples - 1))
 
 
@@ -663,6 +663,7 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         self._nqoi = nqoi
         self._bkd = bkd
         self._nmodels: int = 0
+        self._cov: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
+from pyapprox.statest.mc_estimator import FittedMCEstimator, MCEstimator
 from pyapprox.statest.statistics import (
     MultiOutputMeanAndVariance,
     MultiOutputVariance,
@@ -63,9 +65,7 @@ class CVAllocationResult(Generic[Array]):
 class MCAllocator(Generic[Array]):
     """Allocator for MC estimators: floor(budget / cost)."""
 
-    def __init__(self, template: "MCEstimator[Array]") -> None:
-        from pyapprox.statest.mc_estimator import MCEstimator
-
+    def __init__(self, template: MCEstimator[Array]) -> None:
         if not isinstance(template, MCEstimator):
             raise TypeError(
                 f"MCAllocator requires MCEstimator, got {type(template).__name__}"
@@ -73,7 +73,7 @@ class MCAllocator(Generic[Array]):
         self._template = template
         self._bkd = template._bkd
 
-    def allocate(self, target_cost: float) -> "FittedMCEstimator[Array]":
+    def allocate(self, target_cost: float) -> FittedMCEstimator[Array]:
         """Allocate samples and return a FittedMCEstimator.
 
         Parameters
@@ -86,8 +86,6 @@ class MCAllocator(Generic[Array]):
         FittedMCEstimator
             The fitted estimator with frozen allocation.
         """
-        from pyapprox.statest.mc_estimator import FittedMCEstimator
-
         bkd = self._bkd
         nsamples = bkd.to_int(bkd.floor(target_cost / self._template._costs[0]))
         nsamples_per_model = bkd.asarray([nsamples], dtype=int)
@@ -98,9 +96,7 @@ class MCAllocator(Generic[Array]):
 class CVAllocator(Generic[Array]):
     """Allocator for CV estimators: all models get the same sample count."""
 
-    def __init__(self, template: "CVEstimator[Array]") -> None:
-        from pyapprox.statest.cv_estimator import CVEstimator
-
+    def __init__(self, template: CVEstimator[Array]) -> None:
         if not isinstance(template, CVEstimator):
             raise TypeError(
                 f"CVAllocator requires CVEstimator, got {type(template).__name__}"
@@ -108,7 +104,7 @@ class CVAllocator(Generic[Array]):
         self._template = template
         self._bkd = template._bkd
 
-    def allocate(self, target_cost: float) -> "FittedCVEstimator[Array]":
+    def allocate(self, target_cost: float) -> FittedCVEstimator[Array]:
         """Allocate samples and return a FittedCVEstimator.
 
         Parameters
@@ -121,8 +117,6 @@ class CVAllocator(Generic[Array]):
         FittedCVEstimator
             The fitted estimator with frozen allocation.
         """
-        from pyapprox.statest.cv_estimator import FittedCVEstimator
-
         bkd = self._bkd
         template = self._template
 

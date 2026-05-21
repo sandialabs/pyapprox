@@ -12,7 +12,6 @@ from typing import Any, Generic, Iterator, List, Optional, Union
 
 import numpy as np
 
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -49,8 +48,8 @@ class ModelTree(Generic[Array]):
     def __init__(
         self,
         root: int,
+        bkd: Backend[Array],
         children: Optional[List[Union["ModelTree[Array]", int]]] = None,
-        bkd: Optional[Backend[Array]] = None,
     ) -> None:
         if children is None:
             children = []
@@ -62,11 +61,10 @@ class ModelTree(Generic[Array]):
             if isinstance(child, ModelTree):
                 self._children.append(child)
             else:
-                # Convert integer to ModelTree
-                self._children.append(ModelTree(int(child), [], bkd))
+                self._children.append(ModelTree(int(child), bkd, []))
 
         self._root = root
-        self._bkd = bkd if bkd is not None else NumpyBkd()
+        self._bkd = bkd
 
     def root(self) -> int:
         """Return the root model index."""
@@ -151,7 +149,7 @@ def generate_all_trees(
     children: List[int],
     root: int,
     tree_depth: int,
-    bkd: Optional[Backend[Array]] = None,
+    bkd: Backend[Array],
 ) -> Iterator[ModelTree[Array]]:
     """Generate all connected trees with given depth constraint.
 
@@ -198,12 +196,9 @@ def generate_all_trees(
     >>> [t.to_index().tolist() for t in trees]
     [[0, 0], [0, 1]]
     """
-    if bkd is None:
-        bkd = NumpyBkd()
-
     if tree_depth < 2 or len(children) == 0:
         # Base case: all children are direct children of root
-        yield ModelTree(root, list(children), bkd)
+        yield ModelTree(root, bkd, list(children))
     else:
         # For each combination of (leaf, sub-root) decisions
         for prod in product((0, 1), repeat=len(children)):
@@ -235,13 +230,13 @@ def generate_all_trees(
 
                 # Yield all combinations of sub-trees
                 for sub_trees in product(*sub_tree_generators):
-                    yield ModelTree(root, list(sub_trees), bkd)
+                    yield ModelTree(root, bkd, list(sub_trees))
 
 
 def get_acv_recursion_indices(
     nmodels: int,
+    bkd: Backend[Array],
     depth: Optional[int] = None,
-    bkd: Optional[Backend[Array]] = None,
 ) -> Iterator[Array]:
     """Generate all valid recursion indices for given number of models.
 
@@ -288,9 +283,6 @@ def get_acv_recursion_indices(
     >>> indices = list(get_acv_recursion_indices(4, depth=2, bkd=bkd))
     >>> len(indices)  # Fewer than full depth
     """
-    if bkd is None:
-        bkd = NumpyBkd()
-
     if depth is None:
         depth = nmodels - 1
 
@@ -307,6 +299,7 @@ def get_acv_recursion_indices(
 
 def count_recursion_indices(
     nmodels: int,
+    bkd: Backend[Array],
     depth: Optional[int] = None,
 ) -> int:
     """Count total number of valid recursion indices.
@@ -343,4 +336,4 @@ def count_recursion_indices(
     >>> count_recursion_indices(4, depth=2)  # Limited depth
     8
     """
-    return sum(1 for _ in get_acv_recursion_indices(nmodels, depth))
+    return sum(1 for _ in get_acv_recursion_indices(nmodels, bkd, depth))

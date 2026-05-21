@@ -20,19 +20,17 @@ from typing import (
 
 import numpy as np
 
+from pyapprox.statest._cv_math import optimal_cv_weights
 from pyapprox.statest.acv.result import ACVAllocationResult
-from pyapprox.statest.acv.utils import (
-    _combine_acv_samples,
-    _combine_acv_values,
-)
-from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.statistics import (
     MultiOutputStatistic,
+    log_determinant_variance,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class ACVEstimator(CVEstimator[Array], Generic[Array]):
+class ACVEstimator(Generic[Array]):
+    _allocation_mat: Array
     """Approximate Control Variate estimator template.
 
     Immutable after construction. Maps (target_cost, partition_ratios) to
@@ -63,11 +61,65 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         npartitions_lower_bound : float
             Lower bound for partition ratios during optimization.
         """
-        super().__init__(stat, costs, None)
+        self._bkd = stat._bkd
+        self._stat, self._costs = self._check_inputs(stat, costs)
+        self._optimization_criteria: Callable[[Array], Array] = (
+            lambda var: log_determinant_variance(self._bkd, var)
+        )
         self._recursion_index: Optional[Array] = None
         self._set_recursion_index(recursion_index)
         self._npartitions = self._nmodels
         self._npartitions_lower_bound = npartitions_lower_bound
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def _check_inputs(
+        self, stat: MultiOutputStatistic[Array], costs: Union[List[Any], Array]
+    ) -> Tuple[MultiOutputStatistic[Array], Array]:
+        if not isinstance(stat, MultiOutputStatistic):
+            raise ValueError("stat must be an instance of MultiOutputStatistic")
+        costs = self._bkd.atleast_1d(self._bkd.asarray(costs))
+        if costs.ndim != 1:
+            raise ValueError("costs is not a 1D iterable")
+        self._nmodels = stat._nmodels
+        return stat, costs
+
+    def _get_discrepancy_covariances(
+        self, npartition_samples: Array
+    ) -> Tuple[Array, Array]:
+        return self._stat._get_acv_discrepancy_covariances(
+            self._get_allocation_matrix(), npartition_samples
+        )
+
+    def _covariance_from_nsamples_per_model(self, nsamples_per_model: Array) -> Array:
+        """Compute covariance from nsamples_per_model."""
+        CF, cf = self._get_discrepancy_covariances(nsamples_per_model)
+        weights = self._optimal_weights(CF, cf)
+        return self._stat.high_fidelity_estimator_covariance(
+            nsamples_per_model[0]
+        ) + self._bkd.multidot([weights, cf.T])
+
+    def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
+        """Compute covariance from npartition_samples."""
+        return self._covariance_from_nsamples_per_model(npartition_samples)
+
+    def _optimal_weights(self, CF: Array, cf: Array) -> Array:
+        return optimal_cv_weights(self._bkd, CF, cf)
+
+    def insert_pilot_values(
+        self, pilot_values: List[Array], values_per_model: List[Array]
+    ) -> List[Array]:
+        """Insert pilot values into model values.
+
+        ACV estimator: all models share samples from the first partition,
+        so pilot values are always prepended to every model.
+        """
+        return [
+            self._bkd.hstack((pilot_values[ii], values_per_model[ii]))
+            for ii in range(self._nmodels)
+        ]
 
     # === Template API (pure, allocation-parameterized) ===
 
@@ -127,19 +179,14 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
 
     # === Internal covariance computation ===
 
-    def _get_discrepancy_covariances(
-        self, npartition_samples: Array
-    ) -> Tuple[Array, Array]:
-        return self._stat._get_acv_discrepancy_covariances(
-            self._get_allocation_matrix(), npartition_samples
-        )
-
-    def _get_partition_indices(self, npartition_samples: Array) -> Array:
+    def _get_partition_indices(self, npartition_samples: Array) -> List[Array]:
         """
         Get the indices, into the flattened array of all samples/values,
         of each indpendent sample partition
         """
-        ntotal_independent_samples = self._bkd.sum(npartition_samples)
+        ntotal_independent_samples = self._bkd.to_int(
+            self._bkd.sum(npartition_samples)
+        )
         total_indices = self._bkd.arange(ntotal_independent_samples, dtype=int)
         # round the cumsum to make sure values like 3.9999999999999999
         # do not get rounded down to 3
@@ -163,12 +210,13 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         model_ratios = self._bkd.empty(partition_ratios.shape)
         for ii in range(1, self._nmodels):
             active_partitions = self._bkd.where(
-                (self._allocation_mat[1:, 2 * ii] == 1)
-                | (self._allocation_mat[1:, 2 * ii + 1] == 1)
+                self._bkd.equal(self._allocation_mat[1:, 2 * ii], 1)
+                | self._bkd.equal(self._allocation_mat[1:, 2 * ii + 1], 1)
             )[0]
             model_ratios[ii - 1] = self._bkd.sum(partition_ratios[active_partitions])
-            if (self._allocation_mat[0, 2 * ii] == 1) or (
-                self._allocation_mat[0, 2 * ii + 1] == 1
+            if self._bkd.any_bool(
+                self._bkd.equal(self._allocation_mat[0, 2 * ii], 1)
+                | self._bkd.equal(self._allocation_mat[0, 2 * ii + 1], 1)
             ):
                 model_ratios[ii - 1] += 1
         return model_ratios
@@ -209,8 +257,8 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         self, npartition_samples: Array, model_id: int
     ) -> Array:
         active_partitions = self._bkd.where(
-            (self._allocation_mat[:, 2 * model_id] == 1)
-            | (self._allocation_mat[:, 2 * model_id + 1] == 1)
+            self._bkd.equal(self._allocation_mat[:, 2 * model_id], 1)
+            | self._bkd.equal(self._allocation_mat[:, 2 * model_id + 1], 1)
         )[0]
         return self._bkd.sum(npartition_samples[active_partitions])
 
@@ -258,13 +306,6 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         )
         return bounds
 
-    def get_all_recursion_indices(self) -> List[Array]:
-        from pyapprox.statest.acv._recursion_indices import (
-            _get_acv_recursion_indices,
-        )
-
-        return _get_acv_recursion_indices(self._nmodels, None)
-
     @abstractmethod
     def _create_allocation_matrix(self, recursion_index: Array) -> None:
         r"""
@@ -277,12 +318,12 @@ class ACVEstimator(CVEstimator[Array], Generic[Array]):
         """return allocation matrix as backend array"""
         return self._bkd.asarray(self._allocation_mat)
 
-    def _set_recursion_index(self, index: Array) -> None:
+    def _set_recursion_index(self, index: Optional[Array]) -> None:
         """Set the recursion index of the parameterically defined ACV
         Estimator.
         """
         if index is None:
-            index = self._bkd.zeros(self._nmodels - 1, dtype=int)
+            index = self._bkd.zeros((self._nmodels - 1,), dtype=int)
         else:
             index = self._bkd.asarray(index, dtype=int)
         if self._nmodels is None:
@@ -399,11 +440,11 @@ class FittedACVEstimator(Generic[Array]):
         alloc_mat = self._template._allocation_mat
         for ii in range(self._template._nmodels):
             active_partitions = self._bkd.where(
-                (alloc_mat[:, 2 * ii] == 1)
-                | (alloc_mat[:, 2 * ii + 1] == 1)
+                self._bkd.equal(alloc_mat[:, 2 * ii], 1)
+                | self._bkd.equal(alloc_mat[:, 2 * ii + 1], 1)
             )[0]
             indices = self._bkd.hstack(
-                [partition_indices[idx] for idx in active_partitions]
+                [partition_indices[self._bkd.to_int(idx)] for idx in active_partitions]
             )
             if indices.shape[0] != self._bkd.to_int(adjusted_nsamples_per_model[ii]):
                 msg = "Rounding has caused {0} != {1}".format(
@@ -427,40 +468,42 @@ class FittedACVEstimator(Generic[Array]):
 
         partition_indices = self._template._get_partition_indices(npartition_samples)
         if bootstrap:
-            npartitions = len(npartition_samples)
-            random_partition_indices = [None for jj in range(npartitions)]
-            random_partition_indices[0] = self._bkd.array(
-                np.random.choice(
-                    np.arange(partition_indices[0].shape[0], dtype=int),
-                    size=partition_indices[0].shape[0],
-                    replace=True,
+            random_partition_indices: dict[int, Array] = {
+                0: self._bkd.array(
+                    np.random.choice(
+                        np.arange(partition_indices[0].shape[0], dtype=int),
+                        size=partition_indices[0].shape[0],
+                        replace=True,
+                    ),
+                    dtype=int,
                 ),
-                dtype=int,
-            )
-            partition_indices_per_acv_subset = [
+            }
+            partition_indices_per_acv_subset: List[Array] = [
                 self._bkd.array([], dtype=int),
                 partition_indices[0][random_partition_indices[0]],
             ]
         else:
+            random_partition_indices = {}
             partition_indices_per_acv_subset = [
                 self._bkd.array([], dtype=int),
                 partition_indices[0],
             ]
         for ii in range(1, nmodels):
             active_partitions = self._bkd.where(
-                (alloc_mat[:, 2 * ii] == 1)
-                | (alloc_mat[:, 2 * ii + 1] == 1)
+                self._bkd.equal(alloc_mat[:, 2 * ii], 1)
+                | self._bkd.equal(alloc_mat[:, 2 * ii + 1], 1)
             )[0]
-            subset_indices = [None for _ in range(nmodels)]
+            subset_indices: dict[int, Array] = {}
             lb, ub = 0, 0
             for idx in active_partitions:
-                ub += partition_indices[idx].shape[0]
-                subset_indices[idx] = self._bkd.arange(lb, ub, dtype=int)
+                key = self._bkd.to_int(idx)
+                ub += partition_indices[key].shape[0]
+                subset_indices[key] = self._bkd.arange(lb, ub, dtype=int)
                 if bootstrap:
-                    if random_partition_indices[idx] is None:
+                    if key not in random_partition_indices:
                         # make sure the same random permutation for partition
                         # idx is used for all acv_subsets
-                        random_partition_indices[idx] = self._bkd.array(
+                        random_partition_indices[key] = self._bkd.array(
                             np.random.choice(
                                 np.arange(ub - lb, dtype=int),
                                 size=ub - lb,
@@ -468,21 +511,21 @@ class FittedACVEstimator(Generic[Array]):
                             ),
                             dtype=int,
                         )
-                    subset_indices[idx] = subset_indices[idx][
-                        random_partition_indices[idx]
+                    subset_indices[key] = subset_indices[key][
+                        random_partition_indices[key]
                     ]
                 lb = ub
             active_partitions_1 = self._bkd.where(
-                (alloc_mat[:, 2 * ii] == 1)
+                self._bkd.equal(alloc_mat[:, 2 * ii], 1)
             )[0]
             active_partitions_2 = self._bkd.where(
-                (alloc_mat[:, 2 * ii + 1] == 1)
+                self._bkd.equal(alloc_mat[:, 2 * ii + 1], 1)
             )[0]
             indices_1 = self._bkd.hstack(
-                [subset_indices[idx] for idx in active_partitions_1]
+                [subset_indices[self._bkd.to_int(idx)] for idx in active_partitions_1]
             )
             indices_2 = self._bkd.hstack(
-                [subset_indices[idx] for idx in active_partitions_2]
+                [subset_indices[self._bkd.to_int(idx)] for idx in active_partitions_2]
             )
             partition_indices_per_acv_subset += [indices_1, indices_2]
         return partition_indices_per_acv_subset
@@ -566,21 +609,6 @@ class FittedACVEstimator(Generic[Array]):
         ]
         return acv_samples
 
-    def combine_acv_samples(self, acv_samples: List[Array]) -> List[Array]:
-        return _combine_acv_samples(
-            self._template._allocation_mat,
-            self._allocation.npartition_samples,
-            acv_samples,
-            self._bkd,
-        )
-
-    def combine_acv_values(self, acv_values: List[Array]) -> List[Array]:
-        return _combine_acv_values(
-            self._template._allocation_mat,
-            self._allocation.npartition_samples,
-            acv_values,
-            self._bkd,
-        )
 
     def _estimate(
         self,
@@ -653,11 +681,15 @@ class FittedACVEstimator(Generic[Array]):
         bootstrap_vals = mode in modes[:2]
         bootstrap_weights = mode in modes[1:]
         nbootstraps = int(nbootstraps)
-        estimator_vals = []
+        estimator_vals_acc: List[Array] = []
         if bootstrap_weights:
+            if pilot_values is None:
+                raise ValueError(
+                    "pilot_values must be provided for bootstrap_weights"
+                )
             npilot_samples = pilot_values[0].shape[1]
             self_stat = copy.deepcopy(self._stat)
-            weights_list = []
+            weights_acc: List[Array] = []
         for kk in range(nbootstraps):
             if bootstrap_weights:
                 indices = self._bkd.array(
@@ -668,6 +700,7 @@ class FittedACVEstimator(Generic[Array]):
                     ),
                     dtype=int,
                 )
+                assert pilot_values is not None
                 boostrap_pilot_values = [vals[:, indices] for vals in pilot_values]
                 self._stat.set_pilot_quantities(
                     *self._stat.compute_pilot_quantities(boostrap_pilot_values)
@@ -676,23 +709,25 @@ class FittedACVEstimator(Generic[Array]):
                     self._allocation.npartition_samples
                 )
                 weights = self._template._optimal_weights(CF, cf)
-                weights_list.append(self._bkd.flatten(weights))
+                weights_acc.append(self._bkd.flatten(weights))
             else:
                 weights = self._weights_val
-            estimator_vals.append(
+            estimator_vals_acc.append(
                 self._bkd.flatten(self._estimate(
                     values_per_model, weights, bootstrap=bootstrap_vals
                 ))
             )
-        estimator_vals = self._bkd.stack(estimator_vals)
-        bootstrap_values_mean = estimator_vals.mean(axis=0)
-        bootstrap_values_covar = self._bkd.cov(estimator_vals, rowvar=False, ddof=1)
+        estimator_vals_arr = self._bkd.stack(estimator_vals_acc)
+        bootstrap_values_mean = self._bkd.mean(estimator_vals_arr, axis=0)
+        bootstrap_values_covar = self._bkd.cov(
+            estimator_vals_arr, rowvar=False, ddof=1
+        )
         if bootstrap_weights:
             self._template._stat = self_stat
-            weights_list = self._bkd.stack(weights_list)
-            bootstrap_weights_mean = weights_list.mean(axis=0)
+            weights_arr = self._bkd.stack(weights_acc)
+            bootstrap_weights_mean = self._bkd.mean(weights_arr, axis=0)
             bootstrap_weights_covar = self._bkd.cov(
-                weights_list, rowvar=False, ddof=1
+                weights_arr, rowvar=False, ddof=1
             )
             return (
                 bootstrap_values_mean,
@@ -703,9 +738,10 @@ class FittedACVEstimator(Generic[Array]):
         return (bootstrap_values_mean, bootstrap_values_covar)
 
     def __repr__(self) -> str:
+        crit = self._bkd.to_float(self._bkd.flatten(self._criteria_val)[0])
         rep = "{0}(criteria={1:.3g}".format(
             self.__class__.__name__,
-            self._criteria_val,
+            crit,
         )
         rep += " target_cost={0:.5g}, nsamples={1})".format(
             self._allocation.actual_cost,
