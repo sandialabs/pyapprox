@@ -26,6 +26,9 @@ from pyapprox.statest.statistics import (
     MultiOutputMean,
     MultiOutputVariance,
 )
+from pyapprox.util.optional_deps import package_available
+
+HAS_CVXPY = package_available("cvxpy")
 
 
 def _poly_benchmark(bkd, nmodels=5):
@@ -592,6 +595,7 @@ class TestNestedVariant:
             prev_var = var
 
 
+@pytest.mark.skipif(not HAS_CVXPY, reason="cvxpy not installed")
 class TestSDPSmoke:
     """SDP optimizer smoke test with known means."""
 

@@ -959,7 +959,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def lu_factor(
         array: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        LU, pivots = torch.linalg.lu_factor(array)
+        # lu_factor_ex tolerates singular matrices (like DAE mass matrices)
+        LU, pivots, _info = torch.linalg.lu_factor_ex(array)
         return cast(torch.Tensor, LU), cast(torch.Tensor, pivots)
 
     @staticmethod

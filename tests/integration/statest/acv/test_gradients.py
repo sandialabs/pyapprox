@@ -306,21 +306,6 @@ class TestMLMCOptimalSolutionGradients:
         # Convert to partition ratios
         partition_ratios = est._native_ratios_to_npartition_ratios(mlmc_ratios)
 
-        # MLMC uses suboptimal weights, so we need to test with
-        # the same covariance function
-        def mlmc_cov(npartition_samples):
-            CF, cf = est._get_discrepancy_covariances(npartition_samples)
-            weights = est._optimal_weights(CF, cf)
-            return est._covariance_non_optimal_weights(
-                est._stat.high_fidelity_estimator_covariance(npartition_samples[0]),
-                weights,
-                CF,
-                cf,
-            )
-
-        original_cov_func = est._covariance_from_npartition_samples
-        est._covariance_from_npartition_samples = mlmc_cov
-
         # Create objective
         objective = ACVLogDeterminantObjective()
         objective.set_target_cost(target_cost)
@@ -329,9 +314,6 @@ class TestMLMCOptimalSolutionGradients:
         # Gradient should be zero at optimum
         jacobian = objective.jacobian(partition_ratios[:, None])
         expected_zeros = self._bkd.zeros((1, nmodels - 1))
-
-        # Restore
-        est._covariance_from_npartition_samples = original_cov_func
 
         self._bkd.assert_allclose(jacobian, expected_zeros, atol=1e-8)
 
@@ -356,28 +338,11 @@ class TestMLMCOptimalSolutionGradients:
         )
         partition_ratios = est._native_ratios_to_npartition_ratios(mlmc_ratios)
 
-        # Set up MLMC-style covariance
-        def mlmc_cov(npartition_samples):
-            CF, cf = est._get_discrepancy_covariances(npartition_samples)
-            weights = est._optimal_weights(CF, cf)
-            return est._covariance_non_optimal_weights(
-                est._stat.high_fidelity_estimator_covariance(npartition_samples[0]),
-                weights,
-                CF,
-                cf,
-            )
-
-        original_cov_func = est._covariance_from_npartition_samples
-        est._covariance_from_npartition_samples = mlmc_cov
-
         objective = ACVLogDeterminantObjective()
         objective.set_target_cost(target_cost)
         objective.set_estimator(est)
 
         computed_log_var = objective(partition_ratios[:, None])
-
-        # Restore
-        est._covariance_from_npartition_samples = original_cov_func
 
         self._bkd.assert_allclose(
             self._bkd.exp(computed_log_var).flatten(),

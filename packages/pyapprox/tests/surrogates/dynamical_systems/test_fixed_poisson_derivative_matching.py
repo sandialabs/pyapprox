@@ -23,15 +23,23 @@ from pyapprox.surrogates.dynamical_systems.surrogates.fixed_poisson_variable_ham
 )
 
 
-def _make_sho_basis(bkd, nvars, max_level):
-    """Build scalar polynomial basis WITHOUT the constant term.
+def _make_sho_basis(bkd, nvars, max_level, n_params=0):
+    """Build scalar polynomial basis excluding dynamically-inert terms.
 
-    Constants in H contribute zero to dynamics, causing rank-deficiency.
+    Any H term that depends only on non-dynamic variables (parameters)
+    has zero gradient w.r.t. the dynamic variables (q, p), so it
+    contributes nothing to the equations of motion dq/dt = dH/dp,
+    dp/dt = -dH/dq. Including such terms makes the design matrix
+    rank-deficient, which causes lstsq to behave inconsistently
+    across LAPACK implementations (gelsy vs gelsd).
     """
     marginals = [UniformMarginal(-3.0, 3.0, bkd) for _ in range(nvars)]
     bases_1d = create_bases_1d(marginals, bkd)
     all_indices = compute_hyperbolic_indices(nvars, max_level, 1.0, bkd)
-    indices = all_indices[:, 1:]
+    n_dynamic = nvars - n_params
+    dynamic_degree = bkd.sum(all_indices[:n_dynamic, :], axis=0)
+    keep = dynamic_degree > 0
+    indices = all_indices[:, keep]
     basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
     return BasisExpansion(basis, bkd, nqoi=1)
 
@@ -107,7 +115,7 @@ class TestFixedPoissonDerivativeMatching:
         """Fitter recovers H coefs for parametric SHO H(q,p,k)=0.5*(p^2+k*q^2)."""
         rng = np.random.RandomState(42)
 
-        expansion = _make_sho_basis(bkd, nvars=3, max_level=3)
+        expansion = _make_sho_basis(bkd, nvars=3, max_level=3, n_params=1)
         surrogate = FixedPoissonVariableHamiltonianSurrogate.canonical(
             expansion, has_time_input=False, n_params=1
         )
@@ -149,7 +157,7 @@ class TestFixedPoissonDerivativeMatching:
         """FD-verify jacobian for parametric fixed-Poisson surrogate."""
         rng = np.random.RandomState(42)
 
-        expansion = _make_sho_basis(bkd, nvars=3, max_level=3)
+        expansion = _make_sho_basis(bkd, nvars=3, max_level=3, n_params=1)
         nterms = expansion.nterms()
         coef = bkd.array(rng.randn(nterms, 1) * 0.1)
         expansion.set_coefficients(coef)
