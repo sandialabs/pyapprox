@@ -271,7 +271,7 @@ Especially powerful when models share subsets of inputs.
 
 ```{python}
 from pyapprox.statest import MLBLUEEstimator
-from pyapprox.statest.groupacv import MLBLUESPDAllocationOptimizer
+from pyapprox.statest.groupacv import FittedGroupACVEstimator, MLBLUESPDAllocationOptimizer
 
 # Define which model subsets share samples
 # Default: every model evaluated at its own set + HF shared
@@ -280,9 +280,9 @@ model_subsets = [[0, 1], [0, 2], [0, 3], [0, 4]]
 est_mlblue = MLBLUEEstimator(stat, costs, model_subsets=model_subsets)
 mlblue_allocator = MLBLUESPDAllocationOptimizer(est_mlblue)
 mlblue_result = mlblue_allocator.optimize(remaining)
-est_mlblue.set_allocation(mlblue_result)
+fitted_mlblue = FittedGroupACVEstimator(est_mlblue, mlblue_result)
 
-print(f"MLBLUE predicted std: {float(est_mlblue.optimized_covariance()[0,0])**0.5:.6f}")
+print(f"MLBLUE predicted std: {float(fitted_mlblue.covariance()[0,0])**0.5:.6f}")
 ```
 
 :::

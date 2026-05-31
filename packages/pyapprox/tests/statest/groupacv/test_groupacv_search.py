@@ -133,8 +133,7 @@ class TestGroupACVSearch:
         result = search.search(target_cost=1000.0, allow_failures=True)
 
         if result.allocation.success:
-            # Estimator should have allocation set
-            nsamples = result.estimator.npartition_samples()
+            nsamples = result.best.npartition_samples()
             self._bkd.assert_allclose(
                 nsamples,
                 result.allocation.npartition_samples,

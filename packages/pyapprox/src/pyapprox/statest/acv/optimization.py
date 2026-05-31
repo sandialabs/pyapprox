@@ -6,7 +6,7 @@ This module provides:
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, Optional
+from typing import Callable, Generic, Optional
 
 import numpy as np
 
@@ -23,7 +23,7 @@ def _get_allocation_matrix_gmf(recursion_index: Array, bkd: Backend[Array]) -> A
     for ii in range(1, nmodels):
         mat[:, 2 * ii] = mat[:, recursion_index[ii - 1] * 2 + 1]
     for ii in range(2, 2 * nmodels):
-        II = bkd.where(bkd.equal(mat[:, ii], 1))[0][-1]
+        II = int(bkd.where(bkd.equal(mat[:, ii], 1))[0][-1])
         mat[:II, ii] = 1.0
     return mat
 
@@ -67,12 +67,16 @@ class ACVObjective(ABC, Generic[Array]):
         self._target_cost: Optional[float] = None
 
     def bkd(self) -> Backend[Array]:
+        if self._bkd is None:
+            raise RuntimeError("Backend not set; call set_estimator first")
         return self._bkd
 
     def set_target_cost(self, target_cost: float) -> None:
         self._target_cost = target_cost
 
     def nvars(self) -> int:
+        if self._est is None:
+            raise RuntimeError("Estimator not set; call set_estimator first")
         return self._est._nmodels - 1
 
     def nqoi(self) -> int:
@@ -87,6 +91,8 @@ class ACVObjective(ABC, Generic[Array]):
         raise NotImplementedError
 
     def _objective_value(self, partition_ratios: Array) -> Array:
+        if self._est is None or self._target_cost is None:
+            raise RuntimeError("Estimator/target_cost not set")
         if partition_ratios.shape[1] != 1:
             raise ValueError("partition_ratios must be a 2D array with one column")
         est_covariance = self._est._covariance_from_partition_ratios(
@@ -95,10 +101,20 @@ class ACVObjective(ABC, Generic[Array]):
         return self._optimization_criteria(est_covariance) * self._scaling
 
     def __call__(self, partition_ratios: Array) -> Array:
-        return self._bkd.atleast_2d(self._objective_value(partition_ratios))
+        bkd = self.bkd()
+        return bkd.atleast_2d(self._objective_value(partition_ratios))
 
     def jacobian(self, partition_ratios: Array) -> Array:
-        return self._bkd.jacobian(self._objective_value, partition_ratios).T
+        bkd = self.bkd()
+        bkd_jacobian: Optional[
+            Callable[[Callable[[Array], Array], Array], Array]
+        ] = getattr(bkd, "jacobian", None)
+        if bkd_jacobian is None:
+            raise NotImplementedError(
+                "AD jacobian requires TorchBkd; override jacobian() "
+                "for other backends"
+            )
+        return bkd_jacobian(self._objective_value, partition_ratios).T
 
 
 class ACVLogDeterminantObjective(ACVObjective[Array]):
@@ -109,7 +125,7 @@ class ACVLogDeterminantObjective(ACVObjective[Array]):
         # be singular when estimating variance or mean+variance
         # because of the duplicate entries in
         # the covariance matrix
-        return log_determinant_variance(self._bkd, est_covariance)
+        return log_determinant_variance(self.bkd(), est_covariance)
 
 
 class ACVPartitionConstraint(Generic[Array]):
@@ -158,7 +174,15 @@ class ACVPartitionConstraint(Generic[Array]):
         return self._eval_constraint(partition_ratios[:, 0])[:, None]
 
     def jacobian(self, partition_ratios: Array) -> Array:
-        return self._bkd.jacobian(self._eval_constraint, partition_ratios[:, 0])
+        bkd_jacobian: Optional[
+            Callable[[Callable[[Array], Array], Array], Array]
+        ] = getattr(self._bkd, "jacobian", None)
+        if bkd_jacobian is None:
+            raise NotImplementedError(
+                "AD jacobian requires TorchBkd; override jacobian() "
+                "for other backends"
+            )
+        return bkd_jacobian(self._eval_constraint, partition_ratios[:, 0])
 
     # Note: whvp is intentionally not implemented.
     # Legacy code sets apply_hessian_implemented() -> False

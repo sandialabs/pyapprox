@@ -5,7 +5,7 @@ allocation matrix construction, and covariance block computation.
 """
 
 from itertools import combinations
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import numpy as np
 
@@ -106,7 +106,7 @@ def _get_allocation_matrix_nested(subsets: List[Array], bkd: Backend[Array]) -> 
 
 def _nest_subsets(
     subsets: List[Array], nmodels: int, bkd: Backend[Array]
-) -> tuple[Any, ...]:
+) -> Tuple[List[Array], Array]:
     """
     Reorder subsets for nested sampling configuration.
 
@@ -127,7 +127,7 @@ def _nest_subsets(
         (reordered_subsets, reorder_indices)
     """
     for subset in subsets:
-        if np.allclose(subset, [0]):
+        if np.allclose(bkd.to_numpy(subset), [0]):
             raise ValueError("Cannot use subset [0]")
     idx = sorted(
         list(range(len(subsets))),

@@ -120,29 +120,4 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         )
         return psi
 
-    def estimate_all_means(self, values_per_subset: List[Array]) -> Array:
-        """Estimate means for all models.
-
-        Parameters
-        ----------
-        values_per_subset : List[Array]
-            Values for each subset
-
-        Returns
-        -------
-        Array
-            Estimated means for each model
-        """
-        asketch = self._bkd.copy(self._asketch)
-        means = self._bkd.empty((self.nmodels(),))
-        if self._stat.nstats() > 1:
-            raise NotImplementedError(
-                "Must adjust this function to work for multiple outputs"
-            )
-        for ii in range(self.nmodels()):
-            self._asketch = self._bkd.full((self.nmodels(),), 0.0)
-            self._asketch[ii] = 1.0
-            means[ii] = self._estimate(values_per_subset)
-        self._asketch = asketch
-        return means
 

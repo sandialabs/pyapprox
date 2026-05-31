@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pyapprox.statest.aetc.base import AETC, ExploreResult, SamplerProtocol
 from pyapprox.statest.groupacv import (
+    FittedGroupACVEstimator,
     GroupACVAllocationOptimizer,
     GroupACVAllocationResult,
     MLBLUEEstimator,
@@ -126,12 +127,11 @@ class AETCBLUE(AETC[Array]):
         result = allocator.optimize(
             target_cost, min_nhf_samples=0, round_nsamples=round_nsamples
         )
-        est.set_allocation(result)
 
         # Get allocation and scale by target cost
         nsamples_per_subset = bkd.maximum(
-            bkd.zeros(est.npartition_samples().shape),
-            est.npartition_samples(),
+            bkd.zeros(result.npartition_samples.shape),
+            result.npartition_samples,
         )
 
         criteria = result.objective_value
@@ -145,8 +145,8 @@ class AETCBLUE(AETC[Array]):
 
     def _create_exploit_estimator(
         self, result: ExploreResult[Array]
-    ) -> MLBLUEEstimator[Array]:
-        """Create MLBLUEEstimator for exploitation phase.
+    ) -> FittedGroupACVEstimator[Array]:
+        """Create fitted MLBLUEEstimator for exploitation phase.
 
         Parameters
         ----------
@@ -155,8 +155,8 @@ class AETCBLUE(AETC[Array]):
 
         Returns
         -------
-        MLBLUEEstimator
-            Configured estimator for exploitation.
+        FittedGroupACVEstimator
+            Fitted estimator for exploitation.
         """
         bkd = self._bkd
         best_subset = result[1]
@@ -176,21 +176,25 @@ class AETCBLUE(AETC[Array]):
             asketch=beta_best_S.T,
             reg_blue=self._reg_blue,
         )
-        # Create allocation result and set it
-        nsamples_per_model = est._compute_nsamples_per_model(
-            rounded_nsamples_per_subset
+        # Create allocation result and wrap in fitted estimator
+        nps_int = bkd.asarray(
+            rounded_nsamples_per_subset, dtype=bkd.int64_dtype()
         )
-        actual_cost = bkd.to_float(est._estimator_cost(rounded_nsamples_per_subset))
+        nps_float = bkd.asarray(nps_int, dtype=bkd.double_dtype())
+        nsamples_per_model = bkd.asarray(
+            est._compute_nsamples_per_model(nps_float),
+            dtype=bkd.int64_dtype(),
+        )
+        actual_cost = bkd.to_float(est._estimator_cost(nps_float))
         allocation = GroupACVAllocationResult(
-            npartition_samples=rounded_nsamples_per_subset,
+            npartition_samples=nps_int,
             nsamples_per_model=nsamples_per_model,
             actual_cost=actual_cost,
             objective_value=bkd.array([0.0]),  # Placeholder
             success=True,
             message="",
         )
-        est.set_allocation(allocation)
-        return est
+        return FittedGroupACVEstimator(est, allocation)
 
     def get_exploit_samples(
         self, result: ExploreResult[Array], random_states: Optional[Any] = None

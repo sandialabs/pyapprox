@@ -10,6 +10,7 @@ from pyapprox.statest.groupacv.allocation import (
 )
 from pyapprox.statest.groupacv.base import (
     BaseGroupACVEstimator,
+    FittedGroupACVEstimator,
 )
 from pyapprox.statest.groupacv.mlblue import (
     MLBLUEEstimator,
@@ -65,6 +66,7 @@ __all__ = [
     "MLBLUESPDAllocationOptimizer",
     # Estimator classes
     "BaseGroupACVEstimator",
+    "FittedGroupACVEstimator",
     "GroupACVEstimatorIS",
     "GroupACVEstimatorNested",
     "MLBLUEEstimator",

@@ -50,7 +50,7 @@ class UnifiedSearchResult(Generic[Array]):
             )
         if self.groupacv_result is not None and self.groupacv_objective is not None:
             lines.append(
-                f"  GroupACV best: {type(self.groupacv_result.estimator).__name__} "
+                f"  GroupACV best: {type(self.groupacv_result.best).__name__} "
                 f"(obj={self.groupacv_objective:.6f})"
             )
         return "\n".join(lines)
@@ -131,6 +131,8 @@ def unified_search(
         raise RuntimeError("No successful allocations found in either search")
 
     if acv_effective <= groupacv_effective:
+        if acv_result is None:
+            raise RuntimeError("ACV result is None despite finite objective")
         return UnifiedSearchResult(
             best_estimator=acv_result.best,
             best_objective=acv_effective,
@@ -141,8 +143,12 @@ def unified_search(
             groupacv_objective=groupacv_obj,
         )
     else:
+        if groupacv_result is None:
+            raise RuntimeError(
+                "GroupACV result is None despite finite objective"
+            )
         return UnifiedSearchResult(
-            best_estimator=groupacv_result.estimator,
+            best_estimator=groupacv_result.best,
             best_objective=groupacv_effective,
             best_family=EstimatorFamily.GROUPACV,
             acv_result=acv_result,

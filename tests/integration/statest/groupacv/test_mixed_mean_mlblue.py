@@ -17,6 +17,7 @@ from pyapprox_benchmarks.statest.polynomial_ensemble import (
 from pyapprox.statest.allocation import CVAllocator
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.groupacv import (
+    FittedGroupACVEstimator,
     GroupACVEstimatorNested,
     MLBLUEEstimator,
     MLBLUESPDAllocationOptimizer,
@@ -84,14 +85,23 @@ def _make_mlblue_multi_qoi(bkd, nqoi=3, **kwargs):
 
 def _make_allocation(est, npartition_samples):
     bkd = est.bkd()
-    rounded = bkd.floor(npartition_samples + 1e-4)
-    nsamples_per_model = est._compute_nsamples_per_model(rounded)
-    actual_cost = float(est._estimator_cost(rounded))
+    rounded = bkd.asarray(
+        bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype()
+    )
+    nsamples_per_model = bkd.asarray(
+        est._compute_nsamples_per_model(
+            bkd.asarray(rounded, dtype=bkd.double_dtype())
+        ),
+        dtype=bkd.int64_dtype(),
+    )
+    actual_cost = float(
+        est._estimator_cost(bkd.asarray(rounded, dtype=bkd.double_dtype()))
+    )
     return GroupACVAllocationResult(
         npartition_samples=rounded,
         nsamples_per_model=nsamples_per_model,
         actual_cost=actual_cost,
-        objective_value=bkd.array([0.0]),
+        objective_value=bkd.array([0.0]),  # Placeholder
         success=True,
         message="",
     )
@@ -209,19 +219,17 @@ class TestEmptyKBitIdentical:
             )
 
         nps = bkd.full((est_std.nsubsets(),), 50.0)
-        est_std.set_allocation(_make_allocation(est_std, nps))
-        est_km.set_allocation(_make_allocation(est_km, nps))
 
-        sigma_std = est_std.optimized_sigma()
-        sigma_km = est_km.optimized_sigma()
+        sigma_std = est_std._sigma(nps)
+        sigma_km = est_km._sigma(nps)
         bkd.assert_allclose(sigma_std, sigma_km)
 
         beta_std = est_std._grouped_acv_beta(sigma_std)
         beta_km = est_km._grouped_acv_beta(sigma_km)
         bkd.assert_allclose(beta_std, beta_km)
 
-        cov_std = est_std.optimized_covariance()
-        cov_km = est_km.optimized_covariance()
+        cov_std = est_std._covariance_from_npartition_samples(nps)
+        cov_km = est_km._covariance_from_npartition_samples(nps)
         bkd.assert_allclose(cov_std, cov_km)
 
     @pytest.mark.parametrize("nqoi", NQOI_VALUES)
@@ -240,12 +248,10 @@ class TestEmptyKBitIdentical:
             )
 
         nps = bkd.full((est_std.nsubsets(),), 50.0)
-        est_std.set_allocation(_make_allocation(est_std, nps))
-        est_km.set_allocation(_make_allocation(est_km, nps))
 
         bkd.assert_allclose(
-            est_std.optimized_covariance(),
-            est_km.optimized_covariance(),
+            est_std._covariance_from_npartition_samples(nps),
+            est_km._covariance_from_npartition_samples(nps),
         )
 
 
@@ -280,7 +286,8 @@ class TestAllKnownMeansRecoversCVEstimator:
 
         nsamples = 100
         nps = bkd.full((est_mlblue.nsubsets(),), float(nsamples))
-        est_mlblue.set_allocation(_make_allocation(est_mlblue, nps))
+        alloc = _make_allocation(est_mlblue, nps)
+        fitted_mlblue = FittedGroupACVEstimator(est_mlblue, alloc)
 
         stat_cv = _make_stat(bkd, cov, nqoi)
         lowfi_stats = bkd.zeros((nmodels - 1, stat_cv.nstats()))
@@ -297,7 +304,7 @@ class TestAllKnownMeansRecoversCVEstimator:
             for _ in range(nmodels)
         ]
 
-        est_mlblue_val = est_mlblue(values_per_model)
+        est_mlblue_val = fitted_mlblue(values_per_model)
         est_cv_val = fitted_cv(values_per_model)
         bkd.assert_allclose(est_mlblue_val, est_cv_val, rtol=1e-8)
 
@@ -318,7 +325,6 @@ class TestAllKnownMeansRecoversCVEstimator:
         )
         nsamples = 100.0
         nps = bkd.full((est.nsubsets(),), nsamples)
-        est.set_allocation(_make_allocation(est, nps))
 
         cov_np = np.asarray(cov)
         sigma0_sq = cov_np[0, 0]
@@ -327,7 +333,9 @@ class TestAllKnownMeansRecoversCVEstimator:
         R2 = C_0L @ np.linalg.solve(C_LL, C_0L) / sigma0_sq
         expected_var = sigma0_sq * (1 - R2) / nsamples
 
-        actual_var = float(est.optimized_covariance()[0, 0])
+        actual_var = float(
+            est._covariance_from_npartition_samples(nps)[0, 0]
+        )
         bkd.assert_allclose(
             bkd.asarray([actual_var]),
             bkd.asarray([expected_var]),
@@ -371,8 +379,9 @@ class TestVarianceMonotonicity:
                 known_quantities=kq,
             )
             nps = bkd.full((est.nsubsets(),), nsamples)
-            est.set_allocation(_make_allocation(est, nps))
-            var = float(est.optimized_covariance()[0, 0])
+            var = float(
+                est._covariance_from_npartition_samples(nps)[0, 0]
+            )
             if prev_var is not None:
                 assert var <= prev_var + 1e-6, (
                     f"|K|={k_size}: var={var:.2e} > prev={prev_var:.2e}"
@@ -403,8 +412,9 @@ class TestIntermediateK:
                 known_quantities=kq,
             )
             nps = bkd.full((est.nsubsets(),), nsamples)
-            est.set_allocation(_make_allocation(est, nps))
-            return float(est.optimized_covariance()[0, 0])
+            return float(
+                est._covariance_from_npartition_samples(nps)[0, 0]
+            )
 
         var_empty = _var_for_k(None)
         var_partial = _var_for_k(
@@ -445,7 +455,8 @@ class TestEmpiricalUnbiasedness:
             known_quantities=kq,
         )
         nps = bkd.full((est.nsubsets(),), 50.0)
-        est.set_allocation(_make_allocation(est, nps))
+        alloc = _make_allocation(est, nps)
+        fitted = FittedGroupACVEstimator(est, alloc)
 
         nsamps_per = np.array(est._compute_nsamples_per_model(nps), dtype=int)
         ntrials = 10000
@@ -462,7 +473,7 @@ class TestEmpiricalUnbiasedness:
                 bkd.asarray(raw[ii:ii+1, :] + means_np[ii])
                 for ii in range(nmodels)
             ]
-            result = est(values_per_model)
+            result = fitted(values_per_model)
             estimates[trial] = float(result[0])
 
         empirical_mean = np.mean(estimates)
@@ -501,9 +512,10 @@ class TestAnalyticalVsEmpiricalVariance:
             known_quantities=kq,
         )
         nps = bkd.full((est.nsubsets(),), 50.0)
-        est.set_allocation(_make_allocation(est, nps))
+        alloc = _make_allocation(est, nps)
+        fitted = FittedGroupACVEstimator(est, alloc)
 
-        analytical_var = float(est.optimized_covariance()[0, 0])
+        analytical_var = float(fitted.covariance()[0, 0])
 
         nsamps_per = np.array(est._compute_nsamples_per_model(nps), dtype=int)
         nsamples_int = int(nsamps_per[0])
@@ -519,7 +531,7 @@ class TestAnalyticalVsEmpiricalVariance:
                 bkd.asarray(raw[ii:ii+1, :] + means_np[ii])
                 for ii in range(nmodels)
             ]
-            result = est(values_per_model)
+            result = fitted(values_per_model)
             estimates[trial] = float(result[0])
 
         empirical_var = np.var(estimates)
@@ -557,12 +569,10 @@ class TestNestedVariant:
         )
 
         nps = bkd.full((est_std.nsubsets(),), 50.0)
-        est_std.set_allocation(_make_allocation(est_std, nps))
-        est_km.set_allocation(_make_allocation(est_km, nps))
 
         bkd.assert_allclose(
-            est_std.optimized_covariance(),
-            est_km.optimized_covariance(),
+            est_std._covariance_from_npartition_samples(nps),
+            est_km._covariance_from_npartition_samples(nps),
         )
 
     def test_monotonicity(self, bkd) -> None:
@@ -588,8 +598,9 @@ class TestNestedVariant:
                 known_quantities=kq,
             )
             nps = bkd.full((est.nsubsets(),), nsamples)
-            est.set_allocation(_make_allocation(est, nps))
-            var = float(est.optimized_covariance()[0, 0])
+            var = float(
+                est._covariance_from_npartition_samples(nps)[0, 0]
+            )
             if prev_var is not None:
                 assert var <= prev_var + 1e-6
             prev_var = var

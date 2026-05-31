@@ -111,17 +111,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
         self._setup_known_quantities(known_quantities)
 
-        # Source of truth attributes (None until allocation is set)
-        self._allocation: Optional["GroupACVAllocationResult[Array]"] = None
-        self._npartition_samples: Optional[Array] = None
-        self._nsamples_per_model: Optional[Array] = None
-        self._target_cost: Optional[float] = None
-
-        # Cached computed values (lazily computed, invalidated on allocation change)
-        self._cached_sigma: Optional[Array] = None
-        self._cached_covariance: Optional[Array] = None
-        self._cached_sample_splits: Optional[List[Array]] = None
-
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
@@ -227,36 +216,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
     def npartitions(self) -> int:
         """Return the number of partitions."""
         return self._npartitions
-
-    def _invalidate_cache(self) -> None:
-        """Invalidate all cached computed values."""
-        self._cached_sigma = None
-        self._cached_covariance = None
-        self._cached_sample_splits = None
-
-    def _ensure_allocation(self) -> None:
-        """Raise if allocation has not been set."""
-        if self._npartition_samples is None:
-            raise RuntimeError("Allocation not set. Call set_allocation() first.")
-
-    @property
-    def has_allocation(self) -> bool:
-        """Return True if allocation has been set."""
-        return self._npartition_samples is not None
-
-    def set_allocation(self, result: "GroupACVAllocationResult[Array]") -> None:
-        """Set sample allocation from optimization result.
-
-        Parameters
-        ----------
-        result : GroupACVAllocationResult
-            Allocation result from GroupACVAllocationOptimizer.
-        """
-        self._allocation = result
-        self._npartition_samples = result.npartition_samples
-        self._nsamples_per_model = result.nsamples_per_model
-        self._target_cost = result.actual_cost
-        self._invalidate_cache()
 
     def nmodels(self) -> int:
         """Return the number of models."""
@@ -366,6 +325,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples: Array) -> Array:
+        if self._bkd.is_integer_dtype(npartition_samples):
+            raise TypeError(
+                "_compute_nsamples_per_model requires float-typed "
+                f"npartition_samples, got dtype={npartition_samples.dtype}"
+            )
         nsamples_per_model = self._bkd.einsum(
             "ji,i->j", self._partitions_per_model, npartition_samples
         )
@@ -396,6 +360,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         Note the number of samples per subset is simply the diagonal of this
         matrix
         """
+        if self._bkd.is_integer_dtype(npartition_samples):
+            raise TypeError(
+                "_nintersect_samples requires float-typed "
+                f"npartition_samples, got dtype={npartition_samples.dtype}"
+            )
         return self._bkd.einsum(
             "ijk,k->ij", self._partitions_intersect, npartition_samples
         )
@@ -475,7 +444,11 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             }
         ]
         if min_nlf_samples is not None:
-            assert len(min_nlf_samples) == self.nmodels() - 1
+            if len(min_nlf_samples) != self.nmodels() - 1:
+                raise ValueError(
+                    f"len(min_nlf_samples) {len(min_nlf_samples)} "
+                    f"!= nmodels - 1 ({self.nmodels() - 1})"
+                )
             for ii in range(1, self.nmodels()):
                 cons += [
                     {
@@ -510,94 +483,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             self._bkd.to_float(self._bkd.floor(target_cost / cost)),
             dtype=self._bkd.double_dtype(),
         )[:, None]
-
-    def optimized_sigma(self) -> Array:
-        """Return the optimized sigma matrix (lazily computed).
-
-        Returns
-        -------
-        Array
-            The sigma matrix for the current allocation.
-
-        Raises
-        ------
-        RuntimeError
-            If allocation has not been set.
-        """
-        self._ensure_allocation()
-        if self._npartition_samples is None:
-            raise RuntimeError("npartition_samples must be set")
-        if self._cached_sigma is None:
-            self._cached_sigma = self._sigma(self._npartition_samples)
-        return self._cached_sigma
-
-    def optimized_covariance(self) -> Array:
-        """Return the optimized covariance matrix (lazily computed).
-
-        Returns
-        -------
-        Array
-            Covariance matrix of the estimator.
-
-        Raises
-        ------
-        RuntimeError
-            If allocation has not been set.
-        """
-        self._ensure_allocation()
-        if self._npartition_samples is None:
-            raise RuntimeError("npartition_samples must be set")
-        if self._cached_covariance is None:
-            self._cached_covariance = self._covariance_from_npartition_samples(
-                self._npartition_samples
-            )
-        return self._cached_covariance
-
-    def sample_splits(self) -> List[Array]:
-        """Return sample splits per model (lazily computed).
-
-        Returns
-        -------
-        List[Array]
-            Sample splits for each model.
-
-        Raises
-        ------
-        RuntimeError
-            If allocation has not been set.
-        """
-        self._ensure_allocation()
-        if self._cached_sample_splits is None:
-            self._cached_sample_splits = self._sample_splits_per_model()
-        return self._cached_sample_splits
-
-    def npartition_samples(self) -> Array:
-        """Get current partition sample allocation.
-
-        Returns
-        -------
-        Array
-            Number of samples in each partition. Shape (npartitions,).
-
-        Raises
-        ------
-        RuntimeError
-            If allocation has not been set.
-        """
-        self._ensure_allocation()
-        if self._npartition_samples is None:
-            raise RuntimeError("Allocation set but npartition_samples is None")
-        return self._npartition_samples
-
-    def covariance(self) -> Array:
-        """Compute covariance using stored allocation.
-
-        Returns
-        -------
-        Array
-            Covariance matrix of the estimator.
-        """
-        return self.optimized_covariance()
 
     def _validate_asketch(self, asketch: Optional[Array]) -> Array:
         if asketch is None:
@@ -641,149 +526,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         )
         return splits
 
-    def generate_samples_per_model(
-        self,
-        rvs: Callable[[int], Array],
-        npilot_samples: int = 0,
-    ) -> List[Array]:
-        """Generate samples for each model based on optimized allocation.
-
-        Parameters
-        ----------
-        rvs : callable
-            Function that generates random samples: rvs(nsamples) -> Array
-
-        npilot_samples : int, optional
-            Number of pilot samples to remove. Default is 0.
-
-        Returns
-        -------
-        samples_per_model : List[Array]
-            List of samples for each model
-        """
-        self._ensure_allocation()
-        if self._npartition_samples is None:
-            raise RuntimeError("npartition_samples must be set")
-        # Convert to int for rvs call - this is at a boundary where we're
-        # generating samples, not computing gradients through rvs
-        npart_sum = self._bkd.sum(self._npartition_samples)
-        ntotal_independent_samples = self._bkd.to_int(npart_sum)
-        partition_splits = self._get_partition_splits(self._npartition_samples)
-        samples = rvs(ntotal_independent_samples)
-        samples_per_model = []
-        for ii in range(self.nmodels()):
-            active_partitions = self._bkd.where(self._partitions_per_model[ii])[0]
-            samples_per_model.append(
-                self._bkd.hstack(
-                    [
-                        samples[
-                            :,
-                            self._bkd.to_int(
-                                partition_splits[idx]
-                            ) : self._bkd.to_int(
-                                partition_splits[idx + 1]
-                            ),
-                        ]
-                        for idx in active_partitions
-                    ]
-                )
-            )
-        if npilot_samples == 0:
-            return samples_per_model
-
-        if self._bkd.max(
-            self._partitions_per_model[0]
-            * self._npartition_samples
-        ) < npilot_samples:
-            msg = "Insert pilot samples currently only supported when only"
-            msg += " the largest subset of those containing the "
-            msg += "high-fidelity model can fit all pilot samples. "
-            msg += "npilot = {0} != {1}".format(
-                npilot_samples,
-                self._bkd.max(self._partitions_per_model[0] * self._npartition_samples),
-            )
-            raise ValueError(msg)
-        return self._remove_pilot_samples(npilot_samples, samples_per_model)[0]
-
-    def _sample_splits_per_model(self) -> List[Array]:
-        # for each model get the sample splits in values_per_model
-        # that correspond to each partition used in values_per_model.
-        # If the model is not evaluated for a partition, then
-        # the splits will be [-1, -1]
-        if self._npartition_samples is None:
-            raise RuntimeError("npartition_samples must be set")
-        partition_splits = self._get_partition_splits(self._npartition_samples)
-        splits_per_model = []
-        for ii in range(self.nmodels()):
-            active_partitions = self._bkd.where(self._partitions_per_model[ii])[0]
-            splits = self._bkd.full((self.npartitions(), 2), -1, dtype=int)
-            lb = self._bkd.zeros((), dtype=self._bkd.int64_dtype())
-            ub = self._bkd.zeros((), dtype=self._bkd.int64_dtype())
-            for idx in active_partitions:
-                ub += partition_splits[idx + 1] - partition_splits[idx]
-                splits[idx] = self._bkd.array([lb, ub])
-                lb = self._bkd.copy(ub)
-            splits_per_model.append(splits)
-        return splits_per_model
-
-    def _separate_values_per_model(self, values_per_model: List[Array]) -> List[Array]:
-        """Separate values per model into values per subset.
-
-        Parameters
-        ----------
-        values_per_model : List[Array]
-            Values for each model. Each array has shape (nqoi, nsamples_for_model).
-
-        Returns
-        -------
-        List[Array]
-            Values for each subset. Each array has shape (nqoi*nmodels_in_subset,
-            nsamples_in_subset).
-        """
-        self._ensure_allocation()
-        if self._nsamples_per_model is None:
-            raise RuntimeError("nsamples_per_model must be set")
-        if len(values_per_model) != self.nmodels():
-            msg = "len(values_per_model) {0} != nmodels {1}".format(
-                len(values_per_model), self.nmodels()
-            )
-            raise ValueError(msg)
-        for ii in range(self.nmodels()):
-            # values shape is (nqoi, nsamples), so nsamples is shape[1]
-            nsamples_ii = self._bkd.to_int(self._nsamples_per_model[ii])
-            if values_per_model[ii].shape[1] != nsamples_ii:
-                msg = "{0} != {1}".format(
-                    "values_per_model[{0}].shape[1]: {1}".format(
-                        ii, values_per_model[ii].shape[1]
-                    ),
-                    "nsamples_per_model[{0}]: {1}".format(
-                        ii, self._nsamples_per_model[ii]
-                    ),
-                )
-                raise ValueError(msg)
-
-        splits_per_model = self.sample_splits()
-        values_per_subset = []
-        for ii, model_subset in enumerate(self._model_subsets):
-            values = []
-            active_partitions = self._bkd.where(self._allocation_mat[ii])[0]
-            for model_id in model_subset:
-                splits = splits_per_model[model_id]
-                # values shape is (nqoi, nsamples), slice along columns
-                values.append(
-                    self._bkd.hstack(
-                        [
-                            values_per_model[model_id][
-                                :, splits[idx, 0] : splits[idx, 1]
-                            ]
-                            for idx in active_partitions
-                        ]
-                    )
-                )
-            # Stack models vertically: (nqoi*nmodels_in_subset, nsamples)
-            values_per_subset.append(self._bkd.vstack(values))
-        return values_per_subset
-
     def _grouped_acv_beta(self, sigma: Array) -> Array:
         psi_matrix = self._psi_matrix_from_sigma(sigma)
         beta = self._bkd.stack(
@@ -800,98 +542,6 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             axis=0,
         )
         return beta
-
-    def _estimate(self, values_per_subset: List[Array]) -> Array:
-        beta = self._grouped_acv_beta(self.optimized_sigma())
-        ll, mm = 0, 0
-        acv_stat: Array = self._bkd.zeros((beta.shape[0],))
-        for kk in range(self.nsubsets()):
-            mm += len(self._subsets[kk])
-            # values shape is (nqoi*nmodels_in_subset, nsamples), check nsamples > 0
-            if values_per_subset[kk].shape[1] > 0:
-                subset_stat = self._stat.sample_estimate(values_per_subset[kk])
-                acv_stat += (beta[:, ll:mm]) @ subset_stat
-            ll = mm
-        return acv_stat
-
-    def _traditional_acv_weights(self) -> Array:
-        beta = self._grouped_acv_beta(self.optimized_sigma())
-        assert self._bkd.allclose(
-            self._bkd.sum(beta, axis=1),
-            self._bkd.ones((beta.shape[0],)),
-        ), (
-            self._bkd.sum(beta, axis=1)
-        )
-        alpha = self._bkd.zeros(
-            (beta.shape[0], (self._nmodels - 1) * self._stat.nstats())
-        )
-        zeros = self._bkd.zeros((beta.shape[0],))
-        kk = 0
-        for subset in self._subsets:
-            for jj in subset:
-                if jj < self._stat.nstats():
-                    kk += 1
-                    continue
-                alpha[:, jj - self._stat.nstats()] += self._bkd.maximum(
-                    beta[:, kk], zeros
-                )
-                # alpha[:, jj - self._stat.nstats()] -= self._bkd.maximum(
-                #     beta[:, kk], zeros
-                # )
-                kk += 1
-        return alpha
-
-    def _extract_from_flattened_subset_matrix(
-        self, mat: Array, subset_idx: int
-    ) -> Array:
-        nprev_stats = sum([subset.shape[0] for subset in self._subsets[:subset_idx]])
-        subset = self._subsets[subset_idx]
-        subset_mat = mat[:, nprev_stats : nprev_stats + subset.shape[0]]
-        R = self._restriction_matrix(subset)
-        expanded_mat = (R.T @ subset_mat.T).T
-        return expanded_mat
-
-    def _group_to_traditional_estimators_from_alpha(
-        self, subset_ests: List[Array], alpha: Array
-    ) -> Tuple[Array, Array, Array]:
-        beta = self._grouped_acv_beta(self.optimized_sigma())
-        # beta shape (nstats, sum_s\insubsets nstats * nmodels_in_subset(s)
-        Q0 = self._bkd.zeros((self._stat.nstats(),))
-        Qe = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
-        Qu = self._bkd.zeros((self._stat.nstats(), (self._nmodels - 1)))
-        for ii, subset in enumerate(self._subsets):
-            beta_tilde = self._extract_from_flattened_subset_matrix(beta, ii)
-            B0_tilde = beta_tilde[:, : self._stat.nstats()]
-            BL_tilde = beta_tilde[:, self._stat.nstats() :]
-            R = self._restriction_matrix(subset)
-            Q_tilde = R.T @ subset_ests[ii]
-            Q0_tilde = Q_tilde[: self._stat.nstats()]
-            QL_tilde = Q_tilde[self._stat.nstats() :]
-            Q0 += B0_tilde @ Q0_tilde
-            nstats = self._stat.nstats()
-            for kk in range(beta.shape[0]):
-                for ll in range(1, self._nmodels):
-                    zero = self._bkd.zeros(())
-                    bl_kk = BL_tilde[kk, (ll - 1) * nstats + kk]
-                    wu = (
-                        (1 / alpha[kk, (ll - 1) * nstats + kk])
-                        * self._bkd.maximum(bl_kk, zero)
-                    )
-                    we = (
-                        -(1 / alpha[kk, (ll - 1) * nstats + kk])
-                        * self._bkd.minimum(bl_kk, zero)
-                    )
-                    Qe[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * we
-                    Qu[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * wu
-        return Q0, Qe, Qu
-
-    def _group_to_traditional_estimators(
-        self, subset_ests: List[Array]
-    ) -> Tuple[Array, Array, Array]:
-        # Implement equations (15) in arxiv paper
-        # wu = w_l^{k,u} and  we = w_l^{k,e} from arxiv paper
-        alpha = self._traditional_acv_weights()
-        return self._group_to_traditional_estimators_from_alpha(subset_ests, alpha)
 
     def _compute_correction(self, beta: Array) -> Array:
         """Deterministic correction from known-mean models.
@@ -914,26 +564,291 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             )
         return correction
 
-    def __call__(self, values_per_model: List[Array]) -> Array:
-        """Compute the GroupACV estimate from model values.
+    def __repr__(self) -> str:
+        return "{0}(nmodels={1}, nsubsets={2})".format(
+            self.__class__.__name__, self.nmodels(), self.nsubsets()
+        )
 
-        Parameters
-        ----------
-        values_per_model : List[Array]
-            List of model evaluation values, one array per model.
-            Each array has shape (nsamples, nqoi).
 
-        Returns
-        -------
-        Array
-            The GroupACV estimate
-        """
-        values_per_subset = self._separate_values_per_model(values_per_model)
-        stochastic_est = self._estimate(values_per_subset)
-        if not self._has_known_quantities:
-            return stochastic_est
-        beta = self._grouped_acv_beta(self.optimized_sigma())
-        return stochastic_est - self._compute_correction(beta)
+class FittedGroupACVEstimator(Generic[Array]):
+    """Frozen GroupACV estimator with a fixed allocation.
+
+    Composes (template: BaseGroupACVEstimator, allocation: GroupACVAllocationResult).
+    Eagerly computes covariance and sigma from discrete (post-rounding) counts.
+    """
+
+    def __init__(
+        self,
+        template: BaseGroupACVEstimator[Array],
+        allocation: "GroupACVAllocationResult[Array]",
+    ) -> None:
+        if not allocation.success:
+            raise ValueError(
+                f"Cannot create fitted estimator from failed allocation: "
+                f"{allocation.message}"
+            )
+        bkd = template._bkd
+        if not bkd.is_integer_dtype(allocation.npartition_samples):
+            raise TypeError(
+                f"allocation.npartition_samples must be integer-typed, "
+                f"got dtype={allocation.npartition_samples.dtype}"
+            )
+        if not bkd.is_integer_dtype(allocation.nsamples_per_model):
+            raise TypeError(
+                f"allocation.nsamples_per_model must be integer-typed, "
+                f"got dtype={allocation.nsamples_per_model.dtype}"
+            )
+
+        self._template = template
+        self._allocation = allocation
+        self._bkd = bkd
+        self._stat = template._stat
+
+        nps_float = bkd.asarray(
+            allocation.npartition_samples, dtype=bkd.double_dtype()
+        )
+        self._sigma_val = template._sigma(nps_float)
+        self._covariance_val = template._covariance_from_npartition_samples(
+            nps_float
+        )
+        self._sample_splits_val = self._sample_splits_per_model(
+            allocation.npartition_samples
+        )
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        return self._bkd
+
+    def covariance(self) -> Array:
+        """Return the estimator covariance at the allocated sample count."""
+        return self._covariance_val
+
+    def npartition_samples(self) -> Array:
+        """Return the number of samples per partition."""
+        return self._allocation.npartition_samples
+
+    def nsamples_per_model(self) -> Array:
+        """Return the number of samples allocated to each model."""
+        return self._allocation.nsamples_per_model
+
+    def objective_value(self) -> Array:
+        """Return the objective value from the allocation."""
+        return self._allocation.objective_value
+
+    def actual_cost(self) -> float:
+        """Return the actual cost of the allocation."""
+        return self._allocation.actual_cost
+
+    def sample_splits(self) -> List[Array]:
+        """Return the eagerly-computed sample splits per model."""
+        return self._sample_splits_val
+
+    def _sample_splits_per_model(
+        self, npartition_samples: Array,
+    ) -> List[Array]:
+        t = self._template
+        partition_splits = t._get_partition_splits(npartition_samples)
+        splits_per_model = []
+        for ii in range(t.nmodels()):
+            active_partitions = self._bkd.where(
+                t._partitions_per_model[ii]
+            )[0]
+            splits = self._bkd.full(
+                (t.npartitions(), 2), -1, dtype=int
+            )
+            lb = self._bkd.zeros((), dtype=self._bkd.int64_dtype())
+            ub = self._bkd.zeros((), dtype=self._bkd.int64_dtype())
+            for idx in active_partitions:
+                ub += partition_splits[idx + 1] - partition_splits[idx]
+                splits[idx] = self._bkd.array([lb, ub])
+                lb = self._bkd.copy(ub)
+            splits_per_model.append(splits)
+        return splits_per_model
+
+    def _separate_values_per_model(
+        self, values_per_model: List[Array],
+    ) -> List[Array]:
+        t = self._template
+        nsamples_per_model = self._allocation.nsamples_per_model
+        if len(values_per_model) != t.nmodels():
+            raise ValueError(
+                f"len(values_per_model) {len(values_per_model)} "
+                f"!= nmodels {t.nmodels()}"
+            )
+        for ii in range(t.nmodels()):
+            nsamples_ii = self._bkd.to_int(nsamples_per_model[ii])
+            if values_per_model[ii].shape[1] != nsamples_ii:
+                raise ValueError(
+                    f"values_per_model[{ii}].shape[1]: "
+                    f"{values_per_model[ii].shape[1]} != "
+                    f"nsamples_per_model[{ii}]: {nsamples_per_model[ii]}"
+                )
+
+        splits_per_model = self._sample_splits_val
+        values_per_subset = []
+        for ii, model_subset in enumerate(t._model_subsets):
+            values = []
+            active_partitions = self._bkd.where(t._allocation_mat[ii])[0]
+            for model_id in model_subset:
+                splits = splits_per_model[model_id]
+                values.append(
+                    self._bkd.hstack(
+                        [
+                            values_per_model[model_id][
+                                :, splits[idx, 0] : splits[idx, 1]
+                            ]
+                            for idx in active_partitions
+                        ]
+                    )
+                )
+            values_per_subset.append(self._bkd.vstack(values))
+        return values_per_subset
+
+    def _estimate(self, values_per_subset: List[Array]) -> Array:
+        t = self._template
+        beta = t._grouped_acv_beta(self._sigma_val)
+        ll, mm = 0, 0
+        acv_stat: Array = self._bkd.zeros((beta.shape[0],))
+        for kk in range(t.nsubsets()):
+            mm += len(t._subsets[kk])
+            if values_per_subset[kk].shape[1] > 0:
+                subset_stat = self._stat.sample_estimate(
+                    values_per_subset[kk]
+                )
+                acv_stat += (beta[:, ll:mm]) @ subset_stat
+            ll = mm
+        return acv_stat
+
+    def _traditional_acv_weights(self) -> Array:
+        t = self._template
+        beta = t._grouped_acv_beta(self._sigma_val)
+        if not self._bkd.allclose(
+            self._bkd.sum(beta, axis=1),
+            self._bkd.ones((beta.shape[0],)),
+        ):
+            raise ValueError(
+                f"beta rows do not sum to 1: "
+                f"{self._bkd.sum(beta, axis=1)}"
+            )
+        alpha = self._bkd.zeros(
+            (beta.shape[0], (t._nmodels - 1) * self._stat.nstats())
+        )
+        zeros = self._bkd.zeros((beta.shape[0],))
+        kk = 0
+        for subset in t._subsets:
+            for jj in subset:
+                if jj < self._stat.nstats():
+                    kk += 1
+                    continue
+                alpha[:, jj - self._stat.nstats()] += self._bkd.maximum(
+                    beta[:, kk], zeros
+                )
+                kk += 1
+        return alpha
+
+    def _extract_from_flattened_subset_matrix(
+        self, mat: Array, subset_idx: int,
+    ) -> Array:
+        t = self._template
+        nprev_stats = sum(
+            [subset.shape[0] for subset in t._subsets[:subset_idx]]
+        )
+        subset = t._subsets[subset_idx]
+        subset_mat = mat[:, nprev_stats : nprev_stats + subset.shape[0]]
+        R = t._restriction_matrix(subset)
+        expanded_mat = (R.T @ subset_mat.T).T
+        return expanded_mat
+
+    def _group_to_traditional_estimators_from_alpha(
+        self, subset_ests: List[Array], alpha: Array,
+    ) -> Tuple[Array, Array, Array]:
+        t = self._template
+        beta = t._grouped_acv_beta(self._sigma_val)
+        Q0 = self._bkd.zeros((self._stat.nstats(),))
+        Qe = self._bkd.zeros((self._stat.nstats(), (t._nmodels - 1)))
+        Qu = self._bkd.zeros((self._stat.nstats(), (t._nmodels - 1)))
+        for ii, subset in enumerate(t._subsets):
+            beta_tilde = self._extract_from_flattened_subset_matrix(beta, ii)
+            B0_tilde = beta_tilde[:, : self._stat.nstats()]
+            BL_tilde = beta_tilde[:, self._stat.nstats() :]
+            R = t._restriction_matrix(subset)
+            Q_tilde = R.T @ subset_ests[ii]
+            Q0_tilde = Q_tilde[: self._stat.nstats()]
+            QL_tilde = Q_tilde[self._stat.nstats() :]
+            Q0 += B0_tilde @ Q0_tilde
+            nstats = self._stat.nstats()
+            for kk in range(beta.shape[0]):
+                for ll in range(1, t._nmodels):
+                    zero = self._bkd.zeros(())
+                    bl_kk = BL_tilde[kk, (ll - 1) * nstats + kk]
+                    wu = (
+                        (1 / alpha[kk, (ll - 1) * nstats + kk])
+                        * self._bkd.maximum(bl_kk, zero)
+                    )
+                    we = (
+                        -(1 / alpha[kk, (ll - 1) * nstats + kk])
+                        * self._bkd.minimum(bl_kk, zero)
+                    )
+                    Qe[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * we
+                    Qu[kk, ll - 1] += QL_tilde[(ll - 1) * nstats + kk] * wu
+        return Q0, Qe, Qu
+
+    def _group_to_traditional_estimators(
+        self, subset_ests: List[Array],
+    ) -> Tuple[Array, Array, Array]:
+        alpha = self._traditional_acv_weights()
+        return self._group_to_traditional_estimators_from_alpha(
+            subset_ests, alpha
+        )
+
+    def generate_samples_per_model(
+        self,
+        rvs: Callable[[int], Array],
+        npilot_samples: int = 0,
+    ) -> List[Array]:
+        """Generate samples for each model based on the allocation."""
+        t = self._template
+        npartition_samples = self._allocation.npartition_samples
+        npart_sum = self._bkd.sum(npartition_samples)
+        ntotal_independent_samples = self._bkd.to_int(npart_sum)
+        partition_splits = t._get_partition_splits(npartition_samples)
+        samples = rvs(ntotal_independent_samples)
+        samples_per_model = []
+        for ii in range(t.nmodels()):
+            active_partitions = self._bkd.where(
+                t._partitions_per_model[ii]
+            )[0]
+            samples_per_model.append(
+                self._bkd.hstack(
+                    [
+                        samples[
+                            :,
+                            self._bkd.to_int(
+                                partition_splits[idx]
+                            ) : self._bkd.to_int(
+                                partition_splits[idx + 1]
+                            ),
+                        ]
+                        for idx in active_partitions
+                    ]
+                )
+            )
+        if npilot_samples == 0:
+            return samples_per_model
+
+        if self._bkd.max(
+            t._partitions_per_model[0] * npartition_samples
+        ) < npilot_samples:
+            raise ValueError(
+                "Insert pilot samples currently only supported when only"
+                " the largest subset of those containing the "
+                "high-fidelity model can fit all pilot samples. "
+                f"npilot = {npilot_samples} != "
+                f"{self._bkd.max(t._partitions_per_model[0] * npartition_samples)}"
+            )
+        return self._remove_pilot_samples(
+            npilot_samples, samples_per_model
+        )[0]
 
     def _reduce_model_sample_splits(
         self,
@@ -941,9 +856,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         partition_id: int,
         nsamples_to_reduce: int,
     ) -> tuple[Array, tuple[Array, Array]]:
-        """return splits that occur when removing N samples of
-        a partition of a given model"""
-        splits_per_model = self.sample_splits()
+        splits_per_model = self._sample_splits_val
         lb, ub = splits_per_model[model_id][partition_id]
         sample_splits = self._bkd.copy(splits_per_model[model_id])
         sample_splits[partition_id][0] = lb + nsamples_to_reduce
@@ -955,28 +868,26 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         npilot_samples: int,
         samples_per_model: List[Array],
     ) -> tuple[List[Array], Optional[Array]]:
-        if self._npartition_samples is None:
-            raise RuntimeError("npartition_samples must be set")
-        if self._nsamples_per_model is None:
-            raise RuntimeError("nsamples_per_model must be set")
+        t = self._template
+        npartition_samples = self._allocation.npartition_samples
+        nsamples_per_model = self._allocation.nsamples_per_model
         active_hf_subsets = self._bkd.where(
-            self._bkd.equal(self._partitions_per_model[0], 1)
+            self._bkd.equal(t._partitions_per_model[0], 1)
         )[0]
         part_id = self._bkd.to_int(active_hf_subsets[
-            self._bkd.argmax(self._npartition_samples[active_hf_subsets])
+            self._bkd.argmax(npartition_samples[active_hf_subsets])
         ])
         removed_samples = None
-        for model_id_arr in self._subsets[part_id]:
+        for model_id_arr in t._subsets[part_id]:
             mid = self._bkd.to_int(model_id_arr)
-            if npilot_samples > self._npartition_samples[part_id]:
-                msg = "Too many pilot values {0}+>{1}".format(
-                    npilot_samples,
-                    self._npartition_samples[part_id],
+            if npilot_samples > npartition_samples[part_id]:
+                raise ValueError(
+                    f"Too many pilot values {npilot_samples}+>"
+                    f"{npartition_samples[part_id]}"
                 )
-                raise ValueError(msg)
             if (
                 samples_per_model[mid].shape[1]
-                != self._bkd.to_int(self._nsamples_per_model[mid])
+                != self._bkd.to_int(nsamples_per_model[mid])
             ):
                 raise ValueError("samples per model has the wrong size")
             splits, removed_split = self._reduce_model_sample_splits(
@@ -987,10 +898,13 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             if removed_samples is None:
                 removed_samples = samples_per_model[mid][:, rs0:rs1]
             else:
-                assert self._bkd.allclose(
+                if not self._bkd.allclose(
                     removed_samples,
                     samples_per_model[mid][:, rs0:rs1],
-                )
+                ):
+                    raise ValueError(
+                        "Removed samples differ across models"
+                    )
             samples_per_model[mid] = self._bkd.hstack(
                 [
                     samples_per_model[mid][
@@ -1000,7 +914,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
                         ),
                     ]
                     for idx in self._bkd.where(
-                        self._bkd.equal(self._partitions_per_model[mid], 1)
+                        self._bkd.equal(t._partitions_per_model[mid], 1)
                     )[0]
                 ]
             )
@@ -1011,56 +925,39 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         pilot_values: List[Array],
         values_per_model: List[Array],
     ) -> List[Array]:
-        """Insert pilot values into the model evaluation arrays.
-
-        Parameters
-        ----------
-        pilot_values : List[Array]
-            Pilot values for each model. Shape: (nqoi, npilot_samples)
-
-        values_per_model : List[Array]
-            Model evaluation values. Shape: (nqoi, nsamples_for_model)
-
-        Returns
-        -------
-        List[Array]
-            Updated values_per_model with pilot values inserted.
-            Shape: (nqoi, nsamples_for_model + npilot_samples)
-        """
-        self._ensure_allocation()
-        if self._npartition_samples is None:
-            raise RuntimeError("npartition_samples must be set")
-        # nsamples is shape[1] for (nqoi, nsamples) convention
+        """Insert pilot values into the model evaluation arrays."""
+        t = self._template
+        npartition_samples = self._allocation.npartition_samples
         npilot_values = pilot_values[0].shape[1]
         if self._bkd.to_float(self._bkd.max(
-            self._partitions_per_model[0] * self._npartition_samples
+            t._partitions_per_model[0] * npartition_samples
         )) < npilot_values:
-            msg = "Insert pilot samples currently only supported when only"
-            msg += " the largest subset of those containing the "
-            msg += "high-fidelity model can fit all pilot samples"
-            raise ValueError(msg)
+            raise ValueError(
+                "Insert pilot samples currently only supported when only"
+                " the largest subset of those containing the "
+                "high-fidelity model can fit all pilot samples"
+            )
 
         new_values_per_model = [self._bkd.copy(v) for v in values_per_model]
         active_hf_subsets = self._bkd.where(
-            self._bkd.equal(self._partitions_per_model[0], 1)
+            self._bkd.equal(t._partitions_per_model[0], 1)
         )[0]
         part_id = self._bkd.to_int(active_hf_subsets[
-            self._bkd.argmax(self._npartition_samples[active_hf_subsets])
+            self._bkd.argmax(npartition_samples[active_hf_subsets])
         ])
-        splits_per_model = self.sample_splits()
-        for model_id_arr in self._subsets[part_id]:
+        splits_per_model = self._sample_splits_val
+        for model_id_arr in t._subsets[part_id]:
             mid = self._bkd.to_int(model_id_arr)
             npilot_values = pilot_values[mid].shape[1]
             if npilot_values != pilot_values[0].shape[1]:
-                msg = "Must have the same number of pilot values "
-                msg += "for each model"
-                raise ValueError(msg)
-            if npilot_values > self._npartition_samples[part_id]:
                 raise ValueError(
-                    "Too many pilot values {0}>{1}".format(
-                        npilot_values + values_per_model[mid].shape[1],
-                        self._npartition_samples[part_id],
-                    )
+                    "Must have the same number of pilot values "
+                    "for each model"
+                )
+            if npilot_values > npartition_samples[part_id]:
+                raise ValueError(
+                    f"Too many pilot values {npilot_values}>"
+                    f"{npartition_samples[part_id]}"
                 )
             lb = self._bkd.to_int(splits_per_model[mid][part_id][0])
             new_values_per_model[mid] = self._bkd.hstack(
@@ -1072,17 +969,23 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             )
         return new_values_per_model
 
+    def __call__(self, values_per_model: List[Array]) -> Array:
+        """Compute the GroupACV estimate from model values."""
+        t = self._template
+        values_per_subset = self._separate_values_per_model(values_per_model)
+        stochastic_est = self._estimate(values_per_subset)
+        if not t._has_known_quantities:
+            return stochastic_est
+        beta = t._grouped_acv_beta(self._sigma_val)
+        return stochastic_est - t._compute_correction(beta)
+
     def __repr__(self) -> str:
-        if not self.has_allocation:
-            return "{0}()".format(self.__class__.__name__)
-        if self._allocation is None:
-            raise RuntimeError("Allocation not set")
-        criteria_val = self._bkd.to_float(
+        obj = self._bkd.to_float(
             self._bkd.flatten(self._allocation.objective_value)[0]
         )
-        rep = "{0}(criteria={1:.3g}".format(self.__class__.__name__, criteria_val)
-        target_cost = self._target_cost if self._target_cost is not None else 0.0
-        rep += " target_cost={0:.5g}, nsamples={1})".format(
-            target_cost, self._nsamples_per_model
+        cost = self._allocation.actual_cost
+        nsamp = self._allocation.nsamples_per_model
+        return (
+            f"{type(self).__name__}(criteria={obj:.3g} "
+            f"cost={cost:.5g} nsamples={nsamp})"
         )
-        return rep

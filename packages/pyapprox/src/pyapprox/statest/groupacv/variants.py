@@ -5,7 +5,7 @@ This module provides concrete implementations of BaseGroupACVEstimator:
     - GroupACVEstimatorNested: Nested sampling estimator
 """
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, cast
 
 from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
 from pyapprox.statest.groupacv.utils import (
@@ -88,15 +88,17 @@ class GroupACVEstimatorNested(BaseGroupACVEstimator[Array]):
         subsets for hierarchical sampling.
         """
         zero = self._bkd.zeros((1,), dtype=int)
-        filtered = []
+        filtered: List[Array] = []
         for subset in model_subsets:
             if not isinstance(subset, self._bkd.array_type()):
                 raise ValueError(
                     f"subset must be an instance of {self._bkd.array_type()}"
                 )
-            if not self._bkd.allclose(subset, zero):
-                filtered.append(subset)
-        return _nest_subsets(filtered, self.nmodels(), self._bkd)[0]
+            typed_subset = cast(Array, subset)
+            if not self._bkd.allclose(typed_subset, zero):
+                filtered.append(typed_subset)
+        nested, _ = _nest_subsets(filtered, self.nmodels(), self._bkd)
+        return nested
 
     def _get_allocation_matrix(self, subsets: List[Array]) -> Array:
         """Get nested sampling allocation matrix."""

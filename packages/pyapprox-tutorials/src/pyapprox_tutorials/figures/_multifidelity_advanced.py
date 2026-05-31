@@ -242,14 +242,11 @@ def plot_mlblue_ceiling(ax):
 
     Variance relative to MC as LF samples grow: MLMC, MFMC, MLBLUE.
     """
-    import copy
-
     from pyapprox_benchmarks.statest import (
         PolynomialEnsembleBenchmark,
     )
     from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
     from pyapprox.statest.groupacv import MLBLUEEstimator
-    from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -312,19 +309,11 @@ def plot_mlblue_ceiling(ax):
             nhf_samples * np.hstack(
                 (1, npartition_ratio_base * 2**factor)),
         )
-        est_copy = copy.deepcopy(mlblue_template)
-        nsamples_per_model = est_copy._compute_nsamples_per_model(
-            npartition_samples)
-        actual_cost = bkd.to_float(est_copy._estimator_cost(npartition_samples))
-        result = GroupACVAllocationResult(
-            npartition_samples=npartition_samples,
-            nsamples_per_model=nsamples_per_model,
-            actual_cost=actual_cost,
-            objective_value=bkd.asarray([0.0]),
-            success=True,
-        )
-        est_copy.set_allocation(result)
-        est_var = bkd.to_float(est_copy.optimized_covariance()[0, 0])
+        actual_cost = bkd.to_float(
+            mlblue_template._estimator_cost(npartition_samples))
+        est_var = bkd.to_float(
+            mlblue_template._covariance_from_npartition_samples(
+                npartition_samples)[0, 0])
         mlblue_costs.append(actual_cost)
         mlblue_ratio.append(est_var / mc_var)
 
