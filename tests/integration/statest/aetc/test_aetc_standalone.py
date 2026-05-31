@@ -10,7 +10,10 @@ import pytest
 from pyapprox.statest.aetc.aetcblue import AETCBLUE
 from pyapprox.statest.aetc.aetcmc import AETCMC
 from pyapprox.statest.aetc.base import AETC
-from pyapprox.statest.groupacv import GroupACVAllocationResult
+from pyapprox.statest.groupacv import (
+    FittedGroupACVEstimator,
+    GroupACVAllocationResult,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.markers import slow_test, slower_test, slowest_test
 
@@ -18,13 +21,19 @@ from tests._helpers.markers import slow_test, slower_test, slowest_test
 def _make_groupacv_allocation(est, npartition_samples):
     """Helper to create GroupACVAllocationResult from npartition_samples."""
     bkd = est.bkd()
-    nsamples_per_model = est._compute_nsamples_per_model(npartition_samples)
-    actual_cost = float(est._estimator_cost(npartition_samples))
+    rounded = bkd.asarray(
+        bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype()
+    )
+    nps_float = bkd.asarray(rounded, dtype=bkd.double_dtype())
+    nsamples_per_model = bkd.asarray(
+        est._compute_nsamples_per_model(nps_float), dtype=bkd.int64_dtype()
+    )
+    actual_cost = float(est._estimator_cost(nps_float))
     return GroupACVAllocationResult(
-        npartition_samples=npartition_samples,
+        npartition_samples=rounded,
         nsamples_per_model=nsamples_per_model,
         actual_cost=actual_cost,
-        objective_value=bkd.array([0.0]),
+        objective_value=bkd.array([0.0]),  # Placeholder
         success=True,
         message="",
     )
@@ -627,7 +636,7 @@ class TestAETCBLUEExploitation:
         stat.set_pilot_quantities(sigma_S)
         est = MLBLUEEstimator(stat, costs_best_S, asketch=beta_Sp[1:].T, reg_blue=1e-15)
         allocation = _make_groupacv_allocation(est, rounded_nsamples_per_subset)
-        est.set_allocation(allocation)
+        fitted = FittedGroupACVEstimator(est, allocation)
         nsamples_per_model = allocation.nsamples_per_model
 
         # Create mock values with shape (nqoi, nsamples)
@@ -637,8 +646,8 @@ class TestAETCBLUEExploitation:
             for i in range(len(bkd.to_numpy(subset)))
         ]
 
-        # Compute expected mean using MLBLUEEstimator directly
-        expected_product = est(values_per_model)
+        # Compute expected mean using fitted estimator directly
+        expected_product = fitted(values_per_model)
         if hasattr(expected_product, "item"):
             expected_product = expected_product.item()
         expected_mean = bkd.to_numpy(beta_Sp)[0, 0] + expected_product

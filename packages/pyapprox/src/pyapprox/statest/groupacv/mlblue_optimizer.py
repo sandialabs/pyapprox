@@ -81,7 +81,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
     >>> # Create allocator and optimize
     >>> allocator = MLBLUESPDAllocationOptimizer(est)
     >>> result = allocator.optimize(target_cost=100, min_nhf_samples=10)
-    >>> est.set_allocation(result)
+    >>> fitted = FittedGroupACVEstimator(est, result)
     """
 
     def __init__(
@@ -244,12 +244,23 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
 
         # Round if requested
         if round_nsamples:
-            npartition_samples = self._bkd.floor(npartition_samples + 1e-4)
+            npartition_samples = self._bkd.asarray(
+                self._bkd.floor(npartition_samples + 1e-4),
+                dtype=self._bkd.int64_dtype(),
+            )
 
         # Compute derived quantities
-        nsamples_per_model = self._est._compute_nsamples_per_model(npartition_samples)
-        actual_cost = self._bkd.to_float(self._est._estimator_cost(npartition_samples))
+        nps_float = self._bkd.asarray(
+            npartition_samples, dtype=self._bkd.double_dtype()
+        )
+        nsamples_per_model = self._est._compute_nsamples_per_model(nps_float)
+        actual_cost = self._bkd.to_float(self._est._estimator_cost(nps_float))
         obj_value = self._bkd.array([float(t_cvxpy.value)])
+
+        if round_nsamples:
+            nsamples_per_model = self._bkd.asarray(
+                nsamples_per_model, dtype=self._bkd.int64_dtype()
+            )
 
         return GroupACVAllocationResult(
             npartition_samples=npartition_samples,

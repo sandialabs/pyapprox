@@ -20,7 +20,10 @@ if TYPE_CHECKING:
     from pyapprox.optimization.minimize.protocols import (
         BindableOptimizerProtocol,
     )
-    from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
+    from pyapprox.statest.groupacv.base import (
+        BaseGroupACVEstimator,
+        FittedGroupACVEstimator,
+    )
     from pyapprox.statest.groupacv.optimization import GroupACVObjective
     from pyapprox.statest.groupacv.result import GroupACVAllocationResult
     from pyapprox.statest.statistics import MultiOutputStatistic
@@ -30,7 +33,7 @@ if TYPE_CHECKING:
 class GroupACVSearchResult(Generic[Array]):
     """Result of GroupACV estimator configuration search."""
 
-    estimator: "BaseGroupACVEstimator[Array]"
+    best: "FittedGroupACVEstimator[Array]"
     allocation: "GroupACVAllocationResult[Array]"
     all_allocations: List[
         Tuple["BaseGroupACVEstimator[Array]", "GroupACVAllocationResult[Array]"]
@@ -206,9 +209,13 @@ class GroupACVSearch(Generic[Array]):
 
         for estimator, allocation in sorted_allocs:
             if allocation.success:
-                estimator.set_allocation(allocation)
+                from pyapprox.statest.groupacv.base import (
+                    FittedGroupACVEstimator,
+                )
+
+                fitted = FittedGroupACVEstimator(estimator, allocation)
                 return GroupACVSearchResult(
-                    estimator=estimator,
+                    best=fitted,
                     allocation=allocation,
                     all_allocations=sorted_allocs,
                     estimator_classes=self._estimator_classes,

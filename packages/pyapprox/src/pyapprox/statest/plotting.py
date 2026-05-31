@@ -9,7 +9,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array
@@ -17,7 +16,7 @@ from pyapprox.util.backends.protocols import Array
 if TYPE_CHECKING:
     import networkx
 
-    from pyapprox.statest.acv.base import ACVEstimator
+    from pyapprox.statest.acv.base import ACVEstimator, FittedACVEstimator
 
 
 def _plot_partition(
@@ -32,8 +31,10 @@ def _plot_partition(
     ax.plot(*box, color="k")
     ax.fill(*box, color=color)
     if text is not None:
+        center = box[:, 0] + 0.5
         ax.text(
-            *(box[:, 0] + 0.5),
+            center[0],
+            center[1],
             text,
             verticalalignment="center",
             horizontalalignment="center",
@@ -59,7 +60,7 @@ def _plot_allocation_matrix(
     set_symbol = r"\mathcal{Z}"
     allocation_mat = np.asarray(allocation_mat)
     nmodels, nacv_subsets = allocation_mat.shape
-    cycle = iter(plt.cm.rainbow(np.linspace(0, 1, nmodels)))
+    cycle = iter(matplotlib.colormaps["rainbow"](np.linspace(0, 1, nmodels)))
     colors = [c for c in cycle]
     for ii in range(nmodels):
         for jj in range(1, nacv_subsets):
@@ -91,26 +92,29 @@ def _plot_allocation_matrix(
 
 
 def plot_allocation(
-    estimator: ACVEstimator[Array],
+    estimator: "FittedACVEstimator[Array]",
     ax: matplotlib.axes.Axes,
     show_partition_sizes: bool = False,
 ) -> None:
-    """Plot the allocation matrix for an ACV estimator.
+    """Plot the allocation matrix for a fitted ACV estimator.
 
     Parameters
     ----------
-    estimator : ACVEstimator
-        An estimator with ``allocation_matrix()`` and
+    estimator : FittedACVEstimator
+        A fitted estimator with ``allocation_matrix()`` and
         ``npartition_samples()`` methods.
     ax : matplotlib.axes.Axes
         Axes to plot on.
     show_partition_sizes : bool, optional
         If True, show partition sizes inside each block.
     """
-    allocation_mat = estimator.allocation_matrix()
-    npartition_samples = (
-        estimator.npartition_samples() if show_partition_sizes else None
-    )
+    bkd = estimator.bkd()
+    allocation_mat = np.asarray(bkd.to_numpy(estimator.allocation_matrix()))
+    npartition_samples: Optional[np.ndarray] = None
+    if show_partition_sizes:
+        npartition_samples = np.asarray(
+            bkd.to_numpy(estimator.npartition_samples())
+        )
     _plot_allocation_matrix(allocation_mat, npartition_samples, ax)
 
 
@@ -137,7 +141,7 @@ def _autolabel(
 def plot_estimator_variance_reductions(
     optimized_estimators: list,  # type: ignore[type-arg]
     est_labels: List[str],
-    ax: plt.Axes,
+    ax: matplotlib.axes.Axes,
     ylabel: Optional[str] = None,
     **bar_kwargs: Any,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -169,9 +173,9 @@ def plot_estimator_variance_reductions(
     sf_covariances : ndarray
         Determinant of the single-fidelity MC covariance.
     """
-    var_red = []
-    est_covs = []
-    sf_covs = []
+    var_red_list: List[float] = []
+    est_covs_list: List[float] = []
+    sf_covs_list: List[float] = []
     for est in optimized_estimators:
         est_cov = est.covariance()
         bkd = est._bkd
@@ -179,13 +183,13 @@ def plot_estimator_variance_reductions(
         nhf = bkd.to_int(est.actual_cost() / est._template._costs[0])
         sf_cov = est._stat.high_fidelity_estimator_covariance(nhf)
         sf_det = bkd.to_float(bkd.flatten(sf_cov)[0])
-        var_red.append(sf_det / est_det if est_det > 0 else 0.0)
-        est_covs.append(est_det)
-        sf_covs.append(sf_det)
+        var_red_list.append(sf_det / est_det if est_det > 0 else 0.0)
+        est_covs_list.append(est_det)
+        sf_covs_list.append(sf_det)
 
-    var_red = np.array(var_red)
-    est_covs = np.array(est_covs)
-    sf_covs = np.array(sf_covs)
+    var_red = np.array(var_red_list)
+    est_covs = np.array(est_covs_list)
+    sf_covs = np.array(sf_covs_list)
 
     rects = ax.bar(est_labels, var_red, **bar_kwargs)
     _autolabel(ax, list(rects), ["$%1.2f$" % v for v in var_red])
@@ -262,6 +266,8 @@ def plot_recursion_dag(
     import networkx as nx
 
     bkd = estimator._bkd
+    if estimator._recursion_index is None:
+        raise ValueError("Estimator has no recursion index set")
     recursion_index = bkd.to_numpy(estimator._recursion_index).astype(int)
     nmodels = len(recursion_index) + 1
 

@@ -6,7 +6,7 @@ from typing import Generic
 from pyapprox.util.backends.protocols import Array
 
 
-@dataclass
+@dataclass(frozen=True)
 class GroupACVAllocationResult(Generic[Array]):
     """Allocation result for GroupACV estimators.
 

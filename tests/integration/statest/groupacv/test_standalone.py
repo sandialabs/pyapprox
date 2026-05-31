@@ -15,6 +15,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.statest.acv import GMFEstimator, MFMCEstimator
 from pyapprox.statest.acv.variants import _allocate_samples_mfmc
 from pyapprox.statest.groupacv import (
+    FittedGroupACVEstimator,
     GroupACVCostConstraint,
     GroupACVEstimatorIS,
     GroupACVEstimatorNested,
@@ -46,9 +47,18 @@ def _make_groupacv_allocation(est, npartition_samples):
     Rounds the samples and computes derived quantities.
     """
     bkd = est.bkd()
-    rounded = bkd.floor(npartition_samples + 1e-4)
-    nsamples_per_model = est._compute_nsamples_per_model(rounded)
-    actual_cost = float(est._estimator_cost(rounded))
+    rounded = bkd.asarray(
+        bkd.floor(npartition_samples + 1e-4), dtype=bkd.int64_dtype()
+    )
+    nsamples_per_model = bkd.asarray(
+        est._compute_nsamples_per_model(
+            bkd.asarray(rounded, dtype=bkd.double_dtype())
+        ),
+        dtype=bkd.int64_dtype(),
+    )
+    actual_cost = float(est._estimator_cost(
+        bkd.asarray(rounded, dtype=bkd.double_dtype())
+    ))
     return GroupACVAllocationResult(
         npartition_samples=rounded,
         nsamples_per_model=nsamples_per_model,
@@ -231,9 +241,9 @@ class TestGroupACVEstimator:
             (est.nsubsets(),), float(NN), dtype=bkd.double_dtype()
         )
         allocation = _make_groupacv_allocation(est, npartition_samples)
-        est.set_allocation(allocation)
+        fitted = FittedGroupACVEstimator(est, allocation)
 
-        samples_per_model = est.generate_samples_per_model(
+        samples_per_model = fitted.generate_samples_per_model(
             lambda n: bkd.arange(int(n), dtype=bkd.double_dtype())[None, :]
         )
         for ii in range(est.nmodels()):
@@ -244,10 +254,10 @@ class TestGroupACVEstimator:
 
         # values shape is (nqoi, nsamples) - same as samples but with nqoi rows
         values_per_model = [(ii + 1) * s for ii, s in enumerate(samples_per_model)]
-        values_per_subset = est._separate_values_per_model(values_per_model)
+        values_per_subset = fitted._separate_values_per_model(values_per_model)
 
         test_samples = bkd.arange(
-            int(est.npartition_samples().sum()),
+            int(fitted.npartition_samples().sum()),
             dtype=bkd.double_dtype(),
         )[None, :]
         # test_values shape is (nqoi, nsamples)
@@ -631,7 +641,10 @@ class TestMLBLUESPDAllocationOptimizer:
         result = allocator.optimize(target_cost, min_nhf_samples)
 
         # Compute actual cost
-        actual_cost = est._estimator_cost(result.npartition_samples)
+        nps_float = bkd.asarray(
+            result.npartition_samples, dtype=bkd.double_dtype()
+        )
+        actual_cost = est._estimator_cost(nps_float)
 
         # Cost should be <= target (with small tolerance)
         assert float(bkd.to_numpy(actual_cost)) <= target_cost + 1e-6
@@ -728,7 +741,7 @@ class TestPilotSampleInsertionTorchOnly:
             result = allocator.optimize(
                 target_cost, min_nhf_samples, init_guess=iterate
             )
-            est.set_allocation(result)
+            fitted = FittedGroupACVEstimator(est, result)
 
             # Get covariance and create value generator
             cov = est._stat._cov
@@ -741,10 +754,10 @@ class TestPilotSampleInsertionTorchOnly:
 
             # Generate full samples
             np.random.seed(seed)
-            samples_per_model = est.generate_samples_per_model(rvs)
+            samples_per_model = fitted.generate_samples_per_model(rvs)
 
             # Remove pilot samples
-            _, pilot_samples = est._remove_pilot_samples(
+            _, pilot_samples = fitted._remove_pilot_samples(
                 npilot_samples, samples_per_model
             )
 
@@ -758,7 +771,7 @@ class TestPilotSampleInsertionTorchOnly:
 
             # Generate samples without pilot
             np.random.seed(seed)
-            samples_per_model_wo_pilot = est.generate_samples_per_model(
+            samples_per_model_wo_pilot = fitted.generate_samples_per_model(
                 rvs, npilot_samples
             )
 
@@ -774,13 +787,13 @@ class TestPilotSampleInsertionTorchOnly:
             ]
 
             # Insert pilot values
-            values_per_model_recovered = est.insert_pilot_values(
+            values_per_model_recovered = fitted.insert_pilot_values(
                 pilot_values, values_per_model_wo_pilot
             )
 
             # Generate reference values with full samples - shape (nqoi, nsamples)
             np.random.seed(seed)
-            samples_per_model_full = est.generate_samples_per_model(rvs)
+            samples_per_model_full = fitted.generate_samples_per_model(rvs)
             values_per_model = [
                 self._generate_correlated_values(
                     chol_factor, exact_means, samples_per_model_full[ii]
@@ -1010,15 +1023,15 @@ class TestMFMCNestedEstimationTorchOnly:
         # Create GroupACV allocation from GMF allocation
         gmf_npartition = gmf_fitted.npartition_samples()
         groupacv_allocation = _make_groupacv_allocation(groupacv_est, gmf_npartition)
-        groupacv_est.set_allocation(groupacv_allocation)
+        groupacv_fitted = FittedGroupACVEstimator(groupacv_est, groupacv_allocation)
 
         # Compute GroupACV estimate (now expects samples in columns like other typing
         # code)
-        groupacv_est_val = groupacv_est(values_per_model)
+        groupacv_est_val = groupacv_fitted(values_per_model)
 
         # Check covariances match (use default bkd.allclose tolerances)
         self._bkd.assert_allclose(
-            groupacv_est.optimized_covariance(),
+            groupacv_fitted.covariance(),
             gmf_fitted.covariance(),
             rtol=1e-05,
             atol=1e-08,
@@ -1056,46 +1069,50 @@ class TestSigmaMatrixMonteCarlo:
         models = bm.models_subproblem(model_idx, qoi_idx)
         return bm, cov, costs, models
 
-    def _check_sigma_matrix_of_estimator(self, bkd, est, ntrials: int, models: list):
+    def _check_sigma_matrix_of_estimator(self, bkd, fitted, ntrials: int, models: list):
         """Check sigma matrix and estimator variance via Monte Carlo.
 
         Parameters
         ----------
         bkd : Backend
             The backend to use.
-        est : GroupACVEstimator
-            The estimator to check.
+        fitted : FittedGroupACVEstimator
+            The fitted estimator to check.
         ntrials : int
             Number of Monte Carlo trials.
         models : list
             List of model functions.
         """
         # Get analytical values
-        est_var = est._covariance_from_npartition_samples(est.npartition_samples())
-        Sigma = est._sigma(est.npartition_samples())
+        t = fitted._template
+        nps_float = bkd.asarray(
+            fitted.npartition_samples(), dtype=bkd.double_dtype()
+        )
+        est_var = t._covariance_from_npartition_samples(nps_float)
+        Sigma = t._sigma(nps_float)
 
         subset_vars_list = []
         acv_ests_list = []
 
         for nn in range(ntrials):
-            samples_per_model = est.generate_samples_per_model(
+            samples_per_model = fitted.generate_samples_per_model(
                 lambda n: self._rvs(bkd, n)
             )
             # Values shape: (nqoi, nsamples) for typing convention
             values_per_model = [
-                models[ii](samples_per_model[ii]) for ii in range(est.nmodels())
+                models[ii](samples_per_model[ii]) for ii in range(t.nmodels())
             ]
-            subset_values = est._separate_values_per_model(values_per_model)
+            subset_values = fitted._separate_values_per_model(values_per_model)
 
             subset_vars_nn = []
-            for kk in range(est.nsubsets()):
+            for kk in range(t.nsubsets()):
                 if subset_values[kk].shape[1] > 0:
-                    subset_var = est._stat.sample_estimate(subset_values[kk])
+                    subset_var = fitted._stat.sample_estimate(subset_values[kk])
                 else:
-                    subset_var = bkd.zeros(len(est._subsets[kk]))
+                    subset_var = bkd.zeros(len(t._subsets[kk]))
                 subset_vars_nn.append(subset_var)
 
-            acv_est = est(values_per_model)
+            acv_est = fitted(values_per_model)
             subset_vars_list.append(bkd.hstack(subset_vars_nn))
             acv_ests_list.append(acv_est)
 
@@ -1177,10 +1194,10 @@ class TestSigmaMatrixMonteCarlo:
             2.0, 2 + est.nsubsets(), dtype=bkd.double_dtype()
         )
         allocation = _make_groupacv_allocation(est, npartition_samples)
-        est.set_allocation(allocation)
+        fitted = FittedGroupACVEstimator(est, allocation)
 
         # Run Monte Carlo check
-        self._check_sigma_matrix_of_estimator(bkd, est, ntrials, models)
+        self._check_sigma_matrix_of_estimator(bkd, fitted, ntrials, models)
 
     @pytest.mark.parametrize(
         "nmodels,ntrials,group_type,stat_name,qoi_idx",
@@ -1302,7 +1319,7 @@ class TestGradientOptimizationTorchOnly:
         gest_result = gest_allocator.optimize(
             target_cost, min_nhf_samples, init_guess=iterate
         )
-        gest.set_allocation(gest_result)
+        gest_fitted = FittedGroupACVEstimator(gest, gest_result)
 
         mlest_allocator = GroupACVAllocationOptimizer(
             mlest, optimizer=self._create_optimizer()
@@ -1310,16 +1327,17 @@ class TestGradientOptimizationTorchOnly:
         mlest_result = mlest_allocator.optimize(
             target_cost, min_nhf_samples, init_guess=iterate
         )
-        mlest.set_allocation(mlest_result)
+        mlest_fitted = FittedGroupACVEstimator(mlest, mlest_result)
 
         # Check that both estimators produce identical covariance matrices
         # when using the same partition samples (GroupACV allocation)
         # This is the key test from legacy: given same samples, both should agree
-        groupacv_cov = gest._covariance_from_npartition_samples(
-            gest.npartition_samples()
+        nps_float = self._bkd.asarray(
+            gest_fitted.npartition_samples(), dtype=self._bkd.double_dtype()
         )
+        groupacv_cov = gest._covariance_from_npartition_samples(nps_float)
         mlblue_cov_at_groupacv = mlest._covariance_from_npartition_samples(
-            gest.npartition_samples()
+            nps_float
         )
         self._bkd.assert_allclose(
             groupacv_cov,
@@ -1327,12 +1345,16 @@ class TestGradientOptimizationTorchOnly:
         )  # default tolerance like legacy
 
         # Check that sample counts are valid (non-negative)
-        assert float(self._bkd.min(gest.npartition_samples())) >= 0
-        assert float(self._bkd.min(mlest.npartition_samples())) >= 0
+        assert float(self._bkd.min(gest_fitted.npartition_samples())) >= 0
+        assert float(self._bkd.min(mlest_fitted.npartition_samples())) >= 0
 
         # Check cost constraint is satisfied
-        gest_cost = gest._estimator_cost(gest.npartition_samples())
-        mlest_cost = mlest._estimator_cost(mlest.npartition_samples())
+        gest_cost = gest._estimator_cost(
+            self._bkd.asarray(gest_fitted.npartition_samples(), dtype=self._bkd.double_dtype())
+        )
+        mlest_cost = mlest._estimator_cost(
+            self._bkd.asarray(mlest_fitted.npartition_samples(), dtype=self._bkd.double_dtype())
+        )
         assert float(gest_cost) <= target_cost * 1.01  # Allow 1% tolerance
         assert float(mlest_cost) <= target_cost * 1.01
 
@@ -1421,7 +1443,10 @@ class TestGroupACVAllocationOptimizerTorchOnly:
         allocator = GroupACVAllocationOptimizer(est)
         result = allocator.optimize(target_cost=target_cost, min_nhf_samples=1)
 
-        actual_cost = est._estimator_cost(result.npartition_samples)
+        nps_float = self._bkd.asarray(
+            result.npartition_samples, dtype=self._bkd.double_dtype()
+        )
+        actual_cost = est._estimator_cost(nps_float)
         assert float(self._bkd.to_numpy(actual_cost)) <= target_cost + 1e-6
 
     @slow_test
@@ -1449,8 +1474,8 @@ class TestGroupACVAllocationOptimizerTorchOnly:
         assert result.success
 
     @slow_test
-    def test_allocator_set_allocation_integration(self):
-        """Test that allocator result can be used with estimator setter."""
+    def test_allocator_result_into_fitted(self):
+        """Test that allocator result can construct a fitted estimator."""
         from pyapprox.statest.groupacv.allocation import (
             GroupACVAllocationOptimizer,
         )
@@ -1459,14 +1484,14 @@ class TestGroupACVAllocationOptimizerTorchOnly:
         allocator = GroupACVAllocationOptimizer(est)
         result = allocator.optimize(target_cost=100, min_nhf_samples=1)
 
-        # Use new setter API
-        est.set_allocation(result)
+        # Construct fitted estimator
+        fitted = FittedGroupACVEstimator(est, result)
 
-        # Verify allocation is stored
-        self._bkd.assert_allclose(est.npartition_samples(), result.npartition_samples)
+        # Verify allocation is accessible
+        self._bkd.assert_allclose(fitted.npartition_samples(), result.npartition_samples)
 
         # Verify covariance can be computed
-        cov = est.covariance()
+        cov = fitted.covariance()
         assert cov.shape[0] == est._stat.nstats()
         assert cov.shape[1] == est._stat.nstats()
 
@@ -1589,7 +1614,6 @@ class TestGroupACVRecoversMLBLUETorchOnly:
         groupacv_result = groupacv_allocator.optimize(
             target_cost, min_nhf_samples=1, init_guess=iterate
         )
-        groupacv_est.set_allocation(groupacv_result)
 
         # MLBLUE with analytical jacobian (via MLBLUEObjective)
         mlblue_obj = MLBLUEObjective(self._bkd)
@@ -1601,17 +1625,20 @@ class TestGroupACVRecoversMLBLUETorchOnly:
         mlblue_result = mlblue_allocator.optimize(
             target_cost, min_nhf_samples=1, init_guess=iterate
         )
-        mlblue_est.set_allocation(mlblue_result)
 
         # Both should have same number of partitions (IS uses 2^nmodels - 1)
         assert groupacv_est.npartitions() == mlblue_est.npartitions()
 
         # Covariances at same allocation should match
+        nps_float = self._bkd.asarray(
+            groupacv_result.npartition_samples,
+            dtype=self._bkd.double_dtype(),
+        )
         groupacv_cov = groupacv_est._covariance_from_npartition_samples(
-            groupacv_result.npartition_samples
+            nps_float
         )
         mlblue_cov = mlblue_est._covariance_from_npartition_samples(
-            groupacv_result.npartition_samples
+            nps_float
         )
         self._bkd.assert_allclose(groupacv_cov, mlblue_cov, rtol=1e-10)
 
