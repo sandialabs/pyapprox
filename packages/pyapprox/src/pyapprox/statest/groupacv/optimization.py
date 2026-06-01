@@ -27,6 +27,7 @@ class GroupACVObjective(ABC, Generic[Array]):
     def __init__(self, bkd: Optional[Backend[Array]] = None):
         self._bkd: Optional[Backend[Array]] = bkd
         self._est: Optional[BaseGroupACVEstimator[Array]] = None
+        self._use_analytical: bool = False
 
     def _ensure_bound(
         self,
@@ -39,10 +40,30 @@ class GroupACVObjective(ABC, Generic[Array]):
         bkd, _ = self._ensure_bound()
         return bkd
 
+    def _check_analytical_support(self) -> bool:
+        """Check if analytical derivatives are available for IS estimators."""
+        _, est = self._ensure_bound()
+        if not hasattr(est._stat, "_group_acv_sigma_block_derivs"):
+            return False
+        # Only support IS (allocation_mat is identity)
+        amat = est._allocation_mat
+        bkd = est._bkd
+        if amat.shape[0] != amat.shape[1]:
+            return False
+        if not bkd.allclose(amat, bkd.eye(amat.shape[0])):
+            return False
+        try:
+            subset = est._subsets[0]
+            est._stat._group_acv_sigma_block_derivs(subset, 10.0)
+            return True
+        except NotImplementedError:
+            return False
+
     def set_estimator(self, estimator: BaseGroupACVEstimator[Array]) -> None:
         """Set the estimator and update backend."""
         self._est = estimator
         self._bkd = self._est._bkd
+        self._use_analytical = self._check_analytical_support()
 
     def nvars(self) -> int:
         """Number of optimization variables (npartitions)."""
@@ -90,6 +111,47 @@ class GroupACVObjective(ABC, Generic[Array]):
         """
         return self._objective_value(npartition_samples)
 
+    def _compute_dpsi_components(
+        self, npartition_samples_1d: Array
+    ) -> Tuple[List[Array], List[Array], List[Array]]:
+        r"""Compute per-partition Psi derivative building blocks for IS.
+
+        For IS estimators, Σ is block-diagonal and ∂_m Σ is zero except in
+        block m, so cross partitions vanish (∂_m ∂_p Ψ = 0 for m ≠ p).
+
+        Returns (sigma_invs, dpsi_blocks, d2psi_blocks) where:
+          ∂_m Ψ = -R_m Σ_m^{-1} (∂_m Σ_m) Σ_m^{-1} R_m^T
+          ∂²_m Ψ = R_m Σ_m^{-1} [2(∂_m Σ_m)Σ_m^{-1}(∂_m Σ_m) - ∂²_m Σ_m] Σ_m^{-1} R_m^T
+
+                """
+        bkd, est = self._ensure_bound()
+        npartitions = npartition_samples_1d.shape[0]
+        Rmats = est._restriction_matrices
+        sigma_invs: List[Array] = []
+        dpsi_blocks: List[Array] = []
+        d2psi_blocks: List[Array] = []
+        for m in range(npartitions):
+            n_m = npartition_samples_1d[m]
+            subset = est._subsets[m]
+            sigma_m = est._stat._group_acv_sigma_block(
+                subset, subset, n_m, n_m, n_m
+            )
+            sigma_m_inv = est._inv(sigma_m)
+            d1_m, d2_m = est._stat._group_acv_sigma_block_derivs(subset, n_m)
+            R_m = Rmats[m]
+            sinv_d1_sinv = sigma_m_inv @ d1_m @ sigma_m_inv
+            dpsi_m = bkd.multidot([-R_m, sinv_d1_sinv, R_m.T])
+            # d²(Σ⁻¹)/dn² = 2 Σ⁻¹ Σ' Σ⁻¹ Σ' Σ⁻¹ - Σ⁻¹ Σ'' Σ⁻¹
+            d2_sinv = (
+                2 * sinv_d1_sinv @ d1_m @ sigma_m_inv
+                - sigma_m_inv @ d2_m @ sigma_m_inv
+            )
+            d2psi_m = bkd.multidot([R_m, d2_sinv, R_m.T])
+            sigma_invs.append(sigma_m_inv)
+            dpsi_blocks.append(dpsi_m)
+            d2psi_blocks.append(d2psi_m)
+        return sigma_invs, dpsi_blocks, d2psi_blocks
+
     def _scalar_objective_wrapper(self, npartition_samples_1d: Array) -> Array:
         """Wrapper that returns scalar for bkd.jacobian compatibility."""
         bkd, _ = self._ensure_bound()
@@ -130,6 +192,7 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
     """Trace objective for GroupACV optimization.
 
     Minimizes the trace of the estimator covariance matrix.
+    f(n) = tr(A Ψ⁻¹ Aᵀ) = tr(Ψ⁻¹ Ã) where Ã = Aᵀ A.
     """
 
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
@@ -140,11 +203,66 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
         # conversion below is necessary for torch
         return bkd.hstack((trace,))[:, None]
 
+    def jacobian(self, npartition_samples: Array) -> Array:
+        r"""Analytical jacobian for trace objective.
+
+        ∂f/∂n_m = -tr(G ∂_m Ψ)  where G = Ψ⁻¹ Ã Ψ⁻¹, Ã = Aᵀ A
+        """
+        if not self._use_analytical:
+            return super().jacobian(npartition_samples)
+        bkd, est = self._ensure_bound()
+        n1d = npartition_samples[:, 0]
+        psi = est._psi_matrix(n1d)
+        psi_inv = est._inv(psi)
+        A_tilde = est._asketch.T @ est._asketch
+        G = psi_inv @ A_tilde @ psi_inv
+        _, dpsi_blocks, _ = self._compute_dpsi_components(n1d)
+        npartitions = n1d.shape[0]
+        jac_entries = [
+            -bkd.trace(G @ dpsi_blocks[m]) for m in range(npartitions)
+        ]
+        return bkd.hstack(jac_entries)[None, :]
+
+    def hessian(self, npartition_samples: Array) -> Array:
+        r"""Analytical hessian for trace objective.
+
+        H^f_{mp} = 2 tr(G ∂_p Ψ Ψ⁻¹ ∂_m Ψ) - δ_{mp} tr(G ∂²_m Ψ)
+        """
+        if not self._use_analytical:
+            raise NotImplementedError(
+                "Analytical hessian not available; stat does not provide "
+                "_group_acv_sigma_block_derivs or estimator is not IS"
+            )
+        bkd, est = self._ensure_bound()
+        n1d = npartition_samples[:, 0]
+        psi = est._psi_matrix(n1d)
+        psi_inv = est._inv(psi)
+        A_tilde = est._asketch.T @ est._asketch
+        G = psi_inv @ A_tilde @ psi_inv
+        _, dpsi_blocks, d2psi_blocks = self._compute_dpsi_components(n1d)
+        npartitions = n1d.shape[0]
+        G_dpsi_psiinv = [G @ dpsi_blocks[m] @ psi_inv for m in range(npartitions)]
+        hess_rows = []
+        for m in range(npartitions):
+            row_entries = []
+            for p in range(npartitions):
+                val = 2 * bkd.trace(G_dpsi_psiinv[m] @ dpsi_blocks[p])
+                if m == p:
+                    val = val - bkd.trace(G @ d2psi_blocks[m])
+                row_entries.append(val)
+            hess_rows.append(bkd.hstack(row_entries))
+        return bkd.vstack(hess_rows)
+
+    def hvp(self, npartition_samples: Array, vec: Array) -> Array:
+        hess = self.hessian(npartition_samples)
+        return hess @ vec
+
 
 class GroupACVLogDetObjective(GroupACVObjective[Array]):
     """Log-determinant objective for GroupACV optimization.
 
     Minimizes the log-determinant of the estimator covariance matrix.
+    g(n) = log det(A Ψ⁻¹ Aᵀ) = log det(cov(n)).
     """
 
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
@@ -160,6 +278,83 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
             return bkd.asarray([[np.inf]])
         # conversion below is necessary for torch
         return bkd.hstack((logdet,))[:, None]
+
+    def _compute_logdet_matrices(
+        self, npartition_samples_1d: Array
+    ) -> Tuple[Array, Array, Array]:
+        """Compute shared matrices for log-det jacobian and hessian.
+
+        Returns (psi_inv, Lambda, dpsi_blocks + d2psi_blocks via caller).
+        Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹
+        P = Φ Φᵀ where Φ = Ψ⁻¹ Aᵀ C⁻¹ (for jacobian only, P = Λ Ψ Ψ⁻¹ = Λ
+        when Φ^T Φ is not needed, but we compute Λ directly).
+        """
+        bkd, est = self._ensure_bound()
+        psi = est._psi_matrix(npartition_samples_1d)
+        psi_inv = est._inv(psi)
+        A = est._asketch
+        cov = A @ psi_inv @ A.T
+        cov_inv = est._inv(cov)
+        # Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹
+        Lambda = psi_inv @ A.T @ cov_inv @ A @ psi_inv
+        return psi_inv, Lambda, cov_inv
+
+    def jacobian(self, npartition_samples: Array) -> Array:
+        r"""Analytical jacobian for log-det objective.
+
+        ∂g/∂n_m = -tr(Λ ∂_m Ψ)
+        where Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹, C = A Ψ⁻¹ Aᵀ
+        """
+        if not self._use_analytical:
+            return super().jacobian(npartition_samples)
+        bkd, est = self._ensure_bound()
+        n1d = npartition_samples[:, 0]
+        psi_inv, Lambda, _ = self._compute_logdet_matrices(n1d)
+        _, dpsi_blocks, _ = self._compute_dpsi_components(n1d)
+        npartitions = n1d.shape[0]
+        jac_entries = [
+            -bkd.trace(Lambda @ dpsi_blocks[m]) for m in range(npartitions)
+        ]
+        return bkd.hstack(jac_entries)[None, :]
+
+    def hessian(self, npartition_samples: Array) -> Array:
+        r"""Analytical hessian for log-det objective.
+
+        H^g_{mp} = -tr(Λ ∂_m Ψ Λ ∂_p Ψ) + 2 tr(Λ ∂_p Ψ Ψ⁻¹ ∂_m Ψ)
+                   - δ_{mp} tr(Λ ∂²_m Ψ)
+        where Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹
+        """
+        if not self._use_analytical:
+            raise NotImplementedError(
+                "Analytical hessian not available; stat does not provide "
+                "_group_acv_sigma_block_derivs or estimator is not IS"
+            )
+        bkd, est = self._ensure_bound()
+        n1d = npartition_samples[:, 0]
+        psi_inv, Lambda, _ = self._compute_logdet_matrices(n1d)
+        _, dpsi_blocks, d2psi_blocks = self._compute_dpsi_components(n1d)
+        npartitions = n1d.shape[0]
+        Lam_dpsi_psiinv = [
+            Lambda @ dpsi_blocks[m] @ psi_inv for m in range(npartitions)
+        ]
+        Lam_dpsi = [Lambda @ dpsi_blocks[m] for m in range(npartitions)]
+        hess_rows = []
+        for m in range(npartitions):
+            row_entries = []
+            for p in range(npartitions):
+                # -tr(Λ ∂_m Ψ Λ ∂_p Ψ) + 2 tr(Λ ∂_p Ψ Ψ⁻¹ ∂_m Ψ)
+                cross = -bkd.trace(Lam_dpsi[m] @ Lam_dpsi[p])
+                linear = 2 * bkd.trace(Lam_dpsi_psiinv[m] @ dpsi_blocks[p])
+                val = cross + linear
+                if m == p:
+                    val = val - bkd.trace(Lambda @ d2psi_blocks[m])
+                row_entries.append(val)
+            hess_rows.append(bkd.hstack(row_entries))
+        return bkd.vstack(hess_rows)
+
+    def hvp(self, npartition_samples: Array, vec: Array) -> Array:
+        hess = self.hessian(npartition_samples)
+        return hess @ vec
 
 
 class MLBLUEObjective(GroupACVTraceObjective[Array]):

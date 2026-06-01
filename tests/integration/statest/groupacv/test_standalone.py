@@ -1720,3 +1720,146 @@ class TestGroupACVRecoversMLBLUETorchOnly:
             spd_trace,
             rtol=0.05,
         )
+
+
+class TestSigmaBlockDerivatives:
+    """Finite-difference tests for _group_acv_sigma_block_derivs."""
+
+    def _check_derivs(self, stat, subset, n, bkd):
+        d1, d2 = stat._group_acv_sigma_block_derivs(subset, n)
+        eps = 1e-7
+        # d1 via central FD of sigma_block
+        sp = stat._group_acv_sigma_block(subset, subset, n + eps, n + eps, n + eps)
+        sm = stat._group_acv_sigma_block(subset, subset, n - eps, n - eps, n - eps)
+        fd1 = (sp - sm) / (2 * eps)
+        bkd.assert_allclose(d1, fd1, rtol=1e-5)
+        # d2 via central FD of d1
+        d1p = stat._group_acv_sigma_block_derivs(subset, n + eps)[0]
+        d1m = stat._group_acv_sigma_block_derivs(subset, n - eps)[0]
+        fd2 = (d1p - d1m) / (2 * eps)
+        bkd.assert_allclose(d2, fd2, rtol=1e-4)
+
+    @pytest.mark.parametrize("nqoi", [1, 2])
+    def test_mean_sigma_block_derivs(self, numpy_bkd, nqoi):
+        np.random.seed(0)
+        nmodels = 3
+        cov_size = nmodels * nqoi
+        cov = np.random.randn(cov_size, cov_size)
+        cov = cov @ cov.T / 10
+        stat = MultiOutputMean(nqoi, numpy_bkd)
+        stat.set_pilot_quantities(cov)
+        subset = numpy_bkd.arange(nqoi, dtype=numpy_bkd.int64_dtype())
+        self._check_derivs(stat, subset, 50.0, numpy_bkd)
+
+    @pytest.mark.parametrize("nqoi", [1, 2])
+    def test_variance_sigma_block_derivs(self, numpy_bkd, nqoi):
+        np.random.seed(0)
+        nmodels = 3
+        nsamples = 500
+        pilot_values = [
+            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i)
+            for i in range(nmodels)
+        ]
+        stat = MultiOutputVariance(nqoi, numpy_bkd)
+        cov, W = stat.compute_pilot_quantities(pilot_values)
+        stat.set_pilot_quantities(cov, W)
+        ncov_stats = stat._tril_idx_flat.shape[0]
+        subset = numpy_bkd.arange(ncov_stats, dtype=numpy_bkd.int64_dtype())
+        self._check_derivs(stat, subset, 10.0, numpy_bkd)
+
+    @pytest.mark.parametrize("nqoi", [1, 2])
+    def test_joint_sigma_block_derivs(self, numpy_bkd, nqoi):
+        np.random.seed(0)
+        nmodels = 3
+        nsamples = 500
+        pilot_values = [
+            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i)
+            for i in range(nmodels)
+        ]
+        stat = MultiOutputMeanAndVariance(nqoi, numpy_bkd)
+        cov, W, B = stat.compute_pilot_quantities(pilot_values)
+        stat.set_pilot_quantities(cov, W, B)
+        nstats = stat.nstats()
+        subset = numpy_bkd.arange(nstats, dtype=numpy_bkd.int64_dtype())
+        self._check_derivs(stat, subset, 10.0, numpy_bkd)
+
+
+class TestAnalyticalGroupACVDerivatives:
+    """Test analytical jacobian/hessian/hvp for GroupACV objectives.
+
+    Uses DerivativeChecker for jacobian and hvp, and parametrizes
+    over all stat types and both objectives.
+    """
+
+    @staticmethod
+    def _create_estimator(bkd, nmodels, nqoi, stat_type):
+        np.random.seed(1)
+        nsamples = 500
+        pilot_values = [
+            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i)
+            for i in range(nmodels)
+        ]
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        if stat_type == "mean":
+            stat = MultiOutputMean(nqoi, bkd)
+            cov = stat.compute_pilot_quantities(pilot_values)[0]
+            stat.set_pilot_quantities(cov)
+        elif stat_type == "variance":
+            stat = MultiOutputVariance(nqoi, bkd)
+            cov, W = stat.compute_pilot_quantities(pilot_values)
+            stat.set_pilot_quantities(cov, W)
+        elif stat_type == "joint":
+            stat = MultiOutputMeanAndVariance(nqoi, bkd)
+            cov, W, B = stat.compute_pilot_quantities(pilot_values)
+            stat.set_pilot_quantities(cov, W, B)
+        else:
+            raise ValueError(f"Unknown stat_type: {stat_type}")
+        return GroupACVEstimatorIS(stat, costs)
+
+    @pytest.mark.parametrize(
+        "nmodels,nqoi,stat_type",
+        [
+            (2, 1, "mean"),
+            (3, 1, "mean"),
+            (2, 2, "mean"),
+            (2, 1, "variance"),
+            (3, 1, "variance"),
+            (2, 2, "variance"),
+            (2, 1, "joint"),
+            (3, 1, "joint"),
+            (2, 2, "joint"),
+        ],
+    )
+    @pytest.mark.parametrize("objective_cls", [GroupACVTraceObjective, GroupACVLogDetObjective])
+    def test_analytical_jacobian_and_hvp(
+        self, numpy_bkd, nmodels, nqoi, stat_type, objective_cls,
+    ):
+        est = self._create_estimator(numpy_bkd, nmodels, nqoi, stat_type)
+        obj = objective_cls(numpy_bkd)
+        obj.set_estimator(est)
+        assert obj._use_analytical
+
+        iterate = est._init_guess(100)
+        checker = DerivativeChecker(obj)
+        errors = checker.check_derivatives(iterate, verbosity=0)
+
+        assert checker.error_ratio(errors[0]) <= 2e-6
+        if len(errors) > 1:
+            assert checker.error_ratio(errors[1]) <= 2e-6
+
+    @pytest.mark.parametrize(
+        "nmodels,nqoi",
+        [(2, 1), (3, 1), (2, 2)],
+    )
+    def test_trace_matches_mlblue_for_mean(self, numpy_bkd, nmodels, nqoi):
+        """Verify GroupACVTraceObjective analytical jac matches MLBLUEObjective."""
+        est = self._create_estimator(numpy_bkd, nmodels, nqoi, "mean")
+        trace_obj = GroupACVTraceObjective(numpy_bkd)
+        trace_obj.set_estimator(est)
+        mlblue_obj = MLBLUEObjective(numpy_bkd)
+        mlblue_obj.set_estimator(est)
+
+        iterate = est._init_guess(100)
+        jac_trace = trace_obj.jacobian(iterate)
+        jac_mlblue = mlblue_obj.jacobian(iterate)
+        numpy_bkd.assert_allclose(jac_trace, jac_mlblue, rtol=1e-10)

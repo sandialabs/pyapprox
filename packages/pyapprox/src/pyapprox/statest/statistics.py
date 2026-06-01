@@ -784,6 +784,32 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         # should resemble high_fidelity_estimator_covariance()
         raise NotImplementedError
 
+    def _group_acv_sigma_block_derivs(
+        self,
+        subset: Array,
+        nsamples: Union[int, Array],
+    ) -> Tuple[Array, Array]:
+        """Derivatives of the diagonal sigma block for IS estimators.
+
+        Parameters
+        ----------
+        subset : Array
+            Subset indices (same for row and column since IS diagonal).
+        nsamples : int or Array
+            Number of samples in this partition.
+
+        Returns
+        -------
+        d1 : Array
+            First derivative of sigma block w.r.t. nsamples.
+        d2 : Array
+            Second derivative of sigma block w.r.t. nsamples.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement "
+            "_group_acv_sigma_block_derivs"
+        )
+
     def _check_pilot_values(self, pilot_values: List[Array]) -> None:
         if not isinstance(pilot_values, list):
             raise ValueError("pilot_values must be a list")
@@ -961,6 +987,19 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
             raise ValueError("must call set_pilot_quantities")
         cov = _fancy_index_2d(self._cov, subset0, subset1)
         return cov * nsamples_intersect / (nsamples_subset0 * nsamples_subset1)
+
+    def _group_acv_sigma_block_derivs(
+        self,
+        subset: Array,
+        nsamples: Union[int, Array],
+    ) -> Tuple[Array, Array]:
+        r"""Sigma = C/n  =>  dΣ/dn = -C/n²,  d²Σ/dn² = 2C/n³  """
+        if self._cov is None:
+            raise ValueError("must call set_pilot_quantities")
+        C = _fancy_index_2d(self._cov, subset, subset)
+        n2 = nsamples * nsamples
+        n3 = n2 * nsamples
+        return -C / n2, 2 * C / n3
 
     def pilot_covariance(self) -> Array:
         if self._cov is None:
@@ -1249,7 +1288,7 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         return new_stat
 
     def min_nsamples(self) -> int:
-        return 1
+        return 2
 
     def _group_acv_sigma_block(
         self,
@@ -1272,6 +1311,31 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
             + _fancy_index_2d(self._Wcomp, subset0, subset1) * W_ratio
         )
         return block
+
+    def _group_acv_sigma_block_derivs(
+        self,
+        subset: Array,
+        nsamples: Union[int, Array],
+    ) -> Tuple[Array, Array]:
+        r"""Sigma = V/(n(n-1)) + W/n  .
+
+        dΣ/dn = -V(2n-1)/(n(n-1))² - W/n²
+        d²Σ/dn² = 2V(3n²-3n+1)/(n(n-1))³ + 2W/n³
+        """
+        if self._Vcomp is None or self._Wcomp is None:
+            raise ValueError("must call set_pilot_quantities")
+        V = _fancy_index_2d(self._Vcomp, subset, subset)
+        W = _fancy_index_2d(self._Wcomp, subset, subset)
+        n = nsamples
+        nm1 = n - 1
+        nnm1 = n * nm1
+        nnm1_sq = nnm1 * nnm1
+        nnm1_cu = nnm1_sq * nnm1
+        n2 = n * n
+        n3 = n2 * n
+        d1 = -V * (2 * n - 1) / nnm1_sq - W / n2
+        d2 = 2 * V * (3 * n2 - 3 * n + 1) / nnm1_cu + 2 * W / n3
+        return d1, d2
 
 
 class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
@@ -1611,7 +1675,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         return new_stat
 
     def min_nsamples(self) -> int:
-        return 1
+        return 2
 
     def _mean_idx(self, subset: Array) -> Array:
         if self._tril_idx_flat is None:
@@ -1650,6 +1714,60 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             )
             cnt += nstats
         return self._bkd.hstack(var_idx)
+
+    def _assemble_joint_block(
+        self,
+        block_11: Array,
+        block_22: Array,
+        block_12: Array,
+        block_21: Array,
+        nmodels_row: int,
+        nmodels_col: int,
+    ) -> Array:
+        """Reorder 2x2 block structure into interleaved [μ₀, σ²₀, μ₁, σ²₁, ...].
+
+        The blocks are indexed by model: block_11[i*nqoi:(i+1)*nqoi, j*nqoi:(j+1)*nqoi]
+        is the mean-mean covariance between models i and j.
+        """
+        if self._tril_idx_flat is None:
+            raise RuntimeError("must call set_pilot_quantities")
+        nqoi = self.nqoi()
+        ncov_stats = self._tril_idx_flat.shape[0]
+        rows = []
+        for ii in range(nmodels_row):
+            # mean row
+            row = []
+            for jj in range(nmodels_col):
+                row.append(
+                    block_11[
+                        ii * nqoi : (ii + 1) * nqoi,
+                        jj * nqoi : (jj + 1) * nqoi,
+                    ]
+                )
+                row.append(
+                    block_12[
+                        ii * nqoi : (ii + 1) * nqoi,
+                        jj * ncov_stats : (jj + 1) * ncov_stats,
+                    ]
+                )
+            rows.append(self._bkd.hstack(row))
+            # covariance row
+            row = []
+            for jj in range(nmodels_col):
+                row.append(
+                    block_21[
+                        ii * ncov_stats : (ii + 1) * ncov_stats,
+                        jj * nqoi : (jj + 1) * nqoi,
+                    ]
+                )
+                row.append(
+                    block_22[
+                        ii * ncov_stats : (ii + 1) * ncov_stats,
+                        jj * ncov_stats : (jj + 1) * ncov_stats,
+                    ]
+                )
+            rows.append(self._bkd.hstack(row))
+        return self._bkd.vstack(rows)
 
     def _group_acv_sigma_block(
         self,
@@ -1691,8 +1809,6 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         # blocks 11, 12, 21, and 22 do not follow this ordering so
         # reorder
         nstats = self.nstats()
-        nqoi = self.nqoi()
-        ncov_stats = self._tril_idx_flat.shape[0]
         model_ids0: Array = self._bkd.asarray(
             self._bkd.floor_divide(subset0[::nstats], nstats),
             dtype=self._bkd.int64_dtype(),
@@ -1701,38 +1817,60 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
             self._bkd.floor_divide(subset1[::nstats], nstats),
             dtype=self._bkd.int64_dtype(),
         )
-        rows = []
-        for ii in range(model_ids0.shape[0]):
-            # mean row
-            row = []
-            for jj in range(model_ids1.shape[0]):
-                row.append(
-                    block_11[
-                        ii * nqoi : (ii + 1) * nqoi,
-                        jj * nqoi : (jj + 1) * nqoi,
-                    ]
-                )
-                row.append(
-                    block_12[
-                        ii * nqoi : (ii + 1) * nqoi,
-                        jj * ncov_stats : (jj + 1) * ncov_stats,
-                    ]
-                )
-            rows.append(self._bkd.hstack(row))
-            # covariance row
-            row = []
-            for jj in range(len(model_ids1)):
-                row.append(
-                    block_21[
-                        ii * ncov_stats : (ii + 1) * ncov_stats,
-                        jj * nqoi : (jj + 1) * nqoi,
-                    ]
-                )
-                row.append(
-                    block_22[
-                        ii * ncov_stats : (ii + 1) * ncov_stats,
-                        jj * ncov_stats : (jj + 1) * ncov_stats,
-                    ]
-                )
-            rows.append(self._bkd.hstack(row))
-        return self._bkd.vstack(rows)
+        return self._assemble_joint_block(
+            block_11, block_22, block_12, block_21,
+            model_ids0.shape[0], model_ids1.shape[0],
+        )
+
+    def _group_acv_sigma_block_derivs(
+        self,
+        subset: Array,
+        nsamples: Union[int, Array],
+    ) -> Tuple[Array, Array]:
+        if (
+            self._cov is None
+            or self._Vcomp is None
+            or self._Wcomp is None
+            or self._Bcomp is None
+            or self._tril_idx_flat is None
+        ):
+            raise RuntimeError("must call set_pilot_quantities")
+
+        mean_idx = self._mean_idx(subset)
+        var_idx = self._var_idx(subset)
+        nstats = self.nstats()
+        nmodels_in_subset = subset.shape[0] // nstats
+        n = nsamples
+        nm1 = n - 1
+        nnm1 = n * nm1
+        nnm1_sq = nnm1 * nnm1
+        nnm1_cu = nnm1_sq * nnm1
+        n2 = n * n
+        n3 = n2 * n
+
+        C = _fancy_index_2d(self._cov, mean_idx, mean_idx)
+        V = _fancy_index_2d(self._Vcomp, var_idx, var_idx)
+        W = _fancy_index_2d(self._Wcomp, var_idx, var_idx)
+        B = _fancy_index_2d(self._Bcomp, mean_idx, var_idx)
+
+        # mean-mean: C/n  =>  d1 = -C/n^2,  d2 = 2C/n^3
+        d1_11 = -C / n2
+        d2_11 = 2 * C / n3
+        # var-var: V/(n(n-1)) + W/n
+        d1_22 = -V * (2 * n - 1) / nnm1_sq - W / n2
+        d2_22 = 2 * V * (3 * n2 - 3 * n + 1) / nnm1_cu + 2 * W / n3
+        # mean-var: B/n  =>  d1 = -B/n^2,  d2 = 2B/n^3
+        d1_12 = -B / n2
+        d2_12 = 2 * B / n3
+        d1_21 = d1_12.T
+        d2_21 = d2_12.T
+
+        d1 = self._assemble_joint_block(
+            d1_11, d1_22, d1_12, d1_21,
+            nmodels_in_subset, nmodels_in_subset,
+        )
+        d2 = self._assemble_joint_block(
+            d2_11, d2_22, d2_12, d2_21,
+            nmodels_in_subset, nmodels_in_subset,
+        )
+        return d1, d2
