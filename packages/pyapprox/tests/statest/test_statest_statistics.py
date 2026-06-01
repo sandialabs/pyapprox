@@ -246,10 +246,10 @@ class TestMultiOutputVariance:
         )
 
     def test_min_nsamples(self, bkd) -> None:
-        """Test min_nsamples returns 1."""
+        """Test min_nsamples returns 2 (variance needs n*(n-1) denominator)."""
         stat = MultiOutputVariance(2, bkd)
         bkd.assert_allclose(
-            bkd.asarray([stat.min_nsamples()]), bkd.asarray([1])
+            bkd.asarray([stat.min_nsamples()]), bkd.asarray([2])
         )
 
     def test_subset_creates_valid_statistic(self, bkd) -> None:
@@ -312,6 +312,30 @@ class TestMultiOutputVariance:
             bkd.asarray([nsub * nqoi**2, nsub * nqoi**2]),
         )
 
+    def test_sigma_block_no_nan_at_min_nsamples(self, bkd) -> None:
+        """Sigma block must be finite at nsamples = min_nsamples.
+
+        The V_ratio denominator contains n*(n-1), which is zero when n=1.
+        min_nsamples=2 ensures the guard in _grouped_acv_sigma_block
+        returns a zero block for n < 2, preventing NaN.
+        """
+        from pyapprox.statest.groupacv.utils import _grouped_acv_sigma_block
+
+        nqoi = 1
+        nmodels = 2
+        stat = MultiOutputVariance(nqoi, bkd)
+        cov = bkd.eye(nmodels * nqoi)
+        W = bkd.eye(nmodels * nqoi**2)
+        stat.set_pilot_quantities(cov, W)
+
+        subset = bkd.asarray([0, 1], dtype=int)
+        n_min = stat.min_nsamples()
+        block = _grouped_acv_sigma_block(subset, subset, n_min, n_min, n_min, stat)
+        assert bkd.to_float(bkd.sum(~bkd.isfinite(block))) == 0.0
+
+        block_one = _grouped_acv_sigma_block(subset, subset, 1, 1, 1, stat)
+        bkd.assert_allclose(block_one, bkd.zeros_like(block_one))
+
 
 class TestMultiOutputMeanAndVariance:
     """Test MultiOutputMeanAndVariance class."""
@@ -337,10 +361,10 @@ class TestMultiOutputMeanAndVariance:
         )
 
     def test_min_nsamples(self, bkd) -> None:
-        """Test min_nsamples returns 1."""
+        """Test min_nsamples returns 2 (variance component needs n*(n-1) denominator)."""
         stat = MultiOutputMeanAndVariance(2, bkd)
         bkd.assert_allclose(
-            bkd.asarray([stat.min_nsamples()]), bkd.asarray([1])
+            bkd.asarray([stat.min_nsamples()]), bkd.asarray([2])
         )
 
     def test_set_pilot_quantities_shape_check(self, bkd) -> None:
