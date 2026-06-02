@@ -21,6 +21,7 @@ from typing import (
 
 from pyapprox.statest.groupacv.utils import (
     _grouped_acv_sigma,
+    _grouped_acv_sigma_block,
     get_model_subsets,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -397,6 +398,19 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             )
             + psi_reg_mat
         )
+
+    def _block_precision_contribution(self, k: int, n_k: Array) -> Array:
+        """Compute R_k @ inv(Sigma_k(n_k)) @ R_k^T for partition k."""
+        subset = self._subsets[k]
+        sigma_k = _grouped_acv_sigma_block(
+            subset, subset, n_k, n_k, n_k, self._stat
+        )
+        bkd = self._bkd
+        if bkd.all_bool(sigma_k == 0):
+            return bkd.zeros((self._nT_stats, self._nT_stats))
+        sigma_k_inv = self._inv(sigma_k)
+        R_k = self._restriction_matrices[k]
+        return bkd.multidot([R_k, sigma_k_inv, R_k.T])
 
     def _psi_matrix(self, npartition_samples: Array) -> Array:
         Sigma = self._sigma(npartition_samples)

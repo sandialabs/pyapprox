@@ -51,6 +51,15 @@ class GroupACVEstimatorIS(BaseGroupACVEstimator[Array]):
         """Get independent sampling allocation matrix."""
         return _get_allocation_matrix_is(subsets, self._bkd)
 
+    def _psi_matrix(self, npartition_samples: Array) -> Array:
+        bkd = self._bkd
+        psi = bkd.eye(self._nT_stats) * self._reg_blue
+        for k in range(len(self._subsets)):
+            psi = psi + self._block_precision_contribution(
+                k, npartition_samples[k]
+            )
+        return psi
+
 
 class GroupACVEstimatorNested(BaseGroupACVEstimator[Array]):
     """GroupACV estimator with Nested Sampling.
