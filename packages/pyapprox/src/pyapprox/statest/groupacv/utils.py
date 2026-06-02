@@ -178,8 +178,10 @@ def _grouped_acv_sigma_block(
     zero_block = stat.bkd().full((nsubset0, nsubset1), 0.0)
     if (nsamples_subset0 * nsamples_subset1) == 0:
         return zero_block
-    if nsamples_subset0 < stat.min_nsamples() or nsamples_subset1 < stat.min_nsamples():
-        return zero_block
+    threshold = stat.continuous_dead_threshold()
+    if threshold > 0.0:
+        if float(nsamples_intersect) < threshold:
+            return zero_block
     block = stat._group_acv_sigma_block(
         subset0,
         subset1,

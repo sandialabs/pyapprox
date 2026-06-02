@@ -773,6 +773,14 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         """Min number of samples to compute the statistic"""
         raise NotImplementedError
 
+    def continuous_dead_threshold(self) -> float:
+        """Threshold below which the sigma-block formula is invalid.
+
+        For continuous (non-integer) sample counts used during optimization.
+        Returns 0.0 if the formula is valid for all n > 0.
+        """
+        return float(self.min_nsamples())
+
     def _group_acv_sigma_block(
         self,
         subset0: Array,
@@ -973,6 +981,9 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
 
     def min_nsamples(self) -> int:
         return 1
+
+    def continuous_dead_threshold(self) -> float:
+        return 0.0
 
     def _group_acv_sigma_block(
         self,

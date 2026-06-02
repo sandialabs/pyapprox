@@ -11,7 +11,10 @@ from typing import TYPE_CHECKING, Callable, Generic, List, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.statest.groupacv.utils import _grouped_acv_sigma
+from pyapprox.statest.groupacv.utils import (
+    _grouped_acv_sigma,
+    _grouped_acv_sigma_block,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
@@ -111,34 +114,43 @@ class GroupACVObjective(ABC, Generic[Array]):
         """
         return self._objective_value(npartition_samples)
 
-    def _compute_dpsi_components(
+    def _compute_psi_and_derivs(
         self, npartition_samples_1d: Array
-    ) -> Tuple[List[Array], List[Array], List[Array]]:
-        r"""Compute per-partition Psi derivative building blocks for IS.
+    ) -> Tuple[Array, Array, Array, Array]:
+        r"""Compute Ψ, Ψ⁻¹, and stacked derivative blocks in one pass.
 
-        For IS estimators, Σ is block-diagonal and ∂_m Σ is zero except in
-        block m, so cross partitions vanish (∂_m ∂_p Ψ = 0 for m ≠ p).
+        For IS estimators, Σ is block-diagonal so each partition's sigma
+        block, its inverse, and derivatives are computed once and reused
+        for both Ψ construction and derivative blocks.
 
-        Returns (sigma_invs, dpsi_blocks, d2psi_blocks) where:
-          ∂_m Ψ = -R_m Σ_m^{-1} (∂_m Σ_m) Σ_m^{-1} R_m^T
-          ∂²_m Ψ = R_m Σ_m^{-1} [2(∂_m Σ_m)Σ_m^{-1}(∂_m Σ_m) - ∂²_m Σ_m] Σ_m^{-1} R_m^T
-
-                """
+        Returns (psi, psi_inv, dpsi_stack, d2psi_stack) where:
+          dpsi_stack[m] = ∂_m Ψ = -R_m Σ_m⁻¹ (∂_m Σ_m) Σ_m⁻¹ R_mᵀ
+          d2psi_stack[m] = ∂²_m Ψ
+        """
         bkd, est = self._ensure_bound()
         npartitions = npartition_samples_1d.shape[0]
         Rmats = est._restriction_matrices
-        sigma_invs: List[Array] = []
         dpsi_blocks: List[Array] = []
         d2psi_blocks: List[Array] = []
+        # Build Ψ = Σ_m R_m Σ_m⁻¹ R_mᵀ + λI incrementally
+        nT = est._nT_stats
+        psi = bkd.eye(nT) * est._reg_blue
+        zero_block = bkd.zeros((nT, nT))
         for m in range(npartitions):
             n_m = npartition_samples_1d[m]
             subset = est._subsets[m]
-            sigma_m = est._stat._group_acv_sigma_block(
-                subset, subset, n_m, n_m, n_m
+            sigma_m = _grouped_acv_sigma_block(
+                subset, subset, n_m, n_m, n_m, est._stat
             )
+            if bkd.all_bool(sigma_m == 0):
+                dpsi_blocks.append(zero_block)
+                d2psi_blocks.append(zero_block)
+                continue
             sigma_m_inv = est._inv(sigma_m)
-            d1_m, d2_m = est._stat._group_acv_sigma_block_derivs(subset, n_m)
             R_m = Rmats[m]
+            # Accumulate Ψ = Σ R_m Σ_m⁻¹ R_mᵀ
+            psi = psi + bkd.multidot([R_m, sigma_m_inv, R_m.T])
+            d1_m, d2_m = est._stat._group_acv_sigma_block_derivs(subset, n_m)
             sinv_d1_sinv = sigma_m_inv @ d1_m @ sigma_m_inv
             dpsi_m = bkd.multidot([-R_m, sinv_d1_sinv, R_m.T])
             # d²(Σ⁻¹)/dn² = 2 Σ⁻¹ Σ' Σ⁻¹ Σ' Σ⁻¹ - Σ⁻¹ Σ'' Σ⁻¹
@@ -147,10 +159,46 @@ class GroupACVObjective(ABC, Generic[Array]):
                 - sigma_m_inv @ d2_m @ sigma_m_inv
             )
             d2psi_m = bkd.multidot([R_m, d2_sinv, R_m.T])
-            sigma_invs.append(sigma_m_inv)
             dpsi_blocks.append(dpsi_m)
             d2psi_blocks.append(d2psi_m)
-        return sigma_invs, dpsi_blocks, d2psi_blocks
+        psi_inv = est._inv(psi)
+        return psi, psi_inv, bkd.stack(dpsi_blocks), bkd.stack(d2psi_blocks)
+
+    @staticmethod
+    def _batch_trace_product(
+        bkd: Backend[Array], A_stack: Array, B_stack: Array
+    ) -> Array:
+        """Compute tr(A_m @ B_p) for all (m, p) pairs via einsum.
+
+        Parameters
+        ----------
+        A_stack : Array, shape (M, d, d)
+        B_stack : Array, shape (P, d, d)
+
+        Returns
+        -------
+        Array, shape (M, P)
+            result[m, p] = tr(A_stack[m] @ B_stack[p])
+        """
+        return bkd.einsum("mij,pji->mp", A_stack, B_stack)
+
+    @staticmethod
+    def _batch_trace_single(
+        bkd: Backend[Array], G: Array, B_stack: Array
+    ) -> Array:
+        """Compute tr(G @ B_m) for all m via einsum.
+
+        Parameters
+        ----------
+        G : Array, shape (d, d)
+        B_stack : Array, shape (M, d, d)
+
+        Returns
+        -------
+        Array, shape (M,)
+            result[m] = tr(G @ B_stack[m])
+        """
+        return bkd.einsum("ij,mji->m", G, B_stack)
 
     def _scalar_objective_wrapper(self, npartition_samples_1d: Array) -> Array:
         """Wrapper that returns scalar for bkd.jacobian compatibility."""
@@ -212,16 +260,11 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
             return super().jacobian(npartition_samples)
         bkd, est = self._ensure_bound()
         n1d = npartition_samples[:, 0]
-        psi = est._psi_matrix(n1d)
-        psi_inv = est._inv(psi)
+        _, psi_inv, dpsi_stack, _ = self._compute_psi_and_derivs(n1d)
         A_tilde = est._asketch.T @ est._asketch
         G = psi_inv @ A_tilde @ psi_inv
-        _, dpsi_blocks, _ = self._compute_dpsi_components(n1d)
-        npartitions = n1d.shape[0]
-        jac_entries = [
-            -bkd.trace(G @ dpsi_blocks[m]) for m in range(npartitions)
-        ]
-        return bkd.hstack(jac_entries)[None, :]
+        jac = -self._batch_trace_single(bkd, G, dpsi_stack)
+        return jac[None, :]
 
     def hessian(self, npartition_samples: Array) -> Array:
         r"""Analytical hessian for trace objective.
@@ -235,23 +278,23 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
             )
         bkd, est = self._ensure_bound()
         n1d = npartition_samples[:, 0]
-        psi = est._psi_matrix(n1d)
-        psi_inv = est._inv(psi)
+        _, psi_inv, dpsi_stack, d2psi_stack = self._compute_psi_and_derivs(
+            n1d
+        )
         A_tilde = est._asketch.T @ est._asketch
         G = psi_inv @ A_tilde @ psi_inv
-        _, dpsi_blocks, d2psi_blocks = self._compute_dpsi_components(n1d)
-        npartitions = n1d.shape[0]
-        G_dpsi_psiinv = [G @ dpsi_blocks[m] @ psi_inv for m in range(npartitions)]
-        hess_rows = []
-        for m in range(npartitions):
-            row_entries = []
-            for p in range(npartitions):
-                val = 2 * bkd.trace(G_dpsi_psiinv[m] @ dpsi_blocks[p])
-                if m == p:
-                    val = val - bkd.trace(G @ d2psi_blocks[m])
-                row_entries.append(val)
-            hess_rows.append(bkd.hstack(row_entries))
-        return bkd.vstack(hess_rows)
+        # G_dpsi_psiinv[m] = G @ dpsi[m] @ Ψ⁻¹, stacked as (M, d, d)
+        G_dpsi_psiinv_stack = bkd.einsum(
+            "ij,mjk,kl->mil", G, dpsi_stack, psi_inv
+        )
+        # H[m,p] = 2 tr(G_dpsi_psiinv[m] @ dpsi[p])
+        H = 2 * self._batch_trace_product(
+            bkd, G_dpsi_psiinv_stack, dpsi_stack
+        )
+        # diagonal correction: H[m,m] -= tr(G @ d2psi[m])
+        diag_corr = self._batch_trace_single(bkd, G, d2psi_stack)
+        H = H - bkd.diag(diag_corr)
+        return H
 
     def hvp(self, npartition_samples: Array, vec: Array) -> Array:
         hess = self.hessian(npartition_samples)
@@ -280,24 +323,14 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
         return bkd.hstack((logdet,))[:, None]
 
     def _compute_logdet_matrices(
-        self, npartition_samples_1d: Array
-    ) -> Tuple[Array, Array, Array]:
-        """Compute shared matrices for log-det jacobian and hessian.
-
-        Returns (psi_inv, Lambda, dpsi_blocks + d2psi_blocks via caller).
-        Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹
-        P = Φ Φᵀ where Φ = Ψ⁻¹ Aᵀ C⁻¹ (for jacobian only, P = Λ Ψ Ψ⁻¹ = Λ
-        when Φ^T Φ is not needed, but we compute Λ directly).
-        """
+        self, psi_inv: Array
+    ) -> Array:
+        """Compute Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹ from precomputed psi_inv."""
         bkd, est = self._ensure_bound()
-        psi = est._psi_matrix(npartition_samples_1d)
-        psi_inv = est._inv(psi)
         A = est._asketch
         cov = A @ psi_inv @ A.T
         cov_inv = est._inv(cov)
-        # Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹
-        Lambda = psi_inv @ A.T @ cov_inv @ A @ psi_inv
-        return psi_inv, Lambda, cov_inv
+        return psi_inv @ A.T @ cov_inv @ A @ psi_inv
 
     def jacobian(self, npartition_samples: Array) -> Array:
         r"""Analytical jacobian for log-det objective.
@@ -309,13 +342,10 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
             return super().jacobian(npartition_samples)
         bkd, est = self._ensure_bound()
         n1d = npartition_samples[:, 0]
-        psi_inv, Lambda, _ = self._compute_logdet_matrices(n1d)
-        _, dpsi_blocks, _ = self._compute_dpsi_components(n1d)
-        npartitions = n1d.shape[0]
-        jac_entries = [
-            -bkd.trace(Lambda @ dpsi_blocks[m]) for m in range(npartitions)
-        ]
-        return bkd.hstack(jac_entries)[None, :]
+        _, psi_inv, dpsi_stack, _ = self._compute_psi_and_derivs(n1d)
+        Lambda = self._compute_logdet_matrices(psi_inv)
+        jac = -self._batch_trace_single(bkd, Lambda, dpsi_stack)
+        return jac[None, :]
 
     def hessian(self, npartition_samples: Array) -> Array:
         r"""Analytical hessian for log-det objective.
@@ -331,26 +361,29 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
             )
         bkd, est = self._ensure_bound()
         n1d = npartition_samples[:, 0]
-        psi_inv, Lambda, _ = self._compute_logdet_matrices(n1d)
-        _, dpsi_blocks, d2psi_blocks = self._compute_dpsi_components(n1d)
-        npartitions = n1d.shape[0]
-        Lam_dpsi_psiinv = [
-            Lambda @ dpsi_blocks[m] @ psi_inv for m in range(npartitions)
-        ]
-        Lam_dpsi = [Lambda @ dpsi_blocks[m] for m in range(npartitions)]
-        hess_rows = []
-        for m in range(npartitions):
-            row_entries = []
-            for p in range(npartitions):
-                # -tr(Λ ∂_m Ψ Λ ∂_p Ψ) + 2 tr(Λ ∂_p Ψ Ψ⁻¹ ∂_m Ψ)
-                cross = -bkd.trace(Lam_dpsi[m] @ Lam_dpsi[p])
-                linear = 2 * bkd.trace(Lam_dpsi_psiinv[m] @ dpsi_blocks[p])
-                val = cross + linear
-                if m == p:
-                    val = val - bkd.trace(Lambda @ d2psi_blocks[m])
-                row_entries.append(val)
-            hess_rows.append(bkd.hstack(row_entries))
-        return bkd.vstack(hess_rows)
+        _, psi_inv, dpsi_stack, d2psi_stack = self._compute_psi_and_derivs(
+            n1d
+        )
+        Lambda = self._compute_logdet_matrices(psi_inv)
+        # Lam_dpsi[m] = Λ @ dpsi[m], stacked as (M, d, d)
+        Lam_dpsi_stack = bkd.einsum("ij,mjk->mik", Lambda, dpsi_stack)
+        # Lam_dpsi_psiinv[m] = Λ @ dpsi[m] @ Ψ⁻¹, stacked as (M, d, d)
+        Lam_dpsi_psiinv_stack = bkd.einsum(
+            "mij,jk->mik", Lam_dpsi_stack, psi_inv
+        )
+        # cross[m,p] = -tr(Lam_dpsi[m] @ Lam_dpsi[p])
+        cross = -self._batch_trace_product(
+            bkd, Lam_dpsi_stack, Lam_dpsi_stack
+        )
+        # linear[m,p] = 2 tr(Lam_dpsi_psiinv[m] @ dpsi[p])
+        linear = 2 * self._batch_trace_product(
+            bkd, Lam_dpsi_psiinv_stack, dpsi_stack
+        )
+        H = cross + linear
+        # diagonal correction: H[m,m] -= tr(Λ @ d2psi[m])
+        diag_corr = self._batch_trace_single(bkd, Lambda, d2psi_stack)
+        H = H - bkd.diag(diag_corr)
+        return H
 
     def hvp(self, npartition_samples: Array, vec: Array) -> Array:
         hess = self.hessian(npartition_samples)

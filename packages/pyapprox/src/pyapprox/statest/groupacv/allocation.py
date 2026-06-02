@@ -122,6 +122,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         min_nhf_samples: int = 1,
         init_guess: Optional[Array] = None,
         round_nsamples: bool = True,
+        bounds_lb: float = 1e-8,
     ) -> GroupACVAllocationResult[Array]:
         """Find optimal sample allocation.
 
@@ -136,6 +137,10 @@ class GroupACVAllocationOptimizer(Generic[Array]):
             If None, uses default initial guess.
         round_nsamples : bool, optional
             Whether to round result to integers. Default is True.
+        bounds_lb : float, optional
+            Lower bound for partition sample counts. A small positive
+            value avoids singular sigma blocks during optimization.
+            Default is 1e-8.
 
         Returns
         -------
@@ -151,12 +156,16 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         min_nhf = max(self._est._stat.min_nsamples(), min_nhf_samples)
         self._constraint.set_budget(target_cost, min_nhf)
 
-        # Set up bounds
-        min_cost = self._bkd.to_float(self._bkd.min(self._est._costs))
-        max_npartition_samples = target_cost / min_cost + 1
-        bounds = self._bkd.array(
-            [[0.0, max_npartition_samples]] * self._est.npartitions()
+        # Set up per-partition upper bounds: target_cost / partition_cost
+        npartitions = self._est.npartitions()
+        partition_costs = self._bkd.einsum(
+            "m,mp->p", self._est._costs, self._est._partitions_per_model
         )
+        bounds_list = []
+        for m in range(npartitions):
+            max_n_m = target_cost / self._bkd.to_float(partition_costs[m])
+            bounds_list.append([bounds_lb, max_n_m])
+        bounds = self._bkd.array(bounds_list)
 
         # Bind optimizer
         # GroupACVObjective satisfies FunctionProtocol structurally;
