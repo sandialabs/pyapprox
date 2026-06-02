@@ -60,6 +60,21 @@ class GroupACVEstimatorIS(BaseGroupACVEstimator[Array]):
             )
         return psi
 
+    def _grouped_acv_beta(self, npartition_samples: Array) -> Array:
+        psi = self._psi_matrix(npartition_samples)
+        psi_inv = self._inv(psi)
+        bkd = self._bkd
+        beta_rows = []
+        for asketch_row in self._asketch:
+            blocks = []
+            for k in range(len(self._subsets)):
+                w_k = self._block_weight_contribution(
+                    k, npartition_samples[k], psi_inv
+                )
+                blocks.append(w_k @ asketch_row)
+            beta_rows.append(bkd.concatenate(blocks))
+        return bkd.stack(beta_rows, axis=0)
+
 
 class GroupACVEstimatorNested(BaseGroupACVEstimator[Array]):
     """GroupACV estimator with Nested Sampling.

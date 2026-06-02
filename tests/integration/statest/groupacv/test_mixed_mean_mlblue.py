@@ -7,13 +7,6 @@ GroupACVEstimatorNested.
 
 import numpy as np
 import pytest
-
-from pyapprox_benchmarks.statest.multioutput_ensemble import (
-    MultiOutputEnsembleBenchmark,
-)
-from pyapprox_benchmarks.statest.polynomial_ensemble import (
-    PolynomialEnsembleBenchmark,
-)
 from pyapprox.statest.allocation import CVAllocator
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.groupacv import (
@@ -28,6 +21,12 @@ from pyapprox.statest.statistics import (
     MultiOutputVariance,
 )
 from pyapprox.util.optional_deps import package_available
+from pyapprox_benchmarks.statest.multioutput_ensemble import (
+    MultiOutputEnsembleBenchmark,
+)
+from pyapprox_benchmarks.statest.polynomial_ensemble import (
+    PolynomialEnsembleBenchmark,
+)
 
 HAS_CVXPY = package_available("cvxpy")
 
@@ -224,8 +223,8 @@ class TestEmptyKBitIdentical:
         sigma_km = est_km._sigma(nps)
         bkd.assert_allclose(sigma_std, sigma_km)
 
-        beta_std = est_std._grouped_acv_beta(sigma_std)
-        beta_km = est_km._grouped_acv_beta(sigma_km)
+        beta_std = est_std._grouped_acv_beta(nps)
+        beta_km = est_km._grouped_acv_beta(nps)
         bkd.assert_allclose(beta_std, beta_km)
 
         cov_std = est_std._covariance_from_npartition_samples(nps)

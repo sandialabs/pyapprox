@@ -2180,3 +2180,140 @@ class TestPsiWellConditionedSparseAllocations:
             bkd.asarray([mlblue_tr]),
             rtol=1e-8,
         )
+
+
+class TestISBetaEquivalence:
+    """Verify IS block-by-block beta matches full-Sigma reference."""
+
+    @staticmethod
+    def _create_estimator(bkd, nmodels, nqoi, stat_type):
+        np.random.seed(1)
+        nsamples = 500
+        pilot_values = [
+            np.random.randn(nqoi, nsamples) * (0.5 + 0.5 * i)
+            for i in range(nmodels)
+        ]
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        subsets = get_model_subsets(nmodels, bkd)
+        if stat_type == "mean":
+            stat = MultiOutputMean(nqoi, bkd)
+            cov = stat.compute_pilot_quantities(pilot_values)[0]
+            stat.set_pilot_quantities(cov)
+        elif stat_type == "variance":
+            stat = MultiOutputVariance(nqoi, bkd)
+            cov, W = stat.compute_pilot_quantities(pilot_values)
+            stat.set_pilot_quantities(cov, W)
+        elif stat_type == "joint":
+            stat = MultiOutputMeanAndVariance(nqoi, bkd)
+            cov, W, B = stat.compute_pilot_quantities(pilot_values)
+            stat.set_pilot_quantities(cov, W, B)
+        else:
+            raise ValueError(f"Unknown stat_type: {stat_type}")
+        return GroupACVEstimatorIS(stat, costs, model_subsets=subsets)
+
+    @pytest.mark.parametrize(
+        "nmodels,nqoi,stat_type",
+        [
+            (3, 1, "mean"),
+            (3, 1, "variance"),
+            (3, 1, "joint"),
+            (3, 2, "mean"),
+        ],
+    )
+    def test_is_beta_matches_full_sigma_reference(
+        self, numpy_bkd, nmodels, nqoi, stat_type,
+    ):
+        bkd = numpy_bkd
+        est = self._create_estimator(bkd, nmodels, nqoi, stat_type)
+        nps = bkd.full((est.nsubsets(),), 50.0, dtype=bkd.double_dtype())
+
+        # IS override: block-by-block beta
+        beta_is = est._grouped_acv_beta(nps)
+
+        # Full-Sigma reference (base class path)
+        from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
+
+        sigma = est._sigma(nps)
+        psi_ref = BaseGroupACVEstimator._psi_matrix_from_sigma(est, sigma)
+        beta_ref = bkd.stack(
+            [
+                bkd.multidot(
+                    [est._inv(sigma), est._R.T, bkd.solve(psi_ref, a)]
+                )
+                for a in est._asketch
+            ],
+            axis=0,
+        )
+
+        bkd.assert_allclose(beta_is, beta_ref, rtol=1e-10)
+
+    def test_nested_beta_unchanged(self, numpy_bkd):
+        bkd = numpy_bkd
+        nmodels = 3
+        np.random.seed(1)
+        nsamples = 500
+        pilot_values = [
+            np.random.randn(1, nsamples) * (0.5 + 0.5 * i)
+            for i in range(nmodels)
+        ]
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        subsets = get_model_subsets(nmodels, bkd)
+
+        stat = MultiOutputMean(1, bkd)
+        cov = stat.compute_pilot_quantities(pilot_values)[0]
+        stat.set_pilot_quantities(cov)
+        est = GroupACVEstimatorNested(
+            stat, costs, model_subsets=subsets,
+        )
+        nps = bkd.full((est.nsubsets(),), 50.0, dtype=bkd.double_dtype())
+
+        # Nested uses base-class path (full-Sigma)
+        beta = est._grouped_acv_beta(nps)
+
+        # Reference: manually call same path
+        sigma = est._sigma(nps)
+        psi = est._psi_matrix_from_sigma(sigma)
+        beta_ref = bkd.stack(
+            [
+                bkd.multidot(
+                    [est._inv(sigma), est._R.T, bkd.solve(psi, a)]
+                )
+                for a in est._asketch
+            ],
+            axis=0,
+        )
+
+        bkd.assert_allclose(beta, beta_ref, rtol=1e-12)
+
+    def test_fitted_estimator_end_to_end(self, numpy_bkd):
+        bkd = numpy_bkd
+        nmodels = 3
+        est = self._create_estimator(bkd, nmodels, 1, "mean")
+
+        trace_obj = GroupACVTraceObjective(bkd)
+        slsqp = ScipySLSQPOptimizer(maxiter=1000, ftol=1e-15)
+        alloc_opt = GroupACVAllocationOptimizer(
+            est, optimizer=slsqp, objective=trace_obj,
+        )
+        alloc = alloc_opt.optimize(
+            target_cost=100.0, round_nsamples=True,
+        )
+        FittedGroupACVEstimator(est, alloc)
+
+        nps_float = bkd.asarray(
+            alloc.npartition_samples, dtype=bkd.double_dtype()
+        )
+        beta = est._grouped_acv_beta(nps_float)
+
+        # Beta shape: (nstats_output, ntotal_stats)
+        assert beta.shape[0] == len(est._asketch)
+
+        # Beta rows sum to 1 for mean estimation
+        row_sums = bkd.sum(beta, axis=1)
+        bkd.assert_allclose(
+            row_sums, bkd.ones((beta.shape[0],)), rtol=1e-10,
+        )
+
+        # No NaN in covariance
+        cov = est._covariance_from_npartition_samples(nps_float)
+        assert np.all(np.isfinite(bkd.to_numpy(cov)))

@@ -412,6 +412,22 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         R_k = self._restriction_matrices[k]
         return bkd.multidot([R_k, sigma_k_inv, R_k.T])
 
+    def _block_weight_contribution(
+        self, k: int, n_k: Array, psi_inv: Array
+    ) -> Array:
+        """Compute Sigma_k^{-1} R_k^T Psi^{-1} for partition k."""
+        subset = self._subsets[k]
+        sigma_k = _grouped_acv_sigma_block(
+            subset, subset, n_k, n_k, n_k, self._stat
+        )
+        bkd = self._bkd
+        if bkd.all_bool(sigma_k == 0):
+            block_size = sigma_k.shape[0]
+            return bkd.zeros((block_size, self._nT_stats))
+        sigma_k_inv = self._inv(sigma_k)
+        R_k = self._restriction_matrices[k]
+        return sigma_k_inv @ R_k.T @ psi_inv
+
     def _psi_matrix(self, npartition_samples: Array) -> Array:
         Sigma = self._sigma(npartition_samples)
         return self._psi_matrix_from_sigma(Sigma)
@@ -540,7 +556,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         )
         return splits
 
-    def _grouped_acv_beta(self, sigma: Array) -> Array:
+    def _grouped_acv_beta(self, npartition_samples: Array) -> Array:
+        sigma = self._sigma(npartition_samples)
         psi_matrix = self._psi_matrix_from_sigma(sigma)
         beta = self._bkd.stack(
             [
@@ -618,12 +635,11 @@ class FittedGroupACVEstimator(Generic[Array]):
         self._bkd = bkd
         self._stat = template._stat
 
-        nps_float = bkd.asarray(
+        self._nps_float = bkd.asarray(
             allocation.npartition_samples, dtype=bkd.double_dtype()
         )
-        self._sigma_val = template._sigma(nps_float)
         self._covariance_val = template._covariance_from_npartition_samples(
-            nps_float
+            self._nps_float
         )
         self._sample_splits_val = self._sample_splits_per_model(
             allocation.npartition_samples
@@ -720,7 +736,7 @@ class FittedGroupACVEstimator(Generic[Array]):
 
     def _estimate(self, values_per_subset: List[Array]) -> Array:
         t = self._template
-        beta = t._grouped_acv_beta(self._sigma_val)
+        beta = t._grouped_acv_beta(self._nps_float)
         ll, mm = 0, 0
         acv_stat: Array = self._bkd.zeros((beta.shape[0],))
         for kk in range(t.nsubsets()):
@@ -735,7 +751,7 @@ class FittedGroupACVEstimator(Generic[Array]):
 
     def _traditional_acv_weights(self) -> Array:
         t = self._template
-        beta = t._grouped_acv_beta(self._sigma_val)
+        beta = t._grouped_acv_beta(self._nps_float)
         if not self._bkd.allclose(
             self._bkd.sum(beta, axis=1),
             self._bkd.ones((beta.shape[0],)),
@@ -777,7 +793,7 @@ class FittedGroupACVEstimator(Generic[Array]):
         self, subset_ests: List[Array], alpha: Array,
     ) -> Tuple[Array, Array, Array]:
         t = self._template
-        beta = t._grouped_acv_beta(self._sigma_val)
+        beta = t._grouped_acv_beta(self._nps_float)
         Q0 = self._bkd.zeros((self._stat.nstats(),))
         Qe = self._bkd.zeros((self._stat.nstats(), (t._nmodels - 1)))
         Qu = self._bkd.zeros((self._stat.nstats(), (t._nmodels - 1)))
@@ -990,7 +1006,7 @@ class FittedGroupACVEstimator(Generic[Array]):
         stochastic_est = self._estimate(values_per_subset)
         if not t._has_known_quantities:
             return stochastic_est
-        beta = t._grouped_acv_beta(self._sigma_val)
+        beta = t._grouped_acv_beta(self._nps_float)
         return stochastic_est - t._compute_correction(beta)
 
     def __repr__(self) -> str:
