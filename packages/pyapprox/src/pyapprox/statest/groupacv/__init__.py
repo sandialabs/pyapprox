@@ -12,6 +12,10 @@ from pyapprox.statest.groupacv.base import (
     BaseGroupACVEstimator,
     FittedGroupACVEstimator,
 )
+from pyapprox.statest.groupacv.brute_force import (
+    BruteForceSubsetFitter,
+    BruteForceSubsetResult,
+)
 from pyapprox.statest.groupacv.mlblue import (
     MLBLUEEstimator,
 )
@@ -39,6 +43,7 @@ from pyapprox.statest.groupacv.utils import (
     _grouped_acv_sigma_block,
     _nest_subsets,
     get_model_subsets,
+    get_model_subsets_limited,
 )
 from pyapprox.statest.groupacv.variable_space import (
     AllocationProblemConfig,
@@ -51,6 +56,7 @@ from pyapprox.statest.groupacv.variants import (
 __all__ = [
     # Utility functions
     "get_model_subsets",
+    "get_model_subsets_limited",
     "_get_allocation_matrix_is",
     "_get_allocation_matrix_nested",
     "_nest_subsets",
@@ -68,6 +74,8 @@ __all__ = [
     "GroupACVAllocationOptimizer",
     "default_groupacv_optimizer",
     "MLBLUESPDAllocationOptimizer",
+    "BruteForceSubsetFitter",
+    "BruteForceSubsetResult",
     # Estimator classes
     "BaseGroupACVEstimator",
     "FittedGroupACVEstimator",
