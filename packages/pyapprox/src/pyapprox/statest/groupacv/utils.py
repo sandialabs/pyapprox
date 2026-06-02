@@ -50,6 +50,48 @@ def get_model_subsets(
     return subsets
 
 
+def get_model_subsets_limited(
+    nmodels: int,
+    bkd: Backend[Array],
+    max_group_size: Optional[int] = None,
+    min_group_size: int = 1,
+    require_model_0: bool = True,
+) -> List[Array]:
+    """Generate candidate subsets with size constraints.
+
+    Parameters
+    ----------
+    nmodels : int
+        Number of models in the ensemble.
+    bkd : Backend
+        Backend for array construction.
+    max_group_size : int, optional
+        Maximum subset size. If None, no upper limit.
+    min_group_size : int, optional
+        Minimum subset size. Default 1.
+    require_model_0 : bool, optional
+        If True, only return subsets containing model 0.
+        Default True.
+
+    Returns
+    -------
+    List[Array]
+        Filtered list of candidate subsets.
+    """
+    all_subsets = get_model_subsets(nmodels, bkd)
+    filtered = []
+    for s in all_subsets:
+        size = int(s.shape[0])
+        if size < min_group_size:
+            continue
+        if max_group_size is not None and size > max_group_size:
+            continue
+        if require_model_0 and 0 not in bkd.to_numpy(s):
+            continue
+        filtered.append(s)
+    return filtered
+
+
 def _get_allocation_matrix_is(subsets: List[Array], bkd: Backend[Array]) -> Array:
     """
     Get allocation matrix for independent sampling.

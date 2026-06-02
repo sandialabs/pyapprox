@@ -1,7 +1,6 @@
 """Tests that MLBLUEEstimator rejects variance and mean+variance statistics."""
 
 import pytest
-
 from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
 from pyapprox.statest.statistics import (
     MultiOutputMeanAndVariance,

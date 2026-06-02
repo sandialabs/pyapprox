@@ -8,10 +8,8 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import pytest
-
-from pyapprox_benchmarks.statest.multioutput_ensemble import (
-    MultiOutputEnsembleBenchmark,
-)
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.statest.allocation import CVAllocator
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.groupacv import (
@@ -21,13 +19,13 @@ from pyapprox.statest.groupacv import (
 )
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
 from pyapprox.statest.statistics import (
-    MultiOutputMean,
     MultiOutputMeanAndVariance,
     MultiOutputVariance,
 )
-from pyapprox.probability.joint.independent import IndependentJoint
-from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox_benchmarks.statest.multioutput_ensemble import (
+    MultiOutputEnsembleBenchmark,
+)
 
 
 def _bench(bkd):

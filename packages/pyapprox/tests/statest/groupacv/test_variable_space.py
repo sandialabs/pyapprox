@@ -2,10 +2,9 @@
 
 import numpy as np
 import pytest
-
+from pyapprox.statest.groupacv import GroupACVEstimatorIS
 from pyapprox.statest.groupacv.optimization import (
     GroupACVCostConstraint,
-    GroupACVLogDetObjective,
     GroupACVTraceObjective,
 )
 from pyapprox.statest.groupacv.variable_space import (
@@ -23,7 +22,6 @@ from pyapprox.statest.statistics import (
     MultiOutputMean,
     MultiOutputVariance,
 )
-from pyapprox.statest.groupacv import GroupACVEstimatorIS
 
 
 def _make_estimator(bkd, nmodels=3, nqoi=1):
