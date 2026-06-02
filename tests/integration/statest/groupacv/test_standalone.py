@@ -42,6 +42,12 @@ from pyapprox.statest.groupacv.allocation import (
     GroupACVAllocationResult,
 )
 from pyapprox.statest.groupacv.utils import _grouped_acv_sigma_block
+from pyapprox.statest.groupacv.variable_space import (
+    AllocationProblemConfig,
+    _NormalizedConstraint,
+    _RescaledConstraint,
+    _RescaledObjective,
+)
 from pyapprox.statest.statistics import (
     MultiOutputMean,
     MultiOutputMeanAndVariance,
@@ -2317,3 +2323,318 @@ class TestISBetaEquivalence:
         # No NaN in covariance
         cov = est._covariance_from_npartition_samples(nps_float)
         assert np.all(np.isfinite(bkd.to_numpy(cov)))
+
+
+# ---------------------------------------------------------------------------
+# Variable rescaling: derivative checks for wrapper classes
+# ---------------------------------------------------------------------------
+
+
+class TestRescaledObjectiveDerivativesTorchOnly:
+    """DerivativeChecker tests for _RescaledObjective wrapper."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        import torch
+
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+
+    def _create_estimator(self, nmodels, nqoi=1):
+        np.random.seed(1)
+        cov_size = nmodels * nqoi
+        cov = self._bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
+        cov = cov.T @ cov
+        costs = self._bkd.arange(
+            nmodels, 0, -1, dtype=self._bkd.double_dtype()
+        )
+        stat = MultiOutputMean(nqoi, self._bkd)
+        stat.set_pilot_quantities(cov)
+        return GroupACVEstimatorIS(stat, costs)
+
+    @pytest.mark.parametrize("nmodels,nqoi", [(2, 1), (3, 1), (2, 2)])
+    def test_rescaled_trace_jacobian(self, nmodels: int, nqoi: int):
+        np.random.seed(1)
+        est = self._create_estimator(nmodels, nqoi)
+        bkd = self._bkd
+        obj = GroupACVTraceObjective(bkd)
+        obj.set_estimator(est)
+        partition_costs = bkd.einsum(
+            "m,mp->p", est._costs, est._partitions_per_model
+        )
+        scale = partition_costs / bkd.min(partition_costs)
+        wrapped = _RescaledObjective(obj, scale)
+        iterate = est._init_guess(100) * scale[:, None]
+        checker = DerivativeChecker(wrapped)
+        errors = checker.check_derivatives(iterate, verbosity=0)
+        assert checker.error_ratio(errors[0]) <= 3e-6
+
+    @pytest.mark.parametrize("nmodels,nqoi", [(2, 1), (3, 1), (2, 2)])
+    def test_rescaled_logdet_jacobian(self, nmodels: int, nqoi: int):
+        np.random.seed(1)
+        est = self._create_estimator(nmodels, nqoi)
+        bkd = self._bkd
+        obj = GroupACVLogDetObjective(bkd)
+        obj.set_estimator(est)
+        partition_costs = bkd.einsum(
+            "m,mp->p", est._costs, est._partitions_per_model
+        )
+        scale = partition_costs / bkd.min(partition_costs)
+        wrapped = _RescaledObjective(obj, scale)
+        iterate = est._init_guess(100) * scale[:, None]
+        checker = DerivativeChecker(wrapped)
+        errors = checker.check_derivatives(iterate, verbosity=0)
+        assert checker.error_ratio(errors[0]) <= 3e-6
+
+
+class TestRescaledConstraintDerivatives:
+    """DerivativeChecker tests for _RescaledConstraint wrapper."""
+
+    def _create_estimator(self, bkd, nmodels):
+        np.random.seed(1)
+        cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
+        cov = cov.T @ cov
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        stat = MultiOutputMean(1, bkd)
+        stat.set_pilot_quantities(cov)
+        return GroupACVEstimatorIS(stat, costs)
+
+    @pytest.mark.parametrize("nmodels", [2, 3])
+    def test_rescaled_constraint_jacobian(self, bkd, nmodels: int):
+        np.random.seed(1)
+        est = self._create_estimator(bkd, nmodels)
+        con = GroupACVCostConstraint(bkd)
+        con.set_estimator(est)
+        con.set_budget(100.0, 1)
+        partition_costs = bkd.einsum(
+            "m,mp->p", est._costs, est._partitions_per_model
+        )
+        scale = partition_costs / bkd.min(partition_costs)
+        wrapped = _RescaledConstraint(con, scale)
+        iterate = est._init_guess(100) * scale[:, None]
+        checker = DerivativeChecker(wrapped)
+        weights = bkd.asarray([[0.6, 0.4]])
+        errors = checker.check_derivatives(
+            iterate, weights=weights, verbosity=0
+        )
+        assert float(errors[0][0]) < 1e-12
+
+
+class TestNormalizedConstraintDerivatives:
+    """DerivativeChecker tests for _NormalizedConstraint wrapper."""
+
+    def _create_estimator(self, bkd, nmodels):
+        np.random.seed(1)
+        cov = bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
+        cov = cov.T @ cov
+        costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        stat = MultiOutputMean(1, bkd)
+        stat.set_pilot_quantities(cov)
+        return GroupACVEstimatorIS(stat, costs)
+
+    @pytest.mark.parametrize("nmodels", [2, 3])
+    def test_normalized_constraint_jacobian(self, bkd, nmodels: int):
+        """_NormalizedConstraint wrapping raw constraint."""
+        np.random.seed(1)
+        est = self._create_estimator(bkd, nmodels)
+        con = GroupACVCostConstraint(bkd)
+        con.set_estimator(est)
+        con.set_budget(100.0, 1)
+        norm = bkd.array([100.0, 1.0])
+        wrapped = _NormalizedConstraint(con, norm)
+        iterate = est._init_guess(100)
+        checker = DerivativeChecker(wrapped)
+        weights = bkd.asarray([[0.6, 0.4]])
+        errors = checker.check_derivatives(
+            iterate, weights=weights, verbosity=0
+        )
+        assert float(errors[0][0]) < 1e-12
+
+    @pytest.mark.parametrize("nmodels", [2, 3])
+    def test_composed_rescaled_normalized_jacobian(self, bkd, nmodels: int):
+        """_NormalizedConstraint wrapping _RescaledConstraint (FullCostSpace)."""
+        np.random.seed(1)
+        est = self._create_estimator(bkd, nmodels)
+        con = GroupACVCostConstraint(bkd)
+        con.set_estimator(est)
+        con.set_budget(100.0, 1)
+        partition_costs = bkd.einsum(
+            "m,mp->p", est._costs, est._partitions_per_model
+        )
+        scale = partition_costs / bkd.min(partition_costs)
+        norm = bkd.array([100.0, 1.0])
+        rescaled = _RescaledConstraint(con, scale)
+        composed = _NormalizedConstraint(rescaled, norm)
+        iterate = est._init_guess(100) * scale[:, None]
+        checker = DerivativeChecker(composed)
+        weights = bkd.asarray([[0.6, 0.4]])
+        errors = checker.check_derivatives(
+            iterate, weights=weights, verbosity=0
+        )
+        assert float(errors[0][0]) < 1e-12
+
+
+# ---------------------------------------------------------------------------
+# Variable rescaling: integration tests for allocation optimizer
+# ---------------------------------------------------------------------------
+
+
+class TestVariableRescalingIntegrationTorchOnly:
+    """Integration tests for variable rescaling in GroupACVAllocationOptimizer.
+
+    Torch-only since optimization requires bkd.jacobian (autograd).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        import torch
+
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+
+    def _create_estimator(self, nmodels=3, nqoi=1, cost_ratio=None):
+        np.random.seed(1)
+        bkd = self._bkd
+        cov_size = nmodels * nqoi
+        cov = bkd.array(np.random.normal(0, 1, (cov_size, cov_size)))
+        cov = cov.T @ cov
+        if cost_ratio is not None:
+            log_costs = np.linspace(0, np.log10(cost_ratio), nmodels)
+            costs = bkd.array(
+                10.0 ** log_costs[::-1], dtype=bkd.double_dtype()
+            )
+        else:
+            costs = bkd.arange(nmodels, 0, -1, dtype=bkd.double_dtype())
+        stat = MultiOutputMean(nqoi, bkd)
+        stat.set_pilot_quantities(cov)
+        return GroupACVEstimatorIS(stat, costs)
+
+    @slow_test
+    def test_identity_config_matches_default(self):
+        """Default AllocationProblemConfig produces same result as no config."""
+        est = self._create_estimator(3)
+        allocator_default = GroupACVAllocationOptimizer(est)
+        result_default = allocator_default.optimize(target_cost=100)
+
+        est2 = self._create_estimator(3)
+        config = AllocationProblemConfig()
+        allocator_config = GroupACVAllocationOptimizer(
+            est2, problem_config=config
+        )
+        result_config = allocator_config.optimize(target_cost=100)
+
+        self._bkd.assert_allclose(
+            result_config.npartition_samples,
+            result_default.npartition_samples,
+        )
+
+    @slow_test
+    def test_well_conditioned_full_matches_none(self):
+        """Full rescaling matches identity on well-conditioned problem."""
+        est_none = self._create_estimator(3, cost_ratio=10)
+        config_none = AllocationProblemConfig(
+            variable_scaling="none", bounds_lb=1e-8
+        )
+        allocator_none = GroupACVAllocationOptimizer(
+            est_none, problem_config=config_none
+        )
+        result_none = allocator_none.optimize(target_cost=100)
+
+        est_full = self._create_estimator(3, cost_ratio=10)
+        config_full = AllocationProblemConfig(
+            variable_scaling="full", bounds_lb=1e-8
+        )
+        allocator_full = GroupACVAllocationOptimizer(
+            est_full, problem_config=config_full
+        )
+        result_full = allocator_full.optimize(target_cost=100)
+
+        assert result_none.success
+        assert result_full.success
+        self._bkd.assert_allclose(
+            result_full.npartition_samples,
+            result_none.npartition_samples,
+            rtol=1e-4,
+        )
+
+    @slow_test
+    def test_constraint_only_matches_none(self):
+        """Constraint-only normalization matches identity in allocation."""
+        est_none = self._create_estimator(3)
+        config_none = AllocationProblemConfig(
+            variable_scaling="none", bounds_lb=1e-8
+        )
+        allocator_none = GroupACVAllocationOptimizer(
+            est_none, problem_config=config_none
+        )
+        result_none = allocator_none.optimize(target_cost=100)
+
+        est_cs = self._create_estimator(3)
+        config_cs = AllocationProblemConfig(
+            variable_scaling="constraint_only", bounds_lb=1e-8
+        )
+        allocator_cs = GroupACVAllocationOptimizer(
+            est_cs, problem_config=config_cs
+        )
+        result_cs = allocator_cs.optimize(target_cost=100)
+
+        assert result_none.success
+        assert result_cs.success
+        self._bkd.assert_allclose(
+            result_cs.npartition_samples,
+            result_none.npartition_samples,
+            rtol=1e-4,
+        )
+
+    @slow_test
+    def test_equality_budget_uses_full_budget(self):
+        """Equality budget produces continuous allocation using full budget."""
+        est = self._create_estimator(3)
+        target_cost = 100.0
+        config = AllocationProblemConfig(
+            budget_constraint_form="equality", bounds_lb=1e-8
+        )
+        allocator = GroupACVAllocationOptimizer(est, problem_config=config)
+        result = allocator.optimize(
+            target_cost=target_cost, round_nsamples=False
+        )
+
+        assert result.success
+        assert result.actual_cost == pytest.approx(target_cost, rel=1e-4)
+
+    @slow_test
+    def test_repeated_optimize_no_state_leakage(self):
+        """Calling optimize() twice with different configs gives correct results."""
+        est = self._create_estimator(3)
+        target_cost = 100.0
+
+        config_ineq = AllocationProblemConfig(
+            budget_constraint_form="inequality", bounds_lb=1e-8
+        )
+        allocator = GroupACVAllocationOptimizer(est, problem_config=config_ineq)
+        result_ineq = allocator.optimize(target_cost=target_cost)
+
+        est2 = self._create_estimator(3)
+        config_eq = AllocationProblemConfig(
+            budget_constraint_form="equality", bounds_lb=1e-8
+        )
+        allocator2 = GroupACVAllocationOptimizer(est2, problem_config=config_eq)
+        result_eq = allocator2.optimize(target_cost=target_cost)
+
+        assert result_ineq.success
+        assert result_eq.success
+        assert result_eq.actual_cost >= result_ineq.actual_cost - 1e-6
+
+    @pytest.mark.parametrize("cost_ratio", [1e2, 1e4])
+    @slow_test
+    def test_ill_conditioned_full_succeeds(self, cost_ratio: float):
+        """Full rescaling succeeds on ill-conditioned cost ratios."""
+        est = self._create_estimator(3, cost_ratio=cost_ratio)
+        target_cost = 10.0 * cost_ratio
+        config = AllocationProblemConfig(
+            variable_scaling="full", bounds_lb=1e-8,
+        )
+        allocator = GroupACVAllocationOptimizer(est, problem_config=config)
+        result = allocator.optimize(target_cost=target_cost)
+        assert result.success
+        assert result.actual_cost <= target_cost + 1e-6
