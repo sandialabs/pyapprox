@@ -8,6 +8,11 @@ from pyapprox.statest.groupacv.optimization import (
     GroupACVObjective,
 )
 from pyapprox.statest.groupacv.result import GroupACVAllocationResult
+from pyapprox.statest.groupacv.variable_space import (
+    AllocationProblemConfig,
+    BudgetConstraintForm,
+    VariableSpace,
+)
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
@@ -95,6 +100,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         optimizer: Optional["BindableOptimizerProtocol[Array]"] = None,
         objective: Optional["GroupACVObjective[Array]"] = None,
         constraint: Optional["GroupACVCostConstraint[Array]"] = None,
+        problem_config: Optional[AllocationProblemConfig] = None,
     ):
         self._est = estimator
         self._bkd = estimator._bkd
@@ -116,13 +122,17 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         self._constraint: GroupACVCostConstraint[Array] = constraint
         self._constraint.set_estimator(estimator)
 
+        # Use default problem config if not provided
+        if problem_config is None:
+            problem_config = AllocationProblemConfig()
+        self._config: AllocationProblemConfig = problem_config
+
     def optimize(
         self,
         target_cost: float,
         min_nhf_samples: int = 1,
         init_guess: Optional[Array] = None,
         round_nsamples: bool = True,
-        bounds_lb: float = 1e-8,
     ) -> GroupACVAllocationResult[Array]:
         """Find optimal sample allocation.
 
@@ -137,10 +147,6 @@ class GroupACVAllocationOptimizer(Generic[Array]):
             If None, uses default initial guess.
         round_nsamples : bool, optional
             Whether to round result to integers. Default is True.
-        bounds_lb : float, optional
-            Lower bound for partition sample counts. A small positive
-            value avoids singular sigma blocks during optimization.
-            Default is 1e-8.
 
         Returns
         -------
@@ -152,85 +158,96 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         RuntimeError
             If optimization fails and success is False.
         """
-        # Configure constraint with budget
+        bkd = self._bkd
+
+        # 1. Budget setup
         min_nhf = max(self._est._stat.min_nsamples(), min_nhf_samples)
         self._constraint.set_budget(target_cost, min_nhf)
 
-        # Set up per-partition upper bounds: target_cost / partition_cost
+        # 2. Apply budget form (resets lb/ub to correct state)
+        budget_form: BudgetConstraintForm[Array] = (
+            self._config.build_budget_form()
+        )
+        budget_form.adjust_bounds(self._constraint)
+
+        # 3. Compute partition costs and raw n-space bounds
+        bounds_lb = self._config.resolve_bounds_lb(self._est._stat)
         npartitions = self._est.npartitions()
-        partition_costs = self._bkd.einsum(
+        partition_costs = bkd.einsum(
             "m,mp->p", self._est._costs, self._est._partitions_per_model
         )
         bounds_list = []
         for m in range(npartitions):
-            max_n_m = target_cost / self._bkd.to_float(partition_costs[m])
+            max_n_m = target_cost / bkd.to_float(partition_costs[m])
             bounds_list.append([bounds_lb, max_n_m])
-        bounds = self._bkd.array(bounds_list)
+        raw_bounds = bkd.array(bounds_list)
 
-        # Bind optimizer
-        # GroupACVObjective satisfies FunctionProtocol structurally;
-        # GroupACVCostConstraint satisfies NonlinearConstraintProtocol
-        # structurally. Cast to satisfy mypy since ABC vs Protocol
-        # structural subtyping is not inferred.
+        # 4. Build variable space and transform
+        space: VariableSpace[Array] = self._config.build_variable_space()
+        scale = space.compute_scale(partition_costs, bkd)
+        opt_bounds = space.transform_bounds(raw_bounds, scale, bkd)
+        wrapped_obj = space.wrap_objective(self._objective, scale)
+        wrapped_con = space.wrap_constraint(self._constraint, scale)
+
+        # 5. Bind and minimize
         self._optimizer.bind(
-            self._objective,  # type: ignore[arg-type]
-            bounds,
-            [self._constraint],  # type: ignore[list-item]
+            wrapped_obj,  # type: ignore[arg-type]
+            opt_bounds,
+            [wrapped_con],  # type: ignore[list-item]
         )
-
-        # Get initial guess
         if init_guess is None:
             init_guess = self._est._init_guess(target_cost)
+        opt_guess = space.transform_init_guess(init_guess, scale)
+        result = self._optimizer.minimize(opt_guess)
 
-        # Run optimization
-        result = self._optimizer.minimize(init_guess)
-
-        if not result.success() or self._bkd.any_bool(result.optima() < 0):
-            nsamples_per_model = self._est._compute_nsamples_per_model(init_guess[:, 0])
+        # 6. Handle failure — return init_guess in n-space
+        if not result.success() or bkd.any_bool(result.optima() < 0):
+            nsamples_per_model = self._est._compute_nsamples_per_model(
+                init_guess[:, 0]
+            )
             return GroupACVAllocationResult(
                 npartition_samples=init_guess[:, 0],
                 nsamples_per_model=nsamples_per_model,
-                actual_cost=self._bkd.to_float(
+                actual_cost=bkd.to_float(
                     self._est._estimator_cost(init_guess[:, 0])
                 ),
-                objective_value=self._bkd.array([float("inf")]),
+                objective_value=bkd.array([float("inf")]),
                 success=False,
                 message="Optimization failed",
             )
 
-        # Extract result (optimizer returns (nvars, 1), we store (nvars,))
-        npartition_samples = result.optima()[:, 0]
+        # 7. Transform back to n-space
+        npartition_samples = space.transform_from_optimizer(
+            result.optima()[:, 0], scale
+        )
 
         # Round if requested
         if round_nsamples:
-            npartition_samples = self._bkd.asarray(
-                self._bkd.floor(npartition_samples + 1e-4),
-                dtype=self._bkd.int64_dtype(),
+            npartition_samples = bkd.asarray(
+                bkd.floor(npartition_samples + 1e-4),
+                dtype=bkd.int64_dtype(),
             )
 
         # Compute nsamples_per_model and actual_cost
-        nps_float = self._bkd.asarray(
-            npartition_samples, dtype=self._bkd.double_dtype()
+        nps_float = bkd.asarray(
+            npartition_samples, dtype=bkd.double_dtype()
         )
         nsamples_per_model = self._est._compute_nsamples_per_model(nps_float)
-        actual_cost = self._bkd.to_float(
-            self._est._estimator_cost(nps_float)
-        )
+        actual_cost = bkd.to_float(self._est._estimator_cost(nps_float))
 
-        # Compute objective at solution
-        # Pass as (nvars, 1) as expected by objective
+        # Compute objective at solution (in n-space)
         obj_value = self._objective(nps_float[:, None])
 
         if round_nsamples:
-            nsamples_per_model = self._bkd.asarray(
-                nsamples_per_model, dtype=self._bkd.int64_dtype()
+            nsamples_per_model = bkd.asarray(
+                nsamples_per_model, dtype=bkd.int64_dtype()
             )
 
         return GroupACVAllocationResult(
             npartition_samples=npartition_samples,
             nsamples_per_model=nsamples_per_model,
             actual_cost=actual_cost,
-            objective_value=self._bkd.flatten(obj_value),
+            objective_value=bkd.flatten(obj_value),
             success=True,
             message="",
         )
