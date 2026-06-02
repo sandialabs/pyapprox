@@ -588,6 +588,25 @@ class GroupACVCostConstraint(Generic[Array]):
         """Number of constraints (cost + min HF samples)."""
         return 2
 
+    def target_cost(self) -> float:
+        """Return the target cost budget."""
+        target_cost, _ = self._ensure_budget()
+        return target_cost
+
+    def _set_cost_equality(self) -> None:
+        """Set budget constraint to equality (cost == target exactly)."""
+        self._ensure_budget()
+        bkd, _ = self._ensure_bound()
+        self._lb = bkd.array([0.0, 0.0])
+        self._ub = bkd.array([0.0, float("inf")])
+
+    def _set_cost_inequality(self) -> None:
+        """Reset budget constraint to inequality (cost <= target)."""
+        self._ensure_budget()
+        bkd, _ = self._ensure_bound()
+        self._lb = bkd.zeros((self.nqoi(),))
+        self._ub = bkd.full((self.nqoi(),), float("inf"))
+
     def lb(self) -> Array:
         """Lower bounds for constraints."""
         if self._lb is None:

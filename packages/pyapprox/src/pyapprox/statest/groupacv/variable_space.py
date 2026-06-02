@@ -1,0 +1,439 @@
+"""Variable space and budget constraint strategies for GroupACV allocation.
+
+This module provides strategy classes that decouple variable rescaling and
+budget constraint form from the optimization loop:
+
+- VariableSpace protocol: transforms between n-space and optimizer-space
+- BudgetConstraintForm protocol: configures constraint equality/inequality
+- AllocationProblemConfig: composes both via registry-based factory methods
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Dict,
+    Generic,
+    Literal,
+    Protocol,
+    runtime_checkable,
+)
+
+from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    from pyapprox.statest.groupacv.optimization import (
+        GroupACVCostConstraint,
+        GroupACVObjective,
+    )
+    from pyapprox.statest.statistics import MultiOutputStatistic
+
+
+# ---------------------------------------------------------------------------
+# Protocols
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class _ObjectiveLike(Protocol[Array]):
+    """Structural type for objective-like objects (original or wrapped)."""
+
+    def bkd(self) -> Backend[Array]: ...
+    def nvars(self) -> int: ...
+    def nqoi(self) -> int: ...
+    def __call__(self, npartition_samples: Array) -> Array: ...
+
+
+@runtime_checkable
+class _ConstraintLike(Protocol[Array]):
+    """Structural type for constraint-like objects (original or wrapped)."""
+
+    def bkd(self) -> Backend[Array]: ...
+    def nvars(self) -> int: ...
+    def nqoi(self) -> int: ...
+    def lb(self) -> Array: ...
+    def ub(self) -> Array: ...
+    def __call__(self, npartition_samples: Array) -> Array: ...
+    def jacobian(self, npartition_samples: Array) -> Array: ...
+    def whvp(
+        self, npartition_samples: Array, vec: Array, weights: Array
+    ) -> Array: ...
+
+
+@runtime_checkable
+class VariableSpace(Protocol[Array]):
+    """Protocol for variable-space transformations in GroupACV allocation."""
+
+    def compute_scale(
+        self, partition_costs: Array, bkd: Backend[Array]
+    ) -> Array:
+        """Return per-partition scale factors, shape (npartitions,)."""
+        ...
+
+    def transform_bounds(
+        self, n_bounds: Array, scale: Array, bkd: Backend[Array]
+    ) -> Array:
+        """Transform n-space bounds to optimizer-space bounds."""
+        ...
+
+    def transform_init_guess(self, n_guess: Array, scale: Array) -> Array:
+        """Transform n-space init guess to optimizer-space."""
+        ...
+
+    def transform_from_optimizer(self, m_opt: Array, scale: Array) -> Array:
+        """Transform optimizer result back to n-space."""
+        ...
+
+    def wrap_objective(
+        self, objective: "GroupACVObjective[Array]", scale: Array
+    ) -> "_ObjectiveLike[Array]":
+        """Wrap objective to accept optimizer-space variables."""
+        ...
+
+    def wrap_constraint(
+        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+    ) -> "_ConstraintLike[Array]":
+        """Wrap constraint to accept optimizer-space variables."""
+        ...
+
+
+@runtime_checkable
+class BudgetConstraintForm(Protocol[Array]):
+    """Protocol for budget constraint form strategies."""
+
+    def adjust_bounds(
+        self, constraint: "GroupACVCostConstraint[Array]"
+    ) -> None:
+        """Modify constraint lb/ub for the desired form."""
+        ...
+
+
+# ---------------------------------------------------------------------------
+# Wrapper classes
+# ---------------------------------------------------------------------------
+
+
+class _RescaledObjective(Generic[Array]):
+    """Wraps objective to accept m-space variables, converting via n = m/scale."""
+
+    def __init__(
+        self, inner: "GroupACVObjective[Array]", scale: Array
+    ) -> None:
+        self._inner = inner
+        self._scale = scale
+        if hasattr(inner, "jacobian"):
+            self.jacobian = self._jacobian_impl
+        if hasattr(inner, "hessian"):
+            self._inner_hessian: Callable[[Array], Array] = inner.hessian
+            self.hessian = self._hessian_impl
+        if hasattr(inner, "hvp"):
+            self.hvp = self._hvp_impl
+
+    def bkd(self) -> Backend[Array]:
+        return self._inner.bkd()
+
+    def nvars(self) -> int:
+        return self._inner.nvars()
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def __call__(self, npartition_samples: Array) -> Array:
+        n = npartition_samples / self._scale[:, None]
+        return self._inner(n)
+
+    def _jacobian_impl(self, npartition_samples: Array) -> Array:
+        n = npartition_samples / self._scale[:, None]
+        J_n = self._inner.jacobian(n)
+        return J_n / self._scale[None, :]
+
+    def _hessian_impl(self, npartition_samples: Array) -> Array:
+        n = npartition_samples / self._scale[:, None]
+        H_n = self._inner_hessian(n)
+        outer = self._scale[:, None] * self._scale[None, :]
+        return H_n / outer
+
+    def _hvp_impl(self, npartition_samples: Array, vec: Array) -> Array:
+        return self._hessian_impl(npartition_samples) @ vec
+
+
+class _RescaledConstraint(Generic[Array]):
+    """Wraps constraint to accept m-space variables, converting via n = m/scale."""
+
+    def __init__(
+        self, inner: "GroupACVCostConstraint[Array]", scale: Array
+    ) -> None:
+        self._inner = inner
+        self._scale = scale
+        if hasattr(inner, "jacobian"):
+            self.jacobian = self._jacobian_impl
+        if hasattr(inner, "whvp"):
+            self.whvp = self._whvp_impl
+
+    def bkd(self) -> Backend[Array]:
+        return self._inner.bkd()
+
+    def nvars(self) -> int:
+        return self._inner.nvars()
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def lb(self) -> Array:
+        return self._inner.lb()
+
+    def ub(self) -> Array:
+        return self._inner.ub()
+
+    def __call__(self, npartition_samples: Array) -> Array:
+        n = npartition_samples / self._scale[:, None]
+        return self._inner(n)
+
+    def _jacobian_impl(self, npartition_samples: Array) -> Array:
+        n = npartition_samples / self._scale[:, None]
+        J_n = self._inner.jacobian(n)
+        return J_n / self._scale[None, :]
+
+    def _whvp_impl(
+        self, npartition_samples: Array, vec: Array, weights: Array
+    ) -> Array:
+        bkd = self._inner.bkd()
+        return bkd.zeros((self.nvars(), 1))
+
+
+class _NormalizedConstraint(Generic[Array]):
+    """Divides constraint output by normalization factors so values are ~O(1)."""
+
+    def __init__(
+        self, inner: _ConstraintLike[Array], normalization: Array
+    ) -> None:
+        bkd = inner.bkd()
+        if bkd.any_bool(normalization <= 0):
+            raise ValueError("Normalization factors must be positive")
+        self._inner: _ConstraintLike[Array] = inner
+        self._norm = normalization
+        if hasattr(inner, "jacobian"):
+            self.jacobian = self._jacobian_impl
+        if hasattr(inner, "whvp"):
+            self.whvp = self._whvp_impl
+
+    def bkd(self) -> Backend[Array]:
+        return self._inner.bkd()
+
+    def nvars(self) -> int:
+        return self._inner.nvars()
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def lb(self) -> Array:
+        return self._inner.lb() / self._norm
+
+    def ub(self) -> Array:
+        return self._inner.ub() / self._norm
+
+    def __call__(self, npartition_samples: Array) -> Array:
+        return self._inner(npartition_samples) / self._norm[:, None]
+
+    def _jacobian_impl(self, npartition_samples: Array) -> Array:
+        return self._inner.jacobian(npartition_samples) / self._norm[:, None]
+
+    def _whvp_impl(
+        self, npartition_samples: Array, vec: Array, weights: Array
+    ) -> Array:
+        bkd = self._inner.bkd()
+        return bkd.zeros((self.nvars(), 1))
+
+
+# ---------------------------------------------------------------------------
+# VariableSpace implementations
+# ---------------------------------------------------------------------------
+
+
+class IdentitySpace(Generic[Array]):
+    """No variable rescaling — optimizer works in raw n-space."""
+
+    def compute_scale(
+        self, partition_costs: Array, bkd: Backend[Array]
+    ) -> Array:
+        return bkd.ones((partition_costs.shape[0],))
+
+    def transform_bounds(
+        self, n_bounds: Array, scale: Array, bkd: Backend[Array]
+    ) -> Array:
+        return n_bounds
+
+    def transform_init_guess(self, n_guess: Array, scale: Array) -> Array:
+        return n_guess
+
+    def transform_from_optimizer(self, m_opt: Array, scale: Array) -> Array:
+        return m_opt
+
+    def wrap_objective(
+        self, objective: "GroupACVObjective[Array]", scale: Array
+    ) -> _ObjectiveLike[Array]:
+        return objective
+
+    def wrap_constraint(
+        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+    ) -> _ConstraintLike[Array]:
+        return constraint
+
+
+class ConstraintScaledSpace(Generic[Array]):
+    """No variable rescaling; constraint output normalized to ~O(1)."""
+
+    def compute_scale(
+        self, partition_costs: Array, bkd: Backend[Array]
+    ) -> Array:
+        return bkd.ones((partition_costs.shape[0],))
+
+    def transform_bounds(
+        self, n_bounds: Array, scale: Array, bkd: Backend[Array]
+    ) -> Array:
+        return n_bounds
+
+    def transform_init_guess(self, n_guess: Array, scale: Array) -> Array:
+        return n_guess
+
+    def transform_from_optimizer(self, m_opt: Array, scale: Array) -> Array:
+        return m_opt
+
+    def wrap_objective(
+        self, objective: "GroupACVObjective[Array]", scale: Array
+    ) -> _ObjectiveLike[Array]:
+        return objective
+
+    def wrap_constraint(
+        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+    ) -> _ConstraintLike[Array]:
+        bkd = constraint.bkd()
+        target_cost = constraint.target_cost()
+        norm_val = target_cost if target_cost and target_cost != 0 else 1.0
+        norm = bkd.array([norm_val, 1.0])
+        return _NormalizedConstraint(constraint, norm)
+
+
+class FullCostSpace(Generic[Array]):
+    """Full cost-based rescaling: m_k = (c_k / c_ref) * n_k."""
+
+    def compute_scale(
+        self, partition_costs: Array, bkd: Backend[Array]
+    ) -> Array:
+        return partition_costs / bkd.min(partition_costs)
+
+    def transform_bounds(
+        self, n_bounds: Array, scale: Array, bkd: Backend[Array]
+    ) -> Array:
+        return n_bounds * scale[:, None]
+
+    def transform_init_guess(self, n_guess: Array, scale: Array) -> Array:
+        return n_guess * scale[:, None]
+
+    def transform_from_optimizer(self, m_opt: Array, scale: Array) -> Array:
+        return m_opt / scale
+
+    def wrap_objective(
+        self, objective: "GroupACVObjective[Array]", scale: Array
+    ) -> _ObjectiveLike[Array]:
+        return _RescaledObjective(objective, scale)
+
+    def wrap_constraint(
+        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+    ) -> _ConstraintLike[Array]:
+        bkd = constraint.bkd()
+        target_cost = constraint.target_cost()
+        norm_val = target_cost if target_cost and target_cost != 0 else 1.0
+        norm = bkd.array([norm_val, 1.0])
+        rescaled = _RescaledConstraint(constraint, scale)
+        return _NormalizedConstraint(rescaled, norm)
+
+
+# ---------------------------------------------------------------------------
+# BudgetConstraintForm implementations
+# ---------------------------------------------------------------------------
+
+
+class InequalityBudget(Generic[Array]):
+    """Budget as inequality constraint: cost <= target_cost."""
+
+    def adjust_bounds(
+        self, constraint: "GroupACVCostConstraint[Array]"
+    ) -> None:
+        constraint._set_cost_inequality()
+
+
+class EqualityBudget(Generic[Array]):
+    """Budget as equality constraint: cost == target_cost."""
+
+    def adjust_bounds(
+        self, constraint: "GroupACVCostConstraint[Array]"
+    ) -> None:
+        constraint._set_cost_equality()
+
+
+# ---------------------------------------------------------------------------
+# Registries
+# ---------------------------------------------------------------------------
+
+_SPACE_REGISTRY: Dict[str, Callable[[], VariableSpace[Array]]] = {
+    "none": IdentitySpace,
+    "constraint_only": ConstraintScaledSpace,
+    "full": FullCostSpace,
+}
+
+_FORM_REGISTRY: Dict[str, Callable[[], BudgetConstraintForm[Array]]] = {
+    "inequality": InequalityBudget,
+    "equality": EqualityBudget,
+}
+
+
+# ---------------------------------------------------------------------------
+# Config dataclass
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AllocationProblemConfig:
+    """Configuration for GroupACV allocation optimization.
+
+    Parameters
+    ----------
+    variable_scaling : {"none", "constraint_only", "full"}
+        Variable rescaling strategy:
+        - "none": optimizer works in raw n-space
+        - "constraint_only": n-space with normalized constraint values
+        - "full": optimizer works in m-space where m_k = (c_k/c_ref) * n_k
+
+    budget_constraint_form : {"inequality", "equality"}
+        Budget constraint form:
+        - "inequality": cost <= target_cost
+        - "equality": cost == target_cost
+
+    bounds_lb : float or "dead_threshold"
+        Lower bound for partition sample counts during optimization.
+        - "dead_threshold": use max(1e-8, stat.continuous_dead_threshold())
+        - explicit float: use that value directly
+    """
+
+    variable_scaling: Literal["none", "constraint_only", "full"] = "none"
+    budget_constraint_form: Literal["inequality", "equality"] = "inequality"
+    bounds_lb: Literal["dead_threshold"] | float = "dead_threshold"
+
+    def resolve_bounds_lb(
+        self, stat: "MultiOutputStatistic[Array]"
+    ) -> float:
+        """Resolve the bounds lower bound to a concrete float value."""
+        if self.bounds_lb == "dead_threshold":
+            return max(1e-8, stat.continuous_dead_threshold())
+        return self.bounds_lb
+
+    def build_variable_space(self) -> VariableSpace[Array]:
+        """Create the variable space strategy from config."""
+        return _SPACE_REGISTRY[self.variable_scaling]()
+
+    def build_budget_form(self) -> BudgetConstraintForm[Array]:
+        """Create the budget constraint form strategy from config."""
+        return _FORM_REGISTRY[self.budget_constraint_form]()

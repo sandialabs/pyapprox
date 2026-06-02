@@ -40,6 +40,9 @@ from pyapprox.statest.groupacv.utils import (
     _nest_subsets,
     get_model_subsets,
 )
+from pyapprox.statest.groupacv.variable_space import (
+    AllocationProblemConfig,
+)
 from pyapprox.statest.groupacv.variants import (
     GroupACVEstimatorIS,
     GroupACVEstimatorNested,
@@ -60,6 +63,7 @@ __all__ = [
     "MLBLUEObjective",
     "GroupACVCostConstraint",
     # Allocation classes
+    "AllocationProblemConfig",
     "GroupACVAllocationResult",
     "GroupACVAllocationOptimizer",
     "default_groupacv_optimizer",

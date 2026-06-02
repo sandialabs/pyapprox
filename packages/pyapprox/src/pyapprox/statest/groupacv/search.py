@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     )
     from pyapprox.statest.groupacv.optimization import GroupACVObjective
     from pyapprox.statest.groupacv.result import GroupACVAllocationResult
+    from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig
     from pyapprox.statest.statistics import MultiOutputStatistic
 
 
@@ -103,6 +104,7 @@ class GroupACVSearch(Generic[Array]):
         qoi_strategy: Optional[QoISubsetStrategy] = None,
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
         objective: Optional[GroupACVObjective[Array]] = None,
+        problem_config: Optional["AllocationProblemConfig"] = None,
     ) -> None:
         from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
         from pyapprox.statest.strategies import (
@@ -120,6 +122,7 @@ class GroupACVSearch(Generic[Array]):
         self._qoi_strategy = qoi_strategy or AllQoIStrategy()
         self._optimizer: Optional[BindableOptimizerProtocol[Array]] = optimizer
         self._objective: Optional[GroupACVObjective[Array]] = objective
+        self._problem_config = problem_config
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -179,6 +182,7 @@ class GroupACVSearch(Generic[Array]):
                 estimator,
                 optimizer=self._optimizer,
                 objective=self._objective,
+                problem_config=self._problem_config,
             )
             result = allocator.optimize(target_cost)
             all_allocations.append((estimator, result))
