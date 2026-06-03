@@ -72,6 +72,11 @@ from ._cv_acv import (  # noqa: F401
     plot_variance_reduction_vs_rho,
     plot_variance_verification,
 )
+from ._group_acv import (  # noqa: F401
+    plot_gacv_convergence,
+    plot_group_structures,
+    plot_multistat_reduction,
+)
 from ._design import (  # noqa: F401
     plot_beam_setup,
     plot_combined_experiments,

@@ -6,7 +6,7 @@ including the semidefinite programming (SPD) optimizer that uses cvxpy.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Optional
+from typing import TYPE_CHECKING, Dict, Generic, Optional
 
 from pyapprox.statest.groupacv.optimization import (
     MLBLUEObjective,
@@ -38,6 +38,11 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         Other options include "CVXOPT", "SCS", "MOSEK" (requires license).
     objective : MLBLUEObjective, optional
         Custom objective function. If None, uses default MLBLUEObjective.
+    solver_kwargs : Dict[str, float], optional
+        Extra keyword arguments forwarded to ``cvxpy.Problem.solve()``.
+        For CLARABEL these include ``tol_gap_abs``, ``tol_gap_rel``,
+        ``tol_feas`` (all default to 1e-8). For other solvers, consult
+        the cvxpy documentation.
 
     Raises
     ------
@@ -89,6 +94,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         estimator: "MLBLUEEstimator[Array]",
         solver_name: Optional[str] = None,
         objective: Optional[MLBLUEObjective[Array]] = None,
+        solver_kwargs: Optional[Dict[str, float]] = None,
     ):
         # Import cvxpy with helpful error message if not installed
         self._cvxpy = import_optional_dependency(
@@ -99,6 +105,9 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
 
         self._est = estimator
         self._bkd = estimator._bkd
+        self._solver_kwargs: Dict[str, float] = (
+            solver_kwargs if solver_kwargs is not None else {}
+        )
 
         # Auto-detect solver if not specified
         if solver_name is None:
@@ -225,7 +234,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
 
         # Solve the problem
         prob = self._cvxpy.Problem(obj, constraints)
-        prob.solve(solver=self._solver_name)
+        prob.solve(solver=self._solver_name, **self._solver_kwargs)
 
         if t_cvxpy.value is None:
             return GroupACVAllocationResult(

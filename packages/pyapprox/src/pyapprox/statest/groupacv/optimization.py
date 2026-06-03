@@ -31,6 +31,8 @@ class GroupACVObjective(ABC, Generic[Array]):
         self._bkd: Optional[Backend[Array]] = bkd
         self._est: Optional[BaseGroupACVEstimator[Array]] = None
         self._use_analytical: bool = False
+        self._cache_key: Optional[int] = None
+        self._cache_val: Optional[Tuple[Array, Array, Array, Array]] = None
 
     def _ensure_bound(
         self,
@@ -114,10 +116,18 @@ class GroupACVObjective(ABC, Generic[Array]):
         """
         return self._objective_value(npartition_samples)
 
+    def _array_cache_key(self, arr: Array) -> int:
+        """Hash for single-entry cache keyed on array contents."""
+        bkd, _ = self._ensure_bound()
+        return hash(bkd.to_numpy(arr).tobytes())
+
     def _compute_psi_and_derivs(
         self, npartition_samples_1d: Array
     ) -> Tuple[Array, Array, Array, Array]:
         r"""Compute Ψ, Ψ⁻¹, and stacked derivative blocks in one pass.
+
+        Uses a single-entry cache so that repeated calls at the same
+        point (e.g. jacobian then hvp during CG) reuse previous results.
 
         For IS estimators, Σ is block-diagonal so each partition's sigma
         block, its inverse, and derivatives are computed once and reused
@@ -127,6 +137,10 @@ class GroupACVObjective(ABC, Generic[Array]):
           dpsi_stack[m] = ∂_m Ψ = -R_m Σ_m⁻¹ (∂_m Σ_m) Σ_m⁻¹ R_mᵀ
           d2psi_stack[m] = ∂²_m Ψ
         """
+        key = self._array_cache_key(npartition_samples_1d)
+        if self._cache_key == key and self._cache_val is not None:
+            return self._cache_val
+
         bkd, est = self._ensure_bound()
         npartitions = npartition_samples_1d.shape[0]
         Rmats = est._restriction_matrices
@@ -149,20 +163,23 @@ class GroupACVObjective(ABC, Generic[Array]):
             sigma_m_inv = est._inv(sigma_m)
             R_m = Rmats[m]
             # Accumulate Ψ = Σ R_m Σ_m⁻¹ R_mᵀ
-            psi = psi + bkd.multidot([R_m, sigma_m_inv, R_m.T])
+            psi = psi + R_m @ sigma_m_inv @ R_m.T
             d1_m, d2_m = est._stat._group_acv_sigma_block_derivs(subset, n_m)
             sinv_d1_sinv = sigma_m_inv @ d1_m @ sigma_m_inv
-            dpsi_m = bkd.multidot([-R_m, sinv_d1_sinv, R_m.T])
+            dpsi_m = -R_m @ sinv_d1_sinv @ R_m.T
             # d²(Σ⁻¹)/dn² = 2 Σ⁻¹ Σ' Σ⁻¹ Σ' Σ⁻¹ - Σ⁻¹ Σ'' Σ⁻¹
             d2_sinv = (
                 2 * sinv_d1_sinv @ d1_m @ sigma_m_inv
                 - sigma_m_inv @ d2_m @ sigma_m_inv
             )
-            d2psi_m = bkd.multidot([R_m, d2_sinv, R_m.T])
+            d2psi_m = R_m @ d2_sinv @ R_m.T
             dpsi_blocks.append(dpsi_m)
             d2psi_blocks.append(d2psi_m)
         psi_inv = est._inv(psi)
-        return psi, psi_inv, bkd.stack(dpsi_blocks), bkd.stack(d2psi_blocks)
+        result = (psi, psi_inv, bkd.stack(dpsi_blocks), bkd.stack(d2psi_blocks))
+        self._cache_key = key
+        self._cache_val = result
+        return result
 
     @staticmethod
     def _batch_trace_product(
@@ -245,9 +262,16 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
 
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
         bkd, est = self._ensure_bound()
-        trace = bkd.trace(
-            est._covariance_from_npartition_samples(npartition_samples_1d)
-        )
+        if self._use_analytical:
+            _, psi_inv, _, _ = self._compute_psi_and_derivs(
+                npartition_samples_1d
+            )
+            cov = est._asketch @ psi_inv @ est._asketch.T
+        else:
+            cov = est._covariance_from_npartition_samples(
+                npartition_samples_1d
+            )
+        trace = bkd.trace(cov)
         # conversion below is necessary for torch
         return bkd.hstack((trace,))[:, None]
 
@@ -310,7 +334,15 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
 
     def _objective_wrapper(self, npartition_samples_1d: Array) -> Array:
         bkd, est = self._ensure_bound()
-        cov = est._covariance_from_npartition_samples(npartition_samples_1d)
+        if self._use_analytical:
+            _, psi_inv, _, _ = self._compute_psi_and_derivs(
+                npartition_samples_1d
+            )
+            cov = est._asketch @ psi_inv @ est._asketch.T
+        else:
+            cov = est._covariance_from_npartition_samples(
+                npartition_samples_1d
+            )
         sign, logdet = bkd.slogdet(cov)
         if logdet < -1e16:
             # when cov is singular logdet returns np.inf
@@ -424,15 +456,11 @@ class MLBLUEObjective(GroupACVTraceObjective[Array]):
             gamma = psi_inv @ est._asketch[kk : kk + 1].T
             jacobian = jacobian + bkd.hstack(
                 [
-                    bkd.multidot(
-                        [
-                            -gamma.T,
-                            Rmats[ii],
-                            est._inv(Sigma_blocks[ii][ii]),
-                            Rmats[ii].T,
-                            gamma,
-                        ]
-                    )
+                    -gamma.T
+                    @ Rmats[ii]
+                    @ est._inv(Sigma_blocks[ii][ii])
+                    @ Rmats[ii].T
+                    @ gamma
                     for ii in range(len(Sigma_blocks))
                 ]
             )
@@ -468,15 +496,15 @@ class MLBLUEObjective(GroupACVTraceObjective[Array]):
             est._inv(Sigma_blocks[ii][ii]) for ii in range(nblocks)
         ]
         psi_derivs = [
-            bkd.multidot([Rmats[ii], sigma_invs[ii], Rmats[ii].T])
+            Rmats[ii] @ sigma_invs[ii] @ Rmats[ii].T
             for ii in range(nblocks)
         ]
         for kk in range(est._stat.nstats()):
             gamma = psi_inv @ est._asketch[kk : kk + 1].T
             for ii in range(nblocks):
-                xi = bkd.multidot([psi_inv, psi_derivs[ii], gamma])
+                xi = psi_inv @ psi_derivs[ii] @ gamma
                 for jj in range(ii, nblocks):
-                    eta = bkd.multidot([xi.T, psi_derivs[jj], gamma])
+                    eta = xi.T @ psi_derivs[jj] @ gamma
                     hess[ii][jj] = hess[ii][jj] + eta.T + eta
                     hess[jj][ii] = hess[ii][jj]
         return bkd.vstack([bkd.hstack(row) for row in hess])
