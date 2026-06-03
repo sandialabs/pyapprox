@@ -183,7 +183,7 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         raw_bounds = bkd.array(bounds_list)
 
         # 4. Build variable space and transform
-        space: VariableSpace[Array] = self._config.build_variable_space()
+        space: VariableSpace[Array] = self._config.build_variable_space(bkd)
         scale = space.compute_scale(partition_costs, bkd)
         opt_bounds = space.transform_bounds(raw_bounds, scale, bkd)
         wrapped_obj = space.wrap_objective(self._objective, scale)
@@ -200,8 +200,8 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         opt_guess = space.transform_init_guess(init_guess, scale)
         result = self._optimizer.minimize(opt_guess)
 
-        # 6. Handle failure — return init_guess in n-space
-        if not result.success() or bkd.any_bool(result.optima() < 0):
+        # 6. Handle failure
+        if not result.success():
             nsamples_per_model = self._est._compute_nsamples_per_model(
                 init_guess[:, 0]
             )
@@ -216,10 +216,24 @@ class GroupACVAllocationOptimizer(Generic[Array]):
                 message="Optimization failed",
             )
 
-        # 7. Transform back to n-space
+        # 7. Transform back to n-space and check for negative sample counts
         npartition_samples = space.transform_from_optimizer(
             result.optima()[:, 0], scale
         )
+        if bkd.any_bool(npartition_samples < 0):
+            nsamples_per_model = self._est._compute_nsamples_per_model(
+                init_guess[:, 0]
+            )
+            return GroupACVAllocationResult(
+                npartition_samples=init_guess[:, 0],
+                nsamples_per_model=nsamples_per_model,
+                actual_cost=bkd.to_float(
+                    self._est._estimator_cost(init_guess[:, 0])
+                ),
+                objective_value=bkd.array([float("inf")]),
+                success=False,
+                message="Negative sample counts in n-space",
+            )
 
         # Round if requested
         if round_nsamples:

@@ -62,12 +62,14 @@ class ROLOptimizer(Generic[Array]):
         verbosity: int = 0,
         parameters: Optional[object] = None,
         status_test: Optional[object] = None,
+        fast_vector: bool = False,
     ) -> None:
         _require_pyrol()
         self._verbosity = verbosity
         self._parameters = parameters
         self._status_test = status_test
         self._init_constraints = constraints
+        self._fast_vector = fast_vector
 
         self._objective: Optional[ObjectiveProtocol[Array]] = None
         self._bounds: Optional[Array] = None
@@ -114,6 +116,7 @@ class ROLOptimizer(Generic[Array]):
                 verbosity=self._verbosity,
                 parameters=self._parameters,
                 status_test=self._status_test,
+                fast_vector=self._fast_vector,
             ),
         )
 
@@ -172,6 +175,38 @@ class ROLOptimizer(Generic[Array]):
         ] = tol_scaling
         return params
 
+    @staticmethod
+    def _apply_fast_vector_patch() -> None:
+        """Monkey-patch NumPyVector to skip per-instance introspection.
+
+        pyrol's tracking wrapper runs dir()+callable()+getattr() on every
+        NumPyVector construction to find 'add*' methods. Vector has none,
+        so this is pure overhead (~17us/call). The patch calls the pybind11
+        C++ init directly, reducing construction to ~2us/call.
+        """
+        from pyrol.pyrol import ROL
+        from pyrol.vectors import NumPyVector
+
+        if getattr(NumPyVector, "_fast_patch_applied", False):
+            return
+
+        _pybind_init = ROL.Vector_double_t.__mro__[1].__init__
+
+        def _fast_init(self, array=None):  # type: ignore[no-untyped-def]
+            assert isinstance(array, np.ndarray)
+            assert array.ndim == 1
+            self.array = array
+            self._tracked_constructor_args = []
+            _pybind_init(self)
+
+        NumPyVector.__init__ = _fast_init
+
+        def _fast_axpy(self, scale_factor, x):  # type: ignore[no-untyped-def]
+            self.array += scale_factor * x.array
+
+        NumPyVector.axpy = _fast_axpy
+        NumPyVector._fast_patch_applied = True  # type: ignore[attr-defined]
+
     def minimize(self, init_guess: Array) -> ROLOptimizerResult[Array]:
         """Run optimization starting from the initial guess.
 
@@ -192,6 +227,9 @@ class ROLOptimizer(Generic[Array]):
 
         import pyrol
         from pyrol.vectors import NumPyVector
+
+        if self._fast_vector:
+            self._apply_fast_vector_patch()
 
         bkd = self.bkd()
 

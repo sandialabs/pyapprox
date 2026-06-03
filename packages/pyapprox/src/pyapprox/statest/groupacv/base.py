@@ -507,10 +507,9 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         cost = self._bkd.sum(nsamples_per_model * self._costs)
 
         # the total number of samples per partition is then target_cost/cost
-        # we take the floor to make sure we do not exceed the target cost
         return self._bkd.full(
             (self.npartitions(),),
-            self._bkd.to_float(self._bkd.floor(target_cost / cost)),
+            self._bkd.to_float(target_cost / cost),
             dtype=self._bkd.double_dtype(),
         )[:, None]
 

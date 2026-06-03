@@ -14,6 +14,7 @@ from pyapprox.statest.groupacv.variable_space import (
     FullCostSpace,
     IdentitySpace,
     InequalityBudget,
+    LogSpace,
     _NormalizedConstraint,
     _RescaledConstraint,
     _RescaledObjective,
@@ -297,13 +298,17 @@ class TestAllocationProblemConfig:
         assert config.budget_constraint_form == "inequality"
         assert config.bounds_lb == "dead_threshold"
 
-    def test_build_variable_space_identity(self):
+    def test_build_variable_space_identity(self, bkd):
         config = AllocationProblemConfig(variable_scaling="none")
-        assert isinstance(config.build_variable_space(), IdentitySpace)
+        assert isinstance(config.build_variable_space(bkd), IdentitySpace)
 
-    def test_build_variable_space_full(self):
+    def test_build_variable_space_full(self, bkd):
         config = AllocationProblemConfig(variable_scaling="full")
-        assert isinstance(config.build_variable_space(), FullCostSpace)
+        assert isinstance(config.build_variable_space(bkd), FullCostSpace)
+
+    def test_build_variable_space_log(self, bkd):
+        config = AllocationProblemConfig(variable_scaling="log")
+        assert isinstance(config.build_variable_space(bkd), LogSpace)
 
     def test_build_budget_form_inequality(self):
         config = AllocationProblemConfig(budget_constraint_form="inequality")
