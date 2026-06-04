@@ -361,7 +361,7 @@ cv_result_loo = fitter_loo.fit(pce_base, samples_cv, values_cv)
 
 ## Exercises
 
-1. Run the truncation error experiment (@fig-truncation-error) with degree 10. How many training samples are needed before the error curve flattens?
+1. Run the truncation error experiment (see @fig-truncation-error) with degree 10. How many training samples are needed before the error curve flattens?
 
 2. In @fig-train-test-cv, change the training set to $N = 100$ samples. How does the CV-selected degree change? At what degree does the test error start rising?
 

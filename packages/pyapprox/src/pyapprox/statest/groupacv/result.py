@@ -1,7 +1,7 @@
 """GroupACV allocation result dataclass."""
 
 from dataclasses import dataclass
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array
 
@@ -14,6 +14,7 @@ class GroupACVAllocationResult(Generic[Array]):
     ----------
     npartition_samples : Array
         Partition sample counts. Shape (npartitions,).
+        Integer when ``round_nsamples=True``, float otherwise.
     nsamples_per_model : Array
         Sample counts per model. Shape (nmodels,).
     actual_cost : float
@@ -24,6 +25,10 @@ class GroupACVAllocationResult(Generic[Array]):
         Whether allocation succeeded.
     message : str
         Status message.
+    relaxed_npartition_samples : Array or None
+        Continuous (unrounded) partition sample counts. Shape (npartitions,).
+        Always stored when optimization succeeds. Same as
+        ``npartition_samples`` when ``round_nsamples=False``.
     """
 
     npartition_samples: Array
@@ -32,3 +37,4 @@ class GroupACVAllocationResult(Generic[Array]):
     objective_value: Array  # Shape (1,) - keeps autograd graph
     success: bool
     message: str = ""
+    relaxed_npartition_samples: Optional[Array] = None

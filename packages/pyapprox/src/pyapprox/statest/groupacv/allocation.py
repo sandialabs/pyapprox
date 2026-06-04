@@ -235,6 +235,8 @@ class GroupACVAllocationOptimizer(Generic[Array]):
                 message="Negative sample counts in n-space",
             )
 
+        relaxed_npartition_samples = npartition_samples
+
         # Round if requested
         if round_nsamples:
             npartition_samples = bkd.asarray(
@@ -264,4 +266,5 @@ class GroupACVAllocationOptimizer(Generic[Array]):
             objective_value=bkd.flatten(obj_value),
             success=True,
             message="",
+            relaxed_npartition_samples=relaxed_npartition_samples,
         )

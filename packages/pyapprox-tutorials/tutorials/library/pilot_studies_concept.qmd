@@ -178,7 +178,7 @@ optimism bias.
 - A small pilot introduces covariance estimation error; a large pilot consumes too
   much of the total budget
 - The realistic MSE-vs-pilot-size curve has a U-shape with a well-defined optimal
-  $N_p^*$ (@fig-tradeoff, right panel)
+  $N_p^*$ (see @fig-tradeoff, right panel)
 - All models must be evaluated at the same pilot sample points; pilot samples are
   independent of the main estimator's samples
 - As a rule of thumb, $N_p \approx 2\text{–}5\,(M+1)$ is a good starting point for

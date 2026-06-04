@@ -20,7 +20,7 @@ from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.statest.acv import GMFEstimator, MFMCEstimator
+from pyapprox.statest.acv import GMFEstimator, GRDEstimator, MFMCEstimator
 from pyapprox.statest.acv.variants import _allocate_samples_mfmc
 from pyapprox.statest.groupacv import (
     FittedGroupACVEstimator,
@@ -949,6 +949,30 @@ class TestMFMCNestedEstimationTorchOnly:
 
         return bm, cov, costs, models, stat
 
+    def _setup_polynomial_problem(self, nmodels: int, stat_type: str):
+        """Set up problem using PolynomialEnsembleBenchmark (nqoi=1).
+
+        Uses exact quadrature-based pilot statistics from the benchmark
+        mixin rather than Monte Carlo pilot samples.
+        """
+        bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
+        costs = bm.problem().costs()
+        models = bm.problem().models()
+        cov = bm.covariance_matrix()
+
+        stat = self._get_stat(stat_type, 1)
+        if stat_type == "mean":
+            stat.set_pilot_quantities(cov)
+        elif stat_type == "variance":
+            W = bm.covariance_of_centered_values_kronecker_product()
+            stat.set_pilot_quantities(cov, W)
+        elif stat_type == "mean_variance":
+            W = bm.covariance_of_centered_values_kronecker_product()
+            B = bm.covariance_of_mean_and_variance_estimators()
+            stat.set_pilot_quantities(cov, W, B)
+
+        return cov, costs, models, stat
+
     @pytest.mark.parametrize(
         "nmodels,qoi_idx,stat_type",
         [
@@ -968,7 +992,8 @@ class TestMFMCNestedEstimationTorchOnly:
 
         When GroupACV uses MFMC subsets and the same sample allocation as
         a GMF estimator, both should produce the same covariance and
-        estimate values.
+        estimate values. Uses MultiOutputEnsembleBenchmark (up to 3 models,
+        multi-QoI).
         """
         np.random.seed(1)
         target_cost = 10.0
@@ -977,15 +1002,15 @@ class TestMFMCNestedEstimationTorchOnly:
             nmodels, qoi_idx, stat_type
         )
 
-        # MFMC subsets for nested estimation
-        if nmodels == 3:
-            subsets = [[0, 1], [1, 2], [2]]
-            recursion_index = self._bkd.asarray([0, 1], dtype=int)
-        elif nmodels == 2:
-            subsets = [[0, 1], [1]]
-            recursion_index = self._bkd.asarray([0], dtype=int)
-        else:
-            raise ValueError(f"Unsupported nmodels: {nmodels}")
+        # MFMC subsets: consecutive pairs + tail singleton
+        # {0,1}, {1,2}, ..., {L-1,L}, {L}
+        subsets = (
+            [[k, k + 1] for k in range(nmodels - 1)]
+            + [[nmodels - 1]]
+        )
+        recursion_index = self._bkd.asarray(
+            list(range(nmodels - 1)), dtype=int
+        )
 
         subsets = [self._bkd.asarray(s, dtype=int) for s in subsets]
 
@@ -1016,46 +1041,116 @@ class TestMFMCNestedEstimationTorchOnly:
             )
             gmf_stat.set_pilot_quantities(cov, W, B)
 
-        gmf_template = GMFEstimator(gmf_stat, costs, recursion_index=recursion_index)
-        gmf_fitted = allocate_with_allocator(gmf_template, target_cost)
+        self._check_acv_groupacv_match(
+            groupacv_est, gmf_stat, costs, models, recursion_index, target_cost
+        )
 
-        # Generate samples and values using GMF allocation
+    @pytest.mark.parametrize(
+        "nmodels,stat_type,acv_type",
+        [
+            (4, "mean", "gmf_nested"),
+            (5, "mean", "gmf_nested"),
+            (4, "variance", "gmf_nested"),
+            (5, "variance", "gmf_nested"),
+            (4, "mean_variance", "gmf_nested"),
+            (5, "mean_variance", "gmf_nested"),
+            (3, "mean", "grd_is"),
+            (4, "mean", "grd_is"),
+            (5, "mean", "grd_is"),
+            (3, "variance", "grd_is"),
+            (4, "variance", "grd_is"),
+            (5, "variance", "grd_is"),
+            (3, "mean_variance", "grd_is"),
+            (4, "mean_variance", "grd_is"),
+            (5, "mean_variance", "grd_is"),
+        ],
+    )
+    def test_mfmc_estimation_many_models(
+        self, nmodels: int, stat_type: str, acv_type: str
+    ):
+        """Test GroupACV matches ACV for consecutive-pair MFMC subsets.
+
+        GMF/Nested: nested samples, matches GroupACVEstimatorNested.
+        GRD/IS: independent samples, matches GroupACVEstimatorIS.
+
+        Uses PolynomialEnsembleBenchmark (nqoi=1, arbitrary nmodels).
+        Both estimators share the same stat object so pilot quantities
+        are identical.
+        """
+        np.random.seed(1)
+        target_cost = 20.0
+
+        cov, costs, models, stat = self._setup_polynomial_problem(
+            nmodels, stat_type
+        )
+
+        # MFMC subsets: consecutive pairs + tail singleton
+        # {0,1}, {1,2}, ..., {L-1,L}, {L}
+        subsets = (
+            [[k, k + 1] for k in range(nmodels - 1)]
+            + [[nmodels - 1]]
+        )
+        recursion_index = self._bkd.asarray(
+            list(range(nmodels - 1)), dtype=int
+        )
+        subsets = [self._bkd.asarray(s, dtype=int) for s in subsets]
+
+        if acv_type == "gmf_nested":
+            groupacv_cls = GroupACVEstimatorNested
+            acv_cls = GMFEstimator
+        else:
+            groupacv_cls = GroupACVEstimatorIS
+            acv_cls = GRDEstimator
+
+        groupacv_est = groupacv_cls(
+            stat,
+            costs,
+            model_subsets=subsets,
+            reg_blue=0,
+            use_pseudo_inv=False,
+        )
+
+        self._check_acv_groupacv_match(
+            groupacv_est, stat, costs, models, recursion_index, target_cost,
+            acv_cls=acv_cls,
+        )
+
+    def _check_acv_groupacv_match(
+        self, groupacv_est, acv_stat, costs, models, recursion_index,
+        target_cost, acv_cls=GMFEstimator,
+    ):
+        """Verify GroupACV and ACV estimator produce identical covariance/estimates."""
+        acv_template = acv_cls(acv_stat, costs, recursion_index=recursion_index)
+        acv_fitted = allocate_with_allocator(acv_template, target_cost)
+
         def rvs(n: int):
             return self._bkd.asarray(np.random.rand(1, int(n)))
 
-        samples_per_model = gmf_fitted.generate_samples_per_model(rvs)
-        # Values shape: (nqoi, nsamples) - samples in columns
+        samples_per_model = acv_fitted.generate_samples_per_model(rvs)
         values_per_model = [
             model(samples) for model, samples in zip(models, samples_per_model)
         ]
 
-        # Compute GMF estimate (expects samples in columns)
-        gmf_est_val = gmf_fitted(values_per_model)
+        acv_est_val = acv_fitted(values_per_model)
 
-        # Apply GMF sample allocation to GroupACV
-        # Create GroupACV allocation from GMF allocation
-        gmf_npartition = gmf_fitted.npartition_samples()
-        groupacv_allocation = _make_groupacv_allocation(groupacv_est, gmf_npartition)
+        acv_npartition = acv_fitted.npartition_samples()
+        groupacv_allocation = _make_groupacv_allocation(groupacv_est, acv_npartition)
         groupacv_fitted = FittedGroupACVEstimator(groupacv_est, groupacv_allocation)
 
-        # Compute GroupACV estimate (now expects samples in columns like other typing
-        # code)
         groupacv_est_val = groupacv_fitted(values_per_model)
 
-        # Check covariances match (use default bkd.allclose tolerances)
         self._bkd.assert_allclose(
             groupacv_fitted.covariance(),
-            gmf_fitted.covariance(),
-            rtol=1e-05,
-            atol=1e-08,
+            acv_fitted.covariance(),
+            rtol=1e-11,
+            atol=1e-11,
         )
 
-        # Check estimate values match (use default bkd.allclose tolerances)
         self._bkd.assert_allclose(
             self._bkd.asarray(groupacv_est_val),
-            self._bkd.asarray(gmf_est_val),
-            rtol=1e-05,
-            atol=1e-08,
+            self._bkd.asarray(acv_est_val),
+            rtol=1e-11,
+            atol=1e-11,
         )
 
 
