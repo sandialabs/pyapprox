@@ -208,12 +208,12 @@ directly reduces variance for $Q_0$.
 - MLBLUE estimates all model means jointly via GLS; the HF mean is extracted via
   $Q^B_0 = \boldsymbol{e}_0^\top\mathbf{q}^B$
 - Subsets define co-evaluation groups; any non-empty subsets are valid —
-  no chain or nesting required (@fig-subsets)
+  no chain or nesting required (see @fig-subsets)
 - Three ingredients: restriction operator $\mathbf{R}_k$ (who is measured),
   per-subset error covariance $C_k$ (how correlated), block-diagonal
   $\mathbf{C}_{\boldsymbol{\epsilon}\boldsymbol{\epsilon}}$ (across all subsets and samples)
-  (@fig-system, @fig-cov)
-- Like ACVMF, MLBLUE converges to CV-$M$ and is not capped at CV-1 (@fig-ceiling)
+  (see @fig-system, @fig-cov)
+- Like ACVMF, MLBLUE converges to CV-$M$ and is not capped at CV-1 (see @fig-ceiling)
 - The subset design is most flexible when physically incompatible models prevent
   certain co-evaluations
 

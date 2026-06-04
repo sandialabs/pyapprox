@@ -329,7 +329,7 @@ $\theta_1$ to produce different HF–MF correlations.
 - The MSE of a pilot-based estimator decomposes into a variance term (dominant, from
   allocation error) and a bias² term (negligible except for very small $N_p$)
 - The optimal pilot size $N_p^*$ increases with total budget $P$ and decreases with
-  model correlation $\rho$ (@fig-budget-sensitivity, @fig-corr-sensitivity)
+  model correlation $\rho$ (see @fig-budget-sensitivity, @fig-corr-sensitivity)
 - For $\rho \geq 0.9$, $N_p = 10$–$20$ is typically sufficient at moderate budgets
 - For $\rho < 0.7$, consider whether including the model is beneficial at all before
   investing in a larger pilot (see [Ensemble Selection](ensemble_selection_concept.qmd))

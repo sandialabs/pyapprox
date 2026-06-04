@@ -1,0 +1,436 @@
+---
+title: "Group Approximate Control Variates"
+subtitle: "PyApprox Tutorial Library"
+description: "A single framework — groups of co-evaluated models — that recovers MLMC, MFMC, ACVMF, and MLBLUE as special cases, and extends naturally to multi-output, multi-statistic, and mixed-known-stat estimation."
+tutorial_type: concept
+topic: multi_fidelity
+difficulty: intermediate
+estimated_time: 10
+render_time: 35
+prerequisites:
+  - acv_many_models_concept
+  - mlblue_concept
+tags:
+  - multi-fidelity
+  - group-acv
+  - unification
+  - variance-reduction
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+::: {.callout-tip collapse="true"}
+## Download Notebook
+[Download as Jupyter Notebook](notebooks/group_acv_concept.ipynb)
+:::
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Define a **group** as the fundamental object of multi-fidelity estimation: a subset
+  of models co-evaluated on a shared set of input samples
+- Write the group ACV estimator and identify the per-group weights and the
+  unbiasedness constraint
+- Recognize MLMC, MFMC, ACVMF, and MLBLUE as five points in a single design space
+  that differ only in their group structure
+- State the optimal-weight result and use it to compute estimator variance for any
+  group collection
+- Identify the three extensions — multi-output, multi-statistic, and mixed known
+  statistics — that the framework unlocks without modification
+
+
+## Prerequisites
+
+Complete [General ACV Concept](acv_many_models_concept.qmd) and
+[MLBLUE Concept](mlblue_concept.qmd) before this tutorial. Those tutorials present
+the ACV family and MLBLUE as separate machinery. This tutorial shows that they are
+two parameterizations of one underlying framework — **group approximate control
+variates (GACV)** [GJE2024] — and explains why that perspective matters for the
+practical estimators you can build.
+
+
+## Why Unify?
+
+The estimators developed so far solve the same problem — reduce the variance of an
+expensive HF mean estimate using correlated LF models — through what look like very
+different mechanisms. MLMC uses a telescoping sum of level differences. MFMC builds
+a recursive chain of nested corrections. ACVMF replaces the chain with a star,
+correcting $f_0$ directly with every LF model. MLBLUE frames the problem as
+generalized least squares, which appears to abandon the corrections viewpoint —
+but as the group ACV theory shows, MLBLUE is actually a special case of the same
+correction framework with a different group structure.
+
+The first reason to unify these is conceptual: they really are the same estimator.
+Each picks a particular **group structure** — a collection of model subsets that
+share input samples — and the optimal weights, the variance formula, and the
+allocation problem follow from that one choice.
+
+The second reason is practical, and more interesting: once the framework is in
+place, three substantial generalizations become available **without changing any of
+the underlying math**. These are the draw cards of group ACV:
+
+1. **Multiple QoIs.** Estimate several quantities of interest jointly under a
+   shared group structure. The resulting [multi-output ACV](multioutput_acv_concept.qmd)
+   optimizes a joint objective (determinant or trace of the estimator covariance
+   matrix) over the shared sample allocation — something that requires a single
+   group structure serving all QoIs simultaneously.
+2. **Statistics beyond the mean.** Estimate variances, mean-and-variance jointly,
+   or any moment-based statistic using the same group machinery and the same
+   optimal-weight result.
+3. **Mixed known statistics.** When some LF models have analytic moments
+   (polynomial surrogates, Gaussian process posteriors, reference Monte Carlo) and
+   others do not, the framework exploits both in a single estimator that
+   interpolates between full CVMC and full ACV.
+
+None of these extensions emerge naturally from the MLMC telescoping identity, the
+MFMC recursive derivation, or the MLBLUE GLS framing taken in isolation. They
+emerge from the group framework, and that is the reason it exists.
+
+
+## The Group ACV Ansatz
+
+A **group** is a pair
+$$
+\mathcal{G}^k = (\mathcal{S}^k, m^k),
+$$
+where $\mathcal{S}^k \subseteq \{0, 1, \ldots, M\}$ is a non-empty subset of model
+indices and $m^k \geq 0$ is an integer sample count. In the standard (and most
+common) setup, each group's $m^k$ input samples are drawn independently from the
+prior, and **every** model in $\mathcal{S}^k$ is evaluated at each of those samples.
+More generally, groups may share samples (nested designs) or use importance-weighted
+samples from a different distribution; see [GJE2024] for the general case.
+
+The estimator specification is a **collection of groups** $\{\mathcal{G}^k\}_{k=1}^K$.
+For each group, define the per-group sample-mean vector
+$$
+\hat{\mathbf{Q}}^k =
+  \left(\hat{\mu}_\ell^k\right)_{\ell \in \mathcal{S}^k} \in \mathbb{R}^{|\mathcal{S}^k|},
+\qquad
+\hat{\mu}_\ell^k = \frac{1}{m^k}\sum_{i=1}^{m^k} f_\ell\!\left(\boldsymbol{\theta}_k^{(i)}\right).
+$$
+
+Each entry is unbiased for the corresponding model mean:
+$\mathbb{E}[\hat{\mu}_\ell^k] = \mu_\ell$.
+
+The **group ACV estimator** combines these per-group estimators with weights
+$\boldsymbol{\beta}^k \in \mathbb{R}^{|\mathcal{S}^k|}$ chosen by the framework:
+$$
+\hat{Q}_{\text{GACV}} = \sum_{k=1}^{K} (\boldsymbol{\beta}^k)^{\!\top} \hat{\mathbf{Q}}^k.
+$$ {#eq-gacv}
+
+The user picks the group collection. The framework picks the weights. Every
+multi-fidelity estimator in the previous tutorials is an instance of @eq-gacv with
+a particular group collection and (sometimes) particular fixed weights.
+
+
+## Unbiasedness and the Restriction Matrix
+
+Taking expectations in @eq-gacv,
+$$
+\mathbb{E}[\hat{Q}_{\text{GACV}}]
+  = \sum_k (\boldsymbol{\beta}^k)^{\!\top} \boldsymbol{\mu}^k
+  = \sum_{\ell = 0}^{M} s_\ell\, \mu_\ell,
+\qquad
+s_\ell := \sum_{k : \ell \in \mathcal{S}^k} \beta^k_\ell,
+$$
+where $s_\ell$ is the total weight assigned to model $\ell$ across all groups in
+which it appears.
+
+For $\hat{Q}_{\text{GACV}}$ to be unbiased for $\mu_0$ regardless of the unknown
+mean values, we require
+$$
+s_0 = 1, \qquad s_\ell = 0 \text{ for } \ell = 1, \ldots, M.
+$$ {#eq-unbiasedness}
+
+Writing $\boldsymbol{\beta}$ for the long vector that stacks all per-group weights,
+@eq-unbiasedness is the linear constraint
+$$
+R\, \boldsymbol{\beta} = \mathbf{e}^0,
+$$ {#eq-restriction}
+where the **restriction matrix** $R \in \mathbb{R}^{(M+1) \times \sum_k |\mathcal{S}^k|}$
+has rows that sum the weights for each model across groups, and
+$\mathbf{e}^0 = (1, 0, \ldots, 0)^\top \in \mathbb{R}^{M+1}$.
+
+The constraint @eq-restriction is the only structural requirement on the weights.
+The framework's job is to pick $\boldsymbol{\beta}$ satisfying @eq-restriction that
+minimizes estimator variance.
+
+
+## The Group Structure Dictionary
+
+The choice of group collection determines which familiar estimator @eq-gacv
+specializes to.
+
+```{python}
+#| echo: false
+#| fig-cap: "Group structure for four multi-fidelity estimators on a four-model ensemble ($f_0, f_1, f_2, f_3$). Each panel shows the groups defining one estimator: each horizontal bar is one group, model-color-coded blocks within the bar show which models are evaluated on that group's samples. **MLMC:** pairwise consecutive-level groups plus a coarsest-level singleton, no shared samples between groups. **MFMC:** nested groups in which each model's sample set includes the next-finer model's set. **ACVMF:** every LF model grouped with $f_0$, all anchored on the HF sample set. **MLBLUE:** all $2^M - 1$ non-empty subsets of the model ensemble (representative subsets shown with ellipses). The optimal-weight formula in @eq-beta-star applies identically to all four; only the group structure changes."
+#| label: fig-group-structures
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._group_acv import plot_group_structures
+
+fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+plot_group_structures(axes)
+plt.suptitle("Group structures of common multi-fidelity estimators", fontsize=13, y=1.02)
+plt.tight_layout()
+plt.show()
+```
+
+Reading @fig-group-structures: each panel is one estimator. The MLMC panel shows
+the pairwise structure underlying its telescoping sum: groups
+$\{f_0, f_1\}, \{f_1, f_2\}, \{f_2, f_3\}$ plus a singleton $\{f_3\}$ for the
+coarsest level, with independent samples across groups. The MFMC panel shows the
+nested chain: $\{f_0\}, \{f_0, f_1\}, \{f_0, f_1, f_2\}, \{f_0, f_1, f_2, f_3\}$.
+The ACVMF panel shows the star: every LF model grouped with the HF model and
+anchored on the same sample partition. The MLBLUE panel shows all $2^M - 1 = 15$
+non-empty subsets of the four-model ensemble — the complete search space that the
+allocation optimizer explores.
+
+Each pattern is a valid choice of $\{\mathcal{G}^k\}$ in @eq-gacv. The optimal
+weights and the variance are determined entirely by which groups appear and which
+sample counts they have.
+
+
+## The Optimal-Weight Result
+
+Stack the per-group estimators into a long vector
+$\hat{\mathbf{Q}} = (\hat{\mathbf{Q}}^1, \ldots, \hat{\mathbf{Q}}^K)$. The
+covariance $C = \mathrm{Cov}(\hat{\mathbf{Q}}, \hat{\mathbf{Q}})$ depends on the
+group structure: groups with disjoint sample sets contribute independent blocks;
+groups with shared sample sets contribute coupled blocks. For independent-samples
+designs (every group draws its own samples), $C$ is block-diagonal with
+per-group blocks $C^k = (1/m^k)\,\boldsymbol{\Sigma}^k$, where
+$\boldsymbol{\Sigma}^k$ is the population covariance among the models in
+$\mathcal{S}^k$.
+
+Minimizing $\boldsymbol{\beta}^{\!\top} C\, \boldsymbol{\beta}$ subject to
+@eq-restriction gives the **optimal group ACV weight** [GJE2024, Theorem 6]:
+$$
+\boldsymbol{\beta}^{\star}
+  = C^{-1} R^{\!\top} \left(R\, C^{-1} R^{\!\top}\right)^{-1} \mathbf{e}^0
+$$ {#eq-beta-star}
+and the corresponding minimum variance
+$$
+\mathbb{V}\!\left[\hat{Q}_{\text{GACV}}\right]_{\boldsymbol{\beta} = \boldsymbol{\beta}^{\star}}
+  = (\mathbf{e}^0)^{\!\top}
+    \left(R\, C^{-1} R^{\!\top}\right)^{-1} \mathbf{e}^0.
+$$ {#eq-var-star}
+
+The result is a constrained generalized least squares solution. The
+[Group ACV Analysis](group_acv_analysis.qmd) tutorial derives @eq-beta-star and
+@eq-var-star via the Lagrangian.
+
+Crucially, **the same formula applies to every group structure**. What changes
+between MLMC, MFMC, ACVMF, MLBLUE is the structure of $R$ and $C$ — derived from
+the group collection — not the optimization principle itself.
+
+
+### Specializations
+
+The following table maps each familiar estimator to its group structure and the
+specialization of @eq-beta-star.
+
+| Estimator | Group structure | Notes on $\boldsymbol{\beta}^{\star}$ |
+|---|---|---|
+| **MC** | one group $\{f_0\}$ | trivially $\boldsymbol{\beta}^{\star} = 1$ |
+| **MLMC** | pairwise $\{f_\ell, f_{\ell+1}\}$, independent samples | weights *fixed* at $(1, -1)$ per group; not the optimum within the framework |
+| **MFMC** | nested $\{f_0\} \subset \{f_0, f_1\} \subset \cdots$, dependent samples | optimum reduces to the MFMC weight ratios |
+| **ACVMF** | $\{f_0, f_\alpha\}$ per LF model $\alpha$, anchored on $\mathcal{Z}_0$ | optimum reduces to the Schur complement of `acv_many_models_analysis` |
+| **MLBLUE (IS)** | arbitrary subsets, independent samples | optimum is `mlblue_analysis`'s GLS solution |
+
+Two facts worth noting. First, **MLMC is suboptimal** in the framework: it fixes
+$\boldsymbol{\beta}^k = (1, -1)$ rather than picking $\boldsymbol{\beta}^k$ via
+@eq-beta-star. This is the price MLMC pays for its independent-samples-across-
+levels structure — under that structure, the fixed weights are nearly optimal
+when consecutive levels are highly similar, but not exactly. Second,
+**ACVMF and MLBLUE-IS achieve the same minimum variance** when given the same model
+set, even though their group structures look very different. They are two
+parameterizations that span overlapping regions of the design space.
+
+
+## Why the Unification Matters: a Convergence View
+
+The structural differences in @fig-group-structures translate into quantitatively
+different variance reductions. @fig-gacv-convergence compares the four estimators
+on a five-model polynomial benchmark. The covariance matrix
+$\boldsymbol{\Sigma}$ is computed via exact Gauss quadrature on the known
+polynomial model functions.
+
+```{python}
+#| echo: false
+#| fig-cap: "**Left:** structural ceiling. Holding the HF sample count fixed at $N_0 = 1$ and growing the LF sample budget, MLMC and MFMC plateau at the CV-1 ceiling (the variance reduction achievable if only $\\mu_1$ were known exactly). ACVMF and MLBLUE converge to the much lower CV-$M$ ceiling that exploits all four LF models simultaneously. The MLBLUE curve uses the five SAOB subsets $\\{0{-}4\\}, \\{1{-}4\\}, \\{2{-}4\\}, \\{3,4\\}, \\{4\\}$ (see [Group ACV Analysis](group_acv_analysis.qmd) for the SAOB-to-nested conversion); MLBLUE in general uses all $2^M - 1$ subsets. **Right:** optimized allocation across three total budgets. With each estimator's allocator free to choose all sample counts, the variance reduction follows the structural pattern but the ranking depends on budget. ACVMF and MLBLUE are uniformly best at large budgets; at small budgets the nested estimators are competitive."
+#| label: fig-gacv-convergence
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._group_acv import plot_gacv_convergence
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
+plot_gacv_convergence(axes)
+plt.tight_layout()
+plt.show()
+```
+
+The two panels of @fig-gacv-convergence tell related but distinct stories. The
+left panel is the *structural* story: with $N_0$ fixed, how low can each estimator
+go? MLMC and MFMC are capped at CV-1 because only their first LF model
+directly reduces $\hat{\mu}_0$ variance; the other LF models indirectly improve
+the chain but cannot break the ceiling. ACVMF and MLBLUE-IS, by contrast,
+aggregate all LF information into $\hat{\mu}_0$'s variance reduction simultaneously
+and converge to CV-$M$. The right panel is the *practical* story: under an
+optimized budget allocation, the variance of each estimator at three target costs.
+The ordering is consistent with the ceilings but the magnitude depends on how
+much budget is available.
+
+The point of the figure is not to crown a winner. ACVMF and MLBLUE-IS both reach
+CV-$M$ and so are equivalent in the asymptotic sense; the choice between them is
+a matter of which parameterization is easier to construct for the problem at hand
+(see "ACV vs MLBLUE" below). MLMC and MFMC remain useful when the natural
+hierarchy of the problem aligns with their chain structure, despite the structural
+ceiling. The unification framework lets you reason about all four estimators with
+a single mental model.
+
+
+## ACV vs MLBLUE: One Framework, Two Parameterizations
+
+The ACV family parameterizes group structures via an **allocation matrix** over
+independent partitions and a **recursion index** that names which model corrects
+which (see [General ACV Analysis](acv_many_models_analysis.qmd) and
+[PACV Concept](pacv_concept.qmd)). This parameterization is natural when LF models
+form a hierarchy — mesh refinement, polynomial order, time-step reduction — and
+when chain or star correction structures map onto the problem geometry.
+
+MLBLUE parameterizes group structures via **arbitrary subsets**, with no chain or
+nesting required. This parameterization is natural when the LF models do not form
+a hierarchy, or when certain pairs cannot be co-evaluated for physical reasons
+(incompatible meshes, models requiring different numerical schemes).
+
+Both parameterizations reach the multi-model CV-$M$ ceiling, and both rely on
+@eq-beta-star for the optimal weights. The choice between them is about
+expressiveness for the specific problem, not about variance-reduction power.
+
+In PyApprox: ACV-family estimators are `MLMCEstimator`, `MFMCEstimator`,
+`GMFEstimator(recursion_index=...)`, `GISEstimator`. MLBLUE-family estimators are
+`MLBLUEEstimator` (mean only) and `GroupACVEstimatorIS` / `GroupACVEstimatorNested`
+(any statistic). See the [API Cookbook](multifidelity_estimation_cookbook.qmd#estimator-quick-reference) for code recipes.
+
+
+## What Comes Next: Three Extensions
+
+The unification is the start, not the destination. Three substantial extensions
+follow from @eq-gacv–@eq-var-star without modifying the underlying framework. Each
+varies one ingredient of the setup while leaving the optimal-weight machinery
+unchanged.
+
+**Multi-output estimation.** Replace the scalar QoI of each model with a vector,
+turning each per-group estimator $\hat{\mathbf{Q}}^k$ into a matrix and the
+unbiasedness constraint into a matrix equation. The optimal-weight formula keeps
+its shape. The variance reduction for any single QoI improves because
+cross-QoI covariances within the per-group blocks become free signal. See
+[Multi-Output ACV Concept](multioutput_acv_concept.qmd).
+
+**Statistics beyond the mean.** Replace the per-group sample-mean estimators
+with sample-variance or joint mean-and-variance estimators. The per-group
+covariance block $C^k$ now involves higher moments of the model joint
+distribution (variance of variance estimators, covariance of mean and variance
+estimators), all computed by the stat class from pilot data. The constraint and
+optimal-weight formulas are unchanged. See [Group ACV Multi-Statistic Concept](group_acv_multistat_concept.qmd).
+
+**Mixed known statistics.** When some LF models have analytic moments and others
+do not, drop the rows of $R$ corresponding to known moments. The constraint set
+becomes strictly smaller, the feasible weight set strictly larger, and the minimum
+variance strictly lower. The framework interpolates between full ACV (no moments
+known) and full CVMC (all moments known) along this axis. See
+[Group ACV Mixed Concept](group_acv_mixed_concept.qmd).
+
+These extensions are not bolted on. They are direct consequences of building the
+estimator around a single object (the group collection) optimized against a
+single constraint (@eq-restriction).
+
+
+## Key Takeaways
+
+- A group is a (model subset, sample count) pair; an estimator is a collection of
+  groups (@eq-gacv)
+- MLMC, MFMC, ACVMF, and MLBLUE differ only in their group structure
+  (see @fig-group-structures); the optimal-weight formula @eq-beta-star and the
+  variance formula @eq-var-star apply identically to all of them
+- The framework's structural ceiling depends on the group collection: pairwise
+  and nested structures cap at CV-1; star and arbitrary-subset structures reach
+  CV-$M$ (see @fig-gacv-convergence)
+- The ACV family (allocation matrix + recursion index) and MLBLUE (arbitrary
+  subsets) are two parameterizations of the same framework, suited to different
+  problem geometries
+- The framework's value is in the extensions it enables: multi-output,
+  multi-statistic, and mixed known statistics — each detailed in a follow-up
+  tutorial
+
+
+## Exercises
+
+1. From @fig-group-structures, write the group collection $\{\mathcal{G}^k\}$
+   explicitly for three-model MLMC and three-model MFMC. How many groups does
+   each have? Which model subsets appear?
+
+2. Suppose your problem has four LF models, but models $f_1$ and $f_3$ require
+   incompatible numerical schemes and cannot be co-evaluated on the same sample.
+   Which subsets must be excluded from the group collection? Sketch the largest
+   collection consistent with this restriction and identify whether it is more
+   naturally expressed as an ACV-family or MLBLUE-family parameterization.
+
+3. Take the ACVMF group structure in @fig-group-structures and apply @eq-restriction.
+   How many rows does $R$ have? How many columns? Verify that $s_0 = 1$ and
+   $s_\ell = 0$ for $\ell \geq 1$ enforces unbiasedness for $\mu_0$ in this case.
+
+4. From @fig-gacv-convergence (left panel), at LF sample ratio $r = 100$, roughly
+   how much smaller is the GACV-IS variance than the MFMC variance? Express this
+   as a ratio of variance reductions.
+
+5. Explain in one sentence why @eq-beta-star can be applied without modification
+   when estimating variance instead of the mean. *(Hint: think about which object
+   in the framework changes and which stays the same.)*
+
+
+## Next Steps
+
+- [Group ACV Analysis](group_acv_analysis.qmd) — Derive @eq-beta-star via
+  Lagrangian, prove the specializations to MLMC/MFMC/ACVMF/MLBLUE, and connect to
+  the sample allocation SDP
+- [Multi-Output ACV Concept](multioutput_acv_concept.qmd) — The multi-QoI
+  extension of the framework
+- [Group ACV Multi-Statistic Concept](group_acv_multistat_concept.qmd) — Variance
+  and mean+variance estimation under group ACV
+- [Group ACV Mixed Concept](group_acv_mixed_concept.qmd) — Mixed known statistics:
+  the CVMC–ACV spectrum
+- [API Cookbook](multifidelity_estimation_cookbook.qmd#estimator-quick-reference) — Code recipes for every estimator
+  discussed here
+
+
+::: {.callout-tip}
+Ready to try this? See [API Cookbook → Group ACV Estimators](multifidelity_estimation_cookbook.qmd#estimator-quick-reference)
+for runnable examples of `GroupACVEstimatorIS`, `GroupACVEstimatorNested`, and
+`MLBLUEEstimator`.
+:::
+
+
+## References
+
+- [GJE2024] A. Gorodetsky, J. Jakeman, M. Eldred. *Grouped approximate control
+  variate estimators.* arXiv:2402.14736, 2024.
+  [DOI](https://doi.org/10.48550/arXiv.2402.14736)
+
+- [GGEJJCP2020] A. Gorodetsky, S. Geraci, M. Eldred, J. Jakeman. *A generalized
+  approximate control variate framework for multifidelity uncertainty
+  quantification.* Journal of Computational Physics, 408:109257, 2020.
+  [DOI](https://doi.org/10.1016/j.jcp.2020.109257)
+
+- [SUSIAMUQ2020] D. Schaden, E. Ullmann. *On multilevel best linear unbiased
+  estimators.* SIAM/ASA J. Uncertainty Quantification 8(2):601–635, 2020.
+  [DOI](https://doi.org/10.1137/19M1263534)

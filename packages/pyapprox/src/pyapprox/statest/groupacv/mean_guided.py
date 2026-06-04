@@ -99,7 +99,12 @@ class MeanGuidedSubsetFitter(Generic[Array]):
     reg_blue : float, optional
         Regularization parameter for BLUE. Default is 0.
     activity_threshold : float, optional
-        Partitions with Mean n_m > this value are kept. Default is 1e-4.
+        Partitions with Mean n_m > this value are kept. Default is 1.0
+        (at least one sample in the mean-screening solution). Partitions
+        below this threshold would round to zero samples when building an
+        actual estimator, and forcing them to the target-stat lower bound
+        (e.g. 2 for variance) wastes budget without meaningful variance
+        reduction.
     """
 
     def __init__(
@@ -112,7 +117,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         objective: Optional["GroupACVObjective[Array]"] = None,
         problem_config: Optional["AllocationProblemConfig"] = None,
         reg_blue: float = 0,
-        activity_threshold: float = 1e-4,
+        activity_threshold: float = 1.0,
     ) -> None:
         from pyapprox.statest.groupacv.variable_space import (
             AllocationProblemConfig,
@@ -216,6 +221,22 @@ class MeanGuidedSubsetFitter(Generic[Array]):
                 "Mean screening found no active partitions — budget may "
                 "be too small for any allocation"
             )
+
+        # Ensure at least one subset containing model 0 survives.
+        # When the budget is tight the HF constraint is binding and
+        # every model-0 subset may fall below the activity threshold.
+        # Keep the one with the largest relaxed allocation.
+        has_model0 = any(
+            0 in bkd.to_numpy(self._candidate_subsets[i]).tolist()
+            for i in active_indices
+        )
+        if not has_model0:
+            model0_indices = [
+                i for i in range(len(self._candidate_subsets))
+                if 0 in bkd.to_numpy(self._candidate_subsets[i]).tolist()
+            ]
+            best_m0 = max(model0_indices, key=lambda i: float(nps_np[i]))
+            active_indices = tuple(sorted(set(active_indices) | {best_m0}))
 
         return mean_result, active_indices
 

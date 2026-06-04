@@ -316,7 +316,7 @@ The FT achieves lower error than MC for the same computational budget because:
    least-important variables identified visually match those with the smallest
    total Sobol indices?
 
-3. In the convergence comparison (@fig-ft-vs-mc), reduce the oversampling ratio from
+3. In the convergence comparison (see @fig-ft-vs-mc), reduce the oversampling ratio from
    3 to 2. How does the FT error envelope change, especially at lower degrees? Why
    does an insufficient oversampling ratio hurt the MSE refinement step?
 

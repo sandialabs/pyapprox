@@ -1,7 +1,7 @@
 ---
 title: "Tutorials"
-pagetitle: "PyApprox Tutorials | 90+ UQ, Surrogate Modeling & Sensitivity Analysis Guides"
-description: "Browse 90+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis."
+pagetitle: "PyApprox Tutorials | 100+ UQ, Surrogate Modeling & Sensitivity Analysis Guides"
+description: "Browse 100+ executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis."
 toc: true
 toc-depth: 2
 ---
@@ -10,7 +10,7 @@ toc-depth: 2
 
 [Tutorial Library]{.tutorials-title-text}
 
-[90+ validated, executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.]{.tutorials-subtitle}
+[100+ executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.]{.tutorials-subtitle}
 
 :::
 
@@ -277,6 +277,36 @@ Run the first cell to install PyApprox, then run all remaining cells
 ::: {.tutorial-card}
 [**Ensemble Selection Concept**](ensemble_selection_concept.qmd){.tutorial-title}
 [Choosing which subset of available models to include in a multi-fidelity estimator]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Group ACV Concept**](group_acv_concept.qmd){.tutorial-title}
+[The group ACV framework: unifying MLMC, MFMC, and MLBLUE under a single optimal-weight estimator with arbitrary model subsets]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Group ACV Analysis**](group_acv_analysis.qmd){.tutorial-title}
+[Deriving the group ACV weight matrix, covariance formula, and equivalence to MLBLUE]{.tutorial-desc}
+[Analysis]{.badge-analysis}
+:::
+
+::: {.tutorial-card}
+[**Group ACV Multi-Statistic Concept**](group_acv_multistat_concept.qmd){.tutorial-title}
+[Variance and joint mean-variance estimation under the group ACV framework]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Group ACV Optimization**](group_acv_optimization.qmd){.tutorial-title}
+[Solving the sample-allocation problem: SLSQP recipe, variable scaling, SDP limitations, and mean-guided pruning]{.tutorial-desc}
+[Usage]{.badge-usage}
+:::
+
+::: {.tutorial-card}
+[**Group ACV Mixed Concept**](group_acv_mixed_concept.qmd){.tutorial-title}
+[Exploiting known low-fidelity statistics to improve multi-fidelity estimation]{.tutorial-desc}
 [Concept]{.badge-concept}
 :::
 
@@ -551,6 +581,30 @@ Run the first cell to install PyApprox, then run all remaining cells
 :::
 
 ::: {.tutorial-card}
+[**Local Basis Sparse Grids**](local_basis_sparse_grids.qmd){.tutorial-title}
+[Piecewise polynomial interpolation on sparse grids for non-smooth functions]{.tutorial-desc}
+[Hands-on]{.badge-hands-on}
+:::
+
+::: {.tutorial-card}
+[**Locally Adaptive Sparse Grids**](local_adaptive_sparse_grids_concept.qmd){.tutorial-title}
+[Hierarchical hat-function surrogates that refine where the function is hardest to approximate]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Local Adaptivity vs Combination Technique**](local_adaptive_vs_combination.qmd){.tutorial-title}
+[Locally adaptive hierarchical sparse grids vs dimension-adaptive combination technique on a non-smooth target]{.tutorial-desc}
+[Analysis]{.badge-analysis}
+:::
+
+::: {.tutorial-card}
+[**Cost-Tracked Adaptive Sparse Grids**](sparse_grid_cost_tracking.qmd){.tutorial-title}
+[Use measured wall-time as a budget for adaptive sparse grid refinement]{.tutorial-desc}
+[Hands-on]{.badge-hands-on}
+:::
+
+::: {.tutorial-card}
 [**Multifidelity Sparse Grids**](multifidelity_sparse_grids.qmd){.tutorial-title}
 [Multi-index collocation for model hierarchies with varying cost and accuracy]{.tutorial-desc}
 [Hands-on]{.badge-hands-on}
@@ -591,6 +645,46 @@ Run the first cell to install PyApprox, then run all remaining cells
 ::: {.tutorial-card}
 [**Multi-Fidelity Gaussian Processes**](multioutput_gp.qmd){.tutorial-title}
 [Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget]{.tutorial-desc}
+[Hands-on]{.badge-hands-on}
+:::
+
+::: {.tutorial-card}
+[**Sparse Variational GPs**](svgp_concept.qmd){.tutorial-title}
+[Inducing-point compression and the ELBO for large-scale GP inference]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Deep Gaussian Processes**](dgp_concept.qmd){.tutorial-title}
+[Composing GPs into hierarchical models that learn input-dependent length scales and non-Gaussian predictive distributions]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Multi-fidelity Deep GPs**](dgp_multifidelity_concept.qmd){.tutorial-title}
+[Multi-fidelity Deep Gaussian Processes for nonlinear inter-fidelity correlations]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+### Operator Learning {.sub-heading}
+
+::: {.tutorial-card}
+[**Operator Learning Concept**](operator_learning_concept.qmd){.tutorial-title}
+[Approximating maps between function spaces from paired input-output simulation data]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Kernel Operator Learning**](kerneloperator_usage.qmd){.tutorial-title}
+[Build a kernel-based operator surrogate end-to-end on a 1D diffusion problem]{.tutorial-desc}
+[Hands-on]{.badge-hands-on}
+:::
+
+### Universal Polynomial Networks {.sub-heading}
+
+::: {.tutorial-card}
+[**Shallow Universal Polynomial Network**](supn_surrogates.qmd){.tutorial-title}
+[Approximate an expensive model with a shallow universal polynomial network]{.tutorial-desc}
 [Hands-on]{.badge-hands-on}
 :::
 
@@ -669,6 +763,42 @@ Run the first cell to install PyApprox, then run all remaining cells
 ::: {.tutorial-card}
 [**KLE: SPDE Approach**](kle_spde.qmd){.tutorial-title}
 [Stochastic PDE approach to efficient random field generation]{.tutorial-desc}
+[Hands-on]{.badge-hands-on}
+:::
+
+---
+
+## Dynamical Systems {.topic-heading}
+
+[Learn ODE right-hand sides from data, preserve Hamiltonian structure, and predict trajectories at new parameters.]{.section-desc}
+
+::: {.tutorial-card}
+[**Learning Dynamical Systems**](dynamical_systems_learning_concept.qmd){.tutorial-title}
+[Approximating ODE right-hand sides from observed trajectory data for cheap forward prediction]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Derivative Matching**](derivative_matching_usage.qmd){.tutorial-title}
+[Fit a polynomial basis expansion to snapshot pairs for ODE forward prediction]{.tutorial-desc}
+[Hands-on]{.badge-hands-on}
+:::
+
+::: {.tutorial-card}
+[**Parametric Dynamical Systems**](parametric_dynamical_systems_usage.qmd){.tutorial-title}
+[Learn parameter-dependent ODE right-hand sides and predict trajectories at new parameter values]{.tutorial-desc}
+[Hands-on]{.badge-hands-on}
+:::
+
+::: {.tutorial-card}
+[**Hamiltonian Systems**](hamiltonian_systems_concept.qmd){.tutorial-title}
+[Structure-preserving surrogates that conserve energy by parametrizing the Hamiltonian itself]{.tutorial-desc}
+[Concept]{.badge-concept}
+:::
+
+::: {.tutorial-card}
+[**Learning Hamiltonians**](learning_hamiltonians_usage.qmd){.tutorial-title}
+[Fit Hamiltonian surrogates that preserve energy by construction]{.tutorial-desc}
 [Hands-on]{.badge-hands-on}
 :::
 

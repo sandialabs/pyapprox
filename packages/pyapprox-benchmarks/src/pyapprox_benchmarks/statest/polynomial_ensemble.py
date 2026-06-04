@@ -13,9 +13,14 @@ from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
 from pyapprox_benchmarks.problems.multifidelity_forward_uq import (
     MultifidelityForwardUQProblem,
 )
+from pyapprox_benchmarks.statest.statistics_mixin import (
+    MultifidelityStatisticsMixin,
+)
 
 
-class PolynomialEnsembleBenchmark(Generic[Array]):
+class PolynomialEnsembleBenchmark(
+    MultifidelityStatisticsMixin[Array], Generic[Array]
+):
     """Polynomial ensemble benchmark — analytical statistics.
 
     Creates PolynomialModelFunction instances directly with degrees
@@ -36,6 +41,7 @@ class PolynomialEnsembleBenchmark(Generic[Array]):
     ) -> None:
         self._bkd = bkd
         self._nmodels = nmodels
+        self._nqoi = 1
         self._models: List[PolynomialModelFunction[Array]] = [
             PolynomialModelFunction(bkd, degree=nmodels - k)
             for k in range(nmodels)

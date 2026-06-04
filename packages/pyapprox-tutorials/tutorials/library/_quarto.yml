@@ -8,7 +8,7 @@ project:
 website:
   title: "PyApprox"
   site-url: https://sandialabs.github.io/pyapprox/
-  description: "Open-source Python toolkit for uncertainty quantification, surrogate modeling, Bayesian experimental design, and sensitivity analysis. 90+ validated tutorials backed by Sandia National Laboratories."
+  description: "Open-source Python toolkit for uncertainty quantification, surrogate modeling, Bayesian experimental design, and sensitivity analysis. 100+ tutorials backed by Sandia National Laboratories."
   favicon: assets/favicon.ico
   open-graph: true
   navbar:
@@ -80,6 +80,11 @@ website:
             - pilot_studies_concept.qmd
             - pilot_studies_analysis.qmd
             - ensemble_selection_concept.qmd
+            - group_acv_concept.qmd
+            - group_acv_analysis.qmd
+            - group_acv_multistat_concept.qmd
+            - group_acv_optimization.qmd
+            - group_acv_mixed_concept.qmd
             - multifidelity_estimation_cookbook.qmd
         - section: "Inverse UQ"
           contents:
