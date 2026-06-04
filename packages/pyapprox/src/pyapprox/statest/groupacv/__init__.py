@@ -75,6 +75,7 @@ __all__ = [
     "GroupACVCostConstraint",
     # Allocation classes
     "AllocationProblemConfig",
+    "LogSpace",
     "GroupACVAllocationResult",
     "GroupACVAllocationOptimizer",
     "default_groupacv_optimizer",

@@ -268,7 +268,6 @@ class MeanGuidedSubsetFitter(Generic[Array]):
             GroupACVAllocationOptimizer,
         )
         from pyapprox.statest.groupacv.base import FittedGroupACVEstimator
-        from pyapprox.statest.groupacv.result import GroupACVAllocationResult
 
         bkd = self._bkd
 
@@ -298,15 +297,6 @@ class MeanGuidedSubsetFitter(Generic[Array]):
             + reduced_est._costs[0] * min_nhf_samples
         ))
         if target_cost < min_cost:
-            npartitions = reduced_est.npartitions()
-            failed_alloc = GroupACVAllocationResult(
-                npartition_samples=bkd.zeros((npartitions,)),
-                nsamples_per_model=bkd.zeros((reduced_est._nmodels,)),
-                actual_cost=0.0,
-                objective_value=bkd.array([float("inf")]),
-                success=False,
-                message="Budget too small for reduced pattern",
-            )
             raise RuntimeError(
                 f"Budget {target_cost} too small for reduced pattern "
                 f"(min_cost={min_cost:.2f})"
