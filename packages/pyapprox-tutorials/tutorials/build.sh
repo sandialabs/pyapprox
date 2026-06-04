@@ -180,14 +180,17 @@ if [ -n "$HTML_FAST" ]; then
 elif [ -n "$NO_EXECUTE" ]; then
     echo "  (skipping code execution and freeze cache)"
     quarto render --no-execute
-elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
-    # Per-tutorial mode: render each .qmd independently, then assemble
-    # Used for parallel builds (-j N) and timing builds (--timings)
+else
+    # Per-tutorial mode: render each .qmd independently, then assemble.
+    # Per-tutorial logs are always written to _build_logs/.
     if [ "$NJOBS" -gt 1 ] 2>/dev/null; then
         echo "  (parallel execution with $NJOBS jobs)"
-    else
+    elif [ -n "$TIMINGS" ]; then
         NJOBS=1
         echo "  (sequential execution with per-tutorial timing)"
+    else
+        NJOBS=1
+        echo "  (sequential execution with per-tutorial logging)"
     fi
 
     # Collect .qmd files to render (excluding index.qmd and skipped files)
@@ -321,14 +324,6 @@ elif [ "$NJOBS" -gt 1 ] 2>/dev/null || [ -n "$TIMINGS" ]; then
         tail -n +2 "$TIMINGS_FILE" | sort -t, -k2 -rn | while IFS=, read -r name secs status; do
             printf "  %6ss  %-5s  %s\n" "$secs" "$status" "$name"
         done
-    fi
-else
-    if [ -n "$FORCE_EXECUTE" ]; then
-        echo "  (forcing code execution)"
-        quarto render --execute
-    else
-        echo "  (using freeze cache)"
-        quarto render
     fi
 fi
 fi  # end PDF_ONLY check
