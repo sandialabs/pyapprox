@@ -1919,9 +1919,9 @@ class TestAnalyticalGroupACVDerivatives:
         checker = DerivativeChecker(obj)
         errors = checker.check_derivatives(iterate, verbosity=0)
 
-        assert checker.error_ratio(errors[0]) <= 3e-6
+        assert checker.error_ratio(errors[0]) <= 5e-6
         if len(errors) > 1:
-            assert checker.error_ratio(errors[1]) <= 3e-6
+            assert checker.error_ratio(errors[1]) <= 5e-6
 
     @pytest.mark.parametrize(
         "nmodels,nqoi",

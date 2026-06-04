@@ -7,7 +7,7 @@ steppers never dispatch on sparsity or rebuild factorizations.
 from typing import Generic, Optional, Protocol, runtime_checkable
 
 from scipy.sparse import issparse, spmatrix
-from scipy.sparse.linalg import splu
+from scipy.sparse.linalg import SuperLU, splu
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -90,19 +90,29 @@ class ConstantDenseMassMatrix(Generic[Array]):
 
 
 class ConstantSparseMassMatrix(Generic[Array]):
-    """Sparse mass matrix with cached SuperLU factorization.
+    """Sparse mass matrix with lazily cached SuperLU factorization.
 
     Uses scipy sparse LU. Autograd is not preserved — acceptable
     because sparse mass matrices only appear in Galerkin FEM where
     torch autograd is not used.
+
+    Factorization is deferred to first solve() call so that DAE mass
+    matrices (e.g. Stokes [M_vel, 0; 0, 0]) can be constructed and
+    used for apply() without triggering a singular-factor error.
     """
 
     def __init__(self, matrix: spmatrix, bkd: Backend[Array]) -> None:
         from scipy.sparse import csc_matrix
 
         self._matrix = matrix
+        self._csc = csc_matrix(matrix)
         self._bkd = bkd
-        self._lu = splu(csc_matrix(matrix))
+        self._lu: Optional[SuperLU] = None
+
+    def _ensure_lu(self) -> SuperLU:
+        if self._lu is None:
+            self._lu = splu(self._csc)
+        return self._lu
 
     def apply(self, vec: Array) -> Array:
         vec_np = self._bkd.to_numpy(vec)
@@ -110,7 +120,7 @@ class ConstantSparseMassMatrix(Generic[Array]):
 
     def solve(self, vec: Array) -> Array:
         vec_np = self._bkd.to_numpy(vec)
-        return self._bkd.asarray(self._lu.solve(vec_np))
+        return self._bkd.asarray(self._ensure_lu().solve(vec_np))
 
     def apply_transpose(self, vec: Array) -> Array:
         vec_np = self._bkd.to_numpy(vec)
@@ -118,7 +128,7 @@ class ConstantSparseMassMatrix(Generic[Array]):
 
     def solve_transpose(self, vec: Array) -> Array:
         vec_np = self._bkd.to_numpy(vec)
-        return self._bkd.asarray(self._lu.solve(vec_np, trans="T"))
+        return self._bkd.asarray(self._ensure_lu().solve(vec_np, trans="T"))
 
     def as_matrix(self) -> Array:
         return self._bkd.asarray(self._matrix.toarray())
