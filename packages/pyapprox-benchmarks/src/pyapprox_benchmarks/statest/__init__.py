@@ -3,6 +3,9 @@
 from pyapprox_benchmarks.statest.branin_ensemble import (
     BraninEnsembleProblem,
 )
+from pyapprox_benchmarks.statest.cantilever_beam_ensemble import (
+    CantileverBeamEnsembleProblem,
+)
 from pyapprox_benchmarks.statest.forrester_ensemble import (
     ForresterEnsembleProblem,
 )
@@ -17,6 +20,7 @@ from pyapprox_benchmarks.statest.tunable_ensemble import (
 )
 
 __all__ = [
+    "CantileverBeamEnsembleProblem",
     "BraninEnsembleProblem",
     "ForresterEnsembleProblem",
     "MultiOutputEnsembleBenchmark",

@@ -420,37 +420,50 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 beta = (w.lam * ln_J - w.mu) / J
                 gamma = (w.mu + w.lam * (1.0 - ln_J)) / (J**2)
 
-                # Build tangent A_iJkL inline and contract
-                # A_iJkL * v.grad[i,J] * u.grad[k,L]
-                A = {
-                    "A_1111": w.mu + gamma * F22**2,
-                    "A_1112": -gamma * F21 * F22,
-                    "A_1121": -gamma * F12 * F22,
-                    "A_1122": beta + gamma * F11 * F22,
-                    "A_1211": -gamma * F22 * F21,
-                    "A_1212": w.mu + gamma * F21**2,
-                    "A_1221": -beta + gamma * F12 * F21,
-                    "A_1222": -gamma * F11 * F21,
-                    "A_2111": -gamma * F22 * F12,
-                    "A_2112": -beta + gamma * F21 * F12,
-                    "A_2121": w.mu + gamma * F12**2,
-                    "A_2122": -gamma * F11 * F12,
-                    "A_2211": beta + gamma * F22 * F11,
-                    "A_2212": -gamma * F21 * F11,
-                    "A_2221": -gamma * F12 * F11,
-                    "A_2222": w.mu + gamma * F11**2,
-                }
+                # Precompute test/trial gradient components
+                v00 = v.grad[0, 0]
+                v01 = v.grad[0, 1]
+                v10 = v.grad[1, 0]
+                v11 = v.grad[1, 1]
+                u00 = u.grad[0, 0]
+                u01 = u.grad[0, 1]
+                u10 = u.grad[1, 0]
+                u11 = u.grad[1, 1]
 
-                result = 0.0
-                for i in range(2):
-                    for Jidx in range(2):
-                        for k in range(2):
-                            for L in range(2):
-                                key = f"A_{i + 1}{Jidx + 1}{k + 1}{L + 1}"
-                                result = (
-                                    result + A[key] * v.grad[i, Jidx] * u.grad[k, L]
-                                )
-                return result
+                # Unrolled contraction: A_iJkL * v.grad[i,J] * u.grad[k,L]
+                gF11F22 = gamma * F11 * F22
+                gF12F21 = gamma * F12 * F21
+                gF11F21 = gamma * F11 * F21
+                gF12F22 = gamma * F12 * F22
+                gF11F12 = gamma * F11 * F12
+                gF21F22 = gamma * F21 * F22
+
+                return (
+                    v00 * (
+                        (w.mu + gamma * F22**2) * u00
+                        - gF21F22 * u01
+                        - gF12F22 * u10
+                        + (beta + gF11F22) * u11
+                    )
+                    + v01 * (
+                        -gF21F22 * u00
+                        + (w.mu + gamma * F21**2) * u01
+                        + (-beta + gF12F21) * u10
+                        - gF11F21 * u11
+                    )
+                    + v10 * (
+                        -gF12F22 * u00
+                        + (-beta + gF12F21) * u01
+                        + (w.mu + gamma * F12**2) * u10
+                        - gF11F12 * u11
+                    )
+                    + v11 * (
+                        (beta + gF11F22) * u00
+                        - gF11F21 * u01
+                        - gF11F12 * u10
+                        + (w.mu + gamma * F11**2) * u11
+                    )
+                )
 
             K_np = asm(
                 BilinearForm(tangent_2d),

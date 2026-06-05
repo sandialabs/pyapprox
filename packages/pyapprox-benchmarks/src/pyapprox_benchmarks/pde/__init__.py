@@ -1,5 +1,9 @@
 """PDE forward UQ problems."""
 
+from pyapprox_benchmarks.pde.cantilever_beam_ensemble import (
+    SharedFieldBeamModel,
+    build_shared_field_beam,
+)
 from pyapprox_benchmarks.pde.cantilever_beam import (
     MESH_PATHS,
     CantileverBeam2DForwardModel,
@@ -42,4 +46,6 @@ __all__ = [
     "build_elastic_bar_1d",
     "build_hyperelastic_pressurized_cylinder_2d",
     "build_pressurized_cylinder_2d",
+    "SharedFieldBeamModel",
+    "build_shared_field_beam",
 ]

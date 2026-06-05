@@ -316,6 +316,12 @@ Run the first cell to install PyApprox, then run all remaining cells
 [Cookbook]{.badge-cookbook}
 :::
 
+::: {.tutorial-card}
+[**Aerospace Beam Case Study**](multifidelity_aerospace_beam.qmd){.tutorial-title}
+[Group ACV on a partially ordered FEM ensemble with shared parameterization and a known-mean surrogate]{.tutorial-desc}
+[Usage]{.badge-usage}
+:::
+
 ---
 
 ## Inverse UQ {.topic-heading}

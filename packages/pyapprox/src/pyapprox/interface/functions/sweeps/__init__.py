@@ -11,6 +11,9 @@ from pyapprox.interface.functions.sweeps.bounded import (
 from pyapprox.interface.functions.sweeps.gaussian import (
     GaussianParameterSweeper,
 )
+from pyapprox.interface.functions.sweeps.marginal import (
+    MarginalParameterSweeper,
+)
 from pyapprox.interface.functions.sweeps.plots import (
     plot_single_qoi_sweep,
 )
@@ -22,5 +25,6 @@ __all__ = [
     "ParameterSweeperProtocol",
     "BoundedParameterSweeper",
     "GaussianParameterSweeper",
+    "MarginalParameterSweeper",
     "plot_single_qoi_sweep",
 ]
