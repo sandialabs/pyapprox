@@ -184,14 +184,18 @@ $\sigma_\ell^2$. Each known moment removes one row. If the LF model has
 listed above — both rows are removed.
 
 ::: {.callout-note}
-## Per-model all-or-nothing for mean+variance
-PyApprox's `known_quantities` API enforces a per-model all-or-nothing rule for
-the mean+variance case: a model is either fully known (both moments) or fully
+## Known variance requires known mean
+A model with known variance must also have known mean — variance estimation
+depends on the mean, so the `MeanGuidedSubsetFitter` enforces this constraint.
+For joint mean+variance estimation, this naturally becomes the per-model
+all-or-nothing rule: a model is either fully known (both moments) or fully
 unknown (neither). This reflects the common case — analytic surrogates and GP
-posteriors give both moments together — and simplifies the API. Asymmetric
-configurations (mean known but variance not, or vice versa) are not currently
-supported. Pure variance estimation has no such constraint; you can mix
-known-variance and unknown-variance models freely.
+posteriors give both moments together.
+
+Two valid configurations for a given model:
+
+- **Known mean only** — helps screening identify active partitions
+- **Known mean + variance** — additionally eliminates variance estimation error
 :::
 
 
@@ -264,6 +268,46 @@ a real and quantifiable variance reduction. Second: known moments compound. A
 practitioner with two surrogates of known mean does not need to choose which one
 to exploit — the framework uses both, and the gain from using both exceeds the
 gain from either alone.
+
+
+## Known Statistics for Variance and Joint Estimation
+
+The previous sections showed known means improving the mean estimator. The same
+mechanism extends to variance and joint mean+variance estimation via the
+`MeanGuidedSubsetFitter`, which uses a cheap Mean-stat solve (Stage 1) to
+screen partitions, then optimizes the target stat (Stage 2) on the reduced
+problem.
+
+The figure below sweeps the number of models with known statistics
+$|\mathcal{K}| = 0, \ldots, 4$ (cheapest models first) on the 5-model
+polynomial benchmark at budget $P = 500$.
+
+```{python}
+#| echo: false
+#| label: fig-known-stats-multistat
+#| fig-cap: "Variance reduction from known statistics (mean + variance per model). (a) Variance stat. (b–c) Joint mean and variance components."
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._group_acv import plot_known_stats_multistat
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+plot_known_stats_multistat(axes, target_cost=500.0)
+fig.tight_layout()
+plt.show()
+```
+
+Key observations:
+
+1. **Orders of magnitude reduction for the variance stat** — Panel (a) shows
+   that each additional model with known mean + variance yields dramatic
+   improvement in estimator variance.
+
+2. **Joint estimation benefits equally** — Panels (b) and (c) show that
+   providing both mean and variance for each known model yields dramatic
+   reduction in both the mean and variance components of the joint estimator.
+
+3. **Cheapest-first ordering** is optimal for maximizing benefit per additional
+   known model, since cheap models receive the most samples and thus contribute
+   the most estimation error.
 
 
 ## API Usage
@@ -382,9 +426,8 @@ total cost.
   any finite budget (see @fig-mixed-known-spectrum panel b)
 - The `known_quantities` API takes a dict mapping `(model_index, stat_name)`
   to the known value array
-- Mean+variance estimation enforces per-model all-or-nothing: a model is
-  fully known (both moments) or fully unknown (neither); variance-only
-  estimation has no such restriction
+- Known variance requires known mean — the fitter enforces this. For joint
+  mean+variance estimation, this becomes the per-model all-or-nothing rule
 - The framework interpolates smoothly between full ACV
   ($|\mathcal{K}| = 0$, no moments known) and full CVMC
   ($|\mathcal{K}| = M$, all moments known)

@@ -288,7 +288,7 @@ exploiting the cross-statistic coupling through the $B$ matrix.
 For problems where some low-fidelity model means are known analytically, the
 allocation-target-mismatch penalty shifts — see
 [Group ACV Mixed Concept](group_acv_mixed_concept.qmd) for how known statistics
-change the trade-off.
+change the trade-off for variance and joint estimation.
 
 
 ## Which Estimator Class Supports What

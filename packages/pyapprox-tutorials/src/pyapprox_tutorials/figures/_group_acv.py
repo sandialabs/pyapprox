@@ -6,7 +6,6 @@ Covers: group_acv_concept.qmd, group_acv_analysis.qmd,
 
 import matplotlib.patches as mpatches
 import numpy as np
-
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.statest import (
     GMFEstimator,
@@ -1075,3 +1074,155 @@ def plot_allocation_target_mismatch(axes, target_cost=500.0):
         ax.set_title(title, fontsize=11)
         ax.grid(True, alpha=0.2, axis="y", which="both")
         ax.set_axisbelow(True)
+
+
+# ---------------------------------------------------------------------------
+# group_acv_multistat_concept.qmd — known statistics for variance / joint
+# ---------------------------------------------------------------------------
+
+def plot_known_stats_multistat(axes, target_cost=500.0):
+    """Variance reduction vs number of known quantities for three stats.
+
+    Three panels: (a) variance stat, (b) joint mean component,
+    (c) joint variance component.  Each panel sweeps |K| = 0..4 known
+    models (cheapest first), with separate curves for known-mean-only,
+    known-variance-only, and known-both.
+
+    Parameters
+    ----------
+    axes : array of 3 matplotlib Axes
+    target_cost : float, optional
+    """
+    bkd = NumpyBkd()
+    bench = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+    costs = bench.problem().costs()
+    nqoi = bench.problem().models()[0].nqoi()
+    nmodels = len(bkd.to_numpy(costs))
+    hf_cost = bkd.to_float(costs[0])
+
+    cov_full = bench.covariance_matrix()
+    W = bench.covariance_of_centered_values_kronecker_product()
+    B = bench.covariance_of_mean_and_variance_estimators()
+    means = bench.ensemble_means()
+    variances = bkd.diag(cov_full)
+
+    all_subsets = get_model_subsets(nmodels, bkd)
+
+    stat_mean = MultiOutputMean(nqoi, bkd)
+    stat_mean.set_pilot_quantities(cov_full)
+
+    stat_var = MultiOutputVariance(nqoi, bkd)
+    stat_var.set_pilot_quantities(cov_full, W)
+
+    stat_joint = MultiOutputMeanAndVariance(nqoi, bkd)
+    stat_joint.set_pilot_quantities(cov_full, W, B)
+    mean_idx = stat_joint.stat_slot_indices("mean")
+    var_idx = stat_joint.stat_slot_indices("variance")
+
+    n_mc = float(target_cost) / hf_cost
+    mc_mean = bkd.to_float(
+        stat_mean.high_fidelity_estimator_covariance(
+            bkd.asarray(n_mc)
+        )[0, 0]
+    )
+    mc_var = bkd.to_float(
+        stat_var.high_fidelity_estimator_covariance(
+            bkd.asarray(n_mc)
+        )[0, 0]
+    )
+
+    order = _CHEAPEST_FIRST_ORDER
+    nk_range = range(len(order) + 1)
+
+    def _build_kq(nknown_mean, nknown_var):
+        kq = {}
+        for i in order[:nknown_mean]:
+            kq[(i, "mean")] = means[i, :nqoi]
+        for i in order[:nknown_var]:
+            kq[(i, "variance")] = variances[i : i + 1]
+        return kq if kq else None
+
+    def _solve_guided(stat, kq):
+        fitter = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS,
+            candidate_subsets=all_subsets,
+            optimizer=_slsqp(),
+            problem_config=_LOG_INEQ_CONFIG,
+            known_quantities=kq,
+        )
+        result = fitter.fit(float(target_cost), min_nhf_samples=2)
+        return bkd.to_numpy(result.best_estimator.covariance())
+
+    # Variance stat: single "both" curve (mean-only and variance-only are
+    # invalid for variance estimation)
+    curves_var = []
+    for nk in nk_range:
+        kq = _build_kq(nk, nk)
+        cov_v = _solve_guided(stat_var, kq)
+        curves_var.append(cov_v[0, 0] / mc_var)
+
+    # Joint stat: all-or-nothing per model, so only "both" is valid
+    curves_joint_m = []
+    curves_joint_v = []
+    for nk in nk_range:
+        kq = _build_kq(nk, nk)
+        cov_j = _solve_guided(stat_joint, kq)
+        curves_joint_m.append(
+            cov_j[mean_idx[0], mean_idx[0]] / mc_mean
+        )
+        curves_joint_v.append(
+            cov_j[var_idx[0], var_idx[0]] / mc_var
+        )
+
+    x = list(nk_range)
+    style_both = dict(color="#27AE60", marker="D", ls="-")
+
+    # Panel (a): variance stat
+    ax = axes[0]
+    ax.semilogy(x, curves_var, label="known mean + variance",
+                ms=6, **style_both)
+    ax.set_xlabel(r"$|\mathcal{K}|$ (known models, cheapest first)")
+    ax.set_ylabel(
+        r"$\mathbb{V}[\hat{\sigma}_0^2]\;/\;\mathbb{V}_{\mathrm{MC}}$",
+        fontsize=10,
+    )
+    ax.set_title(f"(a) Variance stat ($P={int(target_cost)}$)", fontsize=11)
+    ax.set_xticks(x)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2, which="both")
+    ax.set_axisbelow(True)
+
+    # Panel (b): joint mean component
+    ax = axes[1]
+    ax.semilogy(x, curves_joint_m, label="both known",
+                color="#27AE60", marker="D", ls="-", ms=6)
+    ax.set_xlabel(r"$|\mathcal{K}|$ (known models, cheapest first)")
+    ax.set_ylabel(
+        r"$\mathbb{V}[\hat{\mu}_0]\;/\;\mathbb{V}_{\mathrm{MC}}$",
+        fontsize=10,
+    )
+    ax.set_title(
+        f"(b) Joint: mean component ($P={int(target_cost)}$)", fontsize=11,
+    )
+    ax.set_xticks(x)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2, which="both")
+    ax.set_axisbelow(True)
+
+    # Panel (c): joint variance component
+    ax = axes[2]
+    ax.semilogy(x, curves_joint_v, label="both known",
+                color="#27AE60", marker="D", ls="-", ms=6)
+    ax.set_xlabel(r"$|\mathcal{K}|$ (known models, cheapest first)")
+    ax.set_ylabel(
+        r"$\mathbb{V}[\hat{\sigma}_0^2]\;/\;\mathbb{V}_{\mathrm{MC}}$",
+        fontsize=10,
+    )
+    ax.set_title(
+        f"(c) Joint: variance component ($P={int(target_cost)}$)",
+        fontsize=11,
+    )
+    ax.set_xticks(x)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.2, which="both")
+    ax.set_axisbelow(True)

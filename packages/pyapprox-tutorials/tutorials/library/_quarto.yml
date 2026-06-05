@@ -86,6 +86,7 @@ website:
             - group_acv_optimization.qmd
             - group_acv_mixed_concept.qmd
             - multifidelity_estimation_cookbook.qmd
+            - multifidelity_aerospace_beam.qmd
         - section: "Inverse UQ"
           contents:
             - bayesian_inference_intro.qmd

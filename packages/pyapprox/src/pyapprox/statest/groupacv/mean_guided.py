@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
+    Dict,
     Generic,
     List,
     Optional,
@@ -105,6 +106,11 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         actual estimator, and forcing them to the target-stat lower bound
         (e.g. 2 for variance) wastes budget without meaningful variance
         reduction.
+    known_quantities : dict, optional
+        Known statistics, e.g.
+        ``{(3, "mean"): array, (3, "variance"): array}``.
+        Mean-type entries are used in Stage 1 screening; all entries
+        are passed to the Stage 2 target-stat estimator.
     """
 
     def __init__(
@@ -118,6 +124,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         problem_config: Optional["AllocationProblemConfig"] = None,
         reg_blue: float = 0,
         activity_threshold: float = 1.0,
+        known_quantities: Optional[Dict[Tuple[int, str], Array]] = None,
     ) -> None:
         from pyapprox.statest.groupacv.variable_space import (
             AllocationProblemConfig,
@@ -131,6 +138,30 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         self._objective = objective
         self._reg_blue = reg_blue
         self._activity_threshold = activity_threshold
+        if known_quantities is not None:
+            stat_accepts_variance = True
+            try:
+                stat.stat_slot_indices("variance")
+            except ValueError:
+                stat_accepts_variance = False
+
+            models_with_keys: Dict[int, List[str]] = {}
+            for model_idx, stat_name in known_quantities:
+                models_with_keys.setdefault(model_idx, []).append(stat_name)
+            for model_idx, keys in models_with_keys.items():
+                if "variance" in keys and "mean" not in keys:
+                    raise ValueError(
+                        f"Model {model_idx} has known variance but not "
+                        f"known mean — a model with known variance must "
+                        f"also have known mean"
+                    )
+                if stat_accepts_variance and "mean" in keys and "variance" not in keys:
+                    raise ValueError(
+                        f"Model {model_idx} has known mean but not known "
+                        f"variance — when estimating variance, both must "
+                        f"be provided"
+                    )
+        self._known_quantities = known_quantities
 
         if problem_config is None:
             problem_config = AllocationProblemConfig()
@@ -159,6 +190,33 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         mean_stat.set_pilot_quantities(self._stat._cov)
         return mean_stat
 
+    def _filter_known_quantities(
+        self,
+        accepted_stat_names: Tuple[str, ...],
+    ) -> Optional[Dict[Tuple[int, str], Array]]:
+        """Filter known_quantities to entries matching accepted stat names."""
+        if self._known_quantities is None:
+            return None
+        filtered = {
+            k: v for k, v in self._known_quantities.items()
+            if k[1] in accepted_stat_names
+        }
+        return filtered if filtered else None
+
+    def _target_stat_accepted_names(self) -> Tuple[str, ...]:
+        """Return stat names the target stat accepts in known_quantities."""
+        if self._known_quantities is None:
+            return ()
+        candidate_names = {k[1] for k in self._known_quantities}
+        accepted: List[str] = []
+        for name in sorted(candidate_names):
+            try:
+                self._stat.stat_slot_indices(name)
+                accepted.append(name)
+            except ValueError:
+                pass
+        return tuple(accepted)
+
     def _screen(
         self,
         target_cost: float,
@@ -180,6 +238,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
             self._costs,
             reg_blue=self._reg_blue,
             model_subsets=self._candidate_subsets,
+            known_quantities=self._filter_known_quantities(("mean",)),
         )
 
         # Screening config: log space, low lb so partitions can vanish
@@ -280,11 +339,15 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         active_subsets = [
             self._candidate_subsets[i] for i in active_indices
         ]
+        target_kq = self._filter_known_quantities(
+            self._target_stat_accepted_names()
+        )
         reduced_est = self._estimator_class(
             self._stat,
             self._costs,
             reg_blue=self._reg_blue,
             model_subsets=active_subsets,
+            known_quantities=target_kq,
         )
 
         # Check budget feasibility for reduced estimator

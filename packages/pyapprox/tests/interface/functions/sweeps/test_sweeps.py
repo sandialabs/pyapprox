@@ -5,11 +5,16 @@ Tests bounded and Gaussian parameter sweepers with dual backend support.
 
 import numpy as np
 import pytest
-
 from pyapprox.interface.functions.sweeps import (
     BoundedParameterSweeper,
     GaussianParameterSweeper,
+    MarginalParameterSweeper,
 )
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
+from pyapprox.probability.univariate.scipy_continuous import (
+    ScipyContinuousMarginal,
+)
+from scipy.stats import lognorm, uniform
 
 
 class TestBoundedParameterSweeper:
@@ -198,3 +203,116 @@ class TestGaussianParameterSweeper:
         canonical = sweeper.canonical_active_samples()
 
         assert canonical.shape == (4, 20)
+
+
+class TestMarginalParameterSweeper:
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(42)
+
+    def test_basic_sweep_generation(self, bkd):
+        marginals = [
+            GaussianMarginal(0.0, 1.0, bkd),
+            GaussianMarginal(0.0, 1.0, bkd),
+            ScipyContinuousMarginal(lognorm(s=0.5, scale=1.0), bkd),
+        ]
+        sweeper = MarginalParameterSweeper(
+            marginals, sweep_radius=2.5, nsamples_per_sweep=40, bkd=bkd,
+        )
+        assert sweeper.nvars() == 3
+        assert sweeper.nsamples_per_sweep() == 40
+
+        samples = sweeper.rvs(nsweeps=3)
+        assert samples.shape == (3, 120)
+
+    def test_lognormal_samples_positive(self, bkd):
+        marginals = [
+            GaussianMarginal(0.0, 1.0, bkd),
+            ScipyContinuousMarginal(lognorm(s=0.8, scale=5.0), bkd),
+        ]
+        sweeper = MarginalParameterSweeper(
+            marginals, sweep_radius=2.5, nsamples_per_sweep=50, bkd=bkd,
+        )
+        samples = sweeper.rvs(nsweeps=5)
+        samples_np = bkd.to_numpy(samples)
+        assert np.all(samples_np[1, :] > 0)
+
+    def test_bounded_marginals_within_support(self, bkd):
+        marginals = [
+            ScipyContinuousMarginal(uniform(loc=2.0, scale=3.0), bkd),
+            ScipyContinuousMarginal(uniform(loc=0.0, scale=1.0), bkd),
+        ]
+        sweeper = MarginalParameterSweeper(
+            marginals, sweep_radius=2.0, nsamples_per_sweep=40, bkd=bkd,
+        )
+        samples = sweeper.rvs(nsweeps=5)
+        samples_np = bkd.to_numpy(samples)
+        assert np.all(samples_np[0, :] >= 2.0 - 1e-10)
+        assert np.all(samples_np[0, :] <= 5.0 + 1e-10)
+        assert np.all(samples_np[1, :] >= 0.0 - 1e-10)
+        assert np.all(samples_np[1, :] <= 1.0 + 1e-10)
+
+    def test_canonical_active_samples_shape(self, bkd):
+        marginals = [
+            GaussianMarginal(0.0, 1.0, bkd),
+            GaussianMarginal(0.0, 1.0, bkd),
+        ]
+        sweeper = MarginalParameterSweeper(
+            marginals, sweep_radius=2.0, nsamples_per_sweep=30, bkd=bkd,
+        )
+        sweeper.rvs(nsweeps=4)
+        canonical = sweeper.canonical_active_samples()
+        assert canonical.shape == (4, 30)
+
+    def test_sweep_center_at_bounds_midpoint(self, bkd):
+        marginals = [
+            GaussianMarginal(5.0, 2.0, bkd),
+            ScipyContinuousMarginal(lognorm(s=0.5, scale=3.0), bkd),
+        ]
+        sweeper = MarginalParameterSweeper(
+            marginals, sweep_radius=2.0, nsamples_per_sweep=51, bkd=bkd,
+        )
+        samples = sweeper.rvs(nsweeps=1)
+        mid = bkd.to_numpy(samples[:, 25])
+        # Center is midpoint of physical-space quantile bounds
+        bkd.assert_allclose(
+            bkd.asarray([mid[0]]), bkd.asarray([5.0]), atol=0.3,
+        )
+        ln_dist = lognorm(s=0.5, scale=3.0)
+        from scipy.stats import norm as sp_norm
+        p_lo = sp_norm.cdf(-2.0)
+        p_hi = sp_norm.cdf(2.0)
+        expected_mid = (ln_dist.ppf(p_lo) + ln_dist.ppf(p_hi)) / 2
+        bkd.assert_allclose(
+            bkd.asarray([mid[1]]), bkd.asarray([expected_mid]), atol=0.5,
+        )
+
+    def test_mixed_marginals(self, bkd):
+        marginals = [
+            GaussianMarginal(0.0, 1.0, bkd),
+            ScipyContinuousMarginal(uniform(loc=0.0, scale=10.0), bkd),
+            ScipyContinuousMarginal(lognorm(s=1.0, scale=1.0), bkd),
+        ]
+        sweeper = MarginalParameterSweeper(
+            marginals, sweep_radius=2.0, nsamples_per_sweep=30, bkd=bkd,
+        )
+        samples = sweeper.rvs(nsweeps=2)
+        assert samples.shape == (3, 60)
+        samples_np = bkd.to_numpy(samples)
+        assert np.all(samples_np[1, :] >= 0.0 - 1e-10)
+        assert np.all(samples_np[1, :] <= 10.0 + 1e-10)
+        assert np.all(samples_np[2, :] > 0)
+
+    def test_set_rotation_matrices(self, bkd):
+        marginals = [
+            GaussianMarginal(0.0, 1.0, bkd),
+            GaussianMarginal(0.0, 1.0, bkd),
+        ]
+        sweeper = MarginalParameterSweeper(
+            marginals, sweep_radius=2.0, nsamples_per_sweep=20, bkd=bkd,
+        )
+        rotation = bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
+        sweeper.set_sweep_rotation_matrices(rotation)
+        samples = sweeper.rvs(nsweeps=2)
+        assert samples.shape == (2, 40)
