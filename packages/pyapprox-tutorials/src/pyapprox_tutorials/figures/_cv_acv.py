@@ -435,7 +435,7 @@ def plot_acv_ceiling(benchmark, bkd, ax):
             target_cost = bkd.to_float(
                 nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:]))
             )
-            est_cov = estimator.covariance_from_ratios(target_cost, ratios)
+            est_cov = estimator.covariance_at(target_cost, ratios)
             est_var = bkd.to_float(est_cov[0, 0])
             est_costs.append(target_cost)
             est_ratios.append(est_var / mc_var)

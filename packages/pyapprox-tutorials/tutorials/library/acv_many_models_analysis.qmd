@@ -182,9 +182,13 @@ for r in r_values:
         target_cost, partition_ratios
     )
     npart_int = bkd.asarray(
-        [int(round(float(npart[k]))) for k in range(len(npart))]
+        [int(round(float(npart[k]))) for k in range(len(npart))],
+        dtype=int,
     )
-    nsamp = est._compute_nsamples_per_model(npart_int)
+    nsamp = bkd.asarray(
+        [int(round(float(v))) for v in est._compute_nsamples_per_model(npart)],
+        dtype=int,
+    )
     actual_cost = float((nsamp * bkd.asarray([cost_hf_unit, cost_lf_unit])).sum())
     alloc = ACVAllocationResult(
         partition_ratios=partition_ratios,

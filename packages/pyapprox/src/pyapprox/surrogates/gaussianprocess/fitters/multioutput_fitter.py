@@ -156,9 +156,7 @@ class MultiOutputGPMaximumLikelihoodFitter(Generic[Array]):
         loss = GPNegativeLogMarginalLikelihoodLoss(
             clone, (clone.data().X_list(), clone.data().y_stacked())
         )
-        if _is_torch(self._bkd) and not hasattr(
-            clone.kernel(), "jacobian_wrt_params"
-        ):
+        if _is_torch(self._bkd):
             _bkd_jacobian = getattr(self._bkd, "jacobian")
             bkd = self._bkd
 

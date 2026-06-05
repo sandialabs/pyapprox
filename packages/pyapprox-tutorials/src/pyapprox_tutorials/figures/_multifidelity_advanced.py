@@ -308,6 +308,7 @@ def plot_mlblue_ceiling(ax):
         npartition_samples = bkd.asarray(
             nhf_samples * np.hstack(
                 (1, npartition_ratio_base * 2**factor)),
+            dtype=float,
         )
         actual_cost = bkd.to_float(
             mlblue_template._estimator_cost(npartition_samples))
@@ -649,7 +650,7 @@ def plot_pacv_ceiling(ax):
             model_ratios = estimator._partition_ratios_to_model_ratios(ratios)
             target_cost = bkd.to_float(
                 nhf_samples * (costs[0] + bkd.dot(model_ratios, costs[1:])))
-            est_cov = estimator.covariance_from_ratios(target_cost, ratios)
+            est_cov = estimator.covariance_at(target_cost, ratios)
             est_var = bkd.to_float(est_cov[0, 0])
             est_costs.append(target_cost)
             est_ratios.append(est_var / mc_var)
@@ -676,7 +677,7 @@ def plot_pacv_ceiling(ax):
             target_cost = bkd.to_float(
                 nhf_samples * (
                     costs[0] + bkd.dot(model_ratios, costs[1:])))
-            est_cov = est.covariance_from_ratios(target_cost, ratios)
+            est_cov = est.covariance_at(target_cost, ratios)
             est_var = bkd.to_float(est_cov[0, 0])
             if est_var < best_var:
                 best_var = est_var
