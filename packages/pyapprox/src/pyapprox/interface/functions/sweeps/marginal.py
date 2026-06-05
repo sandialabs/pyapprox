@@ -6,15 +6,21 @@ quantiles, then delegates to `BoundedParameterSweeper` so the sweep
 is a straight line in user (physical) coordinates.
 """
 
-from typing import Generic, List, Tuple
+from typing import Generic, List, Protocol, Tuple, runtime_checkable
 
 from scipy.stats import norm
 
 from pyapprox.interface.functions.sweeps.bounded import (
     BoundedParameterSweeper,
 )
-from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class InvCDFProtocol(Protocol[Array]):
+    """Minimal protocol: anything with an invcdf method."""
+
+    def invcdf(self, quantiles: Array) -> Array: ...
 
 
 class MarginalParameterSweeper(Generic[Array]):
@@ -41,7 +47,7 @@ class MarginalParameterSweeper(Generic[Array]):
 
     def __init__(
         self,
-        marginals: List[MarginalProtocol[Array]],
+        marginals: List[InvCDFProtocol[Array]],
         sweep_radius: float,
         nsamples_per_sweep: int,
         bkd: Backend[Array],
