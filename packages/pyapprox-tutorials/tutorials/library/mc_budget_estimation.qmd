@@ -196,11 +196,11 @@ With the budget determined, we generate samples, evaluate the model, and compute
 ```{python}
 # Generate samples according to the allocation
 np.random.seed(123)
-samples_allocated = est.generate_samples_per_model(variable.rvs)[0]
+samples_allocated = fitted.generate_samples_per_model(variable.rvs)[0]
 values_allocated = model(samples_allocated)
 
 # Compute the statistics
-result = est(values_allocated)
+result = fitted(values_allocated)
 mean_est = result[:nqoi]
 cov_entries = result[nqoi:]  # lower-triangle entries of covariance
 
@@ -373,11 +373,11 @@ print(f"Actual cost: {float(fitted_full.nsamples_per_model()[0]) * cost_per_eval
 
 # 5. Generate samples and evaluate model
 np.random.seed(1000)
-samples_final = est_full.generate_samples_per_model(variable.rvs)[0]
+samples_final = fitted_full.generate_samples_per_model(variable.rvs)[0]
 values_final = model(samples_final)
 
 # 6. Compute statistics
-result_full = est_full(values_final)
+result_full = fitted_full(values_final)
 mean_final = result_full[:nqoi]
 cov_entries_final = result_full[nqoi:]
 

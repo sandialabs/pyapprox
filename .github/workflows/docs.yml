@@ -27,6 +27,7 @@ jobs:
           pip install ipykernel
           python -m ipykernel install --user
       - name: Render tutorials
+        shell: bash -e -o pipefail {0}
         run: cd packages/pyapprox-tutorials/tutorials && ./build.sh -j 1 --notebooks 2>&1 | tee /tmp/quarto-build.log
       - name: Check for unresolved crossrefs
         run: |
