@@ -5,6 +5,7 @@ Covers: group_acv_concept.qmd, group_acv_analysis.qmd,
 """
 
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.statest import (
@@ -400,6 +401,172 @@ def plot_gacv_convergence(axes, target_costs=(20.0, 100.0, 500.0)):
 
     _ceiling_panel(axes[0], bkd, benchmark)
     _optimized_panel(axes[1], bkd, benchmark, target_costs)
+
+
+# ---------------------------------------------------------------------------
+# group_acv_concept.qmd — sample allocation figure
+# ---------------------------------------------------------------------------
+
+def _subset_label(subset_np):
+    """Format a model subset as e.g. '{0,1,3}'."""
+    ids = sorted(int(i) for i in subset_np)
+    inner = ",".join(str(i) for i in ids)
+    return r"$\{" + inner + r"\}$"
+
+
+def plot_sample_allocation(axes, target_cost=500.0):
+    """group_acv_concept.qmd -> fig-sample-allocation
+
+    Three-panel figure showing how the allocator distributes samples.
+
+    Panel (a): samples per partition (one bar per subset/partition), with
+    each bar segmented by the models in that subset. Log y-axis.
+
+    Panel (b): total samples per model (summed across all partitions the
+    model appears in). Log y-axis. Bars colored by model.
+
+    Panel (c): same as (b) but comparing four estimators side-by-side.
+
+    Parameters
+    ----------
+    axes : sequence of 3 matplotlib Axes
+    target_cost : float
+    """
+    bkd = NumpyBkd()
+    benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
+    cov = benchmark.ensemble_covariance()
+    costs = benchmark.problem().costs()
+    nqoi = benchmark.problem().models()[0].nqoi()
+    nmodels = len(bkd.to_numpy(costs))
+
+    stat = MultiOutputMean(nqoi, bkd)
+    stat.set_pilot_quantities(cov)
+    subsets = get_model_subsets(nmodels, bkd)
+
+    template = GroupACVEstimatorIS(stat, costs, model_subsets=subsets)
+    result = GroupACVAllocationOptimizer(
+        template, optimizer=_slsqp(), problem_config=_LOG_INEQ_CONFIG,
+    ).optimize(float(target_cost), round_nsamples=False)
+
+    nps = bkd.to_numpy(result.npartition_samples).astype(float)
+    npm = bkd.to_numpy(
+        template._compute_nsamples_per_model(bkd.asarray(nps))
+    )
+    model_subsets_np = [bkd.to_numpy(s).astype(int) for s in subsets]
+
+    # --- Panel (a): samples per partition, stacked by model ---
+    ax = axes[0]
+    active_mask = nps > 1.0
+    active_idx = np.where(active_mask)[0]
+    active_nps = nps[active_mask]
+    active_subsets = [model_subsets_np[i] for i in active_idx]
+
+    sort_order = np.argsort(-active_nps)
+    active_nps = active_nps[sort_order]
+    active_subsets = [active_subsets[i] for i in sort_order]
+
+    x_part = np.arange(len(active_nps))
+    bar_width = 0.65
+
+    for bar_i, (m_k, subset) in enumerate(zip(active_nps, active_subsets)):
+        n_models_in = len(subset)
+        seg_height = m_k / n_models_in
+        bottom = 0.0
+        for slot, m_id in enumerate(sorted(subset)):
+            ax.bar(
+                bar_i, seg_height, bar_width, bottom=bottom,
+                color=_MODEL_COLORS[m_id], edgecolor="k", lw=0.3,
+            )
+            bottom += seg_height
+
+    xlabels = [_subset_label(s) for s in active_subsets]
+    ax.set_xticks(x_part)
+    ax.set_xticklabels(xlabels, fontsize=6, rotation=45, ha="right")
+    ax.set_yscale("log")
+    ax.set_ylabel("Partition samples $m^k$", fontsize=10)
+    ax.set_title(
+        f"(a) Samples per partition ($P={int(target_cost)}$)",
+        fontsize=11,
+    )
+    ax.grid(True, alpha=0.2, axis="y", which="both")
+    ax.set_axisbelow(True)
+
+    # --- Panel (b): total samples per model ---
+    ax = axes[1]
+    x_mod = np.arange(nmodels)
+    ax.bar(
+        x_mod, npm, 0.6,
+        color=_MODEL_COLORS[:nmodels], edgecolor="k", lw=0.5,
+    )
+    ax.set_xticks(x_mod)
+    ax.set_xticklabels(
+        [_MODEL_LABELS[i] for i in range(nmodels)], fontsize=9,
+    )
+    ax.set_yscale("log")
+    ax.set_ylabel("Total samples $n_\\ell$", fontsize=10)
+    ax.set_title(
+        f"(b) Total samples per model ($P={int(target_cost)}$)",
+        fontsize=11,
+    )
+    ax.grid(True, alpha=0.2, axis="y", which="both")
+    ax.set_axisbelow(True)
+
+    # --- Panel (c): samples per model across estimators ---
+    ax = axes[2]
+    ri_zeros = bkd.zeros(nmodels - 1, dtype=int)
+
+    estimators = {
+        "MLMC": MLMCEstimator(stat, costs),
+        "MFMC": MFMCEstimator(stat, costs),
+        "ACVMF": GMFEstimator(stat, costs, recursion_index=ri_zeros),
+        "GACV-IS": template,
+    }
+    est_colors = {
+        "MLMC": "#2C7FB8",
+        "MFMC": "#E67E22",
+        "ACVMF": "#8E44AD",
+        "GACV-IS": "#27AE60",
+    }
+    optimizer = ScipySLSQPOptimizer(maxiter=200)
+
+    all_npm = {}
+    for name, est in estimators.items():
+        if name in ("MLMC", "MFMC"):
+            from pyapprox.statest.acv import default_allocator_factory
+            res = default_allocator_factory(est).allocate(float(target_cost))
+            n_per_model = bkd.to_numpy(res.nsamples_per_model).astype(float)
+        elif name == "ACVMF":
+            res = ACVAllocator(est, optimizer=optimizer).allocate(
+                float(target_cost)
+            )
+            n_per_model = bkd.to_numpy(res.nsamples_per_model).astype(float)
+        else:
+            n_per_model = npm
+        all_npm[name] = n_per_model
+
+    bar_width_c = 0.18
+    x_c = np.arange(nmodels)
+    for idx, (name, n_per_model) in enumerate(all_npm.items()):
+        offset = (idx - len(all_npm) / 2 + 0.5) * bar_width_c
+        ax.bar(
+            x_c + offset, n_per_model, bar_width_c,
+            color=est_colors[name], edgecolor="k", lw=0.3,
+            label=name,
+        )
+
+    ax.set_xticks(x_c)
+    ax.set_xticklabels(
+        [_MODEL_LABELS[i] for i in range(nmodels)], fontsize=9,
+    )
+    ax.set_yscale("log")
+    ax.set_ylabel("Total samples $n_\\ell$", fontsize=10)
+    ax.set_title(
+        f"(c) Allocation comparison ($P={int(target_cost)}$)",
+        fontsize=11,
+    )
+    ax.legend(fontsize=8, loc="upper left")
+    ax.grid(True, alpha=0.2, axis="y", which="both")
+    ax.set_axisbelow(True)
 
 
 # ---------------------------------------------------------------------------
@@ -1226,3 +1393,159 @@ def plot_known_stats_multistat(axes, target_cost=500.0):
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.2, which="both")
     ax.set_axisbelow(True)
+
+
+# ---------------------------------------------------------------------------
+# group_acv_concept.qmd — restriction matrix R and block-diagonal covariance C
+# ---------------------------------------------------------------------------
+
+_RC_SUBSETS = [[0, 1], [0, 2], [1, 2]]
+_RC_GROUP_COLORS = {1: "#2C7FB8", 2: "#27AE60", 3: "#E67E22"}
+_RC_NMODELS = 3
+
+
+def _rc_col_specs():
+    specs = []
+    for g, subset in enumerate(_RC_SUBSETS, start=1):
+        for m in subset:
+            specs.append((g, m, rf"$\beta^{{{g}}}_{{{m}}}$"))
+    return specs
+
+
+def plot_restriction_matrix(axes):
+    """group_acv_concept.qmd -> fig-restriction-matrix
+
+    R, beta, and target e^0 for the independent-samples three-pair collection
+    G^1={f0,f1}, G^2={f0,f2}, G^3={f1,f2}. Illustrates R beta = e^0.
+
+    Parameters
+    ----------
+    axes : sequence of 3 matplotlib Axes  ([axR, axb, axe];
+        create with width_ratios [3.2, 0.9, 0.9]).
+    """
+    col_specs = _rc_col_specs()
+    P = len(col_specs)
+    rows = _RC_NMODELS
+    R = np.zeros((rows, P), dtype=int)
+    for j, (g, m, _) in enumerate(col_specs):
+        R[m, j] = 1
+    FILL, HA = "#34495E", 0.45
+    gcol = _RC_GROUP_COLORS
+    axR, axb, axe = axes[0], axes[1], axes[2]
+
+    for i in range(rows):
+        for j in range(P):
+            one = R[i, j] == 1
+            axR.add_patch(mpatches.Rectangle(
+                (j, i), 1, 1, facecolor=FILL if one else "white",
+                edgecolor="#cfcfcf", lw=0.7))
+            axR.text(j + 0.5, i + 0.5, "1" if one else "0",
+                     ha="center", va="center", fontsize=12,
+                     fontweight="bold" if one else "normal",
+                     color="white" if one else "#c4c4c4")
+    axR.add_patch(mpatches.Rectangle((0, 0), P, rows, facecolor="none",
+                                     edgecolor="black", lw=2.2))
+    for i, lbl in enumerate(["$f_0$", "$f_1$", "$f_2$"]):
+        axR.text(-0.32, i + 0.5, lbl, ha="right", va="center",
+                 fontsize=11, fontweight="bold")
+    for j, (g, m, lbl) in enumerate(col_specs):
+        axR.add_patch(mpatches.FancyBboxPatch(
+            (j + 0.1, -0.92), 0.8, 0.62, boxstyle="round,pad=0.02",
+            facecolor=gcol[g], edgecolor="k", lw=0.8, alpha=HA))
+        axR.text(j + 0.5, -0.61, lbl, ha="center", va="center", fontsize=10)
+    seen = set()
+    for j, (g, m, lbl) in enumerate(col_specs):
+        if g not in seen:
+            seen.add(g)
+            js = [k for k, (gg, _, _) in enumerate(col_specs) if gg == g]
+            axR.text((min(js) + max(js)) / 2 + 0.5, -1.18,
+                     rf"$\mathcal{{G}}^{{{g}}}$", ha="center", va="bottom",
+                     fontsize=10, fontweight="bold", color=gcol[g])
+    axR.set_xticks([])
+    axR.set_yticks([])
+    for sp in axR.spines.values():
+        sp.set_visible(False)
+    axR.set_xlim(-0.75, P + 0.1)
+    axR.set_ylim(rows + 0.75, -1.5)
+    axR.set_aspect("equal")
+    axR.set_title(r"$R$  (restriction matrix)", fontsize=12, pad=18)
+    axR.text(P / 2, rows + 0.5,
+             r"row $\ell$ sums model $\ell$'s weights across its groups",
+             ha="center", va="top", fontsize=8.5, style="italic", color="#555")
+
+    axb.axis("off")
+    axb.set_title(r"$\boldsymbol{\beta}$", fontsize=13, pad=18)
+    for i, (g, m, lbl) in enumerate(col_specs):
+        axb.add_patch(mpatches.FancyBboxPatch(
+            (0.1, -(i + 1) + 0.08), 0.8, 0.84, boxstyle="round,pad=0.02",
+            facecolor=gcol[g], edgecolor="k", lw=0.8, alpha=HA))
+        axb.text(0.5, -(i + 0.5), lbl, ha="center", va="center", fontsize=10)
+    axb.set_xlim(0, 1)
+    axb.set_ylim(-P - 0.2, 0.6)
+    axb.text(1.18, -P / 2, "=", fontsize=20, ha="center", va="center")
+
+    axe.axis("off")
+    axe.set_title(r"$\mathbf{e}^0$", fontsize=13, pad=18)
+    for i, v in enumerate([1, 0, 0]):
+        axe.add_patch(mpatches.FancyBboxPatch(
+            (0.1, -(i + 1) + 0.08), 0.8, 0.84, boxstyle="round,pad=0.02",
+            facecolor="#C0392B" if v else "#eeeeee", edgecolor="k", lw=0.8,
+            alpha=0.85 if v else 1.0))
+        axe.text(0.5, -(i + 0.5), str(v), ha="center", va="center",
+                 fontsize=12, fontweight="bold", color="white" if v else "#777")
+        axe.text(1.05, -(i + 0.5), ["$f_0$", "$f_1$", "$f_2$"][i],
+                 ha="left", va="center", fontsize=9, color="#555")
+    axe.set_xlim(0, 1.6)
+    axe.set_ylim(-P - 0.2, 0.6)
+    axe.text(0.5, -3.7,
+             "weight 1 on $f_0$, 0 on every LF model\n"
+             r"$\Rightarrow$ unbiased for $\mu_0$",
+             ha="center", va="top", fontsize=8.5, style="italic", color="#555")
+
+
+def plot_block_covariance(ax, sample_symbol="m"):
+    """group_acv_concept.qmd -> fig-block-covariance
+
+    Block-diagonal per-group covariance C = BlockDiag(C^1, C^2, C^3) for the
+    independent-samples three-pair collection in ``_RC_SUBSETS``.
+    """
+    Sigma = np.array([[1.00, 0.80, 0.60],
+                      [0.80, 1.00, 0.50],
+                      [0.60, 0.50, 1.00]])
+    groups = [(g, list(s)) for g, s in enumerate(_RC_SUBSETS, start=1)]
+    P = sum(len(s) for _, s in groups)
+    C = np.zeros((P, P))
+    info, pos = [], 0
+    for g, idx in groups:
+        C[pos:pos + len(idx), pos:pos + len(idx)] = Sigma[np.ix_(idx, idx)]
+        info.append((pos, len(idx), g))
+        pos += len(idx)
+
+    norm = plt.Normalize(-1, 1)
+    cmap = plt.get_cmap("RdBu_r")
+    for i in range(P):
+        for j in range(P):
+            if abs(C[i, j]) > 1e-9:
+                ax.add_patch(mpatches.Rectangle(
+                    (j, i), 1, 1, facecolor=cmap(norm(C[i, j])),
+                    edgecolor="#d9d9d9", lw=0.6))
+                ax.text(j + 0.5, i + 0.5, f"{C[i, j]:.2f}",
+                        ha="center", va="center", fontsize=11)
+            else:
+                ax.add_patch(mpatches.Rectangle(
+                    (j, i), 1, 1, facecolor="white",
+                    edgecolor="#efefef", lw=0.5))
+    for (start, size, g) in info:
+        ax.add_patch(mpatches.Rectangle((start, start), size, size, lw=2.8,
+                     edgecolor=_RC_GROUP_COLORS[g], facecolor="none"))
+        ax.text(P + 0.2, start + size / 2,
+                rf"$C^{{{g}}}=\frac{{1}}{{{sample_symbol}^{{{g}}}}}"
+                rf"\Sigma^{{{g}}}$",
+                ha="left", va="center", fontsize=12, fontweight="bold",
+                color=_RC_GROUP_COLORS[g])
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.axis("off")
+    ax.set_xlim(-0.2, P + 2.3)
+    ax.set_ylim(P + 0.2, -0.2)
+    ax.set_aspect("equal")

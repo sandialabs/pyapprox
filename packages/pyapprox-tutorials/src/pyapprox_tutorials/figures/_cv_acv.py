@@ -165,6 +165,199 @@ def plot_cvmc_histograms(benchmark, bkd, axes):
     return N, rho, n_trials
 
 
+def plot_cvmc_cost_allocation(ax, cost_hf=1.0, cost_lf=0.1, budget=100.0):
+    """control_variate_concept.qmd -> fig-cvmc-cost-allocation
+
+    Budget split for CVMC: both models evaluated on the same N samples,
+    so N* = floor(budget / (cost_hf + cost_lf)).
+
+    Parameters
+    ----------
+    ax : matplotlib Axes
+    cost_hf, cost_lf : float
+        Per-evaluation costs of the high- and low-fidelity models.
+    budget : float
+        Total computational budget P.
+    """
+    nstar = int(budget // (cost_hf + cost_lf))
+    costs = [nstar * cost_hf, nstar * cost_lf]
+    colors = ["#2C7FB8", "#E67E22"]
+    labels = [r"$f_\alpha$ (HF)", r"$f_\kappa$ (LF)"]
+    x = np.arange(2)
+
+    bars = ax.bar(x, costs, width=0.6, color=colors, edgecolor="k", lw=0.8)
+
+    total = sum(costs)
+    for xi, (bar, c) in enumerate(zip(bars, costs)):
+        ax.text(xi, bar.get_height() * 0.5, f"$N^* = {nstar}$\nevals",
+                ha="center", va="center", fontsize=10, fontweight="bold",
+                color="white")
+        ax.text(xi, bar.get_height() + total * 0.02,
+                f"cost $= {c:g}$\n({100 * c / total:.0f}% of budget)",
+                ha="center", va="bottom", fontsize=9, color="#333")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=11)
+    ax.set_ylabel("Computational cost  ($N \\cdot$ cost/eval)", fontsize=11)
+    ax.set_title(
+        rf"CVMC budget split   ($c_\alpha={cost_hf:g}$, "
+        rf"$c_\kappa={cost_lf:g}$, $P={budget:g}$)",
+        fontsize=11)
+    ax.set_ylim(0, total * 1.18)
+    ax.margins(x=0.25)
+    ax.grid(True, alpha=0.2, axis="y")
+    ax.set_axisbelow(True)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+
+
+# ---------------------------------------------------------------------------
+# Shared sampling cartoon helpers (adapted from mfse_bundle/03_scripts)
+# ---------------------------------------------------------------------------
+
+_CYAN = "#23d5ee"
+_AMBER = "#ffb347"
+_LINK = "#5b6b78"
+_SUB = "#9fb3c0"
+
+
+def _fH(x):
+    trend = np.sin(2 * np.pi * x - 0.6)
+    return 0.50 + 0.30 * trend + 0.15 * np.sin(5 * np.pi * x + 0.3)
+
+
+def _fL(x):
+    trend = np.sin(2 * np.pi * x - 0.6)
+    return 0.40 + 0.40 * trend
+
+
+def _neon_dot(ax, x, y, color, size, z):
+    ax.scatter([x], [y], s=size * 2.6, color=color, alpha=0.18,
+               linewidths=0, zorder=z - 0.1)
+    ax.scatter([x], [y], s=size, color=color, alpha=0.96,
+               linewidths=0, zorder=z)
+
+
+def _glow_line(ax, x, y, color, lw=2.4, z=3):
+    for w, a in [(6.5, 0.05), (3.8, 0.09), (2.3, 0.14)]:
+        ax.plot(x, y, color=color, lw=lw * w, alpha=a,
+                solid_capstyle="round", zorder=z - 0.1)
+    ax.plot(x, y, color=color, lw=lw, alpha=0.97,
+            solid_capstyle="round", zorder=z)
+
+
+def _sampling_cartoon(ax_input, ax_response, scheme):
+    """Draw CV or ACV sampling cartoon on two axes.
+
+    Parameters
+    ----------
+    ax_input : matplotlib Axes
+        Left panel showing input sample locations.
+    ax_response : matplotlib Axes
+        Right panel showing response curves and sampled values.
+    scheme : {"cv", "acv"}
+    """
+    bg = "#05080d"
+    ax_input.set_facecolor(bg)
+    ax_response.set_facecolor(bg)
+
+    if scheme == "cv":
+        xs_lf = np.linspace(0.07, 0.93, 8)
+        xs_hf = xs_lf.copy()
+    else:
+        xs_lf = np.linspace(0.05, 0.95, 12)
+        xs_hf = xs_lf[[2, 6, 10]]
+
+    # --- Input panel ---
+    ax_input.plot([0, 1], [0.5, 0.5], color=_LINK, lw=1.2, alpha=0.6,
+                  zorder=1)
+    for x in xs_lf:
+        _neon_dot(ax_input, x, 0.5, _AMBER, 300, z=3)
+    for x in xs_hf:
+        _neon_dot(ax_input, x, 0.5, _CYAN, 90, z=4)
+    ax_input.set_xlim(-0.04, 1.04)
+    ax_input.set_ylim(0, 1)
+    ax_input.axis("off")
+    ax_input.text(0.5, -0.02, "input samples", color=_SUB, fontsize=10,
+                  ha="center", va="top", transform=ax_input.transAxes)
+
+    if scheme == "acv":
+        xs_only = [x for x in xs_lf if x not in xs_hf]
+        ax_input.annotate(
+            "shared (HF + LF)", xy=(xs_hf[1], 0.5),
+            xytext=(xs_hf[1], 0.86), ha="center", color=_CYAN,
+            fontsize=10, fontweight="bold",
+            arrowprops=dict(arrowstyle="-", color=_CYAN, lw=1.2),
+        )
+        ax_input.annotate(
+            "low-fidelity only", xy=(xs_only[1], 0.5),
+            xytext=(xs_only[1], 0.14), ha="center", color=_AMBER,
+            fontsize=10, fontweight="bold",
+            arrowprops=dict(arrowstyle="-", color=_AMBER, lw=1.2),
+        )
+
+    # --- Response panel ---
+    xx = np.linspace(0, 1, 400)
+    rho = float(np.corrcoef(_fH(xx), _fL(xx))[0, 1])
+    _glow_line(ax_response, xx, _fH(xx), _CYAN, lw=2.4, z=3)
+    _glow_line(ax_response, xx, _fL(xx), _AMBER, lw=2.4, z=3)
+    for x in xs_hf:
+        ax_response.plot([x, x], [_fL(x), _fH(x)], color=_LINK, lw=1.1,
+                         alpha=0.7, ls=(0, (2, 2)), zorder=2.5)
+    for x in xs_lf:
+        _neon_dot(ax_response, x, _fL(x), _AMBER, 90, z=4)
+    for x in xs_hf:
+        _neon_dot(ax_response, x, _fH(x), _CYAN, 90, z=4.2)
+    ax_response.set_xlim(-0.02, 1.02)
+    ax_response.set_ylim(min(_fL(xx)) - 0.10, max(_fH(xx)) + 0.10)
+    ax_response.axis("off")
+    ax_response.text(0.5, -0.02, "response", color=_SUB, fontsize=10,
+                     ha="center", va="top",
+                     transform=ax_response.transAxes)
+    ax_response.text(
+        0.02, max(_fH(xx)) + 0.04,
+        rf"correlated  ($\rho \approx {rho:.2f}$)",
+        color=_SUB, fontsize=10, fontstyle="italic", va="top",
+    )
+
+
+def plot_cv_sampling(axes):
+    """control_variate_concept.qmd -> fig-cv-sampling
+
+    Two-panel sampling cartoon: every sample evaluated by both models.
+
+    Parameters
+    ----------
+    axes : sequence of 2 matplotlib Axes
+        Left = input space, right = response curves.
+    """
+    _sampling_cartoon(axes[0], axes[1], "cv")
+    # Legend via scatter proxies
+    axes[1].scatter([], [], s=60, color=_CYAN, label="high-fidelity")
+    axes[1].scatter([], [], s=60, color=_AMBER, label="low-fidelity")
+    axes[1].legend(fontsize=9, loc="upper right",
+                   facecolor="#05080d", edgecolor="#333",
+                   labelcolor="white")
+
+
+def plot_acv_sampling(axes):
+    """acv_concept.qmd -> fig-acv-sampling
+
+    Two-panel sampling cartoon: shared samples + LF-only samples.
+
+    Parameters
+    ----------
+    axes : sequence of 2 matplotlib Axes
+        Left = input space, right = response curves.
+    """
+    _sampling_cartoon(axes[0], axes[1], "acv")
+    axes[1].scatter([], [], s=60, color=_CYAN, label="high-fidelity")
+    axes[1].scatter([], [], s=60, color=_AMBER, label="low-fidelity")
+    axes[1].legend(fontsize=9, loc="upper right",
+                   facecolor="#05080d", edgecolor="#333",
+                   labelcolor="white")
+
+
 # ---------------------------------------------------------------------------
 # control_variate_analysis.qmd — echo:true -> Convention B
 # ---------------------------------------------------------------------------

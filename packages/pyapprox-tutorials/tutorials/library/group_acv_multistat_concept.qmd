@@ -145,7 +145,7 @@ $$
 $$
 stacking $|\mathcal{S}^k|$ sample means and $|\mathcal{S}^k|$ sample variances. The
 weight vector $\boldsymbol{\beta}^k$ doubles in length accordingly. The unbiasedness
-constraint @eq-restriction extends to enforce unbiasedness for both $\mu_0$ and
+unbiasedness constraint extends to enforce unbiasedness for both $\mu_0$ and
 $\sigma_0^2$:
 $$
 R\, \boldsymbol{\beta} = \begin{bmatrix} \mathbf{e}^0_\mu \\ \mathbf{e}^0_\sigma \end{bmatrix},

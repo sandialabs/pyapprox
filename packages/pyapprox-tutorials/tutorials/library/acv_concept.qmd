@@ -119,14 +119,72 @@ $$ {#eq-acv}
 The true $\mu_\kappa$ never appears: it cancels in expectation because both LF estimates
 are unbiased for the same quantity. The estimator is **unbiased for any $r > 1$ and any $\eta$**.
 
+@fig-acv-sampling illustrates the two sample sets. Unlike CVMC, where every
+sample is evaluated by both models, ACV uses a small set of shared samples
+(where both models are evaluated) plus a larger set of LF-only samples (where
+only the cheap model is evaluated). The shared samples provide the
+correlated correction; the LF-only samples sharpen the estimate of $\mu_\kappa$.
+
+```{python}
+#| echo: false
+#| fig-cap: "ACV sampling: a few shared samples plus many low-fidelity-only samples. Left: input space — cyan dots mark the shared HF+LF locations; orange-only dots are evaluated by the cheap model alone. Right: the response curves with sampled values; dashed connectors at shared locations show the correlation ($\\rho \\approx 0.88$) the correction exploits, while the dense orange-only samples sharpen the LF mean estimate."
+#| label: fig-acv-sampling
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._cv_acv import plot_acv_sampling
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+fig.patch.set_facecolor("#05080d")
+plot_acv_sampling(axes)
+plt.tight_layout()
+plt.show()
+```
+
+## The Allocation Problem
+
 The total cost of one ACV estimate is
 
 $$
-C^{\text{ACV}} = N C_\alpha + r N C_\kappa
+P = N\,(c_\alpha + r\, c_\kappa),
+$$ {#eq-acv-cost}
+
+where $c_\alpha$ and $c_\kappa$ are the per-sample costs of the two models. The
+extra $r\, c_\kappa$ per HF sample buys a more accurate estimate of $\mu_\kappa$,
+which tightens the correction.
+
+As in CVMC, the goal is to minimize estimator variance subject to the budget:
+
+$$
+\min_{N,\, r,\, \eta} \;\mathbb{V}[\hat{\mu}_\alpha^{\text{ACV}}]
+\quad \text{subject to} \quad
+N\,(c_\alpha + r\, c_\kappa) \leq P.
+$$ {#eq-acv-allocation}
+
+The weight $\eta$ decouples from the allocation: its optimum depends on the
+model covariance and $r$ but not on $N$ (see
+[ACV Analysis](acv_many_models_analysis.qmd#sec-two-model)). After plugging in
+$\eta^*$, the variance is $\sigma^2_\alpha\, \gamma(r) / N$ where
+$\gamma(r) = 1 - \frac{r-1}{r}\rho^2$ is the reduction factor below. The
+budget constraint gives $N = P / (c_\alpha + r\, c_\kappa)$, so for the
+two-model case the problem reduces to a one-dimensional optimization over $r$:
+
+$$
+\min_{r \geq 1} \;\frac{\sigma^2_\alpha}{P}\;
+  (c_\alpha + r\, c_\kappa)\;
+  \left(1 - \frac{r - 1}{r}\,\rho^2\right).
 $$
 
-where $C_\alpha$ and $C_\kappa$ are the per-sample costs of the two models. The extra
-$r N C_\kappa$ buys a more accurate estimate of $\mu_\kappa$, which tightens the correction.
+This has a closed-form solution (derived in the analysis tutorial). The key
+point is that unlike CVMC --- where the allocation is trivially determined by
+the budget --- ACV introduces a genuine trade-off: spending more on LF samples
+(larger $r$) tightens the correction but leaves fewer resources for HF
+samples (smaller $N$). The optimal $r^*$ balances these two effects.
+
+With [many LF models](acv_many_models_concept.qmd), there is one ratio $r_\alpha$
+per LF model and the allocation becomes a multi-dimensional constrained
+optimization. With [group ACV](group_acv_concept.qmd), the free parameters are the
+sample counts of every partition and the problem is high-dimensional. The
+closed-form solution is unique to the two-model case.
 
 
 ## Variance Reduction Depends on $r$

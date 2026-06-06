@@ -158,7 +158,7 @@ evaluation time.
 
 ### Why removing rows strictly helps
 
-The variance @eq-var-star from [Group ACV Concept](group_acv_concept.qmd) is
+The variance formula from [Group ACV Concept](group_acv_concept.qmd) is
 the optimum of a constrained quadratic. Removing a constraint row enlarges the
 feasible set: every weight that satisfied the original $R$ still satisfies
 $\tilde{R}$, plus many more that did not. The optimum over a larger feasible set
@@ -226,10 +226,10 @@ together support the design choice of supporting mixed known statistics in the
 framework:
 
 **Panel (a), convergence rate.** This is the same kind of plot as
-@fig-gacv-convergence's left panel, but with one new variable: how many LF
+the convergence plot from [Group ACV Concept](group_acv_concept.qmd), but with one new variable: how many LF
 moments are known. The estimator uses GACV-IS with the five SAOB subsets
 $\{0{-}4\}, \{1{-}4\}, \{2{-}4\}, \{3,4\}, \{4\}$ — the same subsets as
-@fig-gacv-convergence (MLBLUE in general uses all $2^M - 1$ subsets; the
+that earlier figure (MLBLUE in general uses all $2^M - 1$ subsets; the
 SAOB choice keeps the sweep comparable to the MFMC reference). Known means
 are added cheapest-first: $|\mathcal{K}| = 1$ knows $\mu_4$,
 $|\mathcal{K}| = 2$ knows $\mu_4, \mu_3$, and so on up to

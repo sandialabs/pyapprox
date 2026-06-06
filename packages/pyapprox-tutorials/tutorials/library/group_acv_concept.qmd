@@ -163,6 +163,21 @@ The constraint @eq-restriction is the only structural requirement on the weights
 The framework's job is to pick $\boldsymbol{\beta}$ satisfying @eq-restriction that
 minimizes estimator variance.
 
+To make $R$ concrete, take three models and the collection $\mathcal{G}^1=\{f_0,f_1\}$, $\mathcal{G}^2=\{f_0,f_2\}$, $\mathcal{G}^3=\{f_1,f_2\}$ — three pairs, each evaluated on its own independent samples. Stacking the per-group weights gives $\boldsymbol{\beta}=(\beta^1_0,\beta^1_1,\beta^2_0,\beta^2_2,\beta^3_1,\beta^3_2)$, so $R$ has $M+1=3$ rows and $\sum_k|\mathcal{S}^k|=6$ columns (@fig-restriction-matrix). Each column is the standard basis vector of the single model that weight multiplies; each row collects one model's weights across the groups it appears in. The constraint $R\boldsymbol{\beta}=\mathbf{e}^0$ then reads plainly: the $f_0$ weights sum to one ($\beta^1_0+\beta^2_0=1$) and each low-fidelity model's weights cancel ($\beta^1_1+\beta^3_1=0$, $\beta^2_2+\beta^3_2=0$). That cancellation *is* the control-variate mechanism, and it explains a design rule: a low-fidelity model reduces variance only by appearing in at least two groups whose weights offset. A model placed in a single group has its weight forced to zero by the constraint and cannot contribute.
+
+```{python}
+#| echo: false
+#| label: fig-restriction-matrix
+#| fig-cap: "Restriction matrix $R$, weights $\\boldsymbol{\\beta}$, and target $\\mathbf{e}^0$ for the three-model collection $\\mathcal{G}^1=\\{f_0,f_1\\},\\ \\mathcal{G}^2=\\{f_0,f_2\\},\\ \\mathcal{G}^3=\\{f_1,f_2\\}$. Columns are colored by the group each weight belongs to; rows are models. A $1$ in row $\\ell$ marks that the column's weight contributes to model $\\ell$'s total. $R\\boldsymbol{\\beta}=\\mathbf{e}^0=(1,0,0)^\\top$ forces the $f_0$ weights to sum to one and every low-fidelity model's weights to cancel — unbiased for $\\mu_0$ using nothing about the unknown low-fidelity means."
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._group_acv import plot_restriction_matrix
+fig, axes = plt.subplots(1, 3, figsize=(11.5, 4.0),
+                         gridspec_kw={"width_ratios": [3.2, 0.9, 0.9],
+                                      "wspace": 0.35})
+plot_restriction_matrix(axes)
+plt.show()
+```
+
 
 ## The Group Structure Dictionary
 
@@ -210,6 +225,19 @@ designs (every group draws its own samples), $C$ is block-diagonal with
 per-group blocks $C^k = (1/m^k)\,\boldsymbol{\Sigma}^k$, where
 $\boldsymbol{\Sigma}^k$ is the population covariance among the models in
 $\mathcal{S}^k$.
+
+@fig-block-covariance shows that block structure for the same three-pair collection. Because every group draws its own independent samples, a model's sample mean in one group is uncorrelated with its sample mean in any other — sharing a model *symbol* across groups does **not** share the *randomness*. Every cross-group block of $C$ is therefore exactly zero, and $C$ reduces to a block diagonal of the per-group covariances $C^k=\tfrac{1}{m^k}\Sigma^k$, each a $|\mathcal{S}^k|\times|\mathcal{S}^k|$ slice of $\boldsymbol{\Sigma}$. The columns of $C$ are ordered exactly as the columns of $R$ in @fig-restriction-matrix, so the two compose directly in @eq-beta-star. This clean block diagonal is special to the independent-samples regime: nested and shared-anchor designs (MFMC, classical ACVMF) reuse samples across groups and fill in the off-diagonal blocks (see [Group ACV Analysis](group_acv_analysis.qmd)).
+
+```{python}
+#| echo: false
+#| label: fig-block-covariance
+#| fig-cap: "Per-group estimator covariance $C$ for the three-pair collection under independent samples. Each outlined block is one group's covariance $C^k=\\tfrac{1}{m^k}\\Sigma^k$ over the models in $\\mathcal{S}^k$; white cells are exact zeros, because estimators built on independent sample sets are uncorrelated. The block-diagonal form holds only for independent-samples designs, and is what makes the information matrix $R\\,C^{-1}R^\\top$ a simple sum of per-group contributions in @eq-beta-star and @eq-var-star. Off-diagonal $\\Sigma$ entries are illustrative."
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._group_acv import plot_block_covariance
+fig, ax = plt.subplots(figsize=(6.0, 4.2))
+plot_block_covariance(ax)
+plt.show()
+```
 
 Minimizing $\boldsymbol{\beta}^{\!\top} C\, \boldsymbol{\beta}$ subject to
 @eq-restriction gives the **optimal group ACV weight** [GJE2024, Theorem 6]:
@@ -296,6 +324,103 @@ a matter of which parameterization is easier to construct for the problem at han
 hierarchy of the problem aligns with their chain structure, despite the structural
 ceiling. The unification framework lets you reason about all four estimators with
 a single mental model.
+
+
+## The Allocation Problem
+
+As with CVMC and ACV, the goal is to choose the estimator's free parameters to
+minimize variance subject to a computational budget:
+
+$$
+\min_{\{m^k\},\, \boldsymbol{\beta}} \;
+  \mathbb{V}[\hat{Q}_{\text{GACV}}]
+\quad \text{subject to} \quad
+\sum_{k=1}^{K} m^k\, c^k \leq P,
+$$ {#eq-gacv-allocation}
+
+where $c^k = \sum_{\ell \in \mathcal{S}^k} c_\ell$ is the per-sample cost of
+partition $k$ (the sum of the costs of all models co-evaluated in that group).
+
+The weights $\boldsymbol{\beta}$ and the sample counts $\{m^k\}$ decouple:
+for any fixed allocation, the optimal weights are given by @eq-beta-star;
+for any fixed weights, the optimal allocation is a constrained optimization
+over the $K$ sample counts. In practice, the framework plugs @eq-beta-star
+into @eq-var-star and optimizes over $\{m^k\}$ alone — a $K$-dimensional
+problem that the [allocation optimizer tutorial](group_acv_optimization.qmd)
+covers in detail.
+
+The complexity of the allocation problem grows with the estimator. CVMC has
+one free parameter ($N$) and a closed-form solution. Two-model ACV adds a
+single partition ratio $r$ with a closed-form optimum. The
+[many-model ACV](acv_many_models_concept.qmd) estimator has $M$ partition
+ratios and requires numerical optimization. Group ACV has $K$ partition sample
+counts — potentially $2^M - 1$ for the full subset collection — and the
+allocation is a high-dimensional constrained optimization problem. The
+[Group ACV Optimization](group_acv_optimization.qmd) tutorial covers
+the practical solver recipe (SLSQP + log-space scaling).
+
+
+## Sample Allocation Across Models
+
+Once the optimizer solves @eq-gacv-allocation and returns the per-partition
+sample counts $\{m^k\}_{k=1}^K$, the total number of samples assigned to
+model $\ell$ is
+
+$$
+n_\ell = \sum_{k\,:\,\ell \in \mathcal{S}^k} m^k,
+$$ {#eq-samples-per-model}
+
+because model $\ell$ is evaluated on every sample in every partition whose
+subset contains $\ell$. A cheap LF model that appears in many subsets
+accumulates samples from all of them; the expensive HF model typically
+appears in fewer subsets and receives correspondingly fewer samples.
+
+The total computational cost is
+$$
+P = \sum_{\ell=0}^{M} c_\ell\, n_\ell
+  = \sum_{k=1}^{K} m^k \underbrace{\sum_{\ell \in \mathcal{S}^k} c_\ell}_{c^k},
+$$
+where $c^k$ is the per-sample cost of partition $k$ — the sum of the costs
+of all models evaluated together in that group.
+
+@fig-sample-allocation shows the optimized allocation for the five-model
+polynomial benchmark at budget $P = 500$.
+
+```{python}
+#| echo: false
+#| fig-cap: "**(a)** Samples per partition (active partitions only, sorted by count). Each bar is one partition; the stacked segments show which models are co-evaluated on that partition's samples. Most of the $2^M - 1 = 31$ candidate subsets receive negligible allocation and are pruned — the optimizer concentrates the budget on the few subsets that contribute signal. **(b)** Total samples per model via @eq-samples-per-model. Cheap models accumulate samples from many partitions and are evaluated orders of magnitude more often than the expensive HF model. **(c)** Comparison across estimators: the four architectures from @fig-group-structures produce different per-model sample counts at the same budget because their group structures constrain which subsets can receive samples."
+#| label: fig-sample-allocation
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._group_acv import plot_sample_allocation
+
+fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+plot_sample_allocation(axes)
+plt.tight_layout()
+plt.show()
+```
+
+Three features of @fig-sample-allocation are worth noting.
+
+First, most partitions are inactive. The optimizer drives $m^k \to 0$ for
+subsets that do not contribute to variance reduction, concentrating the budget
+on the handful of subsets that carry signal. This is a key practical advantage
+of the group ACV framework over enumeration-based approaches that must evaluate
+every subset.
+
+Second, the per-model sample counts in panel (b) span several orders of
+magnitude. The HF model $f_0$ — the most expensive — receives the fewest
+samples, while the cheapest LF model receives the most. This is the same
+cost-balancing principle that underlies all multi-fidelity estimators, but
+expressed through the partition allocation rather than through explicit
+sample ratios.
+
+Third, panel (c) shows that the four estimators produce qualitatively different
+allocations at the same budget. MLMC and MFMC, constrained to pairwise and
+nested group structures, allocate heavily to the cheapest model but cannot
+exploit all pairwise correlations. ACVMF and GACV-IS, with richer group
+structures, spread the budget across all models more aggressively, which
+is why they achieve lower variance in @fig-gacv-convergence.
 
 
 ## ACV vs MLBLUE: One Framework, Two Parameterizations
