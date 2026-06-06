@@ -728,8 +728,7 @@ Hamiltonians, `ImplicitMidpointAdjoint` for nonlinear ones.
 `BackwardEulerAdjoint` is dissipative and is a poor choice for
 Hamiltonian problems regardless of how well the Hamiltonian was learned.
 
-The next tutorial, [Trajectory Matching](trajectory_matching_usage.qmd),
-introduces the alternative fitting paradigm: comparing integrated
+A natural next step is trajectory matching — comparing integrated
 trajectories rather than local derivatives. This becomes important when
 snapshot derivatives are noisy or sparse and derivative matching's
 noise floor becomes the limiting factor.

@@ -171,6 +171,66 @@ off most when the LF models do not form a hierarchy but are still correlated wit
 HF model.
 
 
+## The Allocation Problem
+
+As with the two-model ACV estimator, the goal is to minimize estimator
+variance subject to a computational budget. The estimator's sample design
+is built from $M+1$ independent **partitions**
+$\mathcal{P}_0, \mathcal{P}_1, \ldots, \mathcal{P}_M$ with sample counts
+$m_0, m_1, \ldots, m_M$. Which models are evaluated on which partitions is
+determined by the **allocation matrix** — the structural choice that
+distinguishes MLMC, MFMC, and ACVMF. For ACVMF with four models, the
+allocation matrix assigns:
+
+- $\mathcal{P}_0$ ($m_0$ samples): all models $\{f_0, f_1, f_2, f_3\}$ — the shared HF partition
+- $\mathcal{P}_1$ ($m_1$ samples): models $\{f_1, f_2, f_3\}$ — LF only
+- $\mathcal{P}_2$ ($m_2$ samples): models $\{f_2, f_3\}$
+- $\mathcal{P}_3$ ($m_3$ samples): model $\{f_3\}$ only
+
+The total number of samples for model $\alpha$ is the sum across all
+partitions it appears in. For ACVMF: $N_0 = m_0$,
+$N_1 = m_0 + m_1$, $N_2 = m_0 + m_1 + m_2$, and so on — the cheapest model
+accumulates the most samples.
+
+The total cost is
+$$
+P = \sum_{k=0}^{M} m_k\, c^k,
+$$
+where $c^k = \sum_{\alpha \in \mathcal{P}_k} c_\alpha$ is the per-sample cost of
+partition $k$.
+
+Writing $r_k = m_k / m_0$ for the **partition ratios** (with $r_0 = 1$),
+the budget determines $m_0$:
+$$
+m_0 = \frac{P}{c^0 + \sum_{k=1}^{M} r_k\, c^k}.
+$$
+
+The weights $\boldsymbol{\eta}$ are optimal in closed form for any fixed
+allocation (see [General ACV Analysis](acv_many_models_analysis.qmd)).
+After plugging in $\boldsymbol{\eta}^*$, the allocation problem reduces to
+
+$$
+\min_{r_1, \ldots, r_M \geq 0} \;
+  \mathbb{V}\!\left[\hat{\mu}_0^{\text{ACV}}\right]_{\boldsymbol{\eta}=\boldsymbol{\eta}^*}
+\quad \text{subject to} \quad
+m_0\!\left(c^0 + \sum_{k=1}^{M} r_k\, c^k\right) \leq P,
+$$ {#eq-general-acv-allocation}
+
+an $M$-dimensional optimization over the partition ratios. Unlike the
+two-model case — where the single ratio $r$ has a closed-form optimum —
+the many-model allocation requires numerical optimization. PyApprox uses a
+chained optimizer (differential evolution for global exploration followed by
+trust-constr for local refinement) by default; see the
+[API Cookbook](multifidelity_estimation_cookbook.qmd#acvsearch-in-depth)
+for configuration details.
+
+The key trade-off is the same as in the two-model case, replicated across
+partitions: enlarging any partition tightens the corrections it supports
+but leaves fewer resources for $m_0$, which controls the baseline HF
+variance $\sigma_0^2 / m_0$. The optimizer balances these competing effects
+jointly.
+
+
 ## Key Takeaways
 
 - Both MLMC and MFMC plateau at the one-model CV-1 ceiling; only $f_1$ directly reduces

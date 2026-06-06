@@ -105,6 +105,28 @@ where $\hat{\mu}_\kappa = \frac{1}{N}\sum_{k=1}^N f_\kappa(\boldsymbol{\theta}^{
 MC mean of the low-fidelity model evaluated on the **same** $N$ samples, and $\eta$ is a scalar
 weight we are free to choose.
 
+A critical feature of CVMC is that both models are evaluated at exactly the same
+set of input samples. @fig-cv-sampling illustrates this: on the left, every input
+sample (orange ring) has a high-fidelity evaluation (cyan dot) overlaid on top of
+it. On the right, the response curves show that the two models move together at
+these shared sample locations — the dashed connectors pair HF and LF values to
+highlight the correlation that the correction term exploits.
+
+```{python}
+#| echo: false
+#| fig-cap: "CVMC sampling: every input sample is evaluated by both models. Left: input space with $N$ shared sample locations — each orange ring (LF) has a cyan dot (HF) on top. Right: the high-fidelity (cyan) and low-fidelity (orange) response curves with sampled values; dashed connectors pair the HF/LF values at each shared location, showing the correlation ($\\rho \\approx 0.88$) that makes the correction effective."
+#| label: fig-cv-sampling
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._cv_acv import plot_cv_sampling
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+fig.patch.set_facecolor("#05080d")
+plot_cv_sampling(axes)
+plt.tight_layout()
+plt.show()
+```
+
 The correction term $\hat{\mu}_\kappa - \mu_\kappa$ has **mean zero** --- it is pure MC error
 in the low-fidelity estimate. Adding it to $\hat{\mu}_\alpha$ does not introduce bias.
 But if the errors in $\hat{\mu}_\alpha$ and $\hat{\mu}_\kappa$ are correlated, choosing $\eta$
@@ -177,6 +199,49 @@ plt.show()
 ```
 
 
+## The Allocation Problem
+
+Every multi-fidelity estimator faces the same core problem: given a
+computational budget $P$, choose the free parameters of the estimator to
+minimize its variance. In the general case this takes the form
+
+$$
+\min_{\boldsymbol{\theta}} \;\mathbb{V}[\hat{\mu}(\boldsymbol{\theta})]
+\quad \text{subject to} \quad
+\mathrm{Cost}(\boldsymbol{\theta}) \leq P,
+$$ {#eq-allocation-problem}
+
+where $\boldsymbol{\theta}$ collects all tunable parameters — sample counts,
+weights, and any structural choices — and $\mathrm{Cost}(\boldsymbol{\theta})$
+is the total computational cost of evaluating the estimator.
+
+For CVMC the free parameters are the sample count $N$ and the weight $\eta$.
+Because both models are evaluated at every sample, the total cost is
+
+$$
+P = N\,(c_\alpha + c_\kappa),
+$$ {#eq-cvmc-cost}
+
+where $c_\alpha$ and $c_\kappa$ are the per-sample costs of the two models.
+The optimal weight $\eta^*$ is determined by the model covariance (see
+[Control Variate Analysis](control_variate_analysis.qmd)) and does not depend
+on $N$. The only remaining decision is $N$ itself, and the budget constraint
+pins it directly:
+
+$$
+N^* = \left\lfloor \frac{P}{c_\alpha + c_\kappa} \right\rfloor.
+$$ {#eq-cvmc-nstar}
+
+There is no numerical optimization required --- the allocation problem
+@eq-allocation-problem has a closed-form solution. This is the simplest
+possible case. In the [ACV estimator](acv_concept.qmd), the LF sample ratio
+$r$ becomes a second free parameter and the allocation requires solving a
+one-dimensional optimization. In the [many-model extensions](acv_many_models_concept.qmd)
+and [group ACV](group_acv_concept.qmd), the number of free parameters grows
+with the number of models and subsets, and the allocation becomes a
+high-dimensional constrained optimization problem.
+
+
 ## When Does CVMC Help?
 
 CVMC requires two ingredients:
@@ -189,9 +254,9 @@ CVMC requires two ingredients:
    $(1 - \rho^2)$ is only substantial when $|\rho| \gtrsim 0.5$. A weakly correlated low-fidelity
    model offers little benefit.
 
-The cost of a single CVMC estimate is identical to plain MC: $N$ evaluations of $f_\alpha$ and
-$N$ evaluations of $f_\kappa$ on the same samples. The reduction in estimator variance is entirely
-due to cancellation of correlated errors, not a reduction in work.
+The variance reduction is entirely due to cancellation of correlated errors, not
+a reduction in work --- CVMC evaluates both models $N$ times, at cost
+$N(c_\alpha + c_\kappa)$ per @eq-cvmc-cost.
 
 
 ## Key Takeaways
