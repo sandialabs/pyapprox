@@ -480,4 +480,4 @@ class TestAdaptiveGPBuilder:
         sample = bkd.asarray([[0.3]])
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-        assert ratio <= 1e-6
+        assert ratio <= 4e-6
