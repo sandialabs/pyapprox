@@ -159,7 +159,9 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             self._mu_per_elem[elem_idx] = mu
 
         # Stress model (parameters will be set per-evaluation)
-        self._stress_model = NeoHookeanStress(lamda=0.0, mu=0.0)
+        self._stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
+            lamda=0.0, mu=0.0,
+        )
 
         # Cache mass matrix
         self._mass_cached: Optional[Array] = None
@@ -325,7 +327,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                     ),
                 )
 
-                result = 0.0
+                result = np.zeros_like(v.grad[0, 0])
                 for i in range(3):
                     for j in range(3):
                         result = result + P[i][j] * v.grad[i, j]
@@ -394,7 +396,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 ret: NDArray[np.floating[Any]] = dPdF * v.grad[0, 0] * u.grad[0, 0]
                 return ret
 
-            K_np = asm(
+            K_np: Array = asm(
                 BilinearForm(tangent_1d),
                 skfem_basis,
                 u_prev=state_interp,
@@ -438,32 +440,32 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 gF11F12 = gamma * F11 * F12
                 gF21F22 = gamma * F21 * F22
 
-                return (
-                    v00 * (
-                        (w.mu + gamma * F22**2) * u00
-                        - gF21F22 * u01
-                        - gF12F22 * u10
-                        + (beta + gF11F22) * u11
-                    )
-                    + v01 * (
-                        -gF21F22 * u00
-                        + (w.mu + gamma * F21**2) * u01
-                        + (-beta + gF12F21) * u10
-                        - gF11F21 * u11
-                    )
-                    + v10 * (
-                        -gF12F22 * u00
-                        + (-beta + gF12F21) * u01
-                        + (w.mu + gamma * F12**2) * u10
-                        - gF11F12 * u11
-                    )
-                    + v11 * (
-                        (beta + gF11F22) * u00
-                        - gF11F21 * u01
-                        - gF11F12 * u10
-                        + (w.mu + gamma * F11**2) * u11
-                    )
+                result: np.ndarray = np.zeros_like(u.grad[0, 0])
+                result = result + v00 * (
+                    (w.mu + gamma * F22**2) * u00
+                    - gF21F22 * u01
+                    - gF12F22 * u10
+                    + (beta + gF11F22) * u11
                 )
+                result = result + v01 * (
+                    -gF21F22 * u00
+                    + (w.mu + gamma * F21**2) * u01
+                    + (-beta + gF12F21) * u10
+                    - gF11F21 * u11
+                )
+                result = result + v10 * (
+                    -gF12F22 * u00
+                    + (-beta + gF12F21) * u01
+                    + (w.mu + gamma * F12**2) * u10
+                    - gF11F12 * u11
+                )
+                result = result + v11 * (
+                    (beta + gF11F22) * u00
+                    - gF11F21 * u01
+                    - gF11F12 * u10
+                    + (w.mu + gamma * F11**2) * u11
+                )
+                return result
 
             K_np = asm(
                 BilinearForm(tangent_2d),
