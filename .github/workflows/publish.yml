@@ -34,12 +34,15 @@ jobs:
           for pkg in packages/pyapprox packages/pyapprox-benchmarks packages/pyapprox-tutorials; do
             cd $pkg && hatch build && cd $GITHUB_WORKSPACE
           done
-      - name: Show built versions
-        run: ls -la packages/*/dist/
+      - name: Collect all packages into flat dist/
+        run: |
+          mkdir -p dist/
+          cp packages/*/dist/* dist/
+          ls -la dist/
       - uses: actions/upload-artifact@v4
         with:
           name: dist
-          path: packages/*/dist/
+          path: dist/
 
   verify-wheels:
     needs: build
@@ -59,9 +62,9 @@ jobs:
         run: |
           python -m venv /tmp/verify-env
           /tmp/verify-env/bin/pip install --upgrade pip
-          /tmp/verify-env/bin/pip install dist/packages/pyapprox/dist/*.whl
-          /tmp/verify-env/bin/pip install dist/packages/pyapprox-benchmarks/dist/*.whl
-          /tmp/verify-env/bin/pip install dist/packages/pyapprox-tutorials/dist/*.whl
+          /tmp/verify-env/bin/pip install dist/pyapprox-[0-9]*.whl
+          /tmp/verify-env/bin/pip install dist/pyapprox_benchmarks-*.whl
+          /tmp/verify-env/bin/pip install dist/pyapprox_tutorials-*.whl
       - name: Verify imports
         run: |
           /tmp/verify-env/bin/python -c "import pyapprox; print(f'pyapprox {pyapprox.__version__}')"
