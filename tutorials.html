@@ -2,13 +2,13 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.37">
+<meta name="generator" content="quarto-1.9.38">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="description" content="Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.">
+<meta name="description" content="Browse 100+ executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.">
 
-<title>PyApprox Tutorials | 80+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides – PyApprox</title>
+<title>PyApprox Tutorials | 100+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides – PyApprox</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -76,10 +76,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-a9ec176d14a0a38b33d62546f2bec97a.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-20dc12c88129945378b01df760554df8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-55e164bf13c05d89902e86955e44fb61.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-18936353463b4e0a54d12924f33c63cb.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -191,8 +191,8 @@ MathJax = {
 </script>
 
 
-<meta property="og:title" content="PyApprox Tutorials | 80+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides">
-<meta property="og:description" content="Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.">
+<meta property="og:title" content="PyApprox Tutorials | 100+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides">
+<meta property="og:description" content="Browse 100+ executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.">
 <meta property="og:site_name" content="PyApprox">
 </head>
 
@@ -292,6 +292,7 @@ MathJax = {
   <li><a href="#surrogate-modeling" id="toc-surrogate-modeling" class="nav-link" data-scroll-target="#surrogate-modeling">Surrogate Modeling</a></li>
   <li><a href="#sensitivity-analysis" id="toc-sensitivity-analysis" class="nav-link" data-scroll-target="#sensitivity-analysis">Sensitivity Analysis</a></li>
   <li><a href="#random-fields" id="toc-random-fields" class="nav-link" data-scroll-target="#random-fields">Random Fields</a></li>
+  <li><a href="#dynamical-systems" id="toc-dynamical-systems" class="nav-link" data-scroll-target="#dynamical-systems">Dynamical Systems</a></li>
   <li><a href="#optimization-under-uncertainty" id="toc-optimization-under-uncertainty" class="nav-link" data-scroll-target="#optimization-under-uncertainty">Optimization Under Uncertainty</a></li>
   </ul>
 </nav>
@@ -306,7 +307,7 @@ MathJax = {
 
 <div>
   <div class="description">
-    Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.
+    Browse 100+ executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis.
   </div>
 </div>
 
@@ -325,7 +326,7 @@ MathJax = {
 
 <div class="tutorials-header">
 <p><span class="tutorials-title-text">Tutorial Library</span></p>
-<p><span class="tutorials-subtitle">80+ validated, executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.</span></p>
+<p><span class="tutorials-subtitle">100+ executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.</span></p>
 </div>
 <section id="start-here" class="level2 mt-4">
 <h2 class="mt-4 anchored" data-anchor-id="start-here">Start Here</h2>
@@ -478,7 +479,25 @@ MathJax = {
 <p><a href="./ensemble_selection_concept.html" class="tutorial-title"><strong>Ensemble Selection Concept</strong></a> <span class="tutorial-desc">Choosing which subset of available models to include in a multi-fidelity estimator</span> <span class="badge-concept">Concept</span></p>
 </div>
 <div class="tutorial-card">
+<p><a href="./group_acv_concept.html" class="tutorial-title"><strong>Group ACV Concept</strong></a> <span class="tutorial-desc">The group ACV framework: unifying MLMC, MFMC, and MLBLUE under a single optimal-weight estimator with arbitrary model subsets</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./group_acv_analysis.html" class="tutorial-title"><strong>Group ACV Analysis</strong></a> <span class="tutorial-desc">Deriving the group ACV weight matrix, covariance formula, and equivalence to MLBLUE</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./group_acv_multistat_concept.html" class="tutorial-title"><strong>Group ACV Multi-Statistic Concept</strong></a> <span class="tutorial-desc">Variance and joint mean-variance estimation under the group ACV framework</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./group_acv_optimization.html" class="tutorial-title"><strong>Group ACV Optimization</strong></a> <span class="tutorial-desc">Solving the sample-allocation problem: SLSQP recipe, variable scaling, SDP limitations, and mean-guided pruning</span> <span class="badge-usage">Usage</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./group_acv_mixed_concept.html" class="tutorial-title"><strong>Group ACV Mixed Concept</strong></a> <span class="tutorial-desc">Exploiting known low-fidelity statistics to improve multi-fidelity estimation</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
 <p><a href="./multifidelity_estimation_cookbook.html" class="tutorial-title"><strong>API Cookbook</strong></a> <span class="tutorial-desc">Unified API cookbook: one-stop reference for all multi-fidelity estimators</span> <span class="badge-cookbook">Cookbook</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./multifidelity_aerospace_beam.html" class="tutorial-title"><strong>Aerospace Beam Case Study</strong></a> <span class="tutorial-desc">Group ACV on a partially ordered FEM ensemble with shared parameterization and a known-mean surrogate</span> <span class="badge-usage">Usage</span></p>
 </div>
 <hr>
 </section>
@@ -632,6 +651,18 @@ MathJax = {
 <p><a href="./adaptive_sparse_grids.html" class="tutorial-title"><strong>Adaptive Sparse Grids</strong></a> <span class="tutorial-desc">Data-driven refinement for anisotropic functions</span> <span class="badge-hands-on">Hands-on</span></p>
 </div>
 <div class="tutorial-card">
+<p><a href="./local_basis_sparse_grids.html" class="tutorial-title"><strong>Local Basis Sparse Grids</strong></a> <span class="tutorial-desc">Piecewise polynomial interpolation on sparse grids for non-smooth functions</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./local_adaptive_sparse_grids_concept.html" class="tutorial-title"><strong>Locally Adaptive Sparse Grids</strong></a> <span class="tutorial-desc">Hierarchical hat-function surrogates that refine where the function is hardest to approximate</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./local_adaptive_vs_combination.html" class="tutorial-title"><strong>Local Adaptivity vs Combination Technique</strong></a> <span class="tutorial-desc">Locally adaptive hierarchical sparse grids vs dimension-adaptive combination technique on a non-smooth target</span> <span class="badge-analysis">Analysis</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./sparse_grid_cost_tracking.html" class="tutorial-title"><strong>Cost-Tracked Adaptive Sparse Grids</strong></a> <span class="tutorial-desc">Use measured wall-time as a budget for adaptive sparse grid refinement</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
 <p><a href="./multifidelity_sparse_grids.html" class="tutorial-title"><strong>Multifidelity Sparse Grids</strong></a> <span class="tutorial-desc">Multi-index collocation for model hierarchies with varying cost and accuracy</span> <span class="badge-hands-on">Hands-on</span></p>
 </div>
 <div class="tutorial-card">
@@ -654,6 +685,30 @@ MathJax = {
 </div>
 <div class="tutorial-card">
 <p><a href="./multioutput_gp.html" class="tutorial-title"><strong>Multi-Fidelity Gaussian Processes</strong></a> <span class="tutorial-desc">Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./svgp_concept.html" class="tutorial-title"><strong>Sparse Variational GPs</strong></a> <span class="tutorial-desc">Inducing-point compression and the ELBO for large-scale GP inference</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./dgp_concept.html" class="tutorial-title"><strong>Deep Gaussian Processes</strong></a> <span class="tutorial-desc">Composing GPs into hierarchical models that learn input-dependent length scales and non-Gaussian predictive distributions</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./dgp_multifidelity_concept.html" class="tutorial-title"><strong>Multi-fidelity Deep GPs</strong></a> <span class="tutorial-desc">Multi-fidelity Deep Gaussian Processes for nonlinear inter-fidelity correlations</span> <span class="badge-concept">Concept</span></p>
+</div>
+</section>
+<section id="operator-learning" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="operator-learning">Operator Learning</h3>
+<div class="tutorial-card">
+<p><a href="./operator_learning_concept.html" class="tutorial-title"><strong>Operator Learning Concept</strong></a> <span class="tutorial-desc">Approximating maps between function spaces from paired input-output simulation data</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./kerneloperator_usage.html" class="tutorial-title"><strong>Kernel Operator Learning</strong></a> <span class="tutorial-desc">Build a kernel-based operator surrogate end-to-end on a 1D diffusion problem</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+</section>
+<section id="universal-polynomial-networks" class="level3 sub-heading">
+<h3 class="sub-heading anchored" data-anchor-id="universal-polynomial-networks">Universal Polynomial Networks</h3>
+<div class="tutorial-card">
+<p><a href="./supn_surrogates.html" class="tutorial-title"><strong>Shallow Universal Polynomial Network</strong></a> <span class="tutorial-desc">Approximate an expensive model with a shallow universal polynomial network</span> <span class="badge-hands-on">Hands-on</span></p>
 </div>
 <hr>
 </section>
@@ -698,6 +753,26 @@ MathJax = {
 </div>
 <div class="tutorial-card">
 <p><a href="./kle_spde.html" class="tutorial-title"><strong>KLE: SPDE Approach</strong></a> <span class="tutorial-desc">Stochastic PDE approach to efficient random field generation</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<hr>
+</section>
+<section id="dynamical-systems" class="level2 topic-heading">
+<h2 class="topic-heading anchored" data-anchor-id="dynamical-systems">Dynamical Systems</h2>
+<p><span class="section-desc">Learn ODE right-hand sides from data, preserve Hamiltonian structure, and predict trajectories at new parameters.</span></p>
+<div class="tutorial-card">
+<p><a href="./dynamical_systems_learning_concept.html" class="tutorial-title"><strong>Learning Dynamical Systems</strong></a> <span class="tutorial-desc">Approximating ODE right-hand sides from observed trajectory data for cheap forward prediction</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./derivative_matching_usage.html" class="tutorial-title"><strong>Derivative Matching</strong></a> <span class="tutorial-desc">Fit a polynomial basis expansion to snapshot pairs for ODE forward prediction</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./parametric_dynamical_systems_usage.html" class="tutorial-title"><strong>Parametric Dynamical Systems</strong></a> <span class="tutorial-desc">Learn parameter-dependent ODE right-hand sides and predict trajectories at new parameter values</span> <span class="badge-hands-on">Hands-on</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./hamiltonian_systems_concept.html" class="tutorial-title"><strong>Hamiltonian Systems</strong></a> <span class="tutorial-desc">Structure-preserving surrogates that conserve energy by parametrizing the Hamiltonian itself</span> <span class="badge-concept">Concept</span></p>
+</div>
+<div class="tutorial-card">
+<p><a href="./learning_hamiltonians_usage.html" class="tutorial-title"><strong>Learning Hamiltonians</strong></a> <span class="tutorial-desc">Fit Hamiltonian surrogates that preserve energy by construction</span> <span class="badge-hands-on">Hands-on</span></p>
 </div>
 <hr>
 </section>
@@ -1167,8 +1242,8 @@ MathJax = {
   </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Tutorials"</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="an">pagetitle:</span><span class="co"> "PyApprox Tutorials | 80+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides"</span></span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Browse 80+ validated, executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis."</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="an">pagetitle:</span><span class="co"> "PyApprox Tutorials | 100+ UQ, Surrogate Modeling &amp; Sensitivity Analysis Guides"</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="an">description:</span><span class="co"> "Browse 100+ executable tutorials covering forward UQ, multifidelity estimation, inverse UQ, experimental design, surrogate modeling, and sensitivity analysis."</span></span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="an">toc:</span><span class="co"> true</span></span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="an">toc-depth:</span><span class="co"> 2</span></span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
@@ -1177,7 +1252,7 @@ MathJax = {
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Tutorial Library</span><span class="co">]</span>{.tutorials-title-text}</span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">80+ validated, executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.</span><span class="co">]</span>{.tutorials-subtitle}</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">100+ executable tutorials organized by topic. Each tutorial is dual-backend tested (NumPy and PyTorch) and reproducible. Start with the learning path below, or jump to the topic that fits your application.</span><span class="co">]</span>{.tutorials-subtitle}</span>
 <span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a></span>
@@ -1448,408 +1523,544 @@ MathJax = {
 <span id="cb1-281"><a href="#cb1-281" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-282"><a href="#cb1-282" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-283"><a href="#cb1-283" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-284"><a href="#cb1-284" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**API Cookbook**</span><span class="co">](multifidelity_estimation_cookbook.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-285"><a href="#cb1-285" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Unified API cookbook: one-stop reference for all multi-fidelity estimators</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-286"><a href="#cb1-286" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Cookbook</span><span class="co">]</span>{.badge-cookbook}</span>
+<span id="cb1-284"><a href="#cb1-284" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Group ACV Concept**</span><span class="co">](group_acv_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-285"><a href="#cb1-285" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">The group ACV framework: unifying MLMC, MFMC, and MLBLUE under a single optimal-weight estimator with arbitrary model subsets</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-286"><a href="#cb1-286" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-287"><a href="#cb1-287" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-288"><a href="#cb1-288" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-289"><a href="#cb1-289" aria-hidden="true" tabindex="-1"></a>---</span>
-<span id="cb1-290"><a href="#cb1-290" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-291"><a href="#cb1-291" aria-hidden="true" tabindex="-1"></a><span class="fu">## Inverse UQ {.topic-heading}</span></span>
-<span id="cb1-292"><a href="#cb1-292" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-293"><a href="#cb1-293" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Infer model parameters from data using Bayesian inference, MCMC, and variational methods.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-289"><a href="#cb1-289" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-290"><a href="#cb1-290" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Group ACV Analysis**</span><span class="co">](group_acv_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-291"><a href="#cb1-291" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the group ACV weight matrix, covariance formula, and equivalence to MLBLUE</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-292"><a href="#cb1-292" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-293"><a href="#cb1-293" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-294"><a href="#cb1-294" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-295"><a href="#cb1-295" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-296"><a href="#cb1-296" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Bayesian Inference**</span><span class="co">](bayesian_inference_intro.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-297"><a href="#cb1-297" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">From data to parameters: updating beliefs using Bayes' theorem</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-296"><a href="#cb1-296" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Group ACV Multi-Statistic Concept**</span><span class="co">](group_acv_multistat_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-297"><a href="#cb1-297" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance and joint mean-variance estimation under the group ACV framework</span><span class="co">]</span>{.tutorial-desc}</span>
 <span id="cb1-298"><a href="#cb1-298" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-299"><a href="#cb1-299" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-300"><a href="#cb1-300" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-301"><a href="#cb1-301" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-302"><a href="#cb1-302" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sampling the Posterior with MCMC**</span><span class="co">](mcmc_sampling.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-303"><a href="#cb1-303" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-304"><a href="#cb1-304" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-302"><a href="#cb1-302" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Group ACV Optimization**</span><span class="co">](group_acv_optimization.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-303"><a href="#cb1-303" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Solving the sample-allocation problem: SLSQP recipe, variable scaling, SDP limitations, and mean-guided pruning</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-304"><a href="#cb1-304" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Usage</span><span class="co">]</span>{.badge-usage}</span>
 <span id="cb1-305"><a href="#cb1-305" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-306"><a href="#cb1-306" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-307"><a href="#cb1-307" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-308"><a href="#cb1-308" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Practical MCMC: MH and DRAM**</span><span class="co">](dram_mcmc.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-309"><a href="#cb1-309" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Tuning proposal distributions, adaptive methods, and convergence diagnostics for MCMC</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-310"><a href="#cb1-310" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-308"><a href="#cb1-308" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Group ACV Mixed Concept**</span><span class="co">](group_acv_mixed_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-309"><a href="#cb1-309" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Exploiting known low-fidelity statistics to improve multi-fidelity estimation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-310"><a href="#cb1-310" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-311"><a href="#cb1-311" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-312"><a href="#cb1-312" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-313"><a href="#cb1-313" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-314"><a href="#cb1-314" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Variational Inference**</span><span class="co">](vi_intro.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-315"><a href="#cb1-315" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximating the posterior with optimization instead of sampling</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-316"><a href="#cb1-316" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-314"><a href="#cb1-314" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**API Cookbook**</span><span class="co">](multifidelity_estimation_cookbook.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-315"><a href="#cb1-315" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Unified API cookbook: one-stop reference for all multi-fidelity estimators</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-316"><a href="#cb1-316" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Cookbook</span><span class="co">]</span>{.badge-cookbook}</span>
 <span id="cb1-317"><a href="#cb1-317" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-318"><a href="#cb1-318" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-319"><a href="#cb1-319" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-320"><a href="#cb1-320" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**The Variational Objective**</span><span class="co">](vi_objective.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-321"><a href="#cb1-321" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the ELBO and understanding the KL divergence minimization</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-322"><a href="#cb1-322" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-320"><a href="#cb1-320" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Aerospace Beam Case Study**</span><span class="co">](multifidelity_aerospace_beam.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-321"><a href="#cb1-321" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Group ACV on a partially ordered FEM ensemble with shared parameterization and a known-mean surrogate</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-322"><a href="#cb1-322" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Usage</span><span class="co">]</span>{.badge-usage}</span>
 <span id="cb1-323"><a href="#cb1-323" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-324"><a href="#cb1-324" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-326"><a href="#cb1-326" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Optimizing the ELBO**</span><span class="co">](vi_optimization.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-327"><a href="#cb1-327" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Gradient-based optimization of the evidence lower bound</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-328"><a href="#cb1-328" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
-<span id="cb1-329"><a href="#cb1-329" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-325"><a href="#cb1-325" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-326"><a href="#cb1-326" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-327"><a href="#cb1-327" aria-hidden="true" tabindex="-1"></a><span class="fu">## Inverse UQ {.topic-heading}</span></span>
+<span id="cb1-328"><a href="#cb1-328" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-329"><a href="#cb1-329" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Infer model parameters from data using Bayesian inference, MCMC, and variational methods.</span><span class="co">]</span>{.section-desc}</span>
 <span id="cb1-330"><a href="#cb1-330" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-331"><a href="#cb1-331" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-332"><a href="#cb1-332" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Variational Families**</span><span class="co">](vi_families.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-333"><a href="#cb1-333" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Mean-field, full-rank, and normalizing flow variational families</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-332"><a href="#cb1-332" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Bayesian Inference**</span><span class="co">](bayesian_inference_intro.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-333"><a href="#cb1-333" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">From data to parameters: updating beliefs using Bayes' theorem</span><span class="co">]</span>{.tutorial-desc}</span>
 <span id="cb1-334"><a href="#cb1-334" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-335"><a href="#cb1-335" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-336"><a href="#cb1-336" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-337"><a href="#cb1-337" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-338"><a href="#cb1-338" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Amortized Variational Inference**</span><span class="co">](vi_amortized.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-339"><a href="#cb1-339" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Learning inference networks that generalize across observations</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-340"><a href="#cb1-340" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-338"><a href="#cb1-338" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sampling the Posterior with MCMC**</span><span class="co">](mcmc_sampling.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-339"><a href="#cb1-339" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Using Markov chain Monte Carlo to generate posterior samples when grid evaluation is infeasible</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-340"><a href="#cb1-340" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-341"><a href="#cb1-341" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-342"><a href="#cb1-342" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-343"><a href="#cb1-343" aria-hidden="true" tabindex="-1"></a>---</span>
-<span id="cb1-344"><a href="#cb1-344" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-345"><a href="#cb1-345" aria-hidden="true" tabindex="-1"></a><span class="fu">## Experimental Design {.topic-heading}</span></span>
-<span id="cb1-346"><a href="#cb1-346" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-347"><a href="#cb1-347" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose optimal experiments to maximize information gain or minimize prediction uncertainty.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-343"><a href="#cb1-343" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-344"><a href="#cb1-344" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Practical MCMC: MH and DRAM**</span><span class="co">](dram_mcmc.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-345"><a href="#cb1-345" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Tuning proposal distributions, adaptive methods, and convergence diagnostics for MCMC</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-346"><a href="#cb1-346" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-347"><a href="#cb1-347" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-348"><a href="#cb1-348" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-349"><a href="#cb1-349" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-350"><a href="#cb1-350" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Experimental Design**</span><span class="co">](experimental_design_intro.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-351"><a href="#cb1-351" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why sensor placement matters: comparing designs by posterior covariance and Expected Information Gain</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-350"><a href="#cb1-350" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Variational Inference**</span><span class="co">](vi_intro.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-351"><a href="#cb1-351" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximating the posterior with optimization instead of sampling</span><span class="co">]</span>{.tutorial-desc}</span>
 <span id="cb1-352"><a href="#cb1-352" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-353"><a href="#cb1-353" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-354"><a href="#cb1-354" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-355"><a href="#cb1-355" aria-hidden="true" tabindex="-1"></a><span class="fu">### KL-Based OED {.sub-heading}</span></span>
-<span id="cb1-356"><a href="#cb1-356" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-357"><a href="#cb1-357" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-358"><a href="#cb1-358" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: KL Concept**</span><span class="co">](boed_kl_concept.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-359"><a href="#cb1-359" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">What Expected Information Gain measures and why it is the right objective for choosing experiments</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-360"><a href="#cb1-360" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-361"><a href="#cb1-361" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-362"><a href="#cb1-362" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-363"><a href="#cb1-363" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-364"><a href="#cb1-364" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Double-Loop Estimator**</span><span class="co">](boed_kl_estimator.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-365"><a href="#cb1-365" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">How the double-loop MC estimator approximates EIG by treating the marginal evidence as a nested average</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-366"><a href="#cb1-366" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
-<span id="cb1-367"><a href="#cb1-367" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-368"><a href="#cb1-368" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-370"><a href="#cb1-370" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Gradients**</span><span class="co">](boed_kl_gradients.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">The reparameterization trick, the C1+C2+C3 gradient decomposition, and the corrected Hessian</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
-<span id="cb1-373"><a href="#cb1-373" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-375"><a href="#cb1-375" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-376"><a href="#cb1-376" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Convergence**</span><span class="co">](boed_kl_usage.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-377"><a href="#cb1-377" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Using KLOEDDiagnostics to measure MSE, decompose bias and variance, and confirm convergence</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-378"><a href="#cb1-378" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-379"><a href="#cb1-379" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-355"><a href="#cb1-355" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-356"><a href="#cb1-356" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**The Variational Objective**</span><span class="co">](vi_objective.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-357"><a href="#cb1-357" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the ELBO and understanding the KL divergence minimization</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-358"><a href="#cb1-358" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-359"><a href="#cb1-359" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-360"><a href="#cb1-360" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-361"><a href="#cb1-361" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-362"><a href="#cb1-362" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Optimizing the ELBO**</span><span class="co">](vi_optimization.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-363"><a href="#cb1-363" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Gradient-based optimization of the evidence lower bound</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-364"><a href="#cb1-364" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-365"><a href="#cb1-365" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-366"><a href="#cb1-366" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-367"><a href="#cb1-367" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-368"><a href="#cb1-368" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Variational Families**</span><span class="co">](vi_families.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-369"><a href="#cb1-369" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Mean-field, full-rank, and normalizing flow variational families</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-370"><a href="#cb1-370" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-371"><a href="#cb1-371" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-372"><a href="#cb1-372" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-373"><a href="#cb1-373" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-374"><a href="#cb1-374" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Amortized Variational Inference**</span><span class="co">](vi_amortized.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-375"><a href="#cb1-375" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Learning inference networks that generalize across observations</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-376"><a href="#cb1-376" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-377"><a href="#cb1-377" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-378"><a href="#cb1-378" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-379"><a href="#cb1-379" aria-hidden="true" tabindex="-1"></a>---</span>
 <span id="cb1-380"><a href="#cb1-380" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-381"><a href="#cb1-381" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-382"><a href="#cb1-382" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: MC vs Halton**</span><span class="co">](boed_kl_qmc.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-383"><a href="#cb1-383" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why randomly-shifted Halton sequences reduce MSE compared to i.i.d. MC for the double-loop EIG estimator</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-384"><a href="#cb1-384" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
-<span id="cb1-385"><a href="#cb1-385" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-386"><a href="#cb1-386" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-387"><a href="#cb1-387" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-388"><a href="#cb1-388" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Nonlinear Usage**</span><span class="co">](boed_kl_nonlinear_usage.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-389"><a href="#cb1-389" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Applying EIG-based OED to a Lotka-Volterra predator-prey system</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-390"><a href="#cb1-390" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-391"><a href="#cb1-391" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-381"><a href="#cb1-381" aria-hidden="true" tabindex="-1"></a><span class="fu">## Experimental Design {.topic-heading}</span></span>
+<span id="cb1-382"><a href="#cb1-382" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-383"><a href="#cb1-383" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose optimal experiments to maximize information gain or minimize prediction uncertainty.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-384"><a href="#cb1-384" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-385"><a href="#cb1-385" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-386"><a href="#cb1-386" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Introduction to Experimental Design**</span><span class="co">](experimental_design_intro.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-387"><a href="#cb1-387" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why sensor placement matters: comparing designs by posterior covariance and Expected Information Gain</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-388"><a href="#cb1-388" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-389"><a href="#cb1-389" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-390"><a href="#cb1-390" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-391"><a href="#cb1-391" aria-hidden="true" tabindex="-1"></a><span class="fu">### KL-Based OED {.sub-heading}</span></span>
 <span id="cb1-392"><a href="#cb1-392" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-393"><a href="#cb1-393" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-394"><a href="#cb1-394" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Design Stability**</span><span class="co">](boed_kl_design_stability.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-395"><a href="#cb1-395" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Demonstrating that OED designs depend on MC realizations at fixed budget and stabilize as budget grows</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-396"><a href="#cb1-396" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-394"><a href="#cb1-394" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: KL Concept**</span><span class="co">](boed_kl_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-395"><a href="#cb1-395" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">What Expected Information Gain measures and why it is the right objective for choosing experiments</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-396"><a href="#cb1-396" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-397"><a href="#cb1-397" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-398"><a href="#cb1-398" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-399"><a href="#cb1-399" aria-hidden="true" tabindex="-1"></a><span class="fu">### Goal-Oriented OED {.sub-heading}</span></span>
-<span id="cb1-400"><a href="#cb1-400" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-401"><a href="#cb1-401" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-402"><a href="#cb1-402" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Concept**</span><span class="co">](boed_pred_concept.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-403"><a href="#cb1-403" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-404"><a href="#cb1-404" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-405"><a href="#cb1-405" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-406"><a href="#cb1-406" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-407"><a href="#cb1-407" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-408"><a href="#cb1-408" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Gaussian Analysis**</span><span class="co">](boed_pred_gaussian_analysis.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-409"><a href="#cb1-409" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Closed-form posterior mean distribution, entropic risk deviation, and AVaR deviation for Gaussian push-forwards</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-410"><a href="#cb1-410" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
-<span id="cb1-411"><a href="#cb1-411" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-412"><a href="#cb1-412" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-413"><a href="#cb1-413" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-414"><a href="#cb1-414" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Log-Normal Analysis**</span><span class="co">](boed_pred_lognormal_analysis.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-415"><a href="#cb1-415" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the distribution and expected AVaR deviation of the standard deviation of a log-normal QoI</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-416"><a href="#cb1-416" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
-<span id="cb1-417"><a href="#cb1-417" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-418"><a href="#cb1-418" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-419"><a href="#cb1-419" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-420"><a href="#cb1-420" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Convergence**</span><span class="co">](boed_pred_usage.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-421"><a href="#cb1-421" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Verifying numerical risk-aware utility estimates converge to analytical values with MC vs. Halton</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-422"><a href="#cb1-422" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-423"><a href="#cb1-423" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-424"><a href="#cb1-424" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-425"><a href="#cb1-425" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-426"><a href="#cb1-426" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Nonlinear Usage**</span><span class="co">](boed_pred_nonlinear_usage.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-427"><a href="#cb1-427" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Comparing std-deviation and entropic deviation objectives for goal-oriented OED on Lotka-Volterra</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-428"><a href="#cb1-428" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-429"><a href="#cb1-429" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-430"><a href="#cb1-430" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-431"><a href="#cb1-431" aria-hidden="true" tabindex="-1"></a><span class="fu">### OED Workflows {.sub-heading}</span></span>
-<span id="cb1-432"><a href="#cb1-432" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-433"><a href="#cb1-433" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-434"><a href="#cb1-434" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED Data Workflow**</span><span class="co">](boed_data_workflow_usage.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-435"><a href="#cb1-435" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Generating, saving, and reusing expensive model evaluations so OED optimisation avoids re-running the forward model</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-436"><a href="#cb1-436" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-437"><a href="#cb1-437" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-438"><a href="#cb1-438" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-439"><a href="#cb1-439" aria-hidden="true" tabindex="-1"></a>---</span>
-<span id="cb1-440"><a href="#cb1-440" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-441"><a href="#cb1-441" aria-hidden="true" tabindex="-1"></a><span class="fu">## Approximation Theory {.topic-heading}</span></span>
+<span id="cb1-399"><a href="#cb1-399" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-400"><a href="#cb1-400" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Double-Loop Estimator**</span><span class="co">](boed_kl_estimator.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-401"><a href="#cb1-401" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">How the double-loop MC estimator approximates EIG by treating the marginal evidence as a nested average</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-402"><a href="#cb1-402" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-403"><a href="#cb1-403" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-404"><a href="#cb1-404" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-405"><a href="#cb1-405" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-406"><a href="#cb1-406" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Gradients**</span><span class="co">](boed_kl_gradients.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-407"><a href="#cb1-407" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">The reparameterization trick, the C1+C2+C3 gradient decomposition, and the corrected Hessian</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-408"><a href="#cb1-408" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-409"><a href="#cb1-409" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-410"><a href="#cb1-410" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-411"><a href="#cb1-411" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-412"><a href="#cb1-412" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Convergence**</span><span class="co">](boed_kl_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-413"><a href="#cb1-413" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Using KLOEDDiagnostics to measure MSE, decompose bias and variance, and confirm convergence</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-414"><a href="#cb1-414" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-415"><a href="#cb1-415" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-416"><a href="#cb1-416" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-417"><a href="#cb1-417" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-418"><a href="#cb1-418" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: MC vs Halton**</span><span class="co">](boed_kl_qmc.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-419"><a href="#cb1-419" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why randomly-shifted Halton sequences reduce MSE compared to i.i.d. MC for the double-loop EIG estimator</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-420"><a href="#cb1-420" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-421"><a href="#cb1-421" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-422"><a href="#cb1-422" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-423"><a href="#cb1-423" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-424"><a href="#cb1-424" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Nonlinear Usage**</span><span class="co">](boed_kl_nonlinear_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-425"><a href="#cb1-425" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Applying EIG-based OED to a Lotka-Volterra predator-prey system</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-426"><a href="#cb1-426" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-427"><a href="#cb1-427" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-428"><a href="#cb1-428" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-429"><a href="#cb1-429" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-430"><a href="#cb1-430" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED: Design Stability**</span><span class="co">](boed_kl_design_stability.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-431"><a href="#cb1-431" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Demonstrating that OED designs depend on MC realizations at fixed budget and stabilize as budget grows</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-432"><a href="#cb1-432" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-433"><a href="#cb1-433" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-434"><a href="#cb1-434" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-435"><a href="#cb1-435" aria-hidden="true" tabindex="-1"></a><span class="fu">### Goal-Oriented OED {.sub-heading}</span></span>
+<span id="cb1-436"><a href="#cb1-436" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-437"><a href="#cb1-437" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-438"><a href="#cb1-438" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Concept**</span><span class="co">](boed_pred_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-439"><a href="#cb1-439" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Why targeting prediction uncertainty rather than parameter uncertainty changes which experiments are optimal</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-440"><a href="#cb1-440" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-441"><a href="#cb1-441" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-442"><a href="#cb1-442" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-443"><a href="#cb1-443" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Mathematical foundations for interpolation, quadrature, and polynomial approximation.</span><span class="co">]</span>{.section-desc}</span>
-<span id="cb1-444"><a href="#cb1-444" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-445"><a href="#cb1-445" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-446"><a href="#cb1-446" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Lagrange Interpolation**</span><span class="co">](lagrange_interpolation.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-447"><a href="#cb1-447" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Lagrange basis polynomials, Runge phenomenon, and optimal node placement</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-448"><a href="#cb1-448" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-449"><a href="#cb1-449" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-450"><a href="#cb1-450" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-451"><a href="#cb1-451" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-452"><a href="#cb1-452" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Piecewise Interpolation**</span><span class="co">](piecewise_interpolation.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-453"><a href="#cb1-453" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Local basis functions for smooth and discontinuous functions</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-454"><a href="#cb1-454" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-455"><a href="#cb1-455" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-456"><a href="#cb1-456" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-457"><a href="#cb1-457" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-458"><a href="#cb1-458" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Tensor Product Interpolation**</span><span class="co">](tensor_product_interpolation.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-459"><a href="#cb1-459" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Multivariate approximation via Cartesian products of 1D bases</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-460"><a href="#cb1-460" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-461"><a href="#cb1-461" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-462"><a href="#cb1-462" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-463"><a href="#cb1-463" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-464"><a href="#cb1-464" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Gauss Quadrature**</span><span class="co">](gauss_quadrature.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-465"><a href="#cb1-465" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimal nodes from orthogonal polynomials with exponential convergence</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-466"><a href="#cb1-466" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-467"><a href="#cb1-467" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-443"><a href="#cb1-443" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-444"><a href="#cb1-444" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Gaussian Analysis**</span><span class="co">](boed_pred_gaussian_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-445"><a href="#cb1-445" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Closed-form posterior mean distribution, entropic risk deviation, and AVaR deviation for Gaussian push-forwards</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-446"><a href="#cb1-446" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-447"><a href="#cb1-447" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-448"><a href="#cb1-448" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-449"><a href="#cb1-449" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-450"><a href="#cb1-450" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Log-Normal Analysis**</span><span class="co">](boed_pred_lognormal_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-451"><a href="#cb1-451" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving the distribution and expected AVaR deviation of the standard deviation of a log-normal QoI</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-452"><a href="#cb1-452" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-453"><a href="#cb1-453" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-454"><a href="#cb1-454" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-455"><a href="#cb1-455" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-456"><a href="#cb1-456" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Convergence**</span><span class="co">](boed_pred_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-457"><a href="#cb1-457" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Verifying numerical risk-aware utility estimates converge to analytical values with MC vs. Halton</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-458"><a href="#cb1-458" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-459"><a href="#cb1-459" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-460"><a href="#cb1-460" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-461"><a href="#cb1-461" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-462"><a href="#cb1-462" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Goal-Oriented OED: Nonlinear Usage**</span><span class="co">](boed_pred_nonlinear_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-463"><a href="#cb1-463" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Comparing std-deviation and entropic deviation objectives for goal-oriented OED on Lotka-Volterra</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-464"><a href="#cb1-464" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-465"><a href="#cb1-465" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-466"><a href="#cb1-466" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-467"><a href="#cb1-467" aria-hidden="true" tabindex="-1"></a><span class="fu">### OED Workflows {.sub-heading}</span></span>
 <span id="cb1-468"><a href="#cb1-468" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-469"><a href="#cb1-469" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-470"><a href="#cb1-470" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Piecewise Polynomial Quadrature**</span><span class="co">](piecewise_quadrature.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-471"><a href="#cb1-471" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Rectangle, trapezoid, and Simpson's rules with error derivations</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-472"><a href="#cb1-472" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-470"><a href="#cb1-470" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**OED Data Workflow**</span><span class="co">](boed_data_workflow_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-471"><a href="#cb1-471" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Generating, saving, and reusing expensive model evaluations so OED optimisation avoids re-running the forward model</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-472"><a href="#cb1-472" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
 <span id="cb1-473"><a href="#cb1-473" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-474"><a href="#cb1-474" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-475"><a href="#cb1-475" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-476"><a href="#cb1-476" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Leja Sequences**</span><span class="co">](leja_sequences.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-477"><a href="#cb1-477" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Nested points for adaptive interpolation via greedy determinant maximisation</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-478"><a href="#cb1-478" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-479"><a href="#cb1-479" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-475"><a href="#cb1-475" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-476"><a href="#cb1-476" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-477"><a href="#cb1-477" aria-hidden="true" tabindex="-1"></a><span class="fu">## Approximation Theory {.topic-heading}</span></span>
+<span id="cb1-478"><a href="#cb1-478" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-479"><a href="#cb1-479" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Mathematical foundations for interpolation, quadrature, and polynomial approximation.</span><span class="co">]</span>{.section-desc}</span>
 <span id="cb1-480"><a href="#cb1-480" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-481"><a href="#cb1-481" aria-hidden="true" tabindex="-1"></a>---</span>
-<span id="cb1-482"><a href="#cb1-482" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-483"><a href="#cb1-483" aria-hidden="true" tabindex="-1"></a><span class="fu">## Surrogate Modeling {.topic-heading}</span></span>
-<span id="cb1-484"><a href="#cb1-484" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-485"><a href="#cb1-485" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build fast approximations of expensive models using polynomials, sparse grids, and Gaussian processes.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-481"><a href="#cb1-481" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-482"><a href="#cb1-482" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Lagrange Interpolation**</span><span class="co">](lagrange_interpolation.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-483"><a href="#cb1-483" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Lagrange basis polynomials, Runge phenomenon, and optimal node placement</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-484"><a href="#cb1-484" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-485"><a href="#cb1-485" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-486"><a href="#cb1-486" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-487"><a href="#cb1-487" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-488"><a href="#cb1-488" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**The Surrogate Modeling Workflow**</span><span class="co">](surrogate_workflow.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-489"><a href="#cb1-489" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build your first surrogate model and learn the four-step workflow that every surrogate method follows</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-488"><a href="#cb1-488" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Piecewise Interpolation**</span><span class="co">](piecewise_interpolation.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-489"><a href="#cb1-489" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Local basis functions for smooth and discontinuous functions</span><span class="co">]</span>{.tutorial-desc}</span>
 <span id="cb1-490"><a href="#cb1-490" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-491"><a href="#cb1-491" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-492"><a href="#cb1-492" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-493"><a href="#cb1-493" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-494"><a href="#cb1-494" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**What Makes a Good Surrogate?**</span><span class="co">](surrogate_design.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-495"><a href="#cb1-495" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">How the choice of ansatz, training data, and fitting strategy affect surrogate quality, and how different surrogates exploit different kinds of function structure</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-494"><a href="#cb1-494" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Tensor Product Interpolation**</span><span class="co">](tensor_product_interpolation.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-495"><a href="#cb1-495" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Multivariate approximation via Cartesian products of 1D bases</span><span class="co">]</span>{.tutorial-desc}</span>
 <span id="cb1-496"><a href="#cb1-496" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-497"><a href="#cb1-497" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-498"><a href="#cb1-498" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-499"><a href="#cb1-499" aria-hidden="true" tabindex="-1"></a><span class="fu">### Polynomial Chaos {.sub-heading}</span></span>
-<span id="cb1-500"><a href="#cb1-500" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-501"><a href="#cb1-501" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-502"><a href="#cb1-502" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Building a Polynomial Chaos Surrogate**</span><span class="co">](polynomial_chaos_surrogates.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-503"><a href="#cb1-503" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximate an expensive model with a polynomial chaos expansion</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-504"><a href="#cb1-504" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-505"><a href="#cb1-505" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-506"><a href="#cb1-506" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-507"><a href="#cb1-507" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-508"><a href="#cb1-508" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Overfitting and Cross-Validation**</span><span class="co">](practical_pce_fitting.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-509"><a href="#cb1-509" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose the polynomial degree using LOO cross-validation</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-510"><a href="#cb1-510" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-511"><a href="#cb1-511" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-512"><a href="#cb1-512" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-513"><a href="#cb1-513" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-514"><a href="#cb1-514" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sparse Polynomial Approximation**</span><span class="co">](sparse_pce_fitting.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-515"><a href="#cb1-515" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">OMP and BPDN/LASSO for high-dimensional polynomial chaos</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-516"><a href="#cb1-516" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-517"><a href="#cb1-517" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-499"><a href="#cb1-499" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-500"><a href="#cb1-500" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Gauss Quadrature**</span><span class="co">](gauss_quadrature.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-501"><a href="#cb1-501" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimal nodes from orthogonal polynomials with exponential convergence</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-502"><a href="#cb1-502" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-503"><a href="#cb1-503" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-504"><a href="#cb1-504" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-505"><a href="#cb1-505" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-506"><a href="#cb1-506" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Piecewise Polynomial Quadrature**</span><span class="co">](piecewise_quadrature.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-507"><a href="#cb1-507" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Rectangle, trapezoid, and Simpson's rules with error derivations</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-508"><a href="#cb1-508" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-509"><a href="#cb1-509" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-510"><a href="#cb1-510" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-511"><a href="#cb1-511" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-512"><a href="#cb1-512" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Leja Sequences**</span><span class="co">](leja_sequences.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-513"><a href="#cb1-513" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Nested points for adaptive interpolation via greedy determinant maximisation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-514"><a href="#cb1-514" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-515"><a href="#cb1-515" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-516"><a href="#cb1-516" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-517"><a href="#cb1-517" aria-hidden="true" tabindex="-1"></a>---</span>
 <span id="cb1-518"><a href="#cb1-518" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-519"><a href="#cb1-519" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-520"><a href="#cb1-520" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Polynomial Chaos**</span><span class="co">](uq_with_pce.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-521"><a href="#cb1-521" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-522"><a href="#cb1-522" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-523"><a href="#cb1-523" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-524"><a href="#cb1-524" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-525"><a href="#cb1-525" aria-hidden="true" tabindex="-1"></a><span class="fu">### Function Trains {.sub-heading}</span></span>
-<span id="cb1-526"><a href="#cb1-526" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-527"><a href="#cb1-527" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-528"><a href="#cb1-528" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Function Train Surrogates**</span><span class="co">](function_train_surrogates.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-529"><a href="#cb1-529" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build intuition for low-rank functions and the function train decomposition</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-530"><a href="#cb1-530" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-531"><a href="#cb1-531" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-532"><a href="#cb1-532" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-533"><a href="#cb1-533" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-534"><a href="#cb1-534" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Function Trains**</span><span class="co">](uq_with_functiontrain.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-535"><a href="#cb1-535" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Extract analytical moments, marginal densities, and input marginals from a fitted function train</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-536"><a href="#cb1-536" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-537"><a href="#cb1-537" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-538"><a href="#cb1-538" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-539"><a href="#cb1-539" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sparse Grids {.sub-heading}</span></span>
-<span id="cb1-540"><a href="#cb1-540" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-541"><a href="#cb1-541" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-542"><a href="#cb1-542" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Isotropic Sparse Grids**</span><span class="co">](isotropic_sparse_grids.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-543"><a href="#cb1-543" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Smolyak combination technique for breaking the curse of dimensionality</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-544"><a href="#cb1-544" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-545"><a href="#cb1-545" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-546"><a href="#cb1-546" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-547"><a href="#cb1-547" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-548"><a href="#cb1-548" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Adaptive Sparse Grids**</span><span class="co">](adaptive_sparse_grids.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-549"><a href="#cb1-549" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Data-driven refinement for anisotropic functions</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-550"><a href="#cb1-550" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-551"><a href="#cb1-551" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-552"><a href="#cb1-552" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-553"><a href="#cb1-553" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-554"><a href="#cb1-554" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multifidelity Sparse Grids**</span><span class="co">](multifidelity_sparse_grids.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-555"><a href="#cb1-555" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Multi-index collocation for model hierarchies with varying cost and accuracy</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-556"><a href="#cb1-556" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-557"><a href="#cb1-557" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-558"><a href="#cb1-558" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-559"><a href="#cb1-559" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-560"><a href="#cb1-560" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sparse Grid to PCE Conversion**</span><span class="co">](sparse_grid_to_pce_conversion.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-561"><a href="#cb1-561" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Spectral projection converting Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-562"><a href="#cb1-562" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
-<span id="cb1-563"><a href="#cb1-563" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-564"><a href="#cb1-564" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-565"><a href="#cb1-565" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-566"><a href="#cb1-566" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Sparse Grids**</span><span class="co">](uq_with_sparse_grids.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-567"><a href="#cb1-567" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare against MC</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-568"><a href="#cb1-568" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-569"><a href="#cb1-569" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-570"><a href="#cb1-570" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-571"><a href="#cb1-571" aria-hidden="true" tabindex="-1"></a><span class="fu">### Gaussian Processes {.sub-heading}</span></span>
-<span id="cb1-572"><a href="#cb1-572" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-573"><a href="#cb1-573" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-574"><a href="#cb1-574" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Building a GP Surrogate**</span><span class="co">](gp_surrogate.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-575"><a href="#cb1-575" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximate an expensive model with a Gaussian process and quantify prediction uncertainty</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-576"><a href="#cb1-576" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-577"><a href="#cb1-577" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-578"><a href="#cb1-578" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-579"><a href="#cb1-579" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-580"><a href="#cb1-580" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Gaussian Processes**</span><span class="co">](uq_with_gp.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-581"><a href="#cb1-581" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Compute analytical moments, marginal densities, and main effects from a fitted GP</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-582"><a href="#cb1-582" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-583"><a href="#cb1-583" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-584"><a href="#cb1-584" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-585"><a href="#cb1-585" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-586"><a href="#cb1-586" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Adaptive GP Sampling**</span><span class="co">](adaptive_gp_sampling.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-587"><a href="#cb1-587" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-588"><a href="#cb1-588" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-589"><a href="#cb1-589" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-590"><a href="#cb1-590" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-591"><a href="#cb1-591" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-592"><a href="#cb1-592" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multi-Fidelity Gaussian Processes**</span><span class="co">](multioutput_gp.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-593"><a href="#cb1-593" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-594"><a href="#cb1-594" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-595"><a href="#cb1-595" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-596"><a href="#cb1-596" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-597"><a href="#cb1-597" aria-hidden="true" tabindex="-1"></a>---</span>
-<span id="cb1-598"><a href="#cb1-598" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-599"><a href="#cb1-599" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sensitivity Analysis {.topic-heading}</span></span>
+<span id="cb1-519"><a href="#cb1-519" aria-hidden="true" tabindex="-1"></a><span class="fu">## Surrogate Modeling {.topic-heading}</span></span>
+<span id="cb1-520"><a href="#cb1-520" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-521"><a href="#cb1-521" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build fast approximations of expensive models using polynomials, sparse grids, and Gaussian processes.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-522"><a href="#cb1-522" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-523"><a href="#cb1-523" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-524"><a href="#cb1-524" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**The Surrogate Modeling Workflow**</span><span class="co">](surrogate_workflow.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-525"><a href="#cb1-525" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build your first surrogate model and learn the four-step workflow that every surrogate method follows</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-526"><a href="#cb1-526" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-527"><a href="#cb1-527" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-528"><a href="#cb1-528" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-529"><a href="#cb1-529" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-530"><a href="#cb1-530" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**What Makes a Good Surrogate?**</span><span class="co">](surrogate_design.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-531"><a href="#cb1-531" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">How the choice of ansatz, training data, and fitting strategy affect surrogate quality, and how different surrogates exploit different kinds of function structure</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-532"><a href="#cb1-532" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-533"><a href="#cb1-533" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-534"><a href="#cb1-534" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-535"><a href="#cb1-535" aria-hidden="true" tabindex="-1"></a><span class="fu">### Polynomial Chaos {.sub-heading}</span></span>
+<span id="cb1-536"><a href="#cb1-536" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-537"><a href="#cb1-537" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-538"><a href="#cb1-538" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Building a Polynomial Chaos Surrogate**</span><span class="co">](polynomial_chaos_surrogates.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-539"><a href="#cb1-539" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximate an expensive model with a polynomial chaos expansion</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-540"><a href="#cb1-540" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-541"><a href="#cb1-541" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-542"><a href="#cb1-542" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-543"><a href="#cb1-543" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-544"><a href="#cb1-544" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Overfitting and Cross-Validation**</span><span class="co">](practical_pce_fitting.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-545"><a href="#cb1-545" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose the polynomial degree using LOO cross-validation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-546"><a href="#cb1-546" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-547"><a href="#cb1-547" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-548"><a href="#cb1-548" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-549"><a href="#cb1-549" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-550"><a href="#cb1-550" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sparse Polynomial Approximation**</span><span class="co">](sparse_pce_fitting.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-551"><a href="#cb1-551" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">OMP and BPDN/LASSO for high-dimensional polynomial chaos</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-552"><a href="#cb1-552" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-553"><a href="#cb1-553" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-554"><a href="#cb1-554" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-555"><a href="#cb1-555" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-556"><a href="#cb1-556" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Polynomial Chaos**</span><span class="co">](uq_with_pce.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-557"><a href="#cb1-557" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Extract analytical moments, marginal densities, and convergence comparisons from a fitted PCE</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-558"><a href="#cb1-558" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-559"><a href="#cb1-559" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-560"><a href="#cb1-560" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-561"><a href="#cb1-561" aria-hidden="true" tabindex="-1"></a><span class="fu">### Function Trains {.sub-heading}</span></span>
+<span id="cb1-562"><a href="#cb1-562" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-563"><a href="#cb1-563" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-564"><a href="#cb1-564" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Function Train Surrogates**</span><span class="co">](function_train_surrogates.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-565"><a href="#cb1-565" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build intuition for low-rank functions and the function train decomposition</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-566"><a href="#cb1-566" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-567"><a href="#cb1-567" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-568"><a href="#cb1-568" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-569"><a href="#cb1-569" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-570"><a href="#cb1-570" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Function Trains**</span><span class="co">](uq_with_functiontrain.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-571"><a href="#cb1-571" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Extract analytical moments, marginal densities, and input marginals from a fitted function train</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-572"><a href="#cb1-572" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-573"><a href="#cb1-573" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-574"><a href="#cb1-574" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-575"><a href="#cb1-575" aria-hidden="true" tabindex="-1"></a><span class="fu">### Sparse Grids {.sub-heading}</span></span>
+<span id="cb1-576"><a href="#cb1-576" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-577"><a href="#cb1-577" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-578"><a href="#cb1-578" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Isotropic Sparse Grids**</span><span class="co">](isotropic_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-579"><a href="#cb1-579" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Smolyak combination technique for breaking the curse of dimensionality</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-580"><a href="#cb1-580" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-581"><a href="#cb1-581" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-582"><a href="#cb1-582" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-583"><a href="#cb1-583" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-584"><a href="#cb1-584" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Adaptive Sparse Grids**</span><span class="co">](adaptive_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-585"><a href="#cb1-585" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Data-driven refinement for anisotropic functions</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-586"><a href="#cb1-586" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-587"><a href="#cb1-587" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-588"><a href="#cb1-588" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-589"><a href="#cb1-589" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-590"><a href="#cb1-590" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Local Basis Sparse Grids**</span><span class="co">](local_basis_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-591"><a href="#cb1-591" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Piecewise polynomial interpolation on sparse grids for non-smooth functions</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-592"><a href="#cb1-592" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-593"><a href="#cb1-593" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-594"><a href="#cb1-594" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-595"><a href="#cb1-595" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-596"><a href="#cb1-596" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Locally Adaptive Sparse Grids**</span><span class="co">](local_adaptive_sparse_grids_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-597"><a href="#cb1-597" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hierarchical hat-function surrogates that refine where the function is hardest to approximate</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-598"><a href="#cb1-598" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-599"><a href="#cb1-599" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-600"><a href="#cb1-600" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-601"><a href="#cb1-601" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Identify which uncertain inputs drive output variability using variance decomposition and screening.</span><span class="co">]</span>{.section-desc}</span>
-<span id="cb1-602"><a href="#cb1-602" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-603"><a href="#cb1-603" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-604"><a href="#cb1-604" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sensitivity Analysis Concept**</span><span class="co">](sensitivity_analysis_concept.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-605"><a href="#cb1-605" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance decomposition and Sobol indices: identifying which uncertain inputs drive output variability</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-606"><a href="#cb1-606" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
-<span id="cb1-607"><a href="#cb1-607" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-608"><a href="#cb1-608" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-609"><a href="#cb1-609" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-610"><a href="#cb1-610" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sobol Sensitivity Analysis**</span><span class="co">](sobol_sensitivity_analysis.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-611"><a href="#cb1-611" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance-based sensitivity indices for identifying important parameters</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-612"><a href="#cb1-612" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-613"><a href="#cb1-613" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-614"><a href="#cb1-614" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-615"><a href="#cb1-615" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-616"><a href="#cb1-616" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**PCE-Based Sensitivity**</span><span class="co">](pce_sensitivity.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-617"><a href="#cb1-617" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically from polynomial chaos expansion coefficients</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-618"><a href="#cb1-618" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-619"><a href="#cb1-619" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-620"><a href="#cb1-620" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-621"><a href="#cb1-621" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-622"><a href="#cb1-622" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**GP-Based Sensitivity**</span><span class="co">](gp_sensitivity.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-623"><a href="#cb1-623" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically from GP kernel integrals and verifying against fix-and-freeze estimates</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-624"><a href="#cb1-624" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-625"><a href="#cb1-625" aria-hidden="true" tabindex="-1"></a>:::</span>
-<span id="cb1-626"><a href="#cb1-626" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-627"><a href="#cb1-627" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-628"><a href="#cb1-628" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Morris Screening**</span><span class="co">](morris_screening.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-629"><a href="#cb1-629" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">One-at-a-time elementary effects for cheap parameter screening</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-630"><a href="#cb1-630" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-631"><a href="#cb1-631" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-601"><a href="#cb1-601" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-602"><a href="#cb1-602" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Local Adaptivity vs Combination Technique**</span><span class="co">](local_adaptive_vs_combination.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-603"><a href="#cb1-603" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Locally adaptive hierarchical sparse grids vs dimension-adaptive combination technique on a non-smooth target</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-604"><a href="#cb1-604" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-605"><a href="#cb1-605" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-606"><a href="#cb1-606" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-607"><a href="#cb1-607" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-608"><a href="#cb1-608" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Cost-Tracked Adaptive Sparse Grids**</span><span class="co">](sparse_grid_cost_tracking.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-609"><a href="#cb1-609" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Use measured wall-time as a budget for adaptive sparse grid refinement</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-610"><a href="#cb1-610" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-611"><a href="#cb1-611" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-612"><a href="#cb1-612" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-613"><a href="#cb1-613" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-614"><a href="#cb1-614" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multifidelity Sparse Grids**</span><span class="co">](multifidelity_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-615"><a href="#cb1-615" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Multi-index collocation for model hierarchies with varying cost and accuracy</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-616"><a href="#cb1-616" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-617"><a href="#cb1-617" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-618"><a href="#cb1-618" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-619"><a href="#cb1-619" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-620"><a href="#cb1-620" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sparse Grid to PCE Conversion**</span><span class="co">](sparse_grid_to_pce_conversion.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-621"><a href="#cb1-621" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Spectral projection converting Lagrange-based sparse grid interpolants into Polynomial Chaos Expansions</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-622"><a href="#cb1-622" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-623"><a href="#cb1-623" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-624"><a href="#cb1-624" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-625"><a href="#cb1-625" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-626"><a href="#cb1-626" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Sparse Grids**</span><span class="co">](uq_with_sparse_grids.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-627"><a href="#cb1-627" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Compute moments from sparse grid quadrature, convert to PCE for Sobol indices, and compare against MC</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-628"><a href="#cb1-628" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-629"><a href="#cb1-629" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-630"><a href="#cb1-630" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-631"><a href="#cb1-631" aria-hidden="true" tabindex="-1"></a><span class="fu">### Gaussian Processes {.sub-heading}</span></span>
 <span id="cb1-632"><a href="#cb1-632" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-633"><a href="#cb1-633" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-634"><a href="#cb1-634" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Bin-Based Sensitivity**</span><span class="co">](bin_based_sensitivity.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-635"><a href="#cb1-635" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance-based sensitivity indices via binning estimation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-634"><a href="#cb1-634" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Building a GP Surrogate**</span><span class="co">](gp_surrogate.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-635"><a href="#cb1-635" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximate an expensive model with a Gaussian process and quantify prediction uncertainty</span><span class="co">]</span>{.tutorial-desc}</span>
 <span id="cb1-636"><a href="#cb1-636" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
 <span id="cb1-637"><a href="#cb1-637" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-638"><a href="#cb1-638" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-639"><a href="#cb1-639" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-640"><a href="#cb1-640" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**FT Sensitivity: Math**</span><span class="co">](functiontrain_sensitivity_math.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-641"><a href="#cb1-641" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving Sobol indices analytically from PCE FunctionTrain structure</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-642"><a href="#cb1-642" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-640"><a href="#cb1-640" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**UQ with Gaussian Processes**</span><span class="co">](uq_with_gp.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-641"><a href="#cb1-641" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Compute analytical moments, marginal densities, and main effects from a fitted GP</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-642"><a href="#cb1-642" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
 <span id="cb1-643"><a href="#cb1-643" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-644"><a href="#cb1-644" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-645"><a href="#cb1-645" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-646"><a href="#cb1-646" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**FT Sensitivity: Usage**</span><span class="co">](functiontrain_sensitivity.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-647"><a href="#cb1-647" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically with FunctionTrainSensitivity</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-646"><a href="#cb1-646" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Adaptive GP Sampling**</span><span class="co">](adaptive_gp_sampling.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-647"><a href="#cb1-647" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Choose training points that maximally reduce GP posterior uncertainty using greedy Cholesky and IVAR strategies</span><span class="co">]</span>{.tutorial-desc}</span>
 <span id="cb1-648"><a href="#cb1-648" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
 <span id="cb1-649"><a href="#cb1-649" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-650"><a href="#cb1-650" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-651"><a href="#cb1-651" aria-hidden="true" tabindex="-1"></a>---</span>
-<span id="cb1-652"><a href="#cb1-652" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-653"><a href="#cb1-653" aria-hidden="true" tabindex="-1"></a><span class="fu">## Random Fields {.topic-heading}</span></span>
-<span id="cb1-654"><a href="#cb1-654" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-655"><a href="#cb1-655" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Represent spatially correlated uncertainty using Karhunen-Loeve expansions.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-651"><a href="#cb1-651" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-652"><a href="#cb1-652" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multi-Fidelity Gaussian Processes**</span><span class="co">](multioutput_gp.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-653"><a href="#cb1-653" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Exploit correlations between model fidelities to build accurate surrogates within a fixed computational budget</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-654"><a href="#cb1-654" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-655"><a href="#cb1-655" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-656"><a href="#cb1-656" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-657"><a href="#cb1-657" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-658"><a href="#cb1-658" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE Introduction**</span><span class="co">](kle_introduction.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-659"><a href="#cb1-659" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Karhunen-Loeve expansion for representing random fields as truncated eigenfunction series</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-658"><a href="#cb1-658" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sparse Variational GPs**</span><span class="co">](svgp_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-659"><a href="#cb1-659" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Inducing-point compression and the ELBO for large-scale GP inference</span><span class="co">]</span>{.tutorial-desc}</span>
 <span id="cb1-660"><a href="#cb1-660" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-661"><a href="#cb1-661" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-662"><a href="#cb1-662" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-663"><a href="#cb1-663" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-664"><a href="#cb1-664" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE: Mesh and Data-Driven**</span><span class="co">](kle_mesh_and_data_driven.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-665"><a href="#cb1-665" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Building KLE from mesh-based covariance or data-driven empirical covariance</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-666"><a href="#cb1-666" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-664"><a href="#cb1-664" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Deep Gaussian Processes**</span><span class="co">](dgp_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-665"><a href="#cb1-665" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Composing GPs into hierarchical models that learn input-dependent length scales and non-Gaussian predictive distributions</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-666"><a href="#cb1-666" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-667"><a href="#cb1-667" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-668"><a href="#cb1-668" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb1-669"><a href="#cb1-669" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-670"><a href="#cb1-670" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE: SPDE Approach**</span><span class="co">](kle_spde.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-671"><a href="#cb1-671" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Stochastic PDE approach to efficient random field generation</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-672"><a href="#cb1-672" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-670"><a href="#cb1-670" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Multi-fidelity Deep GPs**</span><span class="co">](dgp_multifidelity_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-671"><a href="#cb1-671" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Multi-fidelity Deep Gaussian Processes for nonlinear inter-fidelity correlations</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-672"><a href="#cb1-672" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
 <span id="cb1-673"><a href="#cb1-673" aria-hidden="true" tabindex="-1"></a>:::</span>
 <span id="cb1-674"><a href="#cb1-674" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-675"><a href="#cb1-675" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-675"><a href="#cb1-675" aria-hidden="true" tabindex="-1"></a><span class="fu">### Operator Learning {.sub-heading}</span></span>
 <span id="cb1-676"><a href="#cb1-676" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-677"><a href="#cb1-677" aria-hidden="true" tabindex="-1"></a><span class="fu">## Optimization Under Uncertainty {.topic-heading}</span></span>
-<span id="cb1-678"><a href="#cb1-678" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-679"><a href="#cb1-679" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimize system design when model inputs are uncertain.</span><span class="co">]</span>{.section-desc}</span>
-<span id="cb1-680"><a href="#cb1-680" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-681"><a href="#cb1-681" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
-<span id="cb1-682"><a href="#cb1-682" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Design Under Uncertainty**</span><span class="co">](design_under_uncertainty.qmd)</span>{.tutorial-title}</span>
-<span id="cb1-683"><a href="#cb1-683" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimizing system design when model inputs are uncertain</span><span class="co">]</span>{.tutorial-desc}</span>
-<span id="cb1-684"><a href="#cb1-684" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
-<span id="cb1-685"><a href="#cb1-685" aria-hidden="true" tabindex="-1"></a>:::</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
+<span id="cb1-677"><a href="#cb1-677" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-678"><a href="#cb1-678" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Operator Learning Concept**</span><span class="co">](operator_learning_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-679"><a href="#cb1-679" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximating maps between function spaces from paired input-output simulation data</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-680"><a href="#cb1-680" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-681"><a href="#cb1-681" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-682"><a href="#cb1-682" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-683"><a href="#cb1-683" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-684"><a href="#cb1-684" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Kernel Operator Learning**</span><span class="co">](kerneloperator_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-685"><a href="#cb1-685" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Build a kernel-based operator surrogate end-to-end on a 1D diffusion problem</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-686"><a href="#cb1-686" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-687"><a href="#cb1-687" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-688"><a href="#cb1-688" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-689"><a href="#cb1-689" aria-hidden="true" tabindex="-1"></a><span class="fu">### Universal Polynomial Networks {.sub-heading}</span></span>
+<span id="cb1-690"><a href="#cb1-690" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-691"><a href="#cb1-691" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-692"><a href="#cb1-692" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Shallow Universal Polynomial Network**</span><span class="co">](supn_surrogates.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-693"><a href="#cb1-693" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximate an expensive model with a shallow universal polynomial network</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-694"><a href="#cb1-694" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-695"><a href="#cb1-695" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-696"><a href="#cb1-696" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-697"><a href="#cb1-697" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-698"><a href="#cb1-698" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-699"><a href="#cb1-699" aria-hidden="true" tabindex="-1"></a><span class="fu">## Sensitivity Analysis {.topic-heading}</span></span>
+<span id="cb1-700"><a href="#cb1-700" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-701"><a href="#cb1-701" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Identify which uncertain inputs drive output variability using variance decomposition and screening.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-702"><a href="#cb1-702" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-703"><a href="#cb1-703" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-704"><a href="#cb1-704" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sensitivity Analysis Concept**</span><span class="co">](sensitivity_analysis_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-705"><a href="#cb1-705" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance decomposition and Sobol indices: identifying which uncertain inputs drive output variability</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-706"><a href="#cb1-706" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-707"><a href="#cb1-707" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-708"><a href="#cb1-708" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-709"><a href="#cb1-709" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-710"><a href="#cb1-710" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Sobol Sensitivity Analysis**</span><span class="co">](sobol_sensitivity_analysis.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-711"><a href="#cb1-711" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance-based sensitivity indices for identifying important parameters</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-712"><a href="#cb1-712" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-713"><a href="#cb1-713" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-714"><a href="#cb1-714" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-715"><a href="#cb1-715" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-716"><a href="#cb1-716" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**PCE-Based Sensitivity**</span><span class="co">](pce_sensitivity.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-717"><a href="#cb1-717" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically from polynomial chaos expansion coefficients</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-718"><a href="#cb1-718" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-719"><a href="#cb1-719" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-720"><a href="#cb1-720" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-721"><a href="#cb1-721" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-722"><a href="#cb1-722" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**GP-Based Sensitivity**</span><span class="co">](gp_sensitivity.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-723"><a href="#cb1-723" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically from GP kernel integrals and verifying against fix-and-freeze estimates</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-724"><a href="#cb1-724" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-725"><a href="#cb1-725" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-726"><a href="#cb1-726" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-727"><a href="#cb1-727" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-728"><a href="#cb1-728" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Morris Screening**</span><span class="co">](morris_screening.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-729"><a href="#cb1-729" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">One-at-a-time elementary effects for cheap parameter screening</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-730"><a href="#cb1-730" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-731"><a href="#cb1-731" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-732"><a href="#cb1-732" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-733"><a href="#cb1-733" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-734"><a href="#cb1-734" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Bin-Based Sensitivity**</span><span class="co">](bin_based_sensitivity.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-735"><a href="#cb1-735" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Variance-based sensitivity indices via binning estimation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-736"><a href="#cb1-736" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-737"><a href="#cb1-737" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-738"><a href="#cb1-738" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-739"><a href="#cb1-739" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-740"><a href="#cb1-740" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**FT Sensitivity: Math**</span><span class="co">](functiontrain_sensitivity_math.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-741"><a href="#cb1-741" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Deriving Sobol indices analytically from PCE FunctionTrain structure</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-742"><a href="#cb1-742" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Analysis</span><span class="co">]</span>{.badge-analysis}</span>
+<span id="cb1-743"><a href="#cb1-743" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-744"><a href="#cb1-744" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-745"><a href="#cb1-745" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-746"><a href="#cb1-746" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**FT Sensitivity: Usage**</span><span class="co">](functiontrain_sensitivity.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-747"><a href="#cb1-747" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Computing Sobol indices analytically with FunctionTrainSensitivity</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-748"><a href="#cb1-748" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-749"><a href="#cb1-749" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-750"><a href="#cb1-750" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-751"><a href="#cb1-751" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-752"><a href="#cb1-752" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-753"><a href="#cb1-753" aria-hidden="true" tabindex="-1"></a><span class="fu">## Random Fields {.topic-heading}</span></span>
+<span id="cb1-754"><a href="#cb1-754" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-755"><a href="#cb1-755" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Represent spatially correlated uncertainty using Karhunen-Loeve expansions.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-756"><a href="#cb1-756" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-757"><a href="#cb1-757" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-758"><a href="#cb1-758" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE Introduction**</span><span class="co">](kle_introduction.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-759"><a href="#cb1-759" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Karhunen-Loeve expansion for representing random fields as truncated eigenfunction series</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-760"><a href="#cb1-760" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-761"><a href="#cb1-761" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-762"><a href="#cb1-762" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-763"><a href="#cb1-763" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-764"><a href="#cb1-764" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE: Mesh and Data-Driven**</span><span class="co">](kle_mesh_and_data_driven.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-765"><a href="#cb1-765" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Building KLE from mesh-based covariance or data-driven empirical covariance</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-766"><a href="#cb1-766" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-767"><a href="#cb1-767" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-768"><a href="#cb1-768" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-769"><a href="#cb1-769" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-770"><a href="#cb1-770" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**KLE: SPDE Approach**</span><span class="co">](kle_spde.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-771"><a href="#cb1-771" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Stochastic PDE approach to efficient random field generation</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-772"><a href="#cb1-772" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-773"><a href="#cb1-773" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-774"><a href="#cb1-774" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-775"><a href="#cb1-775" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-776"><a href="#cb1-776" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-777"><a href="#cb1-777" aria-hidden="true" tabindex="-1"></a><span class="fu">## Dynamical Systems {.topic-heading}</span></span>
+<span id="cb1-778"><a href="#cb1-778" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-779"><a href="#cb1-779" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Learn ODE right-hand sides from data, preserve Hamiltonian structure, and predict trajectories at new parameters.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-780"><a href="#cb1-780" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-781"><a href="#cb1-781" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-782"><a href="#cb1-782" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Learning Dynamical Systems**</span><span class="co">](dynamical_systems_learning_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-783"><a href="#cb1-783" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Approximating ODE right-hand sides from observed trajectory data for cheap forward prediction</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-784"><a href="#cb1-784" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-785"><a href="#cb1-785" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-786"><a href="#cb1-786" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-787"><a href="#cb1-787" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-788"><a href="#cb1-788" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Derivative Matching**</span><span class="co">](derivative_matching_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-789"><a href="#cb1-789" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Fit a polynomial basis expansion to snapshot pairs for ODE forward prediction</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-790"><a href="#cb1-790" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-791"><a href="#cb1-791" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-792"><a href="#cb1-792" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-793"><a href="#cb1-793" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-794"><a href="#cb1-794" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Parametric Dynamical Systems**</span><span class="co">](parametric_dynamical_systems_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-795"><a href="#cb1-795" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Learn parameter-dependent ODE right-hand sides and predict trajectories at new parameter values</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-796"><a href="#cb1-796" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-797"><a href="#cb1-797" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-798"><a href="#cb1-798" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-799"><a href="#cb1-799" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-800"><a href="#cb1-800" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Hamiltonian Systems**</span><span class="co">](hamiltonian_systems_concept.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-801"><a href="#cb1-801" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Structure-preserving surrogates that conserve energy by parametrizing the Hamiltonian itself</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-802"><a href="#cb1-802" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Concept</span><span class="co">]</span>{.badge-concept}</span>
+<span id="cb1-803"><a href="#cb1-803" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-804"><a href="#cb1-804" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-805"><a href="#cb1-805" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-806"><a href="#cb1-806" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Learning Hamiltonians**</span><span class="co">](learning_hamiltonians_usage.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-807"><a href="#cb1-807" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Fit Hamiltonian surrogates that preserve energy by construction</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-808"><a href="#cb1-808" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-809"><a href="#cb1-809" aria-hidden="true" tabindex="-1"></a>:::</span>
+<span id="cb1-810"><a href="#cb1-810" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-811"><a href="#cb1-811" aria-hidden="true" tabindex="-1"></a>---</span>
+<span id="cb1-812"><a href="#cb1-812" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-813"><a href="#cb1-813" aria-hidden="true" tabindex="-1"></a><span class="fu">## Optimization Under Uncertainty {.topic-heading}</span></span>
+<span id="cb1-814"><a href="#cb1-814" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-815"><a href="#cb1-815" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimize system design when model inputs are uncertain.</span><span class="co">]</span>{.section-desc}</span>
+<span id="cb1-816"><a href="#cb1-816" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-817"><a href="#cb1-817" aria-hidden="true" tabindex="-1"></a>::: {.tutorial-card}</span>
+<span id="cb1-818"><a href="#cb1-818" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">**Design Under Uncertainty**</span><span class="co">](design_under_uncertainty.qmd)</span>{.tutorial-title}</span>
+<span id="cb1-819"><a href="#cb1-819" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Optimizing system design when model inputs are uncertain</span><span class="co">]</span>{.tutorial-desc}</span>
+<span id="cb1-820"><a href="#cb1-820" aria-hidden="true" tabindex="-1"></a><span class="co">[</span><span class="ot">Hands-on</span><span class="co">]</span>{.badge-hands-on}</span>
+<span id="cb1-821"><a href="#cb1-821" aria-hidden="true" tabindex="-1"></a>:::</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></div>
 </div></div></div></div></div>
 </div> <!-- /content -->
 <footer class="footer">
