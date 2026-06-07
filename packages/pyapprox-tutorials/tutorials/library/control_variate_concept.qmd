@@ -233,7 +233,33 @@ N^* = \left\lfloor \frac{P}{c_\alpha + c_\kappa} \right\rfloor.
 $$ {#eq-cvmc-nstar}
 
 There is no numerical optimization required --- the allocation problem
-@eq-allocation-problem has a closed-form solution. This is the simplest
+@eq-allocation-problem has a closed-form solution.
+
+The closed form hides one feature worth seeing directly. Because both models
+are evaluated at the **same** $N$ samples, the budget split between them is
+fixed entirely by their per-sample cost ratio $c_\alpha : c_\kappa$ --- there
+is no freedom to sample the cheap model more often.
+@fig-cvmc-cost-allocation shows the consequence for an expensive high-fidelity
+model: at $c_\alpha:c_\kappa = 10:1$ the high-fidelity evaluations consume
+roughly nine-tenths of the budget even though both models run the identical
+$N^*$ times. This lock-step sampling is exactly the restriction that
+[Approximate Control Variates](acv_concept.qmd) relaxes by letting the
+low-fidelity model take additional samples of its own; however, this
+allocation is optimal for two models.
+
+```{python}
+#| echo: false
+#| label: fig-cvmc-cost-allocation
+#| fig-cap: "CVMC budget allocation for $c_\\alpha=1$, $c_\\kappa=0.1$, $P=100$, giving $N^*=\\lfloor P/(c_\\alpha+c_\\kappa)\\rfloor = 90$. Both models are evaluated the same $N^*$ times (labeled inside each bar), but the bar height is computational cost $N^*\\cdot c_{\\text{model}}$, so the expensive high-fidelity model dominates the budget. The split is pure cost ratio: CVMC cannot sample the cheap model more often than the expensive one."
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._cv_acv import plot_cvmc_cost_allocation
+fig, ax = plt.subplots(figsize=(6.5, 4.2))
+plot_cvmc_cost_allocation(ax)
+plt.tight_layout()
+plt.show()
+```
+
+This is the simplest
 possible case. In the [ACV estimator](acv_concept.qmd), the LF sample ratio
 $r$ becomes a second free parameter and the allocation requires solving a
 one-dimensional optimization. In the [many-model extensions](acv_many_models_concept.qmd)
