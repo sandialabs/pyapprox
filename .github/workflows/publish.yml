@@ -41,12 +41,49 @@ jobs:
           name: dist
           path: packages/*/dist/
 
-  test-pypi:
+  verify-wheels:
     needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Install wheels in fresh venv
+        run: |
+          python -m venv /tmp/verify-env
+          /tmp/verify-env/bin/pip install --upgrade pip
+          /tmp/verify-env/bin/pip install dist/packages/pyapprox/dist/*.whl
+          /tmp/verify-env/bin/pip install dist/packages/pyapprox-benchmarks/dist/*.whl
+          /tmp/verify-env/bin/pip install dist/packages/pyapprox-tutorials/dist/*.whl
+      - name: Verify imports
+        run: |
+          /tmp/verify-env/bin/python -c "import pyapprox; print(f'pyapprox {pyapprox.__version__}')"
+          /tmp/verify-env/bin/python -c "import pyapprox_benchmarks; print('pyapprox-benchmarks OK')"
+          /tmp/verify-env/bin/python -c "import pyapprox_tutorials; print('pyapprox-tutorials OK')"
+      - name: Smoke test
+        run: |
+          /tmp/verify-env/bin/python -c "
+          from pyapprox.util.backends.numpy import NumpyBkd
+          bkd = NumpyBkd()
+          x = bkd.array([[1.0, 2.0, 3.0]])
+          assert x.shape == (1, 3)
+          print('Smoke test passed')
+          "
+
+  test-pypi:
+    needs: verify-wheels
     runs-on: ubuntu-latest
     environment: test-pypi
     permissions:
       id-token: write
+    continue-on-error: true
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -57,39 +94,8 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           packages-dir: dist/
 
-  verify-test-pypi:
-    needs: test-pypi
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Wait for TestPyPI index to update
-        run: sleep 60
-      - name: Install from TestPyPI and verify
-        run: |
-          pip install \
-            --index-url https://test.pypi.org/simple/ \
-            --extra-index-url https://pypi.org/simple/ \
-            pyapprox pyapprox-benchmarks pyapprox-tutorials
-          python -c "import pyapprox; print(f'pyapprox {pyapprox.__version__}')"
-          python -c "import pyapprox_benchmarks; print('pyapprox-benchmarks OK')"
-          python -c "import pyapprox_tutorials; print('pyapprox-tutorials OK')"
-      - name: Smoke test
-        run: |
-          python -c "
-          from pyapprox.util.backends.numpy import NumpyBkd
-          bkd = NumpyBkd()
-          x = bkd.array([[1.0, 2.0, 3.0]])
-          assert x.shape == (1, 3)
-          print('Smoke test passed')
-          "
-
   pypi:
-    needs: verify-test-pypi
+    needs: verify-wheels
     if: startsWith(github.ref, 'refs/tags/v') || inputs.publish_to_pypi
     runs-on: ubuntu-latest
     environment: pypi-production
