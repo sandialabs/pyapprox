@@ -1593,7 +1593,15 @@ class TestGroupACVAllocationOptimizerTorchOnly:
 
         np.random.seed(1)
         est = self._create_estimator(nmodels, nqoi)
-        allocator = GroupACVAllocationOptimizer(est)
+        log_ineq = AllocationProblemConfig(
+            variable_scaling="log",
+            budget_constraint_form="inequality",
+        )
+        allocator = GroupACVAllocationOptimizer(
+            est,
+            optimizer=ScipySLSQPOptimizer(maxiter=1000, ftol=1e-6),
+            problem_config=log_ineq,
+        )
         result = allocator.optimize(target_cost=100, min_nhf_samples=1)
 
         assert result.success
