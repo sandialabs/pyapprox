@@ -59,7 +59,19 @@ from pyapprox.surrogates.affine.protocols import (
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     ClenshawCurtisQuadratureRule,
 )
+from pyapprox.surrogates.affine.univariate.globalpoly.continuous_numeric import (
+    ContinuousNumericOrthonormalPolynomial1D,
+)
 from pyapprox.surrogates.affine.univariate.lagrange import LagrangeBasis1D
+from pyapprox.surrogates.affine.univariate.piecewisepoly import (
+    DynamicPiecewiseBasis,
+    EquidistantNodeGenerator,
+    PiecewiseCubic,
+    PiecewiseLinear,
+    PiecewiseQuadratic,
+)
+from pyapprox.surrogates.quadrature import gauss_quadrature_rule
+from pyapprox.surrogates.sparsegrids.basis_setup import get_quadrature_rule
 from pyapprox.surrogates.affine.univariate.registry import (
     _lookup_analytical,
     get_transform_from_marginal,
@@ -201,6 +213,10 @@ class GaussLagrangeFactory(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
+    def _user_domain_quad_rule(self, npoints: int) -> Tuple[Array, Array]:
+        """Quadrature rule that returns user-domain points."""
+        return gauss_quadrature_rule(self._marginal, npoints, self._bkd)
+
     def create_basis(self) -> LagrangeBasis1D[Array]:
         """Create a Lagrange basis with user-domain Gauss quadrature.
 
@@ -209,18 +225,7 @@ class GaussLagrangeFactory(Generic[Array]):
         LagrangeBasis1D[Array]
             Lagrange basis with quadrature points in user domain.
         """
-        from pyapprox.surrogates.quadrature import (
-            gauss_quadrature_rule,
-        )
-
-        marginal = self._marginal
-        bkd = self._bkd
-
-        def user_domain_quad_rule(npoints: int) -> Tuple[Array, Array]:
-            """Quadrature rule that returns user-domain points."""
-            return gauss_quadrature_rule(marginal, npoints, bkd)
-
-        return LagrangeBasis1D(bkd, user_domain_quad_rule)
+        return LagrangeBasis1D(self._bkd, self._user_domain_quad_rule)
 
     def is_nested(self) -> bool:
         """Return False - Gauss quadrature points are not nested."""
@@ -290,10 +295,6 @@ class LejaLagrangeFactory(Generic[Array]):
             poly = entry.polynomial_factory(self._marginal, self._bkd)
         else:
             # Fallback for custom marginals
-            from pyapprox.surrogates.affine.univariate.globalpoly.continuous_numeric import (  # noqa: E501
-                ContinuousNumericOrthonormalPolynomial1D,
-            )
-
             poly = ContinuousNumericOrthonormalPolynomial1D(self._marginal, self._bkd)
 
         bounds = get_bounds_from_marginal(self._marginal, self._eps)
@@ -314,6 +315,17 @@ class LejaLagrangeFactory(Generic[Array]):
 
         return self._leja_seq
 
+    def _user_domain_quad_rule(self, npoints: int) -> Tuple[Array, Array]:
+        """Quadrature rule that returns user-domain Leja points."""
+        leja_seq = self._get_or_create_leja_sequence()
+        if self._transform is None:
+            raise RuntimeError(
+                "_get_or_create_leja_sequence() failed to initialize transform"
+            )
+        canonical_pts, weights = leja_seq.quadrature_rule(npoints)
+        user_pts = self._transform.map_from_canonical(canonical_pts)
+        return user_pts, weights
+
     def create_basis(self) -> LagrangeBasis1D[Array]:
         """Create a Lagrange basis with user-domain Leja quadrature.
 
@@ -325,25 +337,8 @@ class LejaLagrangeFactory(Generic[Array]):
         LagrangeBasis1D[Array]
             Lagrange basis with Leja quadrature points in user domain.
         """
-        leja_seq = self._get_or_create_leja_sequence()
-        transform = self._transform
-        if transform is None:
-            raise RuntimeError(
-                "_get_or_create_leja_sequence() failed to initialize transform"
-            )
-        bkd = self._bkd
-
-        def user_domain_quad_rule(npoints: int) -> Tuple[Array, Array]:
-            """Quadrature rule that returns user-domain Leja points."""
-            # Get Leja points/weights (extends sequence if needed)
-            canonical_pts, weights = leja_seq.quadrature_rule(npoints)
-
-            # Transform to user domain (weights unchanged per legacy behavior)
-            user_pts = transform.map_from_canonical(canonical_pts)
-
-            return user_pts, weights
-
-        return LagrangeBasis1D(bkd, user_domain_quad_rule)
+        self._get_or_create_leja_sequence()
+        return LagrangeBasis1D(self._bkd, self._user_domain_quad_rule)
 
     def is_nested(self) -> bool:
         """Return True - Leja sequences are nested by construction."""
@@ -400,11 +395,21 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
     def _setup(self) -> None:
         """Initialize Clenshaw-Curtis quadrature and transform (lazy)."""
         if self._cc_rule is None:
-            # Create CC rule with caching enabled and probability measure
             self._cc_rule = ClenshawCurtisQuadratureRule(
                 self._bkd, store=True, prob_measure=True
             )
             self._transform = get_transform_from_marginal(self._marginal, self._bkd)
+
+    def _user_domain_quad_rule(self, npoints: int) -> Tuple[Array, Array]:
+        """Quadrature rule that returns user-domain CC points."""
+        self._setup()
+        if self._cc_rule is None:
+            raise RuntimeError("_setup() failed to initialize CC rule")
+        if self._transform is None:
+            raise RuntimeError("_setup() failed to initialize transform")
+        canonical_pts, weights = self._cc_rule(npoints)
+        user_pts = self._transform.map_from_canonical(canonical_pts)
+        return user_pts, weights
 
     def create_basis(self) -> LagrangeBasis1D[Array]:
         """Create a Lagrange basis with user-domain Clenshaw-Curtis quadrature.
@@ -415,27 +420,7 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
             Lagrange basis with CC quadrature points in user domain.
         """
         self._setup()
-
-        # Capture references for closure (raise if _setup failed)
-        cc_rule = self._cc_rule
-        transform = self._transform
-        if cc_rule is None:
-            raise RuntimeError("_setup() failed to initialize CC rule")
-        if transform is None:
-            raise RuntimeError("_setup() failed to initialize transform")
-        bkd = self._bkd
-
-        def user_domain_quad_rule(npoints: int) -> Tuple[Array, Array]:
-            """Quadrature rule that returns user-domain CC points."""
-            # Get canonical domain CC quadrature
-            canonical_pts, weights = cc_rule(npoints)
-
-            # Transform to user domain (weights unchanged per legacy behavior)
-            user_pts = transform.map_from_canonical(canonical_pts)
-
-            return user_pts, weights
-
-        return LagrangeBasis1D(bkd, user_domain_quad_rule)
+        return LagrangeBasis1D(self._bkd, self._user_domain_quad_rule)
 
     def is_nested(self) -> bool:
         """Return True - Clenshaw-Curtis points are nested."""
@@ -495,13 +480,6 @@ class PiecewiseFactory(Generic[Array]):
         ValueError
             If poly_type is not one of "linear", "quadratic", "cubic".
         """
-        from pyapprox.surrogates.affine.univariate.piecewisepoly import (
-            DynamicPiecewiseBasis,
-            EquidistantNodeGenerator,
-            PiecewiseCubic,
-            PiecewiseLinear,
-            PiecewiseQuadratic,
-        )
 
         bounds = get_bounds_from_marginal(self._marginal, self._eps)
         node_gen = EquidistantNodeGenerator(self._bkd, bounds)
@@ -569,10 +547,6 @@ class PrebuiltBasisFactory(Generic[Array]):
     """
 
     def __init__(self, basis: Basis1DProtocol[Array]) -> None:
-        from pyapprox.surrogates.sparsegrids.basis_setup import (
-            get_quadrature_rule,
-        )
-
         self._bkd = basis.bkd()
         self._quad_rule = get_quadrature_rule(basis)  # Extract once at construction
 

@@ -199,12 +199,24 @@ class TestAdaptiveFitterAccessors:
         expected = func(all_samples)
         bkd.assert_allclose(all_values, expected, rtol=1e-12)
 
-    def test_selected_indices_matches_result(self, bkd) -> None:
-        """get_selected_indices() matches result().indices."""
+    def test_selected_indices_matches_result_no_candidates(self, bkd) -> None:
+        """get_selected_indices() matches result(include_candidates=False)."""
         fitter, _ = self._make_sf_fitter_and_run(bkd)
         sel_indices = fitter.get_selected_indices()
-        result_indices = fitter.result().indices
+        result_indices = fitter.result(include_candidates=False).indices
         bkd.assert_allclose(sel_indices, result_indices)
+
+    def test_result_includes_candidates(self, bkd) -> None:
+        """Default result() includes selected + candidate indices."""
+        fitter, _ = self._make_sf_fitter_and_run(bkd, nsteps=3)
+        sel = fitter.get_selected_indices()
+        cand = fitter.get_candidate_indices()
+        result_indices = fitter.result().indices
+        if cand is not None:
+            expected = bkd.hstack((sel, cand))
+            bkd.assert_allclose(result_indices, expected)
+        else:
+            bkd.assert_allclose(result_indices, sel)
 
     def test_candidate_indices_not_none(self, bkd) -> None:
         """get_candidate_indices() is not None when candidates exist."""

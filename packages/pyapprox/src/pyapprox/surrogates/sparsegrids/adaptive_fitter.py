@@ -455,13 +455,20 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 total += err
         return total
 
-    def result(self, converged: bool = False) -> AdaptiveSparseGridFitResult[Array]:
+    def result(
+        self,
+        converged: bool = False,
+        include_candidates: bool = True,
+    ) -> AdaptiveSparseGridFitResult[Array]:
         """Build result from current state.
 
         Parameters
         ----------
         converged : bool
             Whether the fitter converged to tolerance.
+        include_candidates : bool
+            If True (default), include candidate subspaces that have
+            values in the surrogate so all evaluated data is used.
 
         Returns
         -------
@@ -470,25 +477,48 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         if self._nqoi is None:
             raise RuntimeError("nqoi not set; call step_values first")
 
+        cand_indices = self._index_gen.get_candidate_indices()
+        if cand_indices is not None:
+            for j in range(cand_indices.shape[1]):
+                cand_key = _index_to_tuple(
+                    cand_indices[:, j], self._bkd
+                )
+                if cand_key in self._subspace_keys:
+                    sub_pos = self._subspace_keys.index(cand_key)
+                    if self._subspaces[sub_pos].get_values() is None:
+                        raise RuntimeError(
+                            "Cannot build result: candidate subspace "
+                            f"{cand_key} has no values. "
+                            "Call step_values before result."
+                        )
+
         selected_indices = self._index_gen.get_selected_indices()
-        selected_coefs = compute_smolyak_coefficients(selected_indices, self._bkd)
-        selected_subspaces = self._get_subspaces_for_indices(selected_indices)
+
+        if include_candidates and cand_indices is not None:
+            all_indices = self._bkd.hstack(
+                (selected_indices, cand_indices)
+            )
+        else:
+            all_indices = selected_indices
+
+        all_coefs = compute_smolyak_coefficients(all_indices, self._bkd)
+        all_subspaces = self._get_subspaces_for_indices(all_indices)
 
         surrogate = CombinationSurrogate(
             self._bkd,
             self._nvars_physical,
-            selected_subspaces,
-            selected_coefs,
+            all_subspaces,
+            all_coefs,
             self._nqoi,
-            indices=selected_indices,
+            indices=all_indices,
         )
 
         nsamples = sum(t.n_unique_samples() for t in self._trackers.values())
 
         return AdaptiveSparseGridFitResult(
             surrogate=surrogate,
-            indices=selected_indices,
-            coefficients=selected_coefs,
+            indices=all_indices,
+            coefficients=all_coefs,
             nsamples=nsamples,
             error=self.current_error(),
             nsteps=self._nsteps,
@@ -749,9 +779,16 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """Return sum of errors for candidate subspaces."""
         return self._fitter.current_error()
 
-    def result(self, converged: bool = False) -> AdaptiveSparseGridFitResult[Array]:
+    def result(
+        self,
+        converged: bool = False,
+        include_candidates: bool = True,
+    ) -> AdaptiveSparseGridFitResult[Array]:
         """Build result from current state."""
-        return self._fitter.result(converged=converged)
+        return self._fitter.result(
+            converged=converged,
+            include_candidates=include_candidates,
+        )
 
     def refine_to_tolerance(
         self,
