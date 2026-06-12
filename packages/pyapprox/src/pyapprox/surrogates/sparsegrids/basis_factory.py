@@ -56,11 +56,11 @@ from pyapprox.surrogates.affine.protocols import (
     Basis1DProtocol,
     InterpolationBasis1DProtocol,
 )
-from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
-    ClenshawCurtisQuadratureRule,
-)
 from pyapprox.surrogates.affine.univariate.globalpoly.continuous_numeric import (
     ContinuousNumericOrthonormalPolynomial1D,
+)
+from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
+    ClenshawCurtisQuadratureRule,
 )
 from pyapprox.surrogates.affine.univariate.lagrange import LagrangeBasis1D
 from pyapprox.surrogates.affine.univariate.piecewisepoly import (
@@ -70,8 +70,6 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     PiecewiseLinear,
     PiecewiseQuadratic,
 )
-from pyapprox.surrogates.quadrature import gauss_quadrature_rule
-from pyapprox.surrogates.sparsegrids.basis_setup import get_quadrature_rule
 from pyapprox.surrogates.affine.univariate.registry import (
     _lookup_analytical,
     get_transform_from_marginal,
@@ -79,6 +77,8 @@ from pyapprox.surrogates.affine.univariate.registry import (
 from pyapprox.surrogates.affine.univariate.transforms import (
     Univariate1DTransformProtocol,
 )
+from pyapprox.surrogates.quadrature import gauss_quadrature_rule
+from pyapprox.surrogates.sparsegrids.basis_setup import get_quadrature_rule
 from pyapprox.util.backends.protocols import Array, Backend
 
 # Type alias for factory creators
