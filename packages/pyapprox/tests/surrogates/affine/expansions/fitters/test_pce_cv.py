@@ -6,7 +6,6 @@ identifies the optimal index set level for various test functions.
 
 import numpy as np
 import pytest
-
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
