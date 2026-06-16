@@ -130,8 +130,8 @@ class ConstantSparseMassMatrix(Generic[Array]):
         vec_np = self._bkd.to_numpy(vec)
         return self._bkd.asarray(self._ensure_lu().solve(vec_np, trans="T"))
 
-    def as_matrix(self) -> Array:
-        return self._bkd.asarray(self._matrix.toarray())
+    def as_matrix(self) -> spmatrix:
+        return self._matrix
 
     def is_identity(self) -> bool:
         return False
