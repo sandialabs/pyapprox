@@ -78,6 +78,7 @@ class PCAFunctionEncoder(Generic[Array]):
         bkd: Backend[Array],
         ncodes: Optional[int] = None,
         variance_fraction: Optional[float] = None,
+        center: bool = True,
     ) -> PCAFunctionEncoder[Array]:
         """Build encoder from training data using SVD.
 
@@ -92,6 +93,10 @@ class PCAFunctionEncoder(Generic[Array]):
         variance_fraction : float, optional
             Fraction of variance to retain (selects ncodes automatically).
             Exactly one of ncodes or variance_fraction must be provided.
+        center : bool, optional
+            If True (default), subtract the mean before SVD (standard PCA).
+            If False, skip mean subtraction (uncentered POD); the stored
+            mean is set to zero so encode/decode reduce to V^T x and V z.
 
         Returns
         -------
@@ -103,8 +108,12 @@ class PCAFunctionEncoder(Generic[Array]):
                 "Exactly one of ncodes or variance_fraction must be provided"
             )
 
-        mean = bkd.mean(f_grid_data, axis=1)
-        mean = bkd.reshape(mean, (mean.shape[0], 1))
+        if center:
+            mean = bkd.mean(f_grid_data, axis=1)
+            mean = bkd.reshape(mean, (mean.shape[0], 1))
+        else:
+            ngrid = f_grid_data.shape[0]
+            mean = bkd.zeros((ngrid, 1))
         centered = f_grid_data - mean
 
         U, S, _Vh = bkd.svd(centered, full_matrices=False)
