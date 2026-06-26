@@ -659,6 +659,29 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def cond(
+        array: Array,
+        p: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
+    ) -> Array:
+        """
+        Compute the condition number of a matrix.
+
+        Parameters
+        ----------
+        array : Array
+            Matrix, shape (n, n).
+        p : optional
+            Norm used for the condition number (default: 2-norm, the ratio of
+            largest to smallest singular value).
+
+        Returns
+        -------
+        Array
+            The (scalar) condition number.
+        """
+        ...
+
+    @staticmethod
     def trace(array: Array) -> Array: ...
 
     @staticmethod

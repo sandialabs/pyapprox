@@ -698,6 +698,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return result
 
     @staticmethod
+    def cond(
+        array: torch.Tensor,
+        p: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
+    ) -> torch.Tensor:
+        result: torch.Tensor = torch.linalg.cond(array, p)
+        return result
+
+    @staticmethod
     def trace(array: torch.Tensor) -> torch.Tensor:
         return torch.trace(array)
 

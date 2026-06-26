@@ -531,6 +531,13 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.linalg.eigvalsh(array)
 
     @staticmethod
+    def cond(
+        array: NDArray[Any],
+        p: Optional[Union[int, float, Literal["fro", "nuc"]]] = None,
+    ) -> NDArray[Any]:
+        return np.asarray(np.linalg.cond(array, p))
+
+    @staticmethod
     def trace(array: NDArray[Any]) -> NDArray[Any]:
         return np.asarray(np.linalg.trace(array))
 
