@@ -36,6 +36,9 @@ from pyapprox.util.linalg.sparse_dispatch import (
     solve_maybe_sparse,
     sparse_or_dense_solve,
 )
+from pyapprox.util.linalg.truncated_pivoted_qr import (
+    TruncatedPivotedQRFactorizer,
+)
 
 __all__ = [
     # Indexing
@@ -51,6 +54,7 @@ __all__ = [
     "get_final_pivots_from_sequential_pivots",
     # Pivoted QR
     "PivotedQRFactorizer",
+    "TruncatedPivotedQRFactorizer",
     # Sparse dispatch
     "solve_maybe_sparse",
     "sparse_or_dense_solve",
