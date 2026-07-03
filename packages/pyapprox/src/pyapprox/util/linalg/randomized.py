@@ -20,10 +20,11 @@ FunctionSymmetricMatVecOperator
     Symmetric matrix-vector operator from a callable function.
 RandomizedSVD
     Abstract base class for randomized SVD algorithms.
-SinglePassRandomizedSVD
-    Single-pass randomized SVD algorithm.
-DoublePassRandomizedSVD
-    Double-pass randomized SVD for symmetric matrices.
+TwoPassRandomizedSVD
+    Standard Halko-Martinsson-Tropp randomized SVD for GENERAL rectangular
+    operators.
+SymmetricRandomizedSVD
+    Randomized SVD for SYMMETRIC operators only.
 
 Functions
 ---------
@@ -31,6 +32,20 @@ randomized_symmetric_eigendecomposition
     Convenience function for low-rank eigendecomposition.
 adjust_sign_svd
     Ensure uniqueness of SVD by sign adjustment.
+
+Choosing an algorithm
+---------------------
+* General rectangular matrix, data can be revisited (the common case):
+  use :class:`TwoPassRandomizedSVD`.  It implements the standard HMT scheme,
+  which touches the data ``2 + 2 * npower_iters`` times (range-find
+  ``Y = A Omega``, then project ``B = Q^T A``).
+* Symmetric operator (Gram, covariance, kernel): use
+  :class:`SymmetricRandomizedSVD` (raises unless given a
+  ``SymmetricMatVecOperator``) or
+  :func:`randomized_symmetric_eigendecomposition` for eigenpairs.
+* Truly streaming (each entry seen exactly once) is NOT provided here: that
+  requires sketching both sides in one pass (HMT sec. 5.5; Tropp et al. 2017)
+  at lower accuracy for equal sketch size.
 """
 
 from abc import ABC, abstractmethod
@@ -410,6 +425,11 @@ class RandomizedSVD(Generic[Array], ABC):
         Number of additional random samples beyond the rank.
     npower_iters : int, default=1
         Number of power iterations for improved accuracy.
+    seed : int, optional
+        Seed of a local random stream used to draw the Gaussian test matrix,
+        making the decomposition reproducible without touching the global
+        numpy RNG.  ``None`` (default) preserves the historical behavior of
+        drawing from the global ``np.random`` stream.
 
     References
     ----------
@@ -423,12 +443,14 @@ class RandomizedSVD(Generic[Array], ABC):
         matvec: MatVecOperator[Array],
         noversampling: int = 10,
         npower_iters: int = 1,
+        seed: Optional[int] = None,
     ):
         self._check_matvec(matvec)
         self._bkd = matvec.bkd()
         self._matvec = matvec
         self._noversampling = noversampling
         self._npower_iters = npower_iters
+        self._seed = seed
 
     def _check_matvec(self, matvec: MatVecOperator[Array]) -> None:
         """Validate the matrix-vector operator."""
@@ -475,9 +497,14 @@ class RandomizedSVD(Generic[Array], ABC):
             Column space samples. Shape: (nrows, nsamples)
         """
         nsamples = rank + self._noversampling
+        # Local stream when seeded (reproducible, never perturbs the global
+        # RNG); global np.random otherwise (historical behavior).
+        rng = (np.random.RandomState(self._seed) if self._seed is not None
+               else np.random)
         # Use transpose so omega samples are nested if nsamples are increased
         omega = self._bkd.asarray(
-            np.random.normal(0, 1, (nsamples, self._matvec.ncols())).astype(np.float64)
+            rng.normal(0, 1, (nsamples, self._matvec.ncols())).astype(
+                np.float64)
         ).T
 
         # Sample column space
@@ -491,13 +518,16 @@ class RandomizedSVD(Generic[Array], ABC):
         return Y
 
 
-class SinglePassRandomizedSVD(RandomizedSVD[Array]):
+class TwoPassRandomizedSVD(RandomizedSVD[Array]):
     """
-    Single-pass randomized SVD algorithm.
+    Standard randomized SVD for GENERAL rectangular operators (HMT).
 
-    This algorithm requires only one pass over the matrix data,
-    making it efficient for streaming or out-of-core applications.
-    Requires that the operator supports right_apply.
+    When to use: the default randomized SVD whenever the data can be
+    revisited.  Touches the operator ``2 + 2 * npower_iters`` times: one
+    range-finding pass (``Y = A @ Omega``), one projection pass
+    (``B = Q^T A``, via ``right_apply``), plus two per power iteration.
+    Requires that the operator supports ``right_apply``.  For symmetric
+    operators prefer :class:`SymmetricRandomizedSVD`.
 
     Parameters
     ----------
@@ -550,12 +580,15 @@ class SinglePassRandomizedSVD(RandomizedSVD[Array]):
         return U, S[:rank], Vh
 
 
-class DoublePassRandomizedSVD(RandomizedSVD[Array]):
+class SymmetricRandomizedSVD(RandomizedSVD[Array]):
     """
-    Double-pass randomized SVD for symmetric matrices.
+    Randomized SVD for SYMMETRIC operators only.
 
-    This algorithm uses two passes over the matrix, which provides
-    better accuracy for symmetric matrices.
+    When to use: symmetric matrices/operators (Gram, covariance, kernel),
+    where sampling the column space also samples the row space; both sides
+    are re-orthogonalized for accuracy.  Raises unless constructed with a
+    :class:`SymmetricMatVecOperator`.  For general rectangular operators use
+    :class:`TwoPassRandomizedSVD`.
 
     Parameters
     ----------
