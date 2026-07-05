@@ -107,7 +107,9 @@ class StructuredMesh1D(Generic[Array]):
         Array
             Element-to-node connectivity. Shape: (2, nelements)
         """
-        return self._bkd.asarray(self._skfem_mesh.t.astype(np.int64))
+        return self._bkd.asarray(
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+        )
 
     def skfem_mesh(self) -> MeshLine:
         """Return the underlying skfem mesh object."""
@@ -127,9 +129,13 @@ class StructuredMesh1D(Generic[Array]):
             Node indices on the boundary. Shape: (1,)
         """
         if boundary_id == "left":
-            return self._bkd.asarray(np.array([0], dtype=np.int64))
+            return self._bkd.asarray(
+                np.array([0], dtype=np.int64), dtype=self._bkd.int64_dtype()
+            )
         elif boundary_id == "right":
-            return self._bkd.asarray(np.array([self._nx], dtype=np.int64))
+            return self._bkd.asarray(
+                np.array([self._nx], dtype=np.int64), dtype=self._bkd.int64_dtype()
+            )
         else:
             raise ValueError(
                 f"Unknown boundary_id '{boundary_id}'. Valid options: 'left', 'right'"
@@ -267,7 +273,9 @@ class StructuredMesh2D(Generic[Array]):
             Element-to-node connectivity.
             Shape: (4, nelements) for quad, (3, nelements) for tri.
         """
-        return self._bkd.asarray(self._skfem_mesh.t.astype(np.int64))
+        return self._bkd.asarray(
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+        )
 
     def skfem_mesh(self) -> object:
         """Return the underlying skfem mesh object."""
@@ -306,7 +314,9 @@ class StructuredMesh2D(Generic[Array]):
                 "Valid options: 'left', 'right', 'bottom', 'top'"
             )
 
-        return self._bkd.asarray(np.where(mask)[0].astype(np.int64))
+        return self._bkd.asarray(
+            np.where(mask)[0].astype(np.int64), dtype=self._bkd.int64_dtype()
+        )
 
     def shape(self) -> Tuple[int, int]:
         """Return grid shape (number of nodes in each dimension)."""
@@ -452,7 +462,9 @@ class StructuredMesh3D(Generic[Array]):
             Element-to-node connectivity.
             Shape: (8, nelements) for hex, (4, nelements) for tet.
         """
-        return self._bkd.asarray(self._skfem_mesh.t.astype(np.int64))
+        return self._bkd.asarray(
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+        )
 
     def skfem_mesh(self) -> object:
         """Return the underlying skfem mesh object."""
@@ -498,7 +510,9 @@ class StructuredMesh3D(Generic[Array]):
                 "'front', 'back'"
             )
 
-        return self._bkd.asarray(np.where(mask)[0].astype(np.int64))
+        return self._bkd.asarray(
+            np.where(mask)[0].astype(np.int64), dtype=self._bkd.int64_dtype()
+        )
 
     def shape(self) -> Tuple[int, int, int]:
         """Return grid shape (number of nodes in each dimension)."""

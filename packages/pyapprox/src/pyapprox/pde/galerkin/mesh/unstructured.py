@@ -121,7 +121,9 @@ class UnstructuredMesh2D(Generic[Array]):
         Array
             Element-to-node connectivity. Shape: (4, nelements)
         """
-        return self._bkd.asarray(self._skfem_mesh.t.astype(np.int64))
+        return self._bkd.asarray(
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+        )
 
     def skfem_mesh(self) -> MeshQuad:
         """Return the underlying skfem mesh object."""
@@ -154,7 +156,9 @@ class UnstructuredMesh2D(Generic[Array]):
             )
         facet_indices = self._skfem_mesh.boundaries[boundary_id]
         node_indices = np.unique(self._skfem_mesh.facets[:, facet_indices])
-        return self._bkd.asarray(node_indices.astype(np.int64))
+        return self._bkd.asarray(
+            node_indices.astype(np.int64), dtype=self._bkd.int64_dtype()
+        )
 
     def subdomain_elements(self, name: str) -> np.ndarray:
         """Return element indices for a named subdomain.

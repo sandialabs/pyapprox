@@ -102,11 +102,16 @@ class GalerkinBCMixin(Generic[Array]):
                 all_vals.append(vals_np)
         if all_dofs:
             return (
-                self._bkd.asarray(np.concatenate(all_dofs).astype(np.int64)),
+                self._bkd.asarray(
+                    np.concatenate(all_dofs).astype(np.int64),
+                    dtype=self._bkd.int64_dtype(),
+                ),
                 self._bkd.asarray(np.concatenate(all_vals).astype(np.float64)),
             )
         return (
-            self._bkd.asarray(np.array([], dtype=np.int64)),
+            self._bkd.asarray(
+                np.array([], dtype=np.int64), dtype=self._bkd.int64_dtype()
+            ),
             self._bkd.asarray(np.array([], dtype=np.float64)),
         )
 

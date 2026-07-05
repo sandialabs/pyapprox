@@ -700,13 +700,18 @@ class BoundaryConditionSet(Generic[Array]):
     def dirichlet_dofs(self) -> Array:
         """Return all Dirichlet DOF indices."""
         if not self._dirichlet_bcs:
-            return self._bkd.asarray(np.array([], dtype=np.int64))
+            return self._bkd.asarray(
+                np.array([], dtype=np.int64), dtype=self._bkd.int64_dtype()
+            )
 
         all_dofs = []
         for bc in self._dirichlet_bcs:
             all_dofs.append(self._bkd.to_numpy(bc.boundary_dofs()))
 
-        return self._bkd.asarray(np.concatenate(all_dofs).astype(np.int64))
+        return self._bkd.asarray(
+            np.concatenate(all_dofs).astype(np.int64),
+            dtype=self._bkd.int64_dtype(),
+        )
 
     def dirichlet_values(self, time: float = 0.0) -> Array:
         """Return all Dirichlet values at given time."""
@@ -810,7 +815,9 @@ class DirectDirichletBC(Generic[Array]):
         bkd: Backend[Array],
     ) -> None:
         self._bkd = bkd
-        self._dof_indices = bkd.asarray(np.asarray(dof_indices, dtype=np.int64))
+        self._dof_indices = bkd.asarray(
+            np.asarray(dof_indices, dtype=np.int64), dtype=bkd.int64_dtype()
+        )
         self._values = bkd.asarray(np.asarray(values, dtype=np.float64))
 
     def bkd(self) -> Backend[Array]:
@@ -889,7 +896,9 @@ class CallableDirichletBC(Generic[Array]):
         bkd: Backend[Array],
     ) -> None:
         self._bkd = bkd
-        self._dof_indices = bkd.asarray(np.asarray(dof_indices, dtype=np.int64))
+        self._dof_indices = bkd.asarray(
+            np.asarray(dof_indices, dtype=np.int64), dtype=bkd.int64_dtype()
+        )
         self._value_func = value_func
 
     def bkd(self) -> Backend[Array]:

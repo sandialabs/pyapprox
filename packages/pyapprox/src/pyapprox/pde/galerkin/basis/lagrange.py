@@ -237,7 +237,10 @@ class LagrangeBasis(Generic[Array]):
             try:
                 dofs = self._skfem_basis.get_dofs(boundary_name)
                 # get_dofs returns a Dofs object, extract the indices
-                return self._bkd.asarray(dofs.flatten().astype(np.int64))
+                return self._bkd.asarray(
+                    dofs.flatten().astype(np.int64),
+                    dtype=self._bkd.int64_dtype(),
+                )
             except Exception:
                 # Fallback to node-based for now
                 return self._mesh.boundary_nodes(boundary_name)
