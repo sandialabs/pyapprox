@@ -20,7 +20,9 @@ from skfem import BilinearForm, asm
 from skfem.helpers import dot, grad
 
 
-def _make_physics(numpy_bkd, diffusivity, velocity=None, reaction=None):
+def _make_physics(
+    numpy_bkd, diffusivity, velocity=None, reaction=None, forcing=None
+):
     mesh = StructuredMesh2D(
         nx=6,
         ny=6,
@@ -35,6 +37,7 @@ def _make_physics(numpy_bkd, diffusivity, velocity=None, reaction=None):
         bkd=numpy_bkd,
         velocity=velocity,
         reaction=reaction,
+        forcing=forcing,
     )
 
 
@@ -97,6 +100,132 @@ class TestRestrictedAssembly:
                 form, skfem_basis.with_elements(complement)
             )
             assert np.abs((full - parts).toarray()).max() < 1e-14
+
+
+def _quadratic_reaction(x, u):
+    return u**2
+
+
+def _quadratic_reaction_deriv(x, u):
+    return 2.0 * u
+
+
+def _unit_forcing(x):
+    return np.ones(x.shape[1])
+
+
+class TestLoadAndReactionForms:
+    def _nonlinear_physics(self, numpy_bkd):
+        return _make_physics(
+            numpy_bkd,
+            diffusivity=1.0,
+            velocity=numpy_bkd.array([0.5, 1.0]),
+            reaction=(_quadratic_reaction, _quadratic_reaction_deriv),
+            forcing=_unit_forcing,
+        )
+
+    def test_forms_reassemble_the_spatial_residual(self, numpy_bkd):
+        """asm of the exposed load forms + stiffness equals the physics'
+        spatial residual at a nonzero state."""
+        physics = self._nonlinear_physics(numpy_bkd)
+        skfem_basis = physics.basis().skfem_basis()
+        rng = np.random.RandomState(0)
+        state = numpy_bkd.array(rng.uniform(0.1, 1.0, physics.nstates()))
+        stiffness = sum(
+            asm(form, skfem_basis) for form in physics.stiffness_forms()
+        )
+        load = asm(physics.forcing_form(0.0), skfem_basis) + asm(
+            physics.reaction_form(),
+            skfem_basis,
+            u_prev=skfem_basis.interpolate(numpy_bkd.to_numpy(state)),
+        )
+        reference = physics.spatial_residual(state, 0.0)
+        assert np.abs(load - stiffness @ state - reference).max() < 1e-13
+
+    def test_reaction_jacobian_form_matches_spatial_jacobian(
+        self, numpy_bkd
+    ):
+        physics = self._nonlinear_physics(numpy_bkd)
+        skfem_basis = physics.basis().skfem_basis()
+        rng = np.random.RandomState(1)
+        state = numpy_bkd.array(rng.uniform(0.1, 1.0, physics.nstates()))
+        stiffness = sum(
+            asm(form, skfem_basis) for form in physics.stiffness_forms()
+        )
+        reaction_jacobian = asm(
+            physics.reaction_jacobian_form(),
+            skfem_basis,
+            u_prev=skfem_basis.interpolate(numpy_bkd.to_numpy(state)),
+        )
+        reference = physics.spatial_jacobian(state, 0.0)
+        assert (
+            np.abs(
+                (-stiffness + reaction_jacobian - reference).toarray()
+            ).max()
+            < 1e-13
+        )
+
+    def test_spatial_jacobian_is_fd_consistent(self, numpy_bkd):
+        """Ground truth for the reaction-Jacobian sign: dF/du of
+        F = load - K*u gains +(w, R'(u)*du), so finite differences of
+        spatial_residual must match spatial_jacobian."""
+        physics = self._nonlinear_physics(numpy_bkd)
+        rng = np.random.RandomState(3)
+        state = numpy_bkd.array(rng.uniform(0.1, 1.0, physics.nstates()))
+        jacobian = physics.spatial_jacobian(state, 0.0).toarray()
+        step = 1e-7
+        residual = physics.spatial_residual(state, 0.0)
+        fd = np.zeros_like(jacobian)
+        for j in range(physics.nstates()):
+            perturbed = numpy_bkd.copy(state)
+            perturbed[j] += step
+            fd[:, j] = (
+                physics.spatial_residual(perturbed, 0.0) - residual
+            ) / step
+        assert np.abs(jacobian - fd).max() < 1e-6
+
+    def test_state_forms_partition_over_element_subsets(self, numpy_bkd):
+        """Restricted assembly of the state-dependent forms partitions
+        the global result (interpolation done per restricted basis)."""
+        physics = self._nonlinear_physics(numpy_bkd)
+        skfem_basis = physics.basis().skfem_basis()
+        rng = np.random.RandomState(2)
+        state_np = rng.uniform(0.1, 1.0, physics.nstates())
+        nelems = skfem_basis.nelems
+        halves = (
+            np.arange(nelems // 2),
+            np.arange(nelems // 2, nelems),
+        )
+        form = physics.reaction_form()
+        full = asm(
+            form, skfem_basis, u_prev=skfem_basis.interpolate(state_np)
+        )
+        parts = sum(
+            asm(
+                form,
+                skfem_basis.with_elements(subset),
+                u_prev=skfem_basis.with_elements(subset).interpolate(
+                    state_np
+                ),
+            )
+            for subset in halves
+        )
+        assert np.abs(full - parts).max() < 1e-14
+
+    def test_exposed_forms_are_picklable(self, numpy_bkd):
+        """Forms returned to consumers must survive pickling (kernels
+        are module-level classes, not closures)."""
+        import pickle
+
+        physics = self._nonlinear_physics(numpy_bkd)
+        forms = physics.stiffness_forms() + [
+            physics.forcing_form(0.0),
+            physics.reaction_form(),
+            physics.reaction_jacobian_form(),
+        ]
+        for form in forms:
+            assert form is not None
+            pickle.loads(pickle.dumps(form))
 
 
 class TestCachingUnchanged:

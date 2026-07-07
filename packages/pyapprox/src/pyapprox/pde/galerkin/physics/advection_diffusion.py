@@ -55,6 +55,192 @@ ReactionFunc = Callable[[np.ndarray, np.ndarray], np.ndarray]
 ReactionDerivFunc = Callable[[np.ndarray, np.ndarray], np.ndarray]
 
 
+class _DiffusionReactionKernel:
+    """Picklable kernel for the diffusion + linear-reaction form.
+
+    Module-level callable class (not a closure) so the forms returned
+    by ``stiffness_forms`` remain picklable — the _ExpTransform
+    precedent in pde.field_maps.
+    """
+
+    __name__ = "diffusion_reaction"
+
+    def __init__(
+        self,
+        diff_const: Optional[float],
+        diff_callable: Optional[
+            Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
+        ],
+        react_coeff: Optional[float],
+    ) -> None:
+        self._diff_const = diff_const
+        self._diff_callable = diff_callable
+        self._react_coeff = react_coeff
+
+    def __call__(
+        self,
+        u: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        # Diffusion coefficient
+        diff: Union[float, NDArray[np.floating[Any]]]
+        if self._diff_const is not None:
+            diff = self._diff_const
+        else:
+            assert self._diff_callable is not None
+            diff = self._diff_callable(np.asarray(w.x))
+
+        # Diffusion term: (grad(w), D*grad(u)) contributes D*grad(u).grad(v)
+        result: NDArray[np.floating[Any]] = diff * dot(grad(u), grad(v))
+
+        # Linear reaction term: -(w, r*u) contributes -r*u*v
+        # (negative because it's moved to LHS of weak form)
+        if self._react_coeff is not None:
+            result = result - self._react_coeff * u * v
+
+        return result
+
+
+class _AdvectionKernel:
+    """Picklable kernel for the advection form."""
+
+    __name__ = "advection"
+
+    def __init__(
+        self,
+        vel_np: Optional[NDArray[np.floating[Any]]],
+        vel_callable: Optional[
+            Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
+        ],
+        conservative: bool,
+    ) -> None:
+        self._vel_np = vel_np
+        self._vel_callable = vel_callable
+        self._conservative = conservative
+
+    def __call__(
+        self,
+        u: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        if self._vel_np is not None:
+            vel = self._vel_np
+        else:
+            assert self._vel_callable is not None
+            vel = self._vel_callable(np.asarray(w.x))
+        if self._conservative:
+            # Conservative: -(v*u, grad(w)) from div(v*u)
+            ret: NDArray[np.floating[Any]] = -u * dot(vel, grad(v))
+            return ret
+        else:
+            # Non-conservative: (w, v.grad(u))
+            ret2: NDArray[np.floating[Any]] = dot(vel, grad(u)) * v
+            return ret2
+
+
+class _ForcingKernel:
+    """Picklable kernel for the forcing load form (w, f)."""
+
+    __name__ = "forcing"
+
+    def __init__(
+        self, forcing_func: Callable[..., Any], time: float
+    ) -> None:
+        self._forcing_func = forcing_func
+        self._time = time
+
+    def __call__(
+        self, v: "DiscreteField", w: "FormExtraParams"
+    ) -> np.ndarray:
+        x_np = np.asarray(w.x)
+        x_shape = x_np.shape
+        if len(x_shape) == 3:
+            ndim, nelem, nquad = x_shape
+            x_flat = x_np.reshape(ndim, -1)
+            try:
+                forc_flat = self._forcing_func(x_flat, self._time)
+            except TypeError:
+                forc_flat = self._forcing_func(x_flat)
+            forc = forc_flat.reshape(nelem, nquad)
+        else:
+            try:
+                forc = self._forcing_func(x_np, self._time)
+            except TypeError:
+                forc = self._forcing_func(x_np)
+        ret: NDArray[np.floating[Any]] = forc * v
+        return ret
+
+
+class _ReactionKernel:
+    """Picklable kernel for the nonlinear reaction load (w, R(u)).
+
+    Assembled with the interpolated state as the ``u_prev`` form
+    parameter.
+    """
+
+    __name__ = "reaction"
+
+    def __init__(self, reaction_func: ReactionFunc) -> None:
+        self._reaction_func = reaction_func
+
+    def __call__(
+        self, v: "DiscreteField", w: "FormExtraParams"
+    ) -> np.ndarray:
+        x_np = np.asarray(w.x)
+        u_prev = w.u_prev  # Interpolated state values
+
+        x_shape = x_np.shape
+        if len(x_shape) == 3:
+            ndim, nelem, nquad = x_shape
+            x_flat = x_np.reshape(ndim, -1)
+            u_flat = np.asarray(u_prev).reshape(-1)
+            react_flat = self._reaction_func(x_flat, u_flat)
+            react = react_flat.reshape(nelem, nquad)
+        else:
+            react = self._reaction_func(x_np, u_prev)
+        ret: NDArray[np.floating[Any]] = react * v
+        return ret
+
+
+class _ReactionJacobianKernel:
+    """Picklable kernel for the reaction Jacobian (w, R'(u)*du).
+
+    Assembled with the interpolated state as the ``u_prev`` form
+    parameter.
+    """
+
+    __name__ = "reaction_jacobian"
+
+    def __init__(self, reaction_deriv: ReactionDerivFunc) -> None:
+        self._reaction_deriv = reaction_deriv
+
+    def __call__(
+        self,
+        u: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        x_np = np.asarray(w.x)
+        u_prev = w.u_prev
+
+        x_shape = x_np.shape
+        if len(x_shape) == 3:
+            ndim, nelem, nquad = x_shape
+            x_flat = x_np.reshape(ndim, -1)
+            u_flat = np.asarray(u_prev).reshape(-1)
+            react_deriv_flat = self._reaction_deriv(x_flat, u_flat)
+            react_deriv = react_deriv_flat.reshape(nelem, nquad)
+        else:
+            react_deriv = self._reaction_deriv(x_np, u_prev)
+
+        # Derivative of the load term (w, R(u)) with respect to the
+        # state: F = load - K*u, so dF/du gains +(w, R'(u)*du)
+        ret: NDArray[np.floating[Any]] = react_deriv * u * v
+        return ret
+
+
 class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     """Advection-diffusion-reaction physics with general reaction term.
 
@@ -231,31 +417,12 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         # For linear reaction, include in stiffness matrix
         react_coeff = self._reaction_coeff if self._reaction_is_linear else None
 
-        # Capture callable diffusivity for use in inner function
+        # Capture callable diffusivity for use in the kernel
         diff_callable = self._diffusivity if callable(self._diffusivity) else None
 
-        def bilinear_form(
-            u: "DiscreteField", v: "DiscreteField",
-            w: "FormExtraParams",
-        ) -> np.ndarray:
-            # Diffusion coefficient
-            if diff_const is not None:
-                diff = diff_const
-            else:
-                assert diff_callable is not None
-                diff = diff_callable(np.asarray(w.x))
-
-            # Diffusion term: (grad(w), D*grad(u)) contributes D*grad(u).grad(v)
-            result: NDArray[np.floating[Any]] = diff * dot(grad(u), grad(v))
-
-            # Linear reaction term: -(w, r*u) contributes -r*u*v
-            # (negative because it's moved to LHS of weak form)
-            if react_coeff is not None:
-                result = result - react_coeff * u * v
-
-            return result
-
-        return BilinearForm(bilinear_form)
+        return BilinearForm(
+            _DiffusionReactionKernel(diff_const, diff_callable, react_coeff)
+        )
 
     def _advection_form(self) -> Optional["BilinearForm"]:
         """Bilinear form for advection, or None when velocity is absent."""
@@ -268,28 +435,39 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             else None
         )
 
-        conservative = self._conservative
         vel_callable = self._velocity if callable(self._velocity) else None
 
-        def advection_form(
-            u: "DiscreteField", v: "DiscreteField",
-            w: "FormExtraParams",
-        ) -> np.ndarray:
-            if vel_np is not None:
-                vel = vel_np
-            else:
-                assert vel_callable is not None
-                vel = vel_callable(np.asarray(w.x))
-            if conservative:
-                # Conservative: -(v*u, grad(w)) from div(v*u)
-                ret: NDArray[np.floating[Any]] = -u * dot(vel, grad(v))
-                return ret
-            else:
-                # Non-conservative: (w, v.grad(u))
-                ret2: NDArray[np.floating[Any]] = dot(vel, grad(u)) * v
-                return ret2
+        return BilinearForm(
+            _AdvectionKernel(vel_np, vel_callable, self._conservative)
+        )
 
-        return BilinearForm(advection_form)
+    def forcing_form(self, time: float) -> Optional["LinearForm"]:
+        """Linear form for the forcing contribution (w, f), or None."""
+        if self._forcing is None:
+            return None
+        return LinearForm(_ForcingKernel(self._forcing, time))
+
+    def reaction_form(self) -> Optional["LinearForm"]:
+        """Linear form for the nonlinear reaction (w, R(u)), or None.
+
+        Assemble with the interpolated state as a form parameter,
+        ``asm(form, basis, u_prev=basis.interpolate(state))``; a raw
+        (nelems, nquad) array of state values at the quadrature points
+        also works, enabling element-restricted assembly.
+        """
+        if self._reaction_func is None or self._reaction_is_linear:
+            return None
+        return LinearForm(_ReactionKernel(self._reaction_func))
+
+    def reaction_jacobian_form(self) -> Optional["BilinearForm"]:
+        """Bilinear form (w, R'(u)*du) for the reaction Jacobian, or None.
+
+        Assemble with the interpolated state as a form parameter, as in
+        :meth:`reaction_form`.
+        """
+        if self._reaction_deriv is None or self._reaction_is_linear:
+            return None
+        return BilinearForm(_ReactionJacobianKernel(self._reaction_deriv))
 
     def stiffness_forms(self) -> List["BilinearForm"]:
         """Return the bilinear forms whose sum assembles the stiffness.
@@ -371,100 +549,41 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         load_np = np.zeros(self.nstates())
 
         # Forcing contribution: (w, f)
-        if self._forcing is not None:
-            forcing_func = self._forcing
-            current_time = time
-
-            def forcing_form(v: "DiscreteField", w: "FormExtraParams") -> Any:
-                x_np = np.asarray(w.x)
-                x_shape = x_np.shape
-                if len(x_shape) == 3:
-                    ndim, nelem, nquad = x_shape
-                    x_flat = x_np.reshape(ndim, -1)
-                    try:
-                        forc_flat = forcing_func(x_flat, current_time)
-                    except TypeError:
-                        forc_flat = forcing_func(x_flat)
-                    forc = forc_flat.reshape(nelem, nquad)
-                else:
-                    try:
-                        forc = forcing_func(x_np, current_time)
-                    except TypeError:
-                        forc = forcing_func(x_np)
-                return forc * v
-
-            load_np += asm(LinearForm(forcing_form), skfem_basis)
+        forcing = self.forcing_form(time)
+        if forcing is not None:
+            load_np += asm(forcing, skfem_basis)
 
         # Nonlinear reaction contribution: (w, R(u))
-        if self._reaction_func is not None and not self._reaction_is_linear:
-            reaction_func = self._reaction_func
-
+        reaction = self.reaction_form()
+        if reaction is not None:
             # Interpolate state to get u values at quadrature points
             state_interp = skfem_basis.interpolate(state_np)
-
-            def reaction_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-                x_np = np.asarray(w.x)
-                u_prev = w.u_prev  # Interpolated state values
-
-                x_shape = x_np.shape
-                if len(x_shape) == 3:
-                    ndim, nelem, nquad = x_shape
-                    x_flat = x_np.reshape(ndim, -1)
-                    u_flat = u_prev.reshape(-1)
-                    react_flat = reaction_func(x_flat, u_flat)
-                    react = react_flat.reshape(nelem, nquad)
-                else:
-                    react = reaction_func(x_np, u_prev)
-                ret: NDArray[np.floating[Any]] = react * v
-                return ret
-
-            load_np += asm(LinearForm(reaction_form), skfem_basis, u_prev=state_interp)
+            load_np += asm(reaction, skfem_basis, u_prev=state_interp)
 
         return self._bkd.asarray(load_np.astype(np.float64))
 
     def _assemble_reaction_jacobian(self, state: Array, time: float) -> Array:
         """Assemble Jacobian contribution from nonlinear reaction.
 
-        For R(u), the Jacobian term is: -(w, R'(u) * du)
+        For R(u), the Jacobian term is: (w, R'(u) * du)
         where du is the trial function.
 
-        This returns the matrix J where J_ij = -integral(R'(u) * phi_j * phi_i)
+        This returns the matrix J where J_ij = integral(R'(u) * phi_j * phi_i)
         """
-        if self._reaction_deriv is None or self._reaction_is_linear:
+        form = self.reaction_jacobian_form()
+        if form is None:
             # No nonlinear reaction or linear reaction (already in stiffness)
-            return csr_matrix((self.nstates(), self.nstates()))
+            empty: Array = csr_matrix((self.nstates(), self.nstates()))
+            return empty
 
         skfem_basis = self._basis.skfem_basis()
         state_np = self._bkd.to_numpy(state)
-        reaction_deriv = self._reaction_deriv
 
         # Interpolate state
         state_interp = skfem_basis.interpolate(state_np)
 
-        def reaction_jacobian_form(
-            u: "DiscreteField", v: "DiscreteField",
-            w: "FormExtraParams",
-        ) -> np.ndarray:
-            x_np = np.asarray(w.x)
-            u_prev = w.u_prev
-
-            x_shape = x_np.shape
-            if len(x_shape) == 3:
-                ndim, nelem, nquad = x_shape
-                x_flat = x_np.reshape(ndim, -1)
-                u_flat = u_prev.reshape(-1)
-                react_deriv_flat = reaction_deriv(x_flat, u_flat)
-                react_deriv = react_deriv_flat.reshape(nelem, nquad)
-            else:
-                react_deriv = reaction_deriv(x_np, u_prev)
-
-            # Negative because moved to LHS: -(w, R'(u)*du)
-            ret: NDArray[np.floating[Any]] = -react_deriv * u * v
-            return ret
-
-        return asm(
-            BilinearForm(reaction_jacobian_form), skfem_basis, u_prev=state_interp
-        )
+        jacobian: Array = asm(form, skfem_basis, u_prev=state_interp)
+        return jacobian
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
