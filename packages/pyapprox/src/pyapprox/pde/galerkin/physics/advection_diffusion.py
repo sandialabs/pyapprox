@@ -223,23 +223,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             except TypeError:
                 return np.asarray(self._forcing(coords))
 
-    def _assemble_stiffness(self, state: Array, time: float) -> Array:
-        """Assemble stiffness matrix K.
-
-        For the weak form, K includes:
-        - Diffusion: (grad(w), D*grad(u))
-        - Advection: (w, v.grad(u))
-        - Linear reaction (if applicable): -(w, r*u) where R(u) = r*u
-
-        Note: For nonlinear reaction, the contribution is handled in
-        the residual and Jacobian separately.
-        """
-        # Check cache for linear problems
-        if self._stiffness_cached is not None and self.is_linear():
-            return self._stiffness_cached
-
-        skfem_basis = self._basis.skfem_basis()
-
+    def _diffusion_reaction_form(self) -> "BilinearForm":
+        """Bilinear form for diffusion plus linear reaction."""
         # Get constant coefficients or prepare for callable
         diff_const = self._diffusivity if not callable(self._diffusivity) else None
 
@@ -270,39 +255,84 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
             return result
 
-        stiffness = asm(BilinearForm(bilinear_form), skfem_basis)
+        return BilinearForm(bilinear_form)
 
+    def _advection_form(self) -> Optional["BilinearForm"]:
+        """Bilinear form for advection, or None when velocity is absent."""
+        if self._velocity is None:
+            return None
+
+        vel_np = (
+            self._bkd.to_numpy(self._velocity)
+            if not callable(self._velocity)
+            else None
+        )
+
+        conservative = self._conservative
+        vel_callable = self._velocity if callable(self._velocity) else None
+
+        def advection_form(
+            u: "DiscreteField", v: "DiscreteField",
+            w: "FormExtraParams",
+        ) -> np.ndarray:
+            if vel_np is not None:
+                vel = vel_np
+            else:
+                assert vel_callable is not None
+                vel = vel_callable(np.asarray(w.x))
+            if conservative:
+                # Conservative: -(v*u, grad(w)) from div(v*u)
+                ret: NDArray[np.floating[Any]] = -u * dot(vel, grad(v))
+                return ret
+            else:
+                # Non-conservative: (w, v.grad(u))
+                ret2: NDArray[np.floating[Any]] = dot(vel, grad(u)) * v
+                return ret2
+
+        return BilinearForm(advection_form)
+
+    def stiffness_forms(self) -> List["BilinearForm"]:
+        """Return the bilinear forms whose sum assembles the stiffness.
+
+        Each form can be assembled on any compatible skfem basis — in
+        particular a ``basis.with_elements(...)``-restricted basis — so
+        consumers such as hyper-reduction can extract per-element
+        contributions without changing the global assembly path.
+
+        Returns
+        -------
+        List[BilinearForm]
+            Diffusion (+ linear reaction) form, followed by the
+            advection form when a velocity is present.
+        """
+        forms = [self._diffusion_reaction_form()]
+        advection = self._advection_form()
+        if advection is not None:
+            forms.append(advection)
+        return forms
+
+    def _assemble_stiffness(self, state: Array, time: float) -> Array:
+        """Assemble stiffness matrix K.
+
+        For the weak form, K includes:
+        - Diffusion: (grad(w), D*grad(u))
+        - Advection: (w, v.grad(u))
+        - Linear reaction (if applicable): -(w, r*u) where R(u) = r*u
+
+        Note: For nonlinear reaction, the contribution is handled in
+        the residual and Jacobian separately.
+        """
+        # Check cache for linear problems
+        if self._stiffness_cached is not None and self.is_linear():
+            return self._stiffness_cached
+
+        skfem_basis = self._basis.skfem_basis()
+
+        forms = self.stiffness_forms()
+        stiffness = asm(forms[0], skfem_basis)
         # Add advection if present
-        if self._velocity is not None:
-            vel_np = (
-                self._bkd.to_numpy(self._velocity)
-                if not callable(self._velocity)
-                else None
-            )
-
-            conservative = self._conservative
-            vel_callable = self._velocity if callable(self._velocity) else None
-
-            def advection_form(
-                u: "DiscreteField", v: "DiscreteField",
-                w: "FormExtraParams",
-            ) -> np.ndarray:
-                if vel_np is not None:
-                    vel = vel_np
-                else:
-                    assert vel_callable is not None
-                    vel = vel_callable(np.asarray(w.x))
-                if conservative:
-                    # Conservative: -(v*u, grad(w)) from div(v*u)
-                    ret: NDArray[np.floating[Any]] = -u * dot(vel, grad(v))
-                    return ret
-                else:
-                    # Non-conservative: (w, v.grad(u))
-                    ret2: NDArray[np.floating[Any]] = dot(vel, grad(u)) * v
-                    return ret2
-
-            advection = asm(BilinearForm(advection_form), skfem_basis)
-            stiffness = stiffness + advection
+        for form in forms[1:]:
+            stiffness = stiffness + asm(form, skfem_basis)
 
         # Cache if linear problem with constant coefficients
         if (
