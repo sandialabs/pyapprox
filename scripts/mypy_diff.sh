@@ -18,6 +18,8 @@ echo "Delta:    $DIFF"
 
 if [ "$COUNT" -gt "$BASELINE" ]; then
     echo "FAIL: mypy error count increased by $DIFF (from $BASELINE to $COUNT)"
+    echo "----- full mypy output -----"
+    echo "$OUTPUT"
     exit 1
 else
     echo "OK: mypy error count did not increase (delta: $DIFF)"
