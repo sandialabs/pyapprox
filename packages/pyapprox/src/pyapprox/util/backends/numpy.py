@@ -185,7 +185,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: Optional[Union[int, Tuple[int, ...]]] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.asarray(np.sum(array, axis=axis, keepdims=keepdims))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(np.sum(array, axis=axis, keepdims=True))
+        return np.asarray(np.sum(array, axis=axis))
 
     @staticmethod
     def cumsum(array: NDArray[Any], axis: Optional[int] = None) -> NDArray[Any]:
@@ -193,23 +196,23 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def sin(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.sin(array))
+        return np.asarray(np.sin(array))
 
     @staticmethod
     def cos(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.cos(array))
+        return np.asarray(np.cos(array))
 
     @staticmethod
     def arcsin(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.arcsin(array))
+        return np.asarray(np.arcsin(array))
 
     @staticmethod
     def arccos(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.arccos(array))
+        return np.asarray(np.arccos(array))
 
     @staticmethod
     def arctan(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.arctan(array))
+        return np.asarray(np.arctan(array))
 
     @staticmethod
     def arctan2(y: NDArray[Any], x: NDArray[Any]) -> NDArray[Any]:
@@ -217,27 +220,27 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def sinh(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.sinh(array))
+        return np.asarray(np.sinh(array))
 
     @staticmethod
     def cosh(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.cosh(array))
+        return np.asarray(np.cosh(array))
 
     @staticmethod
     def tanh(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.tanh(array))
+        return np.asarray(np.tanh(array))
 
     @staticmethod
     def arcsinh(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.arcsinh(array))
+        return np.asarray(np.arcsinh(array))
 
     @staticmethod
     def arccosh(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.arccosh(array))
+        return np.asarray(np.arccosh(array))
 
     @staticmethod
     def arctanh(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.arctanh(array))
+        return np.asarray(np.arctanh(array))
 
     @staticmethod
     def full(
@@ -277,14 +280,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: Optional[int] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.asarray(np.prod(array, axis=axis, keepdims=keepdims))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(np.prod(array, axis=axis, keepdims=True))
+        return np.asarray(np.prod(array, axis=axis))
 
     @staticmethod
-    def any_bool(
-        array: NDArray[Any],
-        keepdims: bool = False,
-    ) -> bool:
-        return cast(bool, np.any(array, axis=None, keepdims=keepdims))
+    def any_bool(array: NDArray[Any]) -> bool:
+        return bool(np.any(array))
 
     @staticmethod
     def any_array(
@@ -292,14 +295,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: int,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return cast(NDArray[Any], np.any(array, axis=axis, keepdims=keepdims))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(np.any(array, axis=axis, keepdims=True))
+        return np.asarray(np.any(array, axis=axis))
 
     @staticmethod
-    def all_bool(
-        array: NDArray[Any],
-        keepdims: bool = False,
-    ) -> bool:
-        return cast(bool, np.all(array, axis=None, keepdims=keepdims))
+    def all_bool(array: NDArray[Any]) -> bool:
+        return bool(np.all(array))
 
     @staticmethod
     def all_array(
@@ -307,11 +310,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: int,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return cast(NDArray[Any], np.all(array, axis=axis, keepdims=keepdims))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(np.all(array, axis=axis, keepdims=True))
+        return np.asarray(np.all(array, axis=axis))
 
     @staticmethod
     def log(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.log(array))
+        return np.asarray(np.log(array))
 
     @staticmethod
     def exp(array: NDArray[Any]) -> NDArray[Any]:
@@ -347,7 +353,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def isfinite(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.isfinite(array))
+        return np.asarray(np.isfinite(array))
 
     @staticmethod
     def nonzero(condition: NDArray[Any]) -> Tuple[NDArray[Any], ...]:
@@ -366,11 +372,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def sign(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.sign(array))
+        return np.asarray(np.sign(array))
 
     @staticmethod
     def abs(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.abs(array))
+        return np.asarray(np.abs(array))
 
     @staticmethod
     def round(array: NDArray[Any]) -> NDArray[Any]:
@@ -378,7 +384,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def floor(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.floor(array))
+        return np.asarray(np.floor(array))
 
     @staticmethod
     def floor_divide(
@@ -388,11 +394,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def ceil(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.ceil(array))
+        return np.asarray(np.ceil(array))
 
     @staticmethod
     def sqrt(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.sqrt(array))
+        return np.asarray(np.sqrt(array))
 
     @staticmethod
     def solve(Amat: NDArray[Any], Bmat: NDArray[Any]) -> NDArray[Any]:
@@ -444,19 +450,25 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def clip(
         array: NDArray[Any], a_min: Any, a_max: Any
     ) -> NDArray[Any]:
-        return np.clip(array, a_min, a_max)
+        return np.asarray(np.clip(array, a_min, a_max))
 
     @staticmethod
     def min(
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
-        return np.asarray(np.min(array, axis=axis, keepdims=keepdims))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(np.min(array, axis=axis, keepdims=True))
+        return np.asarray(np.min(array, axis=axis))
 
     @staticmethod
     def max(
         array: NDArray[Any], axis: Optional[int] = None, keepdims: bool = False
     ) -> NDArray[Any]:
-        return np.asarray(np.max(array, axis=axis, keepdims=keepdims))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(np.max(array, axis=axis, keepdims=True))
+        return np.asarray(np.max(array, axis=axis))
 
     @staticmethod
     def logsumexp(
@@ -555,11 +567,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def isnan(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.isnan(array))
+        return np.asarray(np.isnan(array))
 
     @staticmethod
     def isinf(array: NDArray[Any]) -> NDArray[Any]:
-        return cast(NDArray[Any], np.isinf(array))
+        return np.asarray(np.isinf(array))
 
     @staticmethod
     def unique(array: NDArray[Any]) -> NDArray[Any]:
@@ -609,9 +621,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     def svd(
         array: NDArray[Any], full_matrices: bool = True
     ) -> Tuple[NDArray[Any], NDArray[Any], NDArray[Any]]:
-        return np.linalg.svd(
+        # unpack: newer stubs return an SVDResult named tuple that mypy
+        # does not accept as a plain Tuple
+        U, S, Vh = np.linalg.svd(
             array, compute_uv=True, full_matrices=full_matrices
         )
+        return U, S, Vh
 
     @staticmethod
     def rank(array: NDArray[Any]) -> int:
@@ -700,7 +715,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         axis: Optional[Union[int, Tuple[int, ...]]] = None,
         keepdims: bool = False,
     ) -> NDArray[Any]:
-        return np.asarray(np.mean(array, axis=axis, keepdims=keepdims))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(np.mean(array, axis=axis, keepdims=True))
+        return np.asarray(np.mean(array, axis=axis))
 
     @staticmethod
     def var(
@@ -709,7 +727,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         keepdims: bool = False,
         ddof: int = 0,
     ) -> NDArray[Any]:
-        return np.asarray(np.var(array, axis=axis, keepdims=keepdims, ddof=ddof))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(
+                np.var(array, axis=axis, keepdims=True, ddof=ddof)
+            )
+        return np.asarray(np.var(array, axis=axis, ddof=ddof))
 
     @staticmethod
     def std(
@@ -718,7 +741,12 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         keepdims: bool = False,
         ddof: int = 0,
     ) -> NDArray[Any]:
-        return np.asarray(np.std(array, axis=axis, keepdims=keepdims, ddof=ddof))
+        # keepdims as a literal per branch: the stubs overload on it
+        if keepdims:
+            return np.asarray(
+                np.std(array, axis=axis, keepdims=True, ddof=ddof)
+            )
+        return np.asarray(np.std(array, axis=axis, ddof=ddof))
 
     @staticmethod
     def cov(

@@ -18,6 +18,10 @@ from scipy.sparse import spmatrix
 
 from pyapprox.util.backends.protocols import ArrayLike, Backend
 
+# annotated alias: set_default_dtype is untyped in older torch stubs, and
+# a type: ignore would be flagged unused under newer (typed) stubs
+_set_default_dtype: Callable[["torch.dtype"], None] = torch.set_default_dtype
+
 
 # Implement the PyTorch backend
 class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
@@ -29,7 +33,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         self._device = (
             torch.device(device) if device is not None else torch.device("cpu")
         )
-        torch.set_default_dtype(torch.float64)
+        _set_default_dtype(torch.float64)
         self._dtype = dtype if dtype is not None else torch.get_default_dtype()
 
     def synchronize(self) -> None:
@@ -176,7 +180,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
             return array
         if not isinstance(array, torch.Tensor):
             return np.asarray(array)
-        return array.detach().cpu().numpy()
+        return np.asarray(array.detach().cpu().numpy())
 
     @staticmethod
     def to_float(array: "float | int | torch.Tensor") -> float:
@@ -341,15 +345,13 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         if axis is None:
             if keepdims is False:
                 return torch.prod(array)
-            return torch.prod(array, dim=None, keepdim=True)
+            # torch.prod has no dim=None overload; emulate keepdims
+            return torch.prod(array).reshape((1,) * array.ndim)
         return torch.prod(array, dim=axis, keepdim=keepdims)
 
     @staticmethod
-    def any_bool(
-        array: torch.Tensor,
-        keepdims: bool = False,
-    ) -> bool:
-        return bool(torch.any(array, keepdim=keepdims).item())
+    def any_bool(array: torch.Tensor) -> bool:
+        return bool(torch.any(array).item())
 
     @staticmethod
     def any_array(
@@ -360,11 +362,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.any(array, dim=axis, keepdim=keepdims)
 
     @staticmethod
-    def all_bool(
-        array: torch.Tensor,
-        keepdims: bool = False,
-    ) -> bool:
-        return bool(torch.all(array, keepdim=keepdims).item())
+    def all_bool(array: torch.Tensor) -> bool:
+        return bool(torch.all(array).item())
 
     @staticmethod
     def all_array(

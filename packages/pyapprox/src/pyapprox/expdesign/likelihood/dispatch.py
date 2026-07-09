@@ -11,7 +11,7 @@ the calling class (GaussianOEDInnerLoopLikelihood) is unaware of which
 strategy is active. Dispatch is fully automatic — no flags needed.
 """
 
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, cast
 
 import numpy as np
 
@@ -122,7 +122,12 @@ def _make_compiled_logpdf() -> LogpdfMatrixImpl[Array]:
         logpdf_matrix_torch,
     )
 
-    compiled_fn = torch.compile(logpdf_matrix_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[Array, Array, Array, Array], Array],
+        torch.compile(logpdf_matrix_torch),
+    )
 
     def impl(
         shapes: Array,
@@ -145,7 +150,12 @@ def _make_compiled_jacobian() -> JacobianMatrixImpl[Array]:
         jacobian_matrix_torch,
     )
 
-    compiled_fn = torch.compile(jacobian_matrix_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[Array, Array, Array, Array, Array, bool], Array],
+        torch.compile(jacobian_matrix_torch),
+    )
 
     def impl(
         shapes: Array,
@@ -156,10 +166,12 @@ def _make_compiled_jacobian() -> JacobianMatrixImpl[Array]:
         bkd: Backend[Array],
     ) -> Array:
         has_latent = latent_samples is not None
-        if not has_latent:
+        if latent_samples is None:
             import torch as _torch
 
-            latent_samples_t = _torch.zeros_like(obs)
+            latent_samples_t = cast(
+                Array, _torch.zeros_like(cast("torch.Tensor", obs))
+            )
         else:
             latent_samples_t = latent_samples
         return compiled_fn(
@@ -184,8 +196,16 @@ def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl[Array]:
         jacobian_matrix_torch,
     )
 
-    compiled_jac = torch.compile(jacobian_matrix_torch)
-    compiled_ev_jac = torch.compile(evidence_jacobian_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrappers are used generically over Array
+    compiled_jac = cast(
+        Callable[[Array, Array, Array, Array, Array, bool], Array],
+        torch.compile(jacobian_matrix_torch),
+    )
+    compiled_ev_jac = cast(
+        Callable[[Array, Array], Array],
+        torch.compile(evidence_jacobian_torch),
+    )
 
     def impl(
         shapes: Array,
@@ -197,10 +217,12 @@ def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl[Array]:
         bkd: Backend[Array],
     ) -> Array:
         has_latent = latent_samples is not None
-        if not has_latent:
+        if latent_samples is None:
             import torch as _torch
 
-            latent_samples_t = _torch.zeros_like(obs)
+            latent_samples_t = cast(
+                Array, _torch.zeros_like(cast("torch.Tensor", obs))
+            )
         else:
             latent_samples_t = latent_samples
         loglike_jac = compiled_jac(

@@ -416,10 +416,7 @@ class Backend(Protocol, Generic[Array]):
     ) -> Array: ...
 
     @staticmethod
-    def any_bool(
-        array: Array,
-        keepdims: bool = False,
-    ) -> bool:
+    def any_bool(array: Array) -> bool:
         """
         Overload for any when `axis` is None. Returns a scalar boolean.
         """
@@ -437,10 +434,7 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
-    def all_bool(
-        array: Array,
-        keepdims: bool = False,
-    ) -> bool:
+    def all_bool(array: Array) -> bool:
         """
         Overload for all when `axis` is None. Returns a scalar boolean.
         """

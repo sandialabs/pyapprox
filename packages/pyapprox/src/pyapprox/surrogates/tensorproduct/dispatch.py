@@ -9,7 +9,7 @@ Each dispatch function returns a callable with a uniform signature so that
 the TensorProductInterpolant is unaware of which strategy is active.
 """
 
-from typing import Callable, List
+from typing import Callable, List, cast
 
 import numpy as np
 
@@ -87,7 +87,12 @@ def _make_compiled_tp_eval() -> TpEvalImpl[Array]:
         tp_eval_torch,
     )
 
-    compiled_fn = torch.compile(tp_eval_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[List[Array], Array, List[int]], Array],
+        torch.compile(tp_eval_torch),
+    )
 
     def impl(
         basis_vals_1d: List[Array],

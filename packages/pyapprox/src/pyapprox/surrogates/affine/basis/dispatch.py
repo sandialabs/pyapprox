@@ -10,7 +10,7 @@ Each dispatch function returns a callable with a uniform signature so that
 MultiIndexBasis is unaware of which strategy is active.
 """
 
-from typing import Callable, List
+from typing import Callable, List, cast
 
 import numpy as np
 
@@ -237,7 +237,12 @@ def _make_compiled_eval() -> BasisEvalImpl[Array]:
         basis_eval_torch,
     )
 
-    compiled_fn = torch.compile(basis_eval_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[List[Array], Array], Array],
+        torch.compile(basis_eval_torch),
+    )
 
     def impl(
         vals_1d: List[Array],
@@ -258,7 +263,12 @@ def _make_compiled_jacobian() -> BasisJacobianImpl[Array]:
         basis_jacobian_torch,
     )
 
-    compiled_fn = torch.compile(basis_jacobian_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[List[Array], List[Array], Array], Array],
+        torch.compile(basis_jacobian_torch),
+    )
 
     def impl(
         vals_1d: List[Array],
@@ -280,7 +290,12 @@ def _make_compiled_hessian() -> BasisHessianImpl[Array]:
         basis_hessian_torch,
     )
 
-    compiled_fn = torch.compile(basis_hessian_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[List[Array], List[Array], List[Array], Array], Array],
+        torch.compile(basis_hessian_torch),
+    )
 
     def impl(
         vals_1d: List[Array],

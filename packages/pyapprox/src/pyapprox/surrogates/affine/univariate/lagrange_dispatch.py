@@ -6,7 +6,7 @@ Selects the best acceleration strategy based on the backend type:
 3. Backend-generic barycentric formula (fallback) — uses bkd.* methods
 """
 
-from typing import Callable
+from typing import Callable, cast
 
 import numpy as np
 
@@ -121,7 +121,12 @@ def _make_compiled_lagrange_eval() -> LagrangeEvalImpl[Array]:
         lagrange_eval_torch,
     )
 
-    compiled_fn = torch.compile(lagrange_eval_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[Array, Array, Array], Array],
+        torch.compile(lagrange_eval_torch),
+    )
 
     def impl(
         abscissa: Array,
@@ -276,7 +281,12 @@ def _make_compiled_lagrange_jacobian() -> LagrangeDerivImpl[Array]:
         lagrange_jacobian_torch,
     )
 
-    compiled_fn = torch.compile(lagrange_jacobian_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[Array, Array, Array], Array],
+        torch.compile(lagrange_jacobian_torch),
+    )
 
     def impl(
         abscissa: Array,
@@ -433,7 +443,12 @@ def _make_compiled_lagrange_hessian() -> LagrangeDerivImpl[Array]:
         lagrange_hessian_torch,
     )
 
-    compiled_fn = torch.compile(lagrange_hessian_torch)
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    compiled_fn = cast(
+        Callable[[Array, Array, Array], Array],
+        torch.compile(lagrange_hessian_torch),
+    )
 
     def impl(
         abscissa: Array,
