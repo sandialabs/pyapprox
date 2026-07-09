@@ -357,7 +357,8 @@ def adjust_sign_svd(
     U: Array,
     Vh: Array,
     adjust_based_upon_U: bool = True,
-    bkd: Optional[Backend[Array]] = None,
+    *,
+    bkd: Backend[Array],
 ) -> Tuple[Array, Array]:
     """
     Ensure uniqueness of SVD by ensuring consistent signs.
@@ -375,8 +376,8 @@ def adjust_sign_svd(
     adjust_based_upon_U : bool, default=True
         If True, make the first entry of each column of U positive.
         If False, make the first entry of each row of Vh positive.
-    bkd : Backend[Array], optional
-        Computational backend. If None, operations use numpy.
+    bkd : Backend[Array]
+        Computational backend.
 
     Returns
     -------
@@ -390,12 +391,8 @@ def adjust_sign_svd(
         msg += "full_matrices=False"
         raise ValueError(msg)
 
-    if bkd is not None:
-        U_np = bkd.to_numpy(U)
-        Vh_np = bkd.to_numpy(Vh)
-    else:
-        U_np = np.asarray(U)
-        Vh_np = np.asarray(Vh)
+    U_np = bkd.to_numpy(U)
+    Vh_np = bkd.to_numpy(Vh)
 
     if adjust_based_upon_U:
         s = np.sign(U_np[0, :])
@@ -408,9 +405,7 @@ def adjust_sign_svd(
     U_np = U_np * s
     Vh_np = Vh_np * s[:, None]
 
-    if bkd is not None:
-        return bkd.asarray(U_np), bkd.asarray(Vh_np)
-    return U_np, Vh_np
+    return bkd.asarray(U_np), bkd.asarray(Vh_np)
 
 
 class RandomizedSVD(Generic[Array], ABC):

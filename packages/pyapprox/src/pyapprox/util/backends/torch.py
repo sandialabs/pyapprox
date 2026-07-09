@@ -896,7 +896,9 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         y: Union[torch.Tensor, float, None] = None,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, ...]]:
         if x is None and y is None:
-            return torch.where(condition)
+            # tuple() normalizes the return type across torch stub versions
+            # (some type single-arg where() as list, others as tuple)
+            return tuple(torch.where(condition))
         if x is not None and y is not None:
             return torch.where(condition, x, y)
         raise ValueError("Must provide both x and y or neither.")
