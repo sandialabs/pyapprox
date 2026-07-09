@@ -253,14 +253,20 @@ class TestGeqp3FaithfulDeepSpectrum:
     imposed, so pivot identity is not asserted."""
 
     # numpy (BLAS/numba) tracks scipy's geqp3 to ~1e-6 relative down to
-    # 1e-9*R[0,0].  The native-torch path accumulates more float error in the
+    # 1e-9*R[0,0] when both use the same BLAS build.  Across BLAS builds
+    # (OpenBLAS vs Accelerate vs MKL; x86_64 vs arm64) the deep band disagrees
+    # by up to ~4e-4 (observed on GitHub CI runners), because among
+    # near-duplicate columns the downdated norms are roundoff-dominated there.
+    # 1e-3 still pins the Drmac-Bujanovic safeguard: without it the deep-band
+    # R-diagonal is wrong by orders of magnitude, not fractions of a percent.
+    # The native-torch path accumulates more float error in the
     # reflector/downdate (its matmul/reduction ordering differs from LAPACK),
-    # so its deep-band R-diagonal is looser -- kept native (GPU/autograd) at the
+    # so it shares the same looser bound -- kept native (GPU/autograd) at the
     # cost of ~1e-3 agreement in the resolvable band, which is still ample for
     # selecting a well-conditioned non-redundant column subset.
     _DEEP_RDIAG_RTOL = {
-        "numpy-generic": 1e-6,
-        "numpy-numba": 1e-6,
+        "numpy-generic": 1e-3,
+        "numpy-numba": 1e-3,
         "torch-generic": 1e-3,
     }
 

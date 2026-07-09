@@ -259,6 +259,8 @@ class TestPCEDegreeSelectionFitter:
         )
         result = fitter.fit(expansion, samples, values)
 
-        # Degrees 2 and 3 have near-identical LOO CV scores;
-        # platform/backend differences can tip the selection
-        assert result.best_label() in (2, 3)
+        # The target is exactly degree 2, so degrees 2-4 all interpolate it
+        # and have near-identical LOO CV scores; platform/backend BLAS
+        # rounding can tip the selection to any of them (macOS CI picks 4).
+        # Only degree 1 underfits and must never be selected.
+        assert result.best_label() in (2, 3, 4)

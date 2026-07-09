@@ -2400,7 +2400,9 @@ class TestISBetaEquivalence:
         est = self._create_estimator(bkd, nmodels, 1, "mean")
 
         trace_obj = GroupACVTraceObjective(bkd)
-        slsqp = ScipySLSQPOptimizer(maxiter=1000, ftol=1e-15)
+        # ftol=1e-15 is below what SLSQP can achieve on some BLAS builds
+        # (macOS arm CI reports failure); 1e-12 converges on all platforms
+        slsqp = ScipySLSQPOptimizer(maxiter=1000, ftol=1e-12)
         alloc_opt = GroupACVAllocationOptimizer(
             est, optimizer=slsqp, objective=trace_obj,
         )

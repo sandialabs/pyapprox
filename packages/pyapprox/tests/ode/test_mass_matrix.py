@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from scipy.sparse import issparse
 
 from pyapprox.ode.mass_matrix import (
     ConstantDenseMassMatrix,
@@ -172,7 +173,12 @@ class TestConstantSparseMassMatrix:
         bkd = numpy_bkd
         S = self._make_sparse_matrix()
         m = ConstantSparseMassMatrix(S, bkd)
-        bkd.assert_allclose(m.as_matrix(), bkd.array(S.toarray()), rtol=1e-14)
+        result = m.as_matrix()
+        # as_matrix() must not densify the sparse matrix
+        assert issparse(result)
+        bkd.assert_allclose(
+            bkd.array(result.toarray()), bkd.array(S.toarray()), rtol=1e-14
+        )
 
 
 class TestCreateMassMatrix:
