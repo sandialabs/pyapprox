@@ -271,11 +271,13 @@ def get_logpdf_matrix_impl(
             design_weights: Array,
             bkd: Backend[Array],
         ) -> Array:
-            return logpdf_matrix_numba(
-                shapes,
-                obs,
-                base_variances,
-                design_weights,
+            return bkd.asarray(
+                logpdf_matrix_numba(
+                    np.asarray(shapes),
+                    np.asarray(obs),
+                    np.asarray(base_variances),
+                    np.asarray(design_weights),
+                )
             )
 
         return impl
@@ -321,13 +323,15 @@ def get_jacobian_matrix_impl(
                 latent_samples_np = np.zeros_like(obs)
             else:
                 latent_samples_np = latent_samples
-            return jacobian_matrix_numba(
-                shapes,
-                obs,
-                latent_samples_np,
-                base_variances,
-                design_weights,
-                has_latent,
+            return bkd.asarray(
+                jacobian_matrix_numba(
+                    np.asarray(shapes),
+                    np.asarray(obs),
+                    np.asarray(latent_samples_np),
+                    np.asarray(base_variances),
+                    np.asarray(design_weights),
+                    has_latent,
+                )
             )
 
         return impl
@@ -373,14 +377,16 @@ def get_evidence_jacobian_impl(
                 latent_samples_np = np.zeros_like(obs)
             else:
                 latent_samples_np = latent_samples
-            return fused_evidence_jacobian_numba(
-                shapes,
-                obs,
-                latent_samples_np,
-                base_variances,
-                design_weights,
-                quad_weighted_like,
-                has_latent,
+            return bkd.asarray(
+                fused_evidence_jacobian_numba(
+                    np.asarray(shapes),
+                    np.asarray(obs),
+                    np.asarray(latent_samples_np),
+                    np.asarray(base_variances),
+                    np.asarray(design_weights),
+                    np.asarray(quad_weighted_like),
+                    has_latent,
+                )
             )
 
         return impl
@@ -472,17 +478,18 @@ def get_weighted_jacobian_impl(
             weights_a_qi = np.ascontiguousarray(weights_a.T)          # (npred, ninner)
             weights_b_qi = np.ascontiguousarray(weights_b.T)
 
-            return fused_weighted_jacobian_numba(
+            part_a, part_b = fused_weighted_jacobian_numba(
                 shapes_ik,
                 obs_jk,
                 latent_jk,
-                base_variances,
-                design_weights,
-                qwl_ratio,
+                np.asarray(base_variances),
+                np.asarray(design_weights),
+                np.asarray(qwl_ratio),
                 weights_a_qi,
                 weights_b_qi,
                 has_latent,
             )
+            return bkd.asarray(part_a), bkd.asarray(part_b)
 
         return impl
 

@@ -62,13 +62,15 @@ def _make_numba_tp_eval() -> TpEvalImpl[Array]:
 
         nterms_1d_arr = np.array(nterms_1d, dtype=np.int64)
 
-        result: Array = tp_eval_numba(
-            np.asarray(values),
-            basis_vals_pad,
-            nterms_1d_arr,
-            nvars,
-            nqoi,
-            npoints,
+        result: Array = bkd.asarray(
+            tp_eval_numba(
+                np.asarray(values),
+                basis_vals_pad,
+                nterms_1d_arr,
+                nvars,
+                nqoi,
+                npoints,
+            )
         )
         return result
 

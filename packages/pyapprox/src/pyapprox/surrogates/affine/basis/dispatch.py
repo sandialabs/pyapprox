@@ -108,12 +108,14 @@ def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl[Array]:
             indices_np = np.asarray(indices)
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
-            result: Array = basis_eval_numba(
-                stacked,
-                indices_np,
-                nvars,
-                nsamples,
-                nterms,
+            result: Array = bkd.asarray(
+                basis_eval_numba(
+                    stacked,
+                    indices_np,
+                    nvars,
+                    nsamples,
+                    nterms,
+                )
             )
             return result
 
@@ -156,13 +158,15 @@ def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl[Array]:
             indices_np = np.asarray(indices)
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
-            result: Array = basis_jacobian_numba(
-                stacked_vals,
-                stacked_derivs,
-                indices_np,
-                nvars,
-                nsamples,
-                nterms,
+            result: Array = bkd.asarray(
+                basis_jacobian_numba(
+                    stacked_vals,
+                    stacked_derivs,
+                    indices_np,
+                    nvars,
+                    nsamples,
+                    nterms,
+                )
             )
             return result
 
@@ -207,14 +211,16 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl[Array]:
             indices_np = np.asarray(indices)
             nsamples = vals_1d[0].shape[0]
             nterms = indices_np.shape[1]
-            result: Array = basis_hessian_numba(
-                stacked_vals,
-                stacked_derivs,
-                stacked_hess,
-                indices_np,
-                nvars,
-                nsamples,
-                nterms,
+            result: Array = bkd.asarray(
+                basis_hessian_numba(
+                    stacked_vals,
+                    stacked_derivs,
+                    stacked_hess,
+                    indices_np,
+                    nvars,
+                    nsamples,
+                    nterms,
+                )
             )
             return result
 
