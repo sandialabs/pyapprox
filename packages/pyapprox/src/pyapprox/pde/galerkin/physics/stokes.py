@@ -663,7 +663,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             vel_dirichlet_bcs=self._vel_dirichlet_bcs,
             pres_dirichlet_bcs=self._pres_dirichlet_bcs,
         )
-        solver = SteadyStateSolver(linear_physics, tol=1e-12)
+        solver: SteadyStateSolver[Array] = SteadyStateSolver(linear_physics, tol=1e-12)
         result = solver.solve_linear(time=time)
         return result.solution
 

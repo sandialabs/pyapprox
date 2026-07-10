@@ -7,17 +7,20 @@ weights and P(x) = prod_i(x - x_i).
 Operates on raw NumPy arrays. The dispatch layer handles backend conversion.
 """
 
+from typing import Any
+
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.util.numba_compat import njit, prange
 
 
 @njit(cache=True, parallel=True)
 def lagrange_eval_numba(
-    abscissa: np.ndarray,
-    samples: np.ndarray,
-    bary_weights: np.ndarray,
-) -> np.ndarray:
+    abscissa: NDArray[np.floating[Any]],
+    samples: NDArray[np.floating[Any]],
+    bary_weights: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
     """Evaluate Lagrange basis polynomials via barycentric formula.
 
     Parameters
@@ -68,9 +71,9 @@ def lagrange_eval_numba(
 
 @njit(cache=True)
 def _node_first_derivs(
-    abscissa: np.ndarray,
-    bary_weights: np.ndarray,
-) -> np.ndarray:
+    abscissa: NDArray[np.floating[Any]],
+    bary_weights: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
     """Precompute first derivative matrix at nodes.
 
     D1[m, j] = L'_j(x_m).
@@ -97,10 +100,10 @@ def _node_first_derivs(
 
 @njit(cache=True, parallel=True)
 def lagrange_jacobian_numba(
-    abscissa: np.ndarray,
-    samples: np.ndarray,
-    bary_weights: np.ndarray,
-) -> np.ndarray:
+    abscissa: NDArray[np.floating[Any]],
+    samples: NDArray[np.floating[Any]],
+    bary_weights: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
     """Evaluate first derivatives of Lagrange basis polynomials.
 
     Uses L'_j(x) = L_j(x) * S_j(x) where S_j = sum_{k!=j} 1/(x-x_k).
@@ -175,10 +178,10 @@ def lagrange_jacobian_numba(
 
 @njit(cache=True, parallel=True)
 def lagrange_hessian_numba(
-    abscissa: np.ndarray,
-    samples: np.ndarray,
-    bary_weights: np.ndarray,
-) -> np.ndarray:
+    abscissa: NDArray[np.floating[Any]],
+    samples: NDArray[np.floating[Any]],
+    bary_weights: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
     """Evaluate second derivatives of Lagrange basis polynomials.
 
     Uses L''_j(x) = L_j(x) * (S_j(x)^2 - T_j(x)) where

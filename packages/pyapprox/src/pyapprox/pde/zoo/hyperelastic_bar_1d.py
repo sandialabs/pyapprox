@@ -96,7 +96,9 @@ def create_hyperelastic_bar_1d(
     lamda_init = E_mean * dlam_dE
 
     # Stress model and physics
-    stress_model = NeoHookeanStress(lamda=lamda_init, mu=mu_init)
+    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
+        lamda=lamda_init, mu=mu_init
+    )
     physics = HyperelasticityPhysics(basis, bkd, stress_model, forcing)
 
     # Left BC: prescribed displacement at x=0

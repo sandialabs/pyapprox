@@ -14,18 +14,21 @@ gracefully.
 """
 
 
+from typing import Any
+
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.util.numba_compat import njit, prange
 
 
 @njit(cache=True)
 def _project_single(
-    values: np.ndarray,
-    weights: np.ndarray,
+    values: NDArray[np.floating[Any]],
+    weights: NDArray[np.floating[Any]],
     alpha: float,
     lam: float,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Project scaled values onto CVaR risk envelope for a single QoI.
 
     Parameters
@@ -132,12 +135,12 @@ def _project_single(
 
 @njit(cache=True, parallel=True)
 def avar_values_numba(
-    values: np.ndarray,
-    weights: np.ndarray,
+    values: NDArray[np.floating[Any]],
+    weights: NDArray[np.floating[Any]],
     alpha: float,
     delta: float,
     lam: float,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Compute smoothed AVaR for all QoIs in parallel.
 
     Parameters
@@ -186,13 +189,13 @@ def avar_values_numba(
 
 @njit(cache=True, parallel=True)
 def avar_jacobian_numba(
-    values: np.ndarray,
-    jac_values: np.ndarray,
-    weights: np.ndarray,
+    values: NDArray[np.floating[Any]],
+    jac_values: NDArray[np.floating[Any]],
+    weights: NDArray[np.floating[Any]],
     alpha: float,
     delta: float,
     lam: float,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Compute AVaR Jacobian for all QoIs in parallel.
 
     Parameters

@@ -109,7 +109,9 @@ def create_hyperelastic_pressurized_cylinder_2d(
     lamda_init = E_mean * dlam_dE
 
     # Stress model shared between physics and traction BCs
-    stress_model = NeoHookeanStress(lamda=lamda_init, mu=mu_init)
+    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
+        lamda=lamda_init, mu=mu_init
+    )
 
     # Physics
     physics = HyperelasticityPhysics(

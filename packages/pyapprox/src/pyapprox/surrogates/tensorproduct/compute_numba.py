@@ -8,20 +8,23 @@ Note: This module requires numba. If numba is not available, importing
 this module will raise ImportError, which dispatch.py handles gracefully.
 """
 
+from typing import Any
+
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.util.numba_compat import njit, prange
 
 
 @njit(cache=True, parallel=True)
 def tp_eval_numba(
-    values_flat: np.ndarray,
-    basis_vals_pad: np.ndarray,
-    nterms_1d_arr: np.ndarray,
+    values_flat: NDArray[np.floating[Any]],
+    basis_vals_pad: NDArray[np.floating[Any]],
+    nterms_1d_arr: NDArray[np.int64],
     nvars: int,
     nqoi: int,
     npoints: int,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Evaluate tensor product interpolant via dimension-by-dimension contraction.
 
     Contracts dimensions from last (d=nvars-1) to first (d=0). At each step

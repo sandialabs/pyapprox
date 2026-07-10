@@ -23,11 +23,11 @@ from pyapprox.util.numba_compat import njit, prange
 
 @njit(cache=True, parallel=True, fastmath=True)
 def logpdf_matrix_numba(
-    shapes: np.ndarray,
-    obs: np.ndarray,
-    base_variances: np.ndarray,
-    design_weights: np.ndarray,
-) -> np.ndarray:
+    shapes: NDArray[np.floating[Any]],
+    obs: NDArray[np.floating[Any]],
+    base_variances: NDArray[np.floating[Any]],
+    design_weights: NDArray[np.floating[Any]],
+) -> NDArray[np.floating[Any]]:
     """Compute log-likelihood matrix without 3D intermediate arrays.
 
     Loops over nobs (sequential), parallelizes over ninner with prange.
@@ -77,13 +77,13 @@ def logpdf_matrix_numba(
 
 @njit(cache=True, parallel=True, fastmath=True)
 def jacobian_matrix_numba(
-    shapes: np.ndarray,
-    obs: np.ndarray,
-    latent_samples: np.ndarray,
-    base_variances: np.ndarray,
-    design_weights: np.ndarray,
+    shapes: NDArray[np.floating[Any]],
+    obs: NDArray[np.floating[Any]],
+    latent_samples: NDArray[np.floating[Any]],
+    base_variances: NDArray[np.floating[Any]],
+    design_weights: NDArray[np.floating[Any]],
     has_latent: bool,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Compute Jacobian of log-likelihood matrix without 3D intermediates.
 
     Note: The output is still (ninner, nouter, nobs) because callers
@@ -136,14 +136,14 @@ def jacobian_matrix_numba(
 
 @njit(cache=True, parallel=True, fastmath=True)
 def fused_evidence_jacobian_numba(
-    shapes: np.ndarray,
-    obs: np.ndarray,
-    latent_samples: np.ndarray,
-    base_variances: np.ndarray,
-    design_weights: np.ndarray,
-    quad_weighted_like: np.ndarray,
+    shapes: NDArray[np.floating[Any]],
+    obs: NDArray[np.floating[Any]],
+    latent_samples: NDArray[np.floating[Any]],
+    base_variances: NDArray[np.floating[Any]],
+    design_weights: NDArray[np.floating[Any]],
+    quad_weighted_like: NDArray[np.floating[Any]],
     has_latent: bool,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Fused evidence jacobian without 3D materialization.
 
     Computes:
@@ -210,14 +210,14 @@ def fused_evidence_jacobian_numba(
 
 @njit(cache=True, parallel=True, fastmath=True)
 def fused_weighted_jacobian_numba(
-    shapes_ik: np.ndarray,
-    obs_jk: np.ndarray,
-    latent_jk: np.ndarray,
-    base_variances: np.ndarray,
-    design_weights: np.ndarray,
-    qwl_ratio: np.ndarray,
-    weights_a_qi: np.ndarray,
-    weights_b_qi: np.ndarray,
+    shapes_ik: NDArray[np.floating[Any]],
+    obs_jk: NDArray[np.floating[Any]],
+    latent_jk: NDArray[np.floating[Any]],
+    base_variances: NDArray[np.floating[Any]],
+    design_weights: NDArray[np.floating[Any]],
+    qwl_ratio: NDArray[np.floating[Any]],
+    weights_a_qi: NDArray[np.floating[Any]],
+    weights_b_qi: NDArray[np.floating[Any]],
     has_latent: bool,
 ) -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
     """Fused jacobian contractions with two arbitrary per-inner weight

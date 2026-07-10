@@ -163,7 +163,7 @@ class FunctionTrainCore(Generic[Array]):
         List[int]
             Indices of trainable columns in the full Jacobian.
         """
-        indices = []
+        indices: List[int] = []
         col = 0
         for ii in range(self._r_left):
             for jj in range(self._r_right):

@@ -9,6 +9,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from numpy.typing import NDArray
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -270,7 +271,9 @@ def plot_sensitivity_indices_with_confidence_intervals(
     if reference_values is not None:
         assert len(reference_values) == nindices
 
-    stats = [dict() for _ in range(nindices)]
+    stats: list[dict[str, float | str | NDArray[np.floating[Any]]]] = [
+        dict() for _ in range(nindices)
+    ]
     for nn in range(nindices):
         if reference_values is not None:
             stats[nn]["mean"] = reference_values[nn]

@@ -9,19 +9,22 @@ All functions operate on raw NumPy arrays (not backend-wrapped).
 The dispatch layer in dispatch.py handles the conversion.
 """
 
+from typing import Any
+
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.util.numba_compat import njit, prange
 
 
 @njit(cache=True, parallel=True)
 def basis_eval_numba(
-    vals_1d: np.ndarray,
-    indices: np.ndarray,
+    vals_1d: NDArray[np.floating[Any]],
+    indices: NDArray[np.integer[Any]],
     nvars: int,
     nsamples: int,
     nterms: int,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Evaluate tensor product basis via fused gather-multiply kernel.
 
     Parameters
@@ -54,13 +57,13 @@ def basis_eval_numba(
 
 @njit(cache=True, parallel=True)
 def basis_jacobian_numba(
-    vals_1d: np.ndarray,
-    derivs_1d: np.ndarray,
-    indices: np.ndarray,
+    vals_1d: NDArray[np.floating[Any]],
+    derivs_1d: NDArray[np.floating[Any]],
+    indices: NDArray[np.integer[Any]],
     nvars: int,
     nsamples: int,
     nterms: int,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Evaluate Jacobian of tensor product basis via fused kernel.
 
     For each dimension d, computes:
@@ -100,14 +103,14 @@ def basis_jacobian_numba(
 
 @njit(cache=True, parallel=True)
 def basis_hessian_numba(
-    vals_1d: np.ndarray,
-    derivs_1d: np.ndarray,
-    hess_1d: np.ndarray,
-    indices: np.ndarray,
+    vals_1d: NDArray[np.floating[Any]],
+    derivs_1d: NDArray[np.floating[Any]],
+    hess_1d: NDArray[np.floating[Any]],
+    indices: NDArray[np.integer[Any]],
     nvars: int,
     nsamples: int,
     nterms: int,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Evaluate Hessian of tensor product basis via fused kernel.
 
     Diagonal (d == k):

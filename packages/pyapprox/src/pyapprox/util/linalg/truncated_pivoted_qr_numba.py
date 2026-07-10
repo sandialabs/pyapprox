@@ -10,17 +10,27 @@ raises ImportError, which the dispatch in truncated_pivoted_qr.py handles.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.util.numba_compat import njit
 
 
 @njit(cache=True)
 def householder_pivoted_qr_numba(
-    R: np.ndarray,
+    R: NDArray[np.floating[Any]],
     npivots: int,
     tol: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, int]:
+) -> tuple[
+    NDArray[np.floating[Any]],
+    NDArray[np.floating[Any]],
+    NDArray[np.floating[Any]],
+    NDArray[np.int64],
+    int,
+    int,
+]:
     """Truncated Householder pivoted QR (column pivoting).
 
     Parameters

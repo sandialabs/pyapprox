@@ -235,7 +235,7 @@ def create_neo_hookean_strain_energy_1d(
     a_sub, b_sub : float, optional
         Integration bounds. None for full domain.
     """
-    stress_model = NeoHookeanStress(lamda=lamda, mu=mu)
+    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(lamda=lamda, mu=mu)
 
     def energy_density(F: Array, bkd: Backend[Array]) -> Tuple[Array, Array]:
         ln_F = bkd.log(F)

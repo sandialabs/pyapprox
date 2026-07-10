@@ -15,7 +15,7 @@ for a batch of initial conditions.
     pragmatic short-term fix for the O(nsamples) Python-loop bottleneck.
 """
 
-from typing import Any, Callable, Generic, Optional, Type
+from typing import Callable, Generic, Optional
 
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerStepper,
@@ -25,6 +25,10 @@ from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
 )
 from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
+from pyapprox.ode.protocols.ode_residual import ODEResidualProtocol
+from pyapprox.ode.protocols.time_stepping import (
+    TimeSteppingResidualProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
@@ -201,7 +205,9 @@ def _integrate_persample_fallback(
     dt: float,
     bkd: Backend[Array],
     c: Optional[Array] = None,
-    stepper_cls: Type[Any] = ForwardEulerStepper,
+    stepper_cls: Callable[
+        [ODEResidualProtocol[Array]], TimeSteppingResidualProtocol[Array]
+    ] = ForwardEulerStepper,
 ) -> Array:
     """Per-sample integration fallback for non-standard steppers."""
     d = x0_batch.shape[0]
@@ -240,7 +246,9 @@ def integrate_flow(
     n_steps: int,
     bkd: Backend[Array],
     c: Optional[Array] = None,
-    stepper_cls: Type[Any] = ForwardEulerStepper,
+    stepper_cls: Callable[
+        [ODEResidualProtocol[Array]], TimeSteppingResidualProtocol[Array]
+    ] = ForwardEulerStepper,
 ) -> Array:
     """Integrate the flow ODE for a batch of initial conditions.
 
@@ -267,8 +275,9 @@ def integrate_flow(
         Computational backend.
     c : Array, optional
         Conditioning variables, shape ``(m, nsamples)``.
-    stepper_cls : Type
-        Time stepping residual class. Default: ForwardEulerStepper.
+    stepper_cls : Callable
+        Factory producing a time-stepping residual from an ODE residual.
+        Default: ForwardEulerStepper.
 
     Returns
     -------

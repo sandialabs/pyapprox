@@ -13,7 +13,7 @@ from typing import Optional
 
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective.kl_objective import KLOEDObjective
-from pyapprox.expdesign.quadrature.strategies import get_sampler
+from pyapprox.expdesign.quadrature.strategies import SamplerStrategy, get_sampler
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
@@ -101,8 +101,8 @@ def create_kl_oed_objective(
     outer_joint = IndependentJoint(list(prior.marginals()) + latent_marginals, bkd)
 
     # Get sampler strategies
-    outer_strategy = get_sampler(outer_sampler_type)()
-    inner_strategy = get_sampler(inner_sampler_type)()
+    outer_strategy: SamplerStrategy[Array] = get_sampler(outer_sampler_type)()
+    inner_strategy: SamplerStrategy[Array] = get_sampler(inner_sampler_type)()
 
     # Sample from outer joint distribution
     outer_samples, outer_weights = outer_strategy.sample(

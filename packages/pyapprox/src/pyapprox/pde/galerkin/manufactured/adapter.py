@@ -158,8 +158,8 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             return None
 
         def adapted_velocity(
-            x: np.ndarray,
-        ) -> np.ndarray:
+            x: NDArray[np.floating[Any]],
+        ) -> NDArray[np.floating[Any]]:
             # x: (ndim, ...) from skfem
             orig_shape = x.shape
             ndim = orig_shape[0]
@@ -189,8 +189,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         if self._time_dependent:
 
             def adapted_forcing(
-                x: np.ndarray, time: float,
-            ) -> np.ndarray:
+                x: NDArray[np.floating[Any]],
+                time: float = 0.0,
+            ) -> NDArray[np.floating[Any]]:
                 vals = forcing_func(x, time)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     ret: NDArray[np.floating[Any]] = (
@@ -204,8 +205,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         else:
 
             def adapted_forcing(
-                x: np.ndarray,
-            ) -> np.ndarray:
+                x: NDArray[np.floating[Any]],
+                time: float = 0.0,
+            ) -> NDArray[np.floating[Any]]:
                 vals = forcing_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     ret: NDArray[np.floating[Any]] = (
@@ -222,9 +224,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
     def _eval_flux(
         self,
         flux_func: Callable[..., Any],
-        coords: np.ndarray,
+        coords: NDArray[np.floating[Any]],
         time: Optional[float] = None,
-    ) -> np.ndarray:
+    ) -> NDArray[np.floating[Any]]:
         """Evaluate a flux function and return shape (ndim, npts)."""
         if self._time_dependent and time is not None:
             flux = flux_func(coords, time)
@@ -242,9 +244,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
     def _compute_natural_bc_value(
         self,
         boundary_index: int,
-        coords: np.ndarray,
+        coords: NDArray[np.floating[Any]],
         time: Optional[float] = None,
-    ) -> np.ndarray:
+    ) -> NDArray[np.floating[Any]]:
         """Compute the natural BC value at boundary coordinates.
 
         Returns the quantity that appears as the natural boundary condition
@@ -261,14 +263,14 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         ----------
         boundary_index : int
             Boundary index (0=left, 1=right, 2=bottom, etc.).
-        coords : np.ndarray
+        coords : NDArray[np.floating[Any]]
             Boundary coordinates. Shape: (ndim, npts).
         time : float, optional
             Time for transient problems.
 
         Returns
         -------
-        np.ndarray
+        NDArray[np.floating[Any]]
             Natural BC value. Shape: (npts,).
         """
         # Use diffusive_flux (pure -D*grad(u)) if available
@@ -316,8 +318,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         if self._time_dependent:
 
             def value_func(
-                x: np.ndarray, t: float,
-            ) -> np.ndarray:
+                x: NDArray[np.floating[Any]],
+                t: Optional[float] = None,
+            ) -> NDArray[np.floating[Any]]:
                 vals = sol_func(x, t)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     ret: NDArray[np.floating[Any]] = (
@@ -331,9 +334,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         else:
 
             def value_func(
-                x: np.ndarray,
+                x: NDArray[np.floating[Any]],
                 t: Optional[float] = None,
-            ) -> np.ndarray:
+            ) -> NDArray[np.floating[Any]]:
                 vals = sol_func(x)
                 if hasattr(vals, "shape") and vals.ndim > 1:
                     ret: NDArray[np.floating[Any]] = (
@@ -360,15 +363,16 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         if self._time_dependent:
 
             def neumann_value(
-                x: np.ndarray, t: float,
-            ) -> np.ndarray:
+                x: NDArray[np.floating[Any]],
+                t: Optional[float] = None,
+            ) -> NDArray[np.floating[Any]]:
                 return self._compute_natural_bc_value(boundary_index, x, t)
         else:
 
             def neumann_value(
-                x: np.ndarray,
+                x: NDArray[np.floating[Any]],
                 t: Optional[float] = None,
-            ) -> np.ndarray:
+            ) -> NDArray[np.floating[Any]]:
                 return self._compute_natural_bc_value(boundary_index, x)
 
         return NeumannBC(
@@ -393,8 +397,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         if self._time_dependent:
 
             def robin_value(
-                x: np.ndarray, t: float,
-            ) -> np.ndarray:
+                x: NDArray[np.floating[Any]],
+                t: Optional[float] = None,
+            ) -> NDArray[np.floating[Any]]:
                 u_vals = sol_func(x, t)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
@@ -404,9 +409,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         else:
 
             def robin_value(
-                x: np.ndarray,
+                x: NDArray[np.floating[Any]],
                 t: Optional[float] = None,
-            ) -> np.ndarray:
+            ) -> NDArray[np.floating[Any]]:
                 u_vals = sol_func(x)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
@@ -456,14 +461,13 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
 
         for i, (bc_type, boundary_name) in enumerate(zip(bc_types, boundary_names)):
             if bc_type == "D":
-                bc = self._create_dirichlet_bc(boundary_name, i)
-                bc_set.add_dirichlet(bc)
+                bc_set.add_dirichlet(self._create_dirichlet_bc(boundary_name, i))
             elif bc_type == "N":
-                bc = self._create_neumann_bc(boundary_name, i)
-                bc_set.add_neumann(bc)
+                bc_set.add_neumann(self._create_neumann_bc(boundary_name, i))
             elif bc_type == "R":
-                bc = self._create_robin_bc(boundary_name, i, robin_alpha)
-                bc_set.add_robin(bc)
+                bc_set.add_robin(
+                    self._create_robin_bc(boundary_name, i, robin_alpha)
+                )
             else:
                 raise ValueError(
                     f"Unknown BC type '{bc_type}'. "
@@ -728,16 +732,17 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         if time_dep:
 
             def adapted_forcing(
-                x: np.ndarray, time: float,
-            ) -> np.ndarray:
+                x: NDArray[np.floating[Any]],
+                time: float = 0.0,
+            ) -> NDArray[np.floating[Any]]:
                 vals = forcing_func(x, time)  # (npts, ncomponents)
                 ret: NDArray[np.floating[Any]] = vals.T
                 return ret
         else:
 
             def adapted_forcing(
-                x: np.ndarray, time: float = 0.0,
-            ) -> np.ndarray:
+                x: NDArray[np.floating[Any]], time: float = 0.0,
+            ) -> NDArray[np.floating[Any]]:
                 vals = forcing_func(x)  # (npts, ncomponents)
                 ret: NDArray[np.floating[Any]] = vals.T
                 return ret
@@ -755,8 +760,8 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         time_dep = self._time_dependent
 
         def value_func(
-            coords: np.ndarray, time: float = 0.0,
-        ) -> np.ndarray:
+            coords: NDArray[np.floating[Any]], time: float = 0.0,
+        ) -> NDArray[np.floating[Any]]:
             # coords: (ndim, nbndry_dofs) from dof_coordinates
             nbndry_dofs = coords.shape[1]
             if time_dep:
@@ -779,23 +784,23 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
     def _compute_traction(
         self,
         boundary_index: int,
-        coords: np.ndarray,
+        coords: NDArray[np.floating[Any]],
         time: Optional[float] = None,
-    ) -> np.ndarray:
+    ) -> NDArray[np.floating[Any]]:
         """Compute traction t = P.n at boundary coordinates.
 
         Parameters
         ----------
         boundary_index : int
             Boundary index (0=left, 1=right, 2=bottom, etc.).
-        coords : np.ndarray
+        coords : NDArray[np.floating[Any]]
             Boundary coordinates. Shape: (ndim, npts).
         time : float, optional
             Time for transient problems.
 
         Returns
         -------
-        np.ndarray
+        NDArray[np.floating[Any]]
             Traction components. Shape: (ndim, npts).
         """
         flux_func = self._functions.get("flux")
@@ -840,8 +845,8 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         bndry_idx = boundary_index
 
         def neumann_flux(
-            coords: np.ndarray, time: float = 0.0,
-        ) -> np.ndarray:
+            coords: NDArray[np.floating[Any]], time: float = 0.0,
+        ) -> NDArray[np.floating[Any]]:
             # coords: (ndim, npts) — quadrature point coordinates
             traction = self._compute_traction(
                 bndry_idx, coords, time if time_dep else None
@@ -870,8 +875,8 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         alpha_val = alpha
 
         def robin_value(
-            coords: np.ndarray, time: float = 0.0,
-        ) -> np.ndarray:
+            coords: NDArray[np.floating[Any]], time: float = 0.0,
+        ) -> NDArray[np.floating[Any]]:
             # coords: (ndim, npts)
             traction = self._compute_traction(
                 bndry_idx, coords, time if time_dep else None
@@ -925,14 +930,13 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
 
         for i, (bc_type, boundary_name) in enumerate(zip(bc_types, boundary_names)):
             if bc_type == "D":
-                bc = self._create_dirichlet_bc(boundary_name)
-                bc_set.add_dirichlet(bc)
+                bc_set.add_dirichlet(self._create_dirichlet_bc(boundary_name))
             elif bc_type == "N":
-                bc = self._create_neumann_bc(boundary_name, i)
-                bc_set.add_neumann(bc)
+                bc_set.add_neumann(self._create_neumann_bc(boundary_name, i))
             elif bc_type == "R":
-                bc = self._create_robin_bc(boundary_name, i, robin_alpha)
-                bc_set.add_robin(bc)
+                bc_set.add_robin(
+                    self._create_robin_bc(boundary_name, i, robin_alpha)
+                )
             else:
                 raise ValueError(
                     f"Unknown BC type '{bc_type}'. Valid types: 'D', 'N', 'R'"

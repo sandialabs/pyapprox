@@ -19,7 +19,9 @@ from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-def canonical_boundary_normal(boundary_index: int, samples: np.ndarray) -> np.ndarray:
+def canonical_boundary_normal(
+    boundary_index: int, samples: NDArray[np.floating[Any]]
+) -> NDArray[np.floating[Any]]:
     """Compute outward unit normal for canonical rectangular domain boundaries.
 
     For a rectangular domain [x0, x1] x [y0, y1] x ..., the boundaries are:
@@ -34,12 +36,12 @@ def canonical_boundary_normal(boundary_index: int, samples: np.ndarray) -> np.nd
     ----------
     boundary_index : int
         Boundary index (0=left, 1=right, 2=bottom, 3=top, ...).
-    samples : np.ndarray
+    samples : NDArray[np.floating[Any]]
         Sample coordinates. Shape: (ndim, nsamples) or (ndim, nelem, nquad).
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.floating[Any]]
         Normal vectors. Same shape as samples.
     """
     if samples.ndim == 2:
@@ -61,9 +63,9 @@ def canonical_boundary_normal(boundary_index: int, samples: np.ndarray) -> np.nd
 def _compute_normal_flux(
     flux_func: Callable[..., Any],
     normal_func: Callable[..., Any],
-    coords: np.ndarray,
+    coords: NDArray[np.floating[Any]],
     time: Optional[float] = None,
-) -> np.ndarray:
+) -> NDArray[np.floating[Any]]:
     """Compute flux dot normal at given coordinates.
 
     Parameters
@@ -72,14 +74,14 @@ def _compute_normal_flux(
         Function returning flux vector. Takes (ndim, npts), returns (ndim, npts).
     normal_func : Callable
         Function returning outward normal. Takes (ndim, npts), returns (ndim, npts).
-    coords : np.ndarray
+    coords : NDArray[np.floating[Any]]
         Coordinates. Shape: (ndim, npts).
     time : float, optional
         Current time for time-dependent flux.
 
     Returns
     -------
-    np.ndarray
+    NDArray[np.floating[Any]]
         Normal flux values. Shape: (npts,).
     """
     normal = normal_func(coords)
@@ -170,12 +172,16 @@ class ManufacturedSolutionBC(Generic[Array]):
 
         if time_dep:
 
-            def value_func(x: np.ndarray, t: float) -> np.ndarray:
+            def value_func(
+                x: NDArray[np.floating[Any]], t: float = 0.0
+            ) -> NDArray[np.floating[Any]]:
                 ret: NDArray[np.floating[Any]] = sol_func(x, t)
                 return ret
         else:
 
-            def value_func(x: np.ndarray, t: float = 0.0) -> np.ndarray:
+            def value_func(
+                x: NDArray[np.floating[Any]], t: float = 0.0
+            ) -> NDArray[np.floating[Any]]:
                 ret: NDArray[np.floating[Any]] = sol_func(x)
                 return ret
 
@@ -196,16 +202,20 @@ class ManufacturedSolutionBC(Generic[Array]):
         flux_func = self._flux_func
         time_dep = self._time_dependent
 
-        def normal_func(x: np.ndarray) -> np.ndarray:
+        def normal_func(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
             return canonical_boundary_normal(boundary_index, x)
 
         if time_dep:
 
-            def neumann_value(x: np.ndarray, t: float) -> np.ndarray:
+            def neumann_value(
+                x: NDArray[np.floating[Any]], t: float = 0.0
+            ) -> NDArray[np.floating[Any]]:
                 return _compute_normal_flux(flux_func, normal_func, x, t)
         else:
 
-            def neumann_value(x: np.ndarray, t: float = 0.0) -> np.ndarray:
+            def neumann_value(
+                x: NDArray[np.floating[Any]], t: float = 0.0
+            ) -> NDArray[np.floating[Any]]:
                 return _compute_normal_flux(flux_func, normal_func, x)
 
         return NeumannBC(
@@ -227,19 +237,23 @@ class ManufacturedSolutionBC(Generic[Array]):
         flux_func = self._flux_func
         time_dep = self._time_dependent
 
-        def normal_func(x: np.ndarray) -> np.ndarray:
+        def normal_func(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
             return canonical_boundary_normal(boundary_index, x)
 
         if time_dep:
 
-            def robin_value(x: np.ndarray, t: float) -> np.ndarray:
+            def robin_value(
+                x: NDArray[np.floating[Any]], t: float = 0.0
+            ) -> NDArray[np.floating[Any]]:
                 u_val = sol_func(x, t)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x, t)
                 ret: NDArray[np.floating[Any]] = alpha * u_val - flux_dot_n
                 return ret
         else:
 
-            def robin_value(x: np.ndarray, t: float = 0.0) -> np.ndarray:
+            def robin_value(
+                x: NDArray[np.floating[Any]], t: float = 0.0
+            ) -> NDArray[np.floating[Any]]:
                 u_val = sol_func(x)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x)
                 ret: NDArray[np.floating[Any]] = alpha * u_val - flux_dot_n
@@ -292,14 +306,13 @@ class ManufacturedSolutionBC(Generic[Array]):
 
         for i, (bc_type, boundary_name) in enumerate(zip(bc_types, boundary_names)):
             if bc_type == "D":
-                bc = self._create_dirichlet_bc(boundary_name, i)
-                bc_set.add_dirichlet(bc)
+                bc_set.add_dirichlet(self._create_dirichlet_bc(boundary_name, i))
             elif bc_type == "N":
-                bc = self._create_neumann_bc(boundary_name, i)
-                bc_set.add_neumann(bc)
+                bc_set.add_neumann(self._create_neumann_bc(boundary_name, i))
             elif bc_type == "R":
-                bc = self._create_robin_bc(boundary_name, i, robin_alpha)
-                bc_set.add_robin(bc)
+                bc_set.add_robin(
+                    self._create_robin_bc(boundary_name, i, robin_alpha)
+                )
             elif bc_type == "P":
                 # Periodic BCs need special handling
                 raise NotImplementedError(

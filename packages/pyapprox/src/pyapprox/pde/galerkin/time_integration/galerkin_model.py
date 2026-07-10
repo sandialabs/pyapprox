@@ -19,6 +19,7 @@ from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
+from pyapprox.ode.protocols.time_stepping import TimeSteppingResidualProtocol
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
@@ -286,8 +287,10 @@ class GalerkinModel(Generic[Array]):
             adapter = GalerkinExplicitODEAdapter(self._physics, lumped_mass=lumped)
             return stepper_cls(adapter), None, is_explicit
         else:
-            stepper = stepper_cls(self._adapter)
-            constrained = ConstrainedTimeStepResidual(stepper, self._adapter)
+            stepper: TimeSteppingResidualProtocol[Array] = stepper_cls(self._adapter)
+            constrained: ConstrainedTimeStepResidual[Array] = (
+                ConstrainedTimeStepResidual(stepper, self._adapter)
+            )
             return stepper, constrained, is_explicit
 
     def __repr__(self) -> str:

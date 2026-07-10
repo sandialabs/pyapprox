@@ -36,14 +36,19 @@ def _find_init_pivot(
 
 @njit(cache=True)
 def pivoted_cholesky_econ_numba(
-    K: np.ndarray,
+    K: NDArray[np.floating[Any]],
     npivots: int,
     tol: float,
-    weights: np.ndarray,
-    init_pivots: np.ndarray,
+    weights: NDArray[np.floating[Any]],
+    init_pivots: NDArray[np.int64],
     n_init_pivots: int,
     use_weights: bool,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
+) -> tuple[
+    NDArray[np.floating[Any]],
+    NDArray[np.int64],
+    NDArray[np.floating[Any]],
+    int,
+]:
     """Pivoted Cholesky with diagonal pivot selection.
 
     Parameters
@@ -142,16 +147,29 @@ def pivoted_cholesky_econ_numba(
 
 @njit(cache=True)
 def pivoted_cholesky_fused_numba(
-    X: np.ndarray,
-    kernel_func: Callable[[np.ndarray, np.ndarray, np.ndarray], float],
-    kernel_params: np.ndarray,
+    X: NDArray[np.floating[Any]],
+    kernel_func: Callable[
+        [
+            NDArray[np.floating[Any]],
+            NDArray[np.floating[Any]],
+            NDArray[np.floating[Any]],
+        ],
+        float,
+    ],
+    kernel_params: NDArray[np.floating[Any]],
     npivots: int,
     tol: float,
-    weights: np.ndarray,
-    init_pivots: np.ndarray,
+    weights: NDArray[np.floating[Any]],
+    init_pivots: NDArray[np.int64],
     n_init_pivots: int,
     use_weights: bool,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, float]:
+) -> tuple[
+    NDArray[np.floating[Any]],
+    NDArray[np.int64],
+    NDArray[np.floating[Any]],
+    int,
+    float,
+]:
     """Pivoted Cholesky with fused kernel evaluation.
 
     Evaluates kernel_func(X[:, i], X[:, j], params) on the fly instead

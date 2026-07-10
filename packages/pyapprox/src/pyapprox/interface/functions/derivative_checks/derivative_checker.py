@@ -159,7 +159,7 @@ class BatchDerivativeChecker(Generic[Array]):
         wrapped = SingleSampleFromBatchJacobian(self._fun)
         for ii in range(nsamples):
             sample = self._samples[:, ii : ii + 1]  # (nvars, 1)
-            checker = DerivativeChecker(wrapped)
+            checker: DerivativeChecker[Array] = DerivativeChecker(wrapped)
             errors = checker.check_derivatives(
                 sample, fd_eps, direction, relative, verbosity
             )
@@ -204,7 +204,7 @@ class BatchDerivativeChecker(Generic[Array]):
         wrapped = SingleSampleFromBatchHessian(self._fun)  # type: ignore
         for ii in range(nsamples):
             sample = self._samples[:, ii : ii + 1]  # (nvars, 1)
-            checker = DerivativeChecker(wrapped)
+            checker: DerivativeChecker[Array] = DerivativeChecker(wrapped)
             errors = checker.check_derivatives(
                 sample, fd_eps, direction, relative, verbosity
             )

@@ -17,17 +17,29 @@ this module will raise ImportError, which callers handle gracefully.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.util.numba_compat import njit
 
-_NumbaFn = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
+_NumbaFn = Callable[
+    [
+        NDArray[np.floating[Any]],
+        NDArray[np.floating[Any]],
+        NDArray[np.floating[Any]],
+    ],
+    float,
+]
 
 
 @njit(cache=True)
-def matern32_eval(xi: np.ndarray, xj: np.ndarray, params: np.ndarray) -> float:
+def matern32_eval(
+    xi: NDArray[np.floating[Any]],
+    xj: NDArray[np.floating[Any]],
+    params: NDArray[np.floating[Any]],
+) -> float:
     """Matern-3/2: k(x_i, x_j) = (1 + √3·r) exp(-√3·r)."""
     r_sq = 0.0
     for d in range(xi.shape[0]):
@@ -38,7 +50,11 @@ def matern32_eval(xi: np.ndarray, xj: np.ndarray, params: np.ndarray) -> float:
 
 
 @njit(cache=True)
-def matern52_eval(xi: np.ndarray, xj: np.ndarray, params: np.ndarray) -> float:
+def matern52_eval(
+    xi: NDArray[np.floating[Any]],
+    xj: NDArray[np.floating[Any]],
+    params: NDArray[np.floating[Any]],
+) -> float:
     """Matern-5/2: k(x_i, x_j) = (1 + √5·r + 5/3·r²) exp(-√5·r)."""
     r_sq = 0.0
     for d in range(xi.shape[0]):
@@ -49,7 +65,11 @@ def matern52_eval(xi: np.ndarray, xj: np.ndarray, params: np.ndarray) -> float:
 
 
 @njit(cache=True)
-def sqexp_eval(xi: np.ndarray, xj: np.ndarray, params: np.ndarray) -> float:
+def sqexp_eval(
+    xi: NDArray[np.floating[Any]],
+    xj: NDArray[np.floating[Any]],
+    params: NDArray[np.floating[Any]],
+) -> float:
     """Squared-exponential: k(x_i, x_j) = exp(-r²/2)."""
     r_sq = 0.0
     for d in range(xi.shape[0]):
@@ -59,7 +79,11 @@ def sqexp_eval(xi: np.ndarray, xj: np.ndarray, params: np.ndarray) -> float:
 
 
 @njit(cache=True)
-def exponential_eval(xi: np.ndarray, xj: np.ndarray, params: np.ndarray) -> float:
+def exponential_eval(
+    xi: NDArray[np.floating[Any]],
+    xj: NDArray[np.floating[Any]],
+    params: NDArray[np.floating[Any]],
+) -> float:
     """Exponential (Matern-1/2): k(x_i, x_j) = exp(-r)."""
     r_sq = 0.0
     for d in range(xi.shape[0]):
@@ -68,14 +92,10 @@ def exponential_eval(xi: np.ndarray, xj: np.ndarray, params: np.ndarray) -> floa
     return float(np.exp(-np.sqrt(r_sq)))
 
 
-_nugget_eval_cache: dict[
-    int, Callable[[np.ndarray, np.ndarray, np.ndarray], float]
-] = {}
+_nugget_eval_cache: dict[int, _NumbaFn] = {}
 
 
-def make_nugget_eval(
-    inner_eval: Callable[[np.ndarray, np.ndarray, np.ndarray], float],
-) -> Callable[[np.ndarray, np.ndarray, np.ndarray], float]:
+def make_nugget_eval(inner_eval: _NumbaFn) -> _NumbaFn:
     """Create a nugget-wrapped scalar kernel evaluator.
 
     The returned function expects ``params[-1]`` to be the nugget value
@@ -92,7 +112,9 @@ def make_nugget_eval(
 
     @njit(cache=True)
     def nugget_eval(
-        xi: np.ndarray, xj: np.ndarray, params: np.ndarray,
+        xi: NDArray[np.floating[Any]],
+        xj: NDArray[np.floating[Any]],
+        params: NDArray[np.floating[Any]],
     ) -> float:
         inner_params = params[:-1]
         val = inner_eval(xi, xj, inner_params)
@@ -104,6 +126,6 @@ def make_nugget_eval(
             val += params[-1]
         return float(val)
 
-    result = cast(_NumbaFn, nugget_eval)
+    result: _NumbaFn = nugget_eval
     _nugget_eval_cache[key] = result
     return result
