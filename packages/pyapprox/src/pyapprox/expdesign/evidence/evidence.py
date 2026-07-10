@@ -10,7 +10,7 @@ For numerical computation with quadrature:
 where likelihood[i, j] = p(obs_j | theta_i, design).
 """
 
-from typing import Generic, Optional
+from typing import Generic, Optional, Tuple
 
 from pyapprox.expdesign.protocols.likelihood import (
     OEDInnerLoopLikelihoodProtocol,
@@ -80,8 +80,8 @@ class Evidence(Generic[Array]):
         """Number of outer (observation) samples."""
         return self._nouter
 
-    def _compute_likelihood_matrix(self, design_weights: Array) -> None:
-        """Compute and cache the likelihood matrix.
+    def _compute_likelihood_matrix(self, design_weights: Array) -> Array:
+        """Compute, cache, and return the likelihood matrix.
 
         Skips recomputation when ``design_weights`` is elementwise identical
         to the value used for the last compute (common during a single
@@ -91,10 +91,13 @@ class Evidence(Generic[Array]):
         if self._cached_like_matrix is not None and self._weights_unchanged(
             design_weights
         ):
-            return
+            return self._cached_like_matrix
         self._cached_weights = self._bkd.copy(design_weights)
-        self._cached_loglike_matrix = self._loglike.logpdf_matrix(design_weights)
-        self._cached_like_matrix = self._bkd.exp(self._cached_loglike_matrix)
+        loglike_matrix = self._loglike.logpdf_matrix(design_weights)
+        like_matrix = self._bkd.exp(loglike_matrix)
+        self._cached_loglike_matrix = loglike_matrix
+        self._cached_like_matrix = like_matrix
+        return like_matrix
 
     def _weights_unchanged(self, design_weights: Array) -> bool:
         """True if ``design_weights`` matches the last cached value bitwise.
@@ -124,12 +127,12 @@ class Evidence(Generic[Array]):
         Array
             Evidence values. Shape: (1, nouter)
         """
-        self._compute_likelihood_matrix(design_weights)
+        like_matrix = self._compute_likelihood_matrix(design_weights)
 
         # evidence[j] = sum_i quad_weights[i] * like[i, j]
         # like_matrix: (ninner, nouter), quad_weights: (ninner,)
         evidence = self._bkd.sum(
-            self._quad_weights[:, None] * self._cached_like_matrix, axis=0
+            self._quad_weights[:, None] * like_matrix, axis=0
         )
         return self._bkd.reshape(evidence, (1, -1))
 
@@ -149,9 +152,9 @@ class Evidence(Generic[Array]):
         Array
             Jacobian. Shape: (nouter, nobs)
         """
-        self._compute_likelihood_matrix(design_weights)
+        like_matrix = self._compute_likelihood_matrix(design_weights)
 
-        quad_weighted_like = self._quad_weights[:, None] * self._cached_like_matrix
+        quad_weighted_like = self._quad_weights[:, None] * like_matrix
 
         if self._has_fused_evidence_jacobian:
             return self._loglike.evidence_jacobian(
@@ -267,12 +270,11 @@ class Evidence(Generic[Array]):
                 "back to the legacy path."
             )
 
-        # Populates _cached_like_matrix.
-        self._compute_likelihood_matrix(design_weights)
+        like_matrix = self._compute_likelihood_matrix(design_weights)
         bkd = self._bkd
 
         # evidence[j] = sum_i quad_weights[i] * like[i, j]
-        qwl = self._quad_weights[:, None] * self._cached_like_matrix
+        qwl = self._quad_weights[:, None] * like_matrix
         evid = bkd.sum(qwl, axis=0)                           # (nouter,)
         qwl_ratio = qwl / evid                                 # (ninner, nouter)
 
@@ -341,11 +343,11 @@ class Evidence(Generic[Array]):
         Array
             ESS for each outer sample. Shape: (nouter,)
         """
-        self._compute_likelihood_matrix(design_weights)
+        like_matrix = self._compute_likelihood_matrix(design_weights)
 
         # For MC (uniform weights): ESS = (sum like)^2 / sum(like^2)
-        like_sum = self._bkd.sum(self._cached_like_matrix, axis=0)
-        like_sq_sum = self._bkd.sum(self._cached_like_matrix**2, axis=0)
+        like_sum = self._bkd.sum(like_matrix, axis=0)
+        like_sq_sum = self._bkd.sum(like_matrix**2, axis=0)
 
         # Avoid division by zero
         ess = like_sum**2 / (like_sq_sum + 1e-300)
@@ -416,19 +418,31 @@ class LogEvidence(Generic[Array]):
         """Number of outer (observation) samples."""
         return self._nouter
 
-    def _compute_log_evidence(self, design_weights: Array) -> None:
+    def _compute_log_evidence(
+        self, design_weights: Array
+    ) -> Tuple[Array, Array]:
         """Compute and cache log-evidence using log-sum-exp.
 
         Skips recomputation when ``design_weights`` is elementwise identical
         to the value used for the last compute.
+
+        Returns
+        -------
+        log_evidence : Array
+            Log-evidence values. Shape: (nouter,)
+        loglike_matrix : Array
+            Log-likelihood matrix. Shape: (ninner, nouter)
         """
-        if self._cached_log_evidence is not None and self._weights_unchanged(
-            design_weights
+        if (
+            self._cached_log_evidence is not None
+            and self._cached_loglike_matrix is not None
+            and self._weights_unchanged(design_weights)
         ):
-            return
+            return self._cached_log_evidence, self._cached_loglike_matrix
         self._cached_weights = self._bkd.copy(design_weights)
-        self._cached_loglike_matrix = self._loglike.logpdf_matrix(design_weights)
-        self._compute_log_evidence_from_cached()
+        loglike_matrix = self._loglike.logpdf_matrix(design_weights)
+        self._cached_loglike_matrix = loglike_matrix
+        return self._compute_log_evidence_from_loglike(loglike_matrix)
 
     def _weights_unchanged(self, design_weights: Array) -> bool:
         """True if ``design_weights`` matches the last cached value bitwise.
@@ -444,15 +458,19 @@ class LogEvidence(Generic[Array]):
             return False
         return bool(self._bkd.all_bool(cached == design_weights))
 
-    def _compute_log_evidence_from_cached(self) -> None:
+    def _compute_log_evidence_from_loglike(
+        self, loglike_matrix: Array
+    ) -> Tuple[Array, Array]:
         # log_evidence[j] = log_sum_exp(log_weights + loglike[:, j])
         # Use log-sum-exp trick for stability:
         # log(sum exp(x)) = max(x) + log(sum exp(x - max(x)))
-        log_terms = self._log_quad_weights[:, None] + self._cached_loglike_matrix
+        log_terms = self._log_quad_weights[:, None] + loglike_matrix
         max_log = self._bkd.max(log_terms, axis=0, keepdims=True)
-        self._cached_log_evidence = max_log[0] + self._bkd.log(
+        log_evidence = max_log[0] + self._bkd.log(
             self._bkd.sum(self._bkd.exp(log_terms - max_log), axis=0)
         )
+        self._cached_log_evidence = log_evidence
+        return log_evidence, loglike_matrix
 
     def __call__(self, design_weights: Array) -> Array:
         """
@@ -468,8 +486,8 @@ class LogEvidence(Generic[Array]):
         Array
             Log-evidence values. Shape: (1, nouter)
         """
-        self._compute_log_evidence(design_weights)
-        return self._bkd.reshape(self._cached_log_evidence, (1, -1))
+        log_evidence, _ = self._compute_log_evidence(design_weights)
+        return self._bkd.reshape(log_evidence, (1, -1))
 
     def jacobian(self, design_weights: Array) -> Array:
         """
@@ -487,13 +505,13 @@ class LogEvidence(Generic[Array]):
         Array
             Jacobian. Shape: (nouter, nobs)
         """
-        self._compute_log_evidence(design_weights)
+        log_evidence, loglike_matrix = self._compute_log_evidence(design_weights)
 
         # Compute evidence from log-evidence
-        evidence = self._bkd.exp(self._cached_log_evidence)  # (nouter,)
+        evidence = self._bkd.exp(log_evidence)  # (nouter,)
 
         # Compute likelihood matrix for jacobian
-        like_matrix = self._bkd.exp(self._cached_loglike_matrix)  # (ninner, nouter)
+        like_matrix = self._bkd.exp(loglike_matrix)  # (ninner, nouter)
 
         # quad_weighted_like: (ninner, nouter) = quad_weights[i] * like[i, j]
         quad_weighted_like = self._quad_weights[:, None] * like_matrix

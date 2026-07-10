@@ -5,7 +5,7 @@ Computes entropic_risk[qoi | obs] - E[qoi | obs].
 """
 
 import os
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.util.backends.protocols import Array, Backend
@@ -43,6 +43,9 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         Computational backend.
     """
 
+    # Per-instance jacobian override; None means use the module-level default
+    _jacobian_impl: Optional[str] = None
+
     def __init__(self, npred: int, alpha: float, bkd: Backend[Array]) -> None:
         super().__init__(npred, bkd)
         self.set_alpha(alpha)
@@ -70,7 +73,7 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         """
         # entropic[q, o] = (1/alpha) * log(sum_i exp(alpha * qoi[i,q]) * like[i,o])
         # qoi_vals: (ninner, npred), normalized_like: (ninner, nouter)
-        exp_alpha_qoi = self._bkd.exp(self._alpha * self._qoi_vals)
+        exp_alpha_qoi = self._bkd.exp(self._alpha * self.qoi_vals())
         expectation = self._bkd.einsum("iq,io->qo", exp_alpha_qoi, normalized_like)
         return self._bkd.log(expectation) / self._alpha
 
@@ -96,7 +99,7 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         # d/dw log(E_exp) / alpha = (1 / (alpha * E_exp)) * d/dw E_exp
         # d/dw E_exp = sum_i exp(alpha * qoi[i,q]) * d/dw like[i,o]
 
-        exp_alpha_qoi = self._bkd.exp(self._alpha * self._qoi_vals)
+        exp_alpha_qoi = self._bkd.exp(self._alpha * self.qoi_vals())
 
         # E_exp[q, o] = sum_i exp(alpha * qoi[i,q]) * like[i,o]
         expectation = self._bkd.einsum("iq,io->qo", exp_alpha_qoi, normalized_like)
@@ -124,10 +127,10 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             Entropic deviation values. Shape: (1, npred * nouter)
         """
         # Compute evidence
-        evidences = self._evidence(design_weights).T  # (nouter, 1)
+        evidences = self.evidence()(design_weights).T  # (nouter, 1)
 
         # Normalized quad-weighted likelihoods
-        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+        normalized_like = self.evidence().quad_weighted_like_vals / evidences[:, 0]
 
         # Compute entropic risk and mean
         entropic = self._entropic_risk(normalized_like)  # (npred, nouter)
@@ -144,8 +147,12 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         numba path (see module-level ``ENTROPIC_JACOBIAN_IMPL``).
         Per-instance override is available via ``set_jacobian_impl()``.
         """
-        impl = getattr(self, "_jacobian_impl", ENTROPIC_JACOBIAN_IMPL)
-        if impl == "fused" and self._evidence.has_fused_weighted_jacobian():
+        impl = (
+            self._jacobian_impl
+            if self._jacobian_impl is not None
+            else ENTROPIC_JACOBIAN_IMPL
+        )
+        if impl == "fused" and self.evidence().has_fused_weighted_jacobian():
             return self._jacobian_fused(design_weights)
         return self._jacobian_legacy(design_weights)
 
@@ -160,32 +167,28 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             raise ValueError(
                 f"impl must be 'legacy', 'fused', or 'default', got {impl!r}"
             )
-        if impl == "default":
-            if hasattr(self, "_jacobian_impl"):
-                del self._jacobian_impl
-        else:
-            self._jacobian_impl = impl
+        self._jacobian_impl = None if impl == "default" else impl
 
     def _jacobian_legacy(self, design_weights: Array) -> Array:
         """Broadcast + einsum path (materializes the (ninner, nouter, nobs) jac)."""
         # Compute evidence and its jacobian
-        evidences = self._evidence(design_weights).T  # (nouter, 1)
-        evidences_jac = self._evidence.jacobian(design_weights)  # (nouter, nvars)
+        evidences = self.evidence()(design_weights).T  # (nouter, 1)
+        evidences_jac = self.evidence().jacobian(design_weights)  # (nouter, nvars)
 
         # Jacobian of quad-weighted likelihood
-        like_jac = self._evidence.quad_weighted_likelihood_jacobian(
+        like_jac = self.evidence().quad_weighted_likelihood_jacobian(
             design_weights
         )  # (ninner, nouter, nvars)
 
         # Normalized quantities
-        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+        normalized_like = self.evidence().quad_weighted_like_vals / evidences[:, 0]
 
         # Jacobian of normalized quad-weighted likelihood
         # d/dw (like / evidence) = (d like / dw) / evidence
         #                        - like * (d evidence / dw) / evidence^2
         normalized_like_jac = (
             like_jac / evidences[None, :, 0, None]
-            - self._evidence.quad_weighted_like_vals[:, :, None]
+            - self.evidence().quad_weighted_like_vals[:, :, None]
             * evidences_jac[None, :, :]
             / evidences[None, :, 0, None] ** 2
         )
@@ -225,18 +228,18 @@ class EntropicDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         bkd = self._bkd
 
         # Normalized likelihood and its entropic expectation.
-        evidences = self._evidence(design_weights).T  # (nouter, 1)
-        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+        evidences = self.evidence()(design_weights).T  # (nouter, 1)
+        normalized_like = self.evidence().quad_weighted_like_vals / evidences[:, 0]
 
-        exp_alpha_qoi = bkd.exp(self._alpha * self._qoi_vals)  # (ninner, npred)
+        exp_alpha_qoi = bkd.exp(self._alpha * self.qoi_vals())  # (ninner, npred)
         expectation = bkd.einsum(
             "iq,io->qo", exp_alpha_qoi, normalized_like,
         )                                                       # (npred, nouter)
 
         # d_expectation[q, j, k] = d/dw_k sum_i exp(alpha*qoi_i,q) * norm_like[i, j]
         # mean_jac[q, j, k]      = d/dw_k sum_i qoi[i, q] * norm_like[i, j]
-        d_expectation, mean_jac = self._evidence.fused_weighted_jacobian(
-            design_weights, exp_alpha_qoi, self._qoi_vals,
+        d_expectation, mean_jac = self.evidence().fused_weighted_jacobian(
+            design_weights, exp_alpha_qoi, self.qoi_vals(),
         )
 
         entropic_jac = d_expectation / (self._alpha * expectation[:, :, None])

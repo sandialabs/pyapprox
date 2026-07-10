@@ -98,6 +98,24 @@ class LowRankLaplacePosterior(Generic[Array]):
         """Return the number of variables."""
         return self._nvars
 
+    def _computed_ur(self) -> Array:
+        """Return the eigenvectors, raising if compute() has not run."""
+        if self._Ur is None:
+            raise RuntimeError("Must call compute() first")
+        return self._Ur
+
+    def _computed_sr(self) -> Array:
+        """Return the eigenvalues, raising if compute() has not run."""
+        if self._Sr is None:
+            raise RuntimeError("Must call compute() first")
+        return self._Sr
+
+    def _computed_post_cov_sqrt(self) -> Array:
+        """Return the covariance square root, raising if compute() has not run."""
+        if self._post_cov_sqrt is None:
+            raise RuntimeError("Must call compute() first")
+        return self._post_cov_sqrt
+
     def rank(self) -> int:
         """Return the rank of the approximation."""
         return self._rank
@@ -169,7 +187,8 @@ class LowRankLaplacePosterior(Generic[Array]):
         """
         if not self._computed:
             raise RuntimeError("Must call compute() first")
-        return self._post_cov_sqrt @ self._post_cov_sqrt.T
+        post_cov_sqrt = self._computed_post_cov_sqrt()
+        return post_cov_sqrt @ post_cov_sqrt.T
 
     def covariance_diagonal(self) -> Array:
         """
@@ -193,10 +212,11 @@ class LowRankLaplacePosterior(Generic[Array]):
         # Prior variance diagonal
         # For Cholesky L: var_i = sum_j L_{ij}^2
         # We approximate by computing L @ U_r
-        LUr = self._prior_sqrt.apply(self._Ur)
+        LUr = self._prior_sqrt.apply(self._computed_ur())
 
         # Scaling factor: lambda / (1 + lambda)
-        D = self._Sr / (1.0 + self._Sr)
+        Sr = self._computed_sr()
+        D = Sr / (1.0 + Sr)
 
         # Variance reduction from low-rank update
         var_reduction = self._bkd.sum(LUr**2 * D, axis=1)
@@ -230,7 +250,7 @@ class LowRankLaplacePosterior(Generic[Array]):
         """
         if not self._computed:
             raise RuntimeError("Must call compute() first")
-        return self._Sr
+        return self._computed_sr()
 
     def eigenvectors(self) -> Array:
         """
@@ -251,7 +271,7 @@ class LowRankLaplacePosterior(Generic[Array]):
         """
         if not self._computed:
             raise RuntimeError("Must call compute() first")
-        return self._Ur
+        return self._computed_ur()
 
     # TODO: scipy is moving from rvs towards sample. Rename rvs to sample
     # and make rvs and wrapper of sample
@@ -283,7 +303,7 @@ class LowRankLaplacePosterior(Generic[Array]):
         std_normal = self._bkd.asarray(
             np.random.normal(0, 1, (self._nvars, nsamples)).astype(np.float64)
         )
-        return self._post_cov_sqrt @ std_normal + self._map_point
+        return self._computed_post_cov_sqrt() @ std_normal + self._map_point
 
     def posterior_variable(self) -> DenseCholeskyMultivariateGaussian[Array]:
         """

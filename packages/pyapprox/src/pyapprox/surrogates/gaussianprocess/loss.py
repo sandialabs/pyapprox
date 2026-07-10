@@ -244,8 +244,8 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         self._gp._fit_internal(self._X_train, self._y_train)
 
         # Get alpha and cholesky from GP
-        alpha = self._gp._alpha  # Shape: (nqoi, n_train)
-        cholesky = self._gp._cholesky
+        alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
+        cholesky = self._gp.cholesky()
         n_train = self._X_train.shape[1]
 
         # Get hyperparameter lists for kernel and mean
@@ -407,9 +407,9 @@ class NegativeLogMarginalLikelihoodLoss(Generic[Array]):
         self._gp._fit_internal(self._X_train, self._y_train)
 
         # Get alpha and cholesky from GP
-        alpha = self._gp._alpha  # Shape: (nqoi, n_train)
+        alpha = self._gp.alpha()  # Shape: (nqoi, n_train)
         alpha_vec = alpha[0:1, :].T  # Shape: (n_train, 1) for single output
-        cholesky = self._gp._cholesky
+        cholesky = self._gp.cholesky()
         n_train = self._X_train.shape[1]
 
         # Get hyperparameter lists

@@ -119,6 +119,10 @@ class MultiOutputGP(Generic[Array]):
         self._bkd = kernel.bkd()
         self._is_fitted = False
         self._data: Optional[MultiOutputGPTrainingData[Array]] = None
+        self._cholesky: Optional[CholeskyFactor[Array]] = None
+        self._alpha: Optional[Array] = None
+        self._X_train_list: Optional[List[Array]] = None
+        self._y_train_stacked: Optional[Array] = None
 
     def _clone_unfitted(self) -> "MultiOutputGP[Array]":
         """Return a deep copy of this GP with fitted state cleared.
@@ -133,10 +137,8 @@ class MultiOutputGP(Generic[Array]):
         clone._is_fitted = False
         clone._cholesky = None
         clone._alpha = None
-        if hasattr(clone, "_X_train_list"):
-            clone._X_train_list = None
-        if hasattr(clone, "_y_train_stacked"):
-            clone._y_train_stacked = None
+        clone._X_train_list = None
+        clone._y_train_stacked = None
         return clone
 
     def bkd(self) -> Backend[Array]:
@@ -190,7 +192,7 @@ class MultiOutputGP(Generic[Array]):
         RuntimeError
             If the GP has not been fitted yet.
         """
-        if not self._is_fitted:
+        if self._cholesky is None:
             raise RuntimeError("GP must be fitted before accessing cholesky.")
         return self._cholesky
 
@@ -208,9 +210,21 @@ class MultiOutputGP(Generic[Array]):
         RuntimeError
             If the GP has not been fitted yet.
         """
-        if not self._is_fitted:
+        if self._alpha is None:
             raise RuntimeError("GP must be fitted before accessing alpha.")
         return self._alpha
+
+    def _fitted_x_train_list(self) -> List[Array]:
+        """Return the training inputs, raising if the GP is not fitted."""
+        if self._X_train_list is None:
+            raise RuntimeError("GP must be fitted first.")
+        return self._X_train_list
+
+    def _fitted_y_train_stacked(self) -> Array:
+        """Return the stacked training outputs, raising if the GP is not fitted."""
+        if self._y_train_stacked is None:
+            raise RuntimeError("GP must be fitted first.")
+        return self._y_train_stacked
 
     def data(self) -> MultiOutputGPTrainingData[Array]:
         """
@@ -331,15 +345,17 @@ class MultiOutputGP(Generic[Array]):
         if not self._is_fitted:
             raise RuntimeError("GP must be fitted before computing NLL")
 
+        y_train_stacked = self._fitted_y_train_stacked()
+
         # Data fit term: y^T (K + σ²I)^{-1} y
         # We have alpha = (K + σ²I)^{-1} y, so this is y^T alpha
-        data_fit = self._bkd.sum(self._y_train_stacked * self._alpha)
+        data_fit = self._bkd.sum(y_train_stacked * self.alpha())
 
         # Complexity penalty: log|K + σ²I|
-        log_det = self._cholesky.log_determinant()
+        log_det = self.cholesky().log_determinant()
 
         # Constant term: n * log(2π)
-        n_total = self._y_train_stacked.shape[0]
+        n_total = y_train_stacked.shape[0]
         constant = n_total * math.log(2.0 * math.pi)
 
         # Negative log marginal likelihood
@@ -403,10 +419,12 @@ class MultiOutputGP(Generic[Array]):
             )
 
         # Cross-covariance: K(X_test, X_train)
-        K_star = self._kernel(X_test_list, self._X_train_list, block_format=False)
+        K_star = self._kernel(
+            X_test_list, self._fitted_x_train_list(), block_format=False
+        )
 
         # Mean prediction: μ* = K_star @ alpha (stacked format)
-        y_pred_stacked = K_star @ self._alpha
+        y_pred_stacked = K_star @ self.alpha()
 
         # Convert to list format
         n_samples_list = [X.shape[1] for X in X_test_list]
@@ -448,7 +466,9 @@ class MultiOutputGP(Generic[Array]):
         mean = self.predict(X_test_list)
 
         # Cross-covariance for variance computation
-        K_star = self._kernel(X_test_list, self._X_train_list, block_format=False)
+        K_star = self._kernel(
+            X_test_list, self._fitted_x_train_list(), block_format=False
+        )
 
         # Prior variance (diagonal of K(X_test, X_test))
         # Use block format to efficiently get diagonals
@@ -466,7 +486,7 @@ class MultiOutputGP(Generic[Array]):
         K_star_star_diag = self._bkd.concatenate(diag_blocks, axis=0)
 
         # Solve: v = L^{-1} @ K_star^T
-        v = self._bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
+        v = self._bkd.solve_triangular(self.cholesky().factor(), K_star.T, lower=True)
 
         # Posterior variance: σ²* = K** - v^T @ v
         # v^T @ v is computed as sum of v * v along rows
@@ -526,13 +546,15 @@ class MultiOutputGP(Generic[Array]):
         mean = self.predict(X_test_list)
 
         # Cross-covariance
-        K_star = self._kernel(X_test_list, self._X_train_list, block_format=False)
+        K_star = self._kernel(
+            X_test_list, self._fitted_x_train_list(), block_format=False
+        )
 
         # Prior covariance
         K_star_star = self._kernel(X_test_list, block_format=False)
 
         # Solve: v = L^{-1} @ K_star^T
-        v = self._bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
+        v = self._bkd.solve_triangular(self.cholesky().factor(), K_star.T, lower=True)
 
         # Posterior covariance: Σ* = K** - v^T @ v
         cov = K_star_star - v.T @ v

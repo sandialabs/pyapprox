@@ -46,23 +46,29 @@ class DeviationMeasure(ABC, Generic[Array]):
         """Number of prediction QoIs."""
         return self._npred
 
-    def ninner(self) -> int:
-        """Number of inner loop samples."""
+    def evidence(self) -> Evidence[Array]:
+        """Return the evidence object, raising if it has not been set."""
         if self._evidence is None:
             raise RuntimeError("Must call set_evidence first")
-        return self._evidence.ninner()
+        return self._evidence
+
+    def qoi_vals(self) -> Array:
+        """Return the QoI values, raising if they have not been set."""
+        if self._qoi_vals is None:
+            raise RuntimeError("Must call set_qoi_data first")
+        return self._qoi_vals
+
+    def ninner(self) -> int:
+        """Number of inner loop samples."""
+        return self.evidence().ninner()
 
     def nouter(self) -> int:
         """Number of outer loop samples."""
-        if self._evidence is None:
-            raise RuntimeError("Must call set_evidence first")
-        return self._evidence.nouter()
+        return self.evidence().nouter()
 
     def nvars(self) -> int:
         """Number of design variables (same as nobs)."""
-        if self._evidence is None:
-            raise RuntimeError("Must call set_evidence first")
-        return self._evidence._loglike.nobs()
+        return self.evidence()._loglike.nobs()
 
     def set_evidence(self, evidence: Evidence[Array]) -> None:
         """
@@ -119,7 +125,9 @@ class DeviationMeasure(ABC, Generic[Array]):
         # E[qoi_q | obs_o] = sum_i qoi[i, q] * like[i, o] * quad_weight[i]
         # qoi_vals: (ninner, npred), quad_weighted_like: (ninner, nouter)
         # Result: (npred, nouter)
-        return self._bkd.einsum("iq,io->qo", self._qoi_vals, quad_weighted_like_vals)
+        return self._bkd.einsum(
+            "iq,io->qo", self.qoi_vals(), quad_weighted_like_vals
+        )
 
     def _first_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         """
@@ -139,7 +147,7 @@ class DeviationMeasure(ABC, Generic[Array]):
         # qoi_vals: (ninner, npred), jac: (ninner, nouter, nvars)
         # Result: (npred, nouter, nvars)
         return self._bkd.einsum(
-            "iq,iod->qod", self._qoi_vals, quad_weighted_like_vals_jac
+            "iq,iod->qod", self.qoi_vals(), quad_weighted_like_vals_jac
         )
 
     def __call__(self, design_weights: Array) -> Array:

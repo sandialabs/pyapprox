@@ -244,12 +244,13 @@ class DenseGaussianConjugatePosterior(Generic[Array]):
         # Evidence = (2*pi)^{n/2} * |Sigma_post|^{1/2} * L(mu_post) * p(mu_post)
         # where L is likelihood and p is prior
         # Use slogdet for numerical stability
-        _, log_det_post = self._bkd.slogdet(self._posterior_cov)
+        _, log_det_post = self._bkd.slogdet(self.posterior_covariance())
 
         # Log-likelihood at posterior mean
-        residual = self._obs - self._matrix @ self._posterior_mean - self._offset
+        obs = self._computed_obs()
+        residual = obs - self._matrix @ self.posterior_mean() - self._offset
         # For multiple experiments, sum log-likelihoods
-        nexperiments = self._obs.shape[1]
+        nexperiments = obs.shape[1]
         log_like = 0.0
         _, log_det_noise = self._bkd.slogdet(self._noise_cov)
         for i in range(nexperiments):
@@ -260,7 +261,7 @@ class DenseGaussianConjugatePosterior(Generic[Array]):
             )
 
         # Log-prior at posterior mean
-        diff = self._posterior_mean - self._prior_mean
+        diff = self.posterior_mean() - self._prior_mean
         _, log_det_prior = self._bkd.slogdet(self._prior_cov)
         log_prior = -0.5 * (
             self._nvars * math.log(2 * math.pi)
@@ -284,11 +285,12 @@ class DenseGaussianConjugatePosterior(Generic[Array]):
         The posterior mean is itself a random variable (depends on data).
         This computes its mean and variance with respect to data distribution.
         """
-        Rmat = self._posterior_cov @ self._matrix.T @ self._noise_cov_inv
+        posterior_cov = self.posterior_covariance()
+        Rmat = posterior_cov @ self._matrix.T @ self._noise_cov_inv
         ROmat = Rmat @ self._matrix
         self._nu_vec = (
             ROmat @ self._prior_mean
-            + self._posterior_cov @ self._prior_hessian @ self._prior_mean
+            + posterior_cov @ self._prior_hessian @ self._prior_mean
         )
         self._Cmat = (
             ROmat @ self._prior_cov @ ROmat.T
@@ -300,12 +302,18 @@ class DenseGaussianConjugatePosterior(Generic[Array]):
         self._kl_div = _compute_expected_kl_divergence(
             self._prior_mean,
             self._prior_cov,
-            self._posterior_cov,
+            self.posterior_covariance(),
             self._nu_vec,
             self._Cmat,
             self._bkd,
             self._prior_hessian,
         )
+
+    def _computed_obs(self) -> Array:
+        """Return the observations, raising if compute() has not run."""
+        if self._obs is None:
+            raise RuntimeError("Must call compute() first")
+        return self._obs
 
     def posterior_mean(self) -> Array:
         """

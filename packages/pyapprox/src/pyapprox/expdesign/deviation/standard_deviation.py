@@ -5,7 +5,7 @@ Computes sqrt(Var[qoi | obs]) = sqrt(E[qoi^2 | obs] - E[qoi | obs]^2).
 """
 
 import os
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.util.backends.protocols import Array
@@ -34,6 +34,9 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
     where expectations are taken over the posterior (likelihood-weighted prior).
     """
 
+    # Per-instance jacobian override; None means use the module-level default
+    _jacobian_impl: Optional[str] = None
+
     def _second_moment(self, quad_weighted_like_vals: Array) -> Array:
         """
         Compute second moment E[qoi^2 | obs].
@@ -49,7 +52,9 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             Second moment. Shape: (npred, nouter)
         """
         # E[qoi_q^2 | obs_o] = sum_i qoi[i, q]^2 * like[i, o] * quad_weight[i]
-        return self._bkd.einsum("iq,io->qo", self._qoi_vals**2, quad_weighted_like_vals)
+        return self._bkd.einsum(
+            "iq,io->qo", self.qoi_vals() ** 2, quad_weighted_like_vals
+        )
 
     def _second_moment_jac(self, quad_weighted_like_vals_jac: Array) -> Array:
         """
@@ -66,7 +71,7 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             Jacobian of second moment. Shape: (npred, nouter, nvars)
         """
         return self._bkd.einsum(
-            "iq,iod->qod", self._qoi_vals**2, quad_weighted_like_vals_jac
+            "iq,iod->qod", self.qoi_vals()**2, quad_weighted_like_vals_jac
         )
 
     def _evaluate(self, design_weights: Array) -> Array:
@@ -84,10 +89,10 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             Standard deviation values. Shape: (1, npred * nouter)
         """
         # Compute evidence
-        evidences = self._evidence(design_weights).T  # (nouter, 1)
+        evidences = self.evidence()(design_weights).T  # (nouter, 1)
 
         # Normalized quad-weighted likelihoods
-        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+        normalized_like = self.evidence().quad_weighted_like_vals / evidences[:, 0]
 
         # Compute variance = E[qoi^2] - E[qoi]^2
         first_mom = self._first_moment(normalized_like)
@@ -109,8 +114,12 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         numba path (see module-level ``STDDEV_JACOBIAN_IMPL``). Per-instance
         override is available via ``set_jacobian_impl()``.
         """
-        impl = getattr(self, "_jacobian_impl", STDDEV_JACOBIAN_IMPL)
-        if impl == "fused" and self._evidence.has_fused_weighted_jacobian():
+        impl = (
+            self._jacobian_impl
+            if self._jacobian_impl is not None
+            else STDDEV_JACOBIAN_IMPL
+        )
+        if impl == "fused" and self.evidence().has_fused_weighted_jacobian():
             return self._jacobian_fused(design_weights)
         return self._jacobian_legacy(design_weights)
 
@@ -125,11 +134,7 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             raise ValueError(
                 f"impl must be 'legacy', 'fused', or 'default', got {impl!r}"
             )
-        if impl == "default":
-            if hasattr(self, "_jacobian_impl"):
-                del self._jacobian_impl
-        else:
-            self._jacobian_impl = impl
+        self._jacobian_impl = None if impl == "default" else impl
 
     def _jacobian_legacy(self, design_weights: Array) -> Array:
         """Broadcast + einsum path (materializes the (ninner, nouter, nobs) jac)."""
@@ -137,16 +142,16 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         values = self._evaluate(design_weights)  # (1, npred * nouter)
 
         # Compute evidence and its jacobian
-        evidences = self._evidence(design_weights).T  # (nouter, 1)
-        evidences_jac = self._evidence.jacobian(design_weights)  # (nouter, nvars)
+        evidences = self.evidence()(design_weights).T  # (nouter, 1)
+        evidences_jac = self.evidence().jacobian(design_weights)  # (nouter, nvars)
 
         # Jacobian of quad-weighted likelihood
-        like_jac = self._evidence.quad_weighted_likelihood_jacobian(
+        like_jac = self.evidence().quad_weighted_likelihood_jacobian(
             design_weights
         )  # (ninner, nouter, nvars)
 
         # Normalized quantities
-        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+        normalized_like = self.evidence().quad_weighted_like_vals / evidences[:, 0]
 
         # Compute moments
         first_mom = self._first_moment(normalized_like)  # (npred, nouter)
@@ -156,7 +161,7 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         # evidence^2
         normalized_like_jac = (
             like_jac / evidences[None, :, 0, None]
-            - self._evidence.quad_weighted_like_vals[:, :, None]
+            - self.evidence().quad_weighted_like_vals[:, :, None]
             * evidences_jac[None, :, :]
             / evidences[None, :, 0, None] ** 2
         )
@@ -192,12 +197,12 @@ class StandardDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         # Must call _evaluate before accessing cached evidence internals.
         values = self._evaluate(design_weights)  # (1, npred * nouter)
 
-        evidences = self._evidence(design_weights).T  # (nouter, 1)
-        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+        evidences = self.evidence()(design_weights).T  # (nouter, 1)
+        normalized_like = self.evidence().quad_weighted_like_vals / evidences[:, 0]
         first_mom = self._first_moment(normalized_like)  # (npred, nouter)
 
-        first_mom_jac, second_mom_jac = self._evidence.fused_weighted_jacobian(
-            design_weights, self._qoi_vals, self._qoi_vals ** 2,
+        first_mom_jac, second_mom_jac = self.evidence().fused_weighted_jacobian(
+            design_weights, self.qoi_vals(), self.qoi_vals() ** 2,
         )  # each (npred, nouter, nvars)
 
         variance_jac = second_mom_jac - 2.0 * first_mom[:, :, None] * first_mom_jac

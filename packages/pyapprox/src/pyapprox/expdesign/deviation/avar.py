@@ -64,11 +64,11 @@ class AVaRDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
             AVaR deviation values. Shape: (1, npred * nouter)
         """
         # Compute evidence
-        evidences = self._evidence(design_weights).T  # (nouter, 1)
+        evidences = self.evidence()(design_weights).T  # (nouter, 1)
 
         # Normalized quad-weighted likelihoods as posterior weights
         # Shape: (ninner, nouter)
-        normalized_like = self._evidence.quad_weighted_like_vals / evidences[:, 0]
+        normalized_like = self.evidence().quad_weighted_like_vals / evidences[:, 0]
 
         # Compute mean for each (qoi, outer) pair
         mean = self._first_moment(normalized_like)  # (npred, nouter)
@@ -85,7 +85,7 @@ class AVaRDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
                 # Get posterior weights for this outer sample
                 # _evaluate_single expects (1, nsamples) for both
                 weights = normalized_like[:, oo : oo + 1].T  # (1, ninner)
-                values = self._qoi_vals[:, qq : qq + 1].T  # (1, ninner)
+                values = self.qoi_vals()[:, qq : qq + 1].T  # (1, ninner)
 
                 # Compute AVaR using smoothed estimator
                 avar = self._smoothed_avar._evaluate_single(values, weights)

@@ -148,10 +148,9 @@ class ExactGaussianProcess(Generic[Array]):
         self._bkd = bkd
 
         # Set mean function (default to zero mean)
-        if mean_function is None:
-            self._mean = ZeroMean(bkd)
-        else:
-            self._mean = mean_function
+        self._mean: MeanFunction[Array] = (
+            ZeroMean(bkd) if mean_function is None else mean_function
+        )
 
         # Nugget for numerical stability
         if nugget <= 0:
@@ -423,12 +422,12 @@ class ExactGaussianProcess(Generic[Array]):
         mean_prior = self._mean(X)
 
         # Compute k(X*, X): shape (n_test, n_train)
-        K_star = self._kernel(X, self._data.X())
+        K_star = self._kernel(X, self.data().X())
 
         # Posterior mean: μ* = m(X*) + α @ k(X*, X)^T
         # alpha shape: (nqoi, n_train), K_star shape: (n_test, n_train)
         # Result: (nqoi, n_test)
-        mean_posterior = mean_prior + self._alpha @ K_star.T
+        mean_posterior = mean_prior + self.alpha() @ K_star.T
 
         # Unscale to original space if transform is set
         if self._output_transform is not None:
@@ -471,13 +470,13 @@ class ExactGaussianProcess(Generic[Array]):
         X = self._input_transform.transform(X)
 
         # Compute k(X*, X)
-        K_star = self._kernel(X, self._data.X())
+        K_star = self._kernel(X, self.data().X())
 
         # Compute k(X*, X*)
         K_star_star = self._kernel.diag(X)
 
         # Solve L v = k(X, X*)^T for v where L is Cholesky factor
-        v = self._bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
+        v = self._bkd.solve_triangular(self.cholesky().factor(), K_star.T, lower=True)
 
         # Posterior variance: var* = k(X*, X*) - v^T v
         var_posterior = K_star_star - self._bkd.einsum("ij,ij->j", v, v)
@@ -490,7 +489,7 @@ class ExactGaussianProcess(Generic[Array]):
         std = self._bkd.sqrt(var_posterior)
 
         # Reshape to (nqoi, n_test) - tile for each output
-        nqoi = self._data.nqoi()
+        nqoi = self.data().nqoi()
         std = self._bkd.reshape(std, (1, std.shape[0]))
         std = self._bkd.tile(std, (nqoi, 1))
 
@@ -544,11 +543,11 @@ class ExactGaussianProcess(Generic[Array]):
         sample_scaled = self._input_transform.transform(sample)
 
         # Compute k(x*, X_train) shape (1, n_train)
-        K_star = self._kernel(sample_scaled, self._data.X())
+        K_star = self._kernel(sample_scaled, self.data().X())
 
         # v = L^{-1} k(X_train, x*)  where k(X_train, x*) = K_star^T
         # v shape: (n_train, 1)
-        L = self._cholesky.factor()
+        L = self.cholesky().factor()
         v = self._bkd.solve_triangular(L, K_star.T, lower=True)
 
         # Posterior variance (scalar, but keep as array)
@@ -558,7 +557,7 @@ class ExactGaussianProcess(Generic[Array]):
         sigma = self._bkd.sqrt(var_post)  # (1,)
 
         # Kernel jacobian: dk(x*, X_train)/dx  shape (1, n_train, nvars)
-        K_jac = self._kernel.jacobian(sample_scaled, self._data.X())
+        K_jac = self._kernel.jacobian(sample_scaled, self.data().X())
         # Squeeze to (n_train, nvars)
         dK_star_dx = K_jac[0]  # (n_train, nvars)
 
@@ -637,12 +636,12 @@ class ExactGaussianProcess(Generic[Array]):
         sample_scaled = self._input_transform.transform(sample)
 
         # Kernel Jacobian: ∂k(x, X)/∂x has shape (1, n_train, nvars)
-        K_jac = self._kernel.jacobian(sample_scaled, self._data.X())
+        K_jac = self._kernel.jacobian(sample_scaled, self.data().X())
 
         # Compute: α @ ∂k(x, X)^T/∂x
         # K_jac shape: (1, n_train, nvars), α shape: (nqoi, n_train)
         # Result shape: (1, nqoi, nvars) -> squeeze to (nqoi, nvars)
-        jac = self._bkd.einsum("lj,ijk->ilk", self._alpha, K_jac)
+        jac = self._bkd.einsum("lj,ijk->ilk", self.alpha(), K_jac)
         result = jac[0, :, :]  # (nqoi, nvars)
 
         # Apply input transform chain rule: ∂f/∂z = (1/σ_z) * ∂f/∂z̃
@@ -682,12 +681,12 @@ class ExactGaussianProcess(Generic[Array]):
         samples_scaled = self._input_transform.transform(samples)
 
         # Kernel Jacobian: ∂k(x, X)/∂x has shape (n_samples, n_train, nvars)
-        K_jac = self._kernel.jacobian(samples_scaled, self._data.X())
+        K_jac = self._kernel.jacobian(samples_scaled, self.data().X())
 
         # For each sample point, compute: α @ ∂k(x, X)^T/∂x
         # K_jac shape: (n_samples, n_train, nvars), α shape: (nqoi, n_train)
         # Result shape: (n_samples, nqoi, nvars)
-        jac = self._bkd.einsum("lj,ijk->ilk", self._alpha, K_jac)
+        jac = self._bkd.einsum("lj,ijk->ilk", self.alpha(), K_jac)
 
         # Apply input transform chain rule: ∂f/∂z = (1/σ_z) * ∂f/∂z̃
         jac_factor = self._input_transform.jacobian_factor()  # (nvars,)
@@ -792,18 +791,18 @@ class ExactGaussianProcess(Generic[Array]):
         if nvars != self._nvars:
             raise ValueError(f"sample has {nvars} variables, expected {self._nvars}")
 
-        nqoi = self._data.nqoi()
+        nqoi = self.data().nqoi()
         if nqoi > 1:
             raise NotImplementedError(
                 "HVP currently only supports single-output GPs (nqoi=1)"
             )
 
         # Get training data (already in scaled space)
-        X_train = self._data.X()  # (nvars, n_train)
+        X_train = self.data().X()  # (nvars, n_train)
         n_train = X_train.shape[1]
 
         # Get α - shape: (nqoi, n_train) = (1, n_train)
-        alpha = self._bkd.reshape(self._alpha, (n_train,))  # (n_train,)
+        alpha = self._bkd.reshape(self.alpha(), (n_train,))  # (n_train,)
 
         # Transform sample to scaled space
         sample_scaled = self._input_transform.transform(sample)
@@ -870,7 +869,7 @@ class ExactGaussianProcess(Generic[Array]):
         if nvars != self._nvars:
             raise ValueError(f"samples has {nvars} variables, expected {self._nvars}")
 
-        nqoi = self._data.nqoi()
+        nqoi = self.data().nqoi()
         if nqoi > 1:
             raise NotImplementedError(
                 "HVP currently only supports single-output GPs (nqoi=1)"
@@ -915,16 +914,16 @@ class ExactGaussianProcess(Generic[Array]):
         X = self._input_transform.transform(X)
 
         n_test = X.shape[1]
-        nqoi = self._data.nqoi()
+        nqoi = self.data().nqoi()
 
         # Compute k(X*, X)
-        K_star = self._kernel(X, self._data.X())
+        K_star = self._kernel(X, self.data().X())
 
         # Compute k(X*, X*)
         K_star_star = self._kernel(X, X)
 
         # Solve L v = k(X, X*)^T for v
-        v = self._bkd.solve_triangular(self._cholesky.factor(), K_star.T, lower=True)
+        v = self._bkd.solve_triangular(self.cholesky().factor(), K_star.T, lower=True)
 
         # Posterior covariance: Σ* = k(X*, X*) - v^T v
         cov_posterior = K_star_star - v.T @ v
@@ -977,16 +976,16 @@ class ExactGaussianProcess(Generic[Array]):
         if not self.is_fitted():
             raise RuntimeError("GP must be fitted before computing marginal likelihood")
 
-        n = self._data.n_samples()
+        n = self.data().n_samples()
 
         # Data fit term: (y - m)^T (K + σ²I)^{-1} (y - m) = (y - m)^T α
         # Avoid float() to preserve autograd graph for torch backend
-        mean_pred = self._mean(self._data.X())
-        residual = self._data.y() - mean_pred
-        data_fit = self._bkd.sum(residual * self._alpha)
+        mean_pred = self._mean(self.data().X())
+        residual = self.data().y() - mean_pred
+        data_fit = self._bkd.sum(residual * self.alpha())
 
         # Complexity penalty: log|K + σ²I|
-        log_det = self._cholesky.log_determinant()
+        log_det = self.cholesky().log_determinant()
 
         # Constant term
         constant = n * math.log(2 * math.pi)
