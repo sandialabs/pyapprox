@@ -5,7 +5,7 @@ A Bayesian network of linear-Gaussian CPDs where each node represents
 a random variable and edges represent conditional dependencies.
 """
 
-from typing import Any, Dict, Generic, List, Optional
+from typing import Dict, Generic, List, NotRequired, Optional, TypedDict
 
 import networkx as nx
 import numpy as np
@@ -14,6 +14,20 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 from .conversions import convert_cpd_to_canonical, convert_prior_to_factor
 from .factor import GaussianFactor
+
+
+class _NodeData(TypedDict, Generic[Array]):
+    """Per-node metadata; root nodes carry a prior, non-root nodes a CPD."""
+
+    nvars: int
+    is_root: NotRequired[bool]
+    prior_mean: NotRequired[Array]
+    prior_cov: NotRequired[Array]
+    parents: NotRequired[List[int]]
+    cpd_coefficients: NotRequired[List[Array]]
+    # normalized in add_node: a None offset is stored as zeros
+    cpd_offset: NotRequired[Array]
+    cpd_noise_cov: NotRequired[Array]
 
 
 class GaussianNetwork(Generic[Array]):
@@ -53,7 +67,7 @@ class GaussianNetwork(Generic[Array]):
     def __init__(self, bkd: Backend[Array]):
         self._bkd = bkd
         self._graph: nx.DiGraph = nx.DiGraph()
-        self._node_data: Dict[int, Dict[str, Any]] = {}
+        self._node_data: Dict[int, _NodeData[Array]] = {}
 
     def bkd(self) -> Backend[Array]:
         """Get the backend."""

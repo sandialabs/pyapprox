@@ -7,7 +7,7 @@ sum, separable product) for building complex kernels from simple ones.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic
+from typing import Generic
 
 from pyapprox.surrogates.kernels.protocols import KernelHasHVPWrtX1Protocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -834,7 +834,7 @@ class SeparableProductKernel(Kernel[Array], Generic[Array]):
 
     def __init__(
         self,
-        kernels_1d: list[Any],
+        kernels_1d: list[Kernel[Array]],
         bkd: Backend[Array],
     ):
         super().__init__(bkd)
