@@ -91,7 +91,7 @@ class MaternKernel(Kernel[Array]):
 
     def numba_kernel_params(self) -> np.ndarray:
         """Return exponentiated length scales, one per data dimension."""
-        vals: Array = self._hyp_list.get_values()  # type: ignore[assignment]
+        vals: Array = self._hyp_list.get_values()
         result: np.ndarray = np.exp(self._bkd.to_numpy(vals))
         if len(result) == 1 and self._nvars > 1:
             result = np.full(self._nvars, result[0])

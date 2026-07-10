@@ -462,7 +462,7 @@ class ActiveSetFunction(Generic[Array]):
             Shape (nqoi, nsamples).
         """
         full = self._assemble(samples)
-        return self._function(full)  # type: ignore[operator]
+        return self._function(full)
 
     def _jacobian(self, sample: Array) -> Array:
         """Jacobian w.r.t. kept variables only.

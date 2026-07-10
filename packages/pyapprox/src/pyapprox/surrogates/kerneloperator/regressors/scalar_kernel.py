@@ -108,7 +108,7 @@ class ScalarKernelLatentRegressor(Generic[Array]):
         """
         fitter = GPMaximumLikelihoodFitter(self._bkd, optimizer)
         gp_result = fitter.fit(self._gp, U, V)
-        self._gp = gp_result.surrogate()  # type: ignore[assignment]
+        self._gp = gp_result.surrogate()
         return (
             gp_result.initial_hyperparameters(),
             gp_result.optimized_hyperparameters(),

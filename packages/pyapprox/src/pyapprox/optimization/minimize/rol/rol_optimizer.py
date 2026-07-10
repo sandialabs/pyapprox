@@ -205,7 +205,7 @@ class ROLOptimizer(Generic[Array]):
             self.array += scale_factor * x.array
 
         NumPyVector.axpy = _fast_axpy
-        NumPyVector._fast_patch_applied = True  # type: ignore[attr-defined]
+        NumPyVector._fast_patch_applied = True
 
     def minimize(self, init_guess: Array) -> ROLOptimizerResult[Array]:
         """Run optimization starting from the initial guess.

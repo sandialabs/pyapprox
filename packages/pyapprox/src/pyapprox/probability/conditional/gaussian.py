@@ -93,8 +93,8 @@ class ConditionalGaussian(Generic[Array]):
             self._log_stdev_func, "hyp_list"
         ):
             self._hyp_list: HyperParameterList[Array] = (
-                self._mean_func.hyp_list()  # type: ignore[attr-defined]
-                + self._log_stdev_func.hyp_list()  # type: ignore[attr-defined]
+                self._mean_func.hyp_list()
+                + self._log_stdev_func.hyp_list()
             )
             self.hyp_list = self._get_hyp_list
             self.nparams = self._get_nparams

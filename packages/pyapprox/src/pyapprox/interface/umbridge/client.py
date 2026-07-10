@@ -356,7 +356,7 @@ class UMBridgeModel(Generic[Array]):
         import_optional_dependency(
             "umbridge", feature_name="UMBridgeModel", extra_name="umbridge"
         )
-        import requests  # type: ignore[import-untyped]
+        import requests
 
         if out is None:
             out = open(os.devnull, "w")
