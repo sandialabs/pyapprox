@@ -11,7 +11,8 @@ raises ImportError, which the dispatch in truncated_pivoted_qr.py handles.
 from __future__ import annotations
 
 import numpy as np
-from numba import njit
+
+from pyapprox.util.numba_compat import njit
 
 
 @njit(cache=True)

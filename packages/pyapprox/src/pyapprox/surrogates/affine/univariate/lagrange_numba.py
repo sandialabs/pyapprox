@@ -8,7 +8,8 @@ Operates on raw NumPy arrays. The dispatch layer handles backend conversion.
 """
 
 import numpy as np
-from numba import njit, prange
+
+from pyapprox.util.numba_compat import njit, prange
 
 
 @njit(cache=True, parallel=True)

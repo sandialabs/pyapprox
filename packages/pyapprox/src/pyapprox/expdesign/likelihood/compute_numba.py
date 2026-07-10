@@ -13,10 +13,12 @@ this module will raise ImportError, which dispatch.py handles gracefully.
 """
 
 import math
+from typing import Any
 
 import numpy as np
-from numba import njit, prange
-from numba.core.types import optional  # noqa: F401
+from numpy.typing import NDArray
+
+from pyapprox.util.numba_compat import njit, prange
 
 
 @njit(cache=True, parallel=True, fastmath=True)
@@ -217,7 +219,7 @@ def fused_weighted_jacobian_numba(
     weights_a_qi: np.ndarray,
     weights_b_qi: np.ndarray,
     has_latent: bool,
-):
+) -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
     """Fused jacobian contractions with two arbitrary per-inner weight
     matrices — avoids the (ninner, nouter, nobs) intermediate.
 

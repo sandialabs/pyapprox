@@ -20,7 +20,8 @@ from collections.abc import Callable
 from typing import cast
 
 import numpy as np
-from numba import njit
+
+from pyapprox.util.numba_compat import njit
 
 _NumbaFn = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
 

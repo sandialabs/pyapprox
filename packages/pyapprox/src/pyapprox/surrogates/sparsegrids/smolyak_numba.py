@@ -8,7 +8,8 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-from numba import njit, prange
+
+from pyapprox.util.numba_compat import njit, prange
 
 
 @njit(cache=True)
@@ -99,7 +100,7 @@ def smolyak_coefficients_numba(
             if np_indices[d, j] > max_val:
                 max_val = np_indices[d, j]
     # Shifted indices can be at most max_val + 1
-    base = max_val + 2
+    base = int(max_val) + 2
 
     # Encode and sort the index set for binary search
     index_encoded = _encode_indices(np_indices, nvars, nsubspaces, base)

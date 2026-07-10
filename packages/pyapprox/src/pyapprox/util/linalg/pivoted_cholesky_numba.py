@@ -15,13 +15,18 @@ pivoted_cholesky.py handles gracefully.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
 import numpy as np
-from numba import njit
+from numpy.typing import NDArray
+
+from pyapprox.util.numba_compat import njit
 
 
 @njit(cache=True)
-def _find_init_pivot(perm, n, ii, init_pivot_val):
+def _find_init_pivot(
+    perm: NDArray[np.integer[Any]], n: int, ii: int, init_pivot_val: int
+) -> int:
     """Find position of init_pivot_val in perm[ii:]."""
     for j in range(ii, n):
         if perm[j] == init_pivot_val:
