@@ -473,7 +473,7 @@ class GaussianOEDInnerLoopLikelihood(Generic[Array]):
         qwl_ratio: Array,
         weights_a: Array,
         weights_b: Array,
-    ) -> tuple:
+    ) -> tuple[Array, Array]:
         """Fused weighted-jacobian parts (first term only).
 
         Returns, for two independent per-inner weight matrices

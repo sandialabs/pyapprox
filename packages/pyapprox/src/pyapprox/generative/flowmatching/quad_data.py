@@ -131,7 +131,7 @@ class FlowMatchingQuadData(Generic[Array]):
 #  Built-in 1-D quadrature rule factories                             #
 # ------------------------------------------------------------------ #
 
-def gauss_legendre_rule(bkd: Backend[Array]) -> QuadRule1D:
+def gauss_legendre_rule(bkd: Backend[Array]) -> QuadRule1D[Array]:
     """Gauss-Legendre quadrature on [0, 1].
 
     Returns a callable ``(n) -> (nodes, weights)`` where nodes has
@@ -147,7 +147,7 @@ def gauss_legendre_rule(bkd: Backend[Array]) -> QuadRule1D:
     return rule
 
 
-def gauss_hermite_rule(bkd: Backend[Array]) -> QuadRule1D:
+def gauss_hermite_rule(bkd: Backend[Array]) -> QuadRule1D[Array]:
     """Gauss-Hermite quadrature for N(0, 1).
 
     Returns a callable ``(n) -> (nodes, weights)`` where nodes has
@@ -165,7 +165,7 @@ def gauss_hermite_rule(bkd: Backend[Array]) -> QuadRule1D:
 
 def uniform_rule(
     lo: float, hi: float, bkd: Backend[Array]
-) -> QuadRule1D:
+) -> QuadRule1D[Array]:
     """Equispaced nodes on [lo, hi] with trapezoidal weights.
 
     Returns a callable ``(n) -> (nodes, weights)`` where nodes has
@@ -187,7 +187,7 @@ def uniform_rule(
 
 def fixed_nodes_rule(
     nodes: Array, weights: Array
-) -> QuadRule1D:
+) -> QuadRule1D[Array]:
     """Rule from pre-computed nodes and weights.
 
     The ``n`` argument to the returned callable is ignored; the same
@@ -200,7 +200,7 @@ def fixed_nodes_rule(
     return rule
 
 
-def mc_rule(bkd: Backend[Array], seed: int = 0) -> QuadRule1D:
+def mc_rule(bkd: Backend[Array], seed: int = 0) -> QuadRule1D[Array]:
     """Monte Carlo quadrature for N(0, 1).
 
     Returns a callable ``(n) -> (nodes, weights)`` where nodes are
@@ -221,8 +221,8 @@ def mc_rule(bkd: Backend[Array], seed: int = 0) -> QuadRule1D:
 # ------------------------------------------------------------------ #
 
 def build_flow_matching_quad_data(
-    t_rule: QuadRule1D,
-    x0_rule: QuadRule1D,
+    t_rule: QuadRule1D[Array],
+    x0_rule: QuadRule1D[Array],
     forward_map: Callable[[Array], Array],
     n_t: int,
     n_x: int,
@@ -290,11 +290,11 @@ PairRule = Callable[[int], Tuple[Array, Array, Array]]
 
 
 def tensor_product_pair_rule(
-    x0_rule: QuadRule1D,
-    x1_rule: QuadRule1D,
+    x0_rule: QuadRule1D[Array],
+    x1_rule: QuadRule1D[Array],
     forward_map: Callable[[Array], Array],
     bkd: Backend[Array],
-) -> PairRule:
+) -> PairRule[Array]:
     """Tensor-product (x0, x1) rule with independent quadrature.
 
     Builds ``n_x0 × n_x1`` pairs from separate 1D rules for x0 and
@@ -336,7 +336,7 @@ def mc_pair_rule(
     forward_map: Callable[[Array], Array],
     bkd: Backend[Array],
     seed: int = 0,
-) -> PairRule:
+) -> PairRule[Array]:
     """Monte Carlo (x0, x1) rule with independent draws.
 
     Draws x0 ~ N(0,1) and xi1 ~ N(0,1) independently, maps
@@ -364,10 +364,10 @@ def mc_pair_rule(
 
 
 def pushforward_pair_rule(
-    x0_rule: QuadRule1D,
+    x0_rule: QuadRule1D[Array],
     forward_map: Callable[[Array], Array],
     bkd: Backend[Array],
-) -> PairRule:
+) -> PairRule[Array]:
     """Paired (x0, x1) rule with pushforward coupling x1 = F(x0).
 
     This is the original approach: a single 1D rule for x0, with
@@ -393,8 +393,8 @@ def pushforward_pair_rule(
 
 
 def build_independent_quad_data(
-    t_rule: QuadRule1D,
-    pair_rule: PairRule,
+    t_rule: QuadRule1D[Array],
+    pair_rule: PairRule[Array],
     n_t: int,
     n_pairs: int,
     bkd: Backend[Array],

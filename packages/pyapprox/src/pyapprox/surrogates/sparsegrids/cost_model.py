@@ -6,7 +6,7 @@ used by CostWeightedIndicator to normalize error indicators.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Generic, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from pyapprox.surrogates.sparsegrids.model_factory import (
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     )
 
 from pyapprox.surrogates.sparsegrids.candidate_info import ConfigIdx
+from pyapprox.util.backends.protocols import Array
 
 
 @runtime_checkable
@@ -74,7 +75,7 @@ class ExponentialConfigCostModel:
         return f"ExponentialConfigCostModel(base={self._base})"
 
 
-class MeasuredCostModel:
+class MeasuredCostModel(Generic[Array]):
     """Cost model that reads measured wall times from a TimedModelFactory.
 
     Returns median per-sample time for configs that have been evaluated.
@@ -86,7 +87,7 @@ class MeasuredCostModel:
         Timed model factory whose per-config timers provide cost data.
     """
 
-    def __init__(self, timed_factory: TimedModelFactory) -> None:
+    def __init__(self, timed_factory: TimedModelFactory[Array]) -> None:
         self._timed_factory = timed_factory
 
     def __call__(self, config_idx: ConfigIdx) -> float:

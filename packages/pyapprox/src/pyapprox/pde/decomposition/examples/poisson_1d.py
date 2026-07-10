@@ -16,8 +16,9 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
+import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
@@ -55,12 +56,14 @@ def create_poisson_1d_problem(
     bkd = NumpyBkd()
 
     # Manufactured solution: u(x) = sin(pi*x)
-    def exact_solution(x: NDArray) -> NDArray:
+    def exact_solution(
+        x: NDArray[np.floating[Any]],
+    ) -> NDArray[np.floating[Any]]:
         return bkd.sin(math.pi * x)
 
     def forcing(
         time: float,
-    ) -> "Callable[[NDArray], NDArray]":
+    ) -> Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]:
         # For -u'' = f, with u = sin(pi*x), f = pi^2 * sin(pi*x)
         # But ADR residual is du/dt = D*laplacian(u) + f
         # For steady state: 0 = D*laplacian(u) + f => f = -D*laplacian(u)

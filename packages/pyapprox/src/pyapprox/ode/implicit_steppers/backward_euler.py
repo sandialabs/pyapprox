@@ -95,7 +95,7 @@ class BackwardEulerStepper(
 
     # -- QuadratureMixin --
 
-    def quadrature_samples_weights(self, times: Array) -> tuple:
+    def quadrature_samples_weights(self, times: Array) -> tuple[Array, Array]:
         """Right-constant quadrature (right endpoints, interval widths)."""
         return times[1:], self._bkd.diff(times)
 

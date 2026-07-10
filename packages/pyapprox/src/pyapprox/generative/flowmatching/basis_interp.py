@@ -99,3 +99,9 @@ class IdentityInterpolator(Generic[Array]):
         if self._states is None:
             return 0
         return len(self._states)
+
+    def states(self) -> list[StieltjesBasisState[Array]]:
+        """Return the fitted basis states, one per time value."""
+        if self._states is None:
+            raise RuntimeError("IdentityInterpolator has not been fitted")
+        return self._states

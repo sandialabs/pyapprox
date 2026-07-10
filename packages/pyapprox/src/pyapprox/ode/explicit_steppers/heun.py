@@ -117,7 +117,7 @@ class HeunStepper(
 
     # -- QuadratureMixin --
 
-    def quadrature_samples_weights(self, times: Array) -> tuple:
+    def quadrature_samples_weights(self, times: Array) -> tuple[Array, Array]:
         """Trapezoidal quadrature (nodes, trapezoidal weights)."""
         weights = self._bkd.zeros(times.shape)
         for ii in range(times.shape[0]):

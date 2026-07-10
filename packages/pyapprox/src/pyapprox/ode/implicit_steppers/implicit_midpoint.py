@@ -118,7 +118,7 @@ class ImplicitMidpointStepper(
 
     # -- QuadratureMixin --
 
-    def quadrature_samples_weights(self, times: Array) -> tuple:
+    def quadrature_samples_weights(self, times: Array) -> tuple[Array, Array]:
         """Midpoint quadrature (interval midpoints, interval widths)."""
         return (times[:-1] + times[1:]) / 2, self._bkd.diff(times)
 

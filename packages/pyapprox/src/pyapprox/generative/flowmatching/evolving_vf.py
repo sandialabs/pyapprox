@@ -60,7 +60,7 @@ class CoefficientStrategy(Protocol[Array]):
 
     def fit(
         self,
-        interpolator: BasisInterpolator,
+        interpolator: BasisInterpolator[Array],
         samples: Array,
         values: Array,
         bkd: Backend[Array],
@@ -99,7 +99,7 @@ class PerSliceStrategy(Generic[Array]):
 
     def fit(
         self,
-        interpolator: BasisInterpolator,
+        interpolator: BasisInterpolator[Array],
         samples: Array,
         values: Array,
         bkd: Backend[Array],
@@ -235,7 +235,7 @@ class KroneckerStrategy(Generic[Array]):
 
     def basis_matrix(
         self,
-        interpolator: BasisInterpolator,
+        interpolator: BasisInterpolator[Array],
         vf_input: Array,
         bkd: Backend[Array],
     ) -> Array:
@@ -271,7 +271,7 @@ class KroneckerStrategy(Generic[Array]):
 
     def fit(
         self,
-        interpolator: BasisInterpolator,
+        interpolator: BasisInterpolator[Array],
         samples: Array,
         values: Array,
         bkd: Backend[Array],
@@ -365,8 +365,8 @@ class StieltjesFlowVF(Generic[Array]):
 
     def __init__(
         self,
-        interpolator: BasisInterpolator,
-        strategy: CoefficientStrategyType,
+        interpolator: BasisInterpolator[Array],
+        strategy: CoefficientStrategyType[Array],
         nqoi: int,
         bkd: Backend[Array],
     ) -> None:
@@ -374,7 +374,7 @@ class StieltjesFlowVF(Generic[Array]):
         self._strategy = strategy
         self._nqoi = nqoi
         self._bkd = bkd
-        self._n_basis = interpolator._states[0].n_basis()
+        self._n_basis = interpolator.states()[0].n_basis()
 
         # For backward compat: track n_total and coef for Kronecker
         if isinstance(strategy, KroneckerStrategy):
@@ -384,7 +384,7 @@ class StieltjesFlowVF(Generic[Array]):
             self._n_total = self._n_basis
 
         self._coef: Array = bkd.zeros((self._n_total, nqoi))
-        self._hyp_list: Optional[HyperParameterList] = None
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -444,7 +444,7 @@ class StieltjesFlowVF(Generic[Array]):
         if self._hyp_list is not None:
             self._hyp_list.set_values(self._bkd.flatten(coef))
 
-    def hyp_list(self) -> HyperParameterList:
+    def hyp_list(self) -> HyperParameterList[Array]:
         """Return hyperparameter list for coefficient optimization.
 
         Only meaningful for KroneckerStrategy.
@@ -748,11 +748,11 @@ def build_stieltjes_flow_vf(
 
     t_arr = bkd.asarray(t_vals_list)
 
-    interp: BasisInterpolator = IdentityInterpolator(bkd)
+    interp: BasisInterpolator[Array] = IdentityInterpolator(bkd)
     interp.fit(t_arr, states)
 
     if per_slice:
-        strategy: CoefficientStrategyType = PerSliceStrategy(bkd)
+        strategy: CoefficientStrategyType[Array] = PerSliceStrategy(bkd)
     else:
         strategy = KroneckerStrategy(bkd, n_legendre)
 

@@ -5,8 +5,9 @@ with parallel batch execution capabilities, and a make_parallel
 convenience function.
 """
 
-from typing import Generic, Optional, Union
+from typing import Any, Generic, Optional, Union
 
+import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.interface.parallel.batch_utils import BatchSplitter
@@ -283,8 +284,9 @@ class ParallelFunctionWrapper(Generic[Array]):
         weights_np = transfer.to_numpy(weights)
 
         def whvp_with_weights(
-            sample_np: NDArray, vec_np: NDArray,
-        ) -> NDArray:
+            sample_np: NDArray[np.floating[Any]],
+            vec_np: NDArray[np.floating[Any]],
+        ) -> NDArray[np.floating[Any]]:
             sample = transfer.from_numpy(sample_np)
             vec = transfer.from_numpy(vec_np)
             w = transfer.from_numpy(weights_np)

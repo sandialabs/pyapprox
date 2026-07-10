@@ -7,7 +7,7 @@ IndependentJoint.  Internally flattens to a single IndependentJoint but
 tracks group boundaries for slicing.
 """
 
-from typing import Generic, List, Sequence
+from typing import Generic, List, Sequence, Union
 
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.protocols.distribution import MarginalProtocol
@@ -56,11 +56,15 @@ class GroupIndependentJoint(Generic[Array]):
 
     def __init__(
         self,
-        groups: Sequence,
+        groups: Sequence[
+            Union[MarginalProtocol[Array], IndependentJoint[Array]]
+        ],
         bkd: Backend[Array],
     ) -> None:
         self._bkd = bkd
-        self._groups: List = []
+        self._groups: List[
+            Union[MarginalProtocol[Array], IndependentJoint[Array]]
+        ] = []
         flat: List[MarginalProtocol[Array]] = []
         slices: List[slice] = []
         offset = 0

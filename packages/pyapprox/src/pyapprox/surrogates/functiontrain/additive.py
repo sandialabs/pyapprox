@@ -91,7 +91,7 @@ class ConstantExpansion(Generic[Array]):
         nsamples = samples.shape[1]
         return self._bkd.ones((nsamples, 1))
 
-    def with_params(self, params: Array) -> "ConstantExpansion":
+    def with_params(self, params: Array) -> "ConstantExpansion[Array]":
         """Return same constant (no parameters to change)."""
         return ConstantExpansion(self._value, self._bkd, self._nqoi)
 
@@ -198,7 +198,7 @@ def create_additive_functiontrain(
             )
 
     # Helper to create constant expansions
-    def const(value: float) -> ConstantExpansion:
+    def const(value: float) -> ConstantExpansion[Array]:
         return ConstantExpansion(value, bkd, nqoi)
 
     cores: List[FunctionTrainCore[Array]] = []

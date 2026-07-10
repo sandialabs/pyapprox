@@ -5,8 +5,9 @@ Provides a parallelized version of DiagonalGaussianLogLikelihood
 that uses parallel processing when nprocs > 1.
 """
 
-from typing import Generic, Optional
+from typing import Any, Generic, Optional
 
+import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.probability.likelihood.gaussian import (
@@ -139,7 +140,9 @@ class ParallelDiagonalGaussianLogLikelihood(
         model_outputs_np = transfer.to_numpy(model_outputs)
 
         # Closure that captures model_outputs for parallel execution
-        def eval_chunk(obs_chunk_np: NDArray) -> NDArray:
+        def eval_chunk(
+            obs_chunk_np: NDArray[np.floating[Any]],
+        ) -> NDArray[np.floating[Any]]:
             obs_chunk = transfer.from_numpy(obs_chunk_np)
             model = transfer.from_numpy(model_outputs_np)
             result = self._logpdf_vectorized_serial(model, obs_chunk)
