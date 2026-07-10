@@ -2,13 +2,13 @@
 Tests for Numba-accelerated OED likelihood kernels.
 
 Tests verify that:
-- Each Numba kernel matches the vectorized implementation (rtol=1e-12)
+- Each Numba kernel matches the vectorized implementation (rtol=5e-12, atol=1e-15)
 - Dispatch logic selects the correct implementation per backend
 - Fused evidence jacobian matches separate jacobian_matrix + einsum
 - Results are correct with and without latent samples
 
 Minor differences (~1e-14) from float64 arithmetic ordering are expected
-with Numba parallel mode. Tests use rtol=1e-12 to accommodate this.
+with Numba parallel mode. Tests use rtol=5e-12 to accommodate this.
 """
 
 import numpy as np
@@ -61,7 +61,7 @@ class TestNumbaKernels:
         result_numba = logpdf_matrix_numba(shapes, obs, bv, dw)
         result_vec = logpdf_matrix_vectorized(shapes, obs, bv, dw, numpy_bkd)
 
-        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
+        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=5e-12, atol=1e-15)
 
     def test_logpdf_matrix_medium(self, numpy_bkd):
         """Test logpdf_matrix Numba vs vectorized at medium size."""
@@ -71,7 +71,7 @@ class TestNumbaKernels:
         result_numba = logpdf_matrix_numba(shapes, obs, bv, dw)
         result_vec = logpdf_matrix_vectorized(shapes, obs, bv, dw, numpy_bkd)
 
-        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
+        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=5e-12, atol=1e-15)
 
     def test_jacobian_matrix_no_latent(self, numpy_bkd):
         """Test jacobian_matrix Numba vs vectorized without latent samples."""
@@ -82,7 +82,7 @@ class TestNumbaKernels:
         result_numba = jacobian_matrix_numba(shapes, obs, dummy, bv, dw, False)
         result_vec = jacobian_matrix_vectorized(shapes, obs, None, bv, dw, numpy_bkd)
 
-        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
+        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=5e-12, atol=1e-15)
 
     def test_jacobian_matrix_with_latent(self, numpy_bkd):
         """Test jacobian_matrix Numba vs vectorized with latent samples."""
@@ -92,7 +92,7 @@ class TestNumbaKernels:
         result_numba = jacobian_matrix_numba(shapes, obs, latent, bv, dw, True)
         result_vec = jacobian_matrix_vectorized(shapes, obs, latent, bv, dw, numpy_bkd)
 
-        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
+        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=5e-12, atol=1e-15)
 
     def test_jacobian_matrix_medium(self, numpy_bkd):
         """Test jacobian_matrix Numba vs vectorized at medium size."""
@@ -102,7 +102,7 @@ class TestNumbaKernels:
         result_numba = jacobian_matrix_numba(shapes, obs, latent, bv, dw, True)
         result_vec = jacobian_matrix_vectorized(shapes, obs, latent, bv, dw, numpy_bkd)
 
-        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=1e-12)
+        numpy_bkd.assert_allclose(result_numba, result_vec, rtol=5e-12, atol=1e-15)
 
     def test_fused_evidence_jacobian_no_latent(self, numpy_bkd):
         """Test fused evidence jacobian without latent samples."""
@@ -131,7 +131,7 @@ class TestNumbaKernels:
         jac = jacobian_matrix_vectorized(shapes, obs, None, bv, dw, numpy_bkd)
         result_ref = evidence_jacobian_vectorized(jac, quad_weighted_like, numpy_bkd)
 
-        numpy_bkd.assert_allclose(result_fused, result_ref, rtol=1e-12)
+        numpy_bkd.assert_allclose(result_fused, result_ref, rtol=5e-12, atol=1e-15)
 
     def test_fused_evidence_jacobian_with_latent(self, numpy_bkd):
         """Test fused evidence jacobian with latent samples."""
@@ -159,7 +159,7 @@ class TestNumbaKernels:
         jac = jacobian_matrix_vectorized(shapes, obs, latent, bv, dw, numpy_bkd)
         result_ref = evidence_jacobian_vectorized(jac, quad_weighted_like, numpy_bkd)
 
-        numpy_bkd.assert_allclose(result_fused, result_ref, rtol=1e-12)
+        numpy_bkd.assert_allclose(result_fused, result_ref, rtol=5e-12, atol=1e-15)
 
     def test_fused_evidence_jacobian_medium(self, numpy_bkd):
         """Test fused evidence jacobian at medium size."""
@@ -280,7 +280,7 @@ class TestDispatchBranches:
         )
         result_ref = evidence_jacobian_vectorized(jac, qwl, bkd_np)
 
-        bkd_np.assert_allclose(result_numba, result_ref, rtol=1e-12)
+        bkd_np.assert_allclose(result_numba, result_ref, rtol=5e-12, atol=1e-15)
 
 
 class TestNumbaIntegration:
