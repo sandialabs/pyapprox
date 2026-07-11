@@ -22,6 +22,11 @@ import sys
 
 import numpy as np
 import pytest
+from pyapprox.util.optional_deps import package_available
+
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.collocation.manufactured_solutions.burgers import (
     ManufacturedBurgers1D,
