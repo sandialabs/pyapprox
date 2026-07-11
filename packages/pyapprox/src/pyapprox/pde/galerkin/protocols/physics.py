@@ -16,10 +16,16 @@ from typing import (  # noqa: F401
     Optional,
     Protocol,
     Tuple,
+    TypeVar,
     runtime_checkable,
 )
 
 from pyapprox.util.backends.protocols import Array, Backend
+
+# ParameterizationProtocol consumes arrays (argument position only), so
+# its type variable must be contravariant: a parameterization accepting
+# any Array works where one accepting a specific Array is expected.
+Array_contra = TypeVar("Array_contra", contravariant=True)
 
 
 @runtime_checkable
@@ -201,7 +207,7 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class ParameterizationProtocol(Protocol, Generic[Array]):
+class ParameterizationProtocol(Protocol, Generic[Array_contra]):
     """Minimal interface for physics parameterizations.
 
     Maps a parameter vector to physics inputs. Implementations live in
@@ -211,4 +217,4 @@ class ParameterizationProtocol(Protocol, Generic[Array]):
 
     def nparams(self) -> int: ...
 
-    def apply(self, physics: object, params_1d: Array) -> None: ...
+    def apply(self, physics: object, params_1d: Array_contra) -> None: ...

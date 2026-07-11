@@ -6,18 +6,19 @@ Galerkin finite element methods with various time integration methods.
 Analogous to CollocationModel but for weak-form (Galerkin) physics.
 """
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 import numpy as np
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.explicit_steppers import (
-    ForwardEulerHVP,
-    HeunHVP,
+    ForwardEulerStepper,
+    HeunStepper,
 )
 from pyapprox.ode.implicit_steppers import (
-    BackwardEulerHVP,
-    CrankNicolsonHVP,
+    BackwardEulerStepper,
+    CrankNicolsonStepper,
+    ImplicitMidpointStepper,
 )
 from pyapprox.ode.protocols.time_stepping import TimeSteppingResidualProtocol
 from pyapprox.ode.step_context import StepContext
@@ -37,11 +38,15 @@ from pyapprox.pde.galerkin.time_integration.physics_adapter import (
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
+# Forward solves need only the base stepper tier (bind/__call__/
+# jacobian); the Adjoint/HVP tiers require param-jacobian and HVP
+# capable residuals the plain physics adapter does not provide.
 _STEPPER_MAP = {
-    "forward_euler": ForwardEulerHVP,
-    "backward_euler": BackwardEulerHVP,
-    "crank_nicolson": CrankNicolsonHVP,
-    "heun": HeunHVP,
+    "forward_euler": ForwardEulerStepper,
+    "backward_euler": BackwardEulerStepper,
+    "crank_nicolson": CrankNicolsonStepper,
+    "heun": HeunStepper,
+    "implicit_midpoint": ImplicitMidpointStepper,
 }
 
 
@@ -161,7 +166,7 @@ class GalerkinModel(Generic[Array]):
         """
         bkd = self._bkd
 
-        stepper, constrained, is_explicit = self._create_stepper(config)
+        stepper, constrained = self._create_stepper(config)
 
         # Build time grid
         times_list = [config.init_time]
@@ -181,7 +186,8 @@ class GalerkinModel(Generic[Array]):
         state = bkd.copy(initial_condition)
 
         # Setup Newton solver for implicit methods
-        if not is_explicit:
+        newton: Optional[NewtonSolver[Array]] = None
+        if constrained is not None:
             newton = NewtonSolver(constrained)
             newton.set_options(
                 maxiters=config.newton_maxiter,
@@ -193,7 +199,7 @@ class GalerkinModel(Generic[Array]):
             t_n = float(times[ii])
             dt = float(times[ii + 1] - times[ii])
 
-            if is_explicit:
+            if constrained is None or newton is None:
                 ctx = StepContext(t_prev=t_n, deltat=dt, y_prev=state)
                 stepper.bind(ctx)
                 state = state - stepper(state)
@@ -250,7 +256,12 @@ class GalerkinModel(Generic[Array]):
             state = bkd.asarray(state_np.astype(np.float64))
         return state
 
-    def _create_stepper(self, config: TimeIntegrationConfig) -> object:
+    def _create_stepper(
+        self, config: TimeIntegrationConfig
+    ) -> Tuple[
+        TimeSteppingResidualProtocol[Array],
+        Optional[ConstrainedTimeStepResidual[Array]],
+    ]:
         """Create a time stepping residual for the given method.
 
         For explicit methods, uses GalerkinExplicitODEAdapter (BC-clean).
@@ -264,13 +275,12 @@ class GalerkinModel(Generic[Array]):
 
         Returns
         -------
-        Tuple[TimeSteppingResidualBase, ConstrainedTimeStepResidual or None, bool]
-            stepper : TimeSteppingResidualBase
+        Tuple[TimeSteppingResidualProtocol, ConstrainedTimeStepResidual or None]
+            stepper : TimeSteppingResidualProtocol
                 The time stepping residual.
             constrained : ConstrainedTimeStepResidual or None
-                The constrained wrapper (None for explicit).
-            is_explicit : bool
-                Whether the method is explicit.
+                The constrained Newton-facing wrapper (None for
+                explicit methods, which need no Newton solve).
         """
         method = config.method
         if method not in _STEPPER_MAP:
@@ -279,19 +289,29 @@ class GalerkinModel(Generic[Array]):
                 f"Supported: {list(_STEPPER_MAP.keys())}"
             )
 
-        stepper_cls = _STEPPER_MAP[method]
-        is_explicit = method in ("forward_euler", "heun")
-
-        if is_explicit:
+        stepper: TimeSteppingResidualProtocol[Array]
+        if method in ("forward_euler", "heun"):
             lumped = getattr(config, "lumped_mass", False)
-            adapter = GalerkinExplicitODEAdapter(self._physics, lumped_mass=lumped)
-            return stepper_cls(adapter), None, is_explicit
-        else:
-            stepper: TimeSteppingResidualProtocol[Array] = stepper_cls(self._adapter)
-            constrained: ConstrainedTimeStepResidual[Array] = (
-                ConstrainedTimeStepResidual(stepper, self._adapter)
+            explicit_adapter = GalerkinExplicitODEAdapter(
+                self._physics, lumped_mass=lumped
             )
-            return stepper, constrained, is_explicit
+            stepper = (
+                ForwardEulerStepper(explicit_adapter)
+                if method == "forward_euler"
+                else HeunStepper(explicit_adapter)
+            )
+            return stepper, None
+
+        if method == "backward_euler":
+            stepper = BackwardEulerStepper(self._adapter)
+        elif method == "crank_nicolson":
+            stepper = CrankNicolsonStepper(self._adapter)
+        else:  # implicit_midpoint (membership checked against the map)
+            stepper = ImplicitMidpointStepper(self._adapter)
+        # ConstrainedTimeStepResidual only needs dirichlet_dof_info,
+        # which the ODE adapter forwards verbatim from the physics, so
+        # pass the physics directly.
+        return stepper, ConstrainedTimeStepResidual(stepper, self._physics)
 
     def __repr__(self) -> str:
         return (

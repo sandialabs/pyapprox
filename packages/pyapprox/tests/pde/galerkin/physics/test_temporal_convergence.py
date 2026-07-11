@@ -1,8 +1,9 @@
 """Temporal convergence rate tests for Galerkin FEM time integration.
 
-Verifies expected convergence rates for all 4 time stepping methods:
+Verifies expected convergence rates for all 5 time stepping methods:
 - Backward Euler: O(dt) — first order
 - Crank-Nicolson: O(dt^2) — second order
+- Implicit midpoint: O(dt^2) — second order
 - Forward Euler: O(dt) — first order
 - Heun (RK2): O(dt^2) — second order
 
@@ -131,6 +132,7 @@ def _setup_physics_and_model(
 IMPLICIT_CONVERGENCE_CASES = [
     ("backward_euler", 1.0),
     ("crank_nicolson", 2.0),
+    ("implicit_midpoint", 2.0),
 ]
 
 # Explicit methods: dt must satisfy CFL

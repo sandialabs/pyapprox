@@ -19,6 +19,9 @@ class TimeIntegrationConfig:
         - "backward_euler": Implicit first-order (A-stable)
         - "crank_nicolson": Implicit second-order
         - "heun": Explicit second-order (RK2)
+        - "implicit_midpoint": Implicit second-order (A-stable,
+          symplectic; conserves a modified energy for nonlinear
+          Hamiltonian systems, where Crank-Nicolson drifts)
     init_time : float
         Initial time. Default: 0.0
     final_time : float
@@ -33,9 +36,13 @@ class TimeIntegrationConfig:
         Verbosity level. Default: 0
     """
 
-    method: Literal["forward_euler", "backward_euler", "crank_nicolson", "heun"] = (
-        "backward_euler"
-    )
+    method: Literal[
+        "forward_euler",
+        "backward_euler",
+        "crank_nicolson",
+        "heun",
+        "implicit_midpoint",
+    ] = "backward_euler"
     init_time: float = 0.0
     final_time: float = 1.0
     deltat: float = 0.01

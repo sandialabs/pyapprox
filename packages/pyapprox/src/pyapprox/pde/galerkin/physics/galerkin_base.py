@@ -2,9 +2,10 @@
 
 Inherits GalerkinBCMixin for BC dispatch and provides constructor,
 accessors, and Dirichlet-wrapped residual/jacobian. Subclasses implement
-spatial_residual() and spatial_jacobian().
+the abstract spatial_residual() and spatial_jacobian().
 """
 
+from abc import ABC, abstractmethod
 from typing import Generic, List, Optional
 
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
@@ -15,7 +16,7 @@ from pyapprox.pde.galerkin.protocols.boundary import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class GalerkinPhysicsBase(GalerkinBCMixin[Array], Generic[Array]):
+class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
     """Base class for Galerkin physics with a single basis.
 
     Provides:
@@ -25,7 +26,7 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], Generic[Array]):
       ``spatial_residual()`` and ``spatial_jacobian()`` with Dirichlet
       row replacement from the mixin
 
-    Subclasses must implement:
+    Subclasses must implement the abstract methods:
     - ``spatial_residual(state, time) -> Array``
     - ``spatial_jacobian(state, time) -> Array``
 
@@ -55,6 +56,40 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], Generic[Array]):
     def nstates(self) -> int:
         """Return total number of DOFs."""
         return self._basis.ndofs()
+
+    @abstractmethod
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute residual without Dirichlet enforcement.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Spatial residual. Shape: (nstates,)
+        """
+
+    @abstractmethod
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF/du without Dirichlet enforcement.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Jacobian dF/du. Shape: (nstates, nstates)
+        """
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute residual F(u, t) with Dirichlet BCs applied.

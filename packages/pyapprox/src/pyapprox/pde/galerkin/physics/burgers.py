@@ -109,7 +109,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
             ret2: NDArray[np.floating[Any]] = self._forcing(coords)
             return ret2
 
-    def mass_matrix(self) -> object:
+    def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
         return self._mass.mass_matrix()
 
@@ -129,17 +129,18 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         state_np = self._bkd.to_numpy(state)
         state_interp = skfem_basis.interpolate(state_np)
 
-        visc_const = self._viscosity if not callable(self._viscosity) else None
+        viscosity = self._viscosity
 
         def bilinear_form(
             u: "DiscreteField",
             v: "DiscreteField",
             w: "FormExtraParams",
         ) -> np.ndarray:
-            if visc_const is not None:
-                visc = visc_const
-            else:
-                visc = self._viscosity(np.asarray(w.x))
+            visc = (
+                viscosity(np.asarray(w.x))
+                if callable(viscosity)
+                else viscosity
+            )
             ret: NDArray[np.floating[Any]] = (
                 dot(visc * grad(u), grad(v))
                 + v * w.u_prev * u.grad[0]
@@ -147,7 +148,10 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
             )
             return ret
 
-        return asm(BilinearForm(bilinear_form), skfem_basis, u_prev=state_interp)
+        stiffness: Array = asm(
+            BilinearForm(bilinear_form), skfem_basis, u_prev=state_interp
+        )
+        return stiffness
 
     def _assemble_load(self, state: Array, time: float) -> Array:
         """Assemble Newton-linearized load vector.
@@ -161,14 +165,15 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         state_np = self._bkd.to_numpy(state)
         state_interp = skfem_basis.interpolate(state_np)
 
-        visc_const = self._viscosity if not callable(self._viscosity) else None
+        viscosity = self._viscosity
         current_time = time
 
         def linear_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            if visc_const is not None:
-                visc = visc_const
-            else:
-                visc = self._viscosity(np.asarray(w.x))
+            visc = (
+                viscosity(np.asarray(w.x))
+                if callable(viscosity)
+                else viscosity
+            )
 
             x_np = np.asarray(w.x)
             x_shape = x_np.shape

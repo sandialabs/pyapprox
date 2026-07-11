@@ -729,12 +729,12 @@ class BoundaryConditionSet(Generic[Array]):
         res = residual
 
         # Apply Dirichlet BCs
-        for bc in self._dirichlet_bcs:
-            res = bc.apply_to_residual(res, state, time)
+        for dirichlet_bc in self._dirichlet_bcs:
+            res = dirichlet_bc.apply_to_residual(res, state, time)
 
         # Apply Robin BCs
-        for bc in self._robin_bcs:
-            res = bc.apply_to_residual(res, state, time)
+        for robin_bc in self._robin_bcs:
+            res = robin_bc.apply_to_residual(res, state, time)
 
         return res
 
@@ -743,24 +743,24 @@ class BoundaryConditionSet(Generic[Array]):
         jac = jacobian
 
         # Apply Robin BCs (they modify interior of Jacobian)
-        for bc in self._robin_bcs:
-            jac = bc.apply_to_jacobian(jac, state, time)
+        for robin_bc in self._robin_bcs:
+            jac = robin_bc.apply_to_jacobian(jac, state, time)
 
         # Apply Dirichlet BCs (they replace rows)
-        for bc in self._dirichlet_bcs:
-            jac = bc.apply_to_jacobian(jac, state, time)
+        for dirichlet_bc in self._dirichlet_bcs:
+            jac = dirichlet_bc.apply_to_jacobian(jac, state, time)
 
         return jac
 
     def apply_to_load(self, load: Array, time: float) -> Array:
         """Apply all boundary conditions to load vector."""
         # Apply Neumann BCs
-        for bc in self._neumann_bcs:
-            load = bc.apply_to_load(load, time)
+        for neumann_bc in self._neumann_bcs:
+            load = neumann_bc.apply_to_load(load, time)
 
         # Apply Robin BCs
-        for bc in self._robin_bcs:
-            load = bc.apply_to_load(load, time)
+        for robin_bc in self._robin_bcs:
+            load = robin_bc.apply_to_load(load, time)
 
         return load
 
