@@ -14,6 +14,7 @@ try:
     from skfem import (
         MeshHex,
         MeshLine,
+        MeshLine1DG,
         MeshQuad,
         MeshTet,  # noqa: F401
         MeshTri,  # noqa: F401
@@ -157,6 +158,120 @@ class StructuredMesh1D(Generic[Array]):
 
     def __repr__(self) -> str:
         return f"StructuredMesh1D(nx={self._nx}, bounds={self._bounds_tuple})"
+
+
+class PeriodicStructuredMesh1D(Generic[Array]):
+    """Structured 1D mesh with PERIODIC topology (endpoints identified).
+
+    Wraps ``skfem.MeshLine1DG.periodic``: the right endpoint is
+    identified with the left at the topology level, so a standard
+    continuous Lagrange basis on this mesh automatically satisfies the
+    periodicity -- no boundary-condition objects are involved, the mass
+    matrix is full rank, and ``nnodes() == nx`` (not nx + 1).
+
+    Conventions and caveats:
+
+    - There are NO named boundaries: ``boundary_nodes`` raises.
+      Physics built on this mesh must pass ``boundary_conditions=None``
+      (``dirichlet_dof_info`` then returns empty arrays and the
+      transient drivers proceed without constraint handling).
+    - ``nodes()`` reports the canonical fundamental-domain coordinates
+      ``xmin, xmin+h, ..., xmax-h``; the identified node's coordinate
+      is reported as ``xmin`` although it equally represents ``xmax``.
+      Functions interpolated onto the mesh (initial conditions,
+      coefficients) must therefore be periodic-compatible:
+      ``f(xmin) == f(xmax)``.
+    - ``skfem`` cannot locate arbitrary points on DG meshes
+      (``element_finder`` is unimplemented), so basis ``evaluate`` at
+      off-node points is unsupported; all reduced-order-model work is
+      in dof space and does not need it.
+
+    Parameters
+    ----------
+    nx : int
+        Number of elements (== number of nodes after identification).
+    bounds : Tuple[float, float]
+        Domain bounds (xmin, xmax); the points are identified.
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        nx: int,
+        bounds: Tuple[float, float],
+        bkd: Backend[Array],
+    ):
+        self._bkd = bkd
+        self._nx = nx
+        self._bounds_tuple = bounds
+
+        xmin, xmax = bounds
+        nodes = np.linspace(xmin, xmax, nx + 1)
+        # identify the right endpoint (index nx) with the left (index 0)
+        self._skfem_mesh = MeshLine1DG.periodic(MeshLine(nodes), [nx], [0])
+
+        self._nodes = bkd.asarray(
+            nodes[:-1].reshape(1, nx).astype(np.float64)
+        )
+        self._bounds = bkd.asarray(np.array([[xmin, xmax]], dtype=np.float64))
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def ndim(self) -> int:
+        """Return spatial dimension."""
+        return 1
+
+    def nelements(self) -> int:
+        """Return total number of mesh elements."""
+        return self._nx
+
+    def nnodes(self) -> int:
+        """Return total number of mesh nodes (endpoints identified)."""
+        return self._nx
+
+    def nodes(self) -> Array:
+        """Canonical node coordinates. Shape: (1, nnodes).
+
+        The identified node is reported at ``xmin`` (== ``xmax``).
+        """
+        return self._nodes
+
+    def elements(self) -> Array:
+        """Element connectivity over logical nodes. Shape: (2, nelements).
+
+        The last element wraps: its second node is node 0.
+        """
+        return self._bkd.asarray(
+            self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
+        )
+
+    def skfem_mesh(self) -> MeshLine1DG:
+        """Return the underlying periodic skfem mesh object."""
+        return self._skfem_mesh
+
+    def boundary_nodes(self, boundary_id: str) -> Array:
+        """A periodic mesh has no boundaries; always raises."""
+        raise ValueError(
+            "PeriodicStructuredMesh1D has no boundaries: the endpoints "
+            f"are identified (requested '{boundary_id}')."
+        )
+
+    def shape(self) -> Tuple[int]:
+        """Return grid shape (number of logical nodes)."""
+        return (self._nx,)
+
+    def bounds(self) -> Array:
+        """Return domain bounds. Shape: (1, 2)."""
+        return self._bounds
+
+    def __repr__(self) -> str:
+        return (
+            f"PeriodicStructuredMesh1D(nx={self._nx}, "
+            f"bounds={self._bounds_tuple})"
+        )
 
 
 class StructuredMesh2D(Generic[Array]):

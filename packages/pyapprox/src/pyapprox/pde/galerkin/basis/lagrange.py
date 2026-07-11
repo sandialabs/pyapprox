@@ -83,6 +83,12 @@ class LagrangeBasis(Generic[Array]):
         # Handle both old (MeshLine) and new (MeshLine1) naming conventions
         # Strip trailing digits from mesh type names
         base_type = mesh_type.rstrip("0123456789")
+        # Periodic meshes are skfem DG variants (e.g. MeshLine1DG from
+        # PeriodicStructuredMesh1D) that pair with the SAME continuous
+        # elements; normalize the trailing "DG" so the lookup below
+        # resolves them. Do not remove: periodic support depends on it.
+        if base_type.endswith("DG"):
+            base_type = base_type[:-2].rstrip("0123456789")
 
         element_map = {
             ("MeshLine", 1): ElementLineP1(),

@@ -9,6 +9,7 @@ if package_available("skfem"):
         ObstructedMesh2D,
     )
     from pyapprox.pde.galerkin.mesh.structured import (
+        PeriodicStructuredMesh1D,
         StructuredMesh1D,
         StructuredMesh2D,
         StructuredMesh3D,
@@ -18,6 +19,7 @@ if package_available("skfem"):
     )
 
     __all__ = [
+        "PeriodicStructuredMesh1D",
         "StructuredMesh1D",
         "StructuredMesh2D",
         "StructuredMesh3D",
