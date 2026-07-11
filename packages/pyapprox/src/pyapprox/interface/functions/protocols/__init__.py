@@ -30,9 +30,19 @@ from .jacobian import (
     FunctionWithJacobianProtocol,
     FunctionWithJVPProtocol,
 )
+from .objective import (
+    Function,
+    NonlinearConstraintProtocol,
+    ObjectiveProtocol,
+)
 
 __all__ = [
     "FunctionProtocol",
+    # Derivatives-bundle protocols (the convention going forward)
+    "ObjectiveProtocol",
+    "NonlinearConstraintProtocol",
+    "Function",
+    # Legacy capability-tier protocols (deprecated; removal planned)
     "FunctionWithJacobianProtocol",
     "FunctionWithJVPProtocol",
     "FunctionWithJacobianAndHVPProtocol",

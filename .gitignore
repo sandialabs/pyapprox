@@ -33,6 +33,9 @@ _fixup*.py
 # Ad-hoc scripts
 scripts/
 
+# Design spikes
+scratch/
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
