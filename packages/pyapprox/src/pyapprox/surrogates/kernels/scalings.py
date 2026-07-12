@@ -16,7 +16,12 @@ from typing import (
     runtime_checkable,
 )
 
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.surrogates.kernels.base import (
+    Kernel,
+    KernelInputHVP,
+    KernelInputJacobian,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameter,
@@ -570,3 +575,16 @@ class PolynomialScalingKernel(Kernel[Array]):
                 f"PolynomialScalingKernel(degree={self._scaling.degree()}, "
                 f"coeffs={[f'{c:.3f}' for c in coeffs]})"
             )
+
+    def param_derivatives(self) -> Derivatives[Array]:
+        """Analytic parameter jacobian and hvp (unconditional)."""
+        return Derivatives(
+            jacobian=self.jacobian_wrt_params, hvp=self.hvp_wrt_params
+        )
+
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Analytic input jacobian and hvp."""
+        return Derivatives(
+            jacobian=KernelInputJacobian(self, X2),
+            hvp=KernelInputHVP(self, X2),
+        )

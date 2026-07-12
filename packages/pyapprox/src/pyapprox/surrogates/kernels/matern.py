@@ -16,7 +16,12 @@ from typing import Tuple, cast
 
 import numpy as np
 
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.surrogates.kernels.base import (
+    Kernel,
+    KernelInputHVP,
+    KernelInputJacobian,
+)
 from pyapprox.surrogates.kernels.protocols import NumbaScalarKernelFn
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
@@ -191,6 +196,20 @@ class MaternKernel(Kernel[Array]):
         hvp_2d = term1 + term2
 
         return self._bkd.transpose(hvp_2d[:, None, :], (1, 2, 0))
+
+    def param_derivatives(self) -> Derivatives[Array]:
+        """Analytic parameter jacobian and hvp (unconditional)."""
+        return Derivatives(
+            jacobian=self.jacobian_wrt_params, hvp=self.hvp_wrt_params
+        )
+
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Analytic input jacobian and hvp (hvp supports n1=1 only, as
+        documented on ``hvp_wrt_x1``)."""
+        return Derivatives(
+            jacobian=KernelInputJacobian(self, X2),
+            hvp=KernelInputHVP(self, X2),
+        )
 
 
 class SquaredExponentialKernel(MaternKernel[Array]):

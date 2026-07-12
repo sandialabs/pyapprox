@@ -80,7 +80,9 @@ class TestKernelOnDimensions:
 
     def test_jacobian_wrt_params_delegates(self, bkd) -> None:
         self._setup_data(bkd)
-        jac_wrapped = self.wrapped.jacobian_wrt_params(self.X1)
+        wrapped_param_jac = self.wrapped.param_derivatives().jacobian
+        assert wrapped_param_jac is not None
+        jac_wrapped = wrapped_param_jac(self.X1)
         jac_inner = self.inner_kernel.jacobian_wrt_params(
             self.X1[self.dims, :]
         )

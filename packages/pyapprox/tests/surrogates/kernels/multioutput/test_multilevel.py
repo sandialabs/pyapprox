@@ -3,6 +3,9 @@ Tests for MultiLevelKernel with new scaling functions.
 """
 
 import numpy as np
+from pyapprox.surrogates.gaussianprocess.multioutput import (
+    MultiOutputGP,
+)
 import pytest
 import torch
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
@@ -392,10 +395,6 @@ class TestMultiLevelKernelOptimizeTorch:
 
     def test_optimize_hyperparameters(self):
         """Test hyperparameter optimization for multilevel kernel GP."""
-        from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
-            TorchMultiOutputGP,
-        )
-
         from pyapprox.surrogates.gaussianprocess.fitters import (
             MultiOutputGPMaximumLikelihoodFitter,
         )
@@ -426,7 +425,7 @@ class TestMultiLevelKernelOptimizeTorch:
             bkd.reshape(y1, (1, -1)),
         ]
 
-        gp = TorchMultiOutputGP(ml_kernel, nugget=1e-4)
+        gp = MultiOutputGP(ml_kernel, nugget=1e-4)
 
         # Fit with initial hyperparameters to get baseline NLL
         gp._fit_internal(X_list, y_train)

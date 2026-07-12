@@ -154,7 +154,7 @@ class OutputStandardScaler(Generic[Array]):
         """
         mean = bkd.mean(y, axis=1)  # (nqoi,)
         std = bkd.std(y, axis=1)  # (nqoi,)
-        std = bkd.where(std == 0.0, bkd.ones_like(std), std)
+        std = bkd.where(bkd.equal(std, 0.0), bkd.ones_like(std), std)
         return OutputStandardScaler(mean, std, bkd)
 
     def __repr__(self) -> str:

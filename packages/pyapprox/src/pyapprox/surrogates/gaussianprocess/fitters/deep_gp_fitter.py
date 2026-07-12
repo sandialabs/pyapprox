@@ -32,54 +32,9 @@ from pyapprox.surrogates.gaussianprocess.deep_gp_loss import (
 from pyapprox.surrogates.gaussianprocess.fitters.results import (
     GPOptimizedFitResult,
 )
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
-
-
-def _is_torch(bkd: Backend[Array]) -> bool:
-    from pyapprox.util.backends.torch import TorchBkd
-
-    return isinstance(bkd, TorchBkd)
-
-
-def _bind_autograd_jacobian(
-    loss: DGPELBOLoss[Array],
-    bkd: Backend[Array],
-) -> None:
-    """Dynamically bind an autograd-based jacobian to a loss instance."""
-    _bkd_jacobian = getattr(bkd, "jacobian")
-
-    def _jacobian(params: Array) -> Array:
-        if len(params.shape) == 2 and params.shape[1] == 1:
-            params = params[:, 0]
-
-        def loss_scalar(p: Array) -> Array:
-            return loss(p)[0, 0]
-
-        jac = _bkd_jacobian(loss_scalar, params)
-        return bkd.reshape(jac, (1, len(params)))
-
-    loss.jacobian = _jacobian  # type: ignore[attr-defined]
-
-
-def _bind_autograd_jacobian_single(
-    loss: SingleLayerELBOLoss[Array],
-    bkd: Backend[Array],
-) -> None:
-    """Dynamically bind an autograd-based jacobian to a single-layer loss."""
-    _bkd_jacobian = getattr(bkd, "jacobian")
-
-    def _jacobian(params: Array) -> Array:
-        if len(params.shape) == 2 and params.shape[1] == 1:
-            params = params[:, 0]
-
-        def loss_scalar(p: Array) -> Array:
-            return loss(p)[0, 0]
-
-        jac = _bkd_jacobian(loss_scalar, params)
-        return bkd.reshape(jac, (1, len(params)))
-
-    loss.jacobian = _jacobian  # type: ignore[attr-defined]
 
 
 def _init_variational_mean(
@@ -184,10 +139,10 @@ class DGPMaximumLikelihoodFitter(Generic[Array]):
         TypeError
             If the backend is not TorchBkd (autograd gradients required).
         """
-        if not _is_torch(self._bkd):
+        if not isinstance(self._bkd, AutodiffBackend):
             raise TypeError(
-                "DGP fitting requires TorchBkd for autograd gradients, "
-                f"got {type(self._bkd).__name__}"
+                "DGP fitting requires an autodiff-capable backend (e.g. "
+                f"TorchBkd) for gradients, got {type(self._bkd).__name__}"
             )
 
         clone = dgp._clone_unfitted()
@@ -210,7 +165,6 @@ class DGPMaximumLikelihoodFitter(Generic[Array]):
             )
 
         loss = DGPELBOLoss(clone, data, self._n_propagation)
-        _bind_autograd_jacobian(loss, self._bkd)
 
         bounds = clone.hyp_list().get_active_bounds()
 
@@ -376,10 +330,10 @@ class MFDGPSequentialFitter(Generic[Array]):
         TypeError
             If the backend is not TorchBkd (autograd gradients required).
         """
-        if not _is_torch(self._bkd):
+        if not isinstance(self._bkd, AutodiffBackend):
             raise TypeError(
-                "DGP fitting requires TorchBkd for autograd gradients, "
-                f"got {type(self._bkd).__name__}"
+                "DGP fitting requires an autodiff-capable backend (e.g. "
+                f"TorchBkd) for gradients, got {type(self._bkd).__name__}"
             )
 
         bkd = self._bkd
@@ -424,7 +378,6 @@ class MFDGPSequentialFitter(Generic[Array]):
                 continue
 
             loss = SingleLayerELBOLoss(layer, h, y_node)
-            _bind_autograd_jacobian_single(loss, bkd)
 
             optimizer: BindableOptimizerProtocol[Array]
             if self._optimizer is not None:

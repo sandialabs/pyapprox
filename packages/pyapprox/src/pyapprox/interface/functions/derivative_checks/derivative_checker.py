@@ -1,57 +1,51 @@
+"""Finite-difference checking of Derivatives-bundle capabilities.
+
+The checkers iterate whatever a function's bundle declares (via the
+migration shim ``as_derivatives``): jacobian/jvp are checked directly;
+hvp is checked as the derivative of the gradient; whvp as the derivative
+of the weighted gradient w^T f.
+"""
+
 from typing import (
     Generic,
     List,
     Optional,
-    Union,
 )
 
 from pyapprox.interface.functions.derivative_checks.base import (
     JVPChecker,
 )
 from pyapprox.interface.functions.derivative_checks.wrappers import (
-    BatchHessianProtocol,
-    BatchJacobianProtocol,
     FunctionWithJVP,
     FunctionWithJVPFromHVP,
     SingleSampleFromBatchHessian,
     SingleSampleFromBatchJacobian,
 )
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithHVPAndJacobianOrJVPProtocol,
-    FunctionWithJacobianAndWHVPProtocol,
-    function_has_hvp_and_jacobian_or_jvp,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianOrJVPProtocol,
-    function_has_jacobian_or_jvp,
-)
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DerivativeChecker(Generic[Array]):
-    def __init__(self, function: FunctionWithJacobianOrJVPProtocol[Array]):
-        self._validate_function(function)
+    def __init__(self, function: FunctionProtocol[Array]):
+        self._derivs = self._validate_function(function)
         self._fun = function
 
     def bkd(self) -> Backend[Array]:
         return self._fun.bkd()
 
     def _validate_function(
-        self,
-        function: Union[
-            FunctionWithJacobianOrJVPProtocol[Array],
-            FunctionWithHVPAndJacobianOrJVPProtocol[Array],
-            FunctionWithJacobianAndWHVPProtocol[Array],
-        ],
-    ) -> None:
-        if not function_has_hvp_and_jacobian_or_jvp(
-            function
-        ) and not function_has_jacobian_or_jvp(function):
+        self, function: FunctionProtocol[Array]
+    ) -> Derivatives[Array]:
+        derivs = as_derivatives(function)
+        if derivs.jacobian is None and derivs.jvp is None:
             raise ValueError(
-                "The provided function must satisfy either "
-                "'FunctionWithJacobianOrJVPProtocol. "
+                "The provided function must declare a jacobian or jvp in "
+                "its Derivatives bundle. "
                 f"Got an object of type {type(function).__name__}."
             )
+        return derivs
 
     def check_derivatives(
         self,
@@ -71,11 +65,9 @@ class DerivativeChecker(Generic[Array]):
             verbosity,
         )
         errors = [jacobian_checker.check(sample)]
-        if not function_has_hvp_and_jacobian_or_jvp(self._fun):
+        if self._derivs.hvp is None and self._derivs.whvp is None:
             return errors
-        # use cast because type checker cannot determine that
-        # self._fun is guaranteed to be this type if execution makes it here
-        if weights is None and not hasattr(self._fun, "hvp"):
+        if weights is None and self._derivs.hvp is None:
             weights = self.bkd().ones((self._fun.nqoi(), 1))
         hessian_checker = JVPChecker(
             FunctionWithJVPFromHVP(self._fun, weights),
@@ -93,16 +85,17 @@ class DerivativeChecker(Generic[Array]):
 
 
 class BatchDerivativeChecker(Generic[Array]):
-    """Check derivatives for functions with batch Jacobian/Hessian methods.
+    """Check derivatives for functions declaring batch capabilities.
 
-    This checker validates batch derivative methods (jacobian_batch, hessian_batch)
-    by wrapping them to expose single-sample interfaces and using DerivativeChecker
-    on each sample individually.
+    This checker validates batch derivative fields (jacobian_batch,
+    hessian_batch) by wrapping them to expose single-sample interfaces and
+    using DerivativeChecker on each sample individually.
 
     Parameters
     ----------
-    function : BatchJacobianProtocol[Array] or BatchHessianProtocol[Array]
-        Function with jacobian_batch (and optionally hessian_batch) method.
+    function : FunctionProtocol[Array]
+        Function whose Derivatives bundle declares jacobian_batch (and
+        optionally hessian_batch).
     samples : Array
         Samples at which to evaluate. Shape: (nvars, nsamples)
 
@@ -119,9 +112,10 @@ class BatchDerivativeChecker(Generic[Array]):
 
     def __init__(
         self,
-        function: Union[BatchJacobianProtocol[Array], BatchHessianProtocol[Array]],
+        function: FunctionProtocol[Array],
         samples: Array,
     ):
+        self._derivs = as_derivatives(function)
         self._fun = function
         self._samples = samples
 
@@ -193,15 +187,15 @@ class BatchDerivativeChecker(Generic[Array]):
         Array
             Finite difference errors. Shape: (nsamples, n_eps)
         """
-        if not hasattr(self._fun, "hessian_batch"):
+        if self._derivs.hessian_batch is None:
             raise ValueError(
-                "Function does not have hessian_batch method. "
-                f"Got {type(self._fun).__name__}."
+                "Function does not declare hessian_batch in its "
+                f"Derivatives bundle. Got {type(self._fun).__name__}."
             )
         all_errors = []
         nsamples = self._samples.shape[1]
         # Wrap to expose hessian from hessian_batch
-        wrapped = SingleSampleFromBatchHessian(self._fun)  # type: ignore
+        wrapped = SingleSampleFromBatchHessian(self._fun)
         for ii in range(nsamples):
             sample = self._samples[:, ii : ii + 1]  # (nvars, 1)
             checker: DerivativeChecker[Array] = DerivativeChecker(wrapped)
@@ -218,16 +212,16 @@ class BatchDerivativeChecker(Generic[Array]):
         relative: bool = True,
         verbosity: int = 0,
     ) -> List[Array]:
-        """Check all available batch derivative methods.
+        """Check all declared batch derivative fields.
 
         Returns
         -------
         List[Array]
             List of error arrays: [jacobian_batch_errors, hessian_batch_errors]
-            hessian_batch_errors only included if hessian_batch is available.
+            hessian_batch_errors only included if hessian_batch is declared.
         """
         errors = [self.check_jacobian_batch(fd_eps, direction, relative, verbosity)]
-        if hasattr(self._fun, "hessian_batch"):
+        if self._derivs.hessian_batch is not None:
             errors.append(
                 self.check_hessian_batch(fd_eps, direction, relative, verbosity)
             )

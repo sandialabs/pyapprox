@@ -5,7 +5,16 @@ This module provides mean function implementations for GP regression.
 Mean functions represent the prior mean m(x) before observing data.
 """
 
-from typing import Generic, List, Protocol, Tuple, runtime_checkable
+from typing import (
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
@@ -245,7 +254,9 @@ class ConstantMean(Generic[Array]):
         """
         n_points = X.shape[1]
         constant_value = self._constant.get_values()[0]
-        return self._bkd.full((1, n_points), constant_value)
+        # ones * value (not full) preserves the autograd graph through the
+        # hyperparameter
+        return self._bkd.ones((1, n_points)) * constant_value
 
     def hyp_list(self) -> HyperParameterList[Array]:
         """
@@ -304,7 +315,7 @@ class LinearMean(Generic[Array]):
         Number of input variables.
     bkd : Backend[Array]
         Backend for numerical operations.
-    weights_init : Optional list/array of floats
+    weights_init : Optional[Union[Sequence[float], Array]]
         Initial weights. Defaults to zeros.
     bias_init : float
         Initial bias. Default 0.0.
@@ -316,7 +327,7 @@ class LinearMean(Generic[Array]):
         self,
         nvars: int,
         bkd: Backend[Array],
-        weights_init: object = None,
+        weights_init: Optional[Union[Sequence[float], Array]] = None,
         bias_init: float = 0.0,
         bounds: Tuple[float, float] = (-1e6, 1e6),
     ):

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Generic, List
 
-from pyapprox.surrogates.kernels.base import Kernel
-from pyapprox.surrogates.kernels.protocols import (
-    KernelHasHVPWrtX1Protocol,
-    KernelHasJacobianProtocol,
-    KernelHasParameterJacobianProtocol,
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.surrogates.kernels.base import (
+    Kernel,
+    KernelInputHVP,
+    KernelInputJacobian,
 )
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.hyperparameter.hyperparameter_list import (
@@ -57,24 +57,28 @@ class KernelOnDimensions(Kernel[Array], Generic[Array]):
         self._kernel = kernel
         self._dims = dims
         self._total_nvars = total_nvars
-        self._setup_derivative_methods()
+        # capture inner parameter capability ONCE (construction-time)
+        self._inner_param_jac = kernel.param_derivatives().jacobian
 
-    def _setup_derivative_methods(self) -> None:
-        if isinstance(self._kernel, KernelHasJacobianProtocol):
-            self._jac_kernel: KernelHasJacobianProtocol[Array] = (
-                self._kernel
-            )
-            self.jacobian = self._jacobian
-        if isinstance(self._kernel, KernelHasHVPWrtX1Protocol):
-            self._hvp_kernel: KernelHasHVPWrtX1Protocol[Array] = (
-                self._kernel
-            )
-            self.hvp_wrt_x1 = self._hvp_wrt_x1
-        if isinstance(self._kernel, KernelHasParameterJacobianProtocol):
-            self._param_jac_kernel: (
-                KernelHasParameterJacobianProtocol[Array]
-            ) = self._kernel
-            self.jacobian_wrt_params = self._jacobian_wrt_params
+    def param_derivatives(self) -> Derivatives[Array]:
+        """Parameter jacobian delegates to the inner kernel when it
+        declares one."""
+        if self._inner_param_jac is None:
+            empty: Derivatives[Array] = Derivatives.none()
+            return empty
+        return Derivatives.first_order(jacobian=self._jacobian_wrt_params)
+
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Input derivatives delegate to the inner kernel on the selected
+        dimensions, zero-padded to total_nvars."""
+        inner = self._kernel.input_derivatives(self._extract(X2))
+        if inner.jacobian is None:
+            empty: Derivatives[Array] = Derivatives.none()
+            return empty
+        jacobian = KernelInputJacobian(self, X2)
+        if inner.hvp is None:
+            return Derivatives.first_order(jacobian=jacobian)
+        return Derivatives(jacobian=jacobian, hvp=KernelInputHVP(self, X2))
 
     def hyp_list(self) -> HyperParameterList[Array]:
         return self._kernel.hyp_list()
@@ -114,25 +118,37 @@ class KernelOnDimensions(Kernel[Array], Generic[Array]):
                 columns.append(bkd.zeros((n1, n2, 1)))
         return bkd.concatenate(columns, axis=2)
 
-    def _jacobian(self, X1: Array, X2: Array) -> Array:
+    def jacobian(self, X1: Array, X2: Array) -> Array:
         """Jacobian w.r.t. X1, zero-padded to total_nvars."""
-        inner_jac = self._jac_kernel.jacobian(
-            self._extract(X1), self._extract(X2)
-        )
-        return self._zero_pad_last_axis(inner_jac)
+        inner_jac = self._kernel.input_derivatives(
+            self._extract(X2)
+        ).jacobian
+        if inner_jac is None:
+            raise NotImplementedError(
+                "Inner kernel must provide an input jacobian"
+            )
+        return self._zero_pad_last_axis(inner_jac(self._extract(X1)))
 
-    def _hvp_wrt_x1(
-        self, X1: Array, X2: Array, direction: Array
-    ) -> Array:
+    def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
         """HVP w.r.t. X1, extracting direction and zero-padding."""
+        inner_hvp = self._kernel.input_derivatives(
+            self._extract(X2)
+        ).hvp
+        if inner_hvp is None:
+            raise NotImplementedError(
+                "Inner kernel must provide an input hvp"
+            )
         inner_dir = direction[self._dims]
-        inner_hvp = self._hvp_kernel.hvp_wrt_x1(
-            self._extract(X1), self._extract(X2), inner_dir
+        return self._zero_pad_last_axis(
+            inner_hvp(self._extract(X1), inner_dir)
         )
-        return self._zero_pad_last_axis(inner_hvp)
 
     def _jacobian_wrt_params(self, X1: Array) -> Array:
         """Jacobian w.r.t. hyperparameters — delegates directly."""
-        return self._param_jac_kernel.jacobian_wrt_params(
-            self._extract(X1)
-        )
+        inner_param_jac = self._inner_param_jac
+        if inner_param_jac is None:
+            raise RuntimeError(
+                "_jacobian_wrt_params requires the inner kernel to "
+                "declare a parameter jacobian"
+            )
+        return inner_param_jac(self._extract(X1))

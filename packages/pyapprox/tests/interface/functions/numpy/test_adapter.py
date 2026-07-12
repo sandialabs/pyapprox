@@ -16,7 +16,7 @@ from tests._helpers.optimizer_fixtures import (
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyDerivativesAdapter,
 )
-from pyapprox.optimization.minimize.objective.legacy_adapter import (
+from pyapprox.interface.functions.legacy_adapter import (
     as_derivatives,
 )
 

@@ -1,15 +1,13 @@
 """
-Tests for TorchExactGaussianProcess with autograd derivatives.
+Tests for ExactGaussianProcess autograd-fallback derivatives on TorchBkd
+(kernels without analytic input jacobians, e.g. GeneralMaternKernel).
 """
 
 import math
 
 import torch
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.torch_exact import (
-    TorchExactGaussianProcess,
-)
-from pyapprox.surrogates.kernels.torch_matern import TorchMaternKernel
+from pyapprox.surrogates.kernels.general_matern import GeneralMaternKernel
 from pyapprox.util.backends.torch import TorchBkd
 
 from pyapprox.surrogates.gaussianprocess.fitters import (
@@ -19,30 +17,42 @@ from pyapprox.surrogates.kernels import Matern52Kernel
 
 
 def _make_gp(nu=2.5, nvars=1, lenscale=None, nugget=1e-6):
-    """Helper to create a TorchExactGP with params set inactive."""
+    """Helper to create an ExactGP (TorchBkd) with params set inactive."""
     if lenscale is None:
         lenscale = [1.0] * nvars
-    kernel = TorchMaternKernel(
-        nu=nu, lenscale=lenscale, lenscale_bounds=(0.1, 10.0), nvars=nvars
+    bkd = TorchBkd()
+    kernel = GeneralMaternKernel(
+        nu=nu,
+        lenscale=lenscale,
+        lenscale_bounds=(0.1, 10.0),
+        nvars=nvars,
+        bkd=bkd,
     )
-    gp = TorchExactGaussianProcess(kernel, nvars=nvars, nugget=nugget)
-    # TorchMaternKernel lacks jacobian_wrt_params, so fix all params
+    gp = ExactGaussianProcess(kernel, nvars=nvars, bkd=bkd, nugget=nugget)
+    # GeneralMaternKernel has no analytic param jacobian, so fix all params
     gp.hyp_list().set_all_inactive()
     return gp
 
 
-class TestTorchExactGaussianProcess:
-    """Tests for TorchExactGaussianProcess."""
+def _gp_jacobian(gp):
+    jacobian = gp.derivatives().jacobian
+    assert jacobian is not None
+    return jacobian
+
+
+def _gp_jacobian_batch(gp):
+    jacobian_batch = gp.derivatives().jacobian_batch
+    assert jacobian_batch is not None
+    return jacobian_batch
+
+
+class TestExactGPAutogradDerivatives:
+    """Tests for autograd-fallback derivatives of ExactGaussianProcess."""
 
     def setup_method(self):
         torch.set_default_dtype(torch.float64)
         torch.manual_seed(42)
         self.bkd = TorchBkd()
-
-    def test_inherits_from_exact_gp(self):
-        """TorchExactGaussianProcess should inherit from ExactGaussianProcess."""
-        gp = _make_gp()
-        assert isinstance(gp, ExactGaussianProcess)
 
     def test_fit_and_predict(self):
         """Test basic fit and predict."""
@@ -126,12 +136,12 @@ class TestTorchExactGaussianProcess:
 
         # Single sample
         X_test = torch.randn(2, 1, requires_grad=True)
-        jac = gp.jacobian(X_test)
+        jac = _gp_jacobian(gp)(X_test)
         assert jac.shape == (1, 2)
 
         # Multiple samples - use jacobian_batch
         X_test_multi = torch.randn(2, 5, requires_grad=True)
-        jac_multi = gp.jacobian_batch(X_test_multi)
+        jac_multi = _gp_jacobian_batch(gp)(X_test_multi)
         assert jac_multi.shape == (5, 1, 2)
 
     def test_jacobian_finite_difference(self):
@@ -147,7 +157,7 @@ class TestTorchExactGaussianProcess:
         gp = result.surrogate()
 
         x_test = torch.tensor([[0.5]], requires_grad=True)
-        jac = gp.jacobian(x_test)
+        jac = _gp_jacobian(gp)(x_test)
 
         # Finite difference
         eps = 1e-6
@@ -166,10 +176,10 @@ class TestTorchExactGaussianProcess:
         gp = _make_gp(nvars=2, lenscale=[1.0, 1.0])
 
         # HVP should not be available due to torch.cdist limitation
-        assert not hasattr(gp, "hvp")
+        assert gp.derivatives().hvp is None
 
         # Jacobian should still be available
-        assert hasattr(gp, "jacobian")
+        assert gp.derivatives().jacobian is not None
 
     def test_neg_log_marginal_likelihood(self):
         """Test NLML computation."""
@@ -253,7 +263,7 @@ class TestTorchExactGaussianProcess:
         gp = _make_gp()
 
         repr_str = repr(gp)
-        assert "TorchExactGaussianProcess" in repr_str
+        assert "ExactGaussianProcess" in repr_str
         assert "not fitted" in repr_str
 
         X_train = torch.linspace(-2, 2, 10).reshape(1, -1)
@@ -271,8 +281,12 @@ class TestTorchExactGaussianProcess:
         torch_bkd = TorchBkd()
 
         # Create both GPs with same hyperparameters
-        torch_kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        torch_kernel = GeneralMaternKernel(
+            nu=2.5,
+            lenscale=[1.0],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=1,
+            bkd=torch_bkd,
         )
         ref_kernel = Matern52Kernel(
             lenscale=[1.0],
@@ -281,7 +295,7 @@ class TestTorchExactGaussianProcess:
             bkd=torch_bkd,
         )
 
-        torch_gp = TorchExactGaussianProcess(torch_kernel, nvars=1)
+        torch_gp = ExactGaussianProcess(torch_kernel, nvars=1, bkd=torch_bkd)
         ref_gp = ExactGaussianProcess(
             ref_kernel, nvars=1, bkd=torch_bkd
         )
@@ -315,8 +329,12 @@ class TestTorchExactGaussianProcess:
         torch_bkd = TorchBkd()
 
         # Create both GPs
-        torch_kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        torch_kernel = GeneralMaternKernel(
+            nu=2.5,
+            lenscale=[1.0],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=1,
+            bkd=torch_bkd,
         )
         ref_kernel = Matern52Kernel(
             lenscale=[1.0],
@@ -325,7 +343,7 @@ class TestTorchExactGaussianProcess:
             bkd=torch_bkd,
         )
 
-        torch_gp = TorchExactGaussianProcess(torch_kernel, nvars=1)
+        torch_gp = ExactGaussianProcess(torch_kernel, nvars=1, bkd=torch_bkd)
         ref_gp = ExactGaussianProcess(
             ref_kernel, nvars=1, bkd=torch_bkd
         )
@@ -348,8 +366,8 @@ class TestTorchExactGaussianProcess:
 
         # Compare Jacobians at single point
         X_test = torch.tensor([[0.5]])
-        torch_jac = torch_gp.jacobian(X_test)
-        ref_jac = ref_gp.jacobian(X_test)
+        torch_jac = _gp_jacobian(torch_gp)(X_test)
+        ref_jac = _gp_jacobian(ref_gp)(X_test)
 
         # Jacobians should match to high precision
         assert torch.allclose(torch_jac, ref_jac, rtol=1e-5, atol=1e-6)
@@ -455,17 +473,21 @@ class TestTorchExactGaussianProcess:
     def test_optimization_via_autograd(self):
         """Test hyperparameter optimization works via autograd (no analytical
         gradients)."""
-        # TorchMaternKernel lacks jacobian_wrt_params, so optimization
+        # GeneralMaternKernel lacks jacobian_wrt_params, so optimization
         # must use autograd through loss.__call__()
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[0.5], lenscale_bounds=(0.1, 10.0), nvars=1
+        kernel = GeneralMaternKernel(
+            nu=2.5,
+            lenscale=[0.5],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=1,
+            bkd=self.bkd,
         )
-        gp = TorchExactGaussianProcess(kernel, nvars=1)
+        gp = ExactGaussianProcess(kernel, nvars=1, bkd=self.bkd)
 
         X_train = torch.linspace(-2, 2, 20).reshape(1, -1)
         y_train = torch.sin(X_train[0])[None, :]
 
-        assert not hasattr(kernel, "jacobian_wrt_params")
+        assert kernel.param_derivatives().jacobian is None
 
         fitter = GPMaximumLikelihoodFitter(self.bkd)
         result = fitter.fit(gp, X_train, y_train)
@@ -477,10 +499,14 @@ class TestTorchExactGaussianProcess:
 
     def test_fit_optimizes_hyperparameters(self):
         """Test that fit() optimizes hyperparameters using autograd gradients."""
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[0.3], lenscale_bounds=(0.1, 10.0), nvars=1
+        kernel = GeneralMaternKernel(
+            nu=2.5,
+            lenscale=[0.3],
+            lenscale_bounds=(0.1, 10.0),
+            nvars=1,
+            bkd=self.bkd,
         )
-        gp = TorchExactGaussianProcess(kernel, nvars=1)
+        gp = ExactGaussianProcess(kernel, nvars=1, bkd=self.bkd)
         # Leave params active for optimization
 
         X_train = torch.linspace(-2, 2, 20).reshape(1, -1)

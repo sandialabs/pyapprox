@@ -348,8 +348,9 @@ class TestNLLGradientAccuracy:
         reg.fit_internal(U, V)
 
         loss = GPNegativeLogMarginalLikelihoodLoss(reg._gp, (U, V))
-        assert hasattr(loss, "jacobian"), (
-            "Loss should have jacobian (Matern52 has jacobian_wrt_params)"
+        assert loss.derivatives().jacobian is not None, (
+            "Loss should declare a jacobian (Matern52 has an analytic "
+            "parameter jacobian)"
         )
 
         checker = DerivativeChecker(loss)

@@ -18,6 +18,8 @@ import copy
 import math
 from typing import Generic, Optional
 
+from pyapprox.interface.functions.autograd import autograd_derivatives
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (
     InducingPoints,
@@ -37,6 +39,7 @@ from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
 from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
@@ -363,6 +366,16 @@ class VariationalGaussianProcess(Generic[Array]):
     def __call__(self, X: Array) -> Array:
         """Predict posterior mean (alias for predict)."""
         return self.predict(X)
+
+    def derivatives(self) -> Derivatives[Array]:
+        """No analytic prediction derivatives; autograd bundle on autodiff
+        backends (framework fallback policy). First-order only:
+        torch.cdist does not support second-order autograd."""
+        bkd = self.bkd()
+        if isinstance(bkd, AutodiffBackend):
+            return autograd_derivatives(self, bkd)
+        empty: Derivatives[Array] = Derivatives.none()
+        return empty
 
     def predict_std(self, X: Array) -> Array:
         """Predict posterior standard deviation.

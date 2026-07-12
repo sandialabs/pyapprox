@@ -1,4 +1,4 @@
-from typing import Tuple, Union
+from typing import Sequence, Tuple, Union
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter import HyperParameter
@@ -15,7 +15,7 @@ class LogHyperParameter(HyperParameter[Array]):
         Name of the hyperparameter.
     nparams : int
         Number of variables (parameters) in the hyperparameter.
-    user_values : Union[float, Array]
+    user_values : Union[float, Sequence[float], Array]
         Values provided by the user in their original (exponential) form.
     user_bounds : Union[Tuple[float, float], Array]
         Bounds provided by the user in their original (exponential) form.
@@ -29,7 +29,7 @@ class LogHyperParameter(HyperParameter[Array]):
         self,
         name: str,
         nparams: int,
-        user_values: Union[float, Array],
+        user_values: Union[float, Sequence[float], Array],
         user_bounds: Union[Tuple[float, float], Array],
         bkd: Backend[Array],
         fixed: bool = False,

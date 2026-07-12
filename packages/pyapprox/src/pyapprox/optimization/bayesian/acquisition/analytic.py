@@ -4,8 +4,10 @@ All acquisition functions are stateless and operate on a single output
 (nqoi=1). They return values where higher is always better.
 """
 
-from typing import Generic, Optional, Tuple
+from dataclasses import dataclass
+from typing import Generic, Optional, Protocol, Tuple
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.bayesian.math_utils import normal_cdf, normal_pdf
 from pyapprox.optimization.bayesian.protocols import AcquisitionContext
 from pyapprox.util.backends.protocols import Array
@@ -41,6 +43,27 @@ def _get_mean_and_std_jacobians(
         d_sigma_dx = surrogate.predict_std_jacobian(sample)  # (1, nvars)
 
     return d_mu_dx, d_sigma_dx
+
+
+
+class _HasAcquisitionJacobian(Protocol, Generic[Array]):
+    """Structural type for the curried acquisition jacobian (typing only)."""
+
+    def jacobian(
+        self, sample: Array, ctx: AcquisitionContext[Array]
+    ) -> Array: ...
+
+
+@dataclass(frozen=True)
+class _CurriedAcquisitionJacobian(Generic[Array]):
+    """Picklable curried form of ``acquisition.jacobian(sample, ctx)``
+    with ctx fixed, for use as a Derivatives bundle field."""
+
+    acquisition: _HasAcquisitionJacobian[Array]
+    ctx: "AcquisitionContext[Array]"
+
+    def __call__(self, sample: Array) -> Array:
+        return self.acquisition.jacobian(sample, self.ctx)
 
 
 class ExpectedImprovement(Generic[Array]):
@@ -104,6 +127,14 @@ class ExpectedImprovement(Generic[Array]):
         ei = bkd.where(mask, ei, bkd.zeros_like(ei))
 
         return ei
+
+    def input_derivatives(
+        self, ctx: AcquisitionContext[Array]
+    ) -> Derivatives[Array]:
+        """Analytic jacobian (see AcquisitionFunctionProtocol)."""
+        return Derivatives.first_order(
+            jacobian=_CurriedAcquisitionJacobian(self, ctx)
+        )
 
     def jacobian(
         self, sample: Array, ctx: AcquisitionContext[Array]
@@ -193,6 +224,14 @@ class UpperConfidenceBound(Generic[Array]):
         sign = -1.0 if ctx.minimize else 1.0
         return sign * mu + self._beta * sigma
 
+    def input_derivatives(
+        self, ctx: AcquisitionContext[Array]
+    ) -> Derivatives[Array]:
+        """Analytic jacobian (see AcquisitionFunctionProtocol)."""
+        return Derivatives.first_order(
+            jacobian=_CurriedAcquisitionJacobian(self, ctx)
+        )
+
     def jacobian(
         self, sample: Array, ctx: AcquisitionContext[Array]
     ) -> Array:
@@ -270,6 +309,14 @@ class ProbabilityOfImprovement(Generic[Array]):
         pi = bkd.where(mask, pi, bkd.zeros_like(pi))
 
         return pi
+
+    def input_derivatives(
+        self, ctx: AcquisitionContext[Array]
+    ) -> Derivatives[Array]:
+        """Analytic jacobian (see AcquisitionFunctionProtocol)."""
+        return Derivatives.first_order(
+            jacobian=_CurriedAcquisitionJacobian(self, ctx)
+        )
 
     def jacobian(
         self, sample: Array, ctx: AcquisitionContext[Array]

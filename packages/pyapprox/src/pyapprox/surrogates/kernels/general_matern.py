@@ -8,14 +8,15 @@ For half-integer nu (n + 0.5), closed-form expressions are used.
 For general nu, asymptotic expansions are used.
 
 This kernel does not implement analytical Jacobian or HVP methods.
-Use with TorchExactGaussianProcess which computes derivatives via autograd.
+Derivative bundles are empty; on autodiff backends (e.g. TorchBkd)
+the GP/loss layer supplies autograd derivatives automatically.
 """
 
 import math
 from typing import Any, Tuple
 
 from pyapprox.surrogates.kernels.base import Kernel
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
 
@@ -42,7 +43,8 @@ class GeneralMaternKernel(Kernel[Array]):
     For general nu, asymptotic expansions approximate the Bessel function.
 
     This kernel does NOT implement jacobian, jacobian_wrt_params, or hvp methods.
-    Use with TorchExactGaussianProcess which computes derivatives via autograd.
+    Derivative bundles are empty; on autodiff backends (e.g. TorchBkd)
+the GP/loss layer supplies autograd derivatives automatically.
 
     Note: This kernel always uses TorchBkd internally since it requires
     PyTorch autograd for derivative computation.
@@ -80,15 +82,11 @@ class GeneralMaternKernel(Kernel[Array]):
         lenscale: list[Any],
         lenscale_bounds: Tuple[float, float],
         nvars: int,
+        bkd: Backend[Array],
         fixed: bool = False,
     ):
         if nu <= 0:
             raise ValueError(f"nu must be positive, got {nu}")
-
-        # Always use TorchBkd since this kernel requires PyTorch autograd
-        from pyapprox.util.backends.torch import TorchBkd
-
-        bkd = TorchBkd()
 
         super().__init__(bkd)
 
@@ -131,7 +129,7 @@ class GeneralMaternKernel(Kernel[Array]):
         """Return the diagonal of the kernel matrix (all ones for Matern)."""
         return self._bkd.full((X1.shape[1],), 1.0)
 
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
         """
         Compute the kernel matrix K(X1, X2).
 
@@ -318,7 +316,3 @@ class GeneralMaternKernel(Kernel[Array]):
             f"lenscale={self._bkd.to_numpy(lenscale).tolist()}, "
             f"nvars={self._nvars}, bkd={self._bkd.__class__.__name__})"
         )
-
-
-# Alias for backwards compatibility
-TorchMaternKernel = GeneralMaternKernel

@@ -107,8 +107,8 @@ def _fit_baseline():
     from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
         GPMaximumLikelihoodFitter,
     )
-    from pyapprox.surrogates.gaussianprocess.torch_exact import (
-        TorchExactGaussianProcess,
+    from pyapprox.surrogates.gaussianprocess.exact import (
+        ExactGaussianProcess,
     )
     from pyapprox.util.backends.torch import TorchBkd
 
@@ -119,7 +119,7 @@ def _fit_baseline():
     y_high_t = bkd.array(y_high)
 
     kernel = _se_kernel_factory(1, bkd)
-    gp = TorchExactGaussianProcess(kernel, nvars=1, nugget=1e-2)
+    gp = ExactGaussianProcess(kernel, nvars=1, bkd=bkd, nugget=1e-2)
 
     fitter = GPMaximumLikelihoodFitter(bkd)
     result = fitter.fit(gp, X_high_t, y_high_t)
@@ -142,8 +142,8 @@ def _fit_ar1():
     from pyapprox.surrogates.gaussianprocess.fitters.multioutput_fitter import (
         MultiOutputGPMaximumLikelihoodFitter,
     )
-    from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
-        TorchMultiOutputGP,
+    from pyapprox.surrogates.gaussianprocess.multioutput import (
+        MultiOutputGP,
     )
     from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
     from pyapprox.util.backends.torch import TorchBkd
@@ -182,7 +182,7 @@ def _fit_ar1():
         dag, [k_low, k_high], edge_scalings,
     )
 
-    gp = TorchMultiOutputGP(kernel, nugget=1e-2)
+    gp = MultiOutputGP(kernel, nugget=1e-2)
 
     fitter = MultiOutputGPMaximumLikelihoodFitter(bkd)
     result = fitter.fit(

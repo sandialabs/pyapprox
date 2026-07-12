@@ -22,9 +22,6 @@ from pyapprox.surrogates.gaussianprocess.likelihoods import (
     GaussianLikelihood,
     LikelihoodProtocol,
 )
-from pyapprox.surrogates.gaussianprocess.loss import (
-    NegativeLogMarginalLikelihoodLoss,
-)
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ConstantMean,
     MeanFunction,
@@ -63,7 +60,6 @@ __all__ = [
     "LikelihoodProtocol",
     "GaussianLikelihood",
     # Loss functions
-    "NegativeLogMarginalLikelihoodLoss",
     # Fitter results
     "GPFitResult",
     "GPOptimizedFitResult",

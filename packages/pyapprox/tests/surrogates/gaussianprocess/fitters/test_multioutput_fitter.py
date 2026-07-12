@@ -159,10 +159,6 @@ class TestMultiOutputGPMLFitterTorch:
         self.X_test_list = [self.X_test] * self.noutputs
 
     def _make_gp(self, fixed=False):
-        from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
-            TorchMultiOutputGP,
-        )
-
         kernels = []
         for _ in range(self.noutputs):
             matern = Matern52Kernel(
@@ -188,7 +184,7 @@ class TestMultiOutputGPMLFitterTorch:
             kernel = constant * matern + noise
             kernels.append(kernel)
         mo_kernel = IndependentMultiOutputKernel(kernels)
-        return TorchMultiOutputGP(mo_kernel, nugget=1e-6)
+        return MultiOutputGP(mo_kernel, nugget=1e-6)
 
     def test_ml_returns_optimized_result(self) -> None:
         """ML fitter returns GPOptimizedFitResult."""

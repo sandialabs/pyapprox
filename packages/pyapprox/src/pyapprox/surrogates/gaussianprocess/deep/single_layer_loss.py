@@ -26,7 +26,10 @@ from typing import Generic
 
 import torch
 
+from pyapprox.interface.functions.autograd import autograd_derivatives
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.gaussianprocess.deep.layer import DGPLayer
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.hyperparameter import HyperParameterList
@@ -60,6 +63,15 @@ class SingleLayerELBOLoss(Generic[Array]):
         self._y = y
         self._bkd = layer.bkd()
         self._hyp_list = layer.hyp_list()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """No analytic derivatives; autograd bundle on autodiff backends
+        (framework fallback policy: analytic -> autograd -> empty)."""
+        bkd = self.bkd()
+        if isinstance(bkd, AutodiffBackend):
+            return autograd_derivatives(self, bkd)
+        empty: Derivatives[Array] = Derivatives.none()
+        return empty
 
     def nvars(self) -> int:
         return self._hyp_list.nactive_params()
@@ -133,6 +145,10 @@ class TorchSingleLayerELBOLoss(SingleLayerELBOLoss[torch.Tensor]):
             )
         super().__init__(layer, h, y)
         self._torch_bkd = torch_bkd
+
+    def derivatives(self) -> Derivatives[torch.Tensor]:
+        """Autograd jacobian (unconditional on this torch subclass)."""
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, params: torch.Tensor) -> torch.Tensor:
         """Gradient of negative ELBO via torch autograd.

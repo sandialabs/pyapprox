@@ -7,11 +7,11 @@ phase before a second-order local optimizer via ChainedOptimizer.
 from typing import Generic, Optional, Self
 
 from pyapprox.interface.functions.derivatives import JacobianFn
+from pyapprox.interface.functions.legacy_adapter import (
+    as_derivatives,
+)
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
-)
-from pyapprox.optimization.minimize.objective.legacy_adapter import (
-    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,

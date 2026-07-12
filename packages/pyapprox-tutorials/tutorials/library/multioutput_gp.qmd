@@ -37,7 +37,7 @@ After completing this tutorial you will be able to:
 
 - Build a `MultiLevelKernel` from per-level kernels and a `PolynomialScalingFunction`
   correlation function to represent the Kennedy--O'Hagan auto-regressive model
-- Fit and predict with `TorchMultiOutputGP`, including predictive uncertainty bands
+- Fit and predict with `MultiOutputGP`, including predictive uncertainty bands
 - Compare multi-fidelity and single-fidelity GP surrogates at equal computational
   budget
 - Interpret the block kernel matrix that encodes inter-level correlations
@@ -134,7 +134,7 @@ $f_h = 2\, f_l + \text{offset}$, so the optimal scaling is $\rho \approx 2$.
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
 from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
-from pyapprox.surrogates.gaussianprocess.torch_multioutput import TorchMultiOutputGP
+from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
 
 # One SE kernel per fidelity level (the k_k terms in the KO model)
 level_kernels = [
@@ -151,9 +151,9 @@ scalings = [
 
 mf_kernel = MultiLevelKernel(level_kernels, scalings)
 
-# TorchMultiOutputGP uses autograd to differentiate the NLL directly,
+# On TorchBkd the fitter uses autograd to differentiate the NLL directly,
 # bypassing the kernel's analytical jacobian_wrt_params.
-mf_gp = TorchMultiOutputGP(mf_kernel, nugget=1e-6)
+mf_gp = MultiOutputGP(mf_kernel, nugget=1e-6)
 ```
 
 ::: {.callout-note}

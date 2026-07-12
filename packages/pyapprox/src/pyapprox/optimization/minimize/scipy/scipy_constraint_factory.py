@@ -18,6 +18,9 @@ from scipy.optimize import (
     NonlinearConstraint,
 )
 
+from pyapprox.interface.functions.legacy_adapter import (
+    as_derivatives,
+)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyArray,
     NumpyDerivativesAdapter,
@@ -30,9 +33,6 @@ from pyapprox.optimization.minimize.constraints.linear import (
 from pyapprox.optimization.minimize.constraints.protocols import (
     NonlinearConstraintProtocol,
     SequenceOfConstraintProtocols,
-)
-from pyapprox.optimization.minimize.objective.legacy_adapter import (
-    as_derivatives,
 )
 from pyapprox.util.backends.protocols import Array
 

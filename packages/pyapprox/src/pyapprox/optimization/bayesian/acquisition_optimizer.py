@@ -4,11 +4,15 @@ from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives, JacobianFn
 from pyapprox.optimization.bayesian.protocols import (
     AcquisitionContext,
     AcquisitionFunctionProtocol,
     BODomainProtocol,
     SurrogateProtocol,
+)
+from pyapprox.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -126,9 +130,9 @@ class _AcquisitionObjective(Generic[Array]):
     Negates the acquisition value since the optimizer minimizes,
     but acquisition functions should be maximized.
 
-    If the acquisition function has a ``jacobian`` method, this wrapper
-    exposes a ``jacobian`` method too (negated), enabling analytical
-    gradients in the scipy optimizer.
+    Derivative capability is declared by ``derivatives()``, decided once
+    at construction from the acquisition's ``input_derivatives`` bundle
+    (negated, since the optimizer minimizes).
     """
 
     def __init__(
@@ -141,9 +145,19 @@ class _AcquisitionObjective(Generic[Array]):
         self._ctx = ctx
         self._domain = domain
 
-        # Dynamically bind jacobian if acquisition supports it
-        if hasattr(acquisition, "jacobian"):
-            self.jacobian = self._jacobian
+        acq_jac = acquisition.input_derivatives(ctx).jacobian
+        if acq_jac is not None:
+            self._acq_jac: Optional[JacobianFn[Array]] = acq_jac
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian
+            )
+        else:
+            self._acq_jac = None
+            self._derivs = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Derivative capabilities (negated acquisition jacobian)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
@@ -187,8 +201,12 @@ class _AcquisitionObjective(Generic[Array]):
         Array
             Negated Jacobian, shape (1, nvars).
         """
-        acq_jac = self._acquisition.jacobian(sample, self._ctx)  # (1, nvars)
-        return -acq_jac
+        acq_jac = self._acq_jac
+        if acq_jac is None:
+            raise RuntimeError(
+                "_jacobian requires the acquisition to declare a jacobian"
+            )
+        return -acq_jac(sample)
 
 
 class _SurrogateMeanObjective(Generic[Array]):
@@ -198,8 +216,8 @@ class _SurrogateMeanObjective(Generic[Array]):
     directly (the scipy optimizer minimizes it). When ``minimize`` is
     False, it negates the mean so the optimizer effectively maximizes.
 
-    If the surrogate has a ``jacobian`` method, this wrapper exposes
-    a ``jacobian`` method too, enabling analytical gradients.
+    Derivative capability is declared by ``derivatives()``, decided once
+    at construction from the surrogate's Derivatives bundle.
     """
 
     def __init__(
@@ -214,8 +232,19 @@ class _SurrogateMeanObjective(Generic[Array]):
         self._bkd = bkd
         self._sign = 1.0 if minimize else -1.0
 
-        if hasattr(surrogate, "jacobian"):
-            self.jacobian = self._jacobian
+        surrogate_jac = surrogate.derivatives().jacobian
+        if surrogate_jac is not None:
+            self._surrogate_jac: Optional[JacobianFn[Array]] = surrogate_jac
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian
+            )
+        else:
+            self._surrogate_jac = None
+            self._derivs = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Derivative capabilities (signed surrogate-mean jacobian)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
@@ -258,7 +287,12 @@ class _SurrogateMeanObjective(Generic[Array]):
         Array
             Jacobian, shape (1, nvars).
         """
-        jac = self._surrogate.jacobian(sample)  # (nqoi, nvars)
+        surrogate_jac = self._surrogate_jac
+        if surrogate_jac is None:
+            raise RuntimeError(
+                "_jacobian requires the surrogate to declare a jacobian"
+            )
+        jac = surrogate_jac(sample)  # (nqoi, nvars)
         return self._sign * jac[0:1, :]
 
 
@@ -287,7 +321,7 @@ class AcquisitionOptimizer(Generic[Array]):
 
     def __init__(
         self,
-        optimizer: object,
+        optimizer: BindableOptimizerProtocol[Array],
         bkd: Backend[Array],
         n_restarts: int = 20,
         n_raw_candidates: int = 512,

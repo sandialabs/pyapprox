@@ -1,5 +1,5 @@
 """
-Tests for VariationalGaussianProcess and TorchVariationalGaussianProcess.
+Tests for VariationalGaussianProcess (including autograd fallback on TorchBkd).
 
 Tests are structured progressively:
 1. No optimization (all params inactive)
@@ -380,18 +380,16 @@ class TestTorchVariationalGP:
         self.U_init = self.bkd.array(U_np)
 
     def _make_torch_vgp(self, kernel_fixed=True, inducing_fixed=True):
-        from pyapprox.surrogates.gaussianprocess.torch_variational import (
-            TorchVariationalGaussianProcess,
-        )
-        from pyapprox.surrogates.kernels.torch_matern import (
-            TorchMaternKernel,
+        from pyapprox.surrogates.kernels.general_matern import (
+            GeneralMaternKernel,
         )
 
-        kernel = TorchMaternKernel(
+        kernel = GeneralMaternKernel(
             nu=2.5,
             lenscale=[1.0],
             lenscale_bounds=(0.1, 10.0),
             nvars=self.nvars,
+            bkd=self.bkd,
         )
         if kernel_fixed:
             kernel.hyp_list().set_all_inactive()
@@ -408,11 +406,12 @@ class TestTorchVariationalGP:
             ip.hyp_list().set_all_inactive()
             lik.hyp_list().set_all_inactive()
 
-        return TorchVariationalGaussianProcess(
+        return VariationalGaussianProcess(
             kernel=kernel,
             nvars=self.nvars,
             inducing_points=ip,
             likelihood=lik,
+            bkd=self.bkd,
         )
 
     def test_fit_and_predict(self) -> None:
@@ -435,10 +434,11 @@ class TestTorchVariationalGP:
         )
         gp = result.surrogate()
 
-        assert hasattr(gp, "jacobian")
+        jacobian = gp.derivatives().jacobian
+        assert jacobian is not None
 
         sample = self.bkd.array([[0.3]])
-        jac = gp.jacobian(sample)
+        jac = jacobian(sample)
         assert jac.shape == (1, self.nvars)
         assert torch.isfinite(jac).all()
 

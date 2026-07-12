@@ -38,7 +38,7 @@ After completing this tutorial, you will be able to:
 - Identify problems for which AR1 fails because the correlation between fidelities is nonlinear
 - Describe a multi-fidelity Deep Gaussian Process (MF-DGP) as a chain DGP whose layers correspond to fidelity levels
 - Recognize that MF-DGP captures any smooth correlation between fidelities through GP composition rather than a chosen functional form
-- Use PyApprox's `TorchMultiOutputGP` for AR1 and `build_multilevel_dgp` for MF-DGP, and compare them on the same data
+- Use PyApprox's `MultiOutputGP` for AR1 and `build_multilevel_dgp` for MF-DGP, and compare them on the same data
 
 ## Prerequisites
 

@@ -6,7 +6,12 @@ via ProductKernel, e.g. ConstantKernel * Matern52Kernel.
 
 from typing import Optional, Tuple
 
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.surrogates.kernels.base import (
+    Kernel,
+    KernelInputHVP,
+    KernelInputJacobian,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameterList,
@@ -102,3 +107,16 @@ class ConstantKernel(Kernel[Array]):
 
     def nvars(self) -> int:
         return self._nvars
+
+    def param_derivatives(self) -> Derivatives[Array]:
+        """Analytic parameter jacobian and hvp (unconditional)."""
+        return Derivatives(
+            jacobian=self.jacobian_wrt_params, hvp=self.hvp_wrt_params
+        )
+
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Analytic input jacobian and hvp."""
+        return Derivatives(
+            jacobian=KernelInputJacobian(self, X2),
+            hvp=KernelInputHVP(self, X2),
+        )

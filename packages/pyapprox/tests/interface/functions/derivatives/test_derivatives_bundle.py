@@ -15,6 +15,7 @@ import pickle
 import pytest
 
 from pyapprox.interface.functions.autograd import (
+    OverrideDerivatives,
     WithAutogradJacobian,
     autograd_derivatives,
 )
@@ -426,3 +427,25 @@ class TestAutogradComposition:
         torch_bkd.assert_allclose(
             d.hvp(x0, vec), torch_bkd.array([[2.0], [6.0]]), rtol=1e-10
         )
+
+
+class TestOverrideDerivatives:
+    def test_masks_capability_without_touching_producer(self, bkd):
+        objective = QuadraticObjective(bkd, 2)
+        jac_only = OverrideDerivatives(
+            objective, objective.derivatives().with_(hvp=None, whvp=None)
+        )
+        assert isinstance(jac_only, ObjectiveProtocol)
+        d = jac_only.derivatives()
+        assert d.jacobian is not None
+        assert d.hvp is None and d.whvp is None
+        # producer untouched
+        assert objective.derivatives().hvp is not None
+        # evaluation delegates
+        x0 = bkd.array([[1.0], [2.0]])
+        bkd.assert_allclose(jac_only(x0), objective(x0))
+
+    def test_rejects_non_bundle(self, numpy_bkd):
+        objective = QuadraticObjective(numpy_bkd, 2)
+        with pytest.raises(TypeError, match="Derivatives bundle"):
+            OverrideDerivatives(objective, {"jacobian": None})

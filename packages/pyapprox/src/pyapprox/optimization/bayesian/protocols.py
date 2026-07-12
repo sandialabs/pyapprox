@@ -7,6 +7,7 @@ fitters, and batch selection strategies.
 from dataclasses import dataclass
 from typing import Callable, Generic, Optional, Protocol, runtime_checkable
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -60,6 +61,10 @@ class SurrogateProtocol(Protocol, Generic[Array]):
         Array
             Posterior covariance, shape (n, n).
         """
+        ...
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Derivative capabilities of the surrogate mean w.r.t. inputs."""
         ...
 
     def is_fitted(self) -> bool:
@@ -145,6 +150,14 @@ class AcquisitionFunctionProtocol(Protocol, Generic[Array]):
         Array
             Acquisition values, shape (n,). Higher is better.
         """
+        ...
+
+    def input_derivatives(
+        self, ctx: AcquisitionContext[Array]
+    ) -> Derivatives[Array]:
+        """Derivatives of ``x -> acquisition(x, ctx)``; fields close over
+        ``ctx``. An acquisition without analytic derivatives returns
+        ``Derivatives.none()``."""
         ...
 
 

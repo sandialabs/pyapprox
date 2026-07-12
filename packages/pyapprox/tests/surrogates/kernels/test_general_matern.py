@@ -1,16 +1,16 @@
 """
-Tests for TorchMaternKernel with arbitrary nu.
+Tests for GeneralMaternKernel with arbitrary nu.
 """
 
 import torch
 
 from pyapprox.surrogates.kernels import Matern32Kernel, Matern52Kernel
-from pyapprox.surrogates.kernels.torch_matern import TorchMaternKernel
+from pyapprox.surrogates.kernels.general_matern import GeneralMaternKernel
 from pyapprox.util.backends.torch import TorchBkd
 
 
-class TestTorchMaternKernel:
-    """Tests for TorchMaternKernel."""
+class TestGeneralMaternKernel:
+    """Tests for GeneralMaternKernel."""
 
     def setup_method(self):
         torch.set_default_dtype(torch.float64)
@@ -18,8 +18,8 @@ class TestTorchMaternKernel:
 
     def test_kernel_shape(self):
         """Test kernel matrix has correct shape."""
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0, 1.0], lenscale_bounds=(0.1, 10.0), nvars=2
+        kernel = GeneralMaternKernel(
+            nu=2.5, lenscale=[1.0, 1.0], lenscale_bounds=(0.1, 10.0), nvars=2, bkd=TorchBkd()
         )
 
         X1 = torch.randn(2, 10)
@@ -30,8 +30,8 @@ class TestTorchMaternKernel:
 
     def test_kernel_symmetry(self):
         """Test kernel is symmetric when X1 = X2."""
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        kernel = GeneralMaternKernel(
+            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
 
         X = torch.randn(1, 10)
@@ -41,8 +41,8 @@ class TestTorchMaternKernel:
 
     def test_kernel_positive_definite(self):
         """Test kernel matrix is positive definite."""
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        kernel = GeneralMaternKernel(
+            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
 
         X = torch.linspace(-2, 2, 20).reshape(1, -1)
@@ -57,8 +57,8 @@ class TestTorchMaternKernel:
 
     def test_diagonal_is_one(self):
         """Test diagonal elements are 1."""
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0, 1.0], lenscale_bounds=(0.1, 10.0), nvars=2
+        kernel = GeneralMaternKernel(
+            nu=2.5, lenscale=[1.0, 1.0], lenscale_bounds=(0.1, 10.0), nvars=2, bkd=TorchBkd()
         )
 
         X = torch.randn(2, 10)
@@ -69,8 +69,8 @@ class TestTorchMaternKernel:
 
     def test_nu_25_matches_matern52(self):
         """Test nu=2.5 matches backend-agnostic Matern52Kernel."""
-        torch_kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        torch_kernel = GeneralMaternKernel(
+            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
         ref_kernel = Matern52Kernel(
             lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=self.bkd
@@ -85,8 +85,8 @@ class TestTorchMaternKernel:
 
     def test_nu_15_matches_matern32(self):
         """Test nu=1.5 matches backend-agnostic Matern32Kernel."""
-        torch_kernel = TorchMaternKernel(
-            nu=1.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        torch_kernel = GeneralMaternKernel(
+            nu=1.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
         ref_kernel = Matern32Kernel(
             lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=self.bkd
@@ -103,8 +103,8 @@ class TestTorchMaternKernel:
         """Test kernel works with arbitrary nu values."""
         # Test various nu values that aren't 1.5 or 2.5
         for nu in [0.5, 1.0, 2.0, 2.3, 3.0, 4.5]:
-            kernel = TorchMaternKernel(
-                nu=nu, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+            kernel = GeneralMaternKernel(
+                nu=nu, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
             )
 
             X = torch.linspace(-2, 2, 10).reshape(1, -1)
@@ -119,8 +119,8 @@ class TestTorchMaternKernel:
 
     def test_large_nu_approximates_rbf(self):
         """Test large nu approximates RBF/squared exponential kernel."""
-        torch_kernel = TorchMaternKernel(
-            nu=150.0, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        torch_kernel = GeneralMaternKernel(
+            nu=150.0, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
 
         X = torch.linspace(-2, 2, 20).reshape(1, -1)
@@ -137,14 +137,14 @@ class TestTorchMaternKernel:
         X = torch.linspace(-2, 2, 20).reshape(1, -1)
 
         # Small length scale -> narrower correlation
-        kernel_small = TorchMaternKernel(
-            nu=2.5, lenscale=[0.5], lenscale_bounds=(0.1, 10.0), nvars=1
+        kernel_small = GeneralMaternKernel(
+            nu=2.5, lenscale=[0.5], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
         K_small = kernel_small(X, X)
 
         # Large length scale -> wider correlation
-        kernel_large = TorchMaternKernel(
-            nu=2.5, lenscale=[2.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        kernel_large = GeneralMaternKernel(
+            nu=2.5, lenscale=[2.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
         K_large = kernel_large(X, X)
 
@@ -156,8 +156,8 @@ class TestTorchMaternKernel:
 
     def test_autograd_compatible(self):
         """Test kernel is compatible with autograd."""
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        kernel = GeneralMaternKernel(
+            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
 
         # Create tensor and reshape, then require grad on the reshaped tensor
@@ -173,8 +173,8 @@ class TestTorchMaternKernel:
 
     def test_hyp_list(self):
         """Test hyperparameter list."""
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0, 2.0], lenscale_bounds=(0.1, 10.0), nvars=2
+        kernel = GeneralMaternKernel(
+            nu=2.5, lenscale=[1.0, 2.0], lenscale_bounds=(0.1, 10.0), nvars=2, bkd=TorchBkd()
         )
 
         hyp_list = kernel.hyp_list()
@@ -182,8 +182,8 @@ class TestTorchMaternKernel:
 
     def test_repr(self):
         """Test string representation."""
-        kernel = TorchMaternKernel(
-            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1
+        kernel = GeneralMaternKernel(
+            nu=2.5, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
         )
 
         repr_str = repr(kernel)

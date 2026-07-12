@@ -7,12 +7,50 @@ sum, separable product) for building complex kernels from simple ones.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic
+from dataclasses import dataclass
+from typing import Generic, Protocol
 
-from pyapprox.surrogates.kernels.protocols import KernelHasHVPWrtX1Protocol
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 from pyapprox.util.hyperparameter import HyperParameterList
+
+
+class _HasInputJacobianMethod(Protocol, Generic[Array]):
+    """Structural type for the curried input-jacobian callable (typing
+    only; never used for isinstance capability checks)."""
+
+    def jacobian(self, X1: Array, X2: Array) -> Array: ...
+
+
+class _HasInputHVPMethod(Protocol, Generic[Array]):
+    """Structural type for the curried input-hvp callable (typing only)."""
+
+    def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array: ...
+
+
+@dataclass(frozen=True)
+class KernelInputJacobian(Generic[Array]):
+    """Picklable curried form of ``kernel.jacobian(X1, X2)`` with X2
+    fixed, for use as a Derivatives bundle field."""
+
+    kernel: _HasInputJacobianMethod[Array]
+    X2: Array
+
+    def __call__(self, X1: Array) -> Array:
+        return self.kernel.jacobian(X1, self.X2)
+
+
+@dataclass(frozen=True)
+class KernelInputHVP(Generic[Array]):
+    """Picklable curried form of ``kernel.hvp_wrt_x1(X1, X2, direction)``
+    with X2 fixed, for use as a Derivatives bundle field."""
+
+    kernel: _HasInputHVPMethod[Array]
+    X2: Array
+
+    def __call__(self, X1: Array, direction: Array) -> Array:
+        return self.kernel.hvp_wrt_x1(X1, self.X2, direction)
 
 
 class Kernel(ABC, Generic[Array]):
@@ -114,6 +152,26 @@ class Kernel(ABC, Generic[Array]):
         """
         raise NotImplementedError()
 
+    def param_derivatives(self) -> Derivatives[Array]:
+        """Derivatives of ``theta -> K(samples; theta)`` forms.
+
+        Shape conventions are documented on
+        ``KernelProtocol.param_derivatives``. The base class has no
+        analytic parameter derivatives; capable kernels override this.
+        """
+        empty: Derivatives[Array] = Derivatives.none()
+        return empty
+
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Derivatives of ``x1 -> k(x1, X2)``; fields close over ``X2``.
+
+        Shape conventions are documented on
+        ``KernelProtocol.input_derivatives``. The base class has no
+        analytic input derivatives; capable kernels override this.
+        """
+        empty: Derivatives[Array] = Derivatives.none()
+        return empty
+
     def __mul__(self, other: "Kernel[Array]") -> "Kernel[Array]":
         """
         Multiply two kernels element-wise.
@@ -184,24 +242,13 @@ class CompositionKernel(Kernel[Array], Generic[Array]):
     _hyp_list : HyperParameterList[Array]
         Combined hyperparameter list from both kernels.
 
-    Optional Methods
-    ----------------
-    This class uses dynamic method binding with AND logic for composition:
-
-    - ``jacobian_wrt_params(samples)``: Available if BOTH kernels have it.
-    - ``hvp_wrt_params(samples, direction)``: Available if BOTH kernels have it.
-
-    Check availability with ``hasattr(kernel, 'jacobian_wrt_params')`` or
-    ``hasattr(kernel, 'hvp_wrt_params')``.
-
     Notes
     -----
-    **AND Logic Convention**: Composed objects only have a capability if ALL
-    component objects have it. This ensures derivative methods are only available
-    when they can be correctly computed for the entire composition.
-
-    This pattern is implemented via ``_setup_derivative_methods()`` which checks
-    each component kernel's capabilities and conditionally assigns public methods.
+    **AND Logic Convention**: a composition only declares a derivative
+    capability in its bundles if ALL component kernels declare it. The
+    component capabilities are captured once at construction from the
+    children's ``param_derivatives()`` bundles; ``param_derivatives()`` on
+    the composition branches on those captured fields.
     """
 
     def __init__(self, kernel1: Kernel[Array], kernel2: Kernel[Array]):
@@ -237,34 +284,59 @@ class CompositionKernel(Kernel[Array], Generic[Array]):
         # Combine hyperparameter lists
         self._hyp_list = kernel1.hyp_list() + kernel2.hyp_list()
 
-        # Conditionally add derivative methods based on component kernel support
-        self._setup_derivative_methods()
+        # capture component capabilities ONCE (construction-time branching)
+        d1 = kernel1.param_derivatives()
+        d2 = kernel2.param_derivatives()
+        self._k1_param_jac = d1.jacobian
+        self._k2_param_jac = d2.jacobian
+        self._k1_param_hvp = d1.hvp
+        self._k2_param_hvp = d2.hvp
 
-    def _setup_derivative_methods(self) -> None:
-        """
-        Conditionally add jacobian_wrt_params and hvp_wrt_params methods.
+    def param_derivatives(self) -> Derivatives[Array]:
+        """AND logic: capability only when BOTH components declare it."""
+        if self._k1_param_jac is None or self._k2_param_jac is None:
+            empty: Derivatives[Array] = Derivatives.none()
+            return empty
+        if self._k1_param_hvp is not None and self._k2_param_hvp is not None:
+            return Derivatives(
+                jacobian=self._jacobian_wrt_params,
+                hvp=self._hvp_wrt_params,
+            )
+        return Derivatives.first_order(jacobian=self._jacobian_wrt_params)
 
-        Composition kernels only support these methods if BOTH component
-        kernels support them. This ensures that derivative methods are only
-        available when they can be correctly computed.
-        """
-        # Check if both kernels support jacobian_wrt_params
-        has_jac_1 = hasattr(self._kernel1, "jacobian_wrt_params")
-        has_jac_2 = hasattr(self._kernel2, "jacobian_wrt_params")
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """AND logic over the components' input capabilities."""
+        d1 = self._kernel1.input_derivatives(X2)
+        d2 = self._kernel2.input_derivatives(X2)
+        if d1.jacobian is None or d2.jacobian is None:
+            empty: Derivatives[Array] = Derivatives.none()
+            return empty
+        jacobian = KernelInputJacobian(self, X2)
+        if d1.hvp is None or d2.hvp is None:
+            return Derivatives.first_order(jacobian=jacobian)
+        return Derivatives(jacobian=jacobian, hvp=KernelInputHVP(self, X2))
 
-        if has_jac_1 and has_jac_2:
-            # Both kernels support jacobian, add the method
-            self.jacobian_wrt_params = self._jacobian_wrt_params
-        # Otherwise, jacobian_wrt_params will not exist on this instance
+    @abstractmethod
+    def _jacobian_wrt_params(self, samples: Array) -> Array:
+        """Composition rule for the parameter jacobian; only reachable
+        when ``param_derivatives()`` declared the capability."""
+        raise NotImplementedError()
 
-        # Check if both kernels support hvp_wrt_params
-        has_hvp_1 = hasattr(self._kernel1, "hvp_wrt_params")
-        has_hvp_2 = hasattr(self._kernel2, "hvp_wrt_params")
+    @abstractmethod
+    def _hvp_wrt_params(self, samples: Array, direction: Array) -> Array:
+        """Composition rule for the parameter hvp; only reachable when
+        ``param_derivatives()`` declared the capability."""
+        raise NotImplementedError()
 
-        if has_hvp_1 and has_hvp_2:
-            # Both kernels support HVP, add the method
-            self.hvp_wrt_params = self._hvp_wrt_params
-        # Otherwise, hvp_wrt_params will not exist on this instance
+    @abstractmethod
+    def jacobian(self, X1: Array, X2: Array) -> Array:
+        """Composition rule for the input jacobian."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
+        """Composition rule for the input hvp."""
+        raise NotImplementedError()
 
     def hyp_list(self) -> HyperParameterList[Array]:
         """
@@ -314,7 +386,7 @@ class ProductKernel(CompositionKernel[Array]):
     >>> product = matern * constant  # Uses operator overloading
     """
 
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
         """
         Compute product kernel matrix.
 
@@ -375,17 +447,18 @@ class ProductKernel(CompositionKernel[Array]):
         NotImplementedError
             If either kernel doesn't support Jacobians.
         """
-        if not (
-            hasattr(self._kernel1, "jacobian") and hasattr(self._kernel2, "jacobian")
-        ):
+        k1_jac = self._kernel1.input_derivatives(X2).jacobian
+        k2_jac = self._kernel2.input_derivatives(X2).jacobian
+        if k1_jac is None or k2_jac is None:
             raise NotImplementedError(
-                "Both kernels must implement jacobian() for ProductKernel Jacobian"
+                "Both kernels must provide an input jacobian for "
+                "ProductKernel Jacobian"
             )
 
         K1 = self._kernel1(X1, X2)
         K2 = self._kernel2(X1, X2)
-        dK1 = self._kernel1.jacobian(X1, X2)
-        dK2 = self._kernel2.jacobian(X1, X2)
+        dK1 = k1_jac(X1)
+        dK2 = k2_jac(X1)
 
         # Product rule: dK1 * K2 + K1 * dK2
         # K1, K2 have shape (n1, n2)
@@ -410,21 +483,23 @@ class ProductKernel(CompositionKernel[Array]):
         jac : Array
             Jacobian, shape (n, n, nparams1 + nparams2).
         """
-        # This method is only callable if both kernels support jacobian_wrt_params
-        # (checked in _setup_derivative_methods)
+        k1_jac = self._k1_param_jac
+        k2_jac = self._k2_param_jac
+        if k1_jac is None or k2_jac is None:
+            raise RuntimeError(
+                "_jacobian_wrt_params requires both component kernels to "
+                "declare a parameter jacobian"
+            )
 
         K1 = self._kernel1(samples, samples)
         K2 = self._kernel2(samples, samples)
-        dK1 = self._kernel1.jacobian_wrt_params(samples)
-        dK2 = self._kernel2.jacobian_wrt_params(samples)
+        dK1 = k1_jac(samples)
+        dK2 = k2_jac(samples)
 
         # Product rule: [dK1 * K2, K1 * dK2]
         # K1, K2 have shape (n, n)
         # dK1 has shape (n, n, nparams1)
         # dK2 has shape (n, n, nparams2)
-
-        dK1.shape[2]
-        dK2.shape[2]
 
         # First part: dK1 * K2
         jac1 = dK1 * K2[..., None]
@@ -460,8 +535,15 @@ class ProductKernel(CompositionKernel[Array]):
         hvp : Array
             Hessian-vector product, shape (n, n, p1+p2).
         """
-        # This method is only callable if both kernels support hvp_wrt_params
-        # (checked in _setup_derivative_methods)
+        k1_jac = self._k1_param_jac
+        k2_jac = self._k2_param_jac
+        k1_hvp = self._k1_param_hvp
+        k2_hvp = self._k2_param_hvp
+        if k1_jac is None or k2_jac is None or k1_hvp is None or k2_hvp is None:
+            raise RuntimeError(
+                "_hvp_wrt_params requires both component kernels to "
+                "declare parameter jacobian and hvp"
+            )
 
         # Get dimensions
         p1 = self._kernel1.hyp_list().nactive_params()
@@ -476,11 +558,11 @@ class ProductKernel(CompositionKernel[Array]):
         K1 = self._kernel1(samples, samples)  # (n, n)
         K2 = self._kernel2(samples, samples)  # (n, n)
 
-        dK1 = self._kernel1.jacobian_wrt_params(samples)  # (n, n, p1)
-        dK2 = self._kernel2.jacobian_wrt_params(samples)  # (n, n, p2)
+        dK1 = k1_jac(samples)  # (n, n, p1)
+        dK2 = k2_jac(samples)  # (n, n, p2)
 
-        HK1_v = self._kernel1.hvp_wrt_params(samples, v1)  # (n, n, p1)
-        HK2_v = self._kernel2.hvp_wrt_params(samples, v2)  # (n, n, p2)
+        HK1_v = k1_hvp(samples, v1)  # (n, n, p1)
+        HK2_v = k2_hvp(samples, v2)  # (n, n, p2)
 
         hvp = self._bkd.zeros((n, n, p1 + p2))
 
@@ -540,32 +622,30 @@ class ProductKernel(CompositionKernel[Array]):
         NotImplementedError
             If either kernel doesn't support hvp_wrt_x1
         """
-        if not (
-            isinstance(self._kernel1, KernelHasHVPWrtX1Protocol)
-            and isinstance(self._kernel2, KernelHasHVPWrtX1Protocol)
-        ):
+        d1 = self._kernel1.input_derivatives(X2)
+        d2 = self._kernel2.input_derivatives(X2)
+        k1_jac, k1_hvp = d1.jacobian, d1.hvp
+        k2_jac, k2_hvp = d2.jacobian, d2.hvp
+        if k1_hvp is None or k2_hvp is None:
             raise NotImplementedError(
-                "Both kernels must implement hvp_wrt_x1() for ProductKernel HVP"
+                "Both kernels must provide an input hvp for ProductKernel HVP"
+            )
+        if k1_jac is None or k2_jac is None:
+            raise NotImplementedError(
+                "Both kernels must provide an input jacobian for "
+                "ProductKernel HVP"
             )
 
         # Evaluate kernels
         K1 = self._kernel1(X1, X2)  # (n1, n2)
         K2 = self._kernel2(X1, X2)  # (n1, n2)
 
-        # Get Jacobians (gradients)
-        if not (
-            hasattr(self._kernel1, "jacobian") and hasattr(self._kernel2, "jacobian")
-        ):
-            raise NotImplementedError(
-                "Both kernels must implement jacobian() for ProductKernel HVP"
-            )
-
-        dK1 = self._kernel1.jacobian(X1, X2)  # (n1, n2, nvars)
-        dK2 = self._kernel2.jacobian(X1, X2)  # (n1, n2, nvars)
+        dK1 = k1_jac(X1)  # (n1, n2, nvars)
+        dK2 = k2_jac(X1)  # (n1, n2, nvars)
 
         # Get HVPs from both kernels
-        HK1_V = self._kernel1.hvp_wrt_x1(X1, X2, direction)  # (n1, n2, nvars)
-        HK2_V = self._kernel2.hvp_wrt_x1(X1, X2, direction)  # (n1, n2, nvars)
+        HK1_V = k1_hvp(X1, direction)  # (n1, n2, nvars)
+        HK2_V = k2_hvp(X1, direction)  # (n1, n2, nvars)
 
         # Product rule for Hessian:
         # H[K1·K2]·V = H[K1]·V · K2 + K1 · H[K2]·V + 2·(∇K1·V)·∇K2 + 2·∇K1·(∇K2·V)
@@ -614,7 +694,7 @@ class SumKernel(CompositionKernel[Array]):
     >>> sum_kernel = matern + white  # Uses operator overloading
     """
 
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
         """
         Compute sum kernel matrix.
 
@@ -675,15 +755,16 @@ class SumKernel(CompositionKernel[Array]):
         NotImplementedError
             If either kernel doesn't support Jacobians.
         """
-        if not (
-            hasattr(self._kernel1, "jacobian") and hasattr(self._kernel2, "jacobian")
-        ):
+        k1_jac = self._kernel1.input_derivatives(X2).jacobian
+        k2_jac = self._kernel2.input_derivatives(X2).jacobian
+        if k1_jac is None or k2_jac is None:
             raise NotImplementedError(
-                "Both kernels must implement jacobian() for SumKernel Jacobian"
+                "Both kernels must provide an input jacobian for "
+                "SumKernel Jacobian"
             )
 
-        dK1 = self._kernel1.jacobian(X1, X2)
-        dK2 = self._kernel2.jacobian(X1, X2)
+        dK1 = k1_jac(X1)
+        dK2 = k2_jac(X1)
 
         # Sum rule: dK1 + dK2
         return dK1 + dK2
@@ -703,11 +784,16 @@ class SumKernel(CompositionKernel[Array]):
             Jacobian, shape (n, n, nparams1 + nparams2).
 
         """
-        # This method is only callable if both kernels support jacobian_wrt_params
-        # (checked in _setup_derivative_methods)
+        k1_jac = self._k1_param_jac
+        k2_jac = self._k2_param_jac
+        if k1_jac is None or k2_jac is None:
+            raise RuntimeError(
+                "_jacobian_wrt_params requires both component kernels to "
+                "declare a parameter jacobian"
+            )
 
-        dK1 = self._kernel1.jacobian_wrt_params(samples)
-        dK2 = self._kernel2.jacobian_wrt_params(samples)
+        dK1 = k1_jac(samples)
+        dK2 = k2_jac(samples)
 
         # Sum rule: [dK1, dK2]
         # Concatenate along parameter dimension
@@ -736,21 +822,24 @@ class SumKernel(CompositionKernel[Array]):
         hvp : Array
             Hessian-vector product, shape (n, n, p1+p2).
         """
-        # This method is only callable if both kernels support hvp_wrt_params
-        # (checked in _setup_derivative_methods)
+        k1_hvp = self._k1_param_hvp
+        k2_hvp = self._k2_param_hvp
+        if k1_hvp is None or k2_hvp is None:
+            raise RuntimeError(
+                "_hvp_wrt_params requires both component kernels to "
+                "declare a parameter hvp"
+            )
 
         # Get dimensions
         p1 = self._kernel1.hyp_list().nactive_params()
-        self._kernel2.hyp_list().nactive_params()
-        samples.shape[1]
 
         # Split direction vector
         v1 = direction[:p1]  # Direction for K1 params
         v2 = direction[p1:]  # Direction for K2 params
 
         # Get HVPs from both kernels
-        HK1_v = self._kernel1.hvp_wrt_params(samples, v1)  # (n, n, p1)
-        HK2_v = self._kernel2.hvp_wrt_params(samples, v2)  # (n, n, p2)
+        HK1_v = k1_hvp(samples, v1)  # (n, n, p1)
+        HK2_v = k2_hvp(samples, v2)  # (n, n, p2)
 
         # Sum rule: Just concatenate the HVPs
         # For i in K1: hvp[:, :, i] = HK1_v[:, :, i] (only K1 params contribute)
@@ -783,17 +872,16 @@ class SumKernel(CompositionKernel[Array]):
         NotImplementedError
             If either kernel doesn't support hvp_wrt_x1
         """
-        if not (
-            isinstance(self._kernel1, KernelHasHVPWrtX1Protocol)
-            and isinstance(self._kernel2, KernelHasHVPWrtX1Protocol)
-        ):
+        k1_hvp = self._kernel1.input_derivatives(X2).hvp
+        k2_hvp = self._kernel2.input_derivatives(X2).hvp
+        if k1_hvp is None or k2_hvp is None:
             raise NotImplementedError(
-                "Both kernels must implement hvp_wrt_x1() for SumKernel HVP"
+                "Both kernels must provide an input hvp for SumKernel HVP"
             )
 
         # Sum rule: just add the HVPs
-        HK1_V = self._kernel1.hvp_wrt_x1(X1, X2, direction)
-        HK2_V = self._kernel2.hvp_wrt_x1(X1, X2, direction)
+        HK1_V = k1_hvp(X1, direction)
+        HK2_V = k2_hvp(X1, direction)
 
         return HK1_V + HK2_V
 
@@ -877,7 +965,7 @@ class SeparableProductKernel(Kernel[Array], Generic[Array]):
         """
         return self._kernels_1d[dim]
 
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
         """
         Evaluate separable product kernel.
 
@@ -970,14 +1058,14 @@ class SeparableProductKernel(Kernel[Array], Generic[Array]):
             X1_dim = self._bkd.reshape(X1[dim, :], (1, -1))
             X2_dim = self._bkd.reshape(X2[dim, :], (1, -1))
             K_1d.append(kernel_1d(X1_dim, X2_dim))
-            if hasattr(kernel_1d, "jacobian"):
-                # jacobian returns shape (n1, n2, 1) for 1D kernel
-                jac = kernel_1d.jacobian(X1_dim, X2_dim)
-                dK_1d.append(jac[:, :, 0])  # (n1, n2)
-            else:
+            jac_1d = kernel_1d.input_derivatives(X2_dim).jacobian
+            if jac_1d is None:
                 raise NotImplementedError(
-                    f"Kernel for dimension {dim} must implement jacobian()"
+                    f"Kernel for dimension {dim} must provide an input "
+                    "jacobian"
                 )
+            # jacobian returns shape (n1, n2, 1) for 1D kernel
+            dK_1d.append(jac_1d(X1_dim)[:, :, 0])  # (n1, n2)
 
         # Build jacobian: for each dimension d, derivative is
         # dK/dx_d = (∏_{i≠d} K_i) * dK_d/dx_d
@@ -1026,12 +1114,14 @@ class SeparableProductKernel(Kernel[Array], Generic[Array]):
         # Build list of jacobians for each 1D kernel
         jac_parts = []
         for dim, kernel_1d in enumerate(self._kernels_1d):
-            if not hasattr(kernel_1d, "jacobian_wrt_params"):
+            param_jac_1d = kernel_1d.param_derivatives().jacobian
+            if param_jac_1d is None:
                 raise NotImplementedError(
-                    f"Kernel for dimension {dim} must implement jacobian_wrt_params()"
+                    f"Kernel for dimension {dim} must provide a parameter "
+                    "jacobian"
                 )
             X_dim = self._bkd.reshape(samples[dim, :], (1, -1))
-            dK_dim = kernel_1d.jacobian_wrt_params(X_dim)  # (n, n, nparams_dim)
+            dK_dim = param_jac_1d(X_dim)  # (n, n, nparams_dim)
 
             # Product of all K_i except dimension dim
             # K_all / K_dim avoids recomputing product, but must handle zeros
@@ -1051,3 +1141,24 @@ class SeparableProductKernel(Kernel[Array], Generic[Array]):
         jac = self._bkd.stack(jac_parts, axis=2)
 
         return jac
+
+    def param_derivatives(self) -> Derivatives[Array]:
+        """Capability requires every 1D kernel to declare a parameter
+        jacobian (AND logic)."""
+        for kernel_1d in self._kernels_1d:
+            if kernel_1d.param_derivatives().jacobian is None:
+                empty: Derivatives[Array] = Derivatives.none()
+                return empty
+        return Derivatives.first_order(jacobian=self.jacobian_wrt_params)
+
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Capability requires every 1D kernel to declare an input
+        jacobian (AND logic)."""
+        for dim, kernel_1d in enumerate(self._kernels_1d):
+            X2_dim = self._bkd.reshape(X2[dim, :], (1, -1))
+            if kernel_1d.input_derivatives(X2_dim).jacobian is None:
+                empty: Derivatives[Array] = Derivatives.none()
+                return empty
+        return Derivatives.first_order(
+            jacobian=KernelInputJacobian(self, X2)
+        )

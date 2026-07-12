@@ -1,4 +1,4 @@
-from typing import Generic, Tuple, Union
+from typing import Generic, Sequence, Tuple, Union
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -14,8 +14,8 @@ class HyperParameter(Generic[Array]):
         Name of the hyperparameter.
     nparams : int
         Number of variables (parameters) in the hyperparameter.
-    values : Union[float, Array]
-        Initial values of the hyperparameter (can be a scalar or an array).
+    values : Union[float, Sequence[float], Array]
+        Initial values of the hyperparameter (a scalar, sequence or array).
     bounds : Union[Tuple[float, float], Array]
         Bounds for the hyperparameter values.
     bkd : Backend
@@ -28,7 +28,7 @@ class HyperParameter(Generic[Array]):
         self,
         name: str,
         nparams: int,
-        values: Union[float, Array],
+        values: Union[float, Sequence[float], Array],
         bounds: Union[Tuple[float, float], Array],
         bkd: Backend[Array],
         fixed: bool = False,
@@ -48,7 +48,9 @@ class HyperParameter(Generic[Array]):
         else:
             self.set_all_active()
 
-    def _parse_values(self, values: Union[float, Array]) -> Array:
+    def _parse_values(
+        self, values: Union[float, Sequence[float], Array]
+    ) -> Array:
         """
         Parse and validate the input values.
 

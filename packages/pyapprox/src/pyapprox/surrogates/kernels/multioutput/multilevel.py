@@ -5,7 +5,7 @@ This module provides the MultiLevelKernel, which is a convenience wrapper around
 DAGMultiOutputKernel for the special case of sequential (hierarchical) structures.
 """
 
-from typing import Dict, Generic, List, Optional, Tuple, Union
+from typing import Callable, Dict, Generic, List, Optional, Tuple, Union
 
 import networkx as nx
 
@@ -162,6 +162,13 @@ class MultiLevelKernel(Generic[Array]):
             Combined hyperparameters from all kernels and scalings.
         """
         return self._dag_kernel.hyp_list()
+
+    def param_jacobian(
+        self,
+    ) -> Optional[Callable[[List[Array]], Array]]:
+        """No analytic parameter derivatives (see
+        MultiOutputKernelProtocol)."""
+        return None
 
     def noutputs(self) -> int:
         """

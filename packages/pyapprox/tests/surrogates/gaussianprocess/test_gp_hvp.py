@@ -24,6 +24,19 @@ from pyapprox.surrogates.kernels import (
 )
 
 
+
+def _gp_hvp(gp):
+    hvp = gp.derivatives().hvp
+    assert hvp is not None
+    return hvp
+
+
+def _gp_hvp_batch(gp):
+    hvp_batch = gp.derivatives().hvp_batch
+    assert hvp_batch is not None
+    return hvp_batch
+
+
 class TestGPHVP:
     """Test Gaussian Process HVP with respect to inputs."""
 
@@ -69,7 +82,7 @@ class TestGPHVP:
         x = bkd.array([[0.5], [0.5]])
         v = bkd.array([[1.0], [0.0]])
 
-        hvp = gp.hvp(x, v)
+        hvp = _gp_hvp(gp)(x, v)
 
         # Should have shape (nvars, 1)
         assert hvp.shape == (nvars, 1)
@@ -82,8 +95,8 @@ class TestGPHVP:
         v = bkd.array([[1.0], [0.5]])
         a = 2.5
 
-        hvp1 = gp.hvp(x, v)
-        hvp2 = gp.hvp(x, v * a)
+        hvp1 = _gp_hvp(gp)(x, v)
+        hvp2 = _gp_hvp(gp)(x, v * a)
 
         # hvp2 should be a * hvp1
         assert bkd.allclose(hvp2, hvp1 * a, rtol=1e-6, atol=1e-8)
@@ -109,7 +122,7 @@ class TestGPHVP:
         def hvp_function(x, v):
             # x, v shape: (nvars, 1)
             # HVP shape: (nvars, 1) -> flatten for function interface
-            hvp = gp.hvp(x, v)
+            hvp = _gp_hvp(gp)(x, v)
             # Return shape (nvars, 1)
             return hvp
 
@@ -156,7 +169,7 @@ class TestGPHVP:
         X = bkd.array(np.random.randn(nvars, 3))
         V = bkd.array(np.random.randn(nvars, 3))
 
-        hvp = gp.hvp_batch(X, V)
+        hvp = _gp_hvp_batch(gp)(X, V)
 
         # Should have shape (n_samples, nvars) = (3, nvars)
         assert hvp.shape == (3, nvars)
@@ -165,7 +178,7 @@ class TestGPHVP:
         for i in range(3):
             x_i = X[:, i : i + 1]
             v_i = V[:, i : i + 1]
-            hvp_i_single = gp.hvp(x_i, v_i)  # (nvars, 1)
+            hvp_i_single = _gp_hvp(gp)(x_i, v_i)  # (nvars, 1)
 
             bkd.assert_allclose(
                 hvp[i, :], hvp_i_single[:, 0], rtol=1e-10, atol=1e-12
@@ -178,7 +191,7 @@ class TestGPHVP:
         x = bkd.array([[0.5], [0.5]])
         v = bkd.zeros((nvars, 1))
 
-        hvp = gp.hvp(x, v)
+        hvp = _gp_hvp(gp)(x, v)
 
         # Should be zero
         zero_hvp = bkd.zeros((nvars, 1))
@@ -195,7 +208,7 @@ class TestGPHVP:
             v = bkd.zeros((nvars, 1))
             v[d, 0] = 1.0
 
-            hvp = gp.hvp(x, v)
+            hvp = _gp_hvp(gp)(x, v)
 
             # HVP should only have non-zero entry in dimension d
             # (approximately, due to cross-terms in Hessian)
@@ -209,10 +222,10 @@ class TestGPHVP:
         v_wrong = bkd.array([[1.0]])  # Only 1 variable
 
         with pytest.raises(ValueError):
-            gp.hvp(x, v_wrong)
+            _gp_hvp(gp)(x, v_wrong)
 
-    def test_hvp_not_fitted_error(self, bkd):
-        """Test that HVP raises error when GP not fitted."""
+    def test_hvp_not_fitted(self, bkd):
+        """Unfitted GP declares no hvp; jacobian raises when called."""
         gp, kernel, nvars = self._setup_gp(bkd)
 
         # Create unfitted GP
@@ -220,11 +233,15 @@ class TestGPHVP:
             kernel=kernel, nvars=nvars, bkd=bkd
         )
 
-        x = bkd.array([[0.5], [0.5]])
-        v = bkd.array([[1.0], [0.0]])
+        # capability query needs training data for composed kernels, so
+        # the pre-fit bundle is first-order only
+        derivs = gp_unfitted.derivatives()
+        assert derivs.hvp is None
+        assert derivs.jacobian is not None
 
+        x = bkd.array([[0.5], [0.5]])
         with pytest.raises(RuntimeError):
-            gp_unfitted.hvp(x, v)
+            derivs.jacobian(x)
 
 
 class TestGPHVPCompositionKernels:
@@ -296,7 +313,7 @@ class TestGPHVPCompositionKernels:
         v_test = v_test / bkd.norm(v_test)
 
         # Compute HVP
-        hvp_result = gp.hvp(x_test, v_test)
+        hvp_result = _gp_hvp(gp)(x_test, v_test)
         assert hvp_result.shape == (nvars, 1)
 
         # Verify with derivative checker
@@ -310,7 +327,7 @@ class TestGPHVPCompositionKernels:
             nvars=nvars,
             fun=mean_func,
             jacobian=jac_func,
-            hvp=lambda x, v: gp.hvp(x, v),
+            hvp=lambda x, v: _gp_hvp(gp)(x, v),
             bkd=bkd,
         )
 

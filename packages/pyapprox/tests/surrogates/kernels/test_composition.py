@@ -165,7 +165,9 @@ class TestProductKernel:
         self._setup_data(bkd)
         product = ProductKernel(self.kernel1, self.kernel2)
 
-        jac = product.jacobian_wrt_params(self.X1)
+        param_jac = product.param_derivatives().jacobian
+        assert param_jac is not None
+        jac = param_jac(self.X1)
 
         # Check shape
         nparams_total = (
@@ -347,7 +349,9 @@ class TestSumKernel:
         self._setup_data(bkd)
         sum_kernel = SumKernel(self.kernel1, self.kernel2)
 
-        jac = sum_kernel.jacobian_wrt_params(self.X1)
+        param_jac = sum_kernel.param_derivatives().jacobian
+        assert param_jac is not None
+        jac = param_jac(self.X1)
 
         # Check shape
         nparams_total = (

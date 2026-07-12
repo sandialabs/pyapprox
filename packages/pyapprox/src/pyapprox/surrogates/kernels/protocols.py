@@ -1,8 +1,29 @@
+"""Kernel protocols.
+
+A kernel is a two-argument function, so it legitimately carries BOTH
+partial-derivative families, exposed through two REQUIRED accessors whose
+names carry the "wrt what":
+
+- ``param_derivatives()``: d/dtheta of ``theta -> K(X; theta)`` forms
+- ``input_derivatives(X2)``: d/dx1 of ``x1 -> k(x1, X2)`` forms (the
+  accessor takes the extra context and the returned bundle's fields close
+  over it, so the standard bundle arities hold)
+
+A kernel without a capability returns ``Derivatives.none()`` (the base
+``Kernel`` class does this) — optional-with-getattr is forbidden. Only
+in-family friend code (GP losses, prediction/acquisition gradients) reads
+these accessors, each taking exactly one family. Shape conventions are
+documented on the accessors (e.g. parameter jacobian ``(n, n, nparams)``
+over ACTIVE parameters); the strict ``(nqoi, nvars)`` contract attaches
+only to ``ObjectiveProtocol.derivatives()``.
+"""
+
 from collections.abc import Callable
 from typing import Generic, Protocol, runtime_checkable
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
@@ -14,8 +35,9 @@ class KernelProtocol(Protocol, Generic[Array]):
     """
     Protocol for kernel implementations.
 
-    Defines the interface for kernel classes, including methods for evaluating
-    the kernel, computing Jacobians, and handling hyperparameters.
+    Defines the interface for kernel classes, including methods for
+    evaluating the kernel, accessing derivative bundles, and handling
+    hyperparameters.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -85,181 +107,34 @@ class KernelProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def param_derivatives(self) -> Derivatives[Array]:
+        """Derivatives of ``theta -> K(samples; theta)`` forms.
 
-@runtime_checkable
-class KernelHasJacobianProtocol(Protocol, Generic[Array]):
-    def jacobian(self, X1: Array, X2: Array) -> Array:
-        """
-        Compute the Jacobian of the kernel with respect to input data.
+        Field shape conventions (kernel-specific; NOT the
+        ObjectiveProtocol contract):
 
-        Parameters
-        ----------
-        X1 : Array
-            Input data.
-        X2 : Array
-            Input data.
+        - ``jacobian``: ``(samples) -> (n, n, nactive_params)``
+        - ``hvp``: ``(samples, direction) -> (n, n)`` with ``direction``
+          of shape ``(nactive_params, 1)``
 
-        Returns
-        -------
-        jacobian : Array
-            Jacobian of the kernel with respect to input data.
+        A kernel without analytic parameter derivatives returns
+        ``Derivatives.none()``.
         """
         ...
 
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Derivatives of ``x1 -> k(x1, X2)``; fields close over ``X2``.
 
-@runtime_checkable
-class KernelHasParameterJacobianProtocol(Protocol, Generic[Array]):
-    def jacobian_wrt_params(self, samples: Array) -> Array:
-        """
-        Compute the Jacobian of the kernel with respect to hyperparameters.
+        Field shape conventions:
 
-        Parameters
-        ----------
-        samples : Array
-            Input data.
+        - ``jacobian``: ``(X1) -> (n1, n2, nvars)``
+        - ``hvp``: ``(X1, direction) -> (n2, nvars)`` with ``X1`` a
+          single sample ``(nvars, 1)`` and ``direction`` ``(nvars, 1)``
 
-        Returns
-        -------
-        jacobian_wrt_params : Array
-            Jacobian of the kernel with respect to hyperparameters.
+        A kernel without analytic input derivatives returns
+        ``Derivatives.none()``.
         """
         ...
-
-
-@runtime_checkable
-class KernelHasHVPWrtX1Protocol(Protocol, Generic[Array]):
-    """
-    Protocol for kernels with HVP w.r.t. input X1.
-
-    This is the 'Has' protocol - just checks for the method existence.
-    For full protocol including jacobian, use KernelWithJacobianAndHVPWrtX1Protocol.
-    """
-
-    def hvp_wrt_x1(self, X1: Array, X2: Array, direction: Array) -> Array:
-        """
-        Compute Hessian-vector product of kernel w.r.t. first argument.
-
-        For kernel k(X1, X2), computes:
-            H[k(X1, X2)] · V
-        where H is the Hessian matrix ∂²k/∂X1² and V is the direction vector.
-
-        This is more efficient than computing the full Hessian tensor and
-        then contracting, especially for high-dimensional problems.
-
-        Parameters
-        ----------
-        X1 : Array, shape (nvars, n1)
-            First set of input points
-        X2 : Array, shape (nvars, n2)
-            Second set of input points
-        direction : Array, shape (nvars,)
-            Direction vector for Hessian-vector product
-
-        Returns
-        -------
-        hvp : Array, shape (n1, n2, nvars)
-            H[k(X1[:, i], X2[:, j])]·V for each pair (i, j)
-
-            This shape is consistent with jacobian() which returns (n1, n2, nvars).
-
-        Notes
-        -----
-        This computes the HVP without materializing the (nvars, nvars, n1, n2)
-        Hessian tensor, making it memory-efficient for high dimensions.
-        """
-        ...
-
-
-@runtime_checkable
-class KernelHasHVPWrtParamsProtocol(Protocol, Generic[Array]):
-    """
-    Protocol for kernels with HVP w.r.t. hyperparameters.
-
-    This is the 'Has' protocol - just checks for the method existence.
-    For full protocol including jacobian_wrt_params, use
-    KernelWithParameterJacobianAndHVPProtocol.
-    """
-
-    def hvp_wrt_params(self, samples: Array, direction: Array) -> Array:
-        """
-        Compute Hessian-vector product w.r.t. hyperparameters.
-
-        Computes HVP = Σ_j (∂²K/∂θ_i∂θ_j) * v[j] for each i,
-        without forming the full Hessian tensor.
-
-        Parameters
-        ----------
-        samples : Array
-            Input data, shape (nvars, n).
-        direction : Array
-            Direction vector, shape (nparams,).
-
-        Returns
-        -------
-        hvp : Array
-            Hessian-vector product, shape (n, n, nparams).
-            hvp[:, :, i] = Σ_j (∂²K/∂θ_i∂θ_j) * v[j]
-        """
-        ...
-
-
-class KernelWithJacobianProtocol(
-    KernelProtocol[Array], KernelHasJacobianProtocol[Array], Protocol
-):
-    """Kernel with jacobian w.r.t. input X1."""
-
-    pass
-
-
-class KernelWithJacobianAndHVPWrtX1Protocol(
-    KernelWithJacobianProtocol[Array],
-    KernelHasHVPWrtX1Protocol[Array],
-    Protocol,
-):
-    """Kernel with both jacobian and hvp_wrt_x1 (second derivative w.r.t. X1)."""
-
-    pass
-
-
-class KernelWithParameterJacobianProtocol(
-    KernelProtocol[Array],
-    KernelHasParameterJacobianProtocol[Array],
-    Protocol,
-):
-    """Kernel with jacobian_wrt_params."""
-
-    pass
-
-
-class KernelWithParameterJacobianAndHVPProtocol(
-    KernelWithParameterJacobianProtocol[Array],
-    KernelHasHVPWrtParamsProtocol[Array],
-    Protocol,
-):
-    """Kernel with both jacobian_wrt_params and hvp_wrt_params."""
-
-    pass
-
-
-class KernelWithJacobianAndParameterJacobianProtocol(
-    KernelWithJacobianProtocol[Array],
-    KernelHasParameterJacobianProtocol[Array],
-    Protocol,
-):
-    """Kernel with jacobian (w.r.t. X1) and jacobian_wrt_params."""
-
-    pass
-
-
-class KernelWithFullDerivativesProtocol(
-    KernelWithJacobianAndHVPWrtX1Protocol[Array],
-    KernelWithParameterJacobianAndHVPProtocol[Array],
-    Protocol,
-):
-    """Kernel with all derivative methods: jacobian, hvp_wrt_x1, jacobian_wrt_params,
-    hvp_wrt_params."""
-
-    pass
 
 
 NumbaScalarKernelFn = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
@@ -326,11 +201,6 @@ class SeparableKernelProtocol(Protocol, Generic[Array]):
         Returns
         -------
         kernel_1d : KernelProtocol[Array]
-            The 1D kernel for dimension dim.
-            For SeparableProductKernel, returns the stored 1D kernel.
-            For SquaredExponentialKernel, returns a new 1D SE kernel
-            with that dimension's length scale.
+            The 1D kernel for the given dimension.
         """
         ...
-
-

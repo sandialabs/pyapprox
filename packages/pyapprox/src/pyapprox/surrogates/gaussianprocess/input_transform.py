@@ -244,7 +244,7 @@ class InputStandardScaler(Generic[Array]):
         """
         mean = bkd.mean(z, axis=1)  # (nvars,)
         std = bkd.std(z, axis=1)  # (nvars,)
-        std = bkd.where(std == 0.0, bkd.ones_like(std), std)
+        std = bkd.where(bkd.equal(std, 0.0), bkd.ones_like(std), std)
         return InputStandardScaler(mean, std, bkd)
 
     def __repr__(self) -> str:

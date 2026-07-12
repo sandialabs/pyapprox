@@ -6,7 +6,7 @@ arbitrary directed acyclic graph (DAG) structures for output dependencies.
 Uses NetworkX DiGraph directly for graph operations.
 """
 
-from typing import Dict, Generic, List, Optional, Tuple, Union
+from typing import Callable, Dict, Generic, List, Optional, Tuple, Union
 
 import networkx as nx
 
@@ -146,7 +146,8 @@ class DAGMultiOutputKernel(Generic[Array]):
             raise ValueError("Graph must be a directed acyclic graph (DAG)")
 
         self._dag = dag
-        self._noutputs = dag.number_of_nodes()
+        # declared at the networkx boundary (networkx ships no type stubs)
+        self._noutputs: int = dag.number_of_nodes()
 
         # Validate nodes are 0, 1, ..., noutputs-1
         expected_nodes = set(range(self._noutputs))
@@ -276,7 +277,7 @@ class DAGMultiOutputKernel(Generic[Array]):
         output1: int,
         X2: Array,
         output2: int,
-    ) -> Optional[Array]:
+    ) -> Array:
         """
         Compute the covariance block K[output1, output2].
 
@@ -296,10 +297,11 @@ class DAGMultiOutputKernel(Generic[Array]):
         block : Array
             Covariance block, shape (n1, n2).
         """
-        # Find common ancestors (including outputs themselves)
-        ancestors1 = nx.ancestors(self._dag, output1)
+        # Find common ancestors (including outputs themselves); declared
+        # at the networkx boundary (networkx ships no type stubs)
+        ancestors1: set[int] = nx.ancestors(self._dag, output1)
         ancestors1.add(output1)
-        ancestors2 = nx.ancestors(self._dag, output2)
+        ancestors2: set[int] = nx.ancestors(self._dag, output2)
         ancestors2.add(output2)
         common = ancestors1.intersection(ancestors2)
 
@@ -350,6 +352,17 @@ class DAGMultiOutputKernel(Generic[Array]):
     def hyp_list(self) -> HyperParameterList[Array]:
         """Return the combined hyperparameter list."""
         return self._hyp_list
+
+    def param_jacobian(
+        self,
+    ) -> Optional[Callable[[List[Array]], Array]]:
+        """Analytic parameter jacobian (see MultiOutputKernelProtocol);
+        AND logic — declared only when every discrepancy kernel declares
+        one."""
+        for kernel in self._discrepancy_kernels:
+            if kernel.param_derivatives().jacobian is None:
+                return None
+        return self.jacobian_wrt_params
 
     def noutputs(self) -> int:
         """Return the number of outputs."""
@@ -404,10 +417,12 @@ class DAGMultiOutputKernel(Generic[Array]):
                     f"noutputs ({self._noutputs})"
                 )
 
-        # Compute all blocks
-        blocks = []
+        # Compute all blocks (element type Optional to match the protocol:
+        # other kernels return None off-diagonal blocks; DAG blocks are
+        # always dense)
+        blocks: List[List[Optional[Array]]] = []
         for i in range(self._noutputs):
-            row = []
+            row: List[Optional[Array]] = []
             for j in range(self._noutputs):
                 block = self._compute_block(X1_list[i], i, X2_list[j], j)
                 row.append(block)
@@ -416,8 +431,13 @@ class DAGMultiOutputKernel(Generic[Array]):
         if block_format:
             return blocks
 
-        # Stack into single matrix
-        rows = [self._bkd.hstack(blocks[i]) for i in range(self._noutputs)]
+        # Stack into single matrix (DAG blocks are always dense)
+        rows = [
+            self._bkd.hstack(
+                [block for block in blocks[i] if block is not None]
+            )
+            for i in range(self._noutputs)
+        ]
         return self._bkd.vstack(rows)
 
     def jacobian_wrt_params(
@@ -445,6 +465,17 @@ class DAGMultiOutputKernel(Generic[Array]):
 
         # Get dimensions
         n_list = [X.shape[1] for X in X1_list]
+
+        # capture narrowed per-kernel parameter jacobians via their bundles
+        kernel_param_jacs = []
+        for idx, kernel in enumerate(self._discrepancy_kernels):
+            kernel_param_jac = kernel.param_derivatives().jacobian
+            if kernel_param_jac is None:
+                raise NotImplementedError(
+                    f"Discrepancy kernel {idx} does not declare a "
+                    "parameter jacobian"
+                )
+            kernel_param_jacs.append(kernel_param_jac)
         n_total = sum(n_list)
         nparams = self._hyp_list.nparams()
 
@@ -498,7 +529,7 @@ class DAGMultiOutputKernel(Generic[Array]):
                                     "DAG kernels"
                                 )
 
-                        kernel_jac_ij = kernel.jacobian_wrt_params(
+                        kernel_jac_ij = kernel_param_jacs[kernel_idx](
                             X1_list[i]
                         )  # Shape: (n_i, n_i, kernel_nparams)
 

@@ -1,6 +1,6 @@
 """Adaptive GP builder for iterative sample selection and GP fitting."""
 
-from typing import Callable, Generic, Optional, cast
+from typing import Callable, Generic, Optional
 
 from pyapprox.surrogates.gaussianprocess.adaptive.protocols import (
     AdaptiveSamplerProtocol,
@@ -19,7 +19,6 @@ from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
 from pyapprox.surrogates.kernels.base import Kernel
-from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -148,7 +147,7 @@ class AdaptiveGPBuilder(Generic[Array]):
         self._current_gp = gp
 
         # Update sampler with new kernel after optimization
-        self._sampler.set_kernel(cast(KernelProtocol[Array], gp.kernel()))
+        self._sampler.set_kernel(gp.kernel())
 
         return gp
 
@@ -226,4 +225,4 @@ class AdaptiveGPBuilder(Generic[Array]):
             input_transform=self._input_transform,
         )
         result = fitter.fit(gp, self._X_user, self._y_user)
-        return cast(ExactGaussianProcess[Array], result.surrogate())
+        return result.surrogate()

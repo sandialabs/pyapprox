@@ -14,9 +14,6 @@ from pyapprox.surrogates.gaussianprocess.gp_loss import (
     GPNegativeLogMarginalLikelihoodLoss,
 )
 from pyapprox.surrogates.gaussianprocess.multioutput import MultiOutputGP
-from pyapprox.surrogates.gaussianprocess.torch_multioutput import (
-    TorchMultiOutputGP,
-)
 from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
@@ -438,7 +435,7 @@ class TestMultiOutputGPOptimization:
             kernels.append(constant * matern)
 
         mo_kernel = IndependentMultiOutputKernel(kernels)
-        gp = TorchMultiOutputGP(mo_kernel, nugget=1e-6)
+        gp = MultiOutputGP(mo_kernel, nugget=1e-6)
 
         initial_params = gp.hyp_list().get_active_values().clone()
 
@@ -476,7 +473,7 @@ class TestMultiOutputGPOptimization:
         lmc_kernel = LinearCoregionalizationKernel(
             base_kernels, coreg_matrices, self.noutputs
         )
-        gp = TorchMultiOutputGP(lmc_kernel, nugget=1e-6)
+        gp = MultiOutputGP(lmc_kernel, nugget=1e-6)
 
         initial_params = gp.hyp_list().get_active_values().clone()
 
@@ -506,7 +503,7 @@ class TestMultiOutputGPOptimization:
             kernels.append(constant * matern)
 
         mo_kernel = IndependentMultiOutputKernel(kernels)
-        gp = TorchMultiOutputGP(mo_kernel, nugget=1e-6)
+        gp = MultiOutputGP(mo_kernel, nugget=1e-6)
 
         X_list = [X_train] * self.noutputs
         gp._fit_internal(X_list, y_stacked)
@@ -558,7 +555,7 @@ class TestMultiOutputGPOptimization:
         lmc_kernel = LinearCoregionalizationKernel(
             base_kernels, [B1, B2], self.noutputs
         )
-        gp = TorchMultiOutputGP(lmc_kernel, nugget=1e-6)
+        gp = MultiOutputGP(lmc_kernel, nugget=1e-6)
 
         X_list = [X_train] * self.noutputs
         gp._fit_internal(X_list, y_stacked)
@@ -590,8 +587,8 @@ class TestMultiOutputGPOptimization:
             f"Error ratio {error_ratio:.2e} suggests poor convergence"
 
 
-class TestTorchMultiOutputGPWithMultiLevelKernel:
-    """Torch-only tests for TorchMultiOutputGP with MultiLevelKernel.
+class TestMultiOutputGPWithMultiLevelKernelTorch:
+    """Torch-only tests for MultiOutputGP with MultiLevelKernel.
 
     Tests autograd-based NLL gradients with different X arrays per level,
     the key scenario where analytical kernel jacobian_wrt_params fails.
@@ -644,7 +641,7 @@ class TestTorchMultiOutputGPWithMultiLevelKernel:
         bkd = self._bkd
         X_list, y_list = self._create_multilevel_data()
         mf_kernel = self._create_kernel()
-        gp = TorchMultiOutputGP(mf_kernel, nugget=1e-6)
+        gp = MultiOutputGP(mf_kernel, nugget=1e-6)
 
         gp._fit_internal(X_list, y_list)
 
@@ -682,7 +679,7 @@ class TestTorchMultiOutputGPWithMultiLevelKernel:
         self.setUp()
         X_list, y_list = self._create_multilevel_data()
         mf_kernel = self._create_kernel()
-        gp = TorchMultiOutputGP(mf_kernel, nugget=1e-6)
+        gp = MultiOutputGP(mf_kernel, nugget=1e-6)
 
         initial_params = gp.hyp_list().get_active_values().clone()
 

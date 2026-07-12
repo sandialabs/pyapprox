@@ -7,8 +7,11 @@ the variational GP's negative ELBO for use with optimizers.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Generic, Tuple
 
+from pyapprox.interface.functions.autograd import autograd_derivatives
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -24,7 +27,7 @@ class VariationalGPELBOLoss(Generic[Array]):
 
     Wraps the variational GP's neg_log_marginal_likelihood() (negative ELBO)
     for use with BindableOptimizerProtocol. No analytical jacobian is
-    provided; use TorchVariationalGaussianProcess for autograd-based
+    provided; on autodiff backends the loss supplies autograd-based
     gradients.
 
     Parameters
@@ -44,7 +47,15 @@ class VariationalGPELBOLoss(Generic[Array]):
         self._fit_args = fit_args
         self._bkd = gp.bkd()
         self._hyp_list = gp.hyp_list()
-        self.jacobian: Optional[Callable[[Array], Array]] = None
+
+    def derivatives(self) -> Derivatives[Array]:
+        """No analytic derivatives; autograd bundle on autodiff backends
+        (framework fallback policy: analytic -> autograd -> empty)."""
+        bkd = self.bkd()
+        if isinstance(bkd, AutodiffBackend):
+            return autograd_derivatives(self, bkd)
+        empty: Derivatives[Array] = Derivatives.none()
+        return empty
 
     def nvars(self) -> int:
         """Number of active hyperparameters."""

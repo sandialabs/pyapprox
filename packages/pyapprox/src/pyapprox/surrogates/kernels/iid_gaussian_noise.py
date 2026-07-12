@@ -7,7 +7,12 @@ and identically distributed Gaussian noise in Gaussian process regression.
 
 from typing import Tuple
 
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.surrogates.kernels.base import (
+    Kernel,
+    KernelInputHVP,
+    KernelInputJacobian,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList, LogHyperParameter
 
@@ -123,9 +128,11 @@ class IIDGaussianNoise(Kernel[Array]):
         """
         n = X1.shape[1]
         noise_variance = self._log_noise_variance.exp_values()[0]
-        return self._bkd.full((n,), noise_variance)
+        # ones * value (not full) preserves the autograd graph through the
+        # hyperparameter
+        return self._bkd.ones((n,)) * noise_variance
 
-    def __call__(self, X1: Array, X2: Array = None) -> Array:
+    def __call__(self, X1: Array, X2: Array | None = None) -> Array:
         """
         Compute the IID Gaussian noise kernel matrix.
 
@@ -270,3 +277,16 @@ class IIDGaussianNoise(Kernel[Array]):
         n2 = X2.shape[1]
 
         return self._bkd.zeros((n1, n2, nvars))
+
+    def param_derivatives(self) -> Derivatives[Array]:
+        """Analytic parameter jacobian and hvp (unconditional)."""
+        return Derivatives(
+            jacobian=self.jacobian_wrt_params, hvp=self.hvp_wrt_params
+        )
+
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Analytic input jacobian and hvp."""
+        return Derivatives(
+            jacobian=KernelInputJacobian(self, X2),
+            hvp=KernelInputHVP(self, X2),
+        )

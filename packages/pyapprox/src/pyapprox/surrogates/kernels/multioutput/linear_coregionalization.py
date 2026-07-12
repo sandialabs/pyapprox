@@ -5,7 +5,7 @@ This module provides the LinearCoregionalizationKernel, which models correlation
 between outputs using the linear model of coregionalization formulation.
 """
 
-from typing import Generic, List, Optional, Union
+from typing import Callable, Generic, List, Optional, Union
 
 from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
@@ -171,6 +171,13 @@ class LinearCoregionalizationKernel(Generic[Array]):
             Combined hyperparameter list from base kernels.
         """
         return self._hyp_list
+
+    def param_jacobian(
+        self,
+    ) -> Optional[Callable[[List[Array]], Array]]:
+        """No analytic parameter derivatives (see
+        MultiOutputKernelProtocol)."""
+        return None
 
     def noutputs(self) -> int:
         """

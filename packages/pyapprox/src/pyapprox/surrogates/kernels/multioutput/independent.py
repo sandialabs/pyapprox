@@ -6,7 +6,7 @@ outputs using separate kernels for each output. The resulting kernel matrix has
 a block-diagonal structure.
 """
 
-from typing import Generic, List, Optional, Union
+from typing import Callable, Generic, List, Optional, Union
 
 from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.backends.protocols import Array, Backend
@@ -130,6 +130,17 @@ class IndependentMultiOutputKernel(Generic[Array]):
             Combined hyperparameter list.
         """
         return self._hyp_list
+
+    def param_jacobian(
+        self,
+    ) -> Optional[Callable[[List[Array]], Array]]:
+        """Analytic parameter jacobian (see MultiOutputKernelProtocol);
+        AND logic — declared only when every component kernel declares
+        one."""
+        for kernel in self._kernels:
+            if kernel.param_derivatives().jacobian is None:
+                return None
+        return self.jacobian_wrt_params
 
     def noutputs(self) -> int:
         """
@@ -287,18 +298,15 @@ class IndependentMultiOutputKernel(Generic[Array]):
                 f"got {len(X_list)}"
             )
 
-        # Check all kernels support parameter Jacobian
-        for i, kernel in enumerate(self._kernels):
-            if not hasattr(kernel, "jacobian_wrt_params"):
-                raise NotImplementedError(
-                    f"Kernel {i} does not support jacobian_wrt_params"
-                )
-
-        # Compute Jacobians for each kernel
+        # Compute Jacobians for each kernel via their bundles
         jacs = []
         for i in range(self._noutputs):
-            jac_i = self._kernels[i].jacobian_wrt_params(X_list[i])
-            jacs.append(jac_i)
+            kernel_param_jac = self._kernels[i].param_derivatives().jacobian
+            if kernel_param_jac is None:
+                raise NotImplementedError(
+                    f"Kernel {i} does not declare a parameter jacobian"
+                )
+            jacs.append(kernel_param_jac(X_list[i]))
 
         # Compute sizes
         n_sizes = [X_list[i].shape[1] for i in range(self._noutputs)]

@@ -3,6 +3,9 @@ from typing import Generic, Literal, Optional, Self, Tuple, Union
 import numpy as np
 from scipy.optimize import Bounds, differential_evolution
 
+from pyapprox.interface.functions.legacy_adapter import (
+    as_derivatives,
+)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyDerivativesAdapter,
 )
@@ -14,9 +17,6 @@ from pyapprox.optimization.minimize.constraints.protocols import (
 )
 from pyapprox.optimization.minimize.constraints.validation import (
     validate_constraints,
-)
-from pyapprox.optimization.minimize.objective.legacy_adapter import (
-    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,

@@ -1,9 +1,9 @@
 from typing import Any, List
 
-from pyapprox.interface.functions.protocols.function import FunctionProtocol
-from pyapprox.optimization.minimize.objective.legacy_adapter import (
+from pyapprox.interface.functions.legacy_adapter import (
     as_derivatives,
 )
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 
 
 def _missing_protocol_methods(obj: object, protocol: type) -> List[str]:

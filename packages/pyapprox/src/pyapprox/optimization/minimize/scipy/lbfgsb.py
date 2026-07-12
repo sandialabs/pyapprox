@@ -6,6 +6,9 @@ import numpy as np
 from scipy.optimize import Bounds, OptimizeResult
 from scipy.optimize import minimize as scipy_minimize
 
+from pyapprox.interface.functions.legacy_adapter import (
+    as_derivatives,
+)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyArray,
     NumpyDerivativesAdapter,
@@ -13,9 +16,6 @@ from pyapprox.interface.functions.numpy.adapter import (
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
-)
-from pyapprox.optimization.minimize.objective.legacy_adapter import (
-    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,

@@ -23,13 +23,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from pyapprox.interface.functions.legacy_adapter import (
+    as_derivatives,
+)
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.optimization.minimize.constraints.protocols import (
     LinearConstraintProtocol,
     NonlinearConstraintProtocol,
-)
-from pyapprox.optimization.minimize.objective.legacy_adapter import (
-    as_derivatives,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

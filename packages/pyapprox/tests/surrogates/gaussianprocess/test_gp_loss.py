@@ -1,7 +1,7 @@
 """
 Tests for Gaussian Process loss functions.
 
-This module tests the NegativeLogMarginalLikelihoodLoss class, focusing
+This module tests the GPNegativeLogMarginalLikelihoodLoss class, focusing
 on gradient accuracy using DerivativeChecker.
 """
 
@@ -13,15 +13,24 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.surrogates.gaussianprocess import (
     ConstantMean,
     ExactGaussianProcess,
-    NegativeLogMarginalLikelihoodLoss,
     ZeroMean,
+)
+from pyapprox.surrogates.gaussianprocess.gp_loss import (
+    GPNegativeLogMarginalLikelihoodLoss,
 )
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
 
+
+def _loss_jacobian(loss):
+    jacobian = loss.derivatives().jacobian
+    assert jacobian is not None
+    return jacobian
+
+
 class TestNLMLLoss:
     """
-    Test class for NegativeLogMarginalLikelihoodLoss.
+    Test class for GPNegativeLogMarginalLikelihoodLoss.
     """
 
     def test_initialization(self, bkd) -> None:
@@ -39,7 +48,7 @@ class TestNLMLLoss:
 
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
 
         # Check nvars corresponds to number of hyperparameters
         assert loss.nvars() > 0
@@ -60,7 +69,7 @@ class TestNLMLLoss:
 
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
 
         # Get current hyperparameters
         params = gp.hyp_list().get_active_values()
@@ -90,7 +99,7 @@ class TestNLMLLoss:
 
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
 
         # Get current hyperparameters
         params1 = gp.hyp_list().get_active_values()
@@ -118,10 +127,10 @@ class TestNLMLLoss:
 
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
 
         params = gp.hyp_list().get_active_values()
-        grad = loss.jacobian(params)
+        grad = _loss_jacobian(loss)(params)
 
         # Check gradient shape: (1, nactive)
         assert grad.shape == (1, loss.nvars())
@@ -148,7 +157,7 @@ class TestNLMLLoss:
             nugget=0.1,
         )
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
 
         # Create derivative checker
         checker = DerivativeChecker(loss)
@@ -204,7 +213,7 @@ class TestNLMLLoss:
             kernel, nvars, bkd, mean_function=constant_mean, nugget=0.1
         )
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
 
         # Now we have kernel parameters + constant parameter
         assert loss.nvars() > nvars
@@ -257,10 +266,10 @@ class TestNLMLLoss:
                 kernel, nvars, bkd, nugget=noise_var
             )
 
-            loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+            loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
 
             params = gp.hyp_list().get_active_values()
-            grad = loss.jacobian(params)
+            grad = _loss_jacobian(loss)(params)
 
             # Gradient should be finite
             assert bkd.all_bool(bkd.isfinite(grad))
@@ -284,7 +293,7 @@ class TestNLMLLoss:
 
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_small, y_small)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_small, y_small))
 
         # Create derivative checker
         checker = DerivativeChecker(loss)
@@ -321,7 +330,7 @@ class TestNLMLLoss:
 
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_large, y_large)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_large, y_large))
 
         # Create derivative checker
         checker = DerivativeChecker(loss)
@@ -358,9 +367,9 @@ class TestNLMLLoss:
 
         gp = ExactGaussianProcess(kernel, nvars, bkd, nugget=0.1)
 
-        loss = NegativeLogMarginalLikelihoodLoss(gp, X_train, y_train)
+        loss = GPNegativeLogMarginalLikelihoodLoss(gp, (X_train, y_train))
 
         repr_str = repr(loss)
-        assert "NegativeLogMarginalLikelihoodLoss" in repr_str
+        assert "GPNegativeLogMarginalLikelihoodLoss" in repr_str
         assert "nvars" in repr_str
-        assert "n_train" in repr_str
+        assert "gp_type" in repr_str

@@ -11,6 +11,8 @@ import copy
 import math
 from typing import Generic, Optional
 
+from pyapprox.interface.functions.autograd import autograd_derivatives
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.gaussianprocess.data import GPTrainingData
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
@@ -24,6 +26,7 @@ from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
 from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
@@ -83,22 +86,13 @@ class ExactGaussianProcess(Generic[Array]):
     >>> mean = gp.predict(X_test)
     >>> std = gp.predict_std(X_test)
 
-    Optional Methods
-    ----------------
-    This class uses dynamic method binding based on kernel capabilities:
-
-    - ``hvp(sample, direction)``: Available if kernel implements
-      ``KernelWithJacobianAndHVPWrtX1Protocol`` (i.e., has ``hvp_wrt_x1`` method).
-
-    Check availability with ``hasattr(gp, 'hvp')``.
-
-    Notes
-    -----
-    The ``jacobian`` method is always available as it only requires the kernel
-    to have a ``jacobian`` method (which all kernels have).
-
-    This class follows the dynamic binding pattern for optional methods.
-    See docs/OPTIONAL_METHODS_CONVENTION.md for details.
+    Derivative Capabilities
+    -----------------------
+    ``derivatives()`` returns a Derivatives bundle for the posterior mean
+    w.r.t. inputs x. ``jacobian``/``jacobian_batch`` are always declared;
+    ``hvp``/``hvp_batch`` are declared only when the kernel's
+    ``input_derivatives`` bundle provides an input hvp. Consumers decide
+    off the bundle — never probe attributes.
 
     **Noise and Prediction Behavior:**
 
@@ -163,9 +157,6 @@ class ExactGaussianProcess(Generic[Array]):
         # Precomputed quantities (set during fit)
         self._cholesky: Optional[CholeskyFactor[Array]] = None
 
-        # Conditionally add derivative methods based on kernel capabilities
-        self._setup_derivative_methods()
-
         self._alpha: Optional[Array] = None
         self._output_transform: Optional[OutputAffineTransformProtocol[Array]] = None
         self._input_transform: InputAffineTransformProtocol[Array] = (
@@ -191,20 +182,36 @@ class ExactGaussianProcess(Generic[Array]):
         clone._alpha = None
         return clone
 
-    def _setup_derivative_methods(self) -> None:
-        """
-        Conditionally add hvp/hvp_batch methods based on kernel capabilities.
+    def derivatives(self) -> Derivatives[Array]:
+        """Input-derivative bundle (d/dx of the posterior mean).
 
-        The hvp methods are only exposed if the kernel implements
-        KernelWithJacobianAndHVPWrtX1Protocol (i.e., has hvp_wrt_x1 method).
+        Built at accessor call time: the hvp capability query needs
+        training data for composed kernels. jacobian/jacobian_batch are
+        bound methods that read fitted state at call time (calling them
+        before fit raises RuntimeError, as always).
         """
-        from pyapprox.surrogates.kernels.protocols import (
-            KernelWithJacobianAndHVPWrtX1Protocol,
+        first_order = Derivatives.first_order(
+            jacobian=self.jacobian, jacobian_batch=self.jacobian_batch
         )
-
-        if isinstance(self._kernel, KernelWithJacobianAndHVPWrtX1Protocol):
-            self.hvp = self._hvp
-            self.hvp_batch = self._hvp_batch
+        if not self.is_fitted():
+            return first_order
+        kernel_input = self._kernel.input_derivatives(self.data().X())
+        if kernel_input.jacobian is None:
+            # analytic -> autograd -> empty (framework fallback policy);
+            # first-order only: torch.cdist does not support second-order
+            # autograd
+            if isinstance(self._bkd, AutodiffBackend):
+                return autograd_derivatives(self, self._bkd)
+            empty: Derivatives[Array] = Derivatives.none()
+            return empty
+        if kernel_input.hvp is None:
+            return first_order
+        return Derivatives(
+            jacobian=self.jacobian,
+            jacobian_batch=self.jacobian_batch,
+            hvp=self._hvp,
+            hvp_batch=self._hvp_batch,
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -557,7 +564,14 @@ class ExactGaussianProcess(Generic[Array]):
         sigma = self._bkd.sqrt(var_post)  # (1,)
 
         # Kernel jacobian: dk(x*, X_train)/dx  shape (1, n_train, nvars)
-        K_jac = self._kernel.jacobian(sample_scaled, self.data().X())
+        kernel_input_jac = self._kernel.input_derivatives(
+            self.data().X()
+        ).jacobian
+        if kernel_input_jac is None:
+            raise RuntimeError(
+                "kernel must declare an input jacobian for GP jacobian"
+            )
+        K_jac = kernel_input_jac(sample_scaled)
         # Squeeze to (n_train, nvars)
         dK_star_dx = K_jac[0]  # (n_train, nvars)
 
@@ -636,7 +650,14 @@ class ExactGaussianProcess(Generic[Array]):
         sample_scaled = self._input_transform.transform(sample)
 
         # Kernel Jacobian: ∂k(x, X)/∂x has shape (1, n_train, nvars)
-        K_jac = self._kernel.jacobian(sample_scaled, self.data().X())
+        kernel_input_jac = self._kernel.input_derivatives(
+            self.data().X()
+        ).jacobian
+        if kernel_input_jac is None:
+            raise RuntimeError(
+                "kernel must declare an input jacobian for GP jacobian"
+            )
+        K_jac = kernel_input_jac(sample_scaled)
 
         # Compute: α @ ∂k(x, X)^T/∂x
         # K_jac shape: (1, n_train, nvars), α shape: (nqoi, n_train)
@@ -681,7 +702,14 @@ class ExactGaussianProcess(Generic[Array]):
         samples_scaled = self._input_transform.transform(samples)
 
         # Kernel Jacobian: ∂k(x, X)/∂x has shape (n_samples, n_train, nvars)
-        K_jac = self._kernel.jacobian(samples_scaled, self.data().X())
+        kernel_input_jac = self._kernel.input_derivatives(
+            self.data().X()
+        ).jacobian
+        if kernel_input_jac is None:
+            raise RuntimeError(
+                "kernel must declare an input jacobian for GP jacobian"
+            )
+        K_jac = kernel_input_jac(samples_scaled)
 
         # For each sample point, compute: α @ ∂k(x, X)^T/∂x
         # K_jac shape: (n_samples, n_train, nvars), α shape: (nqoi, n_train)
@@ -727,12 +755,15 @@ class ExactGaussianProcess(Generic[Array]):
         hvp : Array, shape (nvars,)
             Hessian-vector product
         """
-        # Call kernel's hvp_wrt_x1 method
         # X1 = x_star (1 point), X2 = X_train (n_train points), direction = V
         # Returns: (1, n_train, nvars)
-        kernel_hvp = self._kernel.hvp_wrt_x1(
+        kernel_input_hvp = self._kernel.input_derivatives(X_train).hvp
+        if kernel_input_hvp is None:
+            raise RuntimeError(
+                "_hvp requires the kernel to declare an input hvp"
+            )
+        kernel_hvp = kernel_input_hvp(
             x_star[:, None],  # (nvars, 1)
-            X_train,  # (nvars, n_train)
             V,  # (nvars,)
         )  # Shape: (1, n_train, nvars)
 

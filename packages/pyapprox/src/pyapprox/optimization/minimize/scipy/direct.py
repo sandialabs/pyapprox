@@ -3,14 +3,14 @@ from typing import Generic, Optional, Self
 import numpy as np
 from scipy.optimize import Bounds, direct
 
+from pyapprox.interface.functions.legacy_adapter import (
+    as_derivatives,
+)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyDerivativesAdapter,
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
-)
-from pyapprox.optimization.minimize.objective.legacy_adapter import (
-    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,

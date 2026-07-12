@@ -11,6 +11,8 @@ import copy
 import math
 from typing import Generic, List, Optional, Tuple, Union
 
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.surrogates.gaussianprocess.mean_functions import MeanFunction
 from pyapprox.surrogates.gaussianprocess.multioutput_data import (
     MultiOutputGPTrainingData,
 )
@@ -155,6 +157,33 @@ class MultiOutputGP(Generic[Array]):
     def kernel(self) -> MultiOutputKernelProtocol[Array]:
         """Return the multi-output kernel."""
         return self._kernel
+
+    def mean(self) -> Optional[MeanFunction[Array]]:
+        """Multi-output GPs have no mean function (absence is None)."""
+        return None
+
+    def derivatives(self) -> Derivatives[Array]:
+        """No prediction derivatives (list-valued inputs; absence is
+        None, never a missing attribute)."""
+        empty: Derivatives[Array] = Derivatives.none()
+        return empty
+
+    def _stacked_kernel_matrix(
+        self,
+        X1_list: List[Array],
+        X2_list: Optional[List[Array]] = None,
+    ) -> Array:
+        """Evaluate the kernel in stacked (non-block) format, narrowing
+        the protocol's union return type."""
+        if X2_list is None:
+            K = self._kernel(X1_list, block_format=False)
+        else:
+            K = self._kernel(X1_list, X2_list, block_format=False)
+        if isinstance(K, list):
+            raise TypeError(
+                "kernel must return a stacked Array for block_format=False"
+            )
+        return K
 
     def hyp_list(self) -> HyperParameterList[Array]:
         """
@@ -304,8 +333,8 @@ class MultiOutputGP(Generic[Array]):
         self._X_train_list = X_train_list
         self._y_train_stacked = y_train_stacked
 
-        # Build kernel matrix
-        K = self._kernel(X_train_list, block_format=False)
+        # Build kernel matrix (stacked format)
+        K = self._stacked_kernel_matrix(X_train_list)
         K_noisy = K + self._bkd.eye(K.shape[0]) * self._nugget
 
         # Cholesky factorization
@@ -419,8 +448,8 @@ class MultiOutputGP(Generic[Array]):
             )
 
         # Cross-covariance: K(X_test, X_train)
-        K_star = self._kernel(
-            X_test_list, self._fitted_x_train_list(), block_format=False
+        K_star = self._stacked_kernel_matrix(
+            X_test_list, self._fitted_x_train_list()
         )
 
         # Mean prediction: μ* = K_star @ alpha (stacked format)
@@ -466,18 +495,26 @@ class MultiOutputGP(Generic[Array]):
         mean = self.predict(X_test_list)
 
         # Cross-covariance for variance computation
-        K_star = self._kernel(
-            X_test_list, self._fitted_x_train_list(), block_format=False
+        K_star = self._stacked_kernel_matrix(
+            X_test_list, self._fitted_x_train_list()
         )
 
         # Prior variance (diagonal of K(X_test, X_test))
         # Use block format to efficiently get diagonals
         K_star_star_blocks = self._kernel(X_test_list, block_format=True)
+        if not isinstance(K_star_star_blocks, list):
+            raise TypeError(
+                "kernel must return blocks for block_format=True"
+            )
 
         # Extract diagonal from each diagonal block
         diag_blocks = []
         for i in range(len(X_test_list)):
             block_ii = K_star_star_blocks[i][i]
+            if block_ii is None:
+                raise RuntimeError(
+                    f"kernel returned no diagonal block for output {i}"
+                )
             # Diagonal of this block
             diag_i = self._bkd.diag(block_ii)
             diag_blocks.append(diag_i)
@@ -546,12 +583,12 @@ class MultiOutputGP(Generic[Array]):
         mean = self.predict(X_test_list)
 
         # Cross-covariance
-        K_star = self._kernel(
-            X_test_list, self._fitted_x_train_list(), block_format=False
+        K_star = self._stacked_kernel_matrix(
+            X_test_list, self._fitted_x_train_list()
         )
 
         # Prior covariance
-        K_star_star = self._kernel(X_test_list, block_format=False)
+        K_star_star = self._stacked_kernel_matrix(X_test_list)
 
         # Solve: v = L^{-1} @ K_star^T
         v = self._bkd.solve_triangular(self.cholesky().factor(), K_star.T, lower=True)

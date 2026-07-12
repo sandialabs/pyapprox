@@ -5,7 +5,15 @@ This module defines the interface for multi-output kernels that can model
 covariance across multiple outputs or quantities of interest.
 """
 
-from typing import Generic, List, Optional, Protocol, Union, runtime_checkable
+from typing import (
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Union,
+    runtime_checkable,
+)
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
@@ -44,6 +52,20 @@ class MultiOutputKernelProtocol(Protocol, Generic[Array]):
         -------
         hyp_list : HyperParameterList[Array]
             List of hyperparameters.
+        """
+        ...
+
+    def param_jacobian(
+        self,
+    ) -> Optional[Callable[[List[Array]], Array]]:
+        """Return the parameter-jacobian callable, or None when the kernel
+        has no analytic parameter derivatives.
+
+        Multi-output kernels take ``List[Array]`` sample blocks, so they
+        expose this single Optional accessor instead of an Array-typed
+        Derivatives bundle. Absence is None, never a missing attribute.
+        The callable maps ``X_list`` to a jacobian of shape
+        ``(n, n, nactive_params)`` over the stacked kernel matrix.
         """
         ...
 

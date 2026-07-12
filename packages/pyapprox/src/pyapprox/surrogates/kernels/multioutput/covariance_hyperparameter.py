@@ -93,7 +93,8 @@ class CovarianceHyperParameter(Generic[Array]):
         radii_bounds: Tuple[float, float] = (0.1, 10.0),
         angles_init: float = math.pi / 2,
         angles_bounds: Tuple[float, float] = (0.01, math.pi - 0.01),
-        bkd: Backend[Array] = None,
+        *,
+        bkd: Backend[Array],
         fixed: bool = False,
     ):
         """
@@ -116,9 +117,6 @@ class CovarianceHyperParameter(Generic[Array]):
         fixed : bool, optional
             If True, parameters are fixed. Default: False.
         """
-        if bkd is None:
-            raise ValueError("Backend must be provided")
-
         self._bkd = bkd
         self._noutputs = noutputs
         self._nradii = noutputs
@@ -235,7 +233,10 @@ class CovarianceHyperParameter(Generic[Array]):
         """
         if update or self._covariance is None:
             self._update_covariance()
-        return self._covariance
+        covariance = self._covariance
+        if covariance is None:
+            raise RuntimeError("covariance update failed")
+        return covariance
 
     def correlation(self, update: bool = True) -> Array:
         """

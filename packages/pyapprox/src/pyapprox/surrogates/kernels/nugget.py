@@ -6,9 +6,9 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.surrogates.kernels.base import Kernel, KernelInputJacobian
 from pyapprox.surrogates.kernels.protocols import (
-    KernelHasJacobianProtocol,
     KernelProtocol,
     NumbaScalarKernelFn,
     NumbaScalarKernelProtocol,
@@ -56,9 +56,23 @@ class NuggetKernel(Kernel[Array], Generic[Array]):
         return K
 
     def jacobian(self, X1: Array, X2: Array) -> Array:
-        if not isinstance(self._inner, KernelHasJacobianProtocol):
-            raise TypeError("Inner kernel does not implement jacobian")
-        return self._inner.jacobian(X1, X2)
+        inner_jac = self._inner.input_derivatives(X2).jacobian
+        if inner_jac is None:
+            raise NotImplementedError(
+                "Inner kernel must provide an input jacobian"
+            )
+        # the nugget term is piecewise constant in x, so its input
+        # jacobian is the inner kernel's
+        return inner_jac(X1)
+
+    def input_derivatives(self, X2: Array) -> Derivatives[Array]:
+        """Input jacobian delegates to the inner kernel when declared."""
+        if self._inner.input_derivatives(X2).jacobian is None:
+            empty: Derivatives[Array] = Derivatives.none()
+            return empty
+        return Derivatives.first_order(
+            jacobian=KernelInputJacobian(self, X2)
+        )
 
     def numba_eval(self) -> NumbaScalarKernelFn:
         if not isinstance(self._inner, NumbaScalarKernelProtocol):

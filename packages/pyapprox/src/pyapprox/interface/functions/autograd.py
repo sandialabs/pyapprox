@@ -61,6 +61,23 @@ class _AutogradJacobian(Generic[Array]):
 
 
 @dataclass(frozen=True)
+class _AutogradJacobianBatch(Generic[Array]):
+    """Bundle jacobian_batch field: per-sample autograd jacobians stacked
+    to (nsamples, nqoi, nvars)."""
+
+    fun: Callable[[Array], Array]
+    bkd: AutodiffBackend[Array]
+
+    def __call__(self, samples: Array) -> Array:
+        single = _AutogradJacobian(self.fun, self.bkd)
+        jacobians = [
+            single(samples[:, ii : ii + 1])
+            for ii in range(samples.shape[1])
+        ]
+        return self.bkd.stack(jacobians, axis=0)
+
+
+@dataclass(frozen=True)
 class _AutogradHVP(Generic[Array]):
     """Bundle hvp field computed via backend autodiff (nqoi == 1)."""
 
@@ -109,10 +126,60 @@ def autograd_derivatives(
             f"and 'hvp' are required), got {type(bkd).__name__}"
         )
     if not fill_hvp:
-        return Derivatives.first_order(jacobian=_AutogradJacobian(fun, bkd))
+        return Derivatives.first_order(
+            jacobian=_AutogradJacobian(fun, bkd),
+            jacobian_batch=_AutogradJacobianBatch(fun, bkd),
+        )
     return Derivatives.second_order(
-        _AutogradJacobian(fun, bkd), _AutogradHVP(fun, bkd)
+        _AutogradJacobian(fun, bkd),
+        _AutogradHVP(fun, bkd),
+        jacobian_batch=_AutogradJacobianBatch(fun, bkd),
     )
+
+
+class OverrideDerivatives(Generic[Array]):
+    """View of an objective with a caller-supplied Derivatives bundle.
+
+    The non-polluting way to reconfigure derivative capability for a
+    specific bind()/minimize() run — e.g. masking an analytic hvp
+    (``OverrideDerivatives(gp, gp.derivatives().with_(hvp=None,
+    hvp_batch=None))``) or attaching an explicitly built autograd bundle
+    (``autograd_derivatives(gp, bkd, fill_hvp=True)``) — without adding
+    configuration parameters to any producer.
+    """
+
+    def __init__(
+        self,
+        inner: ObjectiveProtocol[Array],
+        derivatives: Derivatives[Array],
+    ) -> None:
+        if not isinstance(inner, ObjectiveProtocol):
+            raise TypeError(
+                "inner must satisfy ObjectiveProtocol, got "
+                f"{type(inner).__name__}"
+            )
+        if not isinstance(derivatives, Derivatives):
+            raise TypeError(
+                "derivatives must be a Derivatives bundle, got "
+                f"{type(derivatives).__name__}"
+            )
+        self._inner = inner
+        self._derivs = derivatives
+
+    def bkd(self) -> Backend[Array]:
+        return self._inner.bkd()
+
+    def nvars(self) -> int:
+        return self._inner.nvars()
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def __call__(self, samples: Array) -> Array:
+        return self._inner(samples)
+
+    def derivatives(self) -> Derivatives[Array]:
+        return self._derivs
 
 
 class WithAutogradJacobian(Generic[Array]):

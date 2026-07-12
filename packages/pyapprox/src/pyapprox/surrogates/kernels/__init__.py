@@ -7,10 +7,6 @@ process regression, radial basis function networks, and other kernel-based metho
 Key Protocols
 -------------
 - KernelProtocol: Base protocol for kernel implementations
-- KernelHasJacobianProtocol: Protocol for kernels with Jacobian support
-- KernelHasParameterJacobianProtocol: Protocol for kernels with parameter Jacobian
-- KernelWithJacobianProtocol: Composition of kernel and Jacobian protocols
-- KernelWithJacobianAndParameterJacobianProtocol: Full derivative support
 - MultiOutputKernelProtocol: Protocol for multi-output kernel implementations
 
 Key Classes
@@ -92,17 +88,7 @@ from .multioutput import (
     MultiOutputKernelProtocol,
 )
 from .protocols import (
-    KernelHasHVPWrtParamsProtocol,
-    KernelHasHVPWrtX1Protocol,
-    KernelHasJacobianProtocol,
-    KernelHasParameterJacobianProtocol,
     KernelProtocol,
-    KernelWithFullDerivativesProtocol,
-    KernelWithJacobianAndHVPWrtX1Protocol,
-    KernelWithJacobianAndParameterJacobianProtocol,
-    KernelWithJacobianProtocol,
-    KernelWithParameterJacobianAndHVPProtocol,
-    KernelWithParameterJacobianProtocol,
     SeparableKernelProtocol,
 )
 from .scalings import (
@@ -112,19 +98,9 @@ from .scalings import (
 )
 
 __all__ = [
-    # Protocols - Base (Has)
+    # Protocols (derivative capability lives in the Derivatives bundles
+    # returned by param_derivatives()/input_derivatives())
     "KernelProtocol",
-    "KernelHasJacobianProtocol",
-    "KernelHasParameterJacobianProtocol",
-    "KernelHasHVPWrtX1Protocol",
-    "KernelHasHVPWrtParamsProtocol",
-    # Protocols - Composite (With)
-    "KernelWithJacobianProtocol",
-    "KernelWithJacobianAndHVPWrtX1Protocol",
-    "KernelWithParameterJacobianProtocol",
-    "KernelWithParameterJacobianAndHVPProtocol",
-    "KernelWithJacobianAndParameterJacobianProtocol",
-    "KernelWithFullDerivativesProtocol",
     "SeparableKernelProtocol",
     "MultiOutputKernelProtocol",
     "ScalingFunctionProtocol",

@@ -1,27 +1,30 @@
-from typing import Generic, Optional, Protocol, Union, runtime_checkable
+"""JVP-exposing views used by DerivativeChecker.
 
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithHVPAndJacobianOrJVPProtocol,
-    FunctionWithJacobianAndWHVPProtocol,
-    function_has_hvp_and_jacobian_or_jvp,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianOrJVPProtocol,
-    FunctionWithJVPProtocol,
-    function_has_jacobian_or_jvp,
-)
+Capability is read from each function's Derivatives bundle (via the
+migration shim ``as_derivatives``), never via attribute probing.
+"""
+
+from typing import Generic, Optional
+
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 class FunctionWithJVP(Generic[Array]):
-    def __init__(self, function: FunctionWithJacobianOrJVPProtocol[Array]):
-        if not function_has_jacobian_or_jvp(function):
+    """Expose a jvp for first-order checking, from jvp or jacobian."""
+
+    def __init__(self, function: FunctionProtocol[Array]):
+        derivs = as_derivatives(function)
+        if derivs.jvp is None and derivs.jacobian is None:
             raise ValueError(
-                "The provided function must satisfy "
-                "'FunctionWithJacobianOrJVPProtocol'. "
+                "The provided function must declare a jacobian or jvp in "
+                "its Derivatives bundle. "
                 f"Got an object of type {type(function).__name__}."
             )
         self._fun = function
+        self._jvp = derivs.jvp
+        self._jacobian = derivs.jacobian
 
     def bkd(self) -> Backend[Array]:
         return self._fun.bkd()
@@ -36,9 +39,14 @@ class FunctionWithJVP(Generic[Array]):
         return self._fun(samples)
 
     def jvp(self, sample: Array, vec: Array) -> Array:
-        if isinstance(self._fun, FunctionWithJVPProtocol):
-            return self._fun.jvp(sample, vec)
-        return self._fun.jacobian(sample) @ vec
+        if self._jvp is not None:
+            return self._jvp(sample, vec)
+        jacobian = self._jacobian
+        if jacobian is None:
+            raise RuntimeError(
+                "jvp requires the function to declare a jacobian or jvp"
+            )
+        return jacobian(sample) @ vec
 
     def __repr__(self) -> str:
         """
@@ -53,30 +61,40 @@ class FunctionWithJVP(Generic[Array]):
 
 class FunctionWithJVPFromHVP(Generic[Array]):
     """
-    Used to check hessian vector products with DerivativeChecker
+    Used to check hessian vector products with DerivativeChecker.
+
+    Views the (weighted) gradient as the function and the (w)hvp as its
+    jvp, so second derivatives are checked as first derivatives of the
+    gradient.
     """
 
     def __init__(
         self,
-        function: Union[
-            FunctionWithHVPAndJacobianOrJVPProtocol[Array],
-            FunctionWithJacobianAndWHVPProtocol[Array],
-        ],
+        function: FunctionProtocol[Array],
         weights: Optional[Array] = None,
     ):
-        if not function_has_hvp_and_jacobian_or_jvp(function):
+        derivs = as_derivatives(function)
+        if derivs.hvp is None and derivs.whvp is None:
             raise ValueError(
-                "The provided function must satisfy either "
-                "'FunctionWithJacobianAndHVPProtocol' or "
-                "'FunctionWithJVPAndHVPProtocol' or "
-                "'FunctionWithJacobianAndWHVPProtocol'."
+                "The provided function must declare an hvp or whvp in its "
+                "Derivatives bundle. "
                 f"Got an object of type {type(function).__name__}."
             )
-        self._fun = function
-        if weights is None and not hasattr(self._fun, "hvp"):
+        if derivs.jvp is None and derivs.jacobian is None:
+            raise ValueError(
+                "The provided function must declare a jacobian or jvp in "
+                "its Derivatives bundle. "
+                f"Got an object of type {type(function).__name__}."
+            )
+        if weights is None and derivs.hvp is None:
             raise AttributeError(
                 "weights must be provided if testing the weighted hessian of a function"
             )
+        self._fun = function
+        self._jacobian = derivs.jacobian
+        self._explicit_jvp = derivs.jvp
+        self._hvp = derivs.hvp
+        self._whvp = derivs.whvp
         self._weights = weights
 
     def bkd(self) -> Backend[Array]:
@@ -89,25 +107,44 @@ class FunctionWithJVPFromHVP(Generic[Array]):
         return self._fun.nqoi()
 
     def _jacobian_from_apply(self, sample: Array) -> Array:
+        explicit_jvp = self._explicit_jvp
+        if explicit_jvp is None:
+            raise RuntimeError(
+                "_jacobian_from_apply requires the function to declare a "
+                "jvp"
+            )
         nvars = sample.shape[0]
         actions = []
         for ii in range(nvars):
             vec = self.bkd().zeros((nvars, 1))
             vec[ii] = 1.0
-            actions.append(self.jvp(sample, vec))
+            actions.append(explicit_jvp(sample, vec))
         return self.bkd().hstack(actions)
 
     def __call__(self, samples: Array) -> Array:
-        if isinstance(self._fun, FunctionWithJVPProtocol):
+        jacobian = self._jacobian
+        if jacobian is None:
             return self._jacobian_from_apply(samples)
         if self.nqoi() == 1:
-            return self._fun.jacobian(samples)
-        return self._weights @ self._fun.jacobian(samples)  # type: ignore
+            return jacobian(samples)
+        weights = self._weights
+        if weights is None:
+            raise RuntimeError(
+                "weights are required for multi-QoI hessian checks"
+            )
+        return weights @ jacobian(samples)
 
     def jvp(self, sample: Array, vec: Array) -> Array:
-        if self.nqoi() == 1 and hasattr(self._fun, "hvp"):
-            return self._fun.hvp(sample, vec)
-        return self._fun.whvp(sample, vec, self._weights)
+        hvp = self._hvp
+        if self.nqoi() == 1 and hvp is not None:
+            return hvp(sample, vec)
+        whvp = self._whvp
+        weights = self._weights
+        if whvp is None or weights is None:
+            raise RuntimeError(
+                "jvp requires an hvp (nqoi == 1) or a whvp with weights"
+            )
+        return whvp(sample, vec, weights)
 
     def __repr__(self) -> str:
         """
@@ -121,26 +158,21 @@ class FunctionWithJVPFromHVP(Generic[Array]):
 
 
 class SingleSampleFromBatchJacobian(Generic[Array]):
-    """Wrap batch jacobian to expose single-sample jacobian interface.
+    """Expose a single-sample jacobian view of a batch jacobian.
 
     This allows testing jacobian_batch through DerivativeChecker by
     extracting results for a single sample.
     """
 
-    def __init__(self, function: "BatchJacobianProtocol[Array]"):
-        """Initialize wrapper.
-
-        Parameters
-        ----------
-        function : BatchJacobianProtocol[Array]
-            Function with jacobian_batch method.
-        """
-        if not hasattr(function, "jacobian_batch"):
+    def __init__(self, function: FunctionProtocol[Array]):
+        derivs = as_derivatives(function)
+        if derivs.jacobian_batch is None:
             raise ValueError(
-                "Function must have jacobian_batch method. "
-                f"Got {type(function).__name__}."
+                "Function must declare jacobian_batch in its Derivatives "
+                f"bundle. Got {type(function).__name__}."
             )
         self._fun = function
+        self._jacobian_batch = derivs.jacobian_batch
 
     def bkd(self) -> Backend[Array]:
         return self._fun.bkd()
@@ -157,7 +189,7 @@ class SingleSampleFromBatchJacobian(Generic[Array]):
 
     def jacobian(self, sample: Array) -> Array:
         # Use jacobian_batch and extract single result
-        jac_batch = self._fun.jacobian_batch(sample)  # (1, nqoi, nvars)
+        jac_batch = self._jacobian_batch(sample)  # (1, nqoi, nvars)
         return jac_batch[0, :, :]  # (nqoi, nvars)
 
     def __repr__(self) -> str:
@@ -165,35 +197,31 @@ class SingleSampleFromBatchJacobian(Generic[Array]):
 
 
 class SingleSampleFromBatchHessian(Generic[Array]):
-    """Wrap batch hessian to expose single-sample hessian interface.
+    """Expose single-sample jacobian/hvp views of batch derivatives.
 
     This allows testing hessian_batch through DerivativeChecker by
     extracting results for a single sample. Only for nqoi=1.
     """
 
-    def __init__(self, function: "BatchHessianProtocol[Array]"):
-        """Initialize wrapper.
-
-        Parameters
-        ----------
-        function : BatchHessianProtocol[Array]
-            Function with hessian_batch method. Must have nqoi=1.
-        """
-        if not hasattr(function, "hessian_batch"):
+    def __init__(self, function: FunctionProtocol[Array]):
+        derivs = as_derivatives(function)
+        if derivs.hessian_batch is None:
             raise ValueError(
-                "Function must have hessian_batch method. "
-                f"Got {type(function).__name__}."
+                "Function must declare hessian_batch in its Derivatives "
+                f"bundle. Got {type(function).__name__}."
             )
-        if not hasattr(function, "jacobian_batch"):
+        if derivs.jacobian_batch is None:
             raise ValueError(
-                "Function must have jacobian_batch method. "
-                f"Got {type(function).__name__}."
+                "Function must declare jacobian_batch in its Derivatives "
+                f"bundle. Got {type(function).__name__}."
             )
         if function.nqoi() != 1:
             raise ValueError(
                 f"hessian_batch only supported for nqoi=1. Got nqoi={function.nqoi()}."
             )
         self._fun = function
+        self._jacobian_batch = derivs.jacobian_batch
+        self._hessian_batch = derivs.hessian_batch
 
     def bkd(self) -> Backend[Array]:
         return self._fun.bkd()
@@ -209,12 +237,12 @@ class SingleSampleFromBatchHessian(Generic[Array]):
 
     def jacobian(self, sample: Array) -> Array:
         # Use jacobian_batch for the gradient
-        jac_batch = self._fun.jacobian_batch(sample)  # (1, 1, nvars)
+        jac_batch = self._jacobian_batch(sample)  # (1, 1, nvars)
         return jac_batch[0, :, :]  # (1, nvars)
 
     def hessian(self, sample: Array) -> Array:
         # Use hessian_batch and extract single result
-        hess_batch = self._fun.hessian_batch(sample)  # (1, nvars, nvars)
+        hess_batch = self._hessian_batch(sample)  # (1, nvars, nvars)
         return hess_batch[0, :, :]  # (nvars, nvars)
 
     def hvp(self, sample: Array, vec: Array) -> Array:
@@ -224,26 +252,3 @@ class SingleSampleFromBatchHessian(Generic[Array]):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nvars={self.nvars()})"
-
-
-@runtime_checkable
-class BatchJacobianProtocol(Protocol, Generic[Array]):
-    """Protocol for functions with batch Jacobian."""
-
-    def bkd(self) -> Backend[Array]: ...
-    def nvars(self) -> int: ...
-    def nqoi(self) -> int: ...
-    def __call__(self, samples: Array) -> Array: ...
-    def jacobian_batch(self, samples: Array) -> Array: ...
-
-
-@runtime_checkable
-class BatchHessianProtocol(Protocol, Generic[Array]):
-    """Protocol for functions with batch Hessian."""
-
-    def bkd(self) -> Backend[Array]: ...
-    def nvars(self) -> int: ...
-    def nqoi(self) -> int: ...
-    def __call__(self, samples: Array) -> Array: ...
-    def jacobian_batch(self, samples: Array) -> Array: ...
-    def hessian_batch(self, samples: Array) -> Array: ...

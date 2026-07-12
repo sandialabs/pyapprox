@@ -29,12 +29,6 @@ from pyapprox.surrogates.gaussianprocess.output_transform import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-def _is_torch(bkd: Backend[Array]) -> bool:
-    from pyapprox.util.backends.torch import TorchBkd
-
-    return isinstance(bkd, TorchBkd)
-
-
 class GPMaximumLikelihoodFitter(Generic[Array]):
     """GP fitter with maximum likelihood hyperparameter optimization.
 
@@ -157,23 +151,6 @@ class GPMaximumLikelihoodFitter(Generic[Array]):
         loss = GPNegativeLogMarginalLikelihoodLoss(
             clone, (clone.data().X(), clone.data().y())
         )
-        if _is_torch(self._bkd) and not hasattr(
-            clone.kernel(), "jacobian_wrt_params"
-        ):
-            _bkd_jacobian = getattr(self._bkd, "jacobian")
-            bkd = self._bkd
-
-            def _jacobian_autograd(params: Array) -> Array:
-                if len(params.shape) == 2 and params.shape[1] == 1:
-                    params = params[:, 0]
-
-                def loss_func(p: Array) -> Array:
-                    return loss(p)[0, 0]
-
-                jac = _bkd_jacobian(loss_func, params)
-                return bkd.reshape(jac, (1, len(params)))
-
-            loss.jacobian = _jacobian_autograd
 
         # Get bounds for active hyperparameters
         bounds = clone.hyp_list().get_active_bounds()

@@ -36,14 +36,14 @@ class CholeskyFactor(Generic[Array]):
         """
         return self._L
 
-    def log_determinant(self) -> Any:
+    def log_determinant(self) -> Array:
         """
         Compute the log determinant of the matrix from its Cholesky factor.
 
         Returns
         -------
-        log_det : Any
-            The log determinant of the matrix.
+        log_det : Array
+            The log determinant of the matrix (scalar array).
         """
         return 2.0 * self._bkd.sum(self._bkd.log(self._bkd.diag(self._L)))
 
