@@ -1,23 +1,23 @@
-from typing import Any, Callable, Generic, Optional, Self, Union, cast
+from typing import Any, Callable, Generic, Optional, Self
 
 import numpy as np
 from scipy.optimize import Bounds
 from scipy.optimize import minimize as scipy_minimize
 
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWrapper,
+from pyapprox.interface.functions.numpy.adapter import (
+    NumpyArray,
+    NumpyDerivativesAdapter,
+    NumpyFn,
+    NumpyHVPFn,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
 )
 from pyapprox.optimization.minimize.constraints.validation import (
     validate_constraints,
+)
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
@@ -32,14 +32,6 @@ from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
-# Type alias for the wrapped objective returned by numpy_function_wrapper_factory
-_WrappedObjective = Union[
-    NumpyFunctionWrapper[Array],
-    NumpyFunctionWithJacobianWrapper[Array],
-    NumpyFunctionWithJacobianAndHVPWrapper[Array],
-    NumpyFunctionWithJacobianAndWHVPWrapper[Array],
-]
 
 
 class ScipyTrustConstrOptimizer(Generic[Array]):
@@ -128,7 +120,11 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         }
 
         # Initialize unbound state
-        self._objective: Optional[_WrappedObjective[Array]] = None
+        self._objective: Optional[NumpyDerivativesAdapter[Array]] = None
+        # derivative capability captured once at bind(); value varies,
+        # attribute shape never does
+        self._np_jac: Optional[NumpyFn] = None
+        self._np_hvp: Optional[NumpyHVPFn] = None
         self._bounds: Optional[Bounds] = None
         self._constraints: Optional[object] = None
         self._is_bound = False
@@ -162,10 +158,15 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
             Returns self to enable method chaining.
         """
         validate_objective(objective)
-        self._objective = numpy_function_wrapper_factory(objective)
+        adapter = NumpyDerivativesAdapter(
+            objective, as_derivatives(objective)
+        )
+        self._objective = adapter
+        self._np_jac = adapter.jacobian()
+        self._np_hvp = adapter.hvp()
         # Use objective's backend directly since we're not fully bound yet
         self._bounds = self._convert_bounds(
-            bounds, self._objective.nvars(), self._objective.bkd()
+            bounds, adapter.nvars(), adapter.bkd()
         )
         if constraints:
             validate_constraints(constraints)
@@ -193,19 +194,16 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         Self
             A new optimizer instance with the same options, unbound.
         """
-        return cast(
-            Self,
-            ScipyTrustConstrOptimizer(
-                objective=None,
-                bounds=None,
-                constraints=self._init_constraints,
-                verbosity=self._verbosity,
-                maxiter=self._maxiter,
-                gtol=self._gtol,
-                xtol=self._xtol,
-                barrier_tol=self._barrier_tol,
-                callback=self._callback,
-            ),
+        return type(self)(
+            objective=None,
+            bounds=None,
+            constraints=self._init_constraints,
+            verbosity=self._verbosity,
+            maxiter=self._maxiter,
+            gtol=self._gtol,
+            xtol=self._xtol,
+            barrier_tol=self._barrier_tol,
+            callback=self._callback,
         )
 
     def bkd(self) -> Backend[Array]:
@@ -221,10 +219,10 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         RuntimeError
             If the optimizer has not been bound.
         """
-        if not self._is_bound:
+        objective = self._objective
+        if objective is None:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._objective is not None
-        return self._objective.bkd()
+        return objective.bkd()
 
     def _convert_bounds(self, bounds: Array, nvars: int, bkd: Backend[Array]) -> Bounds:
         """Convert bounds to a SciPy-compatible Bounds object.
@@ -252,16 +250,6 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         np_bounds = bkd.to_numpy(bounds)
         return Bounds(np_bounds[:, 0], np_bounds[:, 1], keep_feasible=True)
 
-    def _objective_gradient_from_jacobian(self, sample: Array) -> Array:
-        assert self._objective is not None
-        # hasattr check is done in minimize() before calling this method
-        return self._objective.jacobian(sample[:, None])[0]  # type: ignore[union-attr,no-any-return]
-
-    def _objective_hessp_from_hvp(self, sample: Array, vec: Array) -> Array:
-        assert self._objective is not None
-        # hasattr check is done in minimize() before calling this method
-        return self._objective.hvp(sample[:, None], vec[:, None])[:, 0]  # type: ignore[union-attr,return-value]
-
     def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
         """Perform the optimization.
 
@@ -280,22 +268,27 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         RuntimeError
             If the optimizer has not been bound.
         """
-        if not self._is_bound:
+        objective = self._objective
+        if objective is None or self._bounds is None:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._objective is not None
-        assert self._bounds is not None
 
-        jac = (
-            self._objective_gradient_from_jacobian
-            if hasattr(self._objective, "jacobian")
-            else None
-        )
-        hessp = (
-            self._objective_hessp_from_hvp if hasattr(self._objective, "hvp") else None
-        )
+        np_jac = self._np_jac
+        jac: Optional[NumpyFn] = None
+        if np_jac is not None:
+
+            def jac(x: NumpyArray) -> NumpyArray:
+                # np.asarray: numpy stubs type __getitem__ as Any
+                return np.asarray(np_jac(x[:, None])[0])
+
+        np_hvp = self._np_hvp
+        hessp: Optional[NumpyHVPFn] = None
+        if np_hvp is not None:
+
+            def hessp(x: NumpyArray, p: NumpyArray) -> NumpyArray:
+                return np.asarray(np_hvp(x[:, None], p[:, None])[:, 0])
 
         scipy_result = scipy_minimize(
-            lambda x: self._objective(x[:, None])[:, 0],
+            lambda x: objective(x[:, None])[:, 0],
             self.bkd().to_numpy(init_guess[:, 0]),
             method="trust-constr",
             jac=jac,

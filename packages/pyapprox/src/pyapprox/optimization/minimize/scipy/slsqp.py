@@ -1,17 +1,14 @@
-from typing import Any, Dict, Generic, List, Optional, Self, Union, cast
+from functools import partial
+from typing import Any, Dict, Generic, List, Optional, Self
 
 import numpy as np
 from scipy.optimize import Bounds
 from scipy.optimize import minimize as scipy_minimize
 
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWrapper,
+from pyapprox.interface.functions.numpy.adapter import (
+    NumpyArray,
+    NumpyDerivativesAdapter,
+    NumpyFn,
 )
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
@@ -22,6 +19,9 @@ from pyapprox.optimization.minimize.constraints.protocols import (
 )
 from pyapprox.optimization.minimize.constraints.validation import (
     validate_constraints,
+)
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
@@ -34,13 +34,49 @@ from pyapprox.optimization.minimize.scipy.scipy_result import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
-# Type alias for the wrapped objective returned by numpy_function_wrapper_factory
-_WrappedObjective = Union[
-    NumpyFunctionWrapper[Array],
-    NumpyFunctionWithJacobianWrapper[Array],
-    NumpyFunctionWithJacobianAndHVPWrapper[Array],
-    NumpyFunctionWithJacobianAndWHVPWrapper[Array],
-]
+
+def _linear_fun_minus_bound(
+    matrix: NumpyArray, bound: NumpyArray, x: NumpyArray
+) -> NumpyArray:
+    return np.asarray(matrix @ x - bound)
+
+
+def _linear_bound_minus_fun(
+    matrix: NumpyArray, bound: NumpyArray, x: NumpyArray
+) -> NumpyArray:
+    return np.asarray(bound - matrix @ x)
+
+
+def _linear_jac(matrix: NumpyArray, x: NumpyArray) -> NumpyArray:
+    return matrix
+
+
+def _linear_neg_jac(matrix: NumpyArray, x: NumpyArray) -> NumpyArray:
+    return np.asarray(-matrix)
+
+
+def _nonlinear_fun_minus_bound(
+    adapter: NumpyDerivativesAdapter[Array],
+    bound: NumpyArray,
+    x: NumpyArray,
+) -> NumpyArray:
+    return np.asarray(adapter(x[:, None])[:, 0] - bound)
+
+
+def _nonlinear_bound_minus_fun(
+    adapter: NumpyDerivativesAdapter[Array],
+    bound: NumpyArray,
+    x: NumpyArray,
+) -> NumpyArray:
+    return np.asarray(bound - adapter(x[:, None])[:, 0])
+
+
+def _nonlinear_jac(np_jac: NumpyFn, x: NumpyArray) -> NumpyArray:
+    return np_jac(x[:, None])
+
+
+def _nonlinear_neg_jac(np_jac: NumpyFn, x: NumpyArray) -> NumpyArray:
+    return np.asarray(-np_jac(x[:, None]))
 
 
 def _convert_constraints_for_slsqp(
@@ -62,7 +98,7 @@ def _convert_constraints_for_slsqp(
     for constraint in constraints:
         if isinstance(constraint, PyApproxLinearConstraint):
             bkd = constraint.bkd()
-            A_np = bkd.to_numpy(constraint.A())
+            matrix_np = bkd.to_numpy(constraint.A())
             lb_np = bkd.to_numpy(constraint.lb())
             ub_np = bkd.to_numpy(constraint.ub())
 
@@ -71,8 +107,10 @@ def _convert_constraints_for_slsqp(
                 slsqp_constraints.append(
                     {
                         "type": "eq",
-                        "fun": lambda x, A=A_np, b=lb_np: A @ x - b,
-                        "jac": lambda x, A=A_np: A,
+                        "fun": partial(
+                            _linear_fun_minus_bound, matrix_np, lb_np
+                        ),
+                        "jac": partial(_linear_jac, matrix_np),
                     }
                 )
             else:
@@ -80,55 +118,68 @@ def _convert_constraints_for_slsqp(
                     slsqp_constraints.append(
                         {
                             "type": "ineq",
-                            "fun": lambda x, A=A_np, b=lb_np: A @ x - b,
-                            "jac": lambda x, A=A_np: A,
+                            "fun": partial(
+                                _linear_fun_minus_bound, matrix_np, lb_np
+                            ),
+                            "jac": partial(_linear_jac, matrix_np),
                         }
                     )
                 if np.all(np.isfinite(ub_np)):
                     slsqp_constraints.append(
                         {
                             "type": "ineq",
-                            "fun": lambda x, A=A_np, b=ub_np: b - A @ x,
-                            "jac": lambda x, A=A_np: -A,
+                            "fun": partial(
+                                _linear_bound_minus_fun, matrix_np, ub_np
+                            ),
+                            "jac": partial(_linear_neg_jac, matrix_np),
                         }
                     )
-        else:
-            # Nonlinear constraint
-            con = numpy_function_wrapper_factory(
-                cast(NonlinearConstraintProtocol[Array], constraint),
+            continue
+
+        # Nonlinear constraint: capability read from its Derivatives bundle
+        if not isinstance(constraint, NonlinearConstraintProtocol):
+            raise TypeError(
+                "constraint must satisfy NonlinearConstraintProtocol or be "
+                f"a PyApproxLinearConstraint, got {type(constraint).__name__}"
             )
-            con_bkd = constraint.bkd()
-            lb_np = con_bkd.to_numpy(constraint.lb())
-            ub_np = con_bkd.to_numpy(constraint.ub())
+        adapter = NumpyDerivativesAdapter(
+            constraint, as_derivatives(constraint)
+        )
+        np_jac = adapter.jacobian()
+        con_bkd = constraint.bkd()
+        lb_np = con_bkd.to_numpy(constraint.lb())
+        ub_np = con_bkd.to_numpy(constraint.ub())
 
-            has_jac = hasattr(con, "jacobian")
-            is_eq = np.allclose(lb_np, ub_np)
-
-            if is_eq:
-                d: Dict[str, Any] = {
-                    "type": "eq",
-                    "fun": lambda x, c=con, b=lb_np: (c(x[:, None])[:, 0] - b),
+        is_eq = np.allclose(lb_np, ub_np)
+        if is_eq:
+            entry: Dict[str, Any] = {
+                "type": "eq",
+                "fun": partial(_nonlinear_fun_minus_bound, adapter, lb_np),
+            }
+            if np_jac is not None:
+                entry["jac"] = partial(_nonlinear_jac, np_jac)
+            slsqp_constraints.append(entry)
+        else:
+            if np.all(np.isfinite(lb_np)):
+                entry = {
+                    "type": "ineq",
+                    "fun": partial(
+                        _nonlinear_fun_minus_bound, adapter, lb_np
+                    ),
                 }
-                if has_jac:
-                    d["jac"] = lambda x, c=con: c.jacobian(x[:, None])
-                slsqp_constraints.append(d)
-            else:
-                if np.all(np.isfinite(lb_np)):
-                    d = {
-                        "type": "ineq",
-                        "fun": lambda x, c=con, b=lb_np: (c(x[:, None])[:, 0] - b),
-                    }
-                    if has_jac:
-                        d["jac"] = lambda x, c=con: c.jacobian(x[:, None])
-                    slsqp_constraints.append(d)
-                if np.all(np.isfinite(ub_np)):
-                    d = {
-                        "type": "ineq",
-                        "fun": lambda x, c=con, b=ub_np: (b - c(x[:, None])[:, 0]),
-                    }
-                    if has_jac:
-                        d["jac"] = lambda x, c=con: -c.jacobian(x[:, None])
-                    slsqp_constraints.append(d)
+                if np_jac is not None:
+                    entry["jac"] = partial(_nonlinear_jac, np_jac)
+                slsqp_constraints.append(entry)
+            if np.all(np.isfinite(ub_np)):
+                entry = {
+                    "type": "ineq",
+                    "fun": partial(
+                        _nonlinear_bound_minus_fun, adapter, ub_np
+                    ),
+                }
+                if np_jac is not None:
+                    entry["jac"] = partial(_nonlinear_neg_jac, np_jac)
+                slsqp_constraints.append(entry)
 
     return slsqp_constraints
 
@@ -209,7 +260,10 @@ class ScipySLSQPOptimizer(Generic[Array]):
         }
 
         # Initialize unbound state
-        self._objective: Optional[_WrappedObjective[Array]] = None
+        self._objective: Optional[NumpyDerivativesAdapter[Array]] = None
+        # derivative capability captured once at bind(); value varies,
+        # attribute shape never does
+        self._np_jac: Optional[NumpyFn] = None
         self._bounds: Optional[Bounds] = None
         self._constraints: Optional[List[Dict[str, Any]]] = None
         self._is_bound = False
@@ -243,9 +297,13 @@ class ScipySLSQPOptimizer(Generic[Array]):
             Returns self to enable method chaining.
         """
         validate_objective(objective)
-        self._objective = numpy_function_wrapper_factory(objective)
+        adapter = NumpyDerivativesAdapter(
+            objective, as_derivatives(objective)
+        )
+        self._objective = adapter
+        self._np_jac = adapter.jacobian()
         self._bounds = self._convert_bounds(
-            bounds, self._objective.nvars(), self._objective.bkd()
+            bounds, adapter.nvars(), adapter.bkd()
         )
         if constraints:
             validate_constraints(constraints)
@@ -273,16 +331,13 @@ class ScipySLSQPOptimizer(Generic[Array]):
         Self
             A new optimizer instance with the same options, unbound.
         """
-        return cast(
-            Self,
-            ScipySLSQPOptimizer(
-                objective=None,
-                bounds=None,
-                constraints=self._init_constraints,
-                disp=self._disp,
-                maxiter=self._maxiter,
-                ftol=self._ftol,
-            ),
+        return type(self)(
+            objective=None,
+            bounds=None,
+            constraints=self._init_constraints,
+            disp=self._disp,
+            maxiter=self._maxiter,
+            ftol=self._ftol,
         )
 
     def bkd(self) -> Backend[Array]:
@@ -298,10 +353,10 @@ class ScipySLSQPOptimizer(Generic[Array]):
         RuntimeError
             If the optimizer has not been bound.
         """
-        if not self._is_bound:
+        objective = self._objective
+        if objective is None:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._objective is not None
-        return self._objective.bkd()
+        return objective.bkd()
 
     def _convert_bounds(self, bounds: Array, nvars: int, bkd: Backend[Array]) -> Bounds:
         """Convert bounds to a SciPy-compatible Bounds object.
@@ -328,10 +383,6 @@ class ScipySLSQPOptimizer(Generic[Array]):
         np_bounds = bkd.to_numpy(bounds)
         return Bounds(np_bounds[:, 0], np_bounds[:, 1])
 
-    def _objective_gradient_from_jacobian(self, sample: Array) -> Array:
-        assert self._objective is not None
-        return self._objective.jacobian(sample[:, None])[0]  # type: ignore[union-attr,no-any-return]
-
     def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
         """Perform the optimization.
 
@@ -350,19 +401,20 @@ class ScipySLSQPOptimizer(Generic[Array]):
         RuntimeError
             If the optimizer has not been bound.
         """
-        if not self._is_bound:
+        objective = self._objective
+        if objective is None or self._bounds is None:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._objective is not None
-        assert self._bounds is not None
 
-        jac = (
-            self._objective_gradient_from_jacobian
-            if hasattr(self._objective, "jacobian")
-            else None
-        )
+        np_jac = self._np_jac
+        jac: Optional[NumpyFn] = None
+        if np_jac is not None:
+
+            def jac(x: NumpyArray) -> NumpyArray:
+                # np.asarray: numpy stubs type __getitem__ as Any
+                return np.asarray(np_jac(x[:, None])[0])
 
         scipy_result = scipy_minimize(
-            lambda x: self._objective(x[:, None])[:, 0],
+            lambda x: objective(x[:, None])[:, 0],
             self.bkd().to_numpy(init_guess[:, 0]),
             method="SLSQP",
             jac=jac,

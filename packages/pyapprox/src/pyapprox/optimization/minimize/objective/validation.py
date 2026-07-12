@@ -1,7 +1,8 @@
 from typing import Any, List
 
-from pyapprox.optimization.minimize.objective.protocols import (
-    ObjectiveProtocol,
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
 )
 
 
@@ -23,10 +24,15 @@ def _missing_protocol_methods(obj: object, protocol: type) -> List[str]:
 
 def validate_objective(objective: Any) -> None:
     """
-    Validate that the given objective satisfies one of the protocols in
-    UnionOfObjectiveProtocols. The validation checks the protocols in order
-    from most complex to least complex.
-    Additionally, it checks that the objective has exactly one quantity of
+    Validate that the given objective can be consumed by an optimizer.
+
+    INTERIM (derivatives-refactor migration) form: requires the base
+    function shape (bkd/nvars/nqoi/__call__) and a well-formed Derivatives
+    bundle via ``as_derivatives`` — which accepts both migrated producers
+    (``derivatives()``) and legacy producers (capability attributes).
+    Once every producer is migrated this tightens to
+    ``isinstance(objective, ObjectiveProtocol)``.
+    Additionally checks that the objective has exactly one quantity of
     interest (nqoi == 1).
 
     Parameters
@@ -37,21 +43,22 @@ def validate_objective(objective: Any) -> None:
     Raises
     ------
     TypeError
-        If the objective does not satisfy any of the protocols in
-        UnionOfObjectiveProtocols.
+        If the objective does not have the base function shape, or its
+        ``derivatives()`` does not return a Derivatives bundle.
     ValueError
         If the objective does not have exactly one quantity of interest (nqoi != 1).
     """
-    # Check the instance against the protocols in order from most complex to least
-    # complex
-    if not isinstance(objective, ObjectiveProtocol):
-        missing = _missing_protocol_methods(objective, ObjectiveProtocol)
+    if not isinstance(objective, FunctionProtocol):
+        missing = _missing_protocol_methods(objective, FunctionProtocol)
         raise TypeError(
-            f"Invalid objective type: expected an object implementing "
-            f"ObjectiveProtocol (FunctionProtocol), got {type(objective).__name__}. "
-            f"Missing or invalid methods: {missing}. "
-            f"Required methods: bkd(), nvars(), nqoi(), __call__(samples)."
+            f"Invalid objective type: expected an object implementing the "
+            f"ObjectiveProtocol base shape (bkd(), nvars(), nqoi(), "
+            f"__call__(samples)), got {type(objective).__name__}. "
+            f"Missing or invalid methods: {missing}."
         )
+
+    # raises TypeError on malformed derivatives(); harvests legacy attrs
+    as_derivatives(objective)
 
     # Check that the objective has exactly one quantity of interest
     if objective.nqoi() != 1:

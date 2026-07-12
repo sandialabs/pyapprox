@@ -10,11 +10,14 @@ one line in ``__init__``.
 
 This module never imports torch: it reaches autograd purely through the
 :class:`~pyapprox.util.backends.autodiff.AutodiffBackend` protocol, so a
-future JAX backend participates with zero new code here.
+future JAX backend participates with zero new code here. All bundle
+fields built here are module-level callable objects (not closures) so
+they stay picklable, e.g. for multiprocessing.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable, Generic
 
 from pyapprox.interface.functions.derivatives import Derivatives
@@ -23,6 +26,51 @@ from pyapprox.interface.functions.protocols.objective import (
 )
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@dataclass(frozen=True)
+class _FlatFunction(Generic[Array]):
+    """(nvars,) -> (nqoi,) view of a FunctionProtocol-shaped callable."""
+
+    fun: Callable[[Array], Array]
+
+    def __call__(self, flat_sample: Array) -> Array:
+        return self.fun(flat_sample[:, None])[:, 0]
+
+
+@dataclass(frozen=True)
+class _ScalarFunction(Generic[Array]):
+    """(nvars,) -> scalar view of a FunctionProtocol-shaped callable."""
+
+    fun: Callable[[Array], Array]
+
+    def __call__(self, flat_sample: Array) -> Array:
+        return self.fun(flat_sample[:, None])[0, 0]
+
+
+@dataclass(frozen=True)
+class _AutogradJacobian(Generic[Array]):
+    """Bundle jacobian field computed via backend autodiff."""
+
+    fun: Callable[[Array], Array]
+    bkd: AutodiffBackend[Array]
+
+    def __call__(self, sample: Array) -> Array:
+        # (nvars,) -> (nqoi,) so bkd.jacobian returns (nqoi, nvars)
+        return self.bkd.jacobian(_FlatFunction(self.fun), sample[:, 0])
+
+
+@dataclass(frozen=True)
+class _AutogradHVP(Generic[Array]):
+    """Bundle hvp field computed via backend autodiff (nqoi == 1)."""
+
+    fun: Callable[[Array], Array]
+    bkd: AutodiffBackend[Array]
+
+    def __call__(self, sample: Array, vec: Array) -> Array:
+        return self.bkd.hvp(
+            _ScalarFunction(self.fun), sample[:, 0], vec[:, 0]
+        )[:, None]
 
 
 def autograd_derivatives(
@@ -60,24 +108,11 @@ def autograd_derivatives(
             "bkd must satisfy AutodiffBackend (methods named 'jacobian' "
             f"and 'hvp' are required), got {type(bkd).__name__}"
         )
-
-    def _flat_fun(flat_sample: Array) -> Array:
-        # (nvars,) -> (nqoi,) so bkd.jacobian returns (nqoi, nvars)
-        return fun(flat_sample[:, None])[:, 0]
-
-    def _jacobian(sample: Array) -> Array:
-        return bkd.jacobian(_flat_fun, sample[:, 0])
-
     if not fill_hvp:
-        return Derivatives.first_order(jacobian=_jacobian)
-
-    def _scalar_fun(flat_sample: Array) -> Array:
-        return fun(flat_sample[:, None])[0, 0]
-
-    def _hvp(sample: Array, vec: Array) -> Array:
-        return bkd.hvp(_scalar_fun, sample[:, 0], vec[:, 0])[:, None]
-
-    return Derivatives.second_order(_jacobian, _hvp)
+        return Derivatives.first_order(jacobian=_AutogradJacobian(fun, bkd))
+    return Derivatives.second_order(
+        _AutogradJacobian(fun, bkd), _AutogradHVP(fun, bkd)
+    )
 
 
 class WithAutogradJacobian(Generic[Array]):
@@ -106,7 +141,7 @@ class WithAutogradJacobian(Generic[Array]):
         self._inner = inner
         self._grad_bkd = bkd
         self._derivs: Derivatives[Array] = inner.derivatives().with_(
-            jacobian=self._jacobian
+            jacobian=_AutogradJacobian(inner, bkd)
         )
 
     def bkd(self) -> Backend[Array]:
@@ -120,12 +155,6 @@ class WithAutogradJacobian(Generic[Array]):
 
     def __call__(self, samples: Array) -> Array:
         return self._inner(samples)
-
-    def _jacobian(self, sample: Array) -> Array:
-        def _flat_fun(flat_sample: Array) -> Array:
-            return self._inner(flat_sample[:, None])[:, 0]
-
-        return self._grad_bkd.jacobian(_flat_fun, sample[:, 0])
 
     def derivatives(self) -> Derivatives[Array]:
         return self._derivs

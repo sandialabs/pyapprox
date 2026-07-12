@@ -3,26 +3,33 @@
 All classes lazily import pyrol so the module can be imported even when
 pyrol is not installed.  The actual pyrol dependency is only needed at
 instantiation time.
+
+Capability is read from each object's Derivatives bundle (via the
+migration shim ``as_derivatives``): ``gradient``/``hessVec`` and
+``applyJacobian``/``applyAdjointJacobian``/``applyAdjointHessian`` are
+attached only when the corresponding bundle field resolves to a callable,
+and pyrol reacts to their absence with its internal secant/BFGS.
+Tolerance-aware evaluation comes from the bundle's ``inexact`` suite.
+
+Note the constraint side uses ``resolved_whvp`` with the constraint's OWN
+nqoi: a scalar constraint exposing only plain ``hvp`` now gets
+second-order treatment in ROL via the exact w[0]*hvp lift (previously
+unavailable — a deliberate improvement).
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithJacobianAndHVPProtocol,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
-)
 from pyapprox.optimization.minimize.constraints.protocols import (
     LinearConstraintProtocol,
     NonlinearConstraintProtocol,
-    NonlinearConstraintProtocolWithJacobian,
-    NonlinearConstraintProtocolWithJacobianAndWHVP,
+)
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -37,61 +44,21 @@ def _require_pyrol() -> None:
     import_optional_dependency("pyrol", feature_name="ROL optimizer", extra_name="rol")
 
 
-def _is_inexact_evaluable(obj: object) -> bool:
-    """Check if obj supports tolerance-dependent evaluation."""
-    from pyapprox.optimization.minimize.inexact.protocols import (
-        InexactEvaluable,
-    )
-
-    return isinstance(obj, InexactEvaluable)
-
-
-def _is_inexact_differentiable(obj: object) -> bool:
-    """Check if obj supports tolerance-dependent jacobian."""
-    from pyapprox.optimization.minimize.inexact.protocols import (
-        InexactDifferentiable,
-    )
-
-    return isinstance(obj, InexactDifferentiable)
-
-
 # ---------------------------------------------------------------------------
 # Objective wrappers
 # ---------------------------------------------------------------------------
 
 
-@overload
-def make_rol_objective(
-    objective: FunctionWithJacobianAndHVPProtocol[Array],
-    bkd: Backend[Array],
-) -> object: ...
-
-
-@overload
-def make_rol_objective(
-    objective: FunctionWithJacobianProtocol[Array],
-    bkd: Backend[Array],
-) -> object: ...
-
-
-@overload
 def make_rol_objective(
     objective: FunctionProtocol[Array],
     bkd: Backend[Array],
-) -> object: ...
-
-
-def make_rol_objective(
-    objective: FunctionProtocol[Array],
-    bkd: Backend[Array],
-) -> object:
+) -> "pyrol.Objective":
     """Create a pyrol.Objective wrapping the given objective.
 
-    Dynamically selects whether to include gradient and hessVec methods
-    based on what the objective provides. When the objective satisfies
-    ``InexactEvaluable`` or ``InexactDifferentiable``, the adapter
-    passes ROL's ``tol`` parameter through to ``inexact_value`` or
-    ``inexact_jacobian``.
+    Attaches ``gradient``/``hessVec`` only when the objective's
+    Derivatives bundle provides them. When the bundle carries an
+    ``inexact`` suite, ROL's ``tol`` parameter is passed through to its
+    tolerance-aware value/jacobian.
     """
     if not isinstance(objective, FunctionProtocol):
         raise TypeError(
@@ -101,55 +68,59 @@ def make_rol_objective(
     _require_pyrol()
     import pyrol
 
-    has_jacobian = isinstance(objective, FunctionWithJacobianProtocol)
-    has_hvp = isinstance(objective, FunctionWithJacobianAndHVPProtocol)
-    inexact_eval = _is_inexact_evaluable(objective)
-    inexact_diff = _is_inexact_differentiable(objective)
+    derivs = as_derivatives(objective)
+    bundle_jacobian = derivs.jacobian
+    bundle_hvp = derivs.resolved_hvp(objective.nqoi(), bkd)
+    suite = derivs.inexact
+    inexact_value = None if suite is None else suite.value
+    inexact_jacobian = None if suite is None else suite.jacobian
 
     class _Adapter(pyrol.Objective):
         def __init__(self) -> None:
-            self._objective = objective
             self._bkd = bkd
-            self._inexact_eval = inexact_eval
-            self._inexact_diff = inexact_diff
             super().__init__()
 
         def value(
             self, x: pyrol.Vector, tol: float,
         ) -> float:
             x_col = self._bkd.asarray(x.array)[:, None]
-            if self._inexact_eval:
-                val = self._objective.inexact_value(  # type: ignore[attr-defined]
-                    x_col,
-                    float(tol),
-                )
+            if inexact_value is not None:
+                val = inexact_value(x_col, float(tol))
             else:
-                val = self._objective(x_col)
+                val = objective(x_col)
             return float(self._bkd.to_numpy(val)[0, 0])
 
-    if has_jacobian or inexact_diff:
+    if bundle_jacobian is not None or inexact_jacobian is not None:
 
-        def _gradient(self, g, x, tol):  # type: ignore[no-untyped-def]
-            x_col = self._bkd.asarray(x.array)[:, None]
-            if self._inexact_diff:
-                jac = self._objective.inexact_jacobian(
-                    x_col,
-                    float(tol),
-                )
+        def _gradient(
+            self: Any, g: pyrol.Vector, x: pyrol.Vector, tol: float
+        ) -> pyrol.Vector:
+            x_col = bkd.asarray(x.array)[:, None]
+            if inexact_jacobian is not None:
+                jac = inexact_jacobian(x_col, float(tol))
+            elif bundle_jacobian is not None:
+                jac = bundle_jacobian(x_col)
             else:
-                jac = self._objective.jacobian(x_col)
-            g[:] = self._bkd.to_numpy(jac[0, :])
+                raise RuntimeError("gradient attached without capability")
+            g[:] = bkd.to_numpy(jac[0, :])
             return g
 
         _Adapter.gradient = _gradient
 
-    if has_hvp:
+    if bundle_hvp is not None:
+        narrowed_hvp = bundle_hvp
 
-        def _hessVec(self, hv, v, x, tol):  # type: ignore[no-untyped-def]
-            x_col = self._bkd.asarray(x.array)[:, None]
-            v_col = self._bkd.asarray(v.array)[:, None]
-            hvp = self._objective.hvp(x_col, v_col)
-            hv[:] = self._bkd.to_numpy(hvp[:, 0])
+        def _hessVec(
+            self: Any,
+            hv: pyrol.Vector,
+            v: pyrol.Vector,
+            x: pyrol.Vector,
+            tol: float,
+        ) -> None:
+            x_col = bkd.asarray(x.array)[:, None]
+            v_col = bkd.asarray(v.array)[:, None]
+            hvp = narrowed_hvp(x_col, v_col)
+            hv[:] = bkd.to_numpy(hvp[:, 0])
 
         _Adapter.hessVec = _hessVec
 
@@ -161,37 +132,16 @@ def make_rol_objective(
 # ---------------------------------------------------------------------------
 
 
-@overload
-def make_rol_nonlinear_constraint(
-    constraint: NonlinearConstraintProtocolWithJacobianAndWHVP[Array],
-    bkd: Backend[Array],
-) -> object: ...
-
-
-@overload
-def make_rol_nonlinear_constraint(
-    constraint: NonlinearConstraintProtocolWithJacobian[Array],
-    bkd: Backend[Array],
-) -> object: ...
-
-
-@overload
 def make_rol_nonlinear_constraint(
     constraint: NonlinearConstraintProtocol[Array],
     bkd: Backend[Array],
-) -> object: ...
-
-
-def make_rol_nonlinear_constraint(
-    constraint: NonlinearConstraintProtocol[Array],
-    bkd: Backend[Array],
-) -> object:
+) -> "pyrol.Constraint":
     """Create a pyrol.Constraint wrapping the given nonlinear constraint.
 
-    Dynamically selects methods based on what the constraint provides.
-    When the constraint satisfies ``InexactEvaluable`` or
-    ``InexactDifferentiable``, the adapter passes ROL's ``tol``
-    parameter through to the inexact methods.
+    Attaches Jacobian/adjoint-Hessian methods only when the constraint's
+    Derivatives bundle provides them (``resolved_whvp`` with the
+    constraint's own nqoi). When the bundle carries an ``inexact`` suite,
+    ROL's ``tol`` is passed through to its tolerance-aware methods.
     """
     if not isinstance(constraint, NonlinearConstraintProtocol):
         raise TypeError(
@@ -201,66 +151,76 @@ def make_rol_nonlinear_constraint(
     _require_pyrol()
     import pyrol
 
-    has_jacobian = isinstance(constraint, NonlinearConstraintProtocolWithJacobian)
-    has_whvp = isinstance(constraint, NonlinearConstraintProtocolWithJacobianAndWHVP)
-    inexact_eval = _is_inexact_evaluable(constraint)
-    inexact_diff = _is_inexact_differentiable(constraint)
+    derivs = as_derivatives(constraint)
+    bundle_jacobian = derivs.jacobian
+    bundle_whvp = derivs.resolved_whvp(constraint.nqoi())
+    suite = derivs.inexact
+    inexact_value = None if suite is None else suite.value
+    inexact_jacobian = None if suite is None else suite.jacobian
 
     class _Adapter(pyrol.Constraint):
         def __init__(self) -> None:
-            self._constraint = constraint
             self._bkd = bkd
-            self._inexact_eval = inexact_eval
-            self._inexact_diff = inexact_diff
             super().__init__()
 
         def value(
             self, c: pyrol.Vector, x: pyrol.Vector, tol: float,
         ) -> None:
             x_col = self._bkd.asarray(x.array)[:, None]
-            if self._inexact_eval:
-                vals = self._constraint.inexact_value(  # type: ignore[attr-defined]
-                    x_col,
-                    float(tol),
-                )
+            if inexact_value is not None:
+                vals = inexact_value(x_col, float(tol))
             else:
-                vals = self._constraint(x_col)
+                vals = constraint(x_col)
             c[:] = self._bkd.to_numpy(vals[:, 0])
 
-    if has_jacobian or inexact_diff:
+    if bundle_jacobian is not None or inexact_jacobian is not None:
 
-        def _applyJacobian(self, jv, v, x, tol):  # type: ignore[no-untyped-def]
-            x_col = self._bkd.asarray(x.array)[:, None]
-            if self._inexact_diff:
-                jac = self._bkd.to_numpy(
-                    self._constraint.inexact_jacobian(x_col, float(tol))
-                )
-            else:
-                jac = self._bkd.to_numpy(self._constraint.jacobian(x_col))
-            jv[:] = jac @ v[:]
+        def _numpy_jacobian(x: pyrol.Vector, tol: float) -> Any:
+            x_col = bkd.asarray(x.array)[:, None]
+            if inexact_jacobian is not None:
+                return bkd.to_numpy(inexact_jacobian(x_col, float(tol)))
+            if bundle_jacobian is not None:
+                return bkd.to_numpy(bundle_jacobian(x_col))
+            raise RuntimeError("jacobian attached without capability")
+
+        def _applyJacobian(
+            self: Any,
+            jv: pyrol.Vector,
+            v: pyrol.Vector,
+            x: pyrol.Vector,
+            tol: float,
+        ) -> None:
+            jv[:] = _numpy_jacobian(x, tol) @ v[:]
 
         _Adapter.applyJacobian = _applyJacobian
 
-        def _applyAdjointJacobian(self, jv, v, x, tol):  # type: ignore[no-untyped-def]
-            x_col = self._bkd.asarray(x.array)[:, None]
-            if self._inexact_diff:
-                jac = self._bkd.to_numpy(
-                    self._constraint.inexact_jacobian(x_col, float(tol))
-                )
-            else:
-                jac = self._bkd.to_numpy(self._constraint.jacobian(x_col))
-            jv[:] = jac.T @ v[:]
+        def _applyAdjointJacobian(
+            self: Any,
+            jv: pyrol.Vector,
+            v: pyrol.Vector,
+            x: pyrol.Vector,
+            tol: float,
+        ) -> None:
+            jv[:] = _numpy_jacobian(x, tol).T @ v[:]
 
         _Adapter.applyAdjointJacobian = _applyAdjointJacobian
 
-    if has_whvp:
+    if bundle_whvp is not None:
+        narrowed_whvp = bundle_whvp
 
-        def _applyAdjointHessian(self, hv, u, v, x, tol):  # type: ignore[no-untyped-def]
-            x_col = self._bkd.asarray(x.array)[:, None]
-            v_col = self._bkd.asarray(v.array)[:, None]
-            u_col = self._bkd.asarray(u.array)[:, None]
-            hvp = self._constraint.whvp(x_col, v_col, u_col)
-            hv[:] = self._bkd.to_numpy(hvp[:, 0])
+        def _applyAdjointHessian(
+            self: Any,
+            hv: pyrol.Vector,
+            u: pyrol.Vector,
+            v: pyrol.Vector,
+            x: pyrol.Vector,
+            tol: float,
+        ) -> None:
+            x_col = bkd.asarray(x.array)[:, None]
+            v_col = bkd.asarray(v.array)[:, None]
+            u_col = bkd.asarray(u.array)[:, None]
+            hvp = narrowed_whvp(x_col, v_col, u_col)
+            hv[:] = bkd.to_numpy(hvp[:, 0])
 
         _Adapter.applyAdjointHessian = _applyAdjointHessian
 
@@ -275,7 +235,7 @@ def make_rol_nonlinear_constraint(
 def make_rol_linear_operator(
     A: Array,
     bkd: Backend[Array],
-) -> object:
+) -> "pyrol.LinearOperator":
     """Create a pyrol.LinearOperator from a coefficient matrix."""
     _require_pyrol()
     import pyrol

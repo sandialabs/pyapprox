@@ -2,8 +2,6 @@
 bind/minimize API, using legacy-style producers. Written BEFORE the
 Derivatives-bundle consumer rewrite so the rewrite is protected."""
 
-import pytest
-
 from tests._helpers.optimizer_fixtures import (
     QuadraticNoDerivatives,
     QuadraticWithJacobian,
@@ -84,13 +82,10 @@ class TestScipyTrustConstrOptimizer:
             result.optima(), bkd.asarray([[0.5], [0.5]]), atol=1e-5
         )
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="latent bug: constraint factory passes a callable returning "
-        "the string '2-point' when the constraint has no jacobian; scipy "
-        "expects the string itself. Fixed by the bundle-driven rewrite.",
-    )
     def test_constraint_without_jacobian(self, bkd):
+        # regression: the pre-bundle factory passed a callable returning
+        # the string '2-point' when the constraint had no jacobian; scipy
+        # expects the string itself
         objective = QuadraticWithJacobian(bkd, [0.0, 0.0])
         constraint = SumConstraint(bkd, 2, 1.0, float("inf"))
         bounds = bkd.asarray([[-5.0, 5.0], [-5.0, 5.0]])

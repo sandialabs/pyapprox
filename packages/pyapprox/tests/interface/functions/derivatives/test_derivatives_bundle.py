@@ -122,6 +122,37 @@ class TestCopySemantics:
         assert restored._derivs.jacobian.__self__ is restored
         assert restored._derivs.jacobian(2.0) == 6.0
 
+    def test_synthesized_resolver_fields_pickle(self, numpy_bkd):
+        # resolver synthesis/lift must be picklable (multiprocessing):
+        # module-level callable objects, never closures
+        objective = QuadraticObjective(numpy_bkd, 2)
+        hessp = objective.derivatives().with_(hvp=None).resolved_hvp(
+            1, numpy_bkd
+        )
+        whvp = objective.derivatives().with_(whvp=None).resolved_whvp(1)
+        x0 = numpy_bkd.array([[0.5], [0.5]])
+        vec = numpy_bkd.array([[1.0], [2.0]])
+        restored_hessp = pickle.loads(pickle.dumps(hessp))
+        numpy_bkd.assert_allclose(
+            restored_hessp(x0, vec), numpy_bkd.array([[2.0], [4.0]])
+        )
+        restored_whvp = pickle.loads(pickle.dumps(whvp))
+        numpy_bkd.assert_allclose(
+            restored_whvp(x0, vec, numpy_bkd.full((1, 1), 4.0)),
+            numpy_bkd.array([[8.0], [16.0]]),
+        )
+
+    def test_shape_validated_bundle_pickles(self, numpy_bkd):
+        objective = QuadraticObjective(numpy_bkd, 2)
+        checked = with_shape_validation(
+            objective.derivatives(), nvars=2, nqoi=1
+        )
+        restored = pickle.loads(pickle.dumps(checked))
+        x0 = numpy_bkd.array([[0.5], [0.5]])
+        numpy_bkd.assert_allclose(
+            restored.jacobian(x0), numpy_bkd.array([[1.0, 1.0]])
+        )
+
     def test_deepcopy_of_array_producer(self, bkd):
         objective = QuadraticObjective(bkd, 2)
         clone = copy.deepcopy(objective)

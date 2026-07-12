@@ -1,6 +1,8 @@
 """ROL optimizer implementing BindableOptimizerProtocol."""
 
-from typing import Generic, Optional, Self, cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Generic, Optional, Self
 
 import numpy as np
 
@@ -8,6 +10,7 @@ from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
+    NonlinearConstraintProtocol,
     SequenceOfConstraintProtocols,
 )
 from pyapprox.optimization.minimize.constraints.validation import (
@@ -27,6 +30,9 @@ from pyapprox.optimization.minimize.rol.rol_wrappers import (
     make_rol_objective,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+if TYPE_CHECKING:
+    import pyrol as pyrol_types
 
 
 class ROLOptimizer(Generic[Array]):
@@ -107,17 +113,14 @@ class ROLOptimizer(Generic[Array]):
         return self._is_bound
 
     def copy(self) -> Self:
-        return cast(
-            Self,
-            ROLOptimizer(
-                objective=None,
-                bounds=None,
-                constraints=self._init_constraints,
-                verbosity=self._verbosity,
-                parameters=self._parameters,
-                status_test=self._status_test,
-                fast_vector=self._fast_vector,
-            ),
+        return type(self)(
+            objective=None,
+            bounds=None,
+            constraints=self._init_constraints,
+            verbosity=self._verbosity,
+            parameters=self._parameters,
+            status_test=self._status_test,
+            fast_vector=self._fast_vector,
         )
 
     def bkd(self) -> Backend[Array]:
@@ -192,16 +195,16 @@ class ROLOptimizer(Generic[Array]):
 
         _pybind_init = ROL.Vector_double_t.__mro__[1].__init__
 
-        def _fast_init(self, array=None):  # type: ignore[no-untyped-def]
-            assert isinstance(array, np.ndarray)
-            assert array.ndim == 1
+        def _fast_init(self: Any, array: Any = None) -> None:
+            if not isinstance(array, np.ndarray) or array.ndim != 1:
+                raise TypeError("NumPyVector requires a 1D numpy array")
             self.array = array
             self._tracked_constructor_args = []
             _pybind_init(self)
 
         NumPyVector.__init__ = _fast_init
 
-        def _fast_axpy(self, scale_factor, x):  # type: ignore[no-untyped-def]
+        def _fast_axpy(self: Any, scale_factor: float, x: Any) -> None:
             self.array += scale_factor * x.array
 
         NumPyVector.axpy = _fast_axpy
@@ -293,7 +296,7 @@ class ROLOptimizer(Generic[Array]):
 
     def _add_constraints(
         self,
-        problem: object,
+        problem: "pyrol_types.Problem",
         constraints: SequenceOfConstraintProtocols[Array],
         bkd: Backend[Array],
     ) -> None:
@@ -326,8 +329,14 @@ class ROLOptimizer(Generic[Array]):
                     nineq_lin += 1
             else:
                 # Nonlinear constraint
+                if not isinstance(con, NonlinearConstraintProtocol):
+                    raise TypeError(
+                        "constraint must satisfy "
+                        "NonlinearConstraintProtocol or be a "
+                        f"PyApproxLinearConstraint, got {type(con).__name__}"
+                    )
                 rol_con_nl = make_rol_nonlinear_constraint(con, bkd)
-                nqoi = con.nqoi()  # type: ignore[union-attr]
+                nqoi = con.nqoi()
                 emul = NumPyVector(np.zeros(nqoi))
                 lb = bkd.to_numpy(con.lb())
                 ub = bkd.to_numpy(con.ub())

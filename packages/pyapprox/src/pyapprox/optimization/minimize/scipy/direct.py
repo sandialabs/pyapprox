@@ -1,19 +1,16 @@
-from typing import Generic, Optional, Self, Union, cast
+from typing import Generic, Optional, Self
 
 import numpy as np
 from scipy.optimize import Bounds, direct
 
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWrapper,
+from pyapprox.interface.functions.numpy.adapter import (
+    NumpyDerivativesAdapter,
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
+)
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -22,13 +19,6 @@ from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
-_WrappedObjective = Union[
-    NumpyFunctionWrapper[Array],
-    NumpyFunctionWithJacobianWrapper[Array],
-    NumpyFunctionWithJacobianAndHVPWrapper[Array],
-    NumpyFunctionWithJacobianAndWHVPWrapper[Array],
-]
 
 
 class ScipyDirectOptimizer(Generic[Array]):
@@ -76,7 +66,7 @@ class ScipyDirectOptimizer(Generic[Array]):
         self._locally_biased = locally_biased
         self._raise_on_failure = raise_on_failure
 
-        self._objective: Optional[_WrappedObjective[Array]] = None
+        self._objective: Optional[NumpyDerivativesAdapter[Array]] = None
         self._bounds: Optional[Bounds] = None
         self._is_bound = False
 
@@ -92,7 +82,9 @@ class ScipyDirectOptimizer(Generic[Array]):
         constraints: Optional[object] = None,
     ) -> Self:
         validate_objective(objective)
-        self._objective = numpy_function_wrapper_factory(objective)
+        self._objective = NumpyDerivativesAdapter(
+            objective, as_derivatives(objective)
+        )
         self._bounds = self._convert_bounds(
             bounds, self._objective.nvars(), self._objective.bkd()
         )
@@ -103,20 +95,17 @@ class ScipyDirectOptimizer(Generic[Array]):
         return self._is_bound
 
     def copy(self) -> Self:
-        return cast(
-            Self,
-            ScipyDirectOptimizer(
-                objective=None,
-                bounds=None,
-                maxfun=self._maxfun,
-                maxiter=self._maxiter,
-                vol_tol=self._vol_tol,
-                len_tol=self._len_tol,
-                f_min=self._f_min,
-                f_min_rtol=self._f_min_rtol,
-                locally_biased=self._locally_biased,
-                raise_on_failure=self._raise_on_failure,
-            ),
+        return type(self)(
+            objective=None,
+            bounds=None,
+            maxfun=self._maxfun,
+            maxiter=self._maxiter,
+            vol_tol=self._vol_tol,
+            len_tol=self._len_tol,
+            f_min=self._f_min,
+            f_min_rtol=self._f_min_rtol,
+            locally_biased=self._locally_biased,
+            raise_on_failure=self._raise_on_failure,
         )
 
     def bkd(self) -> Backend[Array]:

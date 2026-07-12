@@ -63,6 +63,9 @@ ignore = ["E402"]  # intentional lazy imports to reduce module load times
 [tool.mypy]
 strict = true
 ignore_missing_imports = true
+# local stubs for untyped third-party bindings (e.g. pyrol); "typings" so
+# Pylance also discovers them without configuration
+mypy_path = "typings"
 exclude = [
     "pyapprox_tutorials/",
 ]

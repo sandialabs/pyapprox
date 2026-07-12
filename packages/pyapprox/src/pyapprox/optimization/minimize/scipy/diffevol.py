@@ -1,16 +1,10 @@
-from typing import Generic, Literal, Optional, Self, Tuple, Union, cast
+from typing import Generic, Literal, Optional, Self, Tuple, Union
 
 import numpy as np
 from scipy.optimize import Bounds, differential_evolution
 
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWrapper,
+from pyapprox.interface.functions.numpy.adapter import (
+    NumpyDerivativesAdapter,
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
@@ -20,6 +14,9 @@ from pyapprox.optimization.minimize.constraints.protocols import (
 )
 from pyapprox.optimization.minimize.constraints.validation import (
     validate_constraints,
+)
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -47,13 +44,6 @@ StrategyType = Literal[
     "rand1bin",
 ]
 
-# Type alias for the wrapped objective returned by numpy_function_wrapper_factory
-_WrappedObjective = Union[
-    NumpyFunctionWrapper[Array],
-    NumpyFunctionWithJacobianWrapper[Array],
-    NumpyFunctionWithJacobianAndHVPWrapper[Array],
-    NumpyFunctionWithJacobianAndWHVPWrapper[Array],
-]
 
 
 class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
@@ -147,7 +137,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         self._init_constraints = constraints
 
         # Initialize unbound state
-        self._objective: Optional[_WrappedObjective[Array]] = None
+        self._objective: Optional[NumpyDerivativesAdapter[Array]] = None
         self._bounds: Optional[Bounds] = None
         self._constraints: Optional[object] = None
         self._is_bound = False
@@ -181,7 +171,9 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
             Returns self to enable method chaining.
         """
         validate_objective(objective)
-        self._objective = numpy_function_wrapper_factory(objective)
+        self._objective = NumpyDerivativesAdapter(
+            objective, as_derivatives(objective)
+        )
         # Use objective's backend directly since we're not fully bound yet
         self._bounds = self._convert_bounds(
             bounds, self._objective.nvars(), self._objective.bkd()
@@ -212,23 +204,20 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         Self
             A new optimizer instance with the same options, unbound.
         """
-        return cast(
-            Self,
-            ScipyDifferentialEvolutionOptimizer(
-                objective=None,
-                bounds=None,
-                constraints=self._init_constraints,
-                strategy=self._strategy,
-                maxiter=self._maxiter,
-                popsize=self._popsize,
-                tol=self._tol,
-                mutation=self._mutation,
-                recombination=self._recombination,
-                seed=self._seed,
-                disp=self._disp,
-                polish=self._polish,
-                raise_on_failure=self._raise_on_failure,
-            ),
+        return type(self)(
+            objective=None,
+            bounds=None,
+            constraints=self._init_constraints,
+            strategy=self._strategy,
+            maxiter=self._maxiter,
+            popsize=self._popsize,
+            tol=self._tol,
+            mutation=self._mutation,
+            recombination=self._recombination,
+            seed=self._seed,
+            disp=self._disp,
+            polish=self._polish,
+            raise_on_failure=self._raise_on_failure,
         )
 
     def bkd(self) -> Backend[Array]:

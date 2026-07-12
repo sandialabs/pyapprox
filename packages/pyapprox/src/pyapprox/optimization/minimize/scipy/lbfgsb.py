@@ -1,22 +1,21 @@
 """L-BFGS-B optimizer satisfying BindableOptimizerProtocol."""
 
-from typing import Any, Callable, Generic, Optional, Self, Union, cast
+from typing import Any, Callable, Generic, Optional, Self
 
 import numpy as np
-from scipy.optimize import Bounds
+from scipy.optimize import Bounds, OptimizeResult
 from scipy.optimize import minimize as scipy_minimize
 
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
-)
-from pyapprox.interface.functions.numpy.wrappers import (
-    NumpyFunctionWithJacobianAndHVPWrapper,
-    NumpyFunctionWithJacobianAndWHVPWrapper,
-    NumpyFunctionWithJacobianWrapper,
-    NumpyFunctionWrapper,
+from pyapprox.interface.functions.numpy.adapter import (
+    NumpyArray,
+    NumpyDerivativesAdapter,
+    NumpyFn,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
+)
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
 )
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
@@ -28,13 +27,6 @@ from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
-_WrappedObjective = Union[
-    NumpyFunctionWrapper[Array],
-    NumpyFunctionWithJacobianWrapper[Array],
-    NumpyFunctionWithJacobianAndHVPWrapper[Array],
-    NumpyFunctionWithJacobianAndWHVPWrapper[Array],
-]
 
 
 class LBFGSBOptimizer(Generic[Array]):
@@ -82,7 +74,10 @@ class LBFGSBOptimizer(Generic[Array]):
         if gtol is not None:
             self._opts["gtol"] = gtol
 
-        self._objective: Optional[_WrappedObjective[Array]] = None
+        self._objective: Optional[NumpyDerivativesAdapter[Array]] = None
+        # derivative capability captured once at bind(); value varies,
+        # attribute shape never does
+        self._np_jac: Optional[NumpyFn] = None
         self._bounds: Optional[Bounds] = None
         self._is_bound = False
 
@@ -101,9 +96,13 @@ class LBFGSBOptimizer(Generic[Array]):
     ) -> Self:
         """Bind objective and bounds. Returns self for chaining."""
         validate_objective(objective)
-        self._objective = numpy_function_wrapper_factory(objective)
+        adapter = NumpyDerivativesAdapter(
+            objective, as_derivatives(objective)
+        )
+        self._objective = adapter
+        self._np_jac = adapter.jacobian()
         self._bounds = self._convert_bounds(
-            bounds, self._objective.nvars(), self._objective.bkd()
+            bounds, adapter.nvars(), adapter.bkd()
         )
         self._is_bound = True
         return self
@@ -112,24 +111,21 @@ class LBFGSBOptimizer(Generic[Array]):
         return self._is_bound
 
     def copy(self) -> Self:
-        return cast(
-            Self,
-            LBFGSBOptimizer(
-                objective=None,
-                bounds=None,
-                verbosity=self._verbosity,
-                maxiter=self._maxiter,
-                ftol=self._ftol,
-                gtol=self._gtol,
-                callback=self._user_callback,
-            ),
+        return type(self)(
+            objective=None,
+            bounds=None,
+            verbosity=self._verbosity,
+            maxiter=self._maxiter,
+            ftol=self._ftol,
+            gtol=self._gtol,
+            callback=self._user_callback,
         )
 
     def bkd(self) -> Backend[Array]:
-        if not self._is_bound:
+        objective = self._objective
+        if objective is None:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._objective is not None
-        return self._objective.bkd()
+        return objective.bkd()
 
     def _convert_bounds(
         self, bounds: Array, nvars: int, bkd: Backend[Array]
@@ -141,10 +137,6 @@ class LBFGSBOptimizer(Generic[Array]):
             )
         np_bounds = bkd.to_numpy(bounds)
         return Bounds(np_bounds[:, 0], np_bounds[:, 1])
-
-    def _objective_gradient_from_jacobian(self, sample: Array) -> Array:
-        assert self._objective is not None
-        return self._objective.jacobian(sample[:, None])[0]  # type: ignore[union-attr,no-any-return]
 
     def minimize(self, init_guess: Array) -> ScipyOptimizerResultWrapper[Array]:
         """Perform L-BFGS-B optimization.
@@ -158,28 +150,29 @@ class LBFGSBOptimizer(Generic[Array]):
         -------
         ScipyOptimizerResultWrapper[Array]
         """
-        if not self._is_bound:
+        objective = self._objective
+        if objective is None or self._bounds is None:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._objective is not None
-        assert self._bounds is not None
 
-        jac = (
-            self._objective_gradient_from_jacobian
-            if hasattr(self._objective, "jacobian")
-            else None
-        )
+        np_jac = self._np_jac
+        jac: Optional[NumpyFn] = None
+        if np_jac is not None:
+
+            def jac(x: NumpyArray) -> NumpyArray:
+                # np.asarray: numpy stubs type __getitem__ as Any
+                return np.asarray(np_jac(x[:, None])[0])
 
         callback = self._user_callback
         if callback is None and self._verbosity > 0:
             _iter = [0]
 
-            def callback(intermediate_result: Any) -> None:
+            def callback(intermediate_result: OptimizeResult) -> None:
                 _iter[0] += 1
                 fun = intermediate_result.fun
                 print(f"L-BFGS-B iter {_iter[0]}: fun={fun:.6e}")
 
         scipy_result = scipy_minimize(
-            lambda x: self._objective(x[:, None])[:, 0],
+            lambda x: objective(x[:, None])[:, 0],
             self.bkd().to_numpy(init_guess[:, 0]),
             method="L-BFGS-B",
             jac=jac,

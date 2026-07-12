@@ -284,19 +284,16 @@ class Derivatives(Generic[Array]):
 
         Prefers ``hvp``; when only ``whvp`` is populated and nqoi == 1 the
         weighted form with w = [1] IS the plain hvp. ``nqoi`` must be the
-        OWNING object's ``nqoi()``, never another participant's.
+        OWNING object's ``nqoi()``, never another participant's. The
+        synthesized form is a module-level callable object so it (and any
+        bundle holding it) stays picklable, e.g. for multiprocessing.
         """
         if self.hvp is not None:
             return self.hvp
         whvp = self.whvp
         if whvp is None or nqoi != 1:
             return None
-        weights = bkd.ones((1, 1))
-
-        def _hvp(sample: Array, vec: Array) -> Array:
-            return whvp(sample, vec, weights)
-
-        return _hvp
+        return _HVPFromWHVP(whvp, bkd.ones((1, 1)))
 
     def resolved_whvp(self, nqoi: int) -> Optional[WHVPFn[Array]]:
         """Weighted (adjoint) Hessian-vector product, lifted from hvp.
@@ -304,18 +301,36 @@ class Derivatives(Generic[Array]):
         Prefers ``whvp``; when only ``hvp`` is populated and nqoi == 1,
         the weighted form is w[0] * hvp. ``nqoi`` must be the OWNING
         object's ``nqoi()`` (a constraint's own nqoi, not the
-        objective's).
+        objective's). The lifted form is a module-level callable object so
+        it stays picklable.
         """
         if self.whvp is not None:
             return self.whvp
         hvp = self.hvp
         if hvp is None or nqoi != 1:
             return None
+        return _WHVPFromHVP(hvp)
 
-        def _whvp(sample: Array, vec: Array, weights: Array) -> Array:
-            return weights[0, 0] * hvp(sample, vec)
 
-        return _whvp
+@dataclass(frozen=True)
+class _HVPFromWHVP(Generic[Array]):
+    """Picklable synthesis: plain hvp = whvp with w = [1] (nqoi == 1)."""
+
+    whvp: WHVPFn[Array]
+    weights: Array
+
+    def __call__(self, sample: Array, vec: Array) -> Array:
+        return self.whvp(sample, vec, self.weights)
+
+
+@dataclass(frozen=True)
+class _WHVPFromHVP(Generic[Array]):
+    """Picklable lift: whvp = w[0] * hvp (nqoi == 1)."""
+
+    hvp: HVPFn[Array]
+
+    def __call__(self, sample: Array, vec: Array, weights: Array) -> Array:
+        return weights[0, 0] * self.hvp(sample, vec)
 
 
 def with_shape_validation(
@@ -326,103 +341,42 @@ def with_shape_validation(
     Composed via ``with_`` so mypy checks every wrapped callable against
     its field type. Concrete classes keep their internal shape checks;
     this is an extra boundary guard for e.g. debugging user-provided
-    bundles.
+    bundles. The wrappers are module-level callable objects
+    (:mod:`pyapprox.interface.functions._shape_checked`), not closures, so
+    validated bundles stay picklable, e.g. for multiprocessing.
     """
-    from pyapprox.interface.functions.protocols.validation import (
-        validate_jacobian,
-        validate_sample,
-        validate_samples,
-        validate_vector_for_apply,
-    )
+    # local import: _shape_checked imports the validators, whose package
+    # __init__ leads back to this module
+    from pyapprox.interface.functions import _shape_checked as checked
 
     out = d
     jacobian = d.jacobian
     if jacobian is not None:
-
-        def _checked_jacobian(sample: Array) -> Array:
-            validate_sample(nvars, sample)
-            result = jacobian(sample)
-            validate_jacobian(nqoi, nvars, result)
-            return result
-
-        out = out.with_(jacobian=_checked_jacobian)
+        out = out.with_(
+            jacobian=checked.CheckedJacobian(jacobian, nvars, nqoi)
+        )
     hvp = d.hvp
     if hvp is not None:
-
-        def _checked_hvp(sample: Array, vec: Array) -> Array:
-            validate_sample(nvars, sample)
-            validate_vector_for_apply(nvars, vec)
-            result = hvp(sample, vec)
-            _check_shape("hvp output", result.shape, (nvars, 1))
-            return result
-
-        out = out.with_(hvp=_checked_hvp)
+        out = out.with_(hvp=checked.CheckedHVP(hvp, nvars))
     whvp = d.whvp
     if whvp is not None:
-
-        def _checked_whvp(sample: Array, vec: Array, weights: Array) -> Array:
-            validate_sample(nvars, sample)
-            validate_vector_for_apply(nvars, vec)
-            _check_shape("whvp weights", weights.shape, (nqoi, 1))
-            result = whvp(sample, vec, weights)
-            _check_shape("whvp output", result.shape, (nvars, 1))
-            return result
-
-        out = out.with_(whvp=_checked_whvp)
+        out = out.with_(whvp=checked.CheckedWHVP(whvp, nvars, nqoi))
     hessian = d.hessian
     if hessian is not None:
-
-        def _checked_hessian(sample: Array) -> Array:
-            validate_sample(nvars, sample)
-            result = hessian(sample)
-            _check_shape("hessian output", result.shape, (nvars, nvars))
-            return result
-
-        out = out.with_(hessian=_checked_hessian)
+        out = out.with_(hessian=checked.CheckedHessian(hessian, nvars))
     hessian_batch = d.hessian_batch
     if hessian_batch is not None:
-
-        def _checked_hessian_batch(samples: Array) -> Array:
-            validate_samples(nvars, samples)
-            result = hessian_batch(samples)
-            _check_shape(
-                "hessian_batch output",
-                result.shape,
-                (samples.shape[1], nvars, nvars),
-            )
-            return result
-
-        out = out.with_(hessian_batch=_checked_hessian_batch)
+        out = out.with_(
+            hessian_batch=checked.CheckedHessianBatch(hessian_batch, nvars)
+        )
     hvp_batch = d.hvp_batch
     if hvp_batch is not None:
-
-        def _checked_hvp_batch(samples: Array, vecs: Array) -> Array:
-            validate_samples(nvars, samples)
-            _check_shape("hvp_batch vecs", vecs.shape, samples.shape)
-            result = hvp_batch(samples, vecs)
-            # scalar-implicit: (nsamples, nvars), no nqoi axis
-            _check_shape(
-                "hvp_batch output", result.shape, (samples.shape[1], nvars)
-            )
-            return result
-
-        out = out.with_(hvp_batch=_checked_hvp_batch)
+        out = out.with_(hvp_batch=checked.CheckedHVPBatch(hvp_batch, nvars))
     whvp_batch = d.whvp_batch
     if whvp_batch is not None:
-
-        def _checked_whvp_batch(
-            samples: Array, vecs: Array, weights: Array
-        ) -> Array:
-            validate_samples(nvars, samples)
-            _check_shape("whvp_batch vecs", vecs.shape, samples.shape)
-            _check_shape("whvp_batch weights", weights.shape, (nqoi, 1))
-            result = whvp_batch(samples, vecs, weights)
-            _check_shape(
-                "whvp_batch output", result.shape, (samples.shape[1], nvars)
-            )
-            return result
-
-        out = out.with_(whvp_batch=_checked_whvp_batch)
+        out = out.with_(
+            whvp_batch=checked.CheckedWHVPBatch(whvp_batch, nvars, nqoi)
+        )
     return out
 
 

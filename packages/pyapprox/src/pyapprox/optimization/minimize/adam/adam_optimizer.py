@@ -4,14 +4,17 @@ Implements the Adam algorithm (Kingma & Ba, 2015) for use as a warm-start
 phase before a second-order local optimizer via ChainedOptimizer.
 """
 
-from typing import Generic, Optional, Self, cast
+from typing import Generic, Optional, Self
 
+from pyapprox.interface.functions.derivatives import JacobianFn
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
 )
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
+)
 from pyapprox.optimization.minimize.objective.protocols import (
     ObjectiveProtocol,
-    ObjectiveWithJacobianProtocol,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -61,7 +64,9 @@ class AdamOptimizer(Generic[Array]):
         self._maxiter = maxiter
         self._verbosity = verbosity
 
-        self._objective: Optional[ObjectiveWithJacobianProtocol[Array]] = None
+        self._objective: Optional[ObjectiveProtocol[Array]] = None
+        # jacobian captured (narrowed) once at bind()
+        self._jacobian: Optional[JacobianFn[Array]] = None
         self._bounds: Optional[Array] = None
         self._bkd: Optional[Backend[Array]] = None
         self._is_bound = False
@@ -92,12 +97,15 @@ class AdamOptimizer(Generic[Array]):
                 "AdamOptimizer does not support constraints."
             )
         validate_objective(objective)
-        if not isinstance(objective, ObjectiveWithJacobianProtocol):
+        jacobian = as_derivatives(objective).jacobian
+        if jacobian is None:
             raise TypeError(
-                "AdamOptimizer requires an objective with a jacobian method, "
-                f"got {type(objective).__name__}"
+                "AdamOptimizer requires an objective with a jacobian, "
+                f"got {type(objective).__name__} whose Derivatives bundle "
+                "does not provide one"
             )
         self._objective = objective
+        self._jacobian = jacobian
         self._bounds = bounds
         self._bkd = objective.bkd()
         self._is_bound = True
@@ -107,23 +115,20 @@ class AdamOptimizer(Generic[Array]):
         return self._is_bound
 
     def copy(self) -> Self:
-        return cast(
-            Self,
-            AdamOptimizer(
-                lr=self._lr,
-                beta1=self._beta1,
-                beta2=self._beta2,
-                eps=self._eps,
-                maxiter=self._maxiter,
-                verbosity=self._verbosity,
-            ),
+        return type(self)(
+            lr=self._lr,
+            beta1=self._beta1,
+            beta2=self._beta2,
+            eps=self._eps,
+            maxiter=self._maxiter,
+            verbosity=self._verbosity,
         )
 
     def bkd(self) -> Backend[Array]:
-        if not self._is_bound:
+        bkd = self._bkd
+        if bkd is None:
             raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._bkd is not None
-        return self._bkd
+        return bkd
 
     def minimize(
         self, init_guess: Array
@@ -140,14 +145,13 @@ class AdamOptimizer(Generic[Array]):
         OptimizerResultProtocol[Array]
             Optimization result.
         """
-        if not self._is_bound:
-            raise RuntimeError("Optimizer not bound. Call bind() first.")
-        assert self._objective is not None
-        assert self._bounds is not None
-        assert self._bkd is not None
-
-        bkd = self._bkd
         objective = self._objective
+        jacobian = self._jacobian
+        bkd = self._bkd
+        if objective is None or jacobian is None or bkd is None:
+            raise RuntimeError("Optimizer not bound. Call bind() first.")
+        if self._bounds is None:
+            raise RuntimeError("Optimizer not bound. Call bind() first.")
 
         x = init_guess[:, 0]
         n = len(x)
@@ -167,7 +171,7 @@ class AdamOptimizer(Generic[Array]):
             f_val = objective(x_col)
             f_scalar = float(bkd.to_numpy(bkd.reshape(f_val, (-1,)))[0])
 
-            grad = objective.jacobian(x_col)[0]
+            grad = jacobian(x_col)[0]
 
             m = beta1 * m + (1.0 - beta1) * grad
             v = beta2 * v + (1.0 - beta2) * grad * grad

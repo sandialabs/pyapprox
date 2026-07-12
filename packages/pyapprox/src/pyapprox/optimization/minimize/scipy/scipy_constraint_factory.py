@@ -1,5 +1,14 @@
+"""Convert PyApprox constraints into SciPy constraint objects.
+
+Nonlinear constraints are read through their Derivatives bundle (via the
+migration shim ``as_derivatives``): an absent jacobian hands SciPy the
+string ``"2-point"`` so SciPy does its own finite differencing; an absent
+whvp hands SciPy ``hess=None``. Module-level functions + ``partial`` (not
+closures) keep the converted constraints picklable.
+"""
+
 from functools import partial
-from typing import Any, List, Union, cast
+from typing import List, Union
 
 import numpy as np
 from scipy.optimize import (
@@ -9,8 +18,11 @@ from scipy.optimize import (
     NonlinearConstraint,
 )
 
-from pyapprox.interface.functions.numpy.numpy_function_factory import (
-    numpy_function_wrapper_factory,
+from pyapprox.interface.functions.numpy.adapter import (
+    NumpyArray,
+    NumpyDerivativesAdapter,
+    NumpyFn,
+    NumpyWHVPFn,
 )
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
@@ -19,20 +31,32 @@ from pyapprox.optimization.minimize.constraints.protocols import (
     NonlinearConstraintProtocol,
     SequenceOfConstraintProtocols,
 )
+from pyapprox.optimization.minimize.objective.legacy_adapter import (
+    as_derivatives,
+)
 from pyapprox.util.backends.protocols import Array
 
 
+def _nonlinear_constraint_fun(
+    adapter: NumpyDerivativesAdapter[Array], x: NumpyArray
+) -> NumpyArray:
+    return np.asarray(adapter(x[:, None])[:, 0])
+
+
+def _nonlinear_constraint_jac(np_jac: NumpyFn, x: NumpyArray) -> NumpyArray:
+    return np_jac(x[:, None])
+
+
 def _numpy_constraint_hess_from_whvp(
-    constraint: Any,
-    sample: Array,
-    weights: Array,
-) -> Array:
-    nvars = sample.shape[0]
+    np_whvp: NumpyWHVPFn, x: NumpyArray, weights: NumpyArray
+) -> NumpyArray:
+    """Dense constraint Hessian sum_i w_i * hess c_i, column by column."""
+    nvars = x.shape[0]
     actions = []
     for ii in range(nvars):
         vec = np.zeros((nvars, 1))
         vec[ii] = 1.0
-        actions.append(constraint.whvp(sample[:, None], vec, weights[:, None])[:, 0])
+        actions.append(np_whvp(x[:, None], vec, weights[:, None])[:, 0])
     return np.stack(actions, axis=1)
 
 
@@ -59,28 +83,31 @@ def convert_constraints(
         if isinstance(constraint, PyApproxLinearConstraint):
             # Convert PyApproxLinearConstraint to SciPy LinearConstraint
             converted_linear_constraints.append(constraint.to_scipy())
-        else:
-            # Wrap nonlinear constraints using numpy_function_wrapper_factory
-            con = numpy_function_wrapper_factory(
-                cast(NonlinearConstraintProtocol[Array], constraint),
+            continue
+        if not isinstance(constraint, NonlinearConstraintProtocol):
+            raise TypeError(
+                "constraint must satisfy NonlinearConstraintProtocol or be "
+                f"a PyApproxLinearConstraint, got {type(constraint).__name__}"
             )
-
-            # Convert to SciPy NonlinearConstraint
-            scipy_con = NonlinearConstraint(
-                lambda x: con(x[:, None])[:, 0],
-                constraint.bkd().to_numpy(constraint.lb()),
-                constraint.bkd().to_numpy(constraint.ub()),
-                lambda x: (
-                    con.jacobian(x[:, None]) if hasattr(con, "jacobian") else "2-point"
-                ),
-                (
-                    partial(_numpy_constraint_hess_from_whvp, con)
-                    if hasattr(con, "whvp")
-                    else None
-                ),
-                keep_feasible=getattr(con, "_keep_feasible", False),
+        adapter = NumpyDerivativesAdapter(
+            constraint, as_derivatives(constraint)
+        )
+        # capability captured once; SciPy reacts to what is available
+        np_jac = adapter.jacobian()
+        np_whvp = adapter.whvp()  # resolved with the constraint's OWN nqoi
+        bkd = constraint.bkd()
+        converted_nonlinear_constraints.append(
+            NonlinearConstraint(
+                partial(_nonlinear_constraint_fun, adapter),
+                bkd.to_numpy(constraint.lb()),
+                bkd.to_numpy(constraint.ub()),
+                jac="2-point"
+                if np_jac is None
+                else partial(_nonlinear_constraint_jac, np_jac),
+                hess=None
+                if np_whvp is None
+                else partial(_numpy_constraint_hess_from_whvp, np_whvp),
             )
-
-            converted_nonlinear_constraints.append(scipy_con)
+        )
 
     return converted_linear_constraints + converted_nonlinear_constraints
