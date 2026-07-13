@@ -11,6 +11,25 @@ section is renamed to the version number when a release is tagged (see
 
 ### Added
 
+- `TruncatedPivotedQRFactorizer` in `pyapprox.util.linalg`: matrix-free
+  truncated column-pivoted QR (Householder with Businger–Golub pivoting)
+  that matches scipy's `geqp3` pivot order but runs only `npivots`
+  reflector steps; NumPy and Torch backends plus an optional Numba fast
+  path.
+- `RidgeCVFitter` in `pyapprox.surrogates.affine.expansions.fitters`:
+  ridge regression selecting the regularization strength via fast
+  leave-one-out / leave-many-out cross-validation (hat-matrix formula,
+  no per-fold refitting).
+- `Backend.cond`: backend-generic matrix condition number (NumPy and
+  Torch), with `ord` typed like `norm`.
+- `PCAFunctionEncoder.fit_from_data` accepts `center=False` for
+  uncentered POD.
+- `RandomizedSVD` accepts an optional `seed` drawn from a local
+  `RandomState` (reproducible without perturbing the global NumPy RNG).
+- `AdvectionDiffusionReaction` (Galerkin) exposes `stiffness_forms()`,
+  `forcing_form()`, `reaction_form()`, and `reaction_jacobian_form()` so
+  consumers (e.g. hyper-reduction) can assemble the weak form on
+  element-restricted bases.
 - `PeriodicStructuredMesh1D` in `pyapprox.pde.galerkin.mesh`: 1D Galerkin
   mesh with endpoint-identified (periodic) topology; requires the `fem`
   extra.
@@ -18,9 +37,19 @@ section is renamed to the version number when a release is tagged (see
   periodic viscous Burgers and homogeneous Chafee–Infante.
 - `GalerkinModel` accepts `method="implicit_midpoint"` for transient
   solves.
+- `pyapprox-benchmarks` now ships a `py.typed` marker so downstream mypy
+  checks its types instead of resolving imports as `Any`.
 
 ### Changed
 
+- Randomized SVD classes renamed for accuracy (no aliases kept):
+  `SinglePassRandomizedSVD` → `TwoPassRandomizedSVD` and
+  `DoublePassRandomizedSVD` → `SymmetricRandomizedSVD`.
+- Adaptive sparse grid `result()` now defaults to
+  `include_candidates=True`, so all evaluated candidate subspaces are
+  included in the surrogate; it raises `RuntimeError` if a candidate
+  lacks values. Sparse grid basis factories are now picklable (usable
+  with joblib).
 - `adjust_sign_svd` now requires the `bkd` argument (keyword-only); the
   implicit NumPy fallback was removed.
 - `Backend.any_bool` / `Backend.all_bool` no longer accept a `keepdims`
@@ -29,6 +58,13 @@ section is renamed to the version number when a release is tagged (see
 
 ### Fixed
 
+- Nonlinear reaction Jacobian sign in the Galerkin
+  advection–diffusion–reaction physics: `spatial_jacobian` was
+  inconsistent with finite differences of `spatial_residual`, so Newton
+  converged only linearly for nonlinear reactions.
+- `ConstantSparseMassMatrix.as_matrix()` densified the sparse mass
+  matrix, making Newton solves dense (~250× slower at 16k DOFs); it now
+  stays sparse.
 - `TorchBkd.prod` with `axis=None, keepdims=True` raised `RuntimeError`;
   it now matches NumPy semantics.
 
