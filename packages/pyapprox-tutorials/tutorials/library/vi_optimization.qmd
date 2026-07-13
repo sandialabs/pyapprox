@@ -524,7 +524,7 @@ This tutorial showed how VI optimizes the ELBO in practice --- from the reparame
 
 3. Run the 2D VI problem 10 times with different random seeds for the base samples. How much does the fitted mean vary across runs? How much does the negative ELBO vary?
 
-4. **(Challenge)** Implement a simple gradient descent loop manually: start with $\mu = 0, \log\sigma = 0$, compute the ELBO and its gradient at each step using `elbo()` and `elbo.jacobian()` (requires a torch backend), and update with a fixed step size. Plot the ELBO trajectory and compare to the `VariationalFitter` result.
+4. **(Challenge)** Implement a simple gradient descent loop manually: start with $\mu = 0, \log\sigma = 0$, compute the ELBO and its gradient at each step using `elbo()` and `elbo.derivatives().jacobian` (populated only with a torch backend), and update with a fixed step size. Plot the ELBO trajectory and compare to the `VariationalFitter` result.
 
 
 ## Next Steps

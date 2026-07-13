@@ -9,6 +9,9 @@ from pyapprox.surrogates.affine.expansions.fitters.results import (
     DirectSolverResult,
 )
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.surrogates.affine.protocols.multivariate_basis import (
+    BasisHasJacobianProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -93,11 +96,14 @@ class GradientEnhancedPCEFitter(Generic[Array]):
                 f"GradientEnhancedPCEFitter only supports nqoi=1, got {values.shape[0]}"
             )
 
-        # Check expansion has jacobian_batch
-        if not hasattr(expansion, "jacobian_batch"):
+        # The gradient rows are built from the underlying basis's
+        # jacobian_batch (basis-level API, shape (nsamples, nterms,
+        # nvars)), so validate that capability on the basis itself.
+        basis = expansion._basis
+        if not isinstance(basis, BasisHasJacobianProtocol):
             raise TypeError(
-                f"Expansion must have jacobian_batch method, "
-                f"got {type(expansion).__name__}"
+                f"Expansion basis must satisfy BasisHasJacobianProtocol, "
+                f"got {type(basis).__name__}"
             )
 
         nvars, nsamples = samples.shape
@@ -118,11 +124,9 @@ class GradientEnhancedPCEFitter(Generic[Array]):
         Phi = expansion.basis_matrix(samples)
 
         # Build gradient basis matrix: Phi_G (nsamples * nvars, nterms)
-        # expansion.jacobian_batch returns (nsamples, nqoi, nvars) for each basis term
-        # We need the derivative of each basis function w.r.t. each input variable
-        # This is obtained from the underlying basis's jacobian_batch
-        basis = expansion._basis  # Access underlying basis for gradient computation
-
+        # We need the derivative of each basis function w.r.t. each input
+        # variable, obtained from the underlying basis's jacobian_batch
+        # (validated above).
         # basis.jacobian_batch returns (nsamples, nterms, nvars)
         basis_jac = basis.jacobian_batch(samples)  # (nsamples, nterms, nvars)
 

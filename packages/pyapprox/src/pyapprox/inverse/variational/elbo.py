@@ -7,10 +7,13 @@ plus convenience constructors for common VI setups.
 
 from typing import Any, Callable, Generic, List, Optional, Tuple
 
+from pyapprox.interface.functions.autograd import autograd_derivatives
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.inverse.variational.protocols import (
     VariationalDistributionProtocol,
 )
 from pyapprox.inverse.variational.summary import SummaryStatistic
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -41,19 +44,11 @@ class ELBOObjective(Generic[Array]):
     bkd : Backend[Array]
         Computational backend.
 
-    Optional Methods
-    ----------------
-    The following methods are conditionally available:
-
-    - ``jacobian(params)``: Available when backend supports autograd
-      (i.e., ``hasattr(bkd, 'jacobian')`` is True, e.g., TorchBkd).
-
-    Check availability with ``hasattr(elbo, 'jacobian')``.
-
     Notes
     -----
-    This class follows the dynamic binding pattern for optional methods.
-    See docs/OPTIONAL_METHODS_CONVENTION.md for details.
+    The ``derivatives()`` bundle carries an autograd jacobian when the
+    backend is autodiff-capable (e.g. TorchBkd) and is empty otherwise
+    (scipy applies its own finite differences).
     """
 
     def __init__(
@@ -78,11 +73,18 @@ class ELBOObjective(Generic[Array]):
         self._joint_weights = joint_weights
         self._nlabel_dims = nlabel_dims
         self._bkd = bkd
-        self._setup_derivative_methods()
+        # Autograd as an explicitly composed bundle source (opt-in in
+        # __init__); absent capability stays None to the consumer.
+        if isinstance(bkd, AutodiffBackend):
+            self._derivs: Derivatives[Array] = autograd_derivatives(
+                self, bkd
+            )
+        else:
+            self._derivs = Derivatives.none()
 
-    def _setup_derivative_methods(self) -> None:
-        if hasattr(self._bkd, "jacobian"):
-            self.jacobian = self._jacobian_autograd
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -135,39 +137,6 @@ class ELBOObjective(Generic[Array]):
 
         elbo = self._bkd.sum(self._joint_weights * (log_lik - kl_terms))
         return self._bkd.reshape(-elbo, (1, 1))
-
-    # TODO: should we define jacobian_autograd here
-    # or should we implement a general torch wrapper in optimization
-    # that when applied to a totch function uses autograd to compute
-    # jacobian if model does not implement it analytically, i.e.
-    # def jacobian is not on the class. The class could allow user to
-    # ask for hvp whvp etc but default should be not use autograd forming
-    # this because it is expensive for second order derivs. We should
-    # apply this principal across the code base if we decide to
-    # move forward with it.
-    def _jacobian_autograd(self, params: Array) -> Array:
-        """Compute Jacobian via autograd.
-
-        Parameters
-        ----------
-        params : Array
-            Shape ``(nvars, 1)``.
-
-        Returns
-        -------
-        Array
-            Jacobian, shape ``(1, nvars)``.
-        """
-        if params.shape[1] == 1:
-            p = params[:, 0]
-        else:
-            p = params
-
-        def loss_func(p_flat: Array) -> Array:
-            return self(self._bkd.reshape(p_flat, (len(p_flat), 1)))[0, 0]
-
-        jac = self._bkd.jacobian(loss_func, p)
-        return self._bkd.reshape(jac, (1, self.nvars()))
 
 
 def make_single_problem_elbo(

@@ -6,8 +6,11 @@ This module provides:
 """
 
 import time
-from typing import TYPE_CHECKING, Dict, Generic, List, Optional
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, Dict, Generic, List, Optional
 
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
@@ -20,7 +23,8 @@ class WorkTracker(Generic[Array]):
     """Track model evaluation counts and wall times.
 
     This class records the number of evaluations and wall times for
-    different evaluation types (values, jacobian, hessian, hvp, jvp).
+    different evaluation types (values, jacobian, hessian, hvp, jvp,
+    whvp, and their batch variants).
 
     Parameters
     ----------
@@ -42,7 +46,18 @@ class WorkTracker(Generic[Array]):
     0.4
     """
 
-    _EVAL_TYPES = ("values", "jacobian", "hessian", "hvp", "jvp", "whvp")
+    _EVAL_TYPES = (
+        "values",
+        "jacobian",
+        "jacobian_batch",
+        "hessian",
+        "hessian_batch",
+        "hvp",
+        "hvp_batch",
+        "jvp",
+        "whvp",
+        "whvp_batch",
+    )
 
     def __init__(self, bkd: Backend[Array]) -> None:
         """Initialize the work tracker.
@@ -65,8 +80,8 @@ class WorkTracker(Generic[Array]):
         Parameters
         ----------
         eval_type : str
-            The type of evaluation ("values", "jacobian", "hessian",
-            "hvp", "jvp", "whvp").
+            The type of evaluation; one of ``WorkTracker._EVAL_TYPES``
+            (e.g. "values", "jacobian", "hvp_batch").
         wall_time : float
             The wall time in seconds.
 
@@ -172,11 +187,60 @@ class WorkTracker(Generic[Array]):
         return f"WorkTracker({', '.join(parts)})"
 
 
+@dataclass(frozen=True)
+class _TimedUnary(Generic[Array]):
+    """Picklable timing wrapper for a ``(sample) -> Array`` capability."""
+
+    fn: Callable[[Array], Array]
+    tracker: WorkTracker[Array]
+    eval_type: str
+
+    def __call__(self, sample: Array) -> Array:
+        start = time.perf_counter()
+        result = self.fn(sample)
+        self.tracker.record(self.eval_type, time.perf_counter() - start)
+        return result
+
+
+@dataclass(frozen=True)
+class _TimedBinary(Generic[Array]):
+    """Picklable timing wrapper for a ``(sample, vec) -> Array`` capability."""
+
+    fn: Callable[[Array, Array], Array]
+    tracker: WorkTracker[Array]
+    eval_type: str
+
+    def __call__(self, sample: Array, vec: Array) -> Array:
+        start = time.perf_counter()
+        result = self.fn(sample, vec)
+        self.tracker.record(self.eval_type, time.perf_counter() - start)
+        return result
+
+
+@dataclass(frozen=True)
+class _TimedTernary(Generic[Array]):
+    """Picklable timing wrapper for ``(sample, vec, weights) -> Array``."""
+
+    fn: Callable[[Array, Array, Array], Array]
+    tracker: WorkTracker[Array]
+    eval_type: str
+
+    def __call__(self, sample: Array, vec: Array, weights: Array) -> Array:
+        start = time.perf_counter()
+        result = self.fn(sample, vec, weights)
+        self.tracker.record(self.eval_type, time.perf_counter() - start)
+        return result
+
+
 class TrackedModel(Generic[Array]):
     """Transparent wrapper that tracks evaluations.
 
     This wrapper passes all calls through to the wrapped model
-    while recording wall times to a WorkTracker.
+    while recording wall times to a WorkTracker. Derivative capability
+    is mirrored from the wrapped model's ``Derivatives`` bundle: each
+    populated field is re-exposed through ``derivatives()`` wrapped in a
+    timing recorder. An ``inexact`` suite is propagated unchanged
+    (tolerance-dependent evaluations are not timed).
 
     Parameters
     ----------
@@ -219,20 +283,43 @@ class TrackedModel(Generic[Array]):
         """
         self._model = model
         self._tracker = tracker
-        self._setup_derivative_methods()
+        # Mirror the wrapped model's capability, timing each populated
+        # field under its eval type.
+        md = as_derivatives(model)
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=None
+            if md.jacobian is None
+            else _TimedUnary(md.jacobian, tracker, "jacobian"),
+            jacobian_batch=None
+            if md.jacobian_batch is None
+            else _TimedUnary(md.jacobian_batch, tracker, "jacobian_batch"),
+            jvp=None
+            if md.jvp is None
+            else _TimedBinary(md.jvp, tracker, "jvp"),
+            hvp=None
+            if md.hvp is None
+            else _TimedBinary(md.hvp, tracker, "hvp"),
+            whvp=None
+            if md.whvp is None
+            else _TimedTernary(md.whvp, tracker, "whvp"),
+            hessian=None
+            if md.hessian is None
+            else _TimedUnary(md.hessian, tracker, "hessian"),
+            hessian_batch=None
+            if md.hessian_batch is None
+            else _TimedUnary(md.hessian_batch, tracker, "hessian_batch"),
+            hvp_batch=None
+            if md.hvp_batch is None
+            else _TimedBinary(md.hvp_batch, tracker, "hvp_batch"),
+            whvp_batch=None
+            if md.whvp_batch is None
+            else _TimedTernary(md.whvp_batch, tracker, "whvp_batch"),
+            inexact=md.inexact,
+        )
 
-    def _setup_derivative_methods(self) -> None:
-        """Dynamically add derivative methods if model has them."""
-        if hasattr(self._model, "jacobian"):
-            self.jacobian = self._jacobian
-        if hasattr(self._model, "hessian"):
-            self.hessian = self._hessian
-        if hasattr(self._model, "hvp"):
-            self.hvp = self._hvp
-        if hasattr(self._model, "jvp"):
-            self.jvp = self._jvp
-        if hasattr(self._model, "whvp"):
-            self.whvp = self._whvp
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the timed derivative bundle mirroring the wrapped model."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -272,46 +359,6 @@ class TrackedModel(Generic[Array]):
         elapsed = time.perf_counter() - start
         self._tracker.record("values", elapsed)
         return values
-
-    def _jacobian(self, sample: Array) -> Array:
-        """Compute Jacobian and track time."""
-        start = time.perf_counter()
-        result: Array = self._model.jacobian(sample)
-        elapsed = time.perf_counter() - start
-        self._tracker.record("jacobian", elapsed)
-        return result
-
-    def _hessian(self, sample: Array) -> Array:
-        """Compute Hessian and track time."""
-        start = time.perf_counter()
-        result: Array = self._model.hessian(sample)
-        elapsed = time.perf_counter() - start
-        self._tracker.record("hessian", elapsed)
-        return result
-
-    def _hvp(self, sample: Array, vec: Array) -> Array:
-        """Compute Hessian-vector product and track time."""
-        start = time.perf_counter()
-        result: Array = self._model.hvp(sample, vec)
-        elapsed = time.perf_counter() - start
-        self._tracker.record("hvp", elapsed)
-        return result
-
-    def _jvp(self, sample: Array, vec: Array) -> Array:
-        """Compute Jacobian-vector product and track time."""
-        start = time.perf_counter()
-        result: Array = self._model.jvp(sample, vec)
-        elapsed = time.perf_counter() - start
-        self._tracker.record("jvp", elapsed)
-        return result
-
-    def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
-        """Compute weighted Hessian-vector product and track time."""
-        start = time.perf_counter()
-        result: Array = self._model.whvp(sample, vec, weights)
-        elapsed = time.perf_counter() - start
-        self._tracker.record("whvp", elapsed)
-        return result
 
     def __repr__(self) -> str:
         """Return string representation."""

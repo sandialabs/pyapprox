@@ -3,10 +3,17 @@
 Tests cover:
 - Value correctness against manual computation
 - Jacobian verification via DerivativeChecker
-- Dynamic binding (jacobian present/absent)
+- Bundle capability (jacobian present/absent)
 - Integration with cantilever beam model + Gauss quadrature
 - Dual-backend testing (NumPy and PyTorch)
 """
+
+
+def _bundle_jac(obj):
+    """Return the bundle jacobian, asserting it is populated."""
+    jac = obj.derivatives().jacobian
+    assert jac is not None
+    return jac
 
 
 class _QuadraticModel:
@@ -160,7 +167,7 @@ class TestSampleAverageConstraint:
 
         x2 = 2.0
         sample = bkd.asarray([[x2]])
-        jac = con.jacobian(sample)
+        jac = _bundle_jac(con)(sample)
 
         expected = bkd.asarray([[1.0], [2.0 * x2]])
         assert jac.shape == (2, 1)
@@ -180,13 +187,14 @@ class TestSampleAverageConstraint:
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-5
 
-    def test_dynamic_binding_with_jacobian(self, bkd):
-        """Model with jacobian + stat with jacobian => constraint has jacobian."""
+    def test_bundle_with_jacobian(self, bkd):
+        """Model with jacobian + stat with jacobian => bundle has jacobian."""
         con = self._make_constraint(bkd)
-        assert hasattr(con, "jacobian")
+        assert con.derivatives().jacobian is not None
+        assert not hasattr(con, "jacobian")
 
-    def test_dynamic_binding_without_model_jacobian(self, bkd):
-        """Model without jacobian => constraint has no jacobian."""
+    def test_bundle_without_model_jacobian(self, bkd):
+        """Model without jacobian => bundle has no jacobian."""
         model = _NoJacModel(bkd)
         con = self._make_constraint(
             bkd,
@@ -194,10 +202,10 @@ class TestSampleAverageConstraint:
             constraint_lb=bkd.asarray([0.0]),
             constraint_ub=bkd.asarray([float("inf")]),
         )
-        assert not hasattr(con, "jacobian")
+        assert con.derivatives().jacobian is None
 
-    def test_dynamic_binding_without_stat_jacobian(self, bkd):
-        """Stat without jacobian => constraint has no jacobian."""
+    def test_bundle_without_stat_jacobian(self, bkd):
+        """Stat without jacobian => bundle has no jacobian."""
 
         class NoJacStat:
             def bkd(self):
@@ -210,7 +218,7 @@ class TestSampleAverageConstraint:
                 return values[:, 0:1]
 
         con = self._make_constraint(bkd, stat=NoJacStat())
-        assert not hasattr(con, "jacobian")
+        assert con.derivatives().jacobian is None
 
     def test_satisfies_nonlinear_constraint_protocol(self, bkd):
         """Constraint satisfies NonlinearConstraintProtocol."""
@@ -246,8 +254,7 @@ class TestSampleAverageConstraint:
         assert result.shape == (2, 1)
 
         # Jacobian should be available since mean+stdev has jacobian
-        assert hasattr(con, "jacobian")
-        jac = con.jacobian(sample)
+        jac = _bundle_jac(con)(sample)
         assert jac.shape == (2, 1)
 
     def test_with_mean_plus_stdev_derivative_checker(self, bkd):
@@ -332,8 +339,7 @@ class TestSampleAverageConstraint:
         assert result.shape == (2, 1)
 
         # Jacobian should work
-        assert hasattr(con, "jacobian")
-        jac = con.jacobian(sample)
+        jac = _bundle_jac(con)(sample)
         assert jac.shape == (2, 2)
 
         # DerivativeChecker

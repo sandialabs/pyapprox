@@ -60,6 +60,13 @@ class TestUniformWeight:
         assert result.shape == (1, 3)
 
 
+def _bundle_jac(obj):
+    """Return the bundle jacobian, asserting it is populated."""
+    jac = obj.derivatives().jacobian
+    assert jac is not None
+    return jac
+
+
 class TestFlowMatchingObjective:
     def _make_objective(self, bkd, d=1, m=0, degree=1):
         vf = _make_vf(bkd, d, degree, m)
@@ -85,7 +92,7 @@ class TestFlowMatchingObjective:
     def test_jacobian_returns_1xnactive(self, bkd) -> None:
         obj, vf = self._make_objective(bkd)
         params = vf.hyp_list().get_active_values()
-        grad = obj.jacobian(params)
+        grad = _bundle_jac(obj)(params)
         nactive = vf.hyp_list().nactive_params()
         assert grad.shape == (1, nactive)
 
@@ -96,7 +103,7 @@ class TestFlowMatchingObjective:
         nparams = vf.hyp_list().nactive_params()
         params = bkd.array([0.1 * (i + 1) for i in range(nparams)])
 
-        grad = obj.jacobian(params)
+        grad = _bundle_jac(obj)(params)
 
         eps = 1e-6
         fd_grad = bkd.zeros((nparams,))
@@ -128,7 +135,7 @@ class TestFlowMatchingObjective:
         nparams = vf.hyp_list().nactive_params()
         params = bkd.array([0.05 * (i + 1) for i in range(nparams)])
 
-        grad = obj.jacobian(params)
+        grad = _bundle_jac(obj)(params)
 
         eps = 1e-6
         fd_grad = bkd.zeros((nparams,))
@@ -169,7 +176,7 @@ class TestFlowMatchingObjective:
         assert nactive < nparams_total
 
         params = bkd.array([0.1 * (i + 1) for i in range(nactive)])
-        grad = obj.jacobian(params)
+        grad = _bundle_jac(obj)(params)
         assert grad.shape == (1, nactive)
 
         eps = 1e-6
@@ -201,7 +208,7 @@ class TestFlowMatchingObjective:
         nparams = vf.hyp_list().nactive_params()
         params = bkd.array([0.1 * (i + 1) for i in range(nparams)])
 
-        grad = obj.jacobian(params)
+        grad = _bundle_jac(obj)(params)
         assert grad.shape == (1, nparams)
 
         eps = 1e-6

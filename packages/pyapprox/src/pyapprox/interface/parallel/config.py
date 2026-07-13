@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional, TypeVar, Union
 
 from pyapprox.interface.parallel.protocols import (
     ParallelBackendProtocol,
 )
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -102,10 +104,10 @@ class SequentialBackend:
 
     def map(
         self,
-        func: Callable[[object], object],
-        items: Sequence[object],
+        func: Callable[[T], T],
+        items: Sequence[T],
         n_jobs: int = -1,
-    ) -> list[object]:
+    ) -> list[T]:
         """Apply function to each item sequentially.
 
         Parameters
@@ -126,10 +128,10 @@ class SequentialBackend:
 
     def starmap(
         self,
-        func: Callable[..., object],
-        items: Sequence[tuple[object, ...]],
+        func: Callable[..., T],
+        items: Sequence[tuple[Any, ...]],
         n_jobs: int = -1,
-    ) -> list[object]:
+    ) -> list[T]:
         """Apply function with unpacked arguments sequentially.
 
         Parameters

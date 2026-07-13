@@ -7,6 +7,7 @@ the upper bound on all component objectives.
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -38,6 +39,14 @@ class MinimaxObjective(Generic[Array]):
     def __init__(self, nmodel_vars: int, bkd: Backend[Array]) -> None:
         self._nmodel_vars = nmodel_vars
         self._bkd = bkd
+        # Linear objective: analytic jacobian and (zero) hvp always exist.
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Get computational backend."""
@@ -55,13 +64,13 @@ class MinimaxObjective(Generic[Array]):
         """Number of quantities of interest (always 1)."""
         return 1
 
-    def __call__(self, sample: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate the minimax objective.
 
         Parameters
         ----------
-        sample : Array
+        samples : Array
             Optimization variables [t, x]. Shape: (nvars, 1)
 
         Returns
@@ -69,7 +78,7 @@ class MinimaxObjective(Generic[Array]):
         Array
             Objective value (just t). Shape: (1, 1)
         """
-        return self._bkd.reshape(sample[0, 0], (1, 1))
+        return self._bkd.reshape(samples[0, 0], (1, 1))
 
     def jacobian(self, sample: Array) -> Array:
         """

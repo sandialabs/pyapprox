@@ -7,6 +7,7 @@ VaR estimate and s_i are the excess slack variables.
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -53,6 +54,16 @@ class AVaRObjective(Generic[Array]):
         self._bkd = bkd
         # Coefficient for excess slack: 1/(n*(1-alpha))
         self._excess_coeff = 1.0 / (nscenarios * (1.0 - alpha))
+        # Linear objective: jacobian and (zero) hvp/whvp always exist.
+        # hvp AND whvp together is an unusual combination, so the raw
+        # constructor is used instead of a named one.
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=self.jacobian, hvp=self.hvp, whvp=self.whvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Get computational backend."""
@@ -74,13 +85,13 @@ class AVaRObjective(Generic[Array]):
         """Number of quantities of interest (always 1)."""
         return 1
 
-    def __call__(self, sample: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate the AVaR objective.
 
         Parameters
         ----------
-        sample : Array
+        samples : Array
             Optimization variables [t, s, x]. Shape: (nvars, 1)
 
         Returns
@@ -88,8 +99,8 @@ class AVaRObjective(Generic[Array]):
         Array
             Objective value. Shape: (1, 1)
         """
-        t = sample[0, 0]
-        s = sample[1 : 1 + self._nscenarios, 0]  # Shape: (nscenarios,)
+        t = samples[0, 0]
+        s = samples[1 : 1 + self._nscenarios, 0]  # Shape: (nscenarios,)
         obj = t + self._excess_coeff * self._bkd.sum(s)
         return self._bkd.reshape(obj, (1, 1))
 
@@ -128,5 +139,25 @@ class AVaRObjective(Generic[Array]):
         -------
         Array
             HVP (zero). Shape: (nvars, 1)
+        """
+        return self._bkd.zeros((self.nvars(), 1))
+
+    def whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
+        """
+        Weighted Hessian-vector product (always zero for linear objective).
+
+        Parameters
+        ----------
+        sample : Array
+            Optimization variables. Shape: (nvars, 1)
+        vec : Array
+            Direction vector. Shape: (nvars, 1)
+        weights : Array
+            QoI weights. Shape: (nqoi, 1)
+
+        Returns
+        -------
+        Array
+            WHVP (zero). Shape: (nvars, 1)
         """
         return self._bkd.zeros((self.nvars(), 1))

@@ -7,10 +7,16 @@ tolerance passed by ROL's trust-region algorithm.
 
 from typing import Any, Callable, Generic, List, Optional, Tuple
 
+from pyapprox.interface.functions.autograd import autograd_derivatives
+from pyapprox.interface.functions.derivatives import (
+    Derivatives,
+    InexactSuite,
+)
 from pyapprox.inverse.variational.protocols import (
     VariationalDistributionProtocol,
 )
 from pyapprox.inverse.variational.summary import SummaryStatistic
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -18,9 +24,9 @@ class InexactELBOObjective(Generic[Array]):
     """Negative ELBO with tolerance-dependent sample count.
 
     Like ``ELBOObjective`` but uses an ``InexactGradientStrategy`` to
-    provide tol-dependent base samples. Satisfies ``ObjectiveProtocol``
-    and provides ``inexact_value`` / ``inexact_jacobian`` for ROL
-    integration.
+    provide tol-dependent base samples. Satisfies ``ObjectiveProtocol``;
+    tolerance-aware evaluation is exposed through the ``inexact`` suite
+    of its ``derivatives()`` bundle for ROL integration.
 
     Parameters
     ----------
@@ -67,12 +73,26 @@ class InexactELBOObjective(Generic[Array]):
         self._nlabel_dims = nlabel_dims
         self._bkd = bkd
         self._label_nodes = label_nodes
-        self._setup_derivative_methods()
+        # Autograd as an explicitly composed bundle source (opt-in in
+        # __init__). The inexact suite always carries the value form;
+        # its jacobian is available only with an autodiff backend.
+        if isinstance(bkd, AutodiffBackend):
+            self._derivs: Derivatives[Array] = autograd_derivatives(
+                self, bkd
+            ).with_(
+                inexact=InexactSuite(
+                    value=self.inexact_value,
+                    jacobian=self._inexact_jacobian_autograd,
+                )
+            )
+        else:
+            self._derivs = Derivatives(
+                inexact=InexactSuite(value=self.inexact_value)
+            )
 
-    def _setup_derivative_methods(self) -> None:
-        if hasattr(self._bkd, "jacobian"):
-            self.jacobian = self._jacobian_autograd
-            self.inexact_jacobian = self._inexact_jacobian_autograd
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (always carries an inexact suite)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -197,21 +217,6 @@ class InexactELBOObjective(Generic[Array]):
         """
         return self._evaluate_elbo(params, tol)
 
-    def _jacobian_autograd(self, params: Array) -> Array:
-        """Compute Jacobian via autograd (tol=0).
-
-        Parameters
-        ----------
-        params : Array
-            Shape ``(nvars, 1)``.
-
-        Returns
-        -------
-        Array
-            Jacobian, shape ``(1, nvars)``.
-        """
-        return self._inexact_jacobian_autograd(params, 0.0)
-
     def _inexact_jacobian_autograd(
         self,
         params: Array,
@@ -231,6 +236,12 @@ class InexactELBOObjective(Generic[Array]):
         Array
             Jacobian, shape ``(1, nvars)``.
         """
+        bkd = self._bkd
+        if not isinstance(bkd, AutodiffBackend):
+            raise RuntimeError(
+                "inexact jacobian is unavailable; check derivatives() "
+                "before calling"
+            )
         if params.shape[1] == 1:
             p = params[:, 0]
         else:
@@ -240,7 +251,7 @@ class InexactELBOObjective(Generic[Array]):
             p_col = self._bkd.reshape(p_flat, (len(p_flat), 1))
             return self._evaluate_elbo(p_col, tol)[0, 0]
 
-        jac = self._bkd.jacobian(loss_func, p)
+        jac = bkd.jacobian(loss_func, p)
         return self._bkd.reshape(jac, (1, self.nvars()))
 
 

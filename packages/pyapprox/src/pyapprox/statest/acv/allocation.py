@@ -8,8 +8,12 @@ This module separates allocation optimization from estimation, providing:
 
 import copy
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional
+from typing import Generic, Optional, Union
 
+from pyapprox.interface.functions.autograd import (
+    WithAutogradJacobian,
+    WithAutogradJacobianConstraint,
+)
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
@@ -23,6 +27,7 @@ from pyapprox.statest.acv.optimization import (
     ACVPartitionConstraint,
 )
 from pyapprox.statest.acv.result import ACVAllocationResult
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -354,9 +359,25 @@ class ACVAllocator(Allocator[Array]):
     ) -> OptimizerResultProtocol[Array]:
         objective.set_target_cost(target_cost)
         constraint = ACVPartitionConstraint(self._est, target_cost)
-        constraints: List[ACVPartitionConstraint[Array]] = [constraint]
         bounds = self._est.get_npartition_bounds(target_cost)
-        optimizer.bind(objective, bounds, constraints)
+        # Autograd is a composition source: ACV objectives/constraints
+        # declare no analytical derivatives, so on an autodiff-capable
+        # backend wrap them to fill the jacobian from autograd.
+        bound_obj: Union[
+            ACVObjective[Array], WithAutogradJacobian[Array]
+        ] = objective
+        bound_con: Union[
+            ACVPartitionConstraint[Array],
+            WithAutogradJacobianConstraint[Array],
+        ] = constraint
+        if isinstance(self._bkd, AutodiffBackend):
+            if objective.derivatives().jacobian is None:
+                bound_obj = WithAutogradJacobian(objective, self._bkd)
+            if constraint.derivatives().jacobian is None:
+                bound_con = WithAutogradJacobianConstraint(
+                    constraint, self._bkd
+                )
+        optimizer.bind(bound_obj, bounds, [bound_con])
         init_iterate = self._bkd.full((self._est._nmodels - 1, 1), 1.0)
         init_iterate = self._ensure_feasible_init(init_iterate, constraint, bounds)
         return optimizer.minimize(init_iterate)

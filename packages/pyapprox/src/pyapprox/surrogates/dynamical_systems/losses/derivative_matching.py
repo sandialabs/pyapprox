@@ -5,6 +5,7 @@ L(eta) = (1/2N) sum_i ||dx_i/dt - F_eta(x_i)||^2
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.dynamical_systems.dataset import SnapshotDataset
 from pyapprox.surrogates.dynamical_systems.protocols import (
     LearnedFunctionProtocol,
@@ -17,11 +18,12 @@ class DerivativeMatchingLoss(Generic[Array]):
 
     L(eta) = (1/2N) sum_i ||dx_i/dt - F_eta(x_i)||^2
 
-    Implements FunctionWithJacobianProtocol:
+    Satisfies ``ObjectiveProtocol``:
     - nvars() = nactive_params
     - nqoi() = 1
     - __call__(params: (nvars, 1)) -> (1, 1)
-    - jacobian(params: (nvars, 1)) -> (1, nvars)
+    - jacobian(params: (nvars, 1)) -> (1, nvars), also carried by the
+      ``derivatives()`` bundle
 
     Parameters
     ----------
@@ -55,9 +57,16 @@ class DerivativeMatchingLoss(Generic[Array]):
         self._dataset = dataset
         self._bkd = learned_function.bkd()
         self._states = dataset.states()
-        self._derivs = dataset.derivatives()
+        self._train_derivs = dataset.derivatives()
         self._nsamples = dataset.nsamples()
-        self.jacobian = self._jacobian
+        # Analytic jacobian is unconditional.
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -82,11 +91,11 @@ class DerivativeMatchingLoss(Generic[Array]):
             Shape: (1, 1)
         """
         self._lf.hyp_list().set_active_values(params[:, 0])
-        residual = self._lf(self._states) - self._derivs
+        residual = self._lf(self._states) - self._train_derivs
         loss = self._bkd.sum(residual * residual) / (2.0 * self._nsamples)
         return self._bkd.reshape(loss, (1, 1))
 
-    def _jacobian(self, params: Array) -> Array:
+    def jacobian(self, params: Array) -> Array:
         """Compute dL/d_eta.
 
         Parameters
@@ -100,7 +109,7 @@ class DerivativeMatchingLoss(Generic[Array]):
             Shape: (1, nvars)
         """
         self._lf.hyp_list().set_active_values(params[:, 0])
-        residual = self._lf(self._states) - self._derivs
+        residual = self._lf(self._states) - self._train_derivs
         # residual: (nqoi, nsamples)
         # jacobian_wrt_params: (nsamples, nqoi, nactive)
         pjac = self._lf.jacobian_wrt_params(self._states)

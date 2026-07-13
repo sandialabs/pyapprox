@@ -155,7 +155,9 @@ class TestMinimaxConstraint:
         """Jacobian should be [1, -df/dx]."""
         constraint = self._make_constraint(bkd)
         sample = bkd.asarray([[2.0], [0.0]])
-        jac = constraint.jacobian(sample)
+        jac_fn = constraint.derivatives().jacobian
+        assert jac_fn is not None
+        jac = jac_fn(sample)
 
         # At x=0: df/dx = [0, -2] (for centers [0, 1])
         # Jacobian: [1, 0], [1, 2]
@@ -272,7 +274,9 @@ class TestAVaRConstraint:
         """Test constraint Jacobian shape."""
         constraint = self._make_constraint(bkd)
         sample = bkd.asarray([[1.0], [0.0], [0.0], [0.0], [0.0]])
-        jac = constraint.jacobian(sample)
+        jac_fn = constraint.derivatives().jacobian
+        assert jac_fn is not None
+        jac = jac_fn(sample)
 
         # Shape: (nqoi, nvars) = (3, 5)
         assert jac.shape == (3, 5)

@@ -5,12 +5,20 @@ All acquisition functions are stateless and operate on a single output
 """
 
 from dataclasses import dataclass
-from typing import Generic, Optional, Protocol, Tuple
+from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.bayesian.math_utils import normal_cdf, normal_pdf
 from pyapprox.optimization.bayesian.protocols import AcquisitionContext
 from pyapprox.util.backends.protocols import Array
+
+
+@runtime_checkable
+class _HasPredictStdJacobian(Protocol, Generic[Array]):
+    """Surrogates exposing the predictive-std jacobian (GP-specific API;
+    not a Derivatives-bundle field)."""
+
+    def predict_std_jacobian(self, sample: Array) -> Array: ...
 
 
 def _get_mean_and_std_jacobians(
@@ -36,10 +44,11 @@ def _get_mean_and_std_jacobians(
     d_mu_dx = None
     d_sigma_dx = None
 
-    if hasattr(surrogate, "jacobian"):
-        d_mu_dx = surrogate.jacobian(sample)  # (nqoi, nvars) -> (1, nvars)
+    mean_jac = surrogate.derivatives().jacobian
+    if mean_jac is not None:
+        d_mu_dx = mean_jac(sample)  # (nqoi, nvars) -> (1, nvars)
 
-    if hasattr(surrogate, "predict_std_jacobian"):
+    if isinstance(surrogate, _HasPredictStdJacobian):
         d_sigma_dx = surrogate.predict_std_jacobian(sample)  # (1, nvars)
 
     return d_mu_dx, d_sigma_dx
@@ -171,6 +180,11 @@ class ExpectedImprovement(Generic[Array]):
         Z = improvement / sigma
 
         d_mu_dx, d_sigma_dx = _get_mean_and_std_jacobians(sample, ctx)
+        if d_mu_dx is None:
+            raise RuntimeError(
+                "acquisition jacobian requires the surrogate mean "
+                "jacobian; check ctx.surrogate.derivatives()"
+            )
 
         # d_improvement/dx
         if ctx.minimize:
@@ -252,6 +266,11 @@ class UpperConfidenceBound(Generic[Array]):
             Jacobian, shape (1, nvars).
         """
         d_mu_dx, d_sigma_dx = _get_mean_and_std_jacobians(sample, ctx)
+        if d_mu_dx is None:
+            raise RuntimeError(
+                "acquisition jacobian requires the surrogate mean "
+                "jacobian; check ctx.surrogate.derivatives()"
+            )
 
         sign = -1.0 if ctx.minimize else 1.0
         result = sign * d_mu_dx  # (1, nvars)
@@ -354,6 +373,11 @@ class ProbabilityOfImprovement(Generic[Array]):
         Z = improvement / sigma
 
         d_mu_dx, d_sigma_dx = _get_mean_and_std_jacobians(sample, ctx)
+        if d_mu_dx is None:
+            raise RuntimeError(
+                "acquisition jacobian requires the surrogate mean "
+                "jacobian; check ctx.surrogate.derivatives()"
+            )
 
         if ctx.minimize:
             d_imp_dx = -d_mu_dx  # (1, nvars)

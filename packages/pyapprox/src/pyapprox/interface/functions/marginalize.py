@@ -19,8 +19,23 @@ Both satisfy ``DimensionReducerProtocol``, so higher-level tools such as
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Generic, List, Protocol, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    runtime_checkable,
+)
 
+from pyapprox.interface.functions.derivatives import (
+    Derivatives,
+    HVPFn,
+    JacobianFn,
+    WHVPFn,
+)
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -378,17 +393,17 @@ class ActiveSetFunction(Generic[Array]):
     """Fix a subset of variables at nominal values, expose only kept variables.
 
     Unlike CrossSectionReducer which returns ReducedFunction (evaluation only),
-    ActiveSetFunction dynamically propagates jacobian/hvp/whvp from the
-    wrapped model, making it suitable for optimization.
+    ActiveSetFunction propagates jacobian/hvp/whvp from the wrapped
+    model's ``Derivatives`` bundle, making it suitable for optimization.
 
-    TODO: Consider consolidating with CrossSectionReducer by adding dynamic
-    derivative binding to ReducedFunction or the reducer itself.
+    TODO: Consider consolidating with CrossSectionReducer by adding
+    bundle propagation to ReducedFunction or the reducer itself.
 
     Parameters
     ----------
     function : object
-        A function satisfying FunctionProtocol. May also have
-        jacobian(), hvp(), whvp() methods.
+        A function satisfying FunctionProtocol. Its derivative
+        capability is read from its ``Derivatives`` bundle.
     nominal_values : Array
         Shape (nvars,). Nominal values for ALL variables.
     keep_indices : List[int]
@@ -411,13 +426,22 @@ class ActiveSetFunction(Generic[Array]):
         self._nvars_full: int = function.nvars()
         self._nqoi: int = function.nqoi()
 
-        # Dynamic binding of derivative methods
-        if hasattr(function, "jacobian"):
-            self.jacobian = self._jacobian
-        if hasattr(function, "hvp"):
-            self.hvp = self._hvp
-        if hasattr(function, "whvp"):
-            self.whvp = self._whvp
+        # Mirror the wrapped model's capability: each populated field is
+        # wrapped in a restriction closure; absent capability stays
+        # absent.
+        fd = as_derivatives(function)
+        self._function_jac: Optional[JacobianFn[Array]] = fd.jacobian
+        self._function_hvp: Optional[HVPFn[Array]] = fd.hvp
+        self._function_whvp: Optional[WHVPFn[Array]] = fd.whvp
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=None if self._function_jac is None else self._jacobian,
+            hvp=None if self._function_hvp is None else self._hvp,
+            whvp=None if self._function_whvp is None else self._whvp,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the restricted derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -477,8 +501,13 @@ class ActiveSetFunction(Generic[Array]):
         Array
             Shape (nqoi, n_keep).
         """
+        function_jac = self._function_jac
+        if function_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         full = self._assemble(sample)
-        jac_full = self._function.jacobian(full)
+        jac_full = function_jac(full)
         return jac_full[:, self._keep_indices]
 
     def _hvp(self, sample: Array, vec: Array) -> Array:
@@ -496,12 +525,17 @@ class ActiveSetFunction(Generic[Array]):
         Array
             Shape (n_keep, 1).
         """
+        function_hvp = self._function_hvp
+        if function_hvp is None:
+            raise RuntimeError(
+                "hvp is unavailable; check derivatives() before calling"
+            )
         bkd = self._bkd
         full_sample = self._assemble(sample)
         full_vec = bkd.zeros((self._nvars_full, 1))
         for kk, idx in enumerate(self._keep_indices):
             full_vec[idx] = vec[kk]
-        result_full = self._function.hvp(full_sample, full_vec)
+        result_full = function_hvp(full_sample, full_vec)
         return result_full[self._keep_indices, :]
 
     def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
@@ -521,10 +555,15 @@ class ActiveSetFunction(Generic[Array]):
         Array
             Shape (n_keep, 1).
         """
+        function_whvp = self._function_whvp
+        if function_whvp is None:
+            raise RuntimeError(
+                "whvp is unavailable; check derivatives() before calling"
+            )
         bkd = self._bkd
         full_sample = self._assemble(sample)
         full_vec = bkd.zeros((self._nvars_full, 1))
         for kk, idx in enumerate(self._keep_indices):
             full_vec[idx] = vec[kk]
-        result_full = self._function.whvp(full_sample, full_vec, weights)
+        result_full = function_whvp(full_sample, full_vec, weights)
         return result_full[self._keep_indices, :]

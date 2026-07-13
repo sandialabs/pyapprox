@@ -16,6 +16,13 @@ HAS_JOBLIB = package_available("joblib")
 HAS_MPIRE = package_available("mpire")
 
 
+def _bfield(obj, name):
+    """Return the named bundle field, asserting it is populated."""
+    field = getattr(obj.derivatives(), name)
+    assert field is not None
+    return field
+
+
 class TestIntegration:
     """Integration tests for parallel execution."""
 
@@ -36,8 +43,8 @@ class TestIntegration:
             ]
         )
 
-        seq_jac = seq_func.jacobian_batch(samples)
-        par_jac = par_func.jacobian_batch(samples)
+        seq_jac = _bfield(seq_func, "jacobian_batch")(samples)
+        par_jac = _bfield(par_func, "jacobian_batch")(samples)
 
         assert seq_jac.shape == par_jac.shape
         assert bkd.allclose(seq_jac, par_jac, rtol=1e-12)
@@ -53,8 +60,8 @@ class TestIntegration:
 
         samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
-        seq_hess = seq_func.hessian_batch(samples)
-        par_hess = par_func.hessian_batch(samples)
+        seq_hess = _bfield(seq_func, "hessian_batch")(samples)
+        par_hess = _bfield(par_func, "hessian_batch")(samples)
 
         assert seq_hess.shape == par_hess.shape
         assert bkd.allclose(seq_hess, par_hess, rtol=1e-12)
@@ -71,8 +78,8 @@ class TestIntegration:
         samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         vecs = bkd.asarray([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]])
 
-        seq_hvp = seq_func.hvp_batch(samples, vecs)
-        par_hvp = par_func.hvp_batch(samples, vecs)
+        seq_hvp = _bfield(seq_func, "hvp_batch")(samples, vecs)
+        par_hvp = _bfield(par_func, "hvp_batch")(samples, vecs)
 
         assert seq_hvp.shape == par_hvp.shape
         assert bkd.allclose(seq_hvp, par_hvp, rtol=1e-12)
@@ -86,7 +93,7 @@ class TestIntegration:
         parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
         samples = bkd.asarray([[0.5, 1.0], [0.5, 1.0]])
-        jacobians = parallel_func.jacobian_batch(samples)
+        jacobians = _bfield(parallel_func, "jacobian_batch")(samples)
 
         # Numerical gradient check
         eps = 1e-6
@@ -119,16 +126,16 @@ class TestIntegration:
         samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
 
         joblib_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
-        joblib_jac = joblib_func.jacobian_batch(samples)
+        joblib_jac = _bfield(joblib_func, "jacobian_batch")(samples)
 
         futures_func = make_parallel(func, backend="futures", n_jobs=2)
-        futures_jac = futures_func.jacobian_batch(samples)
+        futures_jac = _bfield(futures_func, "jacobian_batch")(samples)
 
         assert bkd.allclose(joblib_jac, futures_jac, rtol=1e-12)
 
         if HAS_MPIRE:
             mpire_func = make_parallel(func, backend="mpire", n_jobs=2)
-            mpire_jac = mpire_func.jacobian_batch(samples)
+            mpire_jac = _bfield(mpire_func, "jacobian_batch")(samples)
 
             assert bkd.allclose(joblib_jac, mpire_jac, rtol=1e-12)
 
@@ -145,7 +152,7 @@ class TestIntegration:
         wrapper = ParallelFunctionWrapper(func, config)
 
         samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
-        jacobians = wrapper.jacobian_batch(samples)
+        jacobians = _bfield(wrapper, "jacobian_batch")(samples)
 
         assert jacobians.shape == (2, 1, 2)
 

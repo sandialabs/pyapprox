@@ -15,8 +15,6 @@ from pyapprox.interface.functions.timing import (
     FunctionTimer,
     MethodTimer,
     TimedFunction,
-    TimedFunctionWithJacobian,
-    TimedFunctionWithJacobianAndHVP,
     timed,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -213,6 +211,13 @@ class TestFunctionTimer:
 # Dual-backend timing tests
 # ---------------------------------------------------------------------------
 
+def _bundle_field(w, name):
+    """Return the named bundle field, asserting it is populated."""
+    field = getattr(w.derivatives(), name)
+    assert field is not None
+    return field
+
+
 RTOL = 4.0
 
 
@@ -245,7 +250,7 @@ class TestTimedWrapper:
         w = timed(fn)
         sample = bkd.zeros((2, 1))
         for _ in range(5):
-            w.jacobian(sample)  # type: ignore[union-attr]
+            _bundle_field(w, "jacobian")(sample)
         t = w.timer().get("jacobian")
         assert t.call_count() == 5
         assert t.total_evals() == 5
@@ -262,7 +267,7 @@ class TestTimedWrapper:
         sample = bkd.zeros((2, 1))
         vec = bkd.ones((2, 1))
         for _ in range(3):
-            w.hvp(sample, vec)  # type: ignore[union-attr]
+            _bundle_field(w, "hvp")(sample, vec)
         t = w.timer().get("hvp")
         assert t.call_count() == 3
         bkd.assert_allclose(
@@ -279,8 +284,8 @@ class TestTimedWrapper:
         vec = bkd.ones((2, 1))
         for _ in range(3):
             w(sample)
-            w.jacobian(sample)  # type: ignore[union-attr]
-            w.hvp(sample, vec)  # type: ignore[union-attr]
+            _bundle_field(w, "jacobian")(sample)
+            _bundle_field(w, "hvp")(sample, vec)
         call_med = w.timer().get("__call__").median()
         jac_med = w.timer().get("jacobian").median()
         hvp_med = w.timer().get("hvp").median()
@@ -308,7 +313,7 @@ class TestTimedWrapper:
         w = timed(fn)
         sample = bkd.zeros((2, 1))
         for _ in range(5):
-            w.jacobian(sample)  # type: ignore[union-attr]
+            _bundle_field(w, "jacobian")(sample)
         med = w.timer().get("jacobian").median()
         bkd.assert_allclose(
             bkd.asarray([med]),
@@ -324,8 +329,8 @@ class TestTimedWrapper:
         w = timed(fn)
         samples_20 = bkd.zeros((2, 20))
         samples_80 = bkd.zeros((2, 80))
-        w.jacobian_batch(samples_20)  # type: ignore[union-attr]
-        w.jacobian_batch(samples_80)  # type: ignore[union-attr]
+        _bundle_field(w, "jacobian_batch")(samples_20)
+        _bundle_field(w, "jacobian_batch")(samples_80)
         t = w.timer().get("jacobian_batch")
         assert t.call_count() == 2
         assert t.total_evals() == 100
@@ -346,12 +351,12 @@ class TestTimedWrapper:
         assert t.call_count() == 2
 
     def test_protocol_preservation(self, bkd) -> None:
-        """timed() returns appropriate wrapper type."""
+        """timed() mirrors the wrapped function's bundle capability."""
         fn = SleepFunction(bkd)
         w = timed(fn)
-        assert isinstance(w, TimedFunctionWithJacobianAndHVP)
-        assert isinstance(w, TimedFunctionWithJacobian)
         assert isinstance(w, TimedFunction)
+        assert w.derivatives().jacobian is not None
+        assert w.derivatives().hvp is not None
 
         # Plain FunctionProtocol should NOT get jacobian
         plain = FunctionFromCallable(
@@ -362,7 +367,7 @@ class TestTimedWrapper:
         )
         w_plain = timed(plain)
         assert isinstance(w_plain, TimedFunction)
-        assert not isinstance(w_plain, TimedFunctionWithJacobian)
+        assert w_plain.derivatives().jacobian is None
         assert not hasattr(w_plain, "jacobian")
 
     def test_values_unchanged(self, bkd) -> None:
@@ -376,12 +381,12 @@ class TestTimedWrapper:
 
         sample = samples[:, 0:1]
         bkd.assert_allclose(
-            w.jacobian(sample),  # type: ignore[union-attr]
+            _bundle_field(w, "jacobian")(sample),
             fn.jacobian(sample),
         )
         vec = bkd.ones((3, 1))
         bkd.assert_allclose(
-            w.hvp(sample, vec),  # type: ignore[union-attr]
+            _bundle_field(w, "hvp")(sample, vec),
             fn.hvp(sample, vec),
         )
 
@@ -390,7 +395,7 @@ class TestTimedWrapper:
         fn = SleepFunctionWithInternalCall(bkd, jac_time=0.05)
         w = timed(fn)
         sample = bkd.zeros((2, 1))
-        w.jacobian(sample)  # type: ignore[union-attr]
+        _bundle_field(w, "jacobian")(sample)
         assert w.timer().get("jacobian").call_count() == 1
         # __call__ timer should have 0 calls -- the internal self(sample)
         # goes through the inner object, not the wrapper.
@@ -404,8 +409,8 @@ class TestTimedWrapper:
         w1 = timed(fn1, timer=shared)
         w2 = timed(fn2, timer=shared)
         sample = bkd.zeros((2, 1))
-        w1.jacobian(sample)  # type: ignore[union-attr]
-        w2.jacobian(sample)  # type: ignore[union-attr]
+        _bundle_field(w1, "jacobian")(sample)
+        _bundle_field(w2, "jacobian")(sample)
         assert shared.get("jacobian").call_count() == 2
 
     def test_reset(self, bkd) -> None:
@@ -414,12 +419,12 @@ class TestTimedWrapper:
         w = timed(fn)
         sample = bkd.zeros((2, 1))
         for _ in range(3):
-            w.jacobian(sample)  # type: ignore[union-attr]
+            _bundle_field(w, "jacobian")(sample)
         assert w.timer().get("jacobian").call_count() == 3
         w.timer().reset()
         assert w.timer().get("jacobian").call_count() == 0
         assert w.timer().get("jacobian").total_evals() == 0
         with pytest.raises(ValueError):
             w.timer().get("jacobian").median()
-        w.jacobian(sample)  # type: ignore[union-attr]
+        _bundle_field(w, "jacobian")(sample)
         assert w.timer().get("jacobian").call_count() == 1

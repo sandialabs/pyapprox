@@ -13,7 +13,8 @@ class MultiQoIObjectiveProtocol(Protocol, Generic[Array]):
     Protocol for multi-output objective functions.
 
     These are objectives that return multiple values (nqoi > 1) and are
-    candidates for minimax optimization.
+    candidates for minimax optimization. Derivative capability is read
+    from the model's ``Derivatives`` bundle, not from this protocol.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -28,35 +29,19 @@ class MultiQoIObjectiveProtocol(Protocol, Generic[Array]):
         """Number of quantities of interest (outputs)."""
         ...
 
-    def __call__(self, sample: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
-        Evaluate objective at sample.
+        Evaluate objective at samples.
 
         Parameters
         ----------
-        sample : Array
+        samples : Array
             Input sample. Shape: (nvars, 1)
 
         Returns
         -------
         Array
             Objective values. Shape: (nqoi, 1)
-        """
-        ...
-
-    def jacobian(self, sample: Array) -> Array:
-        """
-        Jacobian of objective.
-
-        Parameters
-        ----------
-        sample : Array
-            Input sample. Shape: (nvars, 1)
-
-        Returns
-        -------
-        Array
-            Jacobian matrix. Shape: (nqoi, nvars)
         """
         ...
 
@@ -86,7 +71,7 @@ class SlackBasedObjectiveProtocol(Protocol, Generic[Array]):
         """Number of slack variables."""
         ...
 
-    def __call__(self, sample: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """Evaluate objective."""
         ...
 

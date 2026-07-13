@@ -4,10 +4,17 @@ Tests for ActiveSetFunction.
 Tests cover:
 - Variable fixing and evaluation
 - Jacobian propagation and column extraction
-- Dynamic binding (jacobian present/absent)
+- Bundle propagation (jacobian present/absent)
 - Dual-backend testing (NumPy and PyTorch)
 - Integration with CantileverBeam2DAnalytical
 """
+
+
+def _bundle_jac(obj):
+    """Return the bundle jacobian, asserting it is populated."""
+    jac = obj.derivatives().jacobian
+    assert jac is not None
+    return jac
 
 
 class TestActiveSetFunction:
@@ -87,7 +94,7 @@ class TestActiveSetFunction:
         self._setup(bkd)
         asf = self._make_asf(bkd)
         sample = bkd.asarray([[2.5], [3.0]])
-        jac = asf.jacobian(sample)
+        jac = _bundle_jac(asf)(sample)
         assert jac.shape == (2, 2)
 
     def test_jacobian_extracts_correct_columns(self, bkd):
@@ -95,7 +102,7 @@ class TestActiveSetFunction:
         self._setup(bkd)
         asf = self._make_asf(bkd)
         sample = bkd.asarray([[2.5], [3.0]])
-        jac_reduced = asf.jacobian(sample)
+        jac_reduced = _bundle_jac(asf)(sample)
 
         # Full Jacobian
         full_sample = bkd.asarray(
@@ -127,17 +134,21 @@ class TestActiveSetFunction:
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-5
 
-    def test_dynamic_binding_with_jacobian(self, bkd):
-        """Function with jacobian gets jacobian bound."""
+    def test_bundle_with_jacobian(self, bkd):
+        """Function with jacobian populates the wrapped bundle."""
         self._setup(bkd)
         asf = self._make_asf(bkd)
-        assert hasattr(asf, "jacobian")
+        assert asf.derivatives().jacobian is not None
+        assert not hasattr(asf, "jacobian")
 
-    def test_dynamic_binding_without_jacobian(self, bkd):
-        """Function without jacobian does not get jacobian bound."""
+    def test_bundle_without_jacobian(self, bkd):
+        """Function without jacobian yields an empty wrapped bundle."""
         self._setup(bkd)
 
         class NoJacFunction:
+            def bkd(self):
+                return bkd
+
             def nvars(self):
                 return 2
 
@@ -154,6 +165,7 @@ class TestActiveSetFunction:
             nominal=bkd.asarray([1.0, 2.0]),
             keep=[0],
         )
+        assert asf.derivatives().jacobian is None
         assert not hasattr(asf, "jacobian")
 
     def test_with_constraints_model(self, bkd):
@@ -172,7 +184,7 @@ class TestActiveSetFunction:
         sample = bkd.asarray([[2.5], [3.0]])
         result = asf(sample)
         assert result.shape == (2, 1)
-        assert hasattr(asf, "jacobian")
+        assert asf.derivatives().jacobian is not None
 
         checker = DerivativeChecker(asf)
         errors = checker.check_derivatives(sample, relative=True)[0]
@@ -211,5 +223,5 @@ class TestActiveSetFunction:
         result = asf(sample)
         assert result.shape == (2, 1)
 
-        jac = asf.jacobian(sample)
+        jac = _bundle_jac(asf)(sample)
         assert jac.shape == (2, 1)

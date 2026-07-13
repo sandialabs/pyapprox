@@ -15,6 +15,13 @@ HAS_JOBLIB = package_available("joblib")
 HAS_MPIRE = package_available("mpire")
 
 
+def _bfield(obj, name):
+    """Return the named bundle field, asserting it is populated."""
+    field = getattr(obj.derivatives(), name)
+    assert field is not None
+    return field
+
+
 class TestParallelFunctionWrapper:
     """Tests for ParallelFunctionWrapper."""
 
@@ -39,7 +46,7 @@ class TestParallelFunctionWrapper:
         parallel_func = make_parallel(func, backend="sequential")
 
         samples = bkd.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-        jacobians = parallel_func.jacobian_batch(samples)
+        jacobians = _bfield(parallel_func, "jacobian_batch")(samples)
 
         # Shape should be (nsamples, nqoi, nvars)
         assert jacobians.shape == (3, 1, 2)
@@ -58,7 +65,7 @@ class TestParallelFunctionWrapper:
         parallel_func = make_parallel(func, backend="sequential")
 
         samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
-        hessians = parallel_func.hessian_batch(samples)
+        hessians = _bfield(parallel_func, "hessian_batch")(samples)
 
         # Shape should be (nsamples, nvars, nvars)
         assert hessians.shape == (2, 2, 2)
@@ -77,7 +84,7 @@ class TestParallelFunctionWrapper:
 
         samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
         vecs = bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
-        hvps = parallel_func.hvp_batch(samples, vecs)
+        hvps = _bfield(parallel_func, "hvp_batch")(samples, vecs)
 
         # Shape should be (nsamples, nvars)
         assert hvps.shape == (2, 2)
@@ -97,7 +104,7 @@ class TestParallelFunctionWrapper:
         vecs = bkd.asarray([[1.0, 0.0], [0.0, 1.0]])
         weights = bkd.asarray([[0.5]])
 
-        whvps = parallel_func.whvp_batch(samples, vecs, weights)
+        whvps = _bfield(parallel_func, "whvp_batch")(samples, vecs, weights)
 
         # Shape should be (nsamples, nvars)
         assert whvps.shape == (2, 2)
@@ -114,13 +121,13 @@ class TestParallelFunctionWrapper:
         parallel_func = make_parallel(func, backend="sequential")
 
         samples = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
-        jacobians = parallel_func.jacobian_batch(samples)
+        jacobians = _bfield(parallel_func, "jacobian_batch")(samples)
 
         # Shape should be (nsamples, nqoi, nvars)
         assert jacobians.shape == (2, 2, 2)
 
-    def test_hasattr_detection(self, bkd):
-        """Test that only available methods are wrapped."""
+    def test_bundle_capability_detection(self, bkd):
+        """Only fields the wrapped function provides gain batch forms."""
         from pyapprox.interface.parallel.factory import make_parallel
 
         # Create function without hvp
@@ -146,9 +153,10 @@ class TestParallelFunctionWrapper:
         func = FuncWithoutHVP(bkd)
         parallel_func = make_parallel(func, backend="sequential")
 
-        assert hasattr(parallel_func, "jacobian_batch")
-        assert not hasattr(parallel_func, "hvp_batch")
-        assert not hasattr(parallel_func, "whvp_batch")
+        derivs = parallel_func.derivatives()
+        assert derivs.jacobian_batch is not None
+        assert derivs.hvp_batch is None
+        assert derivs.whvp_batch is None
 
     def test_backend_info(self, bkd):
         """Test backend information methods."""
@@ -173,11 +181,11 @@ class TestParallelFunctionWrapper:
         parallel_func = make_parallel(func, backend="joblib_processes", n_jobs=2)
 
         samples = bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
-        jacobians = parallel_func.jacobian_batch(samples)
+        jacobians = _bfield(parallel_func, "jacobian_batch")(samples)
 
         # Verify results match sequential
         seq_func = make_parallel(func, backend="sequential")
-        seq_jacobians = seq_func.jacobian_batch(samples)
+        seq_jacobians = _bfield(seq_func, "jacobian_batch")(samples)
 
         assert bkd.allclose(jacobians, seq_jacobians)
 
@@ -191,11 +199,11 @@ class TestParallelFunctionWrapper:
         parallel_func = make_parallel(func, backend="mpire", n_jobs=2)
 
         samples = bkd.asarray([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]])
-        jacobians = parallel_func.jacobian_batch(samples)
+        jacobians = _bfield(parallel_func, "jacobian_batch")(samples)
 
         # Verify results match sequential
         seq_func = make_parallel(func, backend="sequential")
-        seq_jacobians = seq_func.jacobian_batch(samples)
+        seq_jacobians = _bfield(seq_func, "jacobian_batch")(samples)
 
         assert bkd.allclose(jacobians, seq_jacobians)
 

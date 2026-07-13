@@ -655,7 +655,7 @@ class TestAmortizedTorchOnly:
             labels=labels,
         )
 
-        assert hasattr(elbo, "jacobian")
+        assert elbo.derivatives().jacobian is not None
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
@@ -710,7 +710,7 @@ class TestAmortizedTorchOnly:
             labels=labels,
         )
 
-        assert hasattr(elbo, "jacobian")
+        assert elbo.derivatives().jacobian is not None
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
@@ -772,7 +772,7 @@ class TestAmortizedTorchOnly:
             labels=labels,
         )
 
-        assert hasattr(elbo, "jacobian")
+        assert elbo.derivatives().jacobian is not None
         checker = DerivativeChecker(elbo)
         sample = bkd.zeros((elbo.nvars(), 1))
         errors = checker.check_derivatives(sample, verbosity=0)
@@ -810,7 +810,8 @@ class TestAmortizedTorchOnly:
             labels=labels,
         )
 
-        assert hasattr(elbo, "jacobian")
+        jac_fn = elbo.derivatives().jacobian
+        assert jac_fn is not None
         params = bkd.zeros((elbo.nvars(), 1))
-        jac = elbo.jacobian(params)
+        jac = jac_fn(params)
         assert jac.shape == (1, elbo.nvars())

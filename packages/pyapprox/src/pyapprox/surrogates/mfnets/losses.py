@@ -7,6 +7,7 @@ nodes in the network.
 import math
 from typing import Dict, Generic, List
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.mfnets.network import MFNet
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -43,6 +44,12 @@ class MFNetNegLogLikelihoodLoss(Generic[Array]):
         self._train_samples = train_samples_per_node
         self._train_values = train_values_per_node
         self._bkd = network.bkd()
+        # No analytical derivatives; scipy applies finite differences.
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (no analytical capability)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

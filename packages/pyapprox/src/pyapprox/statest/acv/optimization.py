@@ -6,10 +6,11 @@ This module provides:
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, Generic, Optional
+from typing import Generic, Optional
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.statest.acv.base import ACVEstimator
 from pyapprox.statest.statistics import log_determinant_variance
 from pyapprox.util.backends.protocols import Array, Backend
@@ -65,6 +66,14 @@ class ACVObjective(ABC, Generic[Array]):
         self._bkd = bkd
         self._est: Optional[ACVEstimator[Array]] = None
         self._target_cost: Optional[float] = None
+        # No analytical derivatives exist for ACV objectives; the
+        # orchestrator composes WithAutogradJacobian on an
+        # autodiff-capable backend.
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (no analytical capability)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         if self._bkd is None:
@@ -100,21 +109,10 @@ class ACVObjective(ABC, Generic[Array]):
         )
         return self._optimization_criteria(est_covariance) * self._scaling
 
-    def __call__(self, partition_ratios: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the objective at partition ratios of shape (nvars, 1)."""
         bkd = self.bkd()
-        return bkd.atleast_2d(self._objective_value(partition_ratios))
-
-    def jacobian(self, partition_ratios: Array) -> Array:
-        bkd = self.bkd()
-        bkd_jacobian: Optional[
-            Callable[[Callable[[Array], Array], Array], Array]
-        ] = getattr(bkd, "jacobian", None)
-        if bkd_jacobian is None:
-            raise NotImplementedError(
-                "AD jacobian requires TorchBkd; override jacobian() "
-                "for other backends"
-            )
-        return bkd_jacobian(self._objective_value, partition_ratios).T
+        return bkd.atleast_2d(self._objective_value(samples))
 
 
 class ACVLogDeterminantObjective(ACVObjective[Array]):
@@ -131,7 +129,7 @@ class ACVLogDeterminantObjective(ACVObjective[Array]):
 class ACVPartitionConstraint(Generic[Array]):
     """Constraint ensuring valid partition sample counts.
 
-    Satisfies NonlinearConstraintProtocolWithJacobianAndWHVP for use with
+    Satisfies NonlinearConstraintProtocol for use with
     ScipyTrustConstrOptimizer.
     """
 
@@ -145,6 +143,15 @@ class ACVPartitionConstraint(Generic[Array]):
         self._bkd = est._bkd
         self._lb = self._bkd.zeros((self._est._npartitions,))
         self._ub = self._bkd.full((self._est._npartitions,), np.inf)
+        # No analytical derivatives; the orchestrator composes
+        # WithAutogradJacobianConstraint on an autodiff-capable backend.
+        # whvp stays absent so scipy uses finite differences for
+        # constraint hessians (matches the legacy behavior).
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (no analytical capability)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -170,20 +177,6 @@ class ACVPartitionConstraint(Generic[Array]):
         vals = nsamples - self._est._stat.min_nsamples()
         return vals
 
-    def __call__(self, partition_ratios: Array) -> Array:
-        return self._eval_constraint(partition_ratios[:, 0])[:, None]
-
-    def jacobian(self, partition_ratios: Array) -> Array:
-        bkd_jacobian: Optional[
-            Callable[[Callable[[Array], Array], Array], Array]
-        ] = getattr(self._bkd, "jacobian", None)
-        if bkd_jacobian is None:
-            raise NotImplementedError(
-                "AD jacobian requires TorchBkd; override jacobian() "
-                "for other backends"
-            )
-        return bkd_jacobian(self._eval_constraint, partition_ratios[:, 0])
-
-    # Note: whvp is intentionally not implemented.
-    # Legacy code sets apply_hessian_implemented() -> False
-    # to let scipy use finite difference for constraint hessians.
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate constraints at partition ratios of shape (nvars, 1)."""
+        return self._eval_constraint(samples[:, 0])[:, None]

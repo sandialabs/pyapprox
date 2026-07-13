@@ -7,7 +7,7 @@ Wraps a constrained optimizer to solve min_x AVaR_alpha[f_i(x)].
 from typing import Generic, Optional, Sequence
 
 from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocolWithJacobian,
+    NonlinearConstraintProtocol,
 )
 from pyapprox.optimization.minimize.minimax.protocols import (
     MultiQoIObjectiveProtocol,
@@ -66,7 +66,7 @@ class AVaROptimizer(Generic[Array]):
         bounds: Array,
         alpha: float,
         constraints: Optional[
-            Sequence[NonlinearConstraintProtocolWithJacobian[Array]]
+            Sequence[NonlinearConstraintProtocol[Array]]
         ] = None,
         verbosity: int = 0,
         maxiter: Optional[int] = None,

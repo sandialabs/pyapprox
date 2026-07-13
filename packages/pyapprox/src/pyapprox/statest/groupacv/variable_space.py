@@ -17,10 +17,17 @@ from typing import (
     Dict,
     Generic,
     Literal,
+    Optional,
     Protocol,
     runtime_checkable,
 )
 
+from pyapprox.interface.functions.derivatives import (
+    Derivatives,
+    HessianFn,
+    JacobianFn,
+    WHVPFn,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
@@ -38,28 +45,32 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class _ObjectiveLike(Protocol[Array]):
-    """Structural type for objective-like objects (original or wrapped)."""
+    """Structural type for objective-like objects (original or wrapped).
+
+    Derivative capability travels in the ``Derivatives`` bundle.
+    """
 
     def bkd(self) -> Backend[Array]: ...
     def nvars(self) -> int: ...
     def nqoi(self) -> int: ...
-    def __call__(self, npartition_samples: Array) -> Array: ...
+    def __call__(self, samples: Array) -> Array: ...
+    def derivatives(self) -> Derivatives[Array]: ...
 
 
 @runtime_checkable
 class _ConstraintLike(Protocol[Array]):
-    """Structural type for constraint-like objects (original or wrapped)."""
+    """Structural type for constraint-like objects (original or wrapped).
+
+    Derivative capability travels in the ``Derivatives`` bundle.
+    """
 
     def bkd(self) -> Backend[Array]: ...
     def nvars(self) -> int: ...
     def nqoi(self) -> int: ...
     def lb(self) -> Array: ...
     def ub(self) -> Array: ...
-    def __call__(self, npartition_samples: Array) -> Array: ...
-    def jacobian(self, npartition_samples: Array) -> Array: ...
-    def whvp(
-        self, npartition_samples: Array, vec: Array, weights: Array
-    ) -> Array: ...
+    def __call__(self, samples: Array) -> Array: ...
+    def derivatives(self) -> Derivatives[Array]: ...
 
 
 @runtime_checkable
@@ -116,20 +127,35 @@ class BudgetConstraintForm(Protocol[Array]):
 
 
 class _RescaledObjective(Generic[Array]):
-    """Wraps objective to accept m-space variables, converting via n = m/scale."""
+    """Wraps objective to accept m-space variables, converting via n = m/scale.
+
+    The inner objective's bundle fields are wrapped in chain-rule
+    closures; absent inner capability stays absent.
+    """
 
     def __init__(
         self, inner: "GroupACVObjective[Array]", scale: Array
     ) -> None:
         self._inner = inner
         self._scale = scale
-        if hasattr(inner, "jacobian"):
-            self.jacobian = self._jacobian_impl
-        if hasattr(inner, "hessian"):
-            self._inner_hessian: Callable[[Array], Array] = inner.hessian
-            self.hessian = self._hessian_impl
-        if hasattr(inner, "hvp"):
-            self.hvp = self._hvp_impl
+        d = inner.derivatives()
+        self._inner_jac: Optional[JacobianFn[Array]] = d.jacobian
+        self._inner_hessian: Optional[HessianFn[Array]] = d.hessian
+        # hvp is derived from the materialized hessian, so both wrapped
+        # second-order fields key on the inner hessian.
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=None
+            if self._inner_jac is None
+            else self._jacobian_impl,
+            hessian=None
+            if self._inner_hessian is None
+            else self._hessian_impl,
+            hvp=None if self._inner_hessian is None else self._hvp_impl,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the chain-ruled derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._inner.bkd()
@@ -140,18 +166,28 @@ class _RescaledObjective(Generic[Array]):
     def nqoi(self) -> int:
         return self._inner.nqoi()
 
-    def __call__(self, npartition_samples: Array) -> Array:
-        n = npartition_samples / self._scale[:, None]
+    def __call__(self, samples: Array) -> Array:
+        n = samples / self._scale[:, None]
         return self._inner(n)
 
     def _jacobian_impl(self, npartition_samples: Array) -> Array:
+        inner_jac = self._inner_jac
+        if inner_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         n = npartition_samples / self._scale[:, None]
-        J_n = self._inner.jacobian(n)
+        J_n = inner_jac(n)
         return J_n / self._scale[None, :]
 
     def _hessian_impl(self, npartition_samples: Array) -> Array:
+        inner_hessian = self._inner_hessian
+        if inner_hessian is None:
+            raise RuntimeError(
+                "hessian is unavailable; check derivatives() before calling"
+            )
         n = npartition_samples / self._scale[:, None]
-        H_n = self._inner_hessian(n)
+        H_n = inner_hessian(n)
         outer = self._scale[:, None] * self._scale[None, :]
         return H_n / outer
 
@@ -160,17 +196,30 @@ class _RescaledObjective(Generic[Array]):
 
 
 class _RescaledConstraint(Generic[Array]):
-    """Wraps constraint to accept m-space variables, converting via n = m/scale."""
+    """Wraps constraint to accept m-space variables, converting via n = m/scale.
+
+    The inner constraint's bundle fields are wrapped in chain-rule
+    closures; absent inner capability stays absent.
+    """
 
     def __init__(
         self, inner: "GroupACVCostConstraint[Array]", scale: Array
     ) -> None:
         self._inner = inner
         self._scale = scale
-        if hasattr(inner, "jacobian"):
-            self.jacobian = self._jacobian_impl
-        if hasattr(inner, "whvp"):
-            self.whvp = self._whvp_impl
+        d = inner.derivatives()
+        self._inner_jac: Optional[JacobianFn[Array]] = d.jacobian
+        self._inner_whvp: Optional[WHVPFn[Array]] = d.whvp
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=None
+            if self._inner_jac is None
+            else self._jacobian_impl,
+            whvp=None if self._inner_whvp is None else self._whvp_impl,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the chain-ruled derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._inner.bkd()
@@ -187,18 +236,25 @@ class _RescaledConstraint(Generic[Array]):
     def ub(self) -> Array:
         return self._inner.ub()
 
-    def __call__(self, npartition_samples: Array) -> Array:
-        n = npartition_samples / self._scale[:, None]
+    def __call__(self, samples: Array) -> Array:
+        n = samples / self._scale[:, None]
         return self._inner(n)
 
     def _jacobian_impl(self, npartition_samples: Array) -> Array:
+        inner_jac = self._inner_jac
+        if inner_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         n = npartition_samples / self._scale[:, None]
-        J_n = self._inner.jacobian(n)
+        J_n = inner_jac(n)
         return J_n / self._scale[None, :]
 
     def _whvp_impl(
         self, npartition_samples: Array, vec: Array, weights: Array
     ) -> Array:
+        # The inner constraint is linear in n and the rescaling is
+        # linear, so the m-space Hessian is zero.
         bkd = self._inner.bkd()
         return bkd.zeros((self.nvars(), 1))
 
@@ -215,13 +271,25 @@ class _LogObjective(Generic[Array]):
     ) -> None:
         self._inner = inner
         self._bkd = bkd
-        if hasattr(inner, "jacobian"):
-            self.jacobian = self._jacobian_impl
-        if hasattr(inner, "hessian"):
-            self._inner_hessian: Callable[[Array], Array] = inner.hessian
-            self.hessian = self._hessian_impl
-        if hasattr(inner, "hvp"):
-            self.hvp = self._hvp_impl
+        d = inner.derivatives()
+        self._inner_jac: Optional[JacobianFn[Array]] = d.jacobian
+        self._inner_hessian: Optional[HessianFn[Array]] = d.hessian
+        # The log-space hessian needs BOTH the inner hessian and the
+        # inner jacobian (diagonal correction term).
+        has_hessian = (
+            self._inner_hessian is not None and self._inner_jac is not None
+        )
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=None
+            if self._inner_jac is None
+            else self._jacobian_impl,
+            hessian=self._hessian_impl if has_hessian else None,
+            hvp=self._hvp_impl if has_hessian else None,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the chain-ruled derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -232,21 +300,32 @@ class _LogObjective(Generic[Array]):
     def nqoi(self) -> int:
         return self._inner.nqoi()
 
-    def __call__(self, m: Array) -> Array:
-        n = self._bkd.exp(m)
+    def __call__(self, samples: Array) -> Array:
+        n = self._bkd.exp(samples)
         return self._inner(n)
 
     def _jacobian_impl(self, m: Array) -> Array:
+        inner_jac = self._inner_jac
+        if inner_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         n = self._bkd.exp(m)
-        J_n = self._inner.jacobian(n)
+        J_n = inner_jac(n)
         return J_n * n[:, 0][None, :]
 
     def _hessian_impl(self, m: Array) -> Array:
+        inner_jac = self._inner_jac
+        inner_hessian = self._inner_hessian
+        if inner_jac is None or inner_hessian is None:
+            raise RuntimeError(
+                "hessian is unavailable; check derivatives() before calling"
+            )
         n = self._bkd.exp(m)
         n_1d = n[:, 0]
-        H_n = self._inner_hessian(n)
+        H_n = inner_hessian(n)
         H_m = H_n * (n_1d[:, None] * n_1d[None, :])
-        J_n = self._inner.jacobian(n)
+        J_n = inner_jac(n)
         diag_correction = J_n[0, :] * n_1d
         nv = self.nvars()
         for k in range(nv):
@@ -269,10 +348,24 @@ class _LogConstraint(Generic[Array]):
     ) -> None:
         self._inner = inner
         self._bkd = bkd
-        if hasattr(inner, "jacobian"):
-            self.jacobian = self._jacobian_impl
-        if hasattr(inner, "whvp"):
-            self.whvp = self._whvp_impl
+        d = inner.derivatives()
+        self._inner_jac: Optional[JacobianFn[Array]] = d.jacobian
+        # Both wrapped derivatives are built from the inner JACOBIAN
+        # (the inner constraint is linear in n), so both key on it. The
+        # whvp field is additionally gated on the inner whvp so that a
+        # first-order-only inner stays first-order when wrapped.
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=None
+            if self._inner_jac is None
+            else self._jacobian_impl,
+            whvp=self._whvp_impl
+            if self._inner_jac is not None and d.whvp is not None
+            else None,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the chain-ruled derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -289,25 +382,35 @@ class _LogConstraint(Generic[Array]):
     def ub(self) -> Array:
         return self._inner.ub()
 
-    def __call__(self, m: Array) -> Array:
-        n = self._bkd.exp(m)
+    def __call__(self, samples: Array) -> Array:
+        n = self._bkd.exp(samples)
         return self._inner(n)
 
     def _jacobian_impl(self, m: Array) -> Array:
+        inner_jac = self._inner_jac
+        if inner_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         n = self._bkd.exp(m)
-        J_n = self._inner.jacobian(n)
+        J_n = inner_jac(n)
         return J_n * n[:, 0][None, :]
 
     def _whvp_impl(
         self, m: Array, vec: Array, weights: Array
     ) -> Array:
+        inner_jac = self._inner_jac
+        if inner_jac is None:
+            raise RuntimeError(
+                "whvp is unavailable; check derivatives() before calling"
+            )
         # g_i(m) = g_i(exp(m)), constraint g_i is linear in n:
         #   g_i(n) = a_i^T n + b_i
         # So d²g_i/dm_k dm_p = δ_{kp} * (dg_i/dn_k) * n_k
         # whvp = Σ_i w_i * diag(dg_i/dn * n) @ vec
         n = self._bkd.exp(m)
         n_1d = n[:, 0]
-        J_n = self._inner.jacobian(n)
+        J_n = inner_jac(n)
         # J_n shape: (nqoi, nvars), weights shape: (nqoi, 1)
         weighted_diag = self._bkd.einsum(
             "i,ij->j", weights[:, 0], J_n
@@ -326,10 +429,19 @@ class _NormalizedConstraint(Generic[Array]):
             raise ValueError("Normalization factors must be positive")
         self._inner: _ConstraintLike[Array] = inner
         self._norm = normalization
-        if hasattr(inner, "jacobian"):
-            self.jacobian = self._jacobian_impl
-        if hasattr(inner, "whvp"):
-            self.whvp = self._whvp_impl
+        d = inner.derivatives()
+        self._inner_jac: Optional[JacobianFn[Array]] = d.jacobian
+        self._inner_whvp: Optional[WHVPFn[Array]] = d.whvp
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=None
+            if self._inner_jac is None
+            else self._jacobian_impl,
+            whvp=None if self._inner_whvp is None else self._whvp_impl,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the normalized derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._inner.bkd()
@@ -346,17 +458,30 @@ class _NormalizedConstraint(Generic[Array]):
     def ub(self) -> Array:
         return self._inner.ub() / self._norm
 
-    def __call__(self, npartition_samples: Array) -> Array:
-        return self._inner(npartition_samples) / self._norm[:, None]
+    def __call__(self, samples: Array) -> Array:
+        return self._inner(samples) / self._norm[:, None]
 
     def _jacobian_impl(self, npartition_samples: Array) -> Array:
-        return self._inner.jacobian(npartition_samples) / self._norm[:, None]
+        inner_jac = self._inner_jac
+        if inner_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
+        return inner_jac(npartition_samples) / self._norm[:, None]
 
     def _whvp_impl(
         self, npartition_samples: Array, vec: Array, weights: Array
     ) -> Array:
-        bkd = self._inner.bkd()
-        return bkd.zeros((self.nvars(), 1))
+        inner_whvp = self._inner_whvp
+        if inner_whvp is None:
+            raise RuntimeError(
+                "whvp is unavailable; check derivatives() before calling"
+            )
+        # g_i/norm_i has Hessian H_i/norm_i, so the weighted contraction
+        # is the inner whvp with weights scaled by 1/norm.
+        return inner_whvp(
+            npartition_samples, vec, weights / self._norm[:, None]
+        )
 
 
 # ---------------------------------------------------------------------------

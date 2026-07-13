@@ -159,7 +159,9 @@ class TestTrackedModel:
         """Test that jacobian tracks time."""
         self._setup(bkd)
         sample = bkd.asarray([[1.0], [2.0]])
-        jacobian = self.tracked_with_jac.jacobian(sample)
+        jac_fn = self.tracked_with_jac.derivatives().jacobian
+        assert jac_fn is not None
+        jacobian = jac_fn(sample)
 
         # Check jacobian shape
         assert jacobian.shape == (1, 2)
@@ -178,11 +180,13 @@ class TestTrackedModel:
         self._setup(bkd)
         assert self.tracked.tracker() is self.tracker
 
-    def test_dynamic_method_binding(self, bkd) -> None:
-        """Test that jacobian method only exists if model has it."""
+    def test_bundle_mirrors_model_capability(self, bkd) -> None:
+        """Test that the bundle carries jacobian only if the model has it."""
         self._setup(bkd)
         # Model without jacobian
+        assert self.tracked.derivatives().jacobian is None
         assert not hasattr(self.tracked, "jacobian")
 
         # Model with jacobian
-        assert hasattr(self.tracked_with_jac, "jacobian")
+        assert self.tracked_with_jac.derivatives().jacobian is not None
+        assert not hasattr(self.tracked_with_jac, "jacobian")

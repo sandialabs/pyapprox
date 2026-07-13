@@ -9,12 +9,11 @@ TODO: Check if this can share infrastructure with ``probability/risk/``
 stat classes in a future consolidation.
 """
 
-from typing import Generic, List, cast
+from typing import Callable, Generic, List, Optional
 
+from pyapprox.interface.functions.derivatives import Derivatives, JacobianFn
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
-)
 from pyapprox.optimization.minimize.utils import assemble_full_samples
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.protocols.statistics import (
@@ -31,14 +30,16 @@ class SampleAverageConstraint(Generic[Array]):
     returns the result as a constraint value. Satisfies
     ``NonlinearConstraintProtocol``.
 
-    Jacobian support is dynamically bound when the wrapped model has
-    ``jacobian()`` and the statistic has ``jacobian_implemented() == True``.
+    The ``derivatives()`` bundle carries a jacobian when the wrapped
+    model provides one and the statistic has
+    ``jacobian_implemented() == True``.
 
     Parameters
     ----------
     model : FunctionProtocol[Array]
         A function satisfying FunctionProtocol. Must have ``nvars()``,
-        ``nqoi()``, ``__call__(samples)``. May also have ``jacobian(sample)``.
+        ``nqoi()``, ``__call__(samples)``. Its derivative capability is
+        read from its ``Derivatives`` bundle.
     quad_samples : Array
         Quadrature points for random variables.
         Shape ``(n_random_vars, n_quad_pts)``.
@@ -100,13 +101,25 @@ class SampleAverageConstraint(Generic[Array]):
         all_indices = set(range(self._nvars_full))
         self._random_indices = sorted(all_indices - set(design_indices))
 
-        # Dynamic binding of jacobian
+        # Construction-time capability branching: jacobian is available
+        # only when both the model and the statistic can differentiate.
+        self._model_jac: Optional[JacobianFn[Array]] = as_derivatives(
+            model
+        ).jacobian
+        self._stat_jac: Optional[Callable[[Array, Array, Array], Array]] = (
+            None
+        )
         if (
-            isinstance(model, FunctionWithJacobianProtocol)
-            and isinstance(stat, DifferentiableSampleStatisticProtocol)
+            isinstance(stat, DifferentiableSampleStatisticProtocol)
             and stat.jacobian_implemented()
         ):
-            self.jacobian = self._jacobian
+            self._stat_jac = stat.jacobian
+        if self._model_jac is not None and self._stat_jac is not None:
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian
+            )
+        else:
+            self._derivs = Derivatives.none()
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -128,21 +141,9 @@ class SampleAverageConstraint(Generic[Array]):
         """Return constraint upper bounds. Shape ``(nqoi,)``."""
         return self._constraint_ub
 
-    def _differentiable_stat(self) -> DifferentiableSampleStatisticProtocol[Array]:
-        """Typed access to stat as differentiable.
-
-        Safe — only called from ``_jacobian`` which is bound only when
-        ``isinstance(stat, DifferentiableSampleStatisticProtocol)`` is True.
-        """
-        return cast(DifferentiableSampleStatisticProtocol[Array], self._stat)
-
-    def _differentiable_model(self) -> FunctionWithJacobianProtocol[Array]:
-        """Typed access to model as differentiable.
-
-        Safe — only called from ``_jacobian`` which is bound only when
-        ``isinstance(model, FunctionWithJacobianProtocol)`` is True.
-        """
-        return cast(FunctionWithJacobianProtocol[Array], self._model)
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def _assemble_full_samples(self, design_sample: Array) -> Array:
         """Build full-dimensional samples by combining design + quad points.
@@ -198,12 +199,17 @@ class SampleAverageConstraint(Generic[Array]):
         Array
             Jacobian. Shape ``(nqoi, n_design)``.
         """
+        model_jac = self._model_jac
+        stat_jac = self._stat_jac
+        if model_jac is None or stat_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         bkd = self._bkd
-        diff_model = self._differentiable_model()
         full_samples = self._assemble_full_samples(sample)
 
         # Model output: (nqoi, n_quad_pts)
-        model_values = diff_model(full_samples)
+        model_values = self._model(full_samples)
 
         # Collect model jacobians at each quad point
         n_design = len(self._design_indices)
@@ -215,11 +221,9 @@ class SampleAverageConstraint(Generic[Array]):
         for qq in range(n_quad):
             single_sample = full_samples[:, qq : qq + 1]
             # Full jacobian: (nqoi, nvars_full)
-            jac_full = diff_model.jacobian(single_sample)
+            jac_full = model_jac(single_sample)
             # Extract design columns: (nqoi, n_design)
             jac_values[:, qq, :] = jac_full[:, self._design_indices]
 
         # Apply stat jacobian: (nqoi, n_quad, n_design), -> (nqoi, n_design)
-        return self._differentiable_stat().jacobian(
-            model_values, jac_values, self._quad_weights
-        )
+        return stat_jac(model_values, jac_values, self._quad_weights)

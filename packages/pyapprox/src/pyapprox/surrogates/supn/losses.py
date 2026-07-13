@@ -7,6 +7,7 @@ procedure recommended in Morrow et al. (2025, Section 4).
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.supn.supn import SUPN
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -67,6 +68,15 @@ class SUPNMSELoss(Generic[Array]):
 
         # Eagerly populate the cache from the surrogate's initial params.
         self._ensure_cached(surrogate._flatten_params())
+
+        # Analytic jacobian and hvp are unconditional.
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def _ensure_cached(self, params_flat: Array) -> None:
         """Recompute cached quantities if params changed.

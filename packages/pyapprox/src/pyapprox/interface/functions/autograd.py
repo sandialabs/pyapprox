@@ -22,6 +22,7 @@ from typing import Callable, Generic
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.objective import (
+    NonlinearConstraintProtocol,
     ObjectiveProtocol,
 )
 from pyapprox.util.backends.autodiff import AutodiffBackend
@@ -174,6 +175,58 @@ class OverrideDerivatives(Generic[Array]):
 
     def nqoi(self) -> int:
         return self._inner.nqoi()
+
+    def __call__(self, samples: Array) -> Array:
+        return self._inner(samples)
+
+    def derivatives(self) -> Derivatives[Array]:
+        return self._derivs
+
+
+class WithAutogradJacobianConstraint(Generic[Array]):
+    """Constraint counterpart of :class:`WithAutogradJacobian`.
+
+    Same jacobian-from-autodiff composition, but the inner object is a
+    ``NonlinearConstraintProtocol`` (vector-valued, with bounds), so the
+    wrapper forwards ``lb()``/``ub()`` and remains a constraint.
+    """
+
+    def __init__(
+        self,
+        inner: NonlinearConstraintProtocol[Array],
+        bkd: AutodiffBackend[Array],
+    ) -> None:
+        if not isinstance(inner, NonlinearConstraintProtocol):
+            raise TypeError(
+                "inner must satisfy NonlinearConstraintProtocol, got "
+                f"{type(inner).__name__}"
+            )
+        if not isinstance(bkd, AutodiffBackend):
+            raise TypeError(
+                "bkd must satisfy AutodiffBackend (methods named "
+                "'jacobian' and 'hvp' are required), got "
+                f"{type(bkd).__name__}"
+            )
+        self._inner = inner
+        self._grad_bkd = bkd
+        self._derivs: Derivatives[Array] = inner.derivatives().with_(
+            jacobian=_AutogradJacobian(inner, bkd)
+        )
+
+    def bkd(self) -> Backend[Array]:
+        return self._inner.bkd()
+
+    def nvars(self) -> int:
+        return self._inner.nvars()
+
+    def nqoi(self) -> int:
+        return self._inner.nqoi()
+
+    def lb(self) -> Array:
+        return self._inner.lb()
+
+    def ub(self) -> Array:
+        return self._inner.ub()
 
     def __call__(self, samples: Array) -> Array:
         return self._inner(samples)

@@ -16,7 +16,6 @@ from pyapprox.optimization.minimize.inexact.monte_carlo import (
     MonteCarloSAAStrategy,
 )
 from pyapprox.optimization.minimize.inexact.protocols import (
-    InexactDifferentiable,
     InexactEvaluable,
 )
 from pyapprox.optimization.minimize.inexact.wrapper import (
@@ -92,7 +91,8 @@ class TestROLInexactObjective:
         )
 
         assert isinstance(wrapper, InexactEvaluable)
-        assert isinstance(wrapper, InexactDifferentiable)
+        suite = wrapper.derivatives().inexact
+        assert suite is not None and suite.jacobian is not None
 
         bounds = bkd.array([[-5.0, 5.0]])
         init_guess = bkd.asarray([[3.0]])

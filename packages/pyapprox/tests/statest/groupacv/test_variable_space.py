@@ -15,6 +15,7 @@ from pyapprox.statest.groupacv.variable_space import (
     IdentitySpace,
     InequalityBudget,
     LogSpace,
+    _LogConstraint,
     _NormalizedConstraint,
     _RescaledConstraint,
     _RescaledObjective,
@@ -23,6 +24,13 @@ from pyapprox.statest.statistics import (
     MultiOutputMean,
     MultiOutputVariance,
 )
+
+
+def _bundle_jac(obj):
+    """Return the bundle jacobian, asserting it is populated."""
+    jac = obj.derivatives().jacobian
+    assert jac is not None
+    return jac
 
 
 def _make_estimator(bkd, nmodels=3, nqoi=1):
@@ -72,18 +80,21 @@ class TestRescaledObjective:
         scale = partition_costs / bkd.min(partition_costs)
         wrapped = _RescaledObjective(obj, scale)
         m_iterate = iterate * scale[:, None]
-        J_wrapped = wrapped.jacobian(m_iterate)
-        J_original = obj.jacobian(iterate)
+        J_wrapped = _bundle_jac(wrapped)(m_iterate)
+        J_original = _bundle_jac(obj)(iterate)
         bkd.assert_allclose(J_wrapped, J_original / scale[None, :], rtol=1e-10)
 
-    def test_hasattr_propagation(self, bkd):
-        """Wrapped objective has jacobian/hessian/hvp iff inner does."""
+    def test_bundle_propagation(self, bkd):
+        """Wrapped bundle populates fields iff the inner bundle does."""
         _, obj, _, _ = _make_objective_and_constraint(bkd)
         scale = bkd.array([1.0, 2.0, 3.0])
         wrapped = _RescaledObjective(obj, scale)
-        assert hasattr(wrapped, "jacobian") == hasattr(obj, "jacobian")
-        assert hasattr(wrapped, "hessian") == hasattr(obj, "hessian")
-        assert hasattr(wrapped, "hvp") == hasattr(obj, "hvp")
+        inner_d = obj.derivatives()
+        wrapped_d = wrapped.derivatives()
+        assert (wrapped_d.jacobian is None) == (inner_d.jacobian is None)
+        assert (wrapped_d.hessian is None) == (inner_d.hessian is None)
+        assert (wrapped_d.hvp is None) == (inner_d.hessian is None)
+        assert not hasattr(wrapped, "jacobian")
 
 
 class TestRescaledConstraint:
@@ -109,7 +120,7 @@ class TestRescaledConstraint:
         scale = partition_costs / bkd.min(partition_costs)
         wrapped = _RescaledConstraint(con, scale)
         m_iterate = iterate * scale[:, None]
-        J_wrapped = wrapped.jacobian(m_iterate)
+        J_wrapped = _bundle_jac(wrapped)(m_iterate)
         J_original = con.jacobian(iterate)
         bkd.assert_allclose(J_wrapped, J_original / scale[None, :], rtol=1e-12)
 
@@ -147,9 +158,35 @@ class TestNormalizedConstraint:
         _, _, con, iterate = _make_objective_and_constraint(bkd)
         norm = bkd.array([100.0, 1.0])
         wrapped = _NormalizedConstraint(con, norm)
-        J_wrapped = wrapped.jacobian(iterate)
+        J_wrapped = _bundle_jac(wrapped)(iterate)
         J_original = con.jacobian(iterate)
         bkd.assert_allclose(J_wrapped, J_original / norm[:, None], rtol=1e-12)
+
+    def test_whvp_scales_weights_not_zeroed(self, bkd):
+        """Normalized whvp is the inner whvp with weights scaled by 1/norm.
+
+        Uses the log-space constraint, whose whvp is genuinely nonzero,
+        so a wrapper that silently discards curvature (returns zeros)
+        fails this test.
+        """
+        _, _, con, iterate = _make_objective_and_constraint(bkd)
+        norm = bkd.array([100.0, 1.0])
+        log_con = _LogConstraint(con, bkd)
+        wrapped = _NormalizedConstraint(log_con, norm)
+
+        m = bkd.log(iterate)  # log-space iterate (iterate > 0)
+        vec = bkd.ones((wrapped.nvars(), 1))
+        weights = bkd.array([[1.0], [2.0]])
+
+        wrapped_whvp = wrapped.derivatives().whvp
+        inner_whvp = log_con.derivatives().whvp
+        assert wrapped_whvp is not None and inner_whvp is not None
+
+        result = wrapped_whvp(m, vec, weights)
+        expected = inner_whvp(m, vec, weights / norm[:, None])
+        bkd.assert_allclose(result, expected, rtol=1e-12)
+        # The log-space budget constraint has nonzero curvature.
+        assert float(bkd.to_numpy(bkd.max(bkd.abs(result)))) > 0.0
 
     def test_positive_normalization_required(self, bkd):
         """Raises ValueError if normalization factors <= 0."""

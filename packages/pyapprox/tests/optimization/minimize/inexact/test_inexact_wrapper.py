@@ -17,7 +17,6 @@ from pyapprox.optimization.minimize.inexact.monte_carlo import (
     MonteCarloSAAStrategy,
 )
 from pyapprox.optimization.minimize.inexact.protocols import (
-    InexactDifferentiable,
     InexactEvaluable,
 )
 from pyapprox.optimization.minimize.inexact.wrapper import (
@@ -103,6 +102,18 @@ class _NoJacModel:
         return samples[0:1, :] + samples[1:2, :]
 
 
+def _bundle_jac(wrapper):
+    jac = wrapper.derivatives().jacobian
+    assert jac is not None
+    return jac
+
+
+def _bundle_inexact_jac(wrapper):
+    suite = wrapper.derivatives().inexact
+    assert suite is not None and suite.jacobian is not None
+    return suite.jacobian
+
+
 def _make_wrapper(bkd, model=None, strategy=None, design_indices=None,
                   constraint_lb=None, constraint_ub=None):
     if model is None:
@@ -162,15 +173,21 @@ class TestInexactWrapperProtocols:
         wrapper = _make_wrapper(bkd)
         assert isinstance(wrapper, InexactEvaluable)
 
-    def test_satisfies_inexact_differentiable(self, bkd) -> None:
+    def test_bundle_has_jacobian_and_inexact_suite(self, bkd) -> None:
         wrapper = _make_wrapper(bkd)
-        assert isinstance(wrapper, InexactDifferentiable)
+        derivs = wrapper.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.inexact is not None
+        assert derivs.inexact.jacobian is not None
 
     def test_no_jacobian_without_model_jacobian(self, bkd) -> None:
         model = _NoJacModel(bkd)
         wrapper = _make_wrapper(bkd, model=model)
+        derivs = wrapper.derivatives()
+        assert derivs.jacobian is None
+        assert derivs.inexact is not None
+        assert derivs.inexact.jacobian is None
         assert not hasattr(wrapper, "jacobian")
-        assert not isinstance(wrapper, InexactDifferentiable)
 
 
 class TestInexactWrapperNeutrality:
@@ -243,7 +260,9 @@ class TestInexactWrapperNeutrality:
 
         sample = bkd.asarray([[2.0]])
         bkd.assert_allclose(
-            wrapper.jacobian(sample), ref.jacobian(sample), rtol=1e-12,
+            _bundle_jac(wrapper)(sample),
+            _bundle_jac(ref)(sample),
+            rtol=1e-12,
         )
 
 
@@ -282,20 +301,20 @@ class TestInexactWrapperValues:
 class TestInexactWrapperJacobian:
     def test_jacobian_shape(self, bkd) -> None:
         wrapper = _make_wrapper(bkd)
-        jac = wrapper.jacobian(bkd.asarray([[2.0]]))
+        jac = _bundle_jac(wrapper)(bkd.asarray([[2.0]]))
         assert jac.shape == (2, 1)
 
     def test_inexact_jacobian_shape(self, bkd) -> None:
         wrapper = _make_wrapper(bkd)
-        jac = wrapper.inexact_jacobian(bkd.asarray([[2.0]]), 0.1)
+        jac = _bundle_inexact_jac(wrapper)(bkd.asarray([[2.0]]), 0.1)
         assert jac.shape == (2, 1)
 
     def test_jacobian_equals_inexact_jacobian_tol_zero(self, bkd) -> None:
         wrapper = _make_wrapper(bkd)
         sample = bkd.asarray([[2.0]])
         bkd.assert_allclose(
-            wrapper.jacobian(sample),
-            wrapper.inexact_jacobian(sample, 0.0),
+            _bundle_jac(wrapper)(sample),
+            _bundle_inexact_jac(wrapper)(sample, 0.0),
             rtol=1e-12,
         )
 
@@ -303,7 +322,7 @@ class TestInexactWrapperJacobian:
         """d(E[f1])/dx2 = 1, d(E[f2])/dx2 = 2*x2."""
         wrapper = _make_wrapper(bkd)
         x2 = 2.0
-        jac = wrapper.jacobian(bkd.asarray([[x2]]))
+        jac = _bundle_jac(wrapper)(bkd.asarray([[x2]]))
         expected = bkd.asarray([[1.0], [2.0 * x2]])
         bkd.assert_allclose(jac, expected, rtol=1e-10)
 
@@ -328,7 +347,7 @@ class TestInexactWrapperScalar:
     def test_scalar_jacobian_shape(self, bkd) -> None:
         model = _ScalarModel(bkd)
         wrapper = _make_wrapper(bkd, model=model)
-        jac = wrapper.jacobian(bkd.asarray([[2.0]]))
+        jac = _bundle_jac(wrapper)(bkd.asarray([[2.0]]))
         assert jac.shape == (1, 1)
 
     def test_scalar_derivative_checker(self, bkd) -> None:
@@ -376,7 +395,7 @@ class TestInexactWrapperWithMonteCarlo:
         sample = bkd.asarray([[1.0]])
         # These should not error — value and gradient each get their own tol
         v = wrapper.inexact_value(sample, 0.5)
-        j = wrapper.inexact_jacobian(sample, 0.1)
+        j = _bundle_inexact_jac(wrapper)(sample, 0.1)
         assert v.shape == (1, 1)
         assert j.shape == (1, 1)
 

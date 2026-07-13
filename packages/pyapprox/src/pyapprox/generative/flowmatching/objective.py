@@ -17,6 +17,7 @@ from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
 from pyapprox.generative.flowmatching.time_weight import UniformWeight
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -73,13 +74,22 @@ class FlowMatchingObjective(Generic[Array]):
         w_t = tw(quad_data.t())  # (1, n_quad)
         self._combined_weights = quad_data.weights() * w_t[0, :]
 
+        # Construction-time capability branching: jacobian is available
+        # only when the vector field can differentiate w.r.t. its params.
         if isinstance(vf, DifferentiableVFProtocol):
             self._differentiable_vf: Optional[
                 DifferentiableVFProtocol[Array]
             ] = vf
-            self.jacobian = self._jacobian_generic
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian_generic
+            )
         else:
             self._differentiable_vf = None
+            self._derivs = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def nvars(self) -> int:
         """Number of active parameters."""

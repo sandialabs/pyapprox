@@ -6,6 +6,7 @@ as a FunctionWithJacobianProtocol for use with DerivativeChecker and optimizers.
 
 from typing import Generic, List, Tuple
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.surrogates.dynamical_systems.batched_ode_residual import (
@@ -17,7 +18,8 @@ from pyapprox.util.backends.protocols import Array, Backend
 class TrajectoryMatchingLoss(Generic[Array]):
     """MSE loss over ODE trajectories with adjoint-based gradient.
 
-    Satisfies FunctionWithJacobianProtocol:
+    Satisfies ``ObjectiveProtocol`` (jacobian also carried by the
+    ``derivatives()`` bundle):
       - input: surrogate parameters eta, shape (nparams, 1)
       - output: scalar loss Q, shape (1, 1)
       - jacobian: dQ/d_eta via discrete adjoint, shape (1, nparams)
@@ -63,6 +65,14 @@ class TrajectoryMatchingLoss(Generic[Array]):
         functional.set_observations(observations)
         self._functional = functional
         integrator.set_functional(functional)
+        # Adjoint-based jacobian is unconditional.
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

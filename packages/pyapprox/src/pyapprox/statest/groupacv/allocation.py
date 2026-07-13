@@ -2,6 +2,7 @@
 
 from typing import TYPE_CHECKING, Generic, Optional
 
+from pyapprox.interface.functions.autograd import WithAutogradJacobian
 from pyapprox.statest.groupacv.optimization import (
     GroupACVCostConstraint,
     GroupACVLogDetObjective,
@@ -13,9 +14,13 @@ from pyapprox.statest.groupacv.variable_space import (
     BudgetConstraintForm,
     VariableSpace,
 )
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
+    from pyapprox.interface.functions.protocols.objective import (
+        ObjectiveProtocol,
+    )
     from pyapprox.optimization.minimize.protocols import (
         BindableOptimizerProtocol,
     )
@@ -186,15 +191,22 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         space: VariableSpace[Array] = self._config.build_variable_space(bkd)
         scale = space.compute_scale(partition_costs, bkd)
         opt_bounds = space.transform_bounds(raw_bounds, scale, bkd)
-        wrapped_obj = space.wrap_objective(self._objective, scale)
+        wrapped_obj: "ObjectiveProtocol[Array]" = space.wrap_objective(
+            self._objective, scale
+        )
         wrapped_con = space.wrap_constraint(self._constraint, scale)
 
+        # Autograd is a composition source: when no analytical jacobian
+        # is available (stat lacks sigma-block derivatives or estimator
+        # is not IS) and the backend can autodiff, differentiate the
+        # optimizer-space objective the optimizer actually sees.
+        if wrapped_obj.derivatives().jacobian is None and isinstance(
+            bkd, AutodiffBackend
+        ):
+            wrapped_obj = WithAutogradJacobian(wrapped_obj, bkd)
+
         # 5. Bind and minimize
-        self._optimizer.bind(
-            wrapped_obj,  # type: ignore[arg-type]
-            opt_bounds,
-            [wrapped_con],  # type: ignore[list-item]
-        )
+        self._optimizer.bind(wrapped_obj, opt_bounds, [wrapped_con])
         if init_guess is None:
             init_guess = self._est._init_guess(target_cost)
         opt_guess = space.transform_init_guess(init_guess, scale)

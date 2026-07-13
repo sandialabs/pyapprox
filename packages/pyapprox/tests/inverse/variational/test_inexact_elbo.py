@@ -18,7 +18,6 @@ from pyapprox.optimization.minimize.inexact.monte_carlo import (
     MonteCarloSAAStrategy,
 )
 from pyapprox.optimization.minimize.inexact.protocols import (
-    InexactDifferentiable,
     InexactEvaluable,
 )
 from pyapprox.probability.conditional.gaussian import ConditionalGaussian
@@ -476,25 +475,30 @@ class TestInexactELBOTorch:
     def test_has_jacobian(self, torch_bkd) -> None:
         bkd = torch_bkd
         elbo = _make_simple_inexact_elbo(bkd)
-        assert hasattr(elbo, "jacobian")
+        assert elbo.derivatives().jacobian is not None
 
     def test_has_inexact_jacobian(self, torch_bkd) -> None:
         bkd = torch_bkd
         elbo = _make_simple_inexact_elbo(bkd)
-        assert isinstance(elbo, InexactDifferentiable)
+        suite = elbo.derivatives().inexact
+        assert suite is not None and suite.jacobian is not None
 
     def test_jacobian_shape(self, torch_bkd) -> None:
         bkd = torch_bkd
         elbo = _make_simple_inexact_elbo(bkd)
+        jac_fn = elbo.derivatives().jacobian
+        assert jac_fn is not None
         params = bkd.zeros((elbo.nvars(), 1))
-        jac = elbo.jacobian(params)
+        jac = jac_fn(params)
         assert jac.shape == (1, elbo.nvars())
 
     def test_inexact_jacobian_shape(self, torch_bkd) -> None:
         bkd = torch_bkd
         elbo = _make_simple_inexact_elbo(bkd)
+        suite = elbo.derivatives().inexact
+        assert suite is not None and suite.jacobian is not None
         params = bkd.zeros((elbo.nvars(), 1))
-        jac = elbo.inexact_jacobian(params, 0.5)
+        jac = suite.jacobian(params, 0.5)
         assert jac.shape == (1, elbo.nvars())
 
     def test_jacobian_derivative_checker(self, torch_bkd) -> None:
@@ -513,10 +517,14 @@ class TestInexactELBOTorch:
     def test_jacobian_equals_inexact_jacobian_tol_zero(self, torch_bkd) -> None:
         bkd = torch_bkd
         elbo = _make_simple_inexact_elbo(bkd)
+        derivs = elbo.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.inexact is not None
+        assert derivs.inexact.jacobian is not None
         params = bkd.zeros((elbo.nvars(), 1))
         bkd.assert_allclose(
-            elbo.jacobian(params),
-            elbo.inexact_jacobian(params, 0.0),
+            derivs.jacobian(params),
+            derivs.inexact.jacobian(params, 0.0),
             rtol=1e-12,
         )
 
@@ -526,13 +534,16 @@ class TestInexactELBONoJacobianNumpy:
 
     def test_no_jacobian_numpy(self, numpy_bkd) -> None:
         elbo = _make_simple_inexact_elbo(numpy_bkd)
+        assert elbo.derivatives().jacobian is None
         assert not hasattr(elbo, "jacobian")
 
     def test_no_inexact_jacobian_numpy(self, numpy_bkd) -> None:
-        """inexact_jacobian is the autograd one, not available on numpy."""
+        """The inexact jacobian is the autograd one, unavailable on numpy;
+        the suite still carries the value form."""
         elbo = _make_simple_inexact_elbo(numpy_bkd)
-        # InexactDifferentiable checks for inexact_jacobian attribute
-        assert not isinstance(elbo, InexactDifferentiable)
+        suite = elbo.derivatives().inexact
+        assert suite is not None
+        assert suite.jacobian is None
 
 
 class TestInexactDiscreteGroupELBO:

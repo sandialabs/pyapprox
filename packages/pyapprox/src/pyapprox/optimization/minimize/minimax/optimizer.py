@@ -7,7 +7,7 @@ Wraps a constrained optimizer to solve min_x max_i f_i(x).
 from typing import Generic, Optional, Sequence
 
 from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocolWithJacobian,
+    NonlinearConstraintProtocol,
 )
 from pyapprox.optimization.minimize.scipy.scipy_result import (
     ScipyOptimizerResultWrapper,
@@ -57,7 +57,7 @@ class MinimaxOptimizer(Generic[Array]):
         model: MultiQoIObjectiveProtocol[Array],
         bounds: Array,
         constraints: Optional[
-            Sequence[NonlinearConstraintProtocolWithJacobian[Array]]
+            Sequence[NonlinearConstraintProtocol[Array]]
         ] = None,
         verbosity: int = 0,
         maxiter: Optional[int] = None,

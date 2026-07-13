@@ -39,7 +39,7 @@ class AVaRSlackObjectiveProtocol(Protocol, Generic[Array]):
         """Risk level in [0, 1)."""
         ...
 
-    def __call__(self, sample: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """Evaluate objective."""
         ...
 

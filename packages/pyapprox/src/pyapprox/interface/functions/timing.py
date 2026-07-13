@@ -7,15 +7,13 @@ Classes
 -------
 - MethodTimer: Per-method timing with median/total/count/reset
 - FunctionTimer: Aggregates MethodTimers by method name
-- TimedFunction: Wrapper for FunctionProtocol
-- TimedFunctionWithJacobian: Wrapper adding jacobian timing
-- TimedFunctionWithJacobianAndHVP: Wrapper adding hvp/hessian timing
-- TimedFunctionWithJVP: Wrapper adding jvp timing
-- TimedFunctionWithJacobianAndWHVP: Wrapper adding whvp timing
+- TimedFunction: Wrapper for FunctionProtocol; derivative capability is
+  mirrored from the wrapped function's ``Derivatives`` bundle with each
+  populated field wrapped in a timing recorder
 
 Functions
 ---------
-- timed(): Factory that auto-selects wrapper based on protocol
+- timed(): Factory wrapping a function in TimedFunction
 
 Composition
 -----------
@@ -27,18 +25,13 @@ pickles the timer into worker processes and the state is lost.
 # TODO: should this be moved to the interface.wrappers module
 
 import time
-from typing import Any, Dict, Generic, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, Generic, List, Optional, Tuple
 
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
-)
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithJacobianAndHVPProtocol,
-    FunctionWithJacobianAndWHVPProtocol,
-)
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
-    FunctionWithJVPProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -172,8 +165,68 @@ class FunctionTimer:
         return f"FunctionTimer({', '.join(parts)})"
 
 
+@dataclass(frozen=True)
+class _TimedUnary(Generic[Array]):
+    """Timing wrapper for a ``(samples) -> Array`` bundle field.
+
+    ``batch`` selects whether n_evals is the number of columns (batch
+    fields) or 1 (single-sample fields).
+    """
+
+    fn: Callable[[Array], Array]
+    timer: FunctionTimer
+    name: str
+    batch: bool
+
+    def __call__(self, samples: Array) -> Array:
+        n_evals = samples.shape[1] if self.batch else 1
+        t0 = time.perf_counter()
+        result = self.fn(samples)
+        self.timer.get(self.name).record(time.perf_counter() - t0, n_evals)
+        return result
+
+
+@dataclass(frozen=True)
+class _TimedBinary(Generic[Array]):
+    """Timing wrapper for a ``(samples, vecs) -> Array`` bundle field."""
+
+    fn: Callable[[Array, Array], Array]
+    timer: FunctionTimer
+    name: str
+    batch: bool
+
+    def __call__(self, samples: Array, vecs: Array) -> Array:
+        n_evals = samples.shape[1] if self.batch else 1
+        t0 = time.perf_counter()
+        result = self.fn(samples, vecs)
+        self.timer.get(self.name).record(time.perf_counter() - t0, n_evals)
+        return result
+
+
+@dataclass(frozen=True)
+class _TimedTernary(Generic[Array]):
+    """Timing wrapper for ``(samples, vecs, weights) -> Array`` fields."""
+
+    fn: Callable[[Array, Array, Array], Array]
+    timer: FunctionTimer
+    name: str
+    batch: bool
+
+    def __call__(self, samples: Array, vecs: Array, weights: Array) -> Array:
+        n_evals = samples.shape[1] if self.batch else 1
+        t0 = time.perf_counter()
+        result = self.fn(samples, vecs, weights)
+        self.timer.get(self.name).record(time.perf_counter() - t0, n_evals)
+        return result
+
+
 class TimedFunction(Generic[Array]):
     """Transparent timing wrapper for FunctionProtocol objects.
+
+    Derivative capability is mirrored from the wrapped function's
+    ``Derivatives`` bundle: each populated field is re-exposed through
+    ``derivatives()`` wrapped in a timing recorder keyed by the field
+    name. An ``inexact`` suite is propagated unchanged.
 
     Parameters
     ----------
@@ -192,6 +245,43 @@ class TimedFunction(Generic[Array]):
     ) -> None:
         self._function = function
         self._timer = timer if timer is not None else FunctionTimer()
+        fd = as_derivatives(function)
+        t = self._timer
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=None
+            if fd.jacobian is None
+            else _TimedUnary(fd.jacobian, t, "jacobian", False),
+            jacobian_batch=None
+            if fd.jacobian_batch is None
+            else _TimedUnary(fd.jacobian_batch, t, "jacobian_batch", True),
+            jvp=None
+            if fd.jvp is None
+            else _TimedBinary(fd.jvp, t, "jvp", False),
+            hvp=None
+            if fd.hvp is None
+            else _TimedBinary(fd.hvp, t, "hvp", False),
+            whvp=None
+            if fd.whvp is None
+            else _TimedTernary(fd.whvp, t, "whvp", False),
+            hessian=None
+            if fd.hessian is None
+            else _TimedUnary(fd.hessian, t, "hessian", False),
+            hessian_batch=None
+            if fd.hessian_batch is None
+            else _TimedUnary(fd.hessian_batch, t, "hessian_batch", True),
+            hvp_batch=None
+            if fd.hvp_batch is None
+            else _TimedBinary(fd.hvp_batch, t, "hvp_batch", True),
+            whvp_batch=None
+            if fd.whvp_batch is None
+            else _TimedTernary(fd.whvp_batch, t, "whvp_batch", True),
+            inexact=fd.inexact,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the timed derivative bundle mirroring the wrapped
+        function."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -228,147 +318,15 @@ class TimedFunction(Generic[Array]):
         return f"TimedFunction({self._function!r})"
 
 
-class TimedFunctionWithJacobian(TimedFunction[Array]):
-    """Timing wrapper for FunctionWithJacobianProtocol objects."""
-
-    _function: Any
-
-    def __init__(
-        self,
-        function: FunctionWithJacobianProtocol[Array],
-        timer: Optional[FunctionTimer] = None,
-    ) -> None:
-        super().__init__(function, timer)
-        if hasattr(self._function, "jacobian_batch"):
-            self.jacobian_batch = self._jacobian_batch
-
-    def jacobian(self, sample: Array) -> Array:
-        """Compute Jacobian and record timing."""
-        t0 = time.perf_counter()
-        result: Array = self._function.jacobian(sample)
-        self._timer.get("jacobian").record(time.perf_counter() - t0, 1)
-        return result
-
-    def _jacobian_batch(self, samples: Array) -> Array:
-        """Compute batch Jacobians and record timing."""
-        n_evals = samples.shape[1]
-        t0 = time.perf_counter()
-        result: Array = self._function.jacobian_batch(samples)
-        self._timer.get("jacobian_batch").record(time.perf_counter() - t0, n_evals)
-        return result
-
-    def __repr__(self) -> str:
-        return f"TimedFunctionWithJacobian({self._function!r})"
-
-
-class TimedFunctionWithJacobianAndHVP(TimedFunctionWithJacobian[Array]):
-    """Timing wrapper for FunctionWithJacobianAndHVPProtocol objects."""
-
-    def __init__(
-        self,
-        function: FunctionWithJacobianAndHVPProtocol[Array],
-        timer: Optional[FunctionTimer] = None,
-    ) -> None:
-        super().__init__(function, timer)
-        if hasattr(self._function, "hvp_batch"):
-            self.hvp_batch = self._hvp_batch
-        if hasattr(self._function, "hessian_batch"):
-            self.hessian_batch = self._hessian_batch
-
-    def hvp(self, sample: Array, vec: Array) -> Array:
-        """Compute HVP and record timing."""
-        t0 = time.perf_counter()
-        result: Array = self._function.hvp(sample, vec)
-        self._timer.get("hvp").record(time.perf_counter() - t0, 1)
-        return result
-
-    def _hvp_batch(self, samples: Array, vecs: Array) -> Array:
-        """Compute batch HVPs and record timing."""
-        n_evals = samples.shape[1]
-        t0 = time.perf_counter()
-        result: Array = self._function.hvp_batch(samples, vecs)
-        self._timer.get("hvp_batch").record(time.perf_counter() - t0, n_evals)
-        return result
-
-    def _hessian_batch(self, samples: Array) -> Array:
-        """Compute batch Hessians and record timing."""
-        n_evals = samples.shape[1]
-        t0 = time.perf_counter()
-        result: Array = self._function.hessian_batch(samples)
-        self._timer.get("hessian_batch").record(time.perf_counter() - t0, n_evals)
-        return result
-
-    def __repr__(self) -> str:
-        return f"TimedFunctionWithJacobianAndHVP({self._function!r})"
-
-
-class TimedFunctionWithJVP(TimedFunction[Array]):
-    """Timing wrapper for FunctionWithJVPProtocol objects."""
-
-    _function: Any
-
-    def __init__(
-        self,
-        function: FunctionWithJVPProtocol[Array],
-        timer: Optional[FunctionTimer] = None,
-    ) -> None:
-        super().__init__(function, timer)
-
-    def jvp(self, sample: Array, vec: Array) -> Array:
-        """Compute JVP and record timing."""
-        t0 = time.perf_counter()
-        result: Array = self._function.jvp(sample, vec)
-        self._timer.get("jvp").record(time.perf_counter() - t0, 1)
-        return result
-
-    def __repr__(self) -> str:
-        return f"TimedFunctionWithJVP({self._function!r})"
-
-
-class TimedFunctionWithJacobianAndWHVP(TimedFunctionWithJacobianAndHVP[Array]):
-    """Timing wrapper for FunctionWithJacobianAndWHVPProtocol objects.
-
-    Extends TimedFunctionWithJacobianAndHVP so that hvp timing is
-    preserved for functions that have both hvp and whvp.
-    """
-
-    def __init__(
-        self,
-        function: FunctionWithJacobianAndWHVPProtocol[Array],
-        timer: Optional[FunctionTimer] = None,
-    ) -> None:
-        super().__init__(function, timer)  # type: ignore[arg-type]
-        if hasattr(self._function, "whvp_batch"):
-            self.whvp_batch = self._whvp_batch
-
-    def whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
-        """Compute weighted HVP and record timing."""
-        t0 = time.perf_counter()
-        result: Array = self._function.whvp(sample, vec, weights)
-        self._timer.get("whvp").record(time.perf_counter() - t0, 1)
-        return result
-
-    def _whvp_batch(self, samples: Array, vecs: Array, weights: Array) -> Array:
-        """Compute batch weighted HVPs and record timing."""
-        n_evals = samples.shape[1]
-        t0 = time.perf_counter()
-        result: Array = self._function.whvp_batch(samples, vecs, weights)
-        self._timer.get("whvp_batch").record(time.perf_counter() - t0, n_evals)
-        return result
-
-    def __repr__(self) -> str:
-        return f"TimedFunctionWithJacobianAndWHVP({self._function!r})"
-
-
 def timed(
     function: FunctionProtocol[Array],
     timer: Optional[FunctionTimer] = None,
 ) -> TimedFunction[Array]:
     """Wrap a function with timing instrumentation.
 
-    Returns a wrapper satisfying the same protocols as the input.
-    The wrapper is transparent — all method signatures and return
-    types are identical.
+    The wrapper is transparent — evaluation is delegated unchanged and
+    the wrapped function's derivative bundle is mirrored with timing
+    recorders on every populated field.
 
     The correct composition order is ``timed(make_parallel(fn))``, NOT
     ``make_parallel(timed(fn))``. The latter breaks because
@@ -387,7 +345,7 @@ def timed(
     Returns
     -------
     TimedFunction[Array]
-        Timed wrapper (or subclass). Access stats via ``.timer()``.
+        Timed wrapper. Access stats via ``.timer()``.
 
     Raises
     ------
@@ -398,12 +356,4 @@ def timed(
         raise TypeError(
             f"function must satisfy FunctionProtocol, got {type(function).__name__}"
         )
-    if isinstance(function, FunctionWithJacobianAndWHVPProtocol):
-        return TimedFunctionWithJacobianAndWHVP(function, timer)
-    if isinstance(function, FunctionWithJacobianAndHVPProtocol):
-        return TimedFunctionWithJacobianAndHVP(function, timer)
-    if isinstance(function, FunctionWithJVPProtocol):
-        return TimedFunctionWithJVP(function, timer)
-    if isinstance(function, FunctionWithJacobianProtocol):
-        return TimedFunctionWithJacobian(function, timer)
     return TimedFunction(function, timer)

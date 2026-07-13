@@ -7,10 +7,11 @@ GroupACV sample allocation optimization.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Generic, List, Optional, Tuple
+from typing import TYPE_CHECKING, Generic, List, Optional, Tuple
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.statest.groupacv.utils import (
     _grouped_acv_sigma,
     _grouped_acv_sigma_block,
@@ -33,6 +34,8 @@ class GroupACVObjective(ABC, Generic[Array]):
         self._use_analytical: bool = False
         self._cache_key: Optional[int] = None
         self._cache_val: Optional[Tuple[Array, Array, Array, Array]] = None
+        # Rebuilt on every set_estimator() call (the rebind moment).
+        self._derivs: Derivatives[Array] = Derivatives.none()
 
     def _ensure_bound(
         self,
@@ -65,10 +68,15 @@ class GroupACVObjective(ABC, Generic[Array]):
             return False
 
     def set_estimator(self, estimator: BaseGroupACVEstimator[Array]) -> None:
-        """Set the estimator and update backend."""
+        """Set the estimator and update backend.
+
+        This is the capability-decision moment, so the derivative bundle
+        is (re)built here.
+        """
         self._est = estimator
         self._bkd = self._est._bkd
         self._use_analytical = self._check_analytical_support()
+        self._derivs = self._build_derivatives()
 
     def nvars(self) -> int:
         """Number of optimization variables (npartitions)."""
@@ -100,13 +108,13 @@ class GroupACVObjective(ABC, Generic[Array]):
         """Wrapper for objective computation from 2D input."""
         return self._objective_wrapper(npartition_samples[:, 0])
 
-    def __call__(self, npartition_samples: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate the objective.
 
         Parameters
         ----------
-        npartition_samples : Array (nvars, 1)
+        samples : Array (nvars, 1)
             Partition sample counts as column vector
 
         Returns
@@ -114,7 +122,7 @@ class GroupACVObjective(ABC, Generic[Array]):
         Array (1, 1)
             Objective value
         """
-        return self._objective_value(npartition_samples)
+        return self._objective_value(samples)
 
     def _array_cache_key(self, arr: Array) -> int:
         """Hash for single-entry cache keyed on array contents."""
@@ -217,40 +225,51 @@ class GroupACVObjective(ABC, Generic[Array]):
         """
         return bkd.einsum("ij,mji->m", G, B_stack)
 
-    def _scalar_objective_wrapper(self, npartition_samples_1d: Array) -> Array:
-        """Wrapper that returns scalar for bkd.jacobian compatibility."""
-        bkd, _ = self._ensure_bound()
-        result = self._objective_wrapper(npartition_samples_1d)
-        return bkd.flatten(result)[0]
+    def _build_derivatives(self) -> Derivatives[Array]:
+        """Build the derivative bundle; called from ``set_estimator()``.
 
-    def jacobian(self, npartition_samples: Array) -> Array:
+        Only ANALYTICAL capability is declared; when it is absent the
+        orchestrator composes ``WithAutogradJacobian`` on an
+        autodiff-capable backend instead (autograd is a composition
+        source, never a producer fallback). Subclasses whose capability
+        differs (e.g. MLBLUE, unconditional) override this method.
         """
-        Compute the Jacobian of the objective.
-
-        Parameters
-        ----------
-        npartition_samples : Array (nvars, 1)
-            Partition sample counts as column vector
-
-        Returns
-        -------
-        Array (1, nvars)
-            Jacobian row vector
-        """
-        bkd, _ = self._ensure_bound()
-        # bkd.jacobian is only on TorchBkd (autograd); not on Backend protocol
-        bkd_jacobian: Optional[
-            Callable[[Callable[[Array], Array], Array], Array]
-        ] = getattr(bkd, "jacobian", None)
-        if bkd_jacobian is None:
-            raise NotImplementedError(
-                "AD jacobian requires TorchBkd; override jacobian() "
-                "for other backends"
-            )
-        jac = bkd_jacobian(
-            self._scalar_objective_wrapper, npartition_samples[:, 0]
+        if not self._use_analytical:
+            return Derivatives.none()
+        # jacobian + hvp + materialized hessian is an unusual combination,
+        # so the raw constructor is used instead of a named one. The
+        # hessian field lets reparameterizing wrappers (variable_space)
+        # apply exact chain rules.
+        return Derivatives(
+            jacobian=self._jacobian, hvp=self._hvp, hessian=self._hessian
         )
-        return jac[None, ...]
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle built at ``set_estimator()``."""
+        self._ensure_bound()
+        return self._derivs
+
+    def _jacobian(self, npartition_samples: Array) -> Array:
+        """Analytical jacobian; provided by subclasses.
+
+        Returns shape (1, nvars) from input shape (nvars, 1).
+        """
+        raise RuntimeError(
+            "jacobian is unavailable; check derivatives() before calling"
+        )
+
+    def _hessian(self, npartition_samples: Array) -> Array:
+        """Analytical hessian; provided by subclasses.
+
+        Returns shape (nvars, nvars) from input shape (nvars, 1).
+        """
+        raise RuntimeError(
+            "hessian is unavailable; check derivatives() before calling"
+        )
+
+    def _hvp(self, npartition_samples: Array, vec: Array) -> Array:
+        hess = self._hessian(npartition_samples)
+        return hess @ vec
 
 
 class GroupACVTraceObjective(GroupACVObjective[Array]):
@@ -275,13 +294,13 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
         # conversion below is necessary for torch
         return bkd.hstack((trace,))[:, None]
 
-    def jacobian(self, npartition_samples: Array) -> Array:
+    def _jacobian(self, npartition_samples: Array) -> Array:
         r"""Analytical jacobian for trace objective.
 
         ∂f/∂n_m = -tr(G ∂_m Ψ)  where G = Ψ⁻¹ Ã Ψ⁻¹, Ã = Aᵀ A
         """
         if not self._use_analytical:
-            return super().jacobian(npartition_samples)
+            return super()._jacobian(npartition_samples)
         bkd, est = self._ensure_bound()
         n1d = npartition_samples[:, 0]
         _, psi_inv, dpsi_stack, _ = self._compute_psi_and_derivs(n1d)
@@ -290,16 +309,15 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
         jac = -self._batch_trace_single(bkd, G, dpsi_stack)
         return jac[None, :]
 
-    def hessian(self, npartition_samples: Array) -> Array:
+    def _hessian(self, npartition_samples: Array) -> Array:
         r"""Analytical hessian for trace objective.
 
         H^f_{mp} = 2 tr(G ∂_p Ψ Ψ⁻¹ ∂_m Ψ) - δ_{mp} tr(G ∂²_m Ψ)
         """
         if not self._use_analytical:
-            raise NotImplementedError(
-                "Analytical hessian not available; stat does not provide "
-                "_group_acv_sigma_block_derivs or estimator is not IS"
-            )
+            # stat does not provide _group_acv_sigma_block_derivs or
+            # estimator is not IS
+            return super()._hessian(npartition_samples)
         bkd, est = self._ensure_bound()
         n1d = npartition_samples[:, 0]
         _, psi_inv, dpsi_stack, d2psi_stack = self._compute_psi_and_derivs(
@@ -319,10 +337,6 @@ class GroupACVTraceObjective(GroupACVObjective[Array]):
         diag_corr = self._batch_trace_single(bkd, G, d2psi_stack)
         H = H - bkd.diag(diag_corr)
         return H
-
-    def hvp(self, npartition_samples: Array, vec: Array) -> Array:
-        hess = self.hessian(npartition_samples)
-        return hess @ vec
 
 
 class GroupACVLogDetObjective(GroupACVObjective[Array]):
@@ -364,14 +378,14 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
         cov_inv = est._inv(cov)
         return psi_inv @ A.T @ cov_inv @ A @ psi_inv
 
-    def jacobian(self, npartition_samples: Array) -> Array:
+    def _jacobian(self, npartition_samples: Array) -> Array:
         r"""Analytical jacobian for log-det objective.
 
         ∂g/∂n_m = -tr(Λ ∂_m Ψ)
         where Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹, C = A Ψ⁻¹ Aᵀ
         """
         if not self._use_analytical:
-            return super().jacobian(npartition_samples)
+            return super()._jacobian(npartition_samples)
         bkd, est = self._ensure_bound()
         n1d = npartition_samples[:, 0]
         _, psi_inv, dpsi_stack, _ = self._compute_psi_and_derivs(n1d)
@@ -379,7 +393,7 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
         jac = -self._batch_trace_single(bkd, Lambda, dpsi_stack)
         return jac[None, :]
 
-    def hessian(self, npartition_samples: Array) -> Array:
+    def _hessian(self, npartition_samples: Array) -> Array:
         r"""Analytical hessian for log-det objective.
 
         H^g_{mp} = -tr(Λ ∂_m Ψ Λ ∂_p Ψ) + 2 tr(Λ ∂_p Ψ Ψ⁻¹ ∂_m Ψ)
@@ -387,10 +401,9 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
         where Λ = Ψ⁻¹ Aᵀ C⁻¹ A Ψ⁻¹
         """
         if not self._use_analytical:
-            raise NotImplementedError(
-                "Analytical hessian not available; stat does not provide "
-                "_group_acv_sigma_block_derivs or estimator is not IS"
-            )
+            # stat does not provide _group_acv_sigma_block_derivs or
+            # estimator is not IS
+            return super()._hessian(npartition_samples)
         bkd, est = self._ensure_bound()
         n1d = npartition_samples[:, 0]
         _, psi_inv, dpsi_stack, d2psi_stack = self._compute_psi_and_derivs(
@@ -417,18 +430,21 @@ class GroupACVLogDetObjective(GroupACVObjective[Array]):
         H = H - bkd.diag(diag_corr)
         return H
 
-    def hvp(self, npartition_samples: Array, vec: Array) -> Array:
-        hess = self.hessian(npartition_samples)
-        return hess @ vec
-
 
 class MLBLUEObjective(GroupACVTraceObjective[Array]):
     """MLBLUE-specific trace objective with analytical derivatives.
 
-    Provides analytical Jacobian and Hessian for MLBLUE optimization.
+    Provides analytical Jacobian and Hessian for MLBLUE optimization,
+    unconditionally (no ``_use_analytical`` gating).
     """
 
-    def jacobian(self, npartition_samples: Array) -> Array:
+    def _build_derivatives(self) -> Derivatives[Array]:
+        """MLBLUE derivatives are analytical regardless of the stat."""
+        return Derivatives(
+            jacobian=self._jacobian, hvp=self._hvp, hessian=self._hessian
+        )
+
+    def _jacobian(self, npartition_samples: Array) -> Array:
         """
         Compute analytical Jacobian for MLBLUE.
 
@@ -466,7 +482,7 @@ class MLBLUEObjective(GroupACVTraceObjective[Array]):
             )
         return jacobian
 
-    def hessian(self, npartition_samples: Array) -> Array:
+    def _hessian(self, npartition_samples: Array) -> Array:
         """
         Compute analytical Hessian for MLBLUE.
 
@@ -509,24 +525,6 @@ class MLBLUEObjective(GroupACVTraceObjective[Array]):
                     hess[jj][ii] = hess[ii][jj]
         return bkd.vstack([bkd.hstack(row) for row in hess])
 
-    def hvp(self, npartition_samples: Array, vec: Array) -> Array:
-        """Compute Hessian-vector product.
-
-        Parameters
-        ----------
-        npartition_samples : Array (nvars, 1)
-            Partition sample counts as column vector
-        vec : Array (nvars, 1)
-            Vector to multiply with Hessian
-
-        Returns
-        -------
-        Array (nvars, 1)
-            Hessian-vector product
-        """
-        hess = self.hessian(npartition_samples)
-        return hess @ vec
-
 
 class GroupACVCostConstraint(Generic[Array]):
     """Cost and minimum HF samples constraint for GroupACV optimization.
@@ -553,6 +551,17 @@ class GroupACVCostConstraint(Generic[Array]):
         self._min_nhf_samples: Optional[int] = None
         self._lb: Optional[Array] = None
         self._ub: Optional[Array] = None
+        # Both constraints are linear in n: analytic jacobian and (zero)
+        # whvp are unconditional. Bound methods late-bind, so building
+        # the bundle before set_estimator() is safe (pre-bind invocation
+        # raises as the methods themselves do).
+        self._derivs: Derivatives[Array] = Derivatives.second_order_weighted(
+            jacobian=self.jacobian, whvp=self.whvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def _ensure_bound(
         self,
@@ -661,13 +670,13 @@ class GroupACVCostConstraint(Generic[Array]):
             ]
         )
 
-    def __call__(self, npartition_samples: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate constraints.
 
         Parameters
         ----------
-        npartition_samples : Array (nvars, 1)
+        samples : Array (nvars, 1)
             Partition sample counts as column vector
 
         Returns
@@ -675,7 +684,7 @@ class GroupACVCostConstraint(Generic[Array]):
         Array (nqoi, 1)
             Constraint values (should be >= 0 for feasibility)
         """
-        return self._eval_constraint(npartition_samples[:, 0])[:, None]
+        return self._eval_constraint(samples[:, 0])[:, None]
 
     def jacobian(self, npartition_samples: Array) -> Array:
         """

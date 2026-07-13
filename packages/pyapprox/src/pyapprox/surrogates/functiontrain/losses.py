@@ -2,6 +2,7 @@
 
 from typing import Generic, Optional
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.functiontrain.compute import (
     BasisCache,
     cache_basis_matrices,
@@ -63,7 +64,18 @@ class FunctionTrainMSELoss(Generic[Array]):
         self._cached_ft: Optional[FunctionTrain[Array]] = None
         self._cached_pred: Optional[Array] = None
 
-    def _ensure_cached(self, params_flat: Array) -> None:
+        # Analytic jacobian is unconditional.
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
+
+    def _ensure_cached(
+        self, params_flat: Array
+    ) -> "tuple[FunctionTrain[Array], Array]":
         """Ensure cached FT and predictions are up-to-date for params.
 
         Uses value-based caching: if params match the cached values, reuse
@@ -72,6 +84,11 @@ class FunctionTrainMSELoss(Generic[Array]):
 
         Caching is skipped when params require gradients (torch autograd)
         since the computation graph must flow through the current params.
+
+        Returns
+        -------
+        tuple[FunctionTrain[Array], Array]
+            The (possibly cached) parameterized FT and its predictions.
         """
         # Skip cache when autograd is active (requires_grad tensors)
         requires_grad = getattr(params_flat, "requires_grad", False)
@@ -79,16 +96,22 @@ class FunctionTrainMSELoss(Generic[Array]):
             self._cached_params is not None
             and self._bkd.allclose(params_flat, self._cached_params, rtol=0.0, atol=0.0)
         ):
-            return
+            cached_ft = self._cached_ft
+            cached_pred = self._cached_pred
+            if cached_ft is not None and cached_pred is not None:
+                return cached_ft, cached_pred
 
         if not requires_grad:
             self._cached_params = self._bkd.copy(params_flat)
         else:
             self._cached_params = None
-        self._cached_ft = self._surrogate.with_params(params_flat)
-        self._cached_pred = self._cached_ft.eval_cached(
+        cached_ft = self._surrogate.with_params(params_flat)
+        cached_pred = cached_ft.eval_cached(
             self._train_samples, self._basis_cache
         )
+        self._cached_ft = cached_ft
+        self._cached_pred = cached_pred
+        return cached_ft, cached_pred
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
@@ -116,10 +139,10 @@ class FunctionTrainMSELoss(Generic[Array]):
             Loss value. Shape: (1, 1)
         """
         params_flat = self._bkd.flatten(params)
-        self._ensure_cached(params_flat)
+        _, pred = self._ensure_cached(params_flat)
 
         # Compute MSE: (1/2n) ||pred - values||^2
-        residual = self._cached_pred - self._train_values
+        residual = pred - self._train_values
         mse = 0.5 * self._bkd.sum(residual**2) / self._nsamples
         return self._bkd.reshape(mse, (1, 1))
 
@@ -139,13 +162,13 @@ class FunctionTrainMSELoss(Generic[Array]):
             Gradient. Shape: (1, nvars)
         """
         params_flat = self._bkd.flatten(params)
-        self._ensure_cached(params_flat)
+        ft, pred = self._ensure_cached(params_flat)
 
         # Compute residuals
-        residual = self._cached_pred - self._train_values
+        residual = pred - self._train_values
 
         # Compute Jacobian using cached basis matrices
-        jac = self._cached_ft.jacobian_wrt_params_cached(
+        jac = ft.jacobian_wrt_params_cached(
             self._train_samples, self._basis_cache
         )
 

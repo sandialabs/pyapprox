@@ -104,6 +104,7 @@ class TestELBONumpy(TestELBOBase):
 
     def test_elbo_no_jacobian_numpy(self, numpy_bkd) -> None:
         elbo = self._make_simple_elbo(numpy_bkd)
+        assert elbo.derivatives().jacobian is None
         assert not hasattr(elbo, "jacobian")
 
 
@@ -151,9 +152,10 @@ class TestELBOTorch:
     def test_elbo_jacobian_shape(self, torch_bkd) -> None:
         bkd = torch_bkd
         elbo = self._make_simple_elbo(bkd)
-        assert hasattr(elbo, "jacobian")
+        jac_fn = elbo.derivatives().jacobian
+        assert jac_fn is not None
         params = bkd.zeros((elbo.nvars(), 1))
-        jac = elbo.jacobian(params)
+        jac = jac_fn(params)
         assert jac.shape == (1, elbo.nvars())
 
     def test_elbo_gradient_derivative_checker(self, torch_bkd) -> None:

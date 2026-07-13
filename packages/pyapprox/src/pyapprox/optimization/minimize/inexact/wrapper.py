@@ -2,16 +2,21 @@
 
 Wraps a model + statistic + strategy to provide tolerance-dependent
 value and jacobian evaluation. Satisfies ``NonlinearConstraintProtocol``
-(and ``ObjectiveProtocol`` when ``nqoi=1``), plus ``InexactEvaluable``
-and ``InexactDifferentiable``.
+(and ``ObjectiveProtocol`` when ``nqoi=1``); tolerance-aware evaluation
+is exposed through the ``inexact`` suite of its ``derivatives()``
+bundle.
 """
 
-from typing import Generic, List, Optional, cast
+from typing import Callable, Generic, List, Optional
 
-from pyapprox.interface.functions.protocols.function import FunctionProtocol
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJacobianProtocol,
+from pyapprox.interface.functions.derivatives import (
+    Derivatives,
+    InexactSuite,
+    JacobianBatchFn,
+    JacobianFn,
 )
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.optimization.minimize.inexact.protocols import (
     InexactGradientStrategyProtocol,
 )
@@ -31,14 +36,16 @@ class InexactWrapper(Generic[Array]):
 
     - ``__call__(sample)`` / ``inexact_value(sample, tol)``:
       ``stat(f(random, design), weights)`` using strategy-determined samples
-    - ``jacobian(sample)`` / ``inexact_jacobian(sample, tol)``:
-      ``stat.jacobian(...)`` using strategy-determined samples
+    - ``derivatives().jacobian`` / ``derivatives().inexact.jacobian``:
+      ``stat.jacobian(...)`` using strategy-determined samples; populated
+      only when both the model and the statistic provide jacobians
 
     Parameters
     ----------
     model : FunctionProtocol[Array]
         A function satisfying ``FunctionProtocol``. Must have ``nvars()``,
-        ``nqoi()``, ``__call__(samples)``. May also have ``jacobian(sample)``.
+        ``nqoi()``, ``__call__(samples)``. Its derivative capability is
+        read from its ``Derivatives`` bundle.
     stat : SampleStatisticProtocol[Array]
         A ``SampleStatisticProtocol`` with ``__call__(values, weights)``
         and optionally ``jacobian(values, jac_values, weights)``.
@@ -90,14 +97,35 @@ class InexactWrapper(Generic[Array]):
         all_indices = set(range(self._nvars_full))
         self._random_indices = sorted(all_indices - set(design_indices))
 
-        # Dynamic binding of jacobian methods
+        # Construction-time capability branching: jacobian is available
+        # only when both the model and the statistic can differentiate.
+        md = as_derivatives(model)
+        self._model_jac: Optional[JacobianFn[Array]] = md.jacobian
+        self._model_jac_batch: Optional[JacobianBatchFn[Array]] = (
+            md.jacobian_batch
+        )
+        self._stat_jac: Optional[Callable[[Array, Array, Array], Array]] = (
+            None
+        )
         if (
-            isinstance(model, FunctionWithJacobianProtocol)
-            and isinstance(stat, DifferentiableSampleStatisticProtocol)
+            isinstance(stat, DifferentiableSampleStatisticProtocol)
             and stat.jacobian_implemented()
         ):
-            self.jacobian = self._jacobian
-            self.inexact_jacobian = self._inexact_jacobian
+            self._stat_jac = stat.jacobian
+        if self._stat_jac is not None and (
+            self._model_jac is not None or self._model_jac_batch is not None
+        ):
+            self._derivs: Derivatives[Array] = Derivatives(
+                jacobian=self._jacobian,
+                inexact=InexactSuite(
+                    value=self.inexact_value,
+                    jacobian=self._inexact_jacobian,
+                ),
+            )
+        else:
+            self._derivs = Derivatives(
+                inexact=InexactSuite(value=self.inexact_value)
+            )
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -123,21 +151,9 @@ class InexactWrapper(Generic[Array]):
             raise AttributeError("No upper bounds set")
         return self._constraint_ub
 
-    def _differentiable_model(self) -> FunctionWithJacobianProtocol[Array]:
-        """Typed access to model as differentiable.
-
-        Safe — only called from ``_jacobian_with_samples`` which is only
-        reachable when ``isinstance(model, FunctionWithJacobianProtocol)``.
-        """
-        return cast(FunctionWithJacobianProtocol[Array], self._model)
-
-    def _differentiable_stat(self) -> DifferentiableSampleStatisticProtocol[Array]:
-        """Typed access to stat as differentiable.
-
-        Safe — only called from ``_jacobian_with_samples`` which is only
-        reachable when ``isinstance(stat, DifferentiableSampleStatisticProtocol)``.
-        """
-        return cast(DifferentiableSampleStatisticProtocol[Array], self._stat)
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (always carries an inexact suite)."""
+        return self._derivs
 
     def _evaluate_with_samples(
         self, design_sample: Array, quad_samples: Array, quad_weights: Array,
@@ -190,9 +206,12 @@ class InexactWrapper(Generic[Array]):
         Array
             Shape ``(nqoi, n_design)``.
         """
+        stat_jac = self._stat_jac
+        if stat_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         bkd = self._bkd
-        diff_model = self._differentiable_model()
-        diff_stat = self._differentiable_stat()
         full_samples = assemble_full_samples(
             design_sample,
             quad_samples,
@@ -201,30 +220,36 @@ class InexactWrapper(Generic[Array]):
             self._nvars_full,
             bkd,
         )
-        model_values = diff_model(full_samples)
+        model_values = self._model(full_samples)
 
         n_design = len(self._design_indices)
         n_quad = quad_samples.shape[1]
         nqoi = self._nqoi
 
         # Collect model jacobians at each quad point
-        if hasattr(diff_model, "jacobian_batch"):
+        if self._model_jac_batch is not None:
             # jacobian_batch returns (n_quad, nqoi, nvars_full)
-            jac_batch = diff_model.jacobian_batch(full_samples)
+            jac_batch = self._model_jac_batch(full_samples)
             # Select design columns -> (n_quad, nqoi, n_design)
             # Transpose to (nqoi, n_quad, n_design)
             jac_values = bkd.transpose(
                 jac_batch[:, :, self._design_indices], [1, 0, 2]
             )
         else:
+            model_jac = self._model_jac
+            if model_jac is None:
+                raise RuntimeError(
+                    "jacobian is unavailable; check derivatives() before "
+                    "calling"
+                )
             jac_values = bkd.zeros((nqoi, n_quad, n_design))
             for qq in range(n_quad):
                 single_sample = full_samples[:, qq : qq + 1]
-                jac_full = diff_model.jacobian(single_sample)
+                jac_full = model_jac(single_sample)
                 jac_values[:, qq, :] = jac_full[:, self._design_indices]
 
         weights_2d = bkd.reshape(quad_weights, (1, -1))
-        return diff_stat.jacobian(model_values, jac_values, weights_2d)
+        return stat_jac(model_values, jac_values, weights_2d)
 
     def __call__(self, sample: Array) -> Array:
         """Evaluate using all available samples (exact, tol=0).

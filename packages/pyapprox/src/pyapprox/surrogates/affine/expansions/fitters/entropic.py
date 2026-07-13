@@ -12,6 +12,7 @@ from typing import Generic, Optional
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
@@ -33,8 +34,8 @@ class EntropicLoss(Generic[Array]):
 
     When beta=1, this simplifies to: sum_i w_i * (exp(r_i) - r_i - 1)
 
-    This implements FunctionWithJacobianAndHVPProtocol for use with
-    trust-region optimizers.
+    Satisfies ``ObjectiveProtocol``; jacobian and hvp travel in the
+    ``derivatives()`` bundle for use with trust-region optimizers.
 
     Parameters
     ----------
@@ -79,6 +80,15 @@ class EntropicLoss(Generic[Array]):
                 f"train_values must have shape ({basis_matrix.shape[0]}, 1), "
                 f"got {train_values.shape}"
             )
+
+        # Analytic jacobian and hvp are unconditional.
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def strength(self) -> float:
         """Return the strength parameter beta."""

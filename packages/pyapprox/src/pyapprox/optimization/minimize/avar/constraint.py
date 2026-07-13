@@ -5,8 +5,10 @@ Converts a multi-QoI objective into constraints for AVaR optimization:
 s_i + t - f_i(x) >= 0 for all i.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
+from pyapprox.interface.functions.derivatives import Derivatives, JacobianFn
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.optimization.minimize.minimax.protocols import (
     MultiQoIObjectiveProtocol,
 )
@@ -47,6 +49,21 @@ class AVaRConstraint(Generic[Array]):
         self._model = model
         self._bkd = model.bkd()
         self._nscenarios = model.nqoi()
+        # Construction-time capability branching: constraint jacobian is
+        # available only when the model can differentiate.
+        self._model_jac: Optional[JacobianFn[Array]] = as_derivatives(
+            model
+        ).jacobian
+        if self._model_jac is not None:
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian
+            )
+        else:
+            self._derivs = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Get computational backend."""
@@ -86,13 +103,13 @@ class AVaRConstraint(Generic[Array]):
         """
         return self._bkd.full((self._nscenarios,), float("inf"))
 
-    def __call__(self, sample: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate constraint: g_i = t + s_i - f_i(x).
 
         Parameters
         ----------
-        sample : Array
+        samples : Array
             Optimization variables [t, s, x]. Shape: (nvars, 1)
 
         Returns
@@ -100,13 +117,13 @@ class AVaRConstraint(Generic[Array]):
         Array
             Constraint values. Shape: (nqoi, 1)
         """
-        t = sample[0, 0]
-        s = sample[1 : 1 + self._nscenarios]  # Shape: (nscenarios, 1)
-        x = sample[1 + self._nscenarios :]  # Shape: (nmodel_vars, 1)
+        t = samples[0, 0]
+        s = samples[1 : 1 + self._nscenarios]  # Shape: (nscenarios, 1)
+        x = samples[1 + self._nscenarios :]  # Shape: (nmodel_vars, 1)
         f_vals = self._model(x)  # Shape: (nqoi, 1)
         return t + s - f_vals
 
-    def jacobian(self, sample: Array) -> Array:
+    def _jacobian(self, sample: Array) -> Array:
         """
         Jacobian of constraint.
 
@@ -125,12 +142,16 @@ class AVaRConstraint(Generic[Array]):
         Array
             Jacobian matrix. Shape: (nqoi, nvars)
         """
+        model_jac_fn = self._model_jac
+        if model_jac_fn is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         x = sample[1 + self._nscenarios :]  # Shape: (nmodel_vars, 1)
-        model_jac = self._model.jacobian(x)  # Shape: (nqoi, nmodel_vars)
+        model_jac = model_jac_fn(x)  # Shape: (nqoi, nmodel_vars)
 
         nqoi = self._nscenarios
         nvars = self.nvars()
-        self._model.nvars()
 
         jac = self._bkd.zeros((nqoi, nvars))
 

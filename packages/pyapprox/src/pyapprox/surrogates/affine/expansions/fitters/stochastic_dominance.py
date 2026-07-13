@@ -17,6 +17,7 @@ from typing import Generic, Optional
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.minimize.differentiable_approximations import (
     DifferentiableApproximationBase,
     SmoothLogBasedLeftHeavisideFunction,
@@ -41,7 +42,8 @@ class FSDObjective(Generic[Array]):
     Minimizes weighted least squares:
         L(coef) = 0.5 * sum_i w_i * (y_i - Phi_i @ coef)^2
 
-    This implements FunctionWithJacobianAndHVPProtocol.
+    Satisfies ``ObjectiveProtocol``; jacobian and hvp travel in the
+    ``derivatives()`` bundle.
 
     Parameters
     ----------
@@ -71,6 +73,15 @@ class FSDObjective(Generic[Array]):
             self._weights = bkd.full((nsamples, 1), 1.0 / nsamples)
         else:
             self._weights = weights
+
+        # Analytic jacobian and hvp are unconditional.
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""
@@ -160,7 +171,8 @@ class StochasticDominanceConstraint(Generic[Array]):
     For SSD (using smooth max):
         c(coef) = sum_m w_m * [max(0, f_n - f_m) - max(0, f_n - y_m)] >= 0 for all n
 
-    This implements NonlinearConstraintProtocolWithJacobianAndWHVP.
+    Satisfies ``NonlinearConstraintProtocol``; jacobian and whvp travel
+    in the ``derivatives()`` bundle.
 
     Parameters
     ----------
@@ -219,6 +231,17 @@ class StochasticDominanceConstraint(Generic[Array]):
             self._ub = bkd.zeros((nconstraints,))
         else:
             self._ub = ub
+
+        # Analytic jacobian and whvp are unconditional.
+        self._derivs: Derivatives[Array] = (
+            Derivatives.second_order_weighted(
+                jacobian=self.jacobian, whvp=self.whvp
+            )
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""

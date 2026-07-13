@@ -1944,9 +1944,12 @@ class TestAnalyticalGroupACVDerivatives:
         mlblue_obj.set_estimator(est)
 
         iterate = est._init_guess(100)
-        jac_trace = trace_obj.jacobian(iterate)
-        jac_mlblue = mlblue_obj.jacobian(iterate)
-        numpy_bkd.assert_allclose(jac_trace, jac_mlblue, rtol=1e-10)
+        trace_jac = trace_obj.derivatives().jacobian
+        mlblue_jac = mlblue_obj.derivatives().jacobian
+        assert trace_jac is not None and mlblue_jac is not None
+        numpy_bkd.assert_allclose(
+            trace_jac(iterate), mlblue_jac(iterate), rtol=1e-10
+        )
 
 
 class TestGroupACVPsiConsistency:

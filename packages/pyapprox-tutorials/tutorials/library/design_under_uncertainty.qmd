@@ -112,7 +112,7 @@ objective_model = CantileverBeam2DObjective(bkd)
 
 First we solve a **deterministic** version: fix the uncertain variables at their nominal values and optimize $w$ and $t$ to minimize area subject to the safety constraints.
 
-`ActiveSetFunction` fixes the non-design variables at nominal values and exposes only $w$ and $t$ to the optimizer. It dynamically propagates the Jacobian from the wrapped model, so the optimizer can use gradient information.
+`ActiveSetFunction` fixes the non-design variables at nominal values and exposes only $w$ and $t$ to the optimizer. It propagates the Jacobian from the wrapped model's `Derivatives` bundle, so the optimizer can use gradient information.
 
 ```{python}
 from pyapprox.interface.functions.marginalize import ActiveSetFunction
@@ -139,9 +139,10 @@ class DetConstraintWrapper:
     def __init__(self, asf, bkd):
         self._asf = asf
         self._bkd = bkd
-        # Dynamically bind jacobian if available
-        if hasattr(asf, "jacobian"):
-            self.jacobian = asf.jacobian
+
+    def derivatives(self):
+        # Forward the wrapped function's derivative bundle (same inputs)
+        return self._asf.derivatives()
 
     def bkd(self):
         return self._bkd

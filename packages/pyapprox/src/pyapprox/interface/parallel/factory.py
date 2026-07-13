@@ -5,11 +5,17 @@ with parallel batch execution capabilities, and a make_parallel
 convenience function.
 """
 
-from typing import Any, Generic, Optional, Union
+from typing import Generic, Literal, Optional, Union
 
-import numpy as np
-from numpy.typing import NDArray
-
+from pyapprox.interface.functions.derivatives import (
+    Derivatives,
+    HessianFn,
+    HVPFn,
+    JacobianFn,
+    WHVPFn,
+)
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
+from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.interface.parallel.batch_utils import BatchSplitter
 from pyapprox.interface.parallel.config import (
     ParallelConfig,
@@ -25,14 +31,16 @@ from pyapprox.util.backends.protocols import Array, Backend
 class ParallelFunctionWrapper(Generic[Array]):
     """Wrapper that adds parallel batch methods to functions.
 
-    Wraps a function and auto-detects available derivative methods
-    (jacobian, hvp, whvp) via hasattr, adding parallel batch versions.
+    Wraps a function and reads its derivative capability from its
+    ``Derivatives`` bundle: single-sample fields are forwarded
+    unchanged, and a parallel batch version is added for each populated
+    field.
 
     Parameters
     ----------
-    function : object
-        Function object with bkd(), nvars(), nqoi(), __call__().
-        May optionally have jacobian(), hvp(), whvp() methods.
+    function : FunctionProtocol[Array]
+        Function object with bkd(), nvars(), nqoi(), __call__(). Its
+        derivative capability is read from its ``Derivatives`` bundle.
     config : ParallelConfig, optional
         Parallel execution configuration. Default uses joblib with -1 jobs.
 
@@ -41,47 +49,63 @@ class ParallelFunctionWrapper(Generic[Array]):
     >>> from pyapprox.interface.parallel import make_parallel
     >>> # Wrap a GP with parallel support
     >>> parallel_gp = make_parallel(gp, backend="joblib_processes", n_jobs=4)
-    >>> jacobians = parallel_gp.jacobian_batch(samples)
+    >>> jacobians = parallel_gp.derivatives().jacobian_batch(samples)
     """
 
     def __init__(
         self,
-        function: object,
+        function: FunctionProtocol[Array],
         config: Optional[ParallelConfig] = None,
     ) -> None:
+        if not isinstance(function, FunctionProtocol):
+            raise TypeError(
+                "function must satisfy FunctionProtocol, got "
+                f"{type(function).__name__}"
+            )
         self._function = function
         self._config = config or ParallelConfig()
         self._backend: Union[ParallelBackendProtocol, SequentialBackend] = (
             self._config.get_parallel_backend()
         )
-        self._setup_derivative_methods()
+        # Mirror the wrapped function's capability: forward the
+        # single-sample fields unchanged and add a parallel batch form
+        # for each populated field.
+        fd = as_derivatives(function)
+        self._function_jac: Optional[JacobianFn[Array]] = fd.jacobian
+        self._function_hvp: Optional[HVPFn[Array]] = fd.hvp
+        self._function_whvp: Optional[WHVPFn[Array]] = fd.whvp
+        self._function_hessian: Optional[HessianFn[Array]] = fd.hessian
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=fd.jacobian,
+            jacobian_batch=None
+            if fd.jacobian is None
+            else self._jacobian_batch,
+            hvp=fd.hvp,
+            hvp_batch=None if fd.hvp is None else self._hvp_batch,
+            whvp=fd.whvp,
+            whvp_batch=None if fd.whvp is None else self._whvp_batch,
+            hessian=fd.hessian,
+            hessian_batch=None
+            if fd.hessian is None
+            else self._hessian_batch,
+            inexact=fd.inexact,
+        )
 
-    def _setup_derivative_methods(self) -> None:
-        """Auto-detect and set up derivative methods via hasattr."""
-        if hasattr(self._function, "jacobian"):
-            self.jacobian = self._function.jacobian
-            self.jacobian_batch = self._jacobian_batch
-        if hasattr(self._function, "hvp"):
-            self.hvp = self._function.hvp
-            self.hvp_batch = self._hvp_batch
-        if hasattr(self._function, "whvp"):
-            self.whvp = self._function.whvp
-            self.whvp_batch = self._whvp_batch
-        if hasattr(self._function, "hessian"):
-            self.hessian = self._function.hessian
-            self.hessian_batch = self._hessian_batch
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the bundle with parallel batch fields added."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the array backend."""
-        return self._function.bkd()  # type: ignore
+        return self._function.bkd()
 
     def nvars(self) -> int:
         """Return number of input variables."""
-        return self._function.nvars()  # type: ignore
+        return self._function.nvars()
 
     def nqoi(self) -> int:
         """Return number of outputs."""
-        return self._function.nqoi()  # type: ignore
+        return self._function.nqoi()
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate function at samples, optionally in parallel.
@@ -105,7 +129,7 @@ class ParallelFunctionWrapper(Generic[Array]):
 
         # Short-circuit: no parallelism needed
         if n_workers <= 1 or nsamples <= 1:
-            return self._function(samples)  # type: ignore
+            return self._function(samples)
 
         bkd = self.bkd()
         splitter = BatchSplitter(bkd)
@@ -115,9 +139,7 @@ class ParallelFunctionWrapper(Generic[Array]):
         chunks = splitter.split_samples(samples, n_chunks)
 
         # Wrap __call__ for numpy conversion (multiprocessing serialization)
-        wrapped_call = transfer.wrap_function(
-            self._function.__call__  # type: ignore
-        )
+        wrapped_call = transfer.wrap_function(self._function.__call__)
 
         # Convert chunks to numpy for parallel execution
         chunks_np = [transfer.to_numpy(chunk) for chunk in chunks]
@@ -168,6 +190,11 @@ class ParallelFunctionWrapper(Generic[Array]):
         Array
             Jacobians, shape (nsamples, nqoi, nvars).
         """
+        function_jac = self._function_jac
+        if function_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         bkd = self.bkd()
         splitter = BatchSplitter(bkd)
         transfer = TensorTransfer(bkd)
@@ -175,7 +202,7 @@ class ParallelFunctionWrapper(Generic[Array]):
         singles = splitter.split_to_singles(samples)
 
         # Wrap jacobian for numpy conversion
-        wrapped_jac = transfer.wrap_function(self._function.jacobian)  # type: ignore
+        wrapped_jac = transfer.wrap_function(function_jac)
 
         # Convert samples to numpy for parallel execution
         singles_np = [transfer.to_numpy(s) for s in singles]
@@ -204,13 +231,18 @@ class ParallelFunctionWrapper(Generic[Array]):
         """
         if self.nqoi() != 1:
             raise ValueError("hessian_batch only valid for nqoi == 1")
+        function_hessian = self._function_hessian
+        if function_hessian is None:
+            raise RuntimeError(
+                "hessian is unavailable; check derivatives() before calling"
+            )
 
         bkd = self.bkd()
         splitter = BatchSplitter(bkd)
         transfer = TensorTransfer(bkd)
 
         singles = splitter.split_to_singles(samples)
-        wrapped_hess = transfer.wrap_function(self._function.hessian)  # type: ignore
+        wrapped_hess = transfer.wrap_function(function_hessian)
         singles_np = [transfer.to_numpy(s) for s in singles]
 
         hessians_np = self._backend.map(wrapped_hess, singles_np)
@@ -237,6 +269,11 @@ class ParallelFunctionWrapper(Generic[Array]):
         """
         if self.nqoi() != 1:
             raise ValueError("hvp_batch only valid for nqoi == 1")
+        function_hvp = self._function_hvp
+        if function_hvp is None:
+            raise RuntimeError(
+                "hvp is unavailable; check derivatives() before calling"
+            )
 
         bkd = self.bkd()
         splitter = BatchSplitter(bkd)
@@ -245,7 +282,7 @@ class ParallelFunctionWrapper(Generic[Array]):
         singles = splitter.split_to_singles(samples)
         vec_singles = splitter.split_to_singles(vecs)
 
-        wrapped_hvp = transfer.wrap_starmap_function(self._function.hvp)  # type: ignore
+        wrapped_hvp = transfer.wrap_starmap_function(function_hvp)
 
         # Create (sample, vec) pairs as numpy
         pairs_np = [
@@ -275,6 +312,11 @@ class ParallelFunctionWrapper(Generic[Array]):
         Array
             Weighted HVP results, shape (nsamples, nvars).
         """
+        function_whvp = self._function_whvp
+        if function_whvp is None:
+            raise RuntimeError(
+                "whvp is unavailable; check derivatives() before calling"
+            )
         bkd = self.bkd()
         splitter = BatchSplitter(bkd)
         transfer = TensorTransfer(bkd)
@@ -283,14 +325,13 @@ class ParallelFunctionWrapper(Generic[Array]):
         vec_singles = splitter.split_to_singles(vecs)
         weights_np = transfer.to_numpy(weights)
 
-        def whvp_with_weights(
-            sample_np: NDArray[np.floating[Any]],
-            vec_np: NDArray[np.floating[Any]],
-        ) -> NDArray[np.floating[Any]]:
+        # TensorTransfer types the numpy side with the same Array
+        # variable, so the closure is annotated to match.
+        def whvp_with_weights(sample_np: Array, vec_np: Array) -> Array:
             sample = transfer.from_numpy(sample_np)
             vec = transfer.from_numpy(vec_np)
             w = transfer.from_numpy(weights_np)
-            result = self._function.whvp(sample, vec, w)  # type: ignore
+            result = function_whvp(sample, vec, w)
             return transfer.to_numpy(result)
 
         pairs_np = [
@@ -305,19 +346,26 @@ class ParallelFunctionWrapper(Generic[Array]):
 
 
 def make_parallel(
-    function: object,
-    backend: str = "joblib_processes",
+    function: FunctionProtocol[Array],
+    backend: Literal[
+        "joblib_processes",
+        "joblib_threads",
+        "futures",
+        "mpire",
+        "sequential",
+    ] = "joblib_processes",
     n_jobs: int = -1,
 ) -> ParallelFunctionWrapper[Array]:
     """Create parallel wrapper for a function.
 
-    Auto-detects jacobian, hvp, whvp methods and adds batch versions.
+    Reads jacobian, hvp, whvp, hessian capability from the function's
+    ``Derivatives`` bundle and adds parallel batch versions.
 
     Parameters
     ----------
-    function : object
-        Function object with bkd(), nvars(), nqoi(), __call__().
-        May optionally have jacobian(), hvp(), whvp() methods.
+    function : FunctionProtocol[Array]
+        Function object with bkd(), nvars(), nqoi(), __call__(). Its
+        derivative capability is read from its ``Derivatives`` bundle.
     backend : {"joblib_processes", "joblib_threads", "futures", "mpire", "sequential"}
         Parallel execution backend.
     n_jobs : int
@@ -332,13 +380,13 @@ def make_parallel(
     --------
     >>> from pyapprox.interface.parallel import make_parallel
     >>> parallel_gp = make_parallel(gp, backend="joblib_processes", n_jobs=4)
-    >>> jacobians = parallel_gp.jacobian_batch(samples)
+    >>> jacobians = parallel_gp.derivatives().jacobian_batch(samples)
 
     >>> # Or with mpire for progress bars
     >>> parallel_gp = make_parallel(gp, backend="mpire", n_jobs=4)
     """
     config = ParallelConfig(
-        backend=backend,  # type: ignore
+        backend=backend,
         n_jobs=n_jobs,
     )
     return ParallelFunctionWrapper(function, config)

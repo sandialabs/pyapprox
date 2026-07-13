@@ -4,8 +4,10 @@ Minimax constraint.
 Converts a multi-QoI objective into constraints t >= f_i(x) for minimax.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
+from pyapprox.interface.functions.derivatives import Derivatives, JacobianFn
+from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 from .protocols import MultiQoIObjectiveProtocol
@@ -33,12 +35,29 @@ class MinimaxConstraint(Generic[Array]):
     The Jacobian is:
         dg_i/d[t, x] = [1, -df_i/dx]
 
-    This class is compatible with nonlinear constraint protocols.
+    This class is compatible with nonlinear constraint protocols. The
+    ``derivatives()`` bundle carries a jacobian when the wrapped model
+    provides one.
     """
 
     def __init__(self, model: MultiQoIObjectiveProtocol[Array]) -> None:
         self._model = model
         self._bkd = model.bkd()
+        # Construction-time capability branching: constraint jacobian is
+        # available only when the model can differentiate.
+        self._model_jac: Optional[JacobianFn[Array]] = as_derivatives(
+            model
+        ).jacobian
+        if self._model_jac is not None:
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian
+            )
+        else:
+            self._derivs = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Get computational backend."""
@@ -78,13 +97,13 @@ class MinimaxConstraint(Generic[Array]):
         """
         return self._bkd.full((self._model.nqoi(),), float("inf"))
 
-    def __call__(self, sample: Array) -> Array:
+    def __call__(self, samples: Array) -> Array:
         """
         Evaluate constraint: g_i = t - f_i(x).
 
         Parameters
         ----------
-        sample : Array
+        samples : Array
             Optimization variables [t, x]. Shape: (nvars, 1)
 
         Returns
@@ -92,12 +111,12 @@ class MinimaxConstraint(Generic[Array]):
         Array
             Constraint values. Shape: (nqoi, 1)
         """
-        t = sample[0, 0]
-        x = sample[1:]
+        t = samples[0, 0]
+        x = samples[1:]
         f_vals = self._model(x)  # Shape: (nqoi, 1)
         return t - f_vals
 
-    def jacobian(self, sample: Array) -> Array:
+    def _jacobian(self, sample: Array) -> Array:
         """
         Jacobian of constraint: [1, -df/dx].
 
@@ -111,7 +130,12 @@ class MinimaxConstraint(Generic[Array]):
         Array
             Jacobian matrix. Shape: (nqoi, nvars)
         """
+        model_jac_fn = self._model_jac
+        if model_jac_fn is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         x = sample[1:]
-        model_jac = self._model.jacobian(x)  # Shape: (nqoi, nmodel_vars)
+        model_jac = model_jac_fn(x)  # Shape: (nqoi, nmodel_vars)
         ones_col = self._bkd.ones((model_jac.shape[0], 1))
         return self._bkd.hstack([ones_col, -model_jac])
