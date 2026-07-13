@@ -11,6 +11,11 @@ section is renamed to the version number when a release is tagged (see
 
 ### Added
 
+- `LatinHypercubeSampler` in `pyapprox.util.sampling`: Latin hypercube
+  designs via `scipy.stats.qmc` with optional scrambling, strength-2
+  (orthogonal-array) designs, discrepancy optimization, and inverse-CDF
+  transformation. Designs are not extensible, so `sample()` is
+  single-shot per design (call `reset()` for a new design).
 - `TruncatedPivotedQRFactorizer` in `pyapprox.util.linalg`: matrix-free
   truncated column-pivoted QR (Householder with Businger–Golub pivoting)
   that matches scipy's `geqp3` pivot order but runs only `npivots`

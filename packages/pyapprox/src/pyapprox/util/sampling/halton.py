@@ -25,6 +25,32 @@ class DistributionWithInvCDF(Protocol, Generic[Array]):
         ...
 
 
+def _validate_distribution(
+    distribution: Optional[DistributionWithInvCDF[Array]], nvars: int
+) -> None:
+    """Validate a sampler's optional distribution argument.
+
+    Raises
+    ------
+    TypeError
+        If distribution does not satisfy DistributionWithInvCDF.
+    ValueError
+        If distribution.nvars() does not match nvars.
+    """
+    if distribution is None:
+        return
+    if not isinstance(distribution, DistributionWithInvCDF):
+        raise TypeError(
+            "distribution must satisfy DistributionWithInvCDF, "
+            f"got {type(distribution).__name__}"
+        )
+    if distribution.nvars() != nvars:
+        raise ValueError(
+            f"distribution.nvars() ({distribution.nvars()}) does "
+            f"not match nvars ({nvars})"
+        )
+
+
 # TODO: newer versions of SciPy (v1.15+), the rvs method is
 # being transitioned toward a more general sample method. We
 # should add sample method to pyapprox.probability classes to
@@ -91,6 +117,7 @@ class HaltonSampler(Generic[Array]):
         scramble: bool = True,
         seed: Optional[int] = None,
     ):
+        _validate_distribution(distribution, nvars)
         self._bkd = bkd
         self._nvars = nvars
         self._distribution = distribution

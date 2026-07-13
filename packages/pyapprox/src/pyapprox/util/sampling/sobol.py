@@ -11,7 +11,10 @@ import numpy as np
 from scipy.stats import qmc
 
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.sampling.halton import DistributionWithInvCDF
+from pyapprox.util.sampling.halton import (
+    DistributionWithInvCDF,
+    _validate_distribution,
+)
 
 
 class SobolSampler(Generic[Array]):
@@ -75,6 +78,7 @@ class SobolSampler(Generic[Array]):
         scramble: bool = True,
         seed: Optional[int] = None,
     ):
+        _validate_distribution(distribution, nvars)
         self._bkd = bkd
         self._nvars = nvars
         self._distribution = distribution
