@@ -29,6 +29,22 @@ jobs:
             echo "::error::Version '$version' contains a local segment (+). Tag the commit with a clean version (e.g., v0.2.0) before publishing."
             exit 1
           fi
+      - name: Require changelog entry for this version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! grep -qE "^## \[${version}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [${version}]' section. Finalize the changelog before tagging (see docs/RELEASING.md)."
+            exit 1
+          fi
+      - name: Require tag to point at a commit on main
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag ${GITHUB_REF_NAME} points at a commit not reachable from main. Release tags are cut on main only (see docs/RELEASING.md)."
+            exit 1
+          fi
       - name: Build all packages
         run: |
           for pkg in packages/pyapprox packages/pyapprox-benchmarks packages/pyapprox-tutorials; do

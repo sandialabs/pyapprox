@@ -1,0 +1,31 @@
+name: Branch flow
+
+# Enforces the branch model in docs/RELEASING.md: main only advances by
+# merging dev/main. Any PR into main from another branch (or from a fork)
+# fails this check. To actually block merging, mark this check as required
+# in the branch protection settings for main — otherwise it only warns.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  enforce:
+    # explicit name: this is the context to mark required in the main
+    # branch ruleset (see docs/RELEASING.md, Enforcement item 1)
+    name: Branch flow / enforce
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only dev/main may merge into main
+        run: |
+          head_repo="${{ github.event.pull_request.head.repo.full_name }}"
+          head_ref="${{ github.head_ref }}"
+          if [ "$head_repo" != "${{ github.repository }}" ]; then
+            echo "::error::PRs into main must come from this repository's dev/main branch, not a fork ($head_repo). Target dev/main instead (see docs/RELEASING.md)."
+            exit 1
+          fi
+          if [ "$head_ref" != "dev/main" ]; then
+            echo "::error::PRs into main must come from dev/main, not '$head_ref'. Target dev/main instead (see docs/RELEASING.md)."
+            exit 1
+          fi
+          echo "OK: $head_ref -> main"

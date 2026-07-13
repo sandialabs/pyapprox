@@ -1,0 +1,42 @@
+name: Changelog
+
+# Requires PRs that change package source to also update CHANGELOG.md
+# (an entry under [Unreleased] — see docs/RELEASING.md). Apply the
+# 'no-changelog' label to skip for genuinely internal changes.
+#
+# Marked as a required status check on the dev/main branch rule. The label
+# test lives at the job level (not a workflow path filter) on purpose: a
+# labeled PR yields a "skipped" job, which GitHub counts as passing, while
+# a workflow that never runs would leave a required check pending forever.
+
+on:
+  pull_request:
+    branches: ["dev/**", main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  check:
+    # explicit name: this is the context to mark required in the dev/main
+    # branch rule (see docs/RELEASING.md, Enforcement item 4)
+    name: Changelog / check
+    if: "!contains(github.event.pull_request.labels.*.name, 'no-changelog')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check CHANGELOG.md was updated
+        run: |
+          # full fetch: a shallow base tip has no parents, so the three-dot
+          # diff below cannot find the merge base once the base has advanced
+          git fetch origin ${{ github.base_ref }}
+          if git diff --name-only origin/${{ github.base_ref }}...HEAD \
+               | grep -q '^packages/.*/src/'; then
+            if ! git diff --name-only origin/${{ github.base_ref }}...HEAD \
+                 | grep -q '^CHANGELOG.md$'; then
+              echo "::error::Source changed but CHANGELOG.md was not updated." \
+                   "Add an entry under [Unreleased] (see docs/RELEASING.md)," \
+                   "or ask a maintainer to apply the 'no-changelog' label."
+              exit 1
+            fi
+          fi

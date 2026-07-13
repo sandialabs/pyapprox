@@ -2,7 +2,8 @@
 [![Lint](https://github.com/sandialabs/pyapprox/actions/workflows/lint.yml/badge.svg)](https://github.com/sandialabs/pyapprox/actions/workflows/lint.yml)
 [![Docs](https://github.com/sandialabs/pyapprox/actions/workflows/docs.yml/badge.svg)](https://github.com/sandialabs/pyapprox/actions/workflows/docs.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyPI](https://img.shields.io/pypi/v/pyapprox.svg)](https://pypi.org/project/pyapprox/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 # PyApprox
 
@@ -68,9 +69,22 @@ approx_values = surrogate(test_pts)
 
 ## Installation
 
-PyApprox lives in a monorepo with three packages (`pyapprox`,
-`pyapprox-benchmarks`, `pyapprox-tutorials`). Until the monorepo is
-published to PyPI, install from source or directly from GitHub.
+PyApprox lives in a monorepo with three packages, all published on PyPI:
+`pyapprox` (core), `pyapprox-benchmarks` (benchmark functions), and
+`pyapprox-tutorials` (tutorial helpers).
+
+### From PyPI (recommended)
+
+```bash
+pip install pyapprox                        # core library
+pip install pyapprox-benchmarks             # optional: benchmark functions
+pip install pyapprox-tutorials              # optional: tutorial helpers
+pip install "pyapprox[runtime-extras]"      # core plus all runtime extras
+```
+
+Upgrading from 1.x? Version 2.0 is a breaking release — see the
+[migration guide](docs/migrations/v1-to-v2.md) and the
+[changelog](CHANGELOG.md).
 
 ### From source (recommended for development)
 
@@ -84,7 +98,7 @@ This installs all three packages in editable mode with full dev tooling
 via the `[dev]` extra (tests, docs, linters, plus the runtime extras
 `fem`, `umbridge`, `numba`, `parallel`, `cvxpy`).
 
-### Latest from GitHub (no clone)
+### Latest development version from GitHub (no clone)
 
 ```bash
 pip install \
