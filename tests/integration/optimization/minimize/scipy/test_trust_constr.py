@@ -157,9 +157,11 @@ class TestScipyTrustConstrOptimizer:
         linear_constraint_value = bkd.ones((1, 3)) @ result.optima()
         assert linear_constraint_value[0, 0] == pytest.approx(1.0, abs=1e-8)
 
-        # Assert that the result matches the expected optima
+        # Assert that the result matches the expected optima. trust-constr's
+        # stopping point varies with platform/BLAS: 5.6e-6 observed on CI
+        # macos Python 3.12, so 4e-6 was too tight.
         expected_optima = bkd.array([0.0, 0.0, 1.0])[:, None]
-        bkd.assert_allclose(result.optima(), expected_optima, atol=4e-6)
+        bkd.assert_allclose(result.optima(), expected_optima, atol=2e-5)
 
         # Assert that the objective value matches the expected value
         expected_fun = objective(expected_optima)
