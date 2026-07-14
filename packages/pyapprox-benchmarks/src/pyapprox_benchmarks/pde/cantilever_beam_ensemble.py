@@ -179,22 +179,8 @@ class SharedFieldBeamModel(Generic[Array]):
         self._bkd = bkd
         self._num_kle_terms = num_kle_terms
 
-        skfem_mesh = scalar_skfem_basis.mesh
-        self._coordx = skfem_mesh.p[0]
-        self._coordy = skfem_mesh.p[1]
-        self._connectivity = skfem_mesh.t.T
-
-        nelems = skfem_mesh.nelements
-        areas = np.empty(nelems)
-        for ie in range(nelems):
-            nodes = self._connectivity[ie]
-            xe, ye = self._coordx[nodes], self._coordy[nodes]
-            n = len(nodes)
-            a = 0.0
-            for j in range(n):
-                a += xe[j] * ye[(j + 1) % n] - xe[(j + 1) % n] * ye[j]
-            areas[ie] = abs(a) / 2.0
-        self._element_areas = areas
+        # Vector basis for von Mises post-processing
+        self._vector_basis = physics._basis
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -206,7 +192,10 @@ class SharedFieldBeamModel(Generic[Array]):
         return 2
 
     def __call__(self, samples: Array) -> Array:
-        from pyapprox.pde.galerkin.postprocessing import von_mises_stress_2d
+        from pyapprox.pde.galerkin.postprocessing import (
+            integrate,
+            von_mises_stress,
+        )
 
         bkd = self._bkd
         samples_np = bkd.to_numpy(samples)
@@ -245,20 +234,16 @@ class SharedFieldBeamModel(Generic[Array]):
 
             results[0, ii] = sol_np[self._tip_dof_index]
 
-            ux = sol_np[0::2]
-            uy = sol_np[1::2]
-            lam_elem = np.mean(lam_arr, axis=1)
-            mu_elem = np.mean(mu_arr, axis=1)
-            vm = von_mises_stress_2d(
-                self._coordx,
-                self._coordy,
-                self._connectivity,
-                ux,
-                uy,
-                lam_elem,
-                mu_elem,
+            # plane_strain matches the constitutive law the 2D physics
+            # assembles (sigma = lam*tr(eps)*I + 2*mu*eps)
+            vm = von_mises_stress(
+                self._vector_basis,
+                result.solution,
+                lam_arr,
+                mu_arr,
+                assumption="plane_strain",
             )
-            results[1, ii] = np.sum(vm * self._element_areas)
+            results[1, ii] = integrate(self._vector_basis, vm)
 
         return bkd.asarray(results)
 

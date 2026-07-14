@@ -62,14 +62,14 @@ def _solve_beam(basis, sub_elems, material_map, bkd, L, q0,
     return bkd.to_numpy(res.solution)
 
 
-def _plot_deformed(ax, coordx, coordy, conn, ext_edges, sol, material_map,
-                   sub_elems, L, title, tip_dof, scale=None):
+def _plot_deformed(ax, basis, coordx, coordy, conn, ext_edges, sol,
+                   material_map, sub_elems, L, title, tip_dof, scale=None):
     """Plot deformed mesh colored by von Mises stress."""
     from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.colors import Normalize
     from skfem.models.elasticity import lame_parameters
 
-    from pyapprox.pde.galerkin.postprocessing import von_mises_stress_2d
+    from pyapprox.pde.galerkin.postprocessing import von_mises_stress
 
     ux_loc, uy_loc = sol[0::2], sol[1::2]
     tip_val = sol[tip_dof]
@@ -80,8 +80,10 @@ def _plot_deformed(ax, coordx, coordy, conn, ext_edges, sol, material_map,
         li, mi = lame_parameters(E_val, nu_val)
         lam_e[sub_elems[name]] = li
         mu_e[sub_elems[name]] = mi
-    vm = von_mises_stress_2d(coordx, coordy, conn, ux_loc, uy_loc,
-                             lam_e, mu_e)
+    # element-average of the quadrature-point values for polygon colors
+    vm = von_mises_stress(
+        basis, sol, lam_e, mu_e, assumption="plane_strain",
+    ).mean(axis=1)
 
     if scale is None:
         max_d = max(np.max(np.abs(ux_loc)), np.max(np.abs(uy_loc)))
@@ -673,7 +675,7 @@ def plot_reference_solution(fig, ax):
         NeumannBC,
     )
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
-    from pyapprox.pde.galerkin.postprocessing import von_mises_stress_2d
+    from pyapprox.pde.galerkin.postprocessing import von_mises_stress
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
     info = _setup_beam_mesh(MESH_PATHS[2])
@@ -721,9 +723,10 @@ def plot_reference_solution(fig, ax):
         lam_elem[sub_elems[name]] = lam_i
         mu_elem[sub_elems[name]] = mu_i
 
-    vm_stress = von_mises_stress_2d(
-        coordx, coordy, conn, ux, uy, lam_elem, mu_elem,
-    )
+    # element-average of the quadrature-point values for polygon colors
+    vm_stress = von_mises_stress(
+        basis, sol, lam_elem, mu_elem, assumption="plane_strain",
+    ).mean(axis=1)
 
     # Displacement scale
     max_disp = max(np.max(np.abs(ux)), np.max(np.abs(uy)))
@@ -819,10 +822,10 @@ def plot_uncertainty_sources(kind, fig, axes):
                          np.max(np.abs(sol_soft[1::2])))
         shared_scale = 0.05 * L / max_d_soft
 
-        _plot_deformed(ax1, coordx, coordy, conn, ext_edges, sol_stiff,
-                       mat_stiff, sub_elems, L, "Stiff materials",
-                       tip_dof, scale=shared_scale)
-        pc2 = _plot_deformed(ax2, coordx, coordy, conn, ext_edges,
+        _plot_deformed(ax1, basis, coordx, coordy, conn, ext_edges,
+                       sol_stiff, mat_stiff, sub_elems, L,
+                       "Stiff materials", tip_dof, scale=shared_scale)
+        pc2 = _plot_deformed(ax2, basis, coordx, coordy, conn, ext_edges,
                              sol_soft, mat_soft, sub_elems, L,
                              "Soft materials", tip_dof,
                              scale=shared_scale)
@@ -840,10 +843,10 @@ def plot_uncertainty_sources(kind, fig, axes):
                        np.max(np.abs(sol_le[1::2])))
         shared_scale = 0.05 * L / max_d_le
 
-        _plot_deformed(ax1, coordx, coordy, conn, ext_edges, sol_le,
-                       material_map, sub_elems, L, "Linear elasticity",
-                       tip_dof, scale=shared_scale)
-        pc2 = _plot_deformed(ax2, coordx, coordy, conn, ext_edges,
+        _plot_deformed(ax1, basis, coordx, coordy, conn, ext_edges,
+                       sol_le, material_map, sub_elems, L,
+                       "Linear elasticity", tip_dof, scale=shared_scale)
+        pc2 = _plot_deformed(ax2, basis, coordx, coordy, conn, ext_edges,
                              sol_nh, material_map, sub_elems, L,
                              "Neo-Hookean", tip_dof, scale=shared_scale)
         fig.colorbar(pc2, ax=[ax1, ax2], shrink=0.8, pad=0.02,
@@ -872,13 +875,13 @@ def plot_uncertainty_sources(kind, fig, axes):
         shared_scale = 0.05 * L / max_d_fine
 
         _plot_deformed(
-            ax1, coordx_c, coordy_c, conn_c, ext_edges_c, sol_coarse,
-            material_map, sub_elems_c, L,
+            ax1, basis_c, coordx_c, coordy_c, conn_c, ext_edges_c,
+            sol_coarse, material_map, sub_elems_c, L,
             f"Coarse mesh ($h=4$, {skm_c.p.shape[1]} nodes)",
             tip_dof_c, scale=shared_scale,
         )
         pc2 = _plot_deformed(
-            ax2, coordx, coordy, conn, ext_edges, sol_fine,
+            ax2, basis, coordx, coordy, conn, ext_edges, sol_fine,
             material_map, sub_elems, L,
             f"Fine mesh ($h=2$, {skm.p.shape[1]} nodes)",
             tip_dof, scale=shared_scale,

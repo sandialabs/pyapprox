@@ -11,6 +11,14 @@ section is renamed to the version number when a release is tagged (see
 
 ### Added
 
+- 3D linear elasticity and hyperelasticity in the Galerkin module
+  (hex/tet, degree 1–2): Newton solves via a new analytical neo-Hookean
+  tangent, 3D manufactured solutions, component-wise Dirichlet BCs
+  (symmetry/roller conditions), and 3D Neumann/Robin traction support.
+- Dimension-generic elasticity post-processing (`strain_from_displacement`,
+  `stress_from_strain`, `von_mises_stress`, `integrate`) with an explicit
+  plane-stress/plane-strain/3d assumption, replacing the 2D-only `*_2d`
+  functions.
 - `LatinHypercubeSampler` in `pyapprox.util.sampling`: Latin hypercube
   designs via `scipy.stats.qmc` with optional scrambling, strength-2
   (orthogonal-array) designs, discrepancy optimization, and inverse-CDF

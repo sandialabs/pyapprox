@@ -13,9 +13,10 @@ the strong form du/dt = f(u,t).
 """
 
 from pyapprox.pde.galerkin.postprocessing import (
-    strain_from_displacement_2d,
-    stress_from_strain_2d,
-    von_mises_stress_2d,
+    integrate,
+    strain_from_displacement,
+    stress_from_strain,
+    von_mises_stress,
 )
 from pyapprox.pde.galerkin.protocols import (
     # Boundary condition protocols
@@ -59,9 +60,10 @@ __all__ = [
     # Solvers
     "SteadyStateSolver",
     # Postprocessing
-    "von_mises_stress_2d",
-    "strain_from_displacement_2d",
-    "stress_from_strain_2d",
+    "integrate",
+    "strain_from_displacement",
+    "stress_from_strain",
+    "von_mises_stress",
 ]
 
 if package_available("skfem"):

@@ -449,31 +449,8 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         self._bkd = bkd
         self._nvars = len(subdomain_names) * num_kle_terms
 
-        # Cache mesh data for von Mises post-processing
-        skfem_mesh = physics._basis.skfem_basis().mesh
-        self._coordx = skfem_mesh.p[0]
-        self._coordy = skfem_mesh.p[1]
-        self._connectivity = skfem_mesh.t.T
-
-        # Precompute element areas for area-weighted integration
-        self._element_areas = self._compute_element_areas()
-
-    def _compute_element_areas(self) -> np.ndarray:
-        """Compute area of each element using the shoelace formula."""
-        conn = self._connectivity
-        x, y = self._coordx, self._coordy
-        nelems = conn.shape[0]
-        areas = np.empty(nelems)
-        for ie in range(nelems):
-            nodes = conn[ie]
-            xe, ye = x[nodes], y[nodes]
-            n = len(nodes)
-            # Shoelace formula (works for triangles and quads)
-            area = 0.0
-            for j in range(n):
-                area += xe[j] * ye[(j + 1) % n] - xe[(j + 1) % n] * ye[j]
-            areas[ie] = abs(area) / 2.0
-        return areas
+        # Vector basis for von Mises post-processing
+        self._vector_basis = physics._basis
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -500,7 +477,8 @@ class CantileverBeam2DForwardModel(Generic[Array]):
             Row 1: total (area-integrated) von Mises stress.
         """
         from pyapprox.pde.galerkin.postprocessing import (
-            von_mises_stress_2d,
+            integrate,
+            von_mises_stress,
         )
 
         bkd = self._bkd
@@ -529,22 +507,17 @@ class CantileverBeam2DForwardModel(Generic[Array]):
             # QoI 0: tip displacement
             results[0, ii] = sol_np[self._tip_dof_index]
 
-            # QoI 1: total (area-integrated) von Mises stress
-            ux = sol_np[0::2]
-            uy = sol_np[1::2]
-            # Average Lame params across quad points for element values
-            lam_elem = np.mean(lam_arr, axis=1)
-            mu_elem = np.mean(mu_arr, axis=1)
-            vm = von_mises_stress_2d(
-                self._coordx,
-                self._coordy,
-                self._connectivity,
-                ux,
-                uy,
-                lam_elem,
-                mu_elem,
+            # QoI 1: total (area-integrated) von Mises stress.
+            # plane_strain matches the constitutive law the 2D physics
+            # assembles (sigma = lam*tr(eps)*I + 2*mu*eps).
+            vm = von_mises_stress(
+                self._vector_basis,
+                result.solution,
+                lam_arr,
+                mu_arr,
+                assumption="plane_strain",
             )
-            results[1, ii] = np.sum(vm * self._element_areas)
+            results[1, ii] = integrate(self._vector_basis, vm)
 
         return bkd.asarray(results)
 
