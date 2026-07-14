@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from typing import Generic
 
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -49,10 +50,10 @@ class StateEquationsWithAutoGrad(Generic[Array]):
         """
         if not isinstance(backend, Backend):
             raise TypeError("Backend must be an instance of Backend.")
-        if not hasattr(backend, "jacobian") or not hasattr(backend, "hvp"):
+        if not isinstance(backend, AutodiffBackend):
             raise TypeError(
-                "Backend must support automatic differentiation. "
-                "Ensure the backend has 'jacobian' and 'hvp' methods."
+                "Backend must support automatic differentiation "
+                "(AutodiffBackend: methods named 'jacobian' and 'hvp')."
             )
 
     @abstractmethod

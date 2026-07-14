@@ -131,6 +131,6 @@ class LocalOEDCriterionBase(ABC, Generic[Array]):
         """
         raise NotImplementedError
 
-    # NOTE: hvp() is NOT defined here. Following the optional methods convention,
-    # hvp should only exist on subclasses that actually implement it.
-    # Check with hasattr(criterion, 'hvp') before using.
+    # NOTE: hvp() is NOT defined here. hvp-capable subclasses declare it
+    # through their Derivatives bundle (override _build_derivatives);
+    # consumers read criterion.derivatives().hvp, never probe attributes.

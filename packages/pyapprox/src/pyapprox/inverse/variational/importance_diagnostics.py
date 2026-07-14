@@ -22,6 +22,7 @@ from pyapprox.inverse.variational.protocols import (
 if TYPE_CHECKING:
     from pyapprox.inverse.variational.elbo import ELBOObjective
     from pyapprox.inverse.variational.inexact_elbo import InexactELBOObjective
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -325,8 +326,8 @@ class _NullContext:
 
 
 def _get_no_grad_context(bkd: Backend[Array]) -> type:
-    """Return torch.no_grad if using TorchBkd, else a no-op context."""
-    if hasattr(bkd, "jacobian"):
+    """Return torch.no_grad if using an autodiff backend, else a no-op."""
+    if isinstance(bkd, AutodiffBackend):
         import torch
 
         return torch.no_grad
