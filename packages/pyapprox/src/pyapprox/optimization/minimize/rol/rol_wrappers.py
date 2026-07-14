@@ -5,7 +5,7 @@ pyrol is not installed.  The actual pyrol dependency is only needed at
 instantiation time.
 
 Capability is read from each object's Derivatives bundle (via the
-migration shim ``as_derivatives``): ``gradient``/``hessVec`` and
+``derivatives()`` accessor): ``gradient``/``hessVec`` and
 ``applyJacobian``/``applyAdjointJacobian``/``applyAdjointHessian`` are
 attached only when the corresponding bundle field resolves to a callable,
 and pyrol reacts to their absence with its internal secant/BFGS.
@@ -23,13 +23,14 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
+from pyapprox.interface.functions.protocols.constraint import (
+    NonlinearConstraintProtocol,
 )
-from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.optimization.minimize.constraints.protocols import (
     LinearConstraintProtocol,
-    NonlinearConstraintProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -50,7 +51,7 @@ def _require_pyrol() -> None:
 
 
 def make_rol_objective(
-    objective: FunctionProtocol[Array],
+    objective: ObjectiveProtocol[Array],
     bkd: Backend[Array],
 ) -> "pyrol.Objective":
     """Create a pyrol.Objective wrapping the given objective.
@@ -60,15 +61,15 @@ def make_rol_objective(
     ``inexact`` suite, ROL's ``tol`` parameter is passed through to its
     tolerance-aware value/jacobian.
     """
-    if not isinstance(objective, FunctionProtocol):
+    if not isinstance(objective, ObjectiveProtocol):
         raise TypeError(
-            f"objective must satisfy FunctionProtocol, "
+            f"objective must satisfy ObjectiveProtocol, "
             f"got {type(objective).__name__}"
         )
     _require_pyrol()
     import pyrol
 
-    derivs = as_derivatives(objective)
+    derivs = objective.derivatives()
     bundle_jacobian = derivs.jacobian
     bundle_hvp = derivs.resolved_hvp(objective.nqoi(), bkd)
     suite = derivs.inexact
@@ -151,7 +152,7 @@ def make_rol_nonlinear_constraint(
     _require_pyrol()
     import pyrol
 
-    derivs = as_derivatives(constraint)
+    derivs = constraint.derivatives()
     bundle_jacobian = derivs.jacobian
     bundle_whvp = derivs.resolved_whvp(constraint.nqoi())
     suite = derivs.inexact

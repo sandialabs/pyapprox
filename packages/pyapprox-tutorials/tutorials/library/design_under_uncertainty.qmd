@@ -130,7 +130,7 @@ Now set up and solve the optimization problem. The constraints must be $\geq 0$ 
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.optimization.minimize.constraints.protocols import (
+from pyapprox.interface.functions.protocols.constraint import (
     NonlinearConstraintProtocol,
 )
 

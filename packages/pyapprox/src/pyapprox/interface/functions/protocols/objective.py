@@ -45,23 +45,6 @@ class ObjectiveProtocol(FunctionProtocol[Array], Protocol):
         ...
 
 
-@runtime_checkable
-class NonlinearConstraintProtocol(FunctionProtocol[Array], Protocol):
-    """A vector-valued constraint with bounds and a derivative bundle."""
-
-    def lb(self) -> Array:
-        """Lower bounds. Shape ``(nqoi,)`` (existing constraint convention)."""
-        ...
-
-    def ub(self) -> Array:
-        """Upper bounds. Shape ``(nqoi,)`` (existing constraint convention)."""
-        ...
-
-    def derivatives(self) -> Derivatives[Array]:
-        """Return this constraint's derivative capabilities."""
-        ...
-
-
 class Function(ABC, Generic[Array]):
     """OPTIONAL human-facing sugar; never a consumer surface.
 

@@ -6,18 +6,20 @@ from typing import TYPE_CHECKING, Any, Generic, Optional, Self
 
 import numpy as np
 
+from pyapprox.interface.functions.protocols.constraint import (
+    NonlinearConstraintProtocol,
+)
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocol,
     SequenceOfConstraintProtocols,
 )
 from pyapprox.optimization.minimize.constraints.validation import (
     validate_constraints,
-)
-from pyapprox.optimization.minimize.objective.protocols import (
-    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,

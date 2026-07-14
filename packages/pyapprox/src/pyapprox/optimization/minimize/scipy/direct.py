@@ -3,14 +3,11 @@ from typing import Generic, Optional, Self
 import numpy as np
 from scipy.optimize import Bounds, direct
 
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
-)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyDerivativesAdapter,
 )
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -46,7 +43,7 @@ class ScipyDirectOptimizer(Generic[Array]):
 
     def __init__(
         self,
-        objective: Optional[FunctionProtocol[Array]] = None,
+        objective: Optional[ObjectiveProtocol[Array]] = None,
         bounds: Optional[Array] = None,
         maxfun: Optional[int] = None,
         maxiter: int = 1000,
@@ -77,13 +74,13 @@ class ScipyDirectOptimizer(Generic[Array]):
 
     def bind(
         self,
-        objective: FunctionProtocol[Array],
+        objective: ObjectiveProtocol[Array],
         bounds: Array,
         constraints: Optional[object] = None,
     ) -> Self:
         validate_objective(objective)
         self._objective = NumpyDerivativesAdapter(
-            objective, as_derivatives(objective)
+            objective, objective.derivatives()
         )
         self._bounds = self._convert_bounds(
             bounds, self._objective.nvars(), self._objective.bkd()

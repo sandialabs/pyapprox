@@ -6,7 +6,7 @@ Wraps a constrained optimizer to solve min_x AVaR_alpha[f_i(x)].
 
 from typing import Generic, Optional, Sequence
 
-from pyapprox.optimization.minimize.constraints.protocols import (
+from pyapprox.interface.functions.protocols.constraint import (
     NonlinearConstraintProtocol,
 )
 from pyapprox.optimization.minimize.minimax.protocols import (

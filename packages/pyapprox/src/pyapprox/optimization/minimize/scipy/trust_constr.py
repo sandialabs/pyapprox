@@ -4,23 +4,20 @@ import numpy as np
 from scipy.optimize import Bounds
 from scipy.optimize import minimize as scipy_minimize
 
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
-)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyArray,
     NumpyDerivativesAdapter,
     NumpyFn,
     NumpyHVPFn,
 )
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
 )
 from pyapprox.optimization.minimize.constraints.validation import (
     validate_constraints,
-)
-from pyapprox.optimization.minimize.objective.protocols import (
-    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -159,7 +156,7 @@ class ScipyTrustConstrOptimizer(Generic[Array]):
         """
         validate_objective(objective)
         adapter = NumpyDerivativesAdapter(
-            objective, as_derivatives(objective)
+            objective, objective.derivatives()
         )
         self._objective = adapter
         self._np_jac = adapter.jacobian()

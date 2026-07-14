@@ -15,8 +15,10 @@ from pyapprox.interface.functions.derivatives import (
     JacobianBatchFn,
     JacobianFn,
 )
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.optimization.minimize.inexact.protocols import (
     InexactGradientStrategyProtocol,
 )
@@ -72,10 +74,10 @@ class InexactWrapper(Generic[Array]):
         constraint_lb: Optional[Array] = None,
         constraint_ub: Optional[Array] = None,
     ) -> None:
-        if not isinstance(model, FunctionProtocol):
+        if not isinstance(model, ObjectiveProtocol):
             raise TypeError(
-                f"model must satisfy FunctionProtocol, "
-                f"got {type(model).__name__}"
+                "model must satisfy ObjectiveProtocol (a FunctionProtocol "
+                f"exposing derivatives()), got {type(model).__name__}"
             )
         if not isinstance(stat, SampleStatisticProtocol):
             raise TypeError(
@@ -99,7 +101,7 @@ class InexactWrapper(Generic[Array]):
 
         # Construction-time capability branching: jacobian is available
         # only when both the model and the statistic can differentiate.
-        md = as_derivatives(model)
+        md = model.derivatives()
         self._model_jac: Optional[JacobianFn[Array]] = md.jacobian
         self._model_jac_batch: Optional[JacobianBatchFn[Array]] = (
             md.jacobian_batch

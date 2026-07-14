@@ -8,11 +8,11 @@ from typing import Optional, Protocol, Self, cast, runtime_checkable
 
 import torch
 
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
-)
-from pyapprox.optimization.minimize.objective.protocols import (
-    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.result import OptimizerResult
 from pyapprox.optimization.minimize.result_protocol import (

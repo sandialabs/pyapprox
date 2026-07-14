@@ -40,7 +40,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from pyapprox.optimization.minimize.objective.protocols import (
+    from pyapprox.interface.functions.protocols.objective import (
         ObjectiveProtocol,
     )
     from pyapprox.optimization.minimize.scipy.trust_constr import (

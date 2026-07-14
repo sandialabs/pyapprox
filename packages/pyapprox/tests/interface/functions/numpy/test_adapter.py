@@ -16,15 +16,12 @@ from tests._helpers.optimizer_fixtures import (
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyDerivativesAdapter,
 )
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
-)
 
 
 def _make(bkd, producer_cls):
     producer = producer_cls(bkd, [1.0, -0.5])
     return producer, NumpyDerivativesAdapter(
-        producer, as_derivatives(producer)
+        producer, producer.derivatives()
     )
 
 
@@ -82,7 +79,7 @@ class TestNumpyDerivativesAdapter:
             bkd, 2, 1.0, float("inf")
         )
         adapter = NumpyDerivativesAdapter(
-            constraint, as_derivatives(constraint)
+            constraint, constraint.derivatives()
         )
         np_whvp = adapter.whvp()
         assert np_whvp is not None
@@ -98,7 +95,7 @@ class TestNumpyDerivativesAdapter:
         with pytest.raises(TypeError, match="FunctionProtocol"):
             NumpyDerivativesAdapter(
                 object(),
-                as_derivatives(QuadraticNoDerivatives(numpy_bkd, [0.0])),
+                QuadraticNoDerivatives(numpy_bkd, [0.0]).derivatives(),
             )
 
     def test_rejects_non_bundle(self, numpy_bkd):
@@ -129,7 +126,7 @@ class TestNumpyDerivativesAdapter:
     def test_sample_ndim_one(self, bkd):
         producer, _ = _make(bkd, QuadraticNoDerivatives)
         adapter = NumpyDerivativesAdapter(
-            producer, as_derivatives(producer), sample_ndim=1
+            producer, producer.derivatives(), sample_ndim=1
         )
         values = adapter(np.array([1.0, -0.5]))
         bkd.assert_allclose(bkd.asarray(values), bkd.asarray([[0.0]]))

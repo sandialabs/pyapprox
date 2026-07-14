@@ -3,14 +3,11 @@ from typing import Generic, Literal, Optional, Self, Tuple, Union
 import numpy as np
 from scipy.optimize import Bounds, differential_evolution
 
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
-)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyDerivativesAdapter,
 )
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
@@ -72,7 +69,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
 
     def __init__(
         self,
-        objective: Optional[FunctionProtocol[Array]] = None,
+        objective: Optional[ObjectiveProtocol[Array]] = None,
         bounds: Optional[Array] = None,
         constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
         strategy: StrategyType = "best1bin",
@@ -90,7 +87,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
 
         Parameters
         ----------
-        objective : Optional[FunctionProtocol[Array]], optional
+        objective : Optional[ObjectiveProtocol[Array]], optional
             Objective function for the optimization problem. If None, must
             call bind() before minimize(). Defaults to None.
         bounds : Optional[Array], optional
@@ -150,7 +147,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
 
     def bind(
         self,
-        objective: FunctionProtocol[Array],
+        objective: ObjectiveProtocol[Array],
         bounds: Array,
         constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
     ) -> Self:
@@ -158,7 +155,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
 
         Parameters
         ----------
-        objective : FunctionProtocol[Array]
+        objective : ObjectiveProtocol[Array]
             Objective function for the optimization problem.
         bounds : Array
             Bounds for the optimization variables, shape (nvars, 2).
@@ -172,7 +169,7 @@ class ScipyDifferentialEvolutionOptimizer(Generic[Array]):
         """
         validate_objective(objective)
         self._objective = NumpyDerivativesAdapter(
-            objective, as_derivatives(objective)
+            objective, objective.derivatives()
         )
         # Use objective's backend directly since we're not fully bound yet
         self._bounds = self._convert_bounds(

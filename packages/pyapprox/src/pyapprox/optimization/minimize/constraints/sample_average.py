@@ -12,8 +12,10 @@ stat classes in a future consolidation.
 from typing import Callable, Generic, List, Optional
 
 from pyapprox.interface.functions.derivatives import Derivatives, JacobianFn
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.optimization.minimize.utils import assemble_full_samples
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.protocols.statistics import (
@@ -70,10 +72,10 @@ class SampleAverageConstraint(Generic[Array]):
         constraint_ub: Array,
         bkd: Backend[Array],
     ) -> None:
-        if not isinstance(model, FunctionProtocol):
+        if not isinstance(model, ObjectiveProtocol):
             raise TypeError(
-                f"model must satisfy FunctionProtocol, "
-                f"got {type(model).__name__}"
+                "model must satisfy ObjectiveProtocol (a FunctionProtocol "
+                f"exposing derivatives()), got {type(model).__name__}"
             )
         if not isinstance(stat, SampleStatisticProtocol):
             raise TypeError(
@@ -103,9 +105,9 @@ class SampleAverageConstraint(Generic[Array]):
 
         # Construction-time capability branching: jacobian is available
         # only when both the model and the statistic can differentiate.
-        self._model_jac: Optional[JacobianFn[Array]] = as_derivatives(
-            model
-        ).jacobian
+        self._model_jac: Optional[JacobianFn[Array]] = (
+            model.derivatives().jacobian
+        )
         self._stat_jac: Optional[Callable[[Array, Array, Array], Array]] = (
             None
         )

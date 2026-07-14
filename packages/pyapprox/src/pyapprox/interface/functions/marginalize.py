@@ -35,8 +35,10 @@ from pyapprox.interface.functions.derivatives import (
     JacobianFn,
     WHVPFn,
 )
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
@@ -429,7 +431,12 @@ class ActiveSetFunction(Generic[Array]):
         # Mirror the wrapped model's capability: each populated field is
         # wrapped in a restriction closure; absent capability stays
         # absent.
-        fd = as_derivatives(function)
+        if not isinstance(function, ObjectiveProtocol):
+            raise TypeError(
+                f"{type(function).__name__} must satisfy ObjectiveProtocol "
+                "(a FunctionProtocol exposing derivatives())"
+            )
+        fd = function.derivatives()
         self._function_jac: Optional[JacobianFn[Array]] = fd.jacobian
         self._function_hvp: Optional[HVPFn[Array]] = fd.hvp
         self._function_whvp: Optional[WHVPFn[Array]] = fd.whvp

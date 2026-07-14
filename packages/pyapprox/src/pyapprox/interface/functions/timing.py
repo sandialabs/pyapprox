@@ -29,9 +29,11 @@ from dataclasses import dataclass
 from typing import Callable, Dict, Generic, List, Optional, Tuple
 
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
+)
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -245,7 +247,12 @@ class TimedFunction(Generic[Array]):
     ) -> None:
         self._function = function
         self._timer = timer if timer is not None else FunctionTimer()
-        fd = as_derivatives(function)
+        if not isinstance(function, ObjectiveProtocol):
+            raise TypeError(
+                f"{type(function).__name__} must satisfy ObjectiveProtocol "
+                "(a FunctionProtocol exposing derivatives())"
+            )
+        fd = function.derivatives()
         t = self._timer
         self._derivs: Derivatives[Array] = Derivatives(
             jacobian=None

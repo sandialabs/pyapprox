@@ -1,3 +1,12 @@
+"""Constraint protocols for optimizer binding.
+
+``NonlinearConstraintProtocol`` lives at its canonical location,
+``pyapprox.interface.functions.protocols.objective`` (evaluation, bounds,
+and a ``derivatives()`` accessor — capability travels in the bundle,
+never as protocol tiers); it is imported here only to build
+``SequenceOfConstraintProtocols``. Import it from the canonical module.
+"""
+
 from typing import (
     Generic,
     Protocol,
@@ -8,7 +17,15 @@ from typing import (
 
 from scipy.optimize import LinearConstraint as ScipyLinearConstraint
 
+from pyapprox.interface.functions.protocols.constraint import (
+    NonlinearConstraintProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
+
+__all__ = [
+    "LinearConstraintProtocol",
+    "SequenceOfConstraintProtocols",
+]
 
 
 @runtime_checkable
@@ -22,57 +39,6 @@ class LinearConstraintProtocol(Protocol, Generic[Array]):
     def ub(self) -> Array: ...
 
     def bkd(self) -> Backend[Array]: ...
-
-
-@runtime_checkable
-class NonlinearConstraintProtocol(Protocol, Generic[Array]):
-    def bkd(self) -> Backend[Array]: ...
-
-    def nvars(self) -> int: ...
-
-    def nqoi(self) -> int: ...
-
-    def __call__(self, samples: Array) -> Array: ...
-
-    def lb(self) -> Array: ...
-
-    def ub(self) -> Array: ...
-
-
-@runtime_checkable
-class NonlinearConstraintProtocolWithJacobian(Protocol, Generic[Array]):
-    def bkd(self) -> Backend[Array]: ...
-
-    def nvars(self) -> int: ...
-
-    def nqoi(self) -> int: ...
-
-    def __call__(self, samples: Array) -> Array: ...
-
-    def lb(self) -> Array: ...
-
-    def ub(self) -> Array: ...
-
-    def jacobian(self, sample: Array) -> Array: ...
-
-
-@runtime_checkable
-class NonlinearConstraintProtocolWithJacobianAndWHVP(Protocol, Generic[Array]):
-    def bkd(self) -> Backend[Array]: ...
-
-    def nvars(self) -> int: ...
-
-    def nqoi(self) -> int: ...
-
-    def __call__(self, samples: Array) -> Array: ...
-
-    def lb(self) -> Array: ...
-
-    def ub(self) -> Array: ...
-
-    def jacobian(self, sample: Array) -> Array: ...
-
-    def whvp(self, sample: Array, vec: Array, weights: Array) -> Array: ...
 
 
 SequenceOfConstraintProtocols = Sequence[

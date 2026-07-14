@@ -7,14 +7,11 @@ phase before a second-order local optimizer via ChainedOptimizer.
 from typing import Generic, Optional, Self
 
 from pyapprox.interface.functions.derivatives import JacobianFn
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
-)
-from pyapprox.optimization.minimize.objective.protocols import (
-    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -97,7 +94,7 @@ class AdamOptimizer(Generic[Array]):
                 "AdamOptimizer does not support constraints."
             )
         validate_objective(objective)
-        jacobian = as_derivatives(objective).jacobian
+        jacobian = objective.derivatives().jacobian
         if jacobian is None:
             raise TypeError(
                 "AdamOptimizer requires an objective with a jacobian, "

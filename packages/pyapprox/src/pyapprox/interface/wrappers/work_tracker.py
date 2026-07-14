@@ -10,7 +10,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Generic, List, Optional
 
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
@@ -285,7 +287,12 @@ class TrackedModel(Generic[Array]):
         self._tracker = tracker
         # Mirror the wrapped model's capability, timing each populated
         # field under its eval type.
-        md = as_derivatives(model)
+        if not isinstance(model, ObjectiveProtocol):
+            raise TypeError(
+                f"{type(model).__name__} must satisfy ObjectiveProtocol "
+                "(a FunctionProtocol exposing derivatives())"
+            )
+        md = model.derivatives()
         self._derivs: Derivatives[Array] = Derivatives(
             jacobian=None
             if md.jacobian is None

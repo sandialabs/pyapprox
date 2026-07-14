@@ -1,10 +1,10 @@
 from typing import Any, List, Sequence
 
+from pyapprox.interface.functions.protocols.constraint import (
+    NonlinearConstraintProtocol,
+)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
-)
-from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocol,
 )
 
 

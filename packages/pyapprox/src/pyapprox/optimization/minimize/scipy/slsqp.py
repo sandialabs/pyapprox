@@ -5,26 +5,25 @@ import numpy as np
 from scipy.optimize import Bounds
 from scipy.optimize import minimize as scipy_minimize
 
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
-)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyArray,
     NumpyDerivativesAdapter,
     NumpyFn,
 )
+from pyapprox.interface.functions.protocols.constraint import (
+    NonlinearConstraintProtocol,
+)
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocol,
     SequenceOfConstraintProtocols,
 )
 from pyapprox.optimization.minimize.constraints.validation import (
     validate_constraints,
-)
-from pyapprox.optimization.minimize.objective.protocols import (
-    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -143,7 +142,7 @@ def _convert_constraints_for_slsqp(
                 f"a PyApproxLinearConstraint, got {type(constraint).__name__}"
             )
         adapter = NumpyDerivativesAdapter(
-            constraint, as_derivatives(constraint)
+            constraint, constraint.derivatives()
         )
         np_jac = adapter.jacobian()
         con_bkd = constraint.bkd()
@@ -298,7 +297,7 @@ class ScipySLSQPOptimizer(Generic[Array]):
         """
         validate_objective(objective)
         adapter = NumpyDerivativesAdapter(
-            objective, as_derivatives(objective)
+            objective, objective.derivatives()
         )
         self._objective = adapter
         self._np_jac = adapter.jacobian()

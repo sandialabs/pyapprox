@@ -1,5 +1,8 @@
 """Dual-backend tests for InexactWrapper."""
 
+from pyapprox.interface.functions.protocols.constraint import (
+    NonlinearConstraintProtocol,
+)
 from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 import pytest
@@ -7,9 +10,6 @@ import pytest
 from pyapprox.risk import SampleAverageMean
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
-)
-from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocol,
 )
 from pyapprox.optimization.minimize.inexact.fixed import (
     FixedSampleStrategy,

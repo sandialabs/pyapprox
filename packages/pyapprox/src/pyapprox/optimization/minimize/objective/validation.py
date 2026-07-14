@@ -1,9 +1,9 @@
 from typing import Any, List
 
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
 )
-from pyapprox.interface.functions.protocols.function import FunctionProtocol
 
 
 def _missing_protocol_methods(obj: object, protocol: type) -> List[str]:
@@ -26,14 +26,10 @@ def validate_objective(objective: Any) -> None:
     """
     Validate that the given objective can be consumed by an optimizer.
 
-    INTERIM (derivatives-refactor migration) form: requires the base
-    function shape (bkd/nvars/nqoi/__call__) and a well-formed Derivatives
-    bundle via ``as_derivatives`` — which accepts both migrated producers
-    (``derivatives()``) and legacy producers (capability attributes).
-    Once every producer is migrated this tightens to
-    ``isinstance(objective, ObjectiveProtocol)``.
-    Additionally checks that the objective has exactly one quantity of
-    interest (nqoi == 1).
+    Requires ``ObjectiveProtocol`` conformance (bkd/nvars/nqoi/__call__
+    plus a ``derivatives()`` accessor returning a well-formed
+    ``Derivatives`` bundle) and exactly one quantity of interest
+    (nqoi == 1).
 
     Parameters
     ----------
@@ -43,22 +39,27 @@ def validate_objective(objective: Any) -> None:
     Raises
     ------
     TypeError
-        If the objective does not have the base function shape, or its
+        If the objective does not satisfy ObjectiveProtocol, or its
         ``derivatives()`` does not return a Derivatives bundle.
     ValueError
         If the objective does not have exactly one quantity of interest (nqoi != 1).
     """
-    if not isinstance(objective, FunctionProtocol):
-        missing = _missing_protocol_methods(objective, FunctionProtocol)
+    if not isinstance(objective, ObjectiveProtocol):
+        missing = _missing_protocol_methods(objective, ObjectiveProtocol)
         raise TypeError(
-            f"Invalid objective type: expected an object implementing the "
-            f"ObjectiveProtocol base shape (bkd(), nvars(), nqoi(), "
-            f"__call__(samples)), got {type(objective).__name__}. "
+            f"Invalid objective type: expected an object implementing "
+            f"ObjectiveProtocol (bkd(), nvars(), nqoi(), "
+            f"__call__(samples), derivatives()), got "
+            f"{type(objective).__name__}. "
             f"Missing or invalid methods: {missing}."
         )
 
-    # raises TypeError on malformed derivatives(); harvests legacy attrs
-    as_derivatives(objective)
+    bundle = objective.derivatives()
+    if not isinstance(bundle, Derivatives):
+        raise TypeError(
+            f"{type(objective).__name__}.derivatives() must return a "
+            f"Derivatives bundle; got {type(bundle).__name__}"
+        )
 
     # Check that the objective has exactly one quantity of interest
     if objective.nqoi() != 1:

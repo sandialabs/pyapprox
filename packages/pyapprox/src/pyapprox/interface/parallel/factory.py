@@ -14,8 +14,10 @@ from pyapprox.interface.functions.derivatives import (
     JacobianFn,
     WHVPFn,
 )
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.interface.parallel.batch_utils import BatchSplitter
 from pyapprox.interface.parallel.config import (
     ParallelConfig,
@@ -57,9 +59,10 @@ class ParallelFunctionWrapper(Generic[Array]):
         function: FunctionProtocol[Array],
         config: Optional[ParallelConfig] = None,
     ) -> None:
-        if not isinstance(function, FunctionProtocol):
+        if not isinstance(function, ObjectiveProtocol):
             raise TypeError(
-                "function must satisfy FunctionProtocol, got "
+                "function must satisfy ObjectiveProtocol (a "
+                "FunctionProtocol exposing derivatives()), got "
                 f"{type(function).__name__}"
             )
         self._function = function
@@ -70,7 +73,7 @@ class ParallelFunctionWrapper(Generic[Array]):
         # Mirror the wrapped function's capability: forward the
         # single-sample fields unchanged and add a parallel batch form
         # for each populated field.
-        fd = as_derivatives(function)
+        fd = function.derivatives()
         self._function_jac: Optional[JacobianFn[Array]] = fd.jacobian
         self._function_hvp: Optional[HVPFn[Array]] = fd.hvp
         self._function_whvp: Optional[WHVPFn[Array]] = fd.whvp

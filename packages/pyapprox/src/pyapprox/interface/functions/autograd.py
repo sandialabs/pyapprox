@@ -21,8 +21,10 @@ from dataclasses import dataclass
 from typing import Callable, Generic
 
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.interface.functions.protocols.objective import (
+from pyapprox.interface.functions.protocols.constraint import (
     NonlinearConstraintProtocol,
+)
+from pyapprox.interface.functions.protocols.objective import (
     ObjectiveProtocol,
 )
 from pyapprox.util.backends.autodiff import AutodiffBackend

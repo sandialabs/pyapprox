@@ -1,7 +1,7 @@
 """Convert PyApprox constraints into SciPy constraint objects.
 
 Nonlinear constraints are read through their Derivatives bundle (via the
-migration shim ``as_derivatives``): an absent jacobian hands SciPy the
+``derivatives()`` accessor): an absent jacobian hands SciPy the
 string ``"2-point"`` so SciPy does its own finite differencing; an absent
 whvp hands SciPy ``hess=None``. Module-level functions + ``partial`` (not
 closures) keep the converted constraints picklable.
@@ -18,20 +18,19 @@ from scipy.optimize import (
     NonlinearConstraint,
 )
 
-from pyapprox.interface.functions.legacy_adapter import (
-    as_derivatives,
-)
 from pyapprox.interface.functions.numpy.adapter import (
     NumpyArray,
     NumpyDerivativesAdapter,
     NumpyFn,
     NumpyWHVPFn,
 )
+from pyapprox.interface.functions.protocols.constraint import (
+    NonlinearConstraintProtocol,
+)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.optimization.minimize.constraints.protocols import (
-    NonlinearConstraintProtocol,
     SequenceOfConstraintProtocols,
 )
 from pyapprox.util.backends.protocols import Array
@@ -90,7 +89,7 @@ def convert_constraints(
                 f"a PyApproxLinearConstraint, got {type(constraint).__name__}"
             )
         adapter = NumpyDerivativesAdapter(
-            constraint, as_derivatives(constraint)
+            constraint, constraint.derivatives()
         )
         # capability captured once; SciPy reacts to what is available
         np_jac = adapter.jacobian()

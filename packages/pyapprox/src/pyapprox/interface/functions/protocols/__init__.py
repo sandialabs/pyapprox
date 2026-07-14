@@ -20,6 +20,7 @@ Examples
 ...     return f(samples)
 """
 
+from .constraint import NonlinearConstraintProtocol
 from .function import FunctionProtocol
 from .hessian import (
     FunctionWithJacobianAndHVPProtocol,
@@ -32,7 +33,6 @@ from .jacobian import (
 )
 from .objective import (
     Function,
-    NonlinearConstraintProtocol,
     ObjectiveProtocol,
 )
 

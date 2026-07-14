@@ -7,9 +7,8 @@ optimization problems, including linear and nonlinear constraints.
 Key Protocols
 -------------
 - LinearConstraintProtocol: Protocol for linear constraints
-- NonlinearConstraintProtocol: Protocol for nonlinear constraints
-- NonlinearConstraintProtocolWithJacobian: With Jacobian support
-- NonlinearConstraintProtocolWithJacobianAndWHVP: With Jacobian and weighted HVP
+- NonlinearConstraintProtocol lives at its canonical location,
+  ``pyapprox.interface.functions.protocols.objective``
 
 Key Classes
 -----------
@@ -26,17 +25,11 @@ Examples
 from .linear import PyApproxLinearConstraint
 from .protocols import (
     LinearConstraintProtocol,
-    NonlinearConstraintProtocol,
-    NonlinearConstraintProtocolWithJacobian,
-    NonlinearConstraintProtocolWithJacobianAndWHVP,
 )
 from .validation import validate_linear_constraint
 
 __all__ = [
     "LinearConstraintProtocol",
-    "NonlinearConstraintProtocol",
-    "NonlinearConstraintProtocolWithJacobian",
-    "NonlinearConstraintProtocolWithJacobianAndWHVP",
     "PyApproxLinearConstraint",
     "validate_linear_constraint",
 ]

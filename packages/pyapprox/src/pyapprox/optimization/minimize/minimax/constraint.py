@@ -7,7 +7,9 @@ Converts a multi-QoI objective into constraints t >= f_i(x) for minimax.
 from typing import Generic, Optional
 
 from pyapprox.interface.functions.derivatives import Derivatives, JacobianFn
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 from .protocols import MultiQoIObjectiveProtocol
@@ -45,9 +47,14 @@ class MinimaxConstraint(Generic[Array]):
         self._bkd = model.bkd()
         # Construction-time capability branching: constraint jacobian is
         # available only when the model can differentiate.
-        self._model_jac: Optional[JacobianFn[Array]] = as_derivatives(
-            model
-        ).jacobian
+        if not isinstance(model, ObjectiveProtocol):
+            raise TypeError(
+                f"{type(model).__name__} must satisfy ObjectiveProtocol "
+                "(a FunctionProtocol exposing derivatives())"
+            )
+        self._model_jac: Optional[JacobianFn[Array]] = (
+            model.derivatives().jacobian
+        )
         if self._model_jac is not None:
             self._derivs: Derivatives[Array] = Derivatives.first_order(
                 jacobian=self._jacobian

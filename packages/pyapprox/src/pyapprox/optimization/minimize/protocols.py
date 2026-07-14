@@ -2,11 +2,11 @@
 
 from typing import Generic, Optional, Protocol, Self, runtime_checkable
 
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.optimization.minimize.constraints.protocols import (
     SequenceOfConstraintProtocols,
-)
-from pyapprox.optimization.minimize.objective.protocols import (
-    ObjectiveProtocol,
 )
 from pyapprox.optimization.minimize.result_protocol import (
     OptimizerResultProtocol,
