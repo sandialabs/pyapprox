@@ -171,8 +171,8 @@ class ManufacturedAdvectionDiffusionReaction(
             Robin values at each point. Shape: (npts,)
         """
         if self.is_transient():
-            u_vals = self.functions["solution"](pts, time).flatten()
+            u_vals = self._bkd.flatten(self.functions["solution"](pts, time))
         else:
-            u_vals = self.functions["solution"](pts).flatten()
+            u_vals = self._bkd.flatten(self.functions["solution"](pts))
         normal_term = self.neumann_values(pts, normals, time, convention)
         return alpha * u_vals + beta * normal_term

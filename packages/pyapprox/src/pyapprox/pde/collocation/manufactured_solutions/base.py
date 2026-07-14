@@ -7,9 +7,11 @@ for scalar and vector PDEs.
 import copy
 from abc import ABC, abstractmethod
 from functools import partial
-from typing import Any, Callable, Dict, Generic, List
+from typing import Any, Callable, Dict, Generic, List, Union
 
+import numpy as np
 import sympy as sp
+from numpy.typing import NDArray
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -39,6 +41,7 @@ def _evaluate_sp_lambda(
         Function values. Shape: (npts,) if oned else (npts, 1).
     """
     xx_np = bkd.to_numpy(xx)
+    sp_args: tuple[NDArray[np.floating[Any]], ...]
     if len(xx_np.shape) == 1:
         sp_args = (xx_np,)
     else:
@@ -86,6 +89,7 @@ def _evaluate_transient_sp_lambda(
         Function values. Shape: (npts,) if oned else (npts, 1).
     """
     xx_np = bkd.to_numpy(xx)
+    sp_args: tuple[Union[NDArray[np.floating[Any]], float], ...]
     if len(xx_np.shape) == 1:
         sp_args = (xx_np, time)
     else:
@@ -225,6 +229,14 @@ class ManufacturedSolution(ABC, Generic[Array]):
         """Set up the solution expression."""
         raise NotImplementedError
 
+    @abstractmethod
+    def sympy_temporal_derivative_expression(self) -> None:
+        """Add temporal derivative contributions to the forcing.
+
+        Implemented by the solution mixins (Scalar/VectorSolutionMixin).
+        """
+        raise NotImplementedError
+
     def cartesian_symbols(self) -> List[sp.Symbol]:
         """Return sympy symbols for spatial coordinates."""
         return list(sp.symbols(["x", "y", "z"])[: self.nvars()])
@@ -237,7 +249,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
         """Return all sympy symbols (space + time)."""
         return self.cartesian_symbols() + self.time_symbol()
 
-    def _steady_expression_to_function(self, expr: object) -> Callable[..., Any]:
+    def _steady_expression_to_function(self, expr: object) -> Callable[..., Array]:
         """Convert a steady expression to a callable function."""
         all_symbs = self.cartesian_symbols()
         expr_lambda = sp.lambdify(all_symbs, expr, "numpy")
@@ -245,7 +257,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
 
     def _steady_expression_list_to_function(
         self, exprs: List[Any]
-    ) -> Callable[..., Any]:
+    ) -> Callable[..., Array]:
         """Convert a list of steady expressions to a callable function."""
         all_symbs = self.cartesian_symbols()
         expr_lambda = [sp.lambdify(all_symbs, expr, "numpy") for expr in exprs]
@@ -258,7 +270,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
 
     def _steady_expression_list_of_lists_to_function(
         self, exprs: List[List[Any]]
-    ) -> Callable[..., Any]:
+    ) -> Callable[..., Array]:
         """Convert a list of lists of steady expressions to a callable."""
         all_symbs = self.cartesian_symbols()
         expr_lambda = [
@@ -271,7 +283,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
             oned=False,
         )
 
-    def _transient_expression_to_function(self, expr: object) -> Callable[..., Any]:
+    def _transient_expression_to_function(self, expr: object) -> Callable[..., Array]:
         """Convert a transient expression to a callable function."""
         all_symbs = self.all_symbols()
         expr_lambda = sp.lambdify(all_symbs, expr, "numpy")
@@ -284,7 +296,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
 
     def _transient_expression_list_to_function(
         self, exprs: List[Any]
-    ) -> Callable[..., Any]:
+    ) -> Callable[..., Array]:
         """Convert a list of transient expressions to a callable function."""
         all_symbs = self.all_symbols()
         expr_lambda = [sp.lambdify(all_symbs, expr, "numpy") for expr in exprs]
@@ -297,7 +309,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
 
     def _transient_expression_list_of_lists_to_function(
         self, exprs: List[List[Any]]
-    ) -> Callable[..., Any]:
+    ) -> Callable[..., Array]:
         """Convert a list of lists of transient expressions to a callable."""
         all_symbs = self.all_symbols()
         expr_lambda = [
@@ -321,7 +333,7 @@ class ManufacturedSolution(ABC, Generic[Array]):
         self.transient["forcing"] = self.is_transient()
         if any(self.transient.values()) and not self.transient.get("solution", False):
             raise ValueError("solution must be transient because another function is")
-        self.functions: Dict[str, Callable[..., Any]] = {}
+        self.functions: Dict[str, Callable[..., Array]] = {}
         for name, expr in self._expressions.items():
             if isinstance(expr, list) and not isinstance(expr[0], list):
                 if not self.transient.get(name, False):
