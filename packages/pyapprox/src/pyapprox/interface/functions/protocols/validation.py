@@ -180,32 +180,6 @@ def validate_1d_array(nvars: int, samples: Array) -> None:
         )
 
 
-def validate_hessian_batch(nqoi: int, nvars: int, nsamples: int, hess: Array) -> None:
-    """Validate batch Hessian output shape.
-
-    Parameters
-    ----------
-    nqoi : int
-        Number of quantities of interest.
-    nvars : int
-        Number of input variables.
-    nsamples : int
-        Number of samples.
-    hess : Array
-        Hessian array to validate.
-
-    Raises
-    ------
-    ValueError
-        If the Hessian does not have shape (nsamples, nqoi, nvars, nvars).
-    """
-    expected_shape = (nsamples, nqoi, nvars, nvars)
-    if hess.shape != expected_shape:
-        raise ValueError(
-            f"Hessian batch shape mismatch: expected {expected_shape}, got {hess.shape}"
-        )
-
-
 def validate_hvp_batch(nvars: int, nsamples: int, hvps: Array) -> None:
     """Validate batch HVP output shape.
 

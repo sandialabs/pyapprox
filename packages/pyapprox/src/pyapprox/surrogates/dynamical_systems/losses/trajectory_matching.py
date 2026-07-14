@@ -1,7 +1,7 @@
 """Trajectory matching loss: forward ODE solve + MSE functional with adjoint gradient.
 
 Wraps BatchedBoundODEResidual + TimeIntegrator + TransientMSEFunctional
-as a FunctionWithJacobianProtocol for use with DerivativeChecker and optimizers.
+for use with DerivativeChecker and optimizers.
 """
 
 from typing import Generic, List, Tuple

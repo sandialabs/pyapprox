@@ -48,7 +48,7 @@ class TimeAdjointOperatorWrapper:
     Wrapper to make TimeAdjointOperatorWithHVP compatible with DerivativeChecker.
 
     Fixes the initial state so that the function depends only on parameters.
-    Implements FunctionWithJacobianProtocol and HVP for DerivativeChecker.
+    Provides jacobian and HVP methods for DerivativeChecker.
     """
 
     def __init__(
@@ -69,7 +69,7 @@ class TimeAdjointOperatorWrapper:
 
     def nvars(self) -> int:
         """Number of variables (parameters) - required by
-        FunctionWithJacobianProtocol."""
+        FunctionProtocol."""
         return self._operator.nparams()
 
     def nparams(self) -> int:

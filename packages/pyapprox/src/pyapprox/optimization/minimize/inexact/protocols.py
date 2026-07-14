@@ -3,7 +3,6 @@
 Defines structural protocols for:
 - InexactGradientStrategyProtocol: maps tolerance to (samples, weights)
 - InexactEvaluable: tolerance-dependent function evaluation
-- InexactDifferentiable: tolerance-dependent jacobian evaluation
 """
 
 from typing import Generic, Protocol, Tuple, runtime_checkable
@@ -72,24 +71,3 @@ class InexactEvaluable(Protocol, Generic[Array]):
         """
         ...
 
-
-@runtime_checkable
-class InexactDifferentiable(Protocol, Generic[Array]):
-    """Protocol for objects supporting tolerance-dependent jacobian."""
-
-    def inexact_jacobian(self, sample: Array, tol: float) -> Array:
-        """Compute jacobian with tolerance-dependent accuracy.
-
-        Parameters
-        ----------
-        sample : Array
-            Input sample. Shape ``(nvars, 1)``.
-        tol : float
-            Accuracy tolerance from ROL.
-
-        Returns
-        -------
-        Array
-            Jacobian. Shape ``(nqoi, nvars)``.
-        """
-        ...

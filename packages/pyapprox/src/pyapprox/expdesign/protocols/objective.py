@@ -18,7 +18,7 @@ class OEDObjectiveProtocol(Protocol, Generic[Array]):
     """
     Protocol for OED objective functions.
 
-    Follows the FunctionWithJacobianProtocol pattern from interface/functions.
+    Function-shaped with an analytic jacobian (see interface/functions).
     The objective takes design weights and returns a scalar value.
 
     For minimization, returns negative EIG.

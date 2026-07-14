@@ -1,5 +1,8 @@
 """Tests for RosenbrockFunction."""
 
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 import numpy as np
 import pytest
 
@@ -11,9 +14,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
-)
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithJacobianAndHVPProtocol,
 )
 
 # TODO: this test class should be where function is defined
@@ -33,9 +33,11 @@ class TestRosenbrockFunction:
         assert isinstance(func, FunctionProtocol)
 
     def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
-        """Test that RosenbrockFunction satisfies FunctionWithJacobianAndHVPProtocol."""
+        """Test that RosenbrockFunction declares jacobian and hvp via its Derivatives bundle."""
         func = RosenbrockFunction(bkd, nvars=2)
-        assert isinstance(func, FunctionWithJacobianAndHVPProtocol)
+        assert isinstance(func, ObjectiveProtocol)
+        assert func.derivatives().jacobian is not None
+        assert func.derivatives().hvp is not None
 
     def test_nvars_default(self, bkd) -> None:
         """Test default nvars is 2."""

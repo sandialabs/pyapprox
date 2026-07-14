@@ -12,8 +12,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
-    FunctionWithJacobianAndHVPProtocol,
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
     SubsetOfStatesAdjointFunctional,
@@ -406,12 +404,14 @@ class TestSteadyForwardModel:
         assert not hasattr(fwd, "hvp")
 
     def test_protocol_isinstance_with_jacobian(self, bkd):
-        """Forward model with jacobian satisfies FunctionWithJacobianProtocol."""
+        """Forward model with jacobian satisfies FunctionProtocol."""
         physics, param, init_state = _create_parameterized_diffusion_problem(bkd)
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=param)
         assert isinstance(fwd, FunctionProtocol)
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
-        assert not isinstance(fwd, FunctionWithJacobianAndHVPProtocol)
+        # jacobian attached, hvp not (pde still uses conditional
+        # injection; bundle migration reaches it in the pde stage)
+        assert callable(fwd.jacobian)
+        assert not hasattr(fwd, "hvp")
 
     def test_torch_autograd_jacobian(self, torch_bkd):
         """Torch autograd.functional.jacobian matches fwd.jacobian."""
@@ -469,4 +469,7 @@ class TestSteadyForwardModel:
         init_state = bkd.zeros((npts,))
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=dp)
         assert isinstance(fwd, FunctionProtocol)
-        assert not isinstance(fwd, FunctionWithJacobianProtocol)
+        # eval-only parameterization: no jacobian is attached (pde still
+        # uses conditional injection; bundle migration reaches it in the
+        # pde stage)
+        assert not hasattr(fwd, "jacobian")

@@ -3,7 +3,7 @@
 The Branin function is a classic benchmark for optimization algorithms,
 featuring three global minima in a 2D search space.
 
-Implements FunctionWithJacobianAndHVPProtocol directly (no inheritance).
+Analytic jacobian and hvp are declared via the Derivatives bundle.
 """
 
 import math
@@ -29,7 +29,7 @@ class BraninFunction(Generic[Array]):
     Three global minimizers:
         (-pi, 12.275), (pi, 2.275), (9.42478, 2.475)
 
-    This function implements FunctionWithJacobianAndHVPProtocol.
+    Analytic jacobian and hvp are declared via the Derivatives bundle.
 
     Parameters
     ----------

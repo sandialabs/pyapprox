@@ -1,14 +1,32 @@
-from typing import Generic, Optional
+from typing import Generic, Optional, Protocol, runtime_checkable
 
 import numpy as np
 
-from pyapprox.interface.functions.protocols.jacobian import (
-    FunctionWithJVPProtocol,
-)
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class _JVPViewProtocol(Protocol, Generic[Array]):
+    """Input contract of the FD engine: a function exposing a jvp view.
+
+    Satisfied by the view wrappers in
+    :mod:`pyapprox.interface.functions.derivative_checks.wrappers`, which
+    adapt a Derivatives bundle field into this shape.
+    """
+
+    def bkd(self) -> Backend[Array]: ...
+
+    def nvars(self) -> int: ...
+
+    def nqoi(self) -> int: ...
+
+    def __call__(self, samples: Array) -> Array: ...
+
+    def jvp(self, sample: Array, vec: Array) -> Array: ...
+
 
 
 class JVPChecker(Generic[Array]):
@@ -25,7 +43,7 @@ class JVPChecker(Generic[Array]):
 
     def __init__(
         self,
-        function: FunctionWithJVPProtocol[Array],
+        function: _JVPViewProtocol[Array],
         symb: str = "J",
         fd_eps: Optional[Array] = None,
         direction: Optional[Array] = None,
@@ -51,12 +69,12 @@ class JVPChecker(Generic[Array]):
 
     def _validate_function(
         self,
-        function: FunctionWithJVPProtocol[Array],
+        function: _JVPViewProtocol[Array],
     ) -> None:
-        if not isinstance(function, FunctionWithJVPProtocol):
+        if not isinstance(function, _JVPViewProtocol):
             raise ValueError(
                 "The provided function must satisfy "
-                "'FunctionWithJVPProtocol'. "
+                "a jvp-exposing function view. "
                 f"Got an object of type {type(function).__name__}."
             )
 

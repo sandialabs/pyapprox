@@ -12,7 +12,6 @@ from pyapprox.optimization.minimize.inexact.monte_carlo import (
     MonteCarloSAAStrategy,
 )
 from pyapprox.optimization.minimize.inexact.protocols import (
-    InexactDifferentiable,
     InexactEvaluable,
     InexactGradientStrategyProtocol,
 )
@@ -28,7 +27,6 @@ from pyapprox.optimization.minimize.inexact.wrapper import (
 
 __all__ = [
     "FixedSampleStrategy",
-    "InexactDifferentiable",
     "InexactEvaluable",
     "InexactGradientStrategyProtocol",
     "InexactWrapper",

@@ -9,6 +9,9 @@ Note: All tests use the reference domain [-1, 1] where the Chebyshev
 basis operates directly, avoiding coordinate transformation issues.
 """
 
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
 from typing import Generic
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -51,7 +54,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 class DtNResidualDerivativeWrapper(Generic[Array]):
     """Wrap DtN residual for DerivativeChecker compatibility.
 
-    Adapts DtNResidual interface to FunctionWithJacobianProtocol interface.
+    Adapts DtNResidual interface to FunctionProtocol interface.
 
     Parameters
     ----------

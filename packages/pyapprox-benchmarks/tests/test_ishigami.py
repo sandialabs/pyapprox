@@ -3,6 +3,9 @@
 # TODO: this test class should be where function is defined
 # not at this level which is for integration tests.
 
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 import math
 
 import pytest
@@ -16,9 +19,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithJacobianAndHVPProtocol,
-)
 
 
 class TestIshigamiFunction:
@@ -30,9 +30,11 @@ class TestIshigamiFunction:
         assert isinstance(func, FunctionProtocol)
 
     def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
-        """Test that IshigamiFunction satisfies FunctionWithJacobianAndHVPProtocol."""
+        """Test that IshigamiFunction declares jacobian and hvp via its Derivatives bundle."""
         func = IshigamiFunction(bkd)
-        assert isinstance(func, FunctionWithJacobianAndHVPProtocol)
+        assert isinstance(func, ObjectiveProtocol)
+        assert func.derivatives().jacobian is not None
+        assert func.derivatives().hvp is not None
 
     def test_nvars(self, bkd) -> None:
         """Test nvars returns 3."""

@@ -1,5 +1,8 @@
 """Integration tests for the 1D elastic bar forward UQ problems."""
 
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
 import numpy as np
 import pytest
 
@@ -12,7 +15,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
-    FunctionWithJacobianProtocol,
 )
 
 
@@ -165,11 +167,12 @@ class TestElasticBar1D:
     # --- Protocol compliance ---
 
     def test_function_protocol_compliance(self, bkd):
-        """Forward model satisfies FunctionWithJacobianProtocol."""
+        """Forward model is Function-shaped with a jacobian."""
         prob = _make_problem(bkd, "linear", "tip_displacement")
         fwd = prob.function()
         assert isinstance(fwd, FunctionProtocol)
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
     # --- Convergence tests ---
 

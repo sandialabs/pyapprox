@@ -1,17 +1,16 @@
 """
 Function protocols for PyApprox typing module.
 
-This module defines protocols for function objects with varying levels of
-derivative support. Protocols enable duck typing with runtime type checking.
+Protocols enable duck typing with runtime type checking. Derivative
+capability travels in the ``Derivatives`` bundle, exposed through the
+``derivatives()`` accessor required by ``ObjectiveProtocol`` and
+``NonlinearConstraintProtocol``.
 
 Key Protocols
 -------------
-- FunctionProtocol: Basic function evaluation
-- FunctionWithJacobianProtocol: Function with Jacobian support
-- FunctionWithJVPProtocol: Function with Jacobian-vector product
-- FunctionWithJacobianAndHVPProtocol: Function with Jacobian and Hessian-vector product
-- FunctionWithJVPAndHVPProtocol: Function with JVP and HVP
-- FunctionWithJacobianAndWHVPProtocol: Function with Jacobian and weighted HVP
+- FunctionProtocol: Basic function evaluation (value-only base shape)
+- ObjectiveProtocol: FunctionProtocol plus a ``derivatives()`` bundle
+- NonlinearConstraintProtocol: ObjectiveProtocol shape plus bounds
 
 Examples
 --------
@@ -22,15 +21,6 @@ Examples
 
 from .constraint import NonlinearConstraintProtocol
 from .function import FunctionProtocol
-from .hessian import (
-    FunctionWithJacobianAndHVPProtocol,
-    FunctionWithJacobianAndWHVPProtocol,
-    FunctionWithJVPAndHVPProtocol,
-)
-from .jacobian import (
-    FunctionWithJacobianProtocol,
-    FunctionWithJVPProtocol,
-)
 from .objective import (
     Function,
     ObjectiveProtocol,
@@ -38,14 +28,7 @@ from .objective import (
 
 __all__ = [
     "FunctionProtocol",
-    # Derivatives-bundle protocols (the convention going forward)
     "ObjectiveProtocol",
     "NonlinearConstraintProtocol",
     "Function",
-    # Legacy capability-tier protocols (deprecated; removal planned)
-    "FunctionWithJacobianProtocol",
-    "FunctionWithJVPProtocol",
-    "FunctionWithJacobianAndHVPProtocol",
-    "FunctionWithJVPAndHVPProtocol",
-    "FunctionWithJacobianAndWHVPProtocol",
 ]

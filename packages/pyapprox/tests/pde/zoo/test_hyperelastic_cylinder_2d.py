@@ -8,6 +8,9 @@ Verifies:
 5. Factory produces valid model with correct protocol compliance
 """
 
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
 import math
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -15,9 +18,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
-)
-from pyapprox.interface.functions.protocols import (
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.pde.collocation.functionals.elasticity_2d import (
     OuterWallRadialDisplacementFunctional,
@@ -439,7 +439,8 @@ class TestHyperelasticCylinder2D:
             field_map=field_map,
         )
 
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
@@ -485,7 +486,8 @@ class TestHyperelasticCylinder2D:
             field_map=field_map,
         )
 
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
         npts = npts_r * npts_theta
         assert fwd.nvars() == num_kle_terms

@@ -27,7 +27,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 class SleepFunction(Generic[Array]):
     """Test function with configurable per-method sleep times.
 
-    Satisfies FunctionWithJacobianAndHVPProtocol.
+    Satisfies FunctionProtocol.
     """
 
     def __init__(
@@ -87,7 +87,7 @@ class SleepFunctionWithBatch(SleepFunction[Array]):
 class VariableSleepFunction(Generic[Array]):
     """Jacobian alternates between two sleep times.
 
-    Satisfies FunctionWithJacobianProtocol.
+    Satisfies FunctionProtocol.
     """
 
     def __init__(

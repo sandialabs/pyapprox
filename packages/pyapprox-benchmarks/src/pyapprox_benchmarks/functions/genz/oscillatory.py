@@ -2,12 +2,13 @@
 
 f(x) = cos(2*pi*w[0] + c^T @ x)
 
-Implements FunctionWithJacobianAndHVPProtocol.
+Implements FunctionProtocol.
 """
 
 import math
 from typing import Generic, Sequence
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -47,6 +48,14 @@ class OscillatoryFunction(Generic[Array]):
         self._c = bkd.array(c)[:, None]  # (nvars, 1)
         self._w = bkd.array(w)[:, None]  # (nvars, 1)
         self._nvars = len(c)
+
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

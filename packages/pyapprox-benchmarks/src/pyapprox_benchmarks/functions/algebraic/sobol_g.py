@@ -3,7 +3,7 @@
 The Sobol G-function is a standard benchmark for global sensitivity analysis,
 with analytically known Sobol indices that depend on the importance parameters.
 
-Implements FunctionWithJacobianAndHVPProtocol directly (no inheritance).
+Analytic jacobian and hvp are declared via the Derivatives bundle.
 """
 
 from typing import Generic, List, Sequence
@@ -23,7 +23,7 @@ class SobolGFunction(Generic[Array]):
 
     Standard domain: [0, 1]^d
 
-    This function implements FunctionWithJacobianAndHVPProtocol.
+    Analytic jacobian and hvp are declared via the Derivatives bundle.
 
     Parameters
     ----------

@@ -45,12 +45,6 @@ from pyapprox.interface.parallel.factory import (
     ParallelFunctionWrapper,
     make_parallel,
 )
-from pyapprox.interface.parallel.function_protocols import (
-    ParallelFunctionProtocol,
-    ParallelFunctionWithHVPProtocol,
-    ParallelFunctionWithJacobianProtocol,
-    ParallelFunctionWithWHVPProtocol,
-)
 from pyapprox.interface.parallel.futures_backend import FuturesBackend
 from pyapprox.interface.parallel.joblib_backend import JoblibBackend
 from pyapprox.interface.parallel.mixins import (
@@ -84,9 +78,6 @@ __all__ = [
     # Protocols
     "ParallelBackendProtocol",
     "ParallelFunctionProtocol",
-    "ParallelFunctionWithJacobianProtocol",
-    "ParallelFunctionWithHVPProtocol",
-    "ParallelFunctionWithWHVPProtocol",
     # Utilities
     "BatchSplitter",
     "TensorTransfer",

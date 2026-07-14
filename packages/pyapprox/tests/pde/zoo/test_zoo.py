@@ -12,7 +12,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
@@ -80,9 +79,10 @@ class TestSteadyDiffusionZoo:
         assert isinstance(fwd, FunctionProtocol)
 
     def test_isinstance_jacobian_protocol(self, bkd):
-        """Zoo model satisfies FunctionWithJacobianProtocol."""
+        """Zoo model satisfies FunctionProtocol."""
         fwd = self._create_model(bkd)
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
     def test_jacobian_derivative_checker(self, bkd):
         """Zoo model Jacobian passes DerivativeChecker."""
@@ -232,7 +232,8 @@ class TestTransientDiffusionZoo:
         """Zoo transient model satisfies expected protocols."""
         fwd = self._create_model(bkd)
         assert isinstance(fwd, FunctionProtocol)
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
     def test_jacobian_derivative_checker(self, bkd):
         """Zoo transient model Jacobian passes DerivativeChecker."""

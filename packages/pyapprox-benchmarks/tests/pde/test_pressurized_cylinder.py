@@ -1,5 +1,8 @@
 """Integration tests for the 2D pressurized cylinder forward UQ problems."""
 
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
 import numpy as np
 import pytest
 
@@ -15,7 +18,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.markers import slow_test, slower_test, slowest_test
@@ -151,11 +153,12 @@ class TestPressurizedCylinder2D:
     # --- Protocol compliance ---
 
     def test_function_protocol_compliance(self):
-        """Forward model satisfies FunctionWithJacobianProtocol."""
+        """Forward model is Function-shaped with a jacobian."""
         prob = self._cached_probs["outer_radial_displacement"]
         fwd = prob.function()
         assert isinstance(fwd, FunctionProtocol)
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
     # --- Convergence (non-default params, builds fresh) ---
 

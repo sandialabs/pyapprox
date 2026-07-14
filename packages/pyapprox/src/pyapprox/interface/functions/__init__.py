@@ -7,7 +7,6 @@ functions in a type-safe manner with backend abstraction (NumPy/PyTorch).
 Submodules
 ----------
 - protocols: Protocol definitions for functions
-- parameterized: Parameterized function support
 - fromcallable: Create functions from callable objects
 - derivative_checks: Derivative validation utilities
 - plot: Plotting utilities for functions

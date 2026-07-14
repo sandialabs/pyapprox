@@ -12,7 +12,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
@@ -234,7 +233,8 @@ class TestHyperelasticBar1D:
         )
 
         assert hasattr(fwd, "jacobian")
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
@@ -423,7 +423,8 @@ class TestHyperelasticBar1D:
         )
 
         assert isinstance(fwd, FunctionProtocol)
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
         samples = bkd.zeros((num_kle_terms, 1))
         result = fwd(samples)

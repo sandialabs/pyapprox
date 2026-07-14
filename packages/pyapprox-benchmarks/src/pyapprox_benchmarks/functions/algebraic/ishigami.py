@@ -3,7 +3,7 @@
 The Ishigami function is a standard benchmark for global sensitivity analysis,
 featuring non-monotonic behavior and variable interaction effects.
 
-Implements FunctionWithJacobianAndHVPProtocol directly.
+Implements FunctionProtocol directly.
 """
 
 import math
@@ -19,7 +19,7 @@ class IshigamiFunction(Generic[Array]):
     Standard parameters: a=7, b=0.1
     Standard domain: [-pi, pi]^3
 
-    This function implements FunctionWithJacobianAndHVPProtocol.
+    Analytic jacobian and hvp are declared via the Derivatives bundle.
 
     Parameters
     ----------

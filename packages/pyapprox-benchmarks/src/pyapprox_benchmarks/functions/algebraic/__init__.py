@@ -1,6 +1,6 @@
 """Algebraic test functions.
 
-These functions implement FunctionWithJacobianAndHVPProtocol directly.
+These functions implement FunctionProtocol directly.
 """
 
 from pyapprox_benchmarks.functions.algebraic.branin import (

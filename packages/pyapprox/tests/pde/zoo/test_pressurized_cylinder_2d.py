@@ -9,6 +9,9 @@ Verifies:
 6. Factory produces valid model with correct protocol compliance
 """
 
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
 import math
 
 import numpy as np
@@ -19,9 +22,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
-)
-from pyapprox.interface.functions.protocols import (
-    FunctionWithJacobianProtocol,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (
@@ -606,7 +606,8 @@ class TestPressurizedCylinder2D:
             field_map=field_map,
         )
 
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
@@ -653,7 +654,8 @@ class TestPressurizedCylinder2D:
         )
 
         # Check protocol compliance
-        assert isinstance(fwd, FunctionWithJacobianProtocol)
+        assert isinstance(fwd, FunctionProtocol)
+        assert callable(fwd.jacobian)
 
         # Check dimensions
         npts = npts_r * npts_theta

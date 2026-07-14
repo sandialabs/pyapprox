@@ -7,7 +7,7 @@ This module tests the four differentiable Genz integration test functions:
 - GaussianPeakFunction
 
 Tests verify:
-1. Protocol compliance (FunctionProtocol, FunctionWithJacobianAndHVPProtocol)
+1. Protocol compliance (FunctionProtocol, Derivatives bundle)
 2. Correct shapes for evaluation, Jacobian, and HVP
 3. Derivative correctness via DerivativeChecker
 4. Monte Carlo integral convergence rate (MSE ~ O(1/n))
@@ -16,6 +16,9 @@ Tests verify:
 # not at this level which is for integration tests.
 # TODO: these MSE convergence rate tests are good for any
 # function/problem instance that computes statistics
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 import math
 from abc import abstractmethod
 from typing import Any
@@ -34,9 +37,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
-)
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithJacobianAndHVPProtocol,
 )
 
 
@@ -67,7 +67,9 @@ class GenzFunctionTestBase:
     def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
         """Test protocol compliance with Jacobian and HVP."""
         func = self._create_function_2d(bkd)
-        assert isinstance(func, FunctionWithJacobianAndHVPProtocol)
+        assert isinstance(func, ObjectiveProtocol)
+        assert func.derivatives().jacobian is not None
+        assert func.derivatives().hvp is not None
 
     # nvars and nqoi tests
     def test_nvars_2d(self, bkd) -> None:

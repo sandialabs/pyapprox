@@ -17,7 +17,7 @@ class PhysicsDerivativeWrapper(Generic[Array]):
     """Wrap physics for DerivativeChecker compatibility.
 
     Adapts physics interface (residual/jacobian with state and time) to
-    FunctionWithJacobianProtocol interface (samples array).
+    FunctionProtocol interface (samples array).
 
     Parameters
     ----------

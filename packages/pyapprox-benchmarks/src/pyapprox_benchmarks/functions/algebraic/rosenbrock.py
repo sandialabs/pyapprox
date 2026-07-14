@@ -4,7 +4,7 @@ The Rosenbrock function is a classic benchmark for nonlinear optimization,
 featuring a narrow banana-shaped valley that makes it challenging for
 many optimization algorithms.
 
-Implements FunctionWithJacobianAndHVPProtocol directly.
+Implements FunctionProtocol directly.
 """
 
 from typing import Generic
@@ -19,7 +19,7 @@ class RosenbrockFunction(Generic[Array]):
 
     The global minimum is at x = (1, 1, ..., 1) with f(x*) = 0.
 
-    This function implements FunctionWithJacobianAndHVPProtocol.
+    Analytic jacobian and hvp are declared via the Derivatives bundle.
 
     Parameters
     ----------

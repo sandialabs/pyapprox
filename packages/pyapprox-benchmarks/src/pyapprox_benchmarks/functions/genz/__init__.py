@@ -2,7 +2,7 @@
 
 These functions are widely used for benchmarking multidimensional
 integration routines. Four of the six functions implement
-FunctionWithJacobianAndHVPProtocol (the differentiable ones).
+FunctionProtocol (the differentiable ones).
 """
 
 from pyapprox_benchmarks.functions.genz.corner_peak import (

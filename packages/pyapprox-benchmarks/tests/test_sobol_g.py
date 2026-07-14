@@ -3,6 +3,9 @@
 # TODO: this test class should be where function is defined
 # not at this level which is for integration tests.
 
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 import pytest
 
 from pyapprox_benchmarks.functions.algebraic.sobol_g import (
@@ -14,9 +17,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
-)
-from pyapprox.interface.functions.protocols.hessian import (
-    FunctionWithJacobianAndHVPProtocol,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -30,9 +30,11 @@ class TestSobolGFunction:
         assert isinstance(func, FunctionProtocol)
 
     def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
-        """Test that SobolGFunction satisfies FunctionWithJacobianAndHVPProtocol."""
+        """Test that SobolGFunction declares jacobian and hvp via its Derivatives bundle."""
         func = SobolGFunction(bkd, a=[0, 1, 4.5])
-        assert isinstance(func, FunctionWithJacobianAndHVPProtocol)
+        assert isinstance(func, ObjectiveProtocol)
+        assert func.derivatives().jacobian is not None
+        assert func.derivatives().hvp is not None
 
     def test_nvars(self, bkd) -> None:
         """Test nvars returns correct count."""

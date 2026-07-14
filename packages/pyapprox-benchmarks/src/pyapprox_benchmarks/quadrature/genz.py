@@ -5,7 +5,7 @@ from typing import Generic, List
 from pyapprox.util.backends.protocols import Array, Backend
 
 from pyapprox.interface.functions.protocols import (
-    FunctionWithJacobianProtocol,
+    FunctionProtocol,
 )
 from pyapprox_benchmarks.benchmark import BoxDomain
 from pyapprox_benchmarks.functions.genz import (
@@ -67,7 +67,7 @@ class GenzOscillatoryBenchmark(Generic[Array]):
 
     def problem(
         self,
-    ) -> FunctionOverDomainProblem[FunctionWithJacobianProtocol[Array], Array]:
+    ) -> FunctionOverDomainProblem[FunctionProtocol[Array], Array]:
         return self._problem  # type: ignore[return-value]
 
     def integral(self) -> float:
@@ -113,7 +113,7 @@ class GenzProductPeakBenchmark(Generic[Array]):
 
     def problem(
         self,
-    ) -> FunctionOverDomainProblem[FunctionWithJacobianProtocol[Array], Array]:
+    ) -> FunctionOverDomainProblem[FunctionProtocol[Array], Array]:
         return self._problem  # type: ignore[return-value]
 
     def integral(self) -> float:
@@ -150,7 +150,7 @@ class GenzCornerPeakBenchmark(Generic[Array]):
 
     def problem(
         self,
-    ) -> FunctionOverDomainProblem[FunctionWithJacobianProtocol[Array], Array]:
+    ) -> FunctionOverDomainProblem[FunctionProtocol[Array], Array]:
         return self._problem  # type: ignore[return-value]
 
     def integral(self) -> float:
@@ -196,7 +196,7 @@ class GenzGaussianPeakBenchmark(Generic[Array]):
 
     def problem(
         self,
-    ) -> FunctionOverDomainProblem[FunctionWithJacobianProtocol[Array], Array]:
+    ) -> FunctionOverDomainProblem[FunctionProtocol[Array], Array]:
         return self._problem  # type: ignore[return-value]
 
     def integral(self) -> float:

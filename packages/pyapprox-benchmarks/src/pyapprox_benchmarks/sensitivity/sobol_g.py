@@ -7,7 +7,7 @@ from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
 from pyapprox.interface.functions.protocols import (
-    FunctionWithJacobianProtocol,
+    FunctionProtocol,
 )
 from pyapprox_benchmarks.benchmark import BoxDomain
 from pyapprox_benchmarks.functions.algebraic.sobol_g import (
@@ -60,7 +60,7 @@ class SobolGBenchmark(Generic[Array]):
 
     def problem(
         self,
-    ) -> ForwardUQProblem[FunctionWithJacobianProtocol[Array], Array]:
+    ) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
         return self._problem  # type: ignore[return-value]
 
     def domain(self) -> BoxDomain[Array]:
