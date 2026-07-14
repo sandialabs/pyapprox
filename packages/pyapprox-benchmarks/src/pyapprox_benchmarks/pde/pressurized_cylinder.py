@@ -12,6 +12,7 @@ import math
 from typing import Union
 
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.collocation.functionals.elasticity_2d import (
     AverageHoopStressFunctional,
     HyperelasticAverageHoopStressFunctional,
@@ -233,7 +234,7 @@ def build_pressurized_cylinder_2d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     weld_r_fraction: float = 0.25,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 2D linear elastic pressurized cylinder forward UQ problem.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a
@@ -363,7 +364,7 @@ def build_hyperelastic_pressurized_cylinder_2d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     weld_r_fraction: float = 0.25,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 2D hyperelastic pressurized cylinder forward UQ problem.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a
@@ -422,7 +423,7 @@ def build_hyperelastic_pressurized_cylinder_2d(
     dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     mu_init = E_mean * dmu_dE
     lamda_init = E_mean * dlam_dE
-    stress_model = NeoHookeanStress(lamda=lamda_init, mu=mu_init)
+    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(lamda=lamda_init, mu=mu_init)
 
     # QoI functional
     functional = _make_hyperelastic_functional(

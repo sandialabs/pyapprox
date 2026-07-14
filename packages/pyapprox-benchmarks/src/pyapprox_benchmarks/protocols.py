@@ -52,6 +52,10 @@ class ConstraintProtocol(Protocol, Generic[Array]):
 class HasExactEIG(Protocol, Generic[Array]):
     """Benchmark provides analytical expected information gain."""
 
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        ...
+
     def exact_eig(self, weights: Array) -> float:
         """Return analytical EIG for given design weights."""
         ...

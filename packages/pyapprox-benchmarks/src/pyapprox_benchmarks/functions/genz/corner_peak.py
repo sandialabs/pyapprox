@@ -158,11 +158,12 @@ class CornerPeakFunction(Generic[Array]):
             )
         return float(self._corner_peak_integrate_recursive(0.0, self._nvars))
 
-    def _corner_peak_integrate_recursive(self, integral: float, D: int) -> Array:
+    def _corner_peak_integrate_recursive(self, integral: float, D: int) -> float:
         """Recursively compute the integral."""
         if D == 0:
             return 1.0 / (1.0 + integral)
-        c_val = self._c[D - 1, 0]
+        # benchmark constant (never differentiated): extract as a scalar
+        c_val = float(self._c[D - 1, 0])
         return (
             1.0
             / (D * c_val)

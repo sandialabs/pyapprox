@@ -138,5 +138,5 @@ class NonLinearDecoupledODE(
             b *= 2 + self._time
         return self._bkd.diag(-2 * b * sol)
 
-    def mass_matrix(self) -> IdentityMassMatrix:
+    def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass

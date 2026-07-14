@@ -67,6 +67,7 @@ MESH_PATHS = {
 }
 
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
     create_spde_lognormal_kle_field_map,
@@ -219,13 +220,14 @@ class _SkfemSubmesh(Generic[Array]):
         return self._bkd
 
     def ndim(self) -> int:
-        return self._skfem_mesh.p.shape[0]
+        # skfem is untyped; convert its Any-typed attributes explicitly
+        return int(self._skfem_mesh.p.shape[0])
 
     def nelements(self) -> int:
-        return self._skfem_mesh.nelements
+        return int(self._skfem_mesh.nelements)
 
     def nnodes(self) -> int:
-        return self._skfem_mesh.nvertices
+        return int(self._skfem_mesh.nvertices)
 
     def nodes(self) -> Array:
         return self._nodes
@@ -435,6 +437,7 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         scalar_skfem_basis: "skfem.CellBasis",
         tip_dof_index: int,
         bkd: Backend[Array],
+        vector_basis: "VectorLagrangeBasis[Array]",
     ) -> None:
         self._physics = physics
         self._solver = solver
@@ -450,7 +453,7 @@ class CantileverBeam2DForwardModel(Generic[Array]):
         self._nvars = len(subdomain_names) * num_kle_terms
 
         # Vector basis for von Mises post-processing
-        self._vector_basis = physics._basis
+        self._vector_basis = vector_basis
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -744,7 +747,7 @@ def build_cantilever_beam_1d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 1D Euler-Bernoulli cantilever beam forward UQ problem.
 
     Parameters
@@ -888,7 +891,7 @@ def build_cantilever_beam_2d_linear(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 2D linear elastic cantilever beam forward UQ problem.
 
     Parameters
@@ -997,6 +1000,7 @@ def build_cantilever_beam_2d_linear(
         scalar_skfem_basis=scalar_skfem_basis,
         tip_dof_index=tip_dof,
         bkd=bkd,
+        vector_basis=basis,
     )
 
     prior = IndependentJoint(
@@ -1027,7 +1031,7 @@ def build_cantilever_beam_2d_neohookean(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 2D Neo-Hookean cantilever beam forward UQ problem.
 
     Same setup as the linear problem but with nonlinear hyperelastic
@@ -1142,6 +1146,7 @@ def build_cantilever_beam_2d_neohookean(
         scalar_skfem_basis=scalar_skfem_basis,
         tip_dof_index=tip_dof,
         bkd=bkd,
+        vector_basis=basis,
     )
 
     prior = IndependentJoint(
@@ -1176,7 +1181,7 @@ def build_cantilever_beam_1d_spde(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 1D Euler-Bernoulli cantilever beam forward UQ problem (SPDE KLE).
 
     Same as :func:`build_cantilever_beam_1d` but uses the sparse SPDE-based
@@ -1262,7 +1267,7 @@ def build_cantilever_beam_2d_linear_spde(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 2D linear elastic cantilever beam forward UQ problem (SPDE KLE).
 
     Same as :func:`build_cantilever_beam_2d_linear` but uses the sparse
@@ -1371,6 +1376,7 @@ def build_cantilever_beam_2d_linear_spde(
         scalar_skfem_basis=scalar_skfem_basis,
         tip_dof_index=tip_dof,
         bkd=bkd,
+        vector_basis=basis,
     )
 
     prior = IndependentJoint(
@@ -1401,7 +1407,7 @@ def build_cantilever_beam_2d_neohookean_spde(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 2D Neo-Hookean cantilever beam forward UQ problem (SPDE KLE).
 
     Same as :func:`build_cantilever_beam_2d_neohookean` but uses the sparse
@@ -1516,6 +1522,7 @@ def build_cantilever_beam_2d_neohookean_spde(
         scalar_skfem_basis=scalar_skfem_basis,
         tip_dof_index=tip_dof,
         bkd=bkd,
+        vector_basis=basis,
     )
 
     prior = IndependentJoint(

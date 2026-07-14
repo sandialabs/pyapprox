@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Tuple, Union
 
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.collocation.functionals.point_evaluation import (
     PointEvaluationFunctional,
 )
@@ -169,7 +170,7 @@ def _make_average_stress_functional(
 
     # hyperelastic
     lamda, mu = _lame_from_E(E_mean, poisson_ratio)
-    stress_model = NeoHookeanStress(lamda=lamda, mu=mu)
+    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(lamda=lamda, mu=mu)
     inv_L = 1.0 / length
 
     def energy_density_hyperelastic(
@@ -227,7 +228,7 @@ def build_elastic_bar_1d(
     num_kle_terms: int = 2,
     sigma: float = 0.3,
     correlation_length: float = 0.3,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create a 1D elastic bar forward UQ problem.
 
     Maps KLE coefficients (standard normal) to a scalar QoI via a

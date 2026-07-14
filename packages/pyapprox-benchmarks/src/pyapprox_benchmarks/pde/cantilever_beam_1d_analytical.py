@@ -8,6 +8,7 @@ from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
     CantileverBeam1DAnalytical,
 )
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.beta import BetaMarginal
 from pyapprox.util.backends.protocols import Array, Backend
@@ -19,7 +20,7 @@ def build_cantilever_beam_1d_analytical(
     height: float = 30.0,
     skin_thickness: float = 5.0,
     q0: float = 10.0,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create an analytical 1D cantilever beam forward UQ problem.
 
     The model computes [tip_deflection, max_curvature] from (E1, E2)

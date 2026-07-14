@@ -34,6 +34,9 @@ jobs:
           pip install mypy numpy
           pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -e "packages/pyapprox[lint]"
+      - run: pip install --no-deps -e packages/pyapprox-benchmarks
       - name: mypy ratchet (must not exceed baseline)
         run: bash scripts/mypy_diff.sh 861 packages/pyapprox/src/pyapprox/
+      - name: mypy ratchet for pyapprox-benchmarks
+        run: bash scripts/mypy_diff.sh 30 packages/pyapprox-benchmarks/src/pyapprox_benchmarks/
 

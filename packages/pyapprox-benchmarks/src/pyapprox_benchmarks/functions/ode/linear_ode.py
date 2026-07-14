@@ -113,7 +113,7 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         return self._Amat
 
-    def mass_matrix(self) -> IdentityMassMatrix:
+    def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
     def param_jacobian(self, state: Array) -> Array:
@@ -284,7 +284,7 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         p0 = float(self._param[0, 0])
         return self._Amat + 2.0 * p0 * self._bkd.diag(state)
 
-    def mass_matrix(self) -> IdentityMassMatrix:
+    def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
     def param_jacobian(self, state: Array) -> Array:

@@ -405,7 +405,8 @@ class AdvectionDiffusionOEDProblem(
                 npts = x.shape[1]
                 if npts not in probes_cache:
                     probes_cache[npts] = adr_skfem.probes(x).tocsr()
-                out = probes_cache[npts] @ kle_nodal
+                # scipy sparse matmul is untyped; pin the ndarray result
+                out = np.asarray(probes_cache[npts] @ kle_nodal)
                 if shape is not None:
                     return out.reshape(*shape[1:])
                 return out

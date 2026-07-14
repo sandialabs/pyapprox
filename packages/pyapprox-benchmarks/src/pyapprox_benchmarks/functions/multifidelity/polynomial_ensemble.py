@@ -4,7 +4,7 @@ Implements a hierarchy of polynomial models: x^5, x^4, x^3, x^2, x
 with decreasing fidelity and cost.
 """
 
-from typing import Generic
+from typing import Generic, Union
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -104,6 +104,7 @@ class PolynomialModelFunction(Generic[Array]):
         x = sample[0, 0]
         v = vec[0, 0]
         d = self._degree
+        hess_val: Union[float, Array]
         if d <= 1:
             hess_val = 0.0
         else:

@@ -167,6 +167,7 @@ class SharedFieldBeamModel(Generic[Array]):
         length: float,
         bkd: Backend[Array],
         num_kle_terms: int,
+        vector_basis: "VectorLagrangeBasis[Array]",
     ) -> None:
         self._physics = physics
         self._solver = solver
@@ -180,7 +181,7 @@ class SharedFieldBeamModel(Generic[Array]):
         self._num_kle_terms = num_kle_terms
 
         # Vector basis for von Mises post-processing
-        self._vector_basis = physics._basis
+        self._vector_basis = vector_basis
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -379,4 +380,5 @@ def build_shared_field_beam(
         length=length,
         bkd=bkd,
         num_kle_terms=num_kle_terms,
+        vector_basis=basis,
     )

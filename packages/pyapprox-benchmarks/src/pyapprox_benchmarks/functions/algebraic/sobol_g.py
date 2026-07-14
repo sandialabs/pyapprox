@@ -141,7 +141,7 @@ class SobolGFunction(Generic[Array]):
             gi = g_values[i]
             dgi = self._dg(xi, self._a[i])
             # Avoid division by zero when gi is very small
-            grad_i = total_product / gi * dgi if gi != 0 else dgi
+            grad_i = total_product / gi * dgi if float(gi) != 0 else dgi
             grad_components.append(grad_i)
 
         return bkd.reshape(bkd.stack(grad_components), (1, self._nvars))
@@ -205,7 +205,7 @@ class SobolGFunction(Generic[Array]):
                     dgi = dg_values[i]
                     dgj = dg_values[j]
                     vj = vec[j, 0]
-                    if gi != 0 and gj != 0:
+                    if float(gi) != 0 and float(gj) != 0:
                         h_ij = total_product / (gi * gj) * dgi * dgj
                     else:
                         h_ij = bkd.asarray([0.0])

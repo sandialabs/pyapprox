@@ -11,6 +11,7 @@ from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,
 )
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal
@@ -20,7 +21,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 def build_cantilever_beam_2d_analytical(
     bkd: Backend[Array],
     length: float = 100.0,
-) -> ForwardUQProblem:
+) -> ForwardUQProblem[FunctionProtocol[Array], Array]:
     """Create an analytical 2D cantilever beam forward UQ problem.
 
     The model computes [max_stress, tip_displacement] from

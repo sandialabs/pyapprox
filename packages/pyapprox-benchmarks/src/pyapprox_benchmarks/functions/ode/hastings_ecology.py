@@ -151,7 +151,7 @@ class HastingsEcologyResidual(
             axis=0,
         )
 
-    def mass_matrix(self) -> IdentityMassMatrix:
+    def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
 
     def param_jacobian(self, state: Array) -> Array:
