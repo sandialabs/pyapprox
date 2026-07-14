@@ -309,20 +309,21 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 cof32 = -(F11 * F23 - F13 * F21)
                 cof33 = F11 * F22 - F12 * F21
 
+                # F^{-1} = cof^T / J, so F^{-T}_{ij} = cof_{ij} / J
                 P = (
                     (
                         w.mu * F11 + coef * cof11 / J,
-                        w.mu * F12 + coef * cof21 / J,
-                        w.mu * F13 + coef * cof31 / J,
+                        w.mu * F12 + coef * cof12 / J,
+                        w.mu * F13 + coef * cof13 / J,
                     ),
                     (
-                        w.mu * F21 + coef * cof12 / J,
+                        w.mu * F21 + coef * cof21 / J,
                         w.mu * F22 + coef * cof22 / J,
-                        w.mu * F23 + coef * cof32 / J,
+                        w.mu * F23 + coef * cof23 / J,
                     ),
                     (
-                        w.mu * F31 + coef * cof13 / J,
-                        w.mu * F32 + coef * cof23 / J,
+                        w.mu * F31 + coef * cof31 / J,
+                        w.mu * F32 + coef * cof32 / J,
                         w.mu * F33 + coef * cof33 / J,
                     ),
                 )
@@ -469,6 +470,81 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
             K_np = asm(
                 BilinearForm(tangent_2d),
+                skfem_basis,
+                u_prev=state_interp,
+                lam=lam_qp,
+                mu=mu_qp,
+            )
+
+        elif ndim == 3:
+
+            def tangent_3d(
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
+                F11 = 1.0 + w.u_prev.grad[0, 0]
+                F12 = w.u_prev.grad[0, 1]
+                F13 = w.u_prev.grad[0, 2]
+                F21 = w.u_prev.grad[1, 0]
+                F22 = 1.0 + w.u_prev.grad[1, 1]
+                F23 = w.u_prev.grad[1, 2]
+                F31 = w.u_prev.grad[2, 0]
+                F32 = w.u_prev.grad[2, 1]
+                F33 = 1.0 + w.u_prev.grad[2, 2]
+
+                J = (
+                    F11 * (F22 * F33 - F23 * F32)
+                    - F12 * (F21 * F33 - F23 * F31)
+                    + F13 * (F21 * F32 - F22 * F31)
+                )
+                ln_J = np.log(J)
+
+                # F^{-1}_{ab} = cof_{ba} / J
+                finv = np.stack(
+                    [
+                        np.stack(
+                            [
+                                F22 * F33 - F23 * F32,
+                                -(F12 * F33 - F13 * F32),
+                                F12 * F23 - F13 * F22,
+                            ]
+                        ),
+                        np.stack(
+                            [
+                                -(F21 * F33 - F23 * F31),
+                                F11 * F33 - F13 * F31,
+                                -(F11 * F23 - F13 * F21),
+                            ]
+                        ),
+                        np.stack(
+                            [
+                                F21 * F32 - F22 * F31,
+                                -(F11 * F32 - F12 * F31),
+                                F11 * F22 - F12 * F21,
+                            ]
+                        ),
+                    ]
+                ) / J
+
+                # A_iJkL = mu*d_ik*d_JL + (mu - lam*lnJ)*Finv_Jk*Finv_Li
+                #          + lam*Finv_Ji*Finv_Lk, contracted with
+                # v.grad[i,J]*u.grad[k,L] term by term without forming A
+                vu = np.einsum("ij...,ij...->...", v.grad, u.grad)
+                cross = np.einsum(
+                    "jk...,li...,ij...,kl...->...", finv, finv, v.grad, u.grad
+                )
+                tr_v = np.einsum("ij...,ji...->...", v.grad, finv)
+                tr_u = np.einsum("ij...,ji...->...", u.grad, finv)
+                ret: NDArray[np.floating[Any]] = (
+                    w.mu * vu
+                    + (w.mu - w.lam * ln_J) * cross
+                    + w.lam * tr_v * tr_u
+                )
+                return ret
+
+            K_np = asm(
+                BilinearForm(tangent_3d),
                 skfem_basis,
                 u_prev=state_interp,
                 lam=lam_qp,

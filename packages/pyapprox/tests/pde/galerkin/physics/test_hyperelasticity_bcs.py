@@ -203,3 +203,97 @@ class TestHyperelasticityBCs2DBase:
         assert res_norm < 1e-3
 
 
+
+
+# =========================================================================
+# 3D BC Tests
+# =========================================================================
+
+
+class TestHyperelasticityBCs3DBase:
+    """3D boundary condition tests with non-zero boundary values.
+
+    All prior 3D coverage was Dirichlet-only; these exercise the
+    traction (Neumann) and Robin paths of the manufactured adapter,
+    which compute t = P.n from the PK1 flux on the 6 canonical faces.
+    """
+
+    def _setup(self, bkd) -> None:
+        self._stress = NeoHookeanStress(1.0, 1.0)
+        # quadratic solutions in the degree-2 FE space, nonzero on all faces
+        self._sol_strs = [
+            "0.02*x*y + 0.01*z**2",
+            "0.01*x**2 - 0.02*y*z",
+            "0.005*x*z + 0.015*y**2",
+        ]
+
+    def _setup_problem(self, bkd, bc_types, nx=2, degree=2, robin_alpha=1.0):
+        from pyapprox.pde.galerkin.mesh import StructuredMesh3D
+
+        functions, nvars = create_hyperelasticity_manufactured_test(
+            bounds=[0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            sol_strs=self._sol_strs,
+            stress_model=self._stress,
+            bkd=bkd,
+        )
+        mesh = StructuredMesh3D(
+            nx=nx,
+            ny=nx,
+            nz=nx,
+            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
+            bkd=bkd,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=degree)
+        adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
+        body_force = adapter.forcing_for_galerkin()
+        bc_set = adapter.create_boundary_conditions(bc_types, robin_alpha=robin_alpha)
+        physics = HyperelasticityPhysics(
+            basis=basis,
+            stress_model=self._stress,
+            bkd=bkd,
+            body_force=body_force,
+            boundary_conditions=bc_set.all_conditions(),
+        )
+        return physics, functions, basis
+
+    def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-3):
+        exact = _get_exact_displacement(functions, basis, bkd)
+        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+        init_guess = bkd.asarray(exact + 0.005)
+        result = solver.solve(init_guess)
+        assert result.converged, f"Newton did not converge: {result.residual_norm:.2e}"
+        u_np = bkd.to_numpy(result.solution)
+        u_norm = np.linalg.norm(exact)
+        rel_error = np.linalg.norm(u_np - exact) / max(u_norm, 1e-30)
+        assert rel_error < tol
+
+    def test_bc_mixed_DN_3d(self, numpy_bkd) -> None:
+        """Neumann traction on the right face, Dirichlet elsewhere."""
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(
+            bkd, ["D", "N", "D", "D", "D", "D"]
+        )
+        self._check_newton_solve(bkd, physics, functions, basis)
+
+    def test_bc_mixed_DNR_3d(self, numpy_bkd) -> None:
+        """Neumann on right, Robin on back, Dirichlet elsewhere."""
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(
+            bkd, ["D", "N", "D", "D", "D", "R"]
+        )
+        self._check_newton_solve(bkd, physics, functions, basis)
+
+    def test_bc_residual_at_exact_mixed_3d(self, numpy_bkd) -> None:
+        """Residual at exact solution should be small with mixed BCs."""
+        bkd = numpy_bkd
+        self._setup(bkd)
+        physics, functions, basis = self._setup_problem(
+            bkd, ["D", "N", "D", "D", "D", "R"]
+        )
+        exact = _get_exact_displacement(functions, basis, bkd)
+        state = bkd.asarray(exact)
+        res = physics.residual(state, 0.0)
+        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
+        assert res_norm < 1e-3

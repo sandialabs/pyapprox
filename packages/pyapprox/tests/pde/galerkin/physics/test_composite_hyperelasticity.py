@@ -565,3 +565,133 @@ class TestCompositeMultiMaterial:
         )
         M = _to_dense(physics.mass_matrix(), bkd)
         np.testing.assert_array_almost_equal(M, M.T)
+
+
+class TestCompositeHyperelasticity3D:
+    def _setup_3d_problem(self, bkd, E=1.0, nu=0.25, nx=2, degree=2):
+        """3D MMS problem with quadratic solutions in the FE space."""
+        from pyapprox.pde.galerkin.mesh import StructuredMesh3D
+
+        lam, mu = lame_parameters(E, nu)
+        stress = NeoHookeanStress(lam, mu)
+        bounds = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]
+        sol_strs = [
+            "0.02*x*y + 0.01*z**2",
+            "0.01*x**2 - 0.02*y*z",
+            "0.005*x*z + 0.015*y**2",
+        ]
+
+        functions, nvars = create_hyperelasticity_manufactured_test(
+            bounds=bounds,
+            sol_strs=sol_strs,
+            stress_model=stress,
+            bkd=bkd,
+        )
+
+        mesh = StructuredMesh3D(
+            nx=nx,
+            ny=nx,
+            nz=nx,
+            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
+            bkd=bkd,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=degree)
+
+        adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
+        body_force = adapter.forcing_for_galerkin()
+        value_func = _make_vector_dirichlet_value_func(functions["solution"], nvars)
+        bc_list = [
+            DirichletBC(basis, name, value_func, bkd)
+            for name in ["left", "right", "bottom", "top", "front", "back"]
+        ]
+
+        physics = CompositeHyperelasticityPhysics.from_uniform(
+            basis=basis,
+            youngs_modulus=E,
+            poisson_ratio=nu,
+            bkd=bkd,
+            body_force=body_force,
+            boundary_conditions=bc_list,
+        )
+        return physics, functions, basis
+
+    def test_residual_at_exact_3d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_3d_problem(bkd, nx=2, degree=2)
+        exact = _get_exact_displacement(functions, basis, bkd)
+        state = bkd.asarray(exact)
+        res = physics.residual(state, 0.0)
+        res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
+        assert res_norm < 1e-8
+
+    def test_jacobian_fd_check_3d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_3d_problem(bkd, nx=2, degree=1)
+        n = physics.nstates()
+        np.random.seed(42)
+        state = bkd.asarray(0.01 * np.random.randn(n))
+        jac = _to_dense(physics.jacobian(state, 0.0), bkd)
+        res0 = bkd.to_numpy(physics.residual(state, 0.0))
+        eps = 1e-7
+        fd_jac = np.zeros((n, n))
+        state_np = bkd.to_numpy(state)
+        for j in range(n):
+            state_pert = state_np.copy()
+            state_pert[j] += eps
+            res_pert = bkd.to_numpy(physics.residual(bkd.asarray(state_pert), 0.0))
+            fd_jac[:, j] = (res_pert - res0) / eps
+        rel_err = np.max(np.abs(jac - fd_jac)) / (np.max(np.abs(fd_jac)) + 1e-30)
+        assert rel_err < 1e-4
+
+    def test_newton_solve_3d(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        physics, functions, basis = self._setup_3d_problem(bkd, nx=2, degree=2)
+        exact = _get_exact_displacement(functions, basis, bkd)
+
+        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+        init_guess = bkd.asarray(exact + 0.005)
+        result = solver.solve(init_guess)
+
+        assert result.converged
+        u_num = bkd.to_numpy(result.solution)
+        rel_error = np.linalg.norm(u_num - exact) / np.linalg.norm(exact)
+        # quadratic MMS lies in the degree-2 FE space (see the
+        # HyperelasticityPhysics 3D Newton test for the error budget)
+        assert rel_error < 1e-10
+
+    def test_3d_composite_matches_uniform(self, numpy_bkd) -> None:
+        """Composite residual/Jacobian match HyperelasticityPhysics in 3D."""
+        bkd = numpy_bkd
+        from pyapprox.pde.galerkin.mesh import StructuredMesh3D
+
+        mesh = StructuredMesh3D(
+            nx=2,
+            ny=2,
+            nz=2,
+            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
+            bkd=bkd,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+        physics_c = CompositeHyperelasticityPhysics.from_uniform(
+            basis=basis,
+            youngs_modulus=1.0,
+            poisson_ratio=0.25,
+            bkd=bkd,
+        )
+        lam, mu = lame_parameters(1.0, 0.25)
+        stress = NeoHookeanStress(lam, mu)
+        physics_u = HyperelasticityPhysics(
+            basis=basis,
+            stress_model=stress,
+            bkd=bkd,
+        )
+        np.random.seed(0)
+        n = physics_c.nstates()
+        state = bkd.asarray(0.01 * np.random.randn(n))
+        # compare spatial (pre-BC) quantities
+        res_c = physics_c.spatial_residual(state, 0.0)
+        res_u = physics_u.spatial_residual(state, 0.0)
+        bkd.assert_allclose(res_c, res_u, rtol=1e-12, atol=1e-14)
+        jac_c = bkd.asarray(_to_dense(physics_c.spatial_jacobian(state, 0.0), bkd))
+        jac_u = bkd.asarray(_to_dense(physics_u.spatial_jacobian(state, 0.0), bkd))
+        bkd.assert_allclose(jac_c, jac_u, rtol=1e-10, atol=1e-12)

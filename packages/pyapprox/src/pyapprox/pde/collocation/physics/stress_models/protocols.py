@@ -164,6 +164,29 @@ class StressModelWithTangentProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def compute_tangent_3d(
+        self,
+        F: Tuple[Tuple[Array, ...], ...],
+        bkd: Backend[Array],
+    ) -> Array:
+        """Compute 3D tangent modulus A_iJkL = dP_iJ/dF_kL.
+
+        Parameters
+        ----------
+        F : Tuple[Tuple[Array, ...], ...]
+            Deformation gradient as 3x3 nested tuple. F[i][J] arrays
+            share a common batch shape.
+        bkd : Backend
+            Computational backend.
+
+        Returns
+        -------
+        Array
+            Stacked tangent modulus with A[i, J, k, L] = A_iJkL.
+            Shape: (3, 3, 3, 3) + batch shape.
+        """
+        ...
+
 
 @runtime_checkable
 class SymbolicStressModelProtocol(Protocol):

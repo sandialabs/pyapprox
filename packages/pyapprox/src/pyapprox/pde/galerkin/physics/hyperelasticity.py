@@ -361,10 +361,36 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 u_prev=state_interp,
             )
 
+        elif ndim == 3:
+
+            def tangent_3d(
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+            ) -> np.ndarray:
+                F = tuple(
+                    tuple(
+                        (1.0 if i == j else 0.0) + w.u_prev.grad[i, j]
+                        for j in range(3)
+                    )
+                    for i in range(3)
+                )
+                A = stress_model.compute_tangent_3d(F, numpy_bkd)
+                # K[du, v] = sum_{i,J,k,L} A_{iJkL} * dv_i/dX_J * du_k/dX_L
+                ret: NDArray[np.floating[Any]] = np.einsum(
+                    "ij...,ijkl...,kl...->...", v.grad, np.asarray(A), u.grad
+                )
+                return ret
+
+            K_np = asm(
+                BilinearForm(tangent_3d),
+                skfem_basis,
+                u_prev=state_interp,
+            )
+
         else:
             raise NotImplementedError(
-                f"Tangent stiffness not available for {ndim}D. "
-                "The stress model does not provide compute_tangent_3d."
+                f"Tangent stiffness not available for {ndim}D."
             )
 
         return K_np

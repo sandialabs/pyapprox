@@ -121,15 +121,15 @@ class NeoHookeanStress(Generic[Array]):
         cof32 = -(F11 * F23 - F13 * F21)
         cof33 = F11 * F22 - F12 * F21
 
-        # F^{-T}_{ij} = cof_{ji} / J
+        # F^{-1} = cof^T / J, so F^{-T}_{ij} = cof_{ij} / J
         Finv_T_11 = cof11 / J
-        Finv_T_12 = cof21 / J
-        Finv_T_13 = cof31 / J
-        Finv_T_21 = cof12 / J
+        Finv_T_12 = cof12 / J
+        Finv_T_13 = cof13 / J
+        Finv_T_21 = cof21 / J
         Finv_T_22 = cof22 / J
-        Finv_T_23 = cof32 / J
-        Finv_T_31 = cof13 / J
-        Finv_T_32 = cof23 / J
+        Finv_T_23 = cof23 / J
+        Finv_T_31 = cof31 / J
+        Finv_T_32 = cof32 / J
         Finv_T_33 = cof33 / J
 
         P11 = self._mu * F11 + coef * Finv_T_11
@@ -307,6 +307,86 @@ class NeoHookeanStress(Generic[Array]):
             "A_2222": self._mu + gamma * F11**2,
         }
 
+    def compute_tangent_3d(
+        self,
+        F: Tuple[Tuple[Array, ...], ...],
+        bkd: Backend[Array],
+    ) -> Array:
+        """Compute 3D tangent modulus A_iJkL = dP_iJ/dF_kL.
+
+        For P = mu*F + (lamda*ln(J) - mu)*F^{-T} the closed form is
+
+            A_iJkL = mu*d_ik*d_JL
+                     + (mu - lamda*ln J)*Finv_Jk*Finv_Li
+                     + lamda*Finv_Ji*Finv_Lk
+
+        with d the Kronecker delta and Finv = F^{-1} (computed via the
+        cofactor matrix, matching compute_stress_3d).
+
+        Parameters
+        ----------
+        F : Tuple[Tuple[Array, ...], ...]
+            Deformation gradient as 3x3 nested tuple. F[i][J] arrays
+            share a common batch shape (e.g. (nelem, nquad)).
+        bkd : Backend
+            Computational backend.
+
+        Returns
+        -------
+        Array
+            Stacked tangent modulus with A[i, J, k, L] = A_iJkL.
+            Shape: (3, 3, 3, 3) + batch shape.
+        """
+        F11, F12, F13 = F[0]
+        F21, F22, F23 = F[1]
+        F31, F32, F33 = F[2]
+
+        J = (
+            F11 * (F22 * F33 - F23 * F32)
+            - F12 * (F21 * F33 - F23 * F31)
+            + F13 * (F21 * F32 - F22 * F31)
+        )
+        ln_J = bkd.log(J)
+        coef = self._mu - self._lamda * ln_J
+
+        # Cofactor matrix entries (cof_ij = d J / d F_ij)
+        cof11 = F22 * F33 - F23 * F32
+        cof12 = -(F21 * F33 - F23 * F31)
+        cof13 = F21 * F32 - F22 * F31
+        cof21 = -(F12 * F33 - F13 * F32)
+        cof22 = F11 * F33 - F13 * F31
+        cof23 = -(F11 * F32 - F12 * F31)
+        cof31 = F12 * F23 - F13 * F22
+        cof32 = -(F11 * F23 - F13 * F21)
+        cof33 = F11 * F22 - F12 * F21
+
+        # F^{-1}_{ab} = cof_{ba} / J
+        finv = (
+            (cof11 / J, cof21 / J, cof31 / J),
+            (cof12 / J, cof22 / J, cof32 / J),
+            (cof13 / J, cof23 / J, cof33 / J),
+        )
+
+        blocks_i = []
+        for i in range(3):
+            blocks_J = []
+            for Jd in range(3):
+                blocks_k = []
+                for k in range(3):
+                    entries_L = []
+                    for L in range(3):
+                        term = (
+                            coef * finv[Jd][k] * finv[L][i]
+                            + self._lamda * finv[Jd][i] * finv[L][k]
+                        )
+                        if i == k and Jd == L:
+                            term = term + self._mu
+                        entries_L.append(term)
+                    blocks_k.append(bkd.stack(entries_L, axis=0))
+                blocks_J.append(bkd.stack(blocks_k, axis=0))
+            blocks_i.append(bkd.stack(blocks_J, axis=0))
+        return bkd.stack(blocks_i, axis=0)
+
     # ------------------------------------------------------------------
     # Symbolic expressions (SymbolicStressModelProtocol)
     # ------------------------------------------------------------------
@@ -386,15 +466,15 @@ class NeoHookeanStress(Generic[Array]):
         cof32 = -(F11 * F23 - F13 * F21)
         cof33 = F11 * F22 - F12 * F21
 
-        # F^{-T}_{ij} = cof_{ji} / J
+        # F^{-1} = cof^T / J, so F^{-T}_{ij} = cof_{ij} / J
         P11 = mu * F11 + coef * cof11 / J
-        P12 = mu * F12 + coef * cof21 / J
-        P13 = mu * F13 + coef * cof31 / J
-        P21 = mu * F21 + coef * cof12 / J
+        P12 = mu * F12 + coef * cof12 / J
+        P13 = mu * F13 + coef * cof13 / J
+        P21 = mu * F21 + coef * cof21 / J
         P22 = mu * F22 + coef * cof22 / J
-        P23 = mu * F23 + coef * cof32 / J
-        P31 = mu * F31 + coef * cof13 / J
-        P32 = mu * F32 + coef * cof23 / J
+        P23 = mu * F23 + coef * cof23 / J
+        P31 = mu * F31 + coef * cof31 / J
+        P32 = mu * F32 + coef * cof32 / J
         P33 = mu * F33 + coef * cof33 / J
 
         return (
