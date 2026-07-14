@@ -3,7 +3,7 @@
 Defines interfaces for finite element bases that wrap scikit-fem (skfem).
 """
 
-from typing import Any, Callable, Generic, Protocol, runtime_checkable
+from typing import Any, Callable, Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -98,6 +98,46 @@ class GalerkinBasisProtocol(Protocol, Generic[Array]):
         -------
         Array
             DOF coordinates. Shape: (ndim, ndofs)
+        """
+        ...
+
+
+@runtime_checkable
+class ComponentDofsBasisProtocol(Protocol, Generic[Array]):
+    """Protocol for vector bases supporting per-component boundary DOFs.
+
+    Satisfied by bases whose ``get_dofs`` accepts a ``components``
+    argument restricting the returned boundary DOFs to a subset of the
+    vector components (e.g. symmetry/roller boundary conditions).
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def ncomponents(self) -> int:
+        """Return number of vector components."""
+        ...
+
+    def get_dofs(
+        self,
+        boundary_name: str,
+        components: Optional[tuple[int, ...]] = None,
+    ) -> Array:
+        """Return DOF indices on a named boundary.
+
+        Parameters
+        ----------
+        boundary_name : str
+            Name of the boundary.
+        components : tuple of int, optional
+            Component indices to restrict to. Default is None
+            (all components).
+
+        Returns
+        -------
+        Array
+            Sorted unique DOF indices on this boundary.
         """
         ...
 

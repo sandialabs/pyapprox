@@ -633,3 +633,132 @@ class TestLinearElasticityBase:
         assert np.linalg.norm(Ku) < 1e-10
 
 
+
+
+class TestLinearElasticity3DPatch:
+    """3D patch tests: linear displacement => exact recovery.
+
+    A linear displacement field u = A x + b produces constant strain and
+    stress, so with constant coefficients the forcing is zero and the FEM
+    solution is exact for any degree. Nonzero Dirichlet data on every face
+    exercises VectorLagrangeBasis.get_dofs in 3D — the regression that
+    duplicated boundary DOFs was invisible to vanishing-boundary tests.
+    """
+
+    @pytest.mark.parametrize("element_type", ["hex", "tet"])
+    @pytest.mark.parametrize("degree", [1, 2])
+    def test_3d_patch(self, numpy_bkd, element_type, degree) -> None:
+        bkd = numpy_bkd
+        A = np.array(
+            [
+                [0.10, 0.02, -0.03],
+                [0.04, -0.08, 0.01],
+                [-0.02, 0.05, 0.06],
+            ]
+        )
+        b = np.array([0.2, -0.1, 0.3])
+
+        def exact_displacement(x):
+            # (3, npts): also the DirichletBC vector value convention
+            return A @ x + b[:, None]
+
+        mesh = StructuredMesh3D(
+            nx=2,
+            ny=2,
+            nz=2,
+            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
+            bkd=bkd,
+            element_type=element_type,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=degree)
+
+        from pyapprox.pde.galerkin.boundary.implementations import (
+            DirichletBC,
+        )
+
+        def dirichlet_value(coords, time=0.0):
+            return exact_displacement(coords)
+
+        bc_list = [
+            DirichletBC(basis, name, dirichlet_value, bkd)
+            for name in ["left", "right", "bottom", "top", "front", "back"]
+        ]
+        physics = LinearElasticity.from_uniform(
+            basis=basis,
+            youngs_modulus=1.0,
+            poisson_ratio=0.3,
+            boundary_conditions=bc_list,
+            bkd=bkd,
+        )
+
+        solver = SteadyStateSolver(
+            physics, tol=1e-12, max_iter=5, line_search=False
+        )
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
+        result = solver.solve(u0)
+        assert result.converged
+
+        u_np = bkd.to_numpy(result.solution)
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+        vals = exact_displacement(dof_coords)  # (3, ndofs)
+        ndofs = basis.ndofs()
+        exact = vals[np.arange(ndofs) % 3, np.arange(ndofs)]
+        rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
+        assert rel_error < 1e-10
+
+    def test_3d_component_dirichlet_roller(self, numpy_bkd) -> None:
+        """Roller/symmetry BCs constraining single components.
+
+        With nu=0 the field u = (0, 0, alpha*z) satisfies traction-free
+        lateral faces exactly, so rollers (u_x=0 on left, u_y=0 on
+        bottom, u_z=0 on front) plus u_z=alpha on back recover it.
+        """
+        bkd = numpy_bkd
+        alpha = 0.1
+
+        mesh = StructuredMesh3D(
+            nx=2,
+            ny=2,
+            nz=2,
+            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
+            bkd=bkd,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=1)
+
+        from pyapprox.pde.galerkin.boundary.implementations import (
+            DirichletBC,
+        )
+
+        bc_list = [
+            DirichletBC(basis, "left", 0.0, bkd, components=(0,)),
+            DirichletBC(basis, "bottom", 0.0, bkd, components=(1,)),
+            DirichletBC(basis, "front", 0.0, bkd, components=(2,)),
+            DirichletBC(basis, "back", alpha, bkd, components=(2,)),
+        ]
+        # each BC constrains only its own component's DOFs
+        for bc, comp in zip(bc_list, [0, 1, 2, 2]):
+            dofs = bkd.to_numpy(bc.boundary_dofs())
+            assert np.all(dofs % 3 == comp)
+
+        physics = LinearElasticity.from_uniform(
+            basis=basis,
+            youngs_modulus=1.0,
+            poisson_ratio=0.0,
+            boundary_conditions=bc_list,
+            bkd=bkd,
+        )
+        solver = SteadyStateSolver(
+            physics, tol=1e-12, max_iter=5, line_search=False
+        )
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
+        result = solver.solve(u0)
+        assert result.converged
+
+        u_np = bkd.to_numpy(result.solution)
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+        ndofs = basis.ndofs()
+        exact = np.zeros(ndofs)
+        zcomp = np.arange(ndofs) % 3 == 2
+        exact[zcomp] = alpha * dof_coords[2, zcomp]
+        rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
+        assert rel_error < 1e-10

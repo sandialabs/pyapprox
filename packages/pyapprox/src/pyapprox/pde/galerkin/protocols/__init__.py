@@ -5,6 +5,7 @@ discretization of PDEs using scikit-fem.
 """
 
 from pyapprox.pde.galerkin.protocols.basis import (
+    ComponentDofsBasisProtocol,
     GalerkinBasisProtocol,
     VectorBasisProtocol,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "GalerkinMeshProtocol",
     "StructuredMeshProtocol",
     # Basis protocols
+    "ComponentDofsBasisProtocol",
     "GalerkinBasisProtocol",
     "VectorBasisProtocol",
     # Physics protocols

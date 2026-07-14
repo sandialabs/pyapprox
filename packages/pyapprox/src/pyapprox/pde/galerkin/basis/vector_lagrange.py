@@ -193,35 +193,52 @@ class VectorLagrangeBasis(Generic[Array]):
 
         return self._dof_locs
 
-    def get_dofs(self, boundary_name: str) -> Array:
-        """Return all DOF indices on a named boundary.
+    def get_dofs(
+        self,
+        boundary_name: str,
+        components: Optional[tuple[int, ...]] = None,
+    ) -> Array:
+        """Return DOF indices on a named boundary.
 
-        For vector elements, returns DOFs for ALL components on the boundary.
+        For vector elements, returns DOFs for ALL components on the
+        boundary by default, or only the requested components (e.g. for
+        symmetry/roller boundary conditions constraining one component).
 
         Parameters
         ----------
         boundary_name : str
             Name of the boundary (e.g., "left", "right", "bottom", "top").
+        components : tuple of int, optional
+            Component indices to restrict to (e.g. ``(2,)`` for the z
+            component in 3D). Default is None (all components).
 
         Returns
         -------
         Array
-            DOF indices on this boundary (all components).
+            Sorted unique DOF indices on this boundary.
         """
+        if components is None:
+            # skfem returns every boundary DOF (all components) exactly once
+            combined = np.unique(
+                np.asarray(self._skfem_basis.get_dofs(boundary_name)).flatten()
+            )
+            return self._bkd.asarray(combined)
+
         ndim = self._ndim
-        if ndim == 1:
-            # In 1D there is only one component — skip logic would skip it,
-            # so get all boundary DOFs directly.
-            combined = np.asarray(self._skfem_basis.get_dofs(boundary_name)).flatten()
-        else:
-            all_dofs = []
-            dofnames = self._skfem_basis.get_dofs().obj.element.dofnames
-            for idx in range(ndim):
-                skip = dofnames[ndim - idx - 1]
-                component_dofs = self._skfem_basis.get_dofs(boundary_name, skip=skip)
-                all_dofs.append(np.asarray(component_dofs).flatten())
-            combined = np.concatenate(all_dofs)
-        combined.sort()
+        for comp in components:
+            if not 0 <= comp < ndim:
+                raise ValueError(
+                    f"component {comp} out of range for {ndim} components"
+                )
+        # skfem names vector-element DOFs u^1..u^ndim; selecting one
+        # component means skipping the other ndim-1 names
+        dofnames = self._skfem_basis.get_dofs().obj.element.dofnames
+        all_dofs = []
+        for idx in components:
+            skip = [dofnames[k] for k in range(ndim) if k != idx]
+            component_dofs = self._skfem_basis.get_dofs(boundary_name, skip=skip)
+            all_dofs.append(np.asarray(component_dofs).flatten())
+        combined = np.unique(np.concatenate(all_dofs))
         return self._bkd.asarray(combined)
 
     def get_component_dofs(self, component: int) -> Array:

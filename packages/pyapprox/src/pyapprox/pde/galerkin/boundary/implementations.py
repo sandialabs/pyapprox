@@ -15,7 +15,10 @@ import numpy.typing as npt
 from numpy.typing import NDArray
 from scipy.sparse import issparse, spmatrix
 
-from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.pde.galerkin.protocols.basis import (
+    ComponentDofsBasisProtocol,
+    GalerkinBasisProtocol,
+)
 from pyapprox.pde.sparse_utils import apply_dirichlet_rows
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -43,9 +46,17 @@ class DirichletBC(Generic[Array]):
         Name of the boundary (e.g., "left", "right", "bottom", "top").
     value_func : Callable or float
         Function g(x, t) returning boundary values, or constant value.
-        If callable, takes coordinates (ndim, npts) and time, returns (npts,).
+        If callable, takes coordinates (ndim, npts) and time, and returns
+        either per-DOF values (npts,) or, for vector bases, per-component
+        values (ncomponents, npts) from which each DOF's component is
+        selected automatically.
     bkd : Backend[Array]
         Computational backend.
+    components : tuple of int, optional
+        For vector bases, constrain only these displacement components on
+        the boundary (e.g. ``components=(2,)`` fixes u_z only — a
+        symmetry/roller condition). Default is None (all components).
+        Requires a basis whose ``get_dofs`` supports component selection.
 
     Examples
     --------
@@ -64,6 +75,7 @@ class DirichletBC(Generic[Array]):
         boundary_name: str,
         value_func: Union[Callable[..., Any], float],
         bkd: Backend[Array],
+        components: Optional[tuple[int, ...]] = None,
     ):
         self._basis = basis
         self._boundary_name = boundary_name
@@ -77,8 +89,24 @@ class DirichletBC(Generic[Array]):
             const = float(value_func)
             self._value_func = lambda x, t=None: np.full(x.shape[1], const)
 
+        if isinstance(basis, ComponentDofsBasisProtocol):
+            self._ncomponents = basis.ncomponents()
+        else:
+            self._ncomponents = 1
+
         # Get and cache boundary DOF indices
-        self._boundary_dofs = basis.get_dofs(boundary_name)
+        if components is None:
+            self._boundary_dofs = basis.get_dofs(boundary_name)
+        else:
+            if not isinstance(basis, ComponentDofsBasisProtocol):
+                raise TypeError(
+                    "components requires a vector basis supporting "
+                    "per-component DOF selection, got "
+                    f"{type(basis).__name__}"
+                )
+            self._boundary_dofs = basis.get_dofs(
+                boundary_name, components=components
+            )
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -120,7 +148,30 @@ class DirichletBC(Generic[Array]):
         bndry_coords = dof_coords_np[:, bndry_dofs_np]
 
         # Evaluate boundary function
-        values_np = self._value_func(bndry_coords, time)
+        values_np = np.asarray(self._value_func(bndry_coords, time))
+
+        if values_np.ndim == 2:
+            # Vector-valued return (ncomponents, nboundary_dofs): select
+            # each DOF's own component. skfem interleaves vector-element
+            # DOFs, so DOF d belongs to component d % ncomponents.
+            if self._ncomponents == 1:
+                raise ValueError(
+                    "value_func must return a 1D array for scalar bases, "
+                    f"got shape {values_np.shape}"
+                )
+            if values_np.shape != (
+                self._ncomponents,
+                bndry_dofs_np.shape[0],
+            ):
+                raise ValueError(
+                    "vector value_func must return shape "
+                    f"({self._ncomponents}, {bndry_dofs_np.shape[0]}), "
+                    f"got {values_np.shape}"
+                )
+            dof_components = bndry_dofs_np % self._ncomponents
+            values_np = values_np[
+                dof_components, np.arange(bndry_dofs_np.shape[0])
+            ]
 
         return self._bkd.asarray(values_np.astype(np.float64))
 
