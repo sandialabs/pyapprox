@@ -8,6 +8,7 @@ Implements FunctionWithJacobianAndHVPProtocol directly (no inheritance).
 
 from typing import Generic, List, Sequence
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -49,6 +50,14 @@ class SobolGFunction(Generic[Array]):
         self._bkd = bkd
         self._a = list(a)
         self._nvars = len(a)
+
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

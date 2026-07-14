@@ -12,6 +12,7 @@ import numpy as np
 
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.expdesign.protocols.objective import OEDObjectiveProtocol
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
@@ -59,6 +60,14 @@ class OEDObjectiveWrapper(Generic[Array]):
     ) -> None:
         self._objective = objective
         self._bkd = bkd
+        # OEDObjectiveProtocol requires an analytic jacobian.
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Get the backend."""

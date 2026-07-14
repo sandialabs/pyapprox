@@ -11,9 +11,9 @@ import numpy as np
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
-from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox_benchmarks.pde.cantilever_beam import (
     _DEFAULT_MESH_PATH,
     _find_dof,
@@ -61,14 +61,15 @@ def build_cantilever_beam_design_matrix(
     """
     from typing import Callable
 
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
-    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
     # ---- Build FEM ----
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))

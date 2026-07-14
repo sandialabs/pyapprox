@@ -9,6 +9,8 @@ Tests cover:
 - Integration with CantileverBeam2DAnalytical
 """
 
+from pyapprox.interface.functions.derivatives import Derivatives
+
 
 def _bundle_jac(obj):
     """Return the bundle jacobian, asserting it is populated."""
@@ -157,6 +159,9 @@ class TestActiveSetFunction:
 
             def __call__(self, samples):
                 return samples[0:1, :] + samples[1:2, :]
+
+            def derivatives(self):
+                return Derivatives.none()
 
         func = NoJacFunction()
         asf = self._make_asf(

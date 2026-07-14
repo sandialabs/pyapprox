@@ -1,13 +1,14 @@
-"""Legacy-style producers for scipy-optimizer regression tests.
+"""Producers for scipy-optimizer regression tests.
 
-Written against the CURRENT capability convention (real ``def jacobian`` /
-``def hvp`` methods discovered by the optimizers) and exercised purely
-through the public bind()/minimize() API, so these tests survive the
-Derivatives-bundle consumer rewrite unchanged and protect it.
+Each class keeps its real ``def jacobian`` / ``def hvp`` methods (they
+carry call-count instrumentation) and declares them to consumers through
+a ``derivatives()`` bundle, exercised purely via the public
+bind()/minimize() API.
 """
 
 from typing import Any, Generic, List
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -18,6 +19,11 @@ class QuadraticNoDerivatives(Generic[Array]):
         self._bkd = bkd
         self._center = bkd.asarray(center)[:, None]
         self._nvars = len(center)
+        # Subclasses with derivative capability overwrite this.
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -39,6 +45,7 @@ class QuadraticWithJacobian(QuadraticNoDerivatives[Array]):
     def __init__(self, bkd: Backend[Array], center: List[float]) -> None:
         super().__init__(bkd, center)
         self.njacobian_calls = 0
+        self._derivs = Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample: Array) -> Array:
         self.njacobian_calls += 1
@@ -57,6 +64,9 @@ class QuadraticWithJacobianAndHVP(QuadraticWithJacobian[Array]):
         super().__init__(bkd, center)
         self.nhvp_calls = 0
         self.foreign_vec_dtypes: List[Any] = []
+        self._derivs = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
 
     def hvp(self, sample: Array, vec: Array) -> Array:
         self.nhvp_calls += 1
@@ -76,6 +86,11 @@ class SumConstraint(Generic[Array]):
         # constraint bounds are 1D (nqoi,) per the existing convention
         self._lb = bkd.asarray([lb])
         self._ub = bkd.asarray([ub])
+        # Subclasses with derivative capability overwrite this.
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -104,6 +119,7 @@ class SumConstraintWithJacobian(SumConstraint[Array]):
     ) -> None:
         super().__init__(bkd, nvars, lb, ub)
         self.njacobian_calls = 0
+        self._derivs = Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample: Array) -> Array:
         self.njacobian_calls += 1
@@ -120,6 +136,9 @@ class SumConstraintWithJacobianAndWHVP(SumConstraintWithJacobian[Array]):
         super().__init__(bkd, nvars, lb, ub)
         self.nwhvp_calls = 0
         self.foreign_dtypes: List[Any] = []
+        self._derivs = Derivatives.second_order_weighted(
+            jacobian=self.jacobian, whvp=self.whvp
+        )
 
     def whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
         self.nwhvp_calls += 1

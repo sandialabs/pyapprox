@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Tuple, Union
 
-from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.collocation.functionals.point_evaluation import (
     PointEvaluationFunctional,
@@ -21,11 +20,6 @@ from pyapprox.pde.collocation.functionals.strain_energy_1d import (
 )
 from pyapprox.pde.collocation.functionals.subdomain_integral import (
     SubdomainIntegralFunctional,
-)
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    AffineTransform1D,
-    TransformedMesh1D,
 )
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
@@ -44,6 +38,12 @@ from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.mesh import (
+    AffineTransform1D,
+    TransformedMesh1D,
+)
+from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 
 
 def _make_kle_field_map(

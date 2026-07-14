@@ -11,6 +11,9 @@ from __future__ import annotations
 
 from typing import Callable, Generic
 
+from pyapprox.expdesign.utils import compute_exact_eig
+from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
     _build_vandermonde,
 )
@@ -18,8 +21,6 @@ from pyapprox_benchmarks.problems.inverse import (
     build_linear_gaussian_inference_problem,
 )
 from pyapprox_benchmarks.problems.oed import KLOEDProblem
-from pyapprox.expdesign.utils import compute_exact_eig
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LinearGaussianKLOEDBenchmark(Generic[Array]):

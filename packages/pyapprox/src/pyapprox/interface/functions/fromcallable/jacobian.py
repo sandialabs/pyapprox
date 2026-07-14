@@ -1,5 +1,6 @@
 from typing import Callable
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
@@ -31,6 +32,7 @@ class FunctionWithJacobianFromCallable(FunctionFromCallable[Array]):
                 f"Object details: {self}"
             )
         self._jacobian: Callable[[Array], Array] = jacobian
+        self._derivs = Derivatives.first_order(jacobian=self.jacobian)
 
     def nvars(self) -> int:
         return self._nvars
@@ -70,6 +72,9 @@ class FunctionWithJVPFromCallable(FunctionFromCallable[Array]):
                 f"Object details: {self}"
             )
         self._jvp: Callable[[Array, Array], Array] = jvp
+        # jvp without jacobian is an unusual combination, so the raw
+        # constructor is used instead of a named one.
+        self._derivs = Derivatives(jvp=self.jvp)
 
     def nvars(self) -> int:
         return self._nvars

@@ -9,6 +9,7 @@ Implements FunctionWithJacobianAndHVPProtocol directly.
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -42,6 +43,14 @@ class RosenbrockFunction(Generic[Array]):
             raise ValueError(f"nvars must be >= 2, got {nvars}")
         self._bkd = bkd
         self._nvars = nvars
+
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

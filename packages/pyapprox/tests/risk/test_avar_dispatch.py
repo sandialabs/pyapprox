@@ -14,6 +14,7 @@ from pyapprox.risk.avar_compute import (
     project_batch,
 )
 from pyapprox.util.optional_deps import package_available
+from pyapprox.interface.functions.derivatives import Derivatives
 
 HAS_NUMBA = package_available("numba")
 
@@ -209,6 +210,9 @@ class TestAVaRJacobianDerivativeChecker:
                 vals = bkd.einsum("ijk,k->ij", A, x)  # (nqoi, nsamples)
                 # jac_values[q, s, v] = A[q, s, v]
                 return self._stat.jacobian(vals, A, self._weights)
+
+            def derivatives(self):
+                return Derivatives.first_order(jacobian=self.jacobian)
 
         wrapper = _AVaRWrapper(stat, A_np, weights_np, bkd)
         sample = bkd.asarray(np.random.randn(nvars, 1))

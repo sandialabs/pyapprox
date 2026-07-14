@@ -1,7 +1,7 @@
 """Tunable ensemble benchmark — tunable correlation structure."""
 
 import math
-from typing import Callable, Generic, List, Optional
+from typing import Generic, List, Optional
 
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint

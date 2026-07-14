@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
+from pyapprox.probability.joint.independent import IndependentJoint
+from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox_benchmarks.benchmark import BoxDomain
 from pyapprox_benchmarks.functions.ode import ODETimeConfig
 from pyapprox_benchmarks.functions.ode.chemical_reaction import (
     ChemicalReactionResidual,
 )
 from pyapprox_benchmarks.problems.ode import ODEForwardUQProblem
-from pyapprox.probability.joint.independent import IndependentJoint
-from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 def build_chemical_reaction_surface(

@@ -11,7 +11,6 @@ from __future__ import annotations
 import math
 from typing import Union
 
-from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.collocation.functionals.elasticity_2d import (
     AverageHoopStressFunctional,
@@ -19,19 +18,9 @@ from pyapprox.pde.collocation.functionals.elasticity_2d import (
     OuterWallRadialDisplacementFunctional,
     StrainEnergyFunctional2D,
 )
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.physics.stress_models import (
-    NeoHookeanStress,
-)
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
     StressPostProcessor2D,
-)
-from pyapprox.pde.collocation.quadrature import (
-    CollocationQuadrature2D,
 )
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
@@ -46,6 +35,18 @@ from pyapprox.pde.zoo.pressurized_cylinder_2d import (
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.physics.stress_models import (
+    NeoHookeanStress,
+)
+from pyapprox.pde.collocation.quadrature import (
+    CollocationQuadrature2D,
+)
+from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 
 
 def _make_kle_field_map_2d(

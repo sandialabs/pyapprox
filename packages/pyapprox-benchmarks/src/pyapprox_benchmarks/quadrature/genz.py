@@ -2,11 +2,11 @@
 
 from typing import Generic, List
 
+from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox.interface.functions.protocols import (
     FunctionWithJacobianProtocol,
 )
-from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.benchmark import BoxDomain
 from pyapprox_benchmarks.functions.genz import (
     CornerPeakFunction,

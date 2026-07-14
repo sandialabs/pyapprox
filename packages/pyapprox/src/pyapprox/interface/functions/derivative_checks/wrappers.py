@@ -1,12 +1,14 @@
 """JVP-exposing views used by DerivativeChecker.
 
 Capability is read from each function's Derivatives bundle (via the
-migration shim ``as_derivatives``), never via attribute probing.
+migration shim ``resolve_bundle``), never via attribute probing.
 """
 
 from typing import Generic, Optional
 
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
+from pyapprox.interface.functions.derivative_checks._legacy_harvest import (
+    resolve_bundle,
+)
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -15,7 +17,7 @@ class FunctionWithJVP(Generic[Array]):
     """Expose a jvp for first-order checking, from jvp or jacobian."""
 
     def __init__(self, function: FunctionProtocol[Array]):
-        derivs = as_derivatives(function)
+        derivs = resolve_bundle(function)
         if derivs.jvp is None and derivs.jacobian is None:
             raise ValueError(
                 "The provided function must declare a jacobian or jvp in "
@@ -73,7 +75,7 @@ class FunctionWithJVPFromHVP(Generic[Array]):
         function: FunctionProtocol[Array],
         weights: Optional[Array] = None,
     ):
-        derivs = as_derivatives(function)
+        derivs = resolve_bundle(function)
         if derivs.hvp is None and derivs.whvp is None:
             raise ValueError(
                 "The provided function must declare an hvp or whvp in its "
@@ -165,7 +167,7 @@ class SingleSampleFromBatchJacobian(Generic[Array]):
     """
 
     def __init__(self, function: FunctionProtocol[Array]):
-        derivs = as_derivatives(function)
+        derivs = resolve_bundle(function)
         if derivs.jacobian_batch is None:
             raise ValueError(
                 "Function must declare jacobian_batch in its Derivatives "
@@ -183,9 +185,9 @@ class SingleSampleFromBatchJacobian(Generic[Array]):
     def nqoi(self) -> int:
         return self._fun.nqoi()
 
-    def __call__(self, sample: Array) -> Array:
-        # Evaluate function at the given sample
-        return self._fun(sample)  # (nqoi, 1)
+    def __call__(self, samples: Array) -> Array:
+        # Evaluate function at the given samples
+        return self._fun(samples)  # (nqoi, 1)
 
     def jacobian(self, sample: Array) -> Array:
         # Use jacobian_batch and extract single result
@@ -204,7 +206,7 @@ class SingleSampleFromBatchHessian(Generic[Array]):
     """
 
     def __init__(self, function: FunctionProtocol[Array]):
-        derivs = as_derivatives(function)
+        derivs = resolve_bundle(function)
         if derivs.hessian_batch is None:
             raise ValueError(
                 "Function must declare hessian_batch in its Derivatives "
@@ -232,8 +234,8 @@ class SingleSampleFromBatchHessian(Generic[Array]):
     def nqoi(self) -> int:
         return 1
 
-    def __call__(self, sample: Array) -> Array:
-        return self._fun(sample)  # (1, 1)
+    def __call__(self, samples: Array) -> Array:
+        return self._fun(samples)  # (1, 1)
 
     def jacobian(self, sample: Array) -> Array:
         # Use jacobian_batch for the gradient

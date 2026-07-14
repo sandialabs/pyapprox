@@ -11,6 +11,7 @@ from typing import Generic
 
 from pyapprox.expdesign.local.adjoint import AdjointModel
 from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 from .base import LocalOEDCriterionBase
@@ -95,6 +96,11 @@ class AOptimalCriterion(LocalOEDCriterionBase[Array], Generic[Array]):
         for adjoint in self._adjoints:
             jac = jac + adjoint.jacobian(design_weights)
         return jac
+
+    def _build_derivatives(self) -> Derivatives[Array]:
+        return Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
 
     def hvp(self, design_weights: Array, vec: Array) -> Array:
         """

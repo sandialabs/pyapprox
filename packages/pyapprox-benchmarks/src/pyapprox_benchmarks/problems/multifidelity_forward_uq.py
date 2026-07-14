@@ -2,9 +2,10 @@
 
 from typing import Any, Generic, List, Sequence, TypeVar
 
-from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.protocols import Array
+
+from pyapprox.interface.functions.protocols import FunctionProtocol
 
 F = TypeVar("F", bound=FunctionProtocol[Any])
 

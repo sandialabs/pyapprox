@@ -25,6 +25,7 @@ integral_0^L M dx = q0*L^3/8, so integral_0^L sigma dx = 3*q0*L^3/(4*H^2).
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 #TODO: Should we rename this file cantiler_beam_1d.py
@@ -65,6 +66,14 @@ class HomogeneousBeam1DAnalytical(Generic[Array]):
         self._height = height
         self._q0 = q0
         self._I_rect = height**3 / 12.0
+
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -180,6 +189,14 @@ class CantileverBeam1DAnalytical(Generic[Array]):
             q0=q0,
             bkd=bkd,
         )
+
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

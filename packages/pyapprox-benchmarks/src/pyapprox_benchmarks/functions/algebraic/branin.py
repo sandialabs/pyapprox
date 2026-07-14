@@ -9,6 +9,7 @@ Implements FunctionWithJacobianAndHVPProtocol directly (no inheritance).
 import math
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -50,6 +51,14 @@ class BraninFunction(Generic[Array]):
         self._r = 6.0
         self._s = 10.0
         self._t = 1.0 / (8 * math.pi)
+
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

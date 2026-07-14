@@ -9,11 +9,12 @@ overridden with analytical formulas for efficiency.
 from functools import partial
 from typing import Callable, Generic, List, Sequence, Tuple
 
-from pyapprox.probability.univariate import UniformMarginal
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+from pyapprox.probability.univariate import UniformMarginal
 
 
 class MultifidelityStatisticsMixin(Generic[Array]):

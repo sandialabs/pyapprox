@@ -7,6 +7,7 @@ derivative-checking infrastructure.
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -37,6 +38,17 @@ class QuadraticFunction(Generic[Array]):
         self._bkd = bkd
         self._nvars = nvars
         self._eye = bkd.eye(nvars)
+
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=self.jacobian,
+            hvp=self.hvp,
+            whvp=self.whvp,
+            hessian=self.hessian,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -77,6 +89,14 @@ class DiagonalQuadraticFunction(Generic[Array]):
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
+
+        self._derivs: Derivatives[Array] = Derivatives.second_order_weighted(
+            jacobian=self.jacobian, whvp=self.whvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

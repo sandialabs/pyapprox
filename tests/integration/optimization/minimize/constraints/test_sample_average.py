@@ -8,6 +8,8 @@ Tests cover:
 - Dual-backend testing (NumPy and PyTorch)
 """
 
+from pyapprox.interface.functions.derivatives import Derivatives
+
 
 def _bundle_jac(obj):
     """Return the bundle jacobian, asserting it is populated."""
@@ -50,6 +52,9 @@ class _QuadraticModel:
             ]
         )
 
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
+
 
 class _NoJacModel:
     """Model without jacobian for testing dynamic binding."""
@@ -68,6 +73,9 @@ class _NoJacModel:
 
     def __call__(self, samples):
         return samples[0:1, :] + samples[1:2, :]
+
+    def derivatives(self):
+        return Derivatives.none()
 
 
 class TestSampleAverageConstraint:

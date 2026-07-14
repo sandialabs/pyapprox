@@ -5,6 +5,7 @@ This module tests mean function implementations, focusing on
 Jacobian accuracy using DerivativeChecker.
 """
 
+from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -261,6 +262,9 @@ class TestMeanFunctions:
                 # JVP = J @ v
                 return J @ v_reshaped
 
+            def derivatives(self):
+                return Derivatives(jacobian=self.jacobian, jvp=self.jvp)
+
         # Create wrapper
         wrapper = MeanFunctionWrapper(mean, X, bkd)
 
@@ -380,6 +384,9 @@ class TestMeanFunctions:
                 )
                 jac = self._mean.jacobian_wrt_params(self._X)
                 return self._bkd.reshape(jac, (jac.shape[0], jac.shape[2])).T
+
+            def derivatives(self):
+                return Derivatives.first_order(jacobian=self.jacobian)
 
         wrapper = MeanFunctionWrapper(mean, X, bkd)
         checker = DerivativeChecker(wrapper)

@@ -6,7 +6,6 @@ from typing import (
     Generic,
     Protocol,
     Tuple,
-    Union,
     runtime_checkable,
 )
 

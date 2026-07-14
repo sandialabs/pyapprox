@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Generic
 
 from pyapprox.expdesign.local.protocols import DesignMatricesProtocol
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -37,6 +38,19 @@ class LocalOEDCriterionBase(ABC, Generic[Array]):
     ) -> None:
         self._design_matrices = design_matrices
         self._bkd = bkd
+        self._derivs: Derivatives[Array] = self._build_derivatives()
+
+    def _build_derivatives(self) -> Derivatives[Array]:
+        """Capability bundle; hvp-capable subclasses override.
+
+        Every criterion has an analytic jacobian (abstract on this
+        base), so the default bundle is first order.
+        """
+        return Derivatives.first_order(jacobian=self.jacobian)
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Get the backend."""

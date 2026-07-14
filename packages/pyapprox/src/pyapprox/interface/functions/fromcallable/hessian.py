@@ -1,5 +1,6 @@
 from typing import Callable
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
@@ -30,6 +31,9 @@ class FunctionWithJacobianAndHVPFromCallable(FunctionWithJacobianFromCallable[Ar
                 f"Object details: {self}"
             )
         self._hvp: Callable[[Array, Array], Array] = hvp
+        self._derivs = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
 
     def hvp(self, sample: Array, vec: Array) -> Array:
         validate_sample(self.nvars(), sample)

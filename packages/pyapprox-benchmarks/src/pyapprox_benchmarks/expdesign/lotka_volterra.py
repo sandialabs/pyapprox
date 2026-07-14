@@ -8,6 +8,8 @@ other time point.
 
 from typing import Generic, Tuple
 
+from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox_benchmarks.functions.ode import (
     ODEFunctionalProtocol,
     ODEQoIFunction,
@@ -16,7 +18,6 @@ from pyapprox_benchmarks.ode.lotka_volterra import (
     build_lotka_volterra_3species,
 )
 from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ObservationFunctional(Generic[Array]):

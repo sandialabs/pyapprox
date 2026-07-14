@@ -34,6 +34,7 @@ Regime of validity:
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -55,6 +56,14 @@ class CantileverBeam2DAnalytical(Generic[Array]):
     ):
         self._bkd = bkd
         self._length = length
+
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -175,6 +184,14 @@ class CantileverBeam2DConstraints(Generic[Array]):
         self._R = yield_stress
         self._D0 = max_displacement
 
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
+
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
@@ -236,6 +253,14 @@ class CantileverBeam2DObjective(Generic[Array]):
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
+
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

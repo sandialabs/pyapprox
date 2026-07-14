@@ -1,5 +1,6 @@
 """Tests for parallel function factory."""
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from typing import Generic
 
 import pytest
@@ -149,6 +150,9 @@ class TestParallelFunctionWrapper:
 
             def jacobian(self, sample):
                 return 2 * sample.T
+
+            def derivatives(self):
+                return Derivatives.first_order(jacobian=self.jacobian)
 
         func = FuncWithoutHVP(bkd)
         parallel_func = make_parallel(func, backend="sequential")

@@ -34,9 +34,7 @@ from typing import Any, Callable, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -45,6 +43,9 @@ from pyapprox.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 
 
 def build_line_basis(

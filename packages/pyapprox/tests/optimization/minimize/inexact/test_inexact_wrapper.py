@@ -1,5 +1,6 @@
 """Dual-backend tests for InexactWrapper."""
 
+from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 import pytest
 
@@ -55,6 +56,9 @@ class _QuadraticModel:
             ]
         )
 
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
+
 
 class _ScalarModel:
     """f(x1, x2) = x1^2 + x2^2. x1 random, x2 design. nqoi=1."""
@@ -82,6 +86,9 @@ class _ScalarModel:
         zero = 0.0 * x1
         return self._bkd.asarray([[2.0 * x1 + zero, 2.0 * x2 + zero]])
 
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
+
 
 class _NoJacModel:
     """Model without jacobian for testing dynamic binding."""
@@ -100,6 +107,9 @@ class _NoJacModel:
 
     def __call__(self, samples):
         return samples[0:1, :] + samples[1:2, :]
+
+    def derivatives(self):
+        return Derivatives.none()
 
 
 def _bundle_jac(wrapper):

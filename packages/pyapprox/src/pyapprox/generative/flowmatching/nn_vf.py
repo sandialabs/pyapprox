@@ -5,6 +5,7 @@ from typing import Generic
 import torch
 import torch.nn as nn
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
 
@@ -70,6 +71,16 @@ class MLPVelocityField(nn.Module, Generic[Array]):
             in_dim = h
         layers.append(nn.Linear(in_dim, nqoi, dtype=self._torch_dtype))
         self._net = nn.Sequential(*layers)
+        # Only the batch jacobian is provided (used for divergence
+        # tracking); an unusual combination, so the raw constructor is
+        # used instead of a named one.
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian_batch=self.jacobian_batch
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def _to_tensor(self, arr: Array) -> torch.Tensor:
         if isinstance(arr, torch.Tensor):
@@ -111,7 +122,14 @@ class MLPVelocityField(nn.Module, Generic[Array]):
         torch.Tensor
             Shape ``(nqoi, ns)``.
         """
-        return self._net(vf_input.T).T
+        # torch types Module.__call__ as Any; narrow at the boundary
+        # with a real runtime check instead of an unchecked annotation.
+        out = self._net(vf_input.T)
+        if not isinstance(out, torch.Tensor):
+            raise TypeError(
+                f"expected torch.Tensor from network, got {type(out).__name__}"
+            )
+        return out.T
 
     def forward(self, vf_input: Array) -> Array:
         """Evaluate velocity field with backend boundary conversion.
@@ -147,7 +165,14 @@ class MLPVelocityField(nn.Module, Generic[Array]):
         """
         x_t = vf_input.T  # (ns, nvars_in)
         fn = lambda z: self._net(z)  # noqa: E731
-        return torch.func.vmap(torch.func.jacrev(fn))(x_t)
+        # torch.func returns Any; narrow at the boundary with a real
+        # runtime check instead of an unchecked annotation.
+        jac = torch.func.vmap(torch.func.jacrev(fn))(x_t)
+        if not isinstance(jac, torch.Tensor):
+            raise TypeError(
+                f"expected torch.Tensor jacobian, got {type(jac).__name__}"
+            )
+        return jac
 
     def jacobian_batch(self, vf_input: Array) -> Array:
         """Jacobian of output w.r.t. input for each sample.

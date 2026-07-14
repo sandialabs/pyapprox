@@ -15,6 +15,7 @@ from pyapprox.surrogates.kernels.multioutput.linear_coregionalization import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox.interface.functions.derivatives import Derivatives
 
 
 class TestIndependentMultiOutputKernel:
@@ -398,6 +399,9 @@ class TestIndependentMultiOutputKernel:
 
                 # JVP = J @ v
                 return J @ v_flat
+
+            def derivatives(self):
+                return Derivatives(jacobian=self.jacobian, jvp=self.jvp)
 
         # Create wrapper
         wrapper = KernelWrapper(self.mo_kernel, self.X_list, bkd)

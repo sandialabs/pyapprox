@@ -1,5 +1,6 @@
 """Tests for GaussianVariationalDistribution."""
 
+from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 import torch
 
@@ -159,6 +160,9 @@ class TestGaussianVariationalDistributionAutograd:
                 kl = self._qd.kl_divergence_to_prior()
                 kl.backward()
                 return self._bkd.reshape(p.grad, (1, -1))
+
+            def derivatives(self):
+                return Derivatives.first_order(jacobian=self.jacobian)
 
         wrapper = KLWrapper(qd, bkd)
         checker = DerivativeChecker(wrapper)

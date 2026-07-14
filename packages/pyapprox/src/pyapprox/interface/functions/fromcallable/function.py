@@ -1,5 +1,6 @@
 from typing import Callable, Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_samples,
     validate_values,
@@ -27,6 +28,13 @@ class FunctionFromCallable(Generic[Array]):
             )
         self._bkd = bkd
         self._fun: Callable[[Array], Array] = fun
+        # Subclasses with derivative capability overwrite this after
+        # storing their callables.
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def nvars(self) -> int:
         return self._nvars

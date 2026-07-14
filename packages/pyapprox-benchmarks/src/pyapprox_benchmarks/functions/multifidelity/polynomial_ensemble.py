@@ -6,6 +6,7 @@ with decreasing fidelity and cost.
 
 from typing import Generic, Union
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -25,6 +26,14 @@ class PolynomialModelFunction(Generic[Array]):
     def __init__(self, bkd: Backend[Array], degree: int) -> None:
         self._bkd = bkd
         self._degree = degree
+
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""

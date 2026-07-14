@@ -1,7 +1,7 @@
 """Finite-difference checking of Derivatives-bundle capabilities.
 
 The checkers iterate whatever a function's bundle declares (via the
-migration shim ``as_derivatives``): jacobian/jvp are checked directly;
+migration shim ``resolve_bundle``): jacobian/jvp are checked directly;
 hvp is checked as the derivative of the gradient; whvp as the derivative
 of the weighted gradient w^T f.
 """
@@ -12,6 +12,9 @@ from typing import (
     Optional,
 )
 
+from pyapprox.interface.functions.derivative_checks._legacy_harvest import (
+    resolve_bundle,
+)
 from pyapprox.interface.functions.derivative_checks.base import (
     JVPChecker,
 )
@@ -22,7 +25,6 @@ from pyapprox.interface.functions.derivative_checks.wrappers import (
     SingleSampleFromBatchJacobian,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.interface.functions.legacy_adapter import as_derivatives
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -38,7 +40,7 @@ class DerivativeChecker(Generic[Array]):
     def _validate_function(
         self, function: FunctionProtocol[Array]
     ) -> Derivatives[Array]:
-        derivs = as_derivatives(function)
+        derivs = resolve_bundle(function)
         if derivs.jacobian is None and derivs.jvp is None:
             raise ValueError(
                 "The provided function must declare a jacobian or jvp in "
@@ -115,7 +117,7 @@ class BatchDerivativeChecker(Generic[Array]):
         function: FunctionProtocol[Array],
         samples: Array,
     ):
-        self._derivs = as_derivatives(function)
+        self._derivs = resolve_bundle(function)
         self._fun = function
         self._samples = samples
 

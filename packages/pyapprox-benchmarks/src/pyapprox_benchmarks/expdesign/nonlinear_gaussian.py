@@ -9,6 +9,12 @@ from __future__ import annotations
 
 from typing import Any, Generic
 
+from pyapprox.util.backends.protocols import Array, Backend
+
+from pyapprox.expdesign.diagnostics import (
+    compute_exact_prediction_utility,
+    get_utility_factory,
+)
 from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
     _build_vandermonde,
     build_exp_qoi_map,
@@ -17,11 +23,6 @@ from pyapprox_benchmarks.problems.inverse import (
     build_linear_gaussian_inference_problem,
 )
 from pyapprox_benchmarks.problems.oed import PredictionOEDProblem
-from pyapprox.expdesign.diagnostics import (
-    compute_exact_prediction_utility,
-    get_utility_factory,
-)
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 class NonLinearGaussianPredOEDBenchmark(Generic[Array]):

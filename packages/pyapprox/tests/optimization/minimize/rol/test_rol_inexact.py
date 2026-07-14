@@ -1,5 +1,6 @@
 """End-to-end tests for ROL with inexact gradients."""
 
+from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 import pytest
 
@@ -66,6 +67,11 @@ class _QuadraticObjectiveModel:
         # Stack to (K, 2) then reshape to (K, 1, 2)
         jac_2d = bkd.stack([col0, col1], axis=1)  # (K, 2)
         return bkd.reshape(jac_2d, (samples.shape[1], 1, 2))
+
+    def derivatives(self):
+        return Derivatives.first_order(
+            jacobian=self.jacobian, jacobian_batch=self.jacobian_batch
+        )
 
 
 class TestROLInexactObjective:
@@ -224,6 +230,11 @@ class _ConstrainedModel:
         row0 = bkd.stack([2.0 * z, ones, zeros], axis=1)  # (K, 3)
         row1 = bkd.stack([ones, zeros, ones], axis=1)  # (K, 3)
         return bkd.stack([row0, row1], axis=1)  # (K, 2, 3)
+
+    def derivatives(self):
+        return Derivatives.first_order(
+            jacobian=self.jacobian, jacobian_batch=self.jacobian_batch
+        )
 
 
 class TestROLInexactConstraint:
@@ -384,6 +395,11 @@ class TestROLInexactConstraint:
                 ones = bkd.ones((K, 2))
                 return bkd.reshape(ones, (K, 1, 2))
 
+            def derivatives(self):
+                return Derivatives.first_order(
+                    jacobian=self.jacobian, jacobian_batch=self.jacobian_batch
+                )
+
         con_model = _ShiftConstraintModel(bkd)
         np.random.seed(123)
         con_base = bkd.array(np.random.randn(1, 5000))
@@ -496,6 +512,9 @@ class _ExpObjectiveModel:
         z = sample[0, 0]
         x = sample[1, 0]
         return self._bkd.asarray([[self._bkd.exp(z), 2.0 * (x - 1.0) + 0.0 * z]])
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
 
 def _make_tp_rule(bkd):

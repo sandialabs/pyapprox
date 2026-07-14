@@ -1,5 +1,6 @@
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_hvp,
     validate_jacobian,
@@ -26,6 +27,14 @@ class EvtushenkoObjective(Generic[Array]):
 
     def __init__(self, backend: Backend[Array]):
         self._bkd = backend
+
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

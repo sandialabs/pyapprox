@@ -1,7 +1,7 @@
 from typing import Generic
 
 import numpy as np
-
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_jacobian,
     validate_sample,
@@ -29,6 +29,14 @@ class EvtushenkoNonLinearConstraint(Generic[Array]):
         self._bkd = backend
         self._lb = backend.asarray([0.0])
         self._ub = backend.asarray([np.inf])
+
+        self._derivs: Derivatives[Array] = Derivatives.second_order_weighted(
+            jacobian=self.jacobian, whvp=self.whvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

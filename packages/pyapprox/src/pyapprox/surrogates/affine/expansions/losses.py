@@ -2,6 +2,7 @@
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -44,6 +45,14 @@ class BasisExpansionMSELoss(Generic[Array]):
         self._nqoi = expansion.nqoi()
         # Pre-compute basis matrix for efficiency
         self._Phi = expansion.basis_matrix(samples)  # (nsamples, nterms)
+        # Analytic jacobian and hvp are unconditional.
+        self._derivs: Derivatives[Array] = Derivatives.second_order(
+            jacobian=self.jacobian, hvp=self.hvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

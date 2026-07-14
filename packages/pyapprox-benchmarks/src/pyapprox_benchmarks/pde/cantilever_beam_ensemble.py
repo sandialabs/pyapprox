@@ -293,14 +293,15 @@ def build_shared_field_beam(
     SharedFieldBeamModel
         Callable model: ``(num_kle_terms+1, nsamples) -> (2, nsamples)``.
     """
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
     )
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
     from skfem import Basis as SkfemBasis
+
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)

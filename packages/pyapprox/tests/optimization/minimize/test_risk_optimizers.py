@@ -13,6 +13,7 @@ from pyapprox.optimization.minimize.minimax import (
     MinimaxOptimizer,
 )
 from pyapprox.util.backends.protocols import Backend
+from pyapprox.interface.functions.derivatives import Derivatives
 
 
 class SimpleMultiQoI:
@@ -44,6 +45,9 @@ class SimpleMultiQoI:
         """Jacobian: 2(x - c_i)."""
         x = sample[0, 0]
         return 2 * (x - self._centers)
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
 
 class TestMinimaxOptimizer:

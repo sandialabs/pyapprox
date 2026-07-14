@@ -7,6 +7,7 @@ useful for verifying the parallel mixin pattern
 
 from typing import Any, Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -17,6 +18,14 @@ class JacobianMixinFunction(Generic[Array]):
         self._bkd = bkd
         self._parallel_config: Any = None
         self._parallel_backend: Any = None
+
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian, jacobian_batch=self.jacobian_batch
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -65,6 +74,14 @@ class HVPMixinFunction(Generic[Array]):
         self._bkd = bkd
         self._parallel_config: Any = None
         self._parallel_backend: Any = None
+
+        self._derivs: Derivatives[Array] = Derivatives(
+            hvp=self.hvp, hvp_batch=self.hvp_batch
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._bkd

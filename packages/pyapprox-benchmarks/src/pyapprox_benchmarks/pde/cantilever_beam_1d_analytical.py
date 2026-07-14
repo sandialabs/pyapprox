@@ -4,14 +4,15 @@ Provides the analytical 1D cantilever beam model as a ForwardUQProblem
 with Beta marginals for the Young's moduli E1 (skin) and E2 (core).
 """
 
-from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
-    CantileverBeam1DAnalytical,
-)
-from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.beta import BetaMarginal
 from pyapprox.util.backends.protocols import Array, Backend
+
+from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
+    CantileverBeam1DAnalytical,
+)
+from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 
 
 def build_cantilever_beam_1d_analytical(

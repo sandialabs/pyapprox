@@ -9,6 +9,12 @@ from __future__ import annotations
 
 from typing import Generic, Union
 
+from pyapprox.ode.protocols.ode_residual import (
+    ODEResidualWithParamJacobianProtocol,
+)
+from pyapprox.probability.protocols.distribution import DistributionProtocol
+from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox_benchmarks.functions.ode.ode_qoi import (
     ODEFunctionalProtocol,
     ODEQoIFunction,
@@ -16,11 +22,6 @@ from pyapprox_benchmarks.functions.ode.ode_qoi import (
     _create_functional_from_string,
 )
 from pyapprox_benchmarks.protocols import DomainProtocol
-from pyapprox.ode.protocols.ode_residual import (
-    ODEResidualWithParamJacobianProtocol,
-)
-from pyapprox.probability.protocols.distribution import DistributionProtocol
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 class ODEForwardUQProblem(Generic[Array]):

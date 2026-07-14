@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.affine.protocols import Basis1DProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -158,6 +159,15 @@ class LejaObjective(Generic[Array]):
         self._basis_mat: Optional[Array] = None
         self._basis_vec: Optional[Array] = None
         self._weights: Optional[Array] = None
+        # Analytic jacobian is unconditional (bound methods late-bind, so
+        # subclass overrides are honored).
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
