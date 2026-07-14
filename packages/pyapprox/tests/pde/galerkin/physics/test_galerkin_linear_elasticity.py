@@ -762,3 +762,166 @@ class TestLinearElasticity3DPatch:
         exact[zcomp] = alpha * dof_coords[2, zcomp]
         rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
         assert rel_error < 1e-10
+
+
+class TestLinearElasticity3DManufactured:
+    """3D manufactured-solution recovery for linear elasticity."""
+
+    @staticmethod
+    def _solve_3d_mms(
+        bkd,
+        element_type,
+        degree,
+        nx,
+        sol_strs,
+        lambda_str,
+        mu_str,
+        per_quad_lame=False,
+    ):
+        """Solve an all-Dirichlet 3D MMS problem; return (u, exact, physics)."""
+        from pyapprox.pde.galerkin.boundary.implementations import (
+            DirichletBC,
+        )
+        from pyapprox.pde.galerkin.manufactured.adapter import (
+            create_elasticity_manufactured_test,
+        )
+
+        functions, nvars = create_elasticity_manufactured_test(
+            bounds=[0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
+            sol_strs=sol_strs,
+            lambda_str=lambda_str,
+            mu_str=mu_str,
+            bkd=bkd,
+        )
+
+        mesh = StructuredMesh3D(
+            nx=nx,
+            ny=nx,
+            nz=nx,
+            bounds=[[0.0, 1.0], [0.0, 1.0], [0.0, 1.0]],
+            bkd=bkd,
+            element_type=element_type,
+        )
+        basis = VectorLagrangeBasis(mesh, degree=degree)
+
+        sol_func = functions["solution"]
+        forcing_func = functions["forcing"]
+
+        def body_force(x, time):
+            return forcing_func(x).T  # (ndim, npts)
+
+        def dirichlet_value(coords, time=0.0):
+            return sol_func(coords).T  # (ndim, npts) vector convention
+
+        bc_list = [
+            DirichletBC(basis, name, dirichlet_value, bkd)
+            for name in ["left", "right", "bottom", "top", "front", "back"]
+        ]
+        physics = LinearElasticity.from_uniform(
+            basis=basis,
+            youngs_modulus=1.0,  # overwritten below via set_lame_parameters
+            poisson_ratio=0.3,
+            body_force=body_force,
+            boundary_conditions=bc_list,
+            bkd=bkd,
+        )
+        # impose the manufactured (possibly varying) Lame fields exactly
+        # at the quadrature points
+        skfem_basis = basis.skfem_basis()
+        qcoords = np.asarray(skfem_basis.global_coordinates())
+        nelems, nquad = qcoords.shape[1], qcoords.shape[2]
+        pts = qcoords.reshape(3, nelems * nquad)
+        lam_q = np.asarray(functions["lambda"](pts)).reshape(nelems, nquad)
+        mu_q = np.asarray(functions["mu"](pts)).reshape(nelems, nquad)
+        physics.set_lame_parameters(lam_q, mu_q)
+
+        solver = SteadyStateSolver(
+            physics, tol=1e-12, max_iter=5, line_search=False
+        )
+        u0 = bkd.asarray(np.zeros(physics.nstates()))
+        result = solver.solve(u0)
+        assert result.converged
+
+        u_np = bkd.to_numpy(result.solution)
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+        vals = sol_func(dof_coords)  # (ndofs, 3)
+        ndofs = basis.ndofs()
+        exact = vals[np.arange(ndofs), np.arange(ndofs) % nvars]
+        return u_np, exact, physics
+
+    _QUADRATIC_SOLS = [
+        "0.1*x*y + 0.05*z**2 + 0.2",
+        "0.05*x**2 - 0.1*y*z + 0.1",
+        "0.02*x*z + 0.08*y**2 - 0.2",
+    ]
+
+    @pytest.mark.parametrize("element_type", ["hex", "tet"])
+    def test_3d_manufactured_solution(self, numpy_bkd, element_type) -> None:
+        """Quadratic MMS with degree-2 elements => exact recovery."""
+        u_np, exact, _ = self._solve_3d_mms(
+            numpy_bkd,
+            element_type,
+            degree=2,
+            nx=2,
+            sol_strs=self._QUADRATIC_SOLS,
+            lambda_str="1.5",
+            mu_str="0.8",
+        )
+        rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
+        assert rel_error < 1e-8
+
+    def test_3d_variable_lame(self, numpy_bkd) -> None:
+        """Linear MMS with spatially varying lam(x), mu(y) => exact
+        recovery when the Lame fields are imposed at quadrature points."""
+        u_np, exact, _ = self._solve_3d_mms(
+            numpy_bkd,
+            "hex",
+            degree=1,
+            nx=3,
+            sol_strs=[
+                "0.1*x + 0.05*y + 0.2",
+                "0.05*y - 0.02*z - 0.1",
+                "0.02*z + 0.04*x + 0.3",
+            ],
+            lambda_str="1.0 + 0.5*x",
+            mu_str="1.0 + 0.25*y",
+        )
+        rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
+        assert rel_error < 1e-10
+
+    def test_3d_h_convergence(self, numpy_bkd) -> None:
+        """P1 hex L2 convergence at the optimal O(h^2) rate.
+
+        The solution must be genuinely coupled and non-polynomial:
+        single-variable cubics plus bilinear cross-terms decouple into
+        tensor-product 1D problems on a uniform hex grid, where P1 is
+        nodally exact, so they cannot measure a convergence rate.
+        """
+        bkd = numpy_bkd
+        sols = [
+            "0.1*sin(x + 0.5*y + 0.2*z)",
+            "0.05*cos(0.3*x + y - 0.4*z)",
+            "0.08*sin(0.7*x - 0.2*y + z)",
+        ]
+        errors = []
+        for nx in [2, 4, 8]:
+            u_np, exact, physics = self._solve_3d_mms(
+                bkd,
+                "hex",
+                degree=1,
+                nx=nx,
+                sol_strs=sols,
+                lambda_str="1.0",
+                mu_str="1.0",
+            )
+            err = u_np - exact
+            M = physics.mass_matrix()
+            if issparse(M):
+                l2 = float(np.sqrt(err @ (M @ err)))
+            else:
+                l2 = float(np.sqrt(err @ (bkd.to_numpy(M) @ err)))
+            errors.append(l2)
+        rates = [
+            np.log2(errors[i] / errors[i + 1]) for i in range(len(errors) - 1)
+        ]
+        assert rates[-1] > 1.85, f"L2 rates {rates}, errors {errors}"

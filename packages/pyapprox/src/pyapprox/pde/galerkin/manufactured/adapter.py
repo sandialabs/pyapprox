@@ -592,10 +592,11 @@ def create_elasticity_manufactured_test(
     Parameters
     ----------
     bounds : List[float]
-        Domain bounds [xmin, xmax, ymin, ymax].
+        Domain bounds, two entries per dimension (e.g.
+        [xmin, xmax, ymin, ymax] in 2D, plus zmin, zmax in 3D).
     sol_strs : List[str]
-        Displacement component strings [u_x, u_y].
-        May contain 'x', 'y' for coords and 'T' for time.
+        Displacement component strings, one per dimension.
+        May contain 'x', 'y', 'z' for coords and 'T' for time.
     lambda_str : str
         Lame first parameter string.
     mu_str : str

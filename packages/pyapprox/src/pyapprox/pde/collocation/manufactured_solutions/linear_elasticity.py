@@ -1,7 +1,7 @@
 """Manufactured solutions for linear elasticity equations.
 
-Provides manufactured solution class for verifying 2D linear elasticity
-physics implementations.
+Provides manufactured solution class for verifying 1D, 2D, and 3D linear
+elasticity physics implementations.
 
 Linear Elasticity equations:
     -div(σ) + f = 0
@@ -28,7 +28,7 @@ class ManufacturedLinearElasticityEquations(
     ManufacturedSolution[Array],
     Generic[Array],
 ):
-    """Manufactured solution for 2D linear elasticity equations.
+    """Manufactured solution for linear elasticity equations (1D/2D/3D).
 
     Solves: -div(σ) + f = 0
 
@@ -41,10 +41,11 @@ class ManufacturedLinearElasticityEquations(
     Parameters
     ----------
     sol_strs : List[str]
-        String representations of the exact solution components [u, v].
-        May contain 'x', 'y' for spatial coordinates and 'T' for time.
+        String representations of the exact solution components, one per
+        spatial dimension. May contain 'x', 'y', 'z' for spatial
+        coordinates and 'T' for time.
     nvars : int
-        Number of spatial dimensions (must be 2).
+        Number of spatial dimensions (1, 2, or 3).
     lambda_str : str
         String representation of Lamé's first parameter λ.
     mu_str : str
@@ -83,8 +84,10 @@ class ManufacturedLinearElasticityEquations(
         bkd: Backend[Array],
         oned: bool = False,
     ):
-        if nvars not in (1, 2):
-            raise ValueError(f"Linear elasticity requires nvars in (1, 2), got {nvars}")
+        if nvars not in (1, 2, 3):
+            raise ValueError(
+                f"Linear elasticity requires nvars in (1, 2, 3), got {nvars}"
+            )
         if len(sol_strs) != nvars:
             raise ValueError(
                 f"Linear elasticity requires {nvars} solution components, "
@@ -100,8 +103,10 @@ class ManufacturedLinearElasticityEquations(
         """Build sympy expressions for linear elasticity equation."""
         if self._nvars_el == 1:
             self._sympy_expressions_1d()
-        else:
+        elif self._nvars_el == 2:
             self._sympy_expressions_2d()
+        else:
+            self._sympy_expressions_3d()
 
     def _sympy_expressions_1d(self) -> None:
         """Build sympy expressions for 1D linear elasticity.
@@ -179,30 +184,93 @@ class ManufacturedLinearElasticityEquations(
             f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
         ]
 
+    def _sympy_expressions_3d(self) -> None:
+        """Build sympy expressions for 3D linear elasticity."""
+        cartesian_symbs = self.cartesian_symbols()
+        x, y, z = cartesian_symbs[0], cartesian_symbs[1], cartesian_symbs[2]
+
+        # Lamé parameters
+        lambda_expr = sp.sympify(self._lambda_str)
+        mu_expr = sp.sympify(self._mu_str)
+
+        self._set_expression("lambda", lambda_expr, self._lambda_str)
+        self._set_expression("mu", mu_expr, self._mu_str)
+
+        # Displacement field
+        disp_expr = self._expressions["solution"]
+        u_expr = disp_expr[0]
+        v_expr = disp_expr[1]
+        w_expr = disp_expr[2]
+
+        # Strain tensor components: ε_ij = 0.5*(∂u_i/∂x_j + ∂u_j/∂x_i)
+        exx = u_expr.diff(x)
+        eyy = v_expr.diff(y)
+        ezz = w_expr.diff(z)
+        exy = sp.Rational(1, 2) * (u_expr.diff(y) + v_expr.diff(x))
+        exz = sp.Rational(1, 2) * (u_expr.diff(z) + w_expr.diff(x))
+        eyz = sp.Rational(1, 2) * (v_expr.diff(z) + w_expr.diff(y))
+
+        # Trace of strain
+        trace_e = exx + eyy + ezz
+
+        # Stress tensor: σ = λ*tr(ε)*I + 2μ*ε
+        two_mu = 2 * mu_expr
+        sigma_xx = lambda_expr * trace_e + two_mu * exx
+        sigma_yy = lambda_expr * trace_e + two_mu * eyy
+        sigma_zz = lambda_expr * trace_e + two_mu * ezz
+        sigma_xy = two_mu * exy
+        sigma_xz = two_mu * exz
+        sigma_yz = two_mu * eyz
+
+        # Store stress tensor (flux)
+        tau = [
+            [sigma_xx, sigma_xy, sigma_xz],
+            [sigma_xy, sigma_yy, sigma_yz],
+            [sigma_xz, sigma_yz, sigma_zz],
+        ]
+        self._set_expression("flux", tau, self._sol_strs[0])
+
+        # Compute divergence of stress tensor
+        # div(σ)_i = ∂σ_i1/∂x + ∂σ_i2/∂y + ∂σ_i3/∂z
+        div_sigma_x = sigma_xx.diff(x) + sigma_xy.diff(y) + sigma_xz.diff(z)
+        div_sigma_y = sigma_xy.diff(x) + sigma_yy.diff(y) + sigma_yz.diff(z)
+        div_sigma_z = sigma_xz.diff(x) + sigma_yz.diff(y) + sigma_zz.diff(z)
+
+        # Forcing: f = -div(σ) so that div(σ) + f = 0
+        forc_exprs = [-div_sigma_x, -div_sigma_y, -div_sigma_z]
+
+        # Add forcing contribution to existing forcing (initialized to zeros)
+        self._expressions["forcing"] = [
+            f + g for f, g in zip(self._expressions["forcing"], forc_exprs)
+        ]
+
     def traction_values(self, pts: Array, normals: Array) -> Array:
         """Compute exact traction t = σ·n at given points.
 
         Parameters
         ----------
         pts : Array
-            Physical coordinates. Shape: (2, npts)
+            Physical coordinates. Shape: (nvars, npts)
         normals : Array
-            Outward unit normals. Shape: (npts, 2)
+            Outward unit normals. Shape: (npts, nvars)
 
         Returns
         -------
         Array
-            Traction components [t_x, t_y]. Shape: (npts, 2)
+            Traction components. Shape: (npts, nvars)
         """
         bkd = self._bkd
-        # flux shape: (2, npts, 2) from list-of-lists expression
-        # sigma[row, pt, col]: row 0 = [σ_xx, σ_xy], row 1 = [σ_xy, σ_yy]
+        nvars = self._nvars_el
+        # flux shape: (nvars, npts, nvars) from list-of-lists expression;
+        # sigma[i, pt, j] is σ_ij, so t_i = sum_j σ_ij * n_j
         sigma = self.functions["flux"](pts)
-        # t_x = σ_xx * nx + σ_xy * ny
-        t_x = sigma[0, :, 0] * normals[:, 0] + sigma[0, :, 1] * normals[:, 1]
-        # t_y = σ_xy * nx + σ_yy * ny
-        t_y = sigma[1, :, 0] * normals[:, 0] + sigma[1, :, 1] * normals[:, 1]
-        return bkd.hstack([t_x[:, None], t_y[:, None]])
+        tractions = []
+        for i in range(nvars):
+            t_i = sigma[i, :, 0] * normals[:, 0]
+            for j in range(1, nvars):
+                t_i = t_i + sigma[i, :, j] * normals[:, j]
+            tractions.append(t_i[:, None])
+        return bkd.hstack(tractions)
 
     def robin_values(
         self, pts: Array, normals: Array, alpha: float, beta: float
@@ -212,9 +280,9 @@ class ManufacturedLinearElasticityEquations(
         Parameters
         ----------
         pts : Array
-            Physical coordinates. Shape: (2, npts)
+            Physical coordinates. Shape: (nvars, npts)
         normals : Array
-            Outward unit normals. Shape: (npts, 2)
+            Outward unit normals. Shape: (npts, nvars)
         alpha : float
             Coefficient for displacement term.
         beta : float
@@ -223,8 +291,8 @@ class ManufacturedLinearElasticityEquations(
         Returns
         -------
         Array
-            Robin values [g_x, g_y]. Shape: (npts, 2)
+            Robin values. Shape: (npts, nvars)
         """
-        u = self.functions["solution"](pts)  # (npts, 2)
-        traction = self.traction_values(pts, normals)  # (npts, 2)
+        u = self.functions["solution"](pts)  # (npts, nvars)
+        traction = self.traction_values(pts, normals)  # (npts, nvars)
         return alpha * u + beta * traction
