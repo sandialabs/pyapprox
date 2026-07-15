@@ -12,6 +12,7 @@ giving O(k * n^3) solve cost instead of O((kn)^3).
 
 from typing import Generic, Optional
 
+from pyapprox.interface.functions.derivatives import JacobianBatchFn
 from pyapprox.ode.linear_operator import BlockDiagonalLinearOperator
 from pyapprox.ode.mass_matrix import IdentityMassMatrix, MassMatrixProtocol
 from pyapprox.surrogates.dynamical_systems.protocols import (
@@ -47,6 +48,14 @@ class BatchedBoundODEResidual(Generic[Array]):
         has_time_input: bool = False,
     ) -> None:
         self._lf = learned_function
+        lf_jac_batch = learned_function.derivatives().jacobian_batch
+        if lf_jac_batch is None:
+            raise ValueError(
+                "learned_function must declare jacobian_batch in its "
+                "Derivatives bundle (dF/dx is required to assemble the "
+                f"state Jacobian); got {type(learned_function).__name__}"
+            )
+        self._lf_jac_batch: JacobianBatchFn[Array] = lf_jac_batch
         self._n_dynamic = n_dynamic
         self._has_time_input = has_time_input
         self._bkd = learned_function.bkd()
@@ -165,5 +174,5 @@ class BatchedBoundODEResidual(Generic[Array]):
     def _state_jacobian_blocks(self, state: Array) -> Array:
         """Compute per-trajectory Jacobian blocks. Shape: (k, n_dynamic, n_dynamic)."""
         augmented = self._assemble_augmented_input(state)
-        full_jac = self._lf.jacobian_batch(augmented)
+        full_jac = self._lf_jac_batch(augmented)
         return full_jac[:, :, :self._n_dynamic]

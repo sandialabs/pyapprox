@@ -57,7 +57,7 @@ class TestGradientEnhancedPCEFitter:
 
         # Get function values and gradients from target
         values = target_expansion(samples)  # (1, nsamples)
-        gradients = target_expansion.jacobian_batch(samples)[
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[
             :, 0, :
         ].T  # (nvars, nsamples)
 
@@ -80,7 +80,7 @@ class TestGradientEnhancedPCEFitter:
         nsamples = nterms + 5
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values = target_expansion(samples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
         fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
@@ -101,7 +101,7 @@ class TestGradientEnhancedPCEFitter:
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values_2d = target_expansion(samples)
         values_1d = values_2d[0, :]  # flatten to 1D
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
         fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
@@ -128,7 +128,7 @@ class TestGradientEnhancedPCEFitter:
 
         # Get function values and gradients from target
         values = target_expansion(samples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
@@ -164,7 +164,7 @@ class TestGradientEnhancedPCEFitter:
 
         # Get exact function values and gradients
         values = target_expansion(samples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
@@ -186,7 +186,7 @@ class TestGradientEnhancedPCEFitter:
         nsamples = nterms + 5
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values = target_expansion(samples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
         fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
@@ -234,7 +234,7 @@ class TestGradientEnhancedPCEFitter:
         assert nsamples + nsamples * nvars < nterms  # verify truly underdetermined
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values = target_expansion(samples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
         fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
@@ -267,7 +267,7 @@ class TestGradientEnhancedPCEFitter:
 
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values = target_expansion(samples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
         fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
@@ -294,7 +294,7 @@ class TestGradientEnhancedPCEFitter:
 
         samples = bkd.asarray(np.random.uniform(-1, 1, (nvars, nsamples)))
         values = target_expansion(samples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         fitter = GradientEnhancedPCEFitter(bkd)
         fit_expansion = self._create_expansion(bkd, nvars=nvars, max_level=max_level)
@@ -329,7 +329,7 @@ class TestGradientEnhancedPCEFitter:
         # Get exact function values and gradients
         values = target_expansion(samples)
         # jacobian_batch returns (nsamples, nqoi, nvars), extract (nvars, nsamples)
-        gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
@@ -364,7 +364,7 @@ class TestGradientEnhancedPCEFitter:
 
         # Get exact function values and gradients
         values = target_expansion(samples)
-        target_gradients = target_expansion.jacobian_batch(samples)[:, 0, :].T
+        target_gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)
@@ -372,6 +372,8 @@ class TestGradientEnhancedPCEFitter:
         result = fitter.fit(fit_expansion, samples, values, target_gradients)
 
         # Check gradient matching at training points
-        fitted_gradients = result.surrogate().jacobian_batch(samples)[:, 0, :].T
+        fitted_gradients = result.surrogate().derivatives().jacobian_batch(samples)[
+            :, 0, :
+        ].T
 
         bkd.assert_allclose(fitted_gradients, target_gradients, rtol=1e-8)

@@ -227,7 +227,7 @@ class TestTensorProductSubspace:
 
         # Test Jacobian at a point
         test_pt = bkd.asarray([[0.3], [0.5]])
-        jac = subspace.jacobian(test_pt)
+        jac = subspace.derivatives().jacobian(test_pt)
 
         # Expected: [2*0.3 + 2*0.5, 2*0.3 + 2*0.5] = [1.6, 1.6]
         expected_jac = bkd.asarray([[1.6, 1.6]])
@@ -252,7 +252,7 @@ class TestTensorProductSubspace:
 
         # Test Hessian at a point
         test_pt = bkd.asarray([[0.3], [0.5]])
-        hess = subspace.hessian(test_pt)
+        hess = subspace.derivatives().hessian(test_pt)
 
         expected_hess = bkd.asarray([[2.0, 1.0], [1.0, 2.0]])
         bkd.assert_allclose(hess, expected_hess, rtol=1e-8)
@@ -276,10 +276,10 @@ class TestTensorProductSubspace:
         vec = bkd.asarray([[1.0], [2.0]])
 
         # Compute HVP
-        hvp_result = subspace.hvp(test_pt, vec)
+        hvp_result = subspace.derivatives().hvp(test_pt, vec)
 
         # Compare with explicit Hessian @ vec
-        hess = subspace.hessian(test_pt)
+        hess = subspace.derivatives().hessian(test_pt)
         expected = hess @ vec
 
         bkd.assert_allclose(hvp_result, expected, rtol=1e-10)

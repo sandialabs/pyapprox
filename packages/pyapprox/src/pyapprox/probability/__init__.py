@@ -74,13 +74,14 @@ from .joint import (
     GroupIndependentJoint,
     IndependentJoint,
 )
-
-# Likelihood functions
 from .likelihood import (
     DiagonalGaussianLogLikelihood,
     GaussianLogLikelihood,
     ModelBasedLogLikelihood,
 )
+
+# Likelihood functions
+from .logpdf_function import LogpdfFunction
 from .protocols import (
     CovarianceOperatorProtocol,
     DiagonalCovarianceOperatorProtocol,
@@ -123,6 +124,7 @@ from .univariate import (
 )
 
 __all__ = [
+    "LogpdfFunction",
     # Protocols
     "DistributionProtocol",
     "MarginalProtocol",

@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 import numpy as np
 
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.surrogates.affine.protocols import Basis1DProtocol
+from pyapprox.surrogates.affine.protocols import Basis1DWithDerivativesProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 from .protocols import (
@@ -128,7 +128,7 @@ class LejaObjective(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    basis : Basis1DProtocol[Array]
+    basis : Basis1DWithDerivativesProtocol[Array]
         Univariate polynomial basis.
     weighting : LejaWeightingProtocol[Array]
         Weighting strategy.
@@ -146,10 +146,21 @@ class LejaObjective(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        basis: Basis1DProtocol[Array],
+        basis: Basis1DWithDerivativesProtocol[Array],
         weighting: LejaWeightingProtocol[Array],
         bounds: Tuple[float, float],
     ):
+        if not isinstance(basis, Basis1DWithDerivativesProtocol):
+            raise TypeError(
+                "basis must satisfy Basis1DWithDerivativesProtocol (the "
+                "objective's analytic jacobian evaluates basis "
+                f"derivatives), got {type(basis).__name__}"
+            )
+        if not isinstance(weighting, LejaWeightingProtocol):
+            raise TypeError(
+                "weighting must satisfy LejaWeightingProtocol, got "
+                f"{type(weighting).__name__}"
+            )
         self._bkd = bkd
         self._basis = basis
         self._weighting = weighting
@@ -189,7 +200,7 @@ class LejaObjective(Generic[Array]):
 
     def sequence(self) -> Array:
         """Return copy of current sequence."""
-        return self._bkd.copy(self._sequence)
+        return self._bkd.copy(self._require_sequence())
 
     def get_bounds(self) -> Tuple[float, float]:
         """Return domain bounds."""
@@ -208,22 +219,39 @@ class LejaObjective(Generic[Array]):
         self._sequence = sequence
         self._update_cached_data()
 
+    def _require_sequence(self) -> Array:
+        if self._sequence is None:
+            raise RuntimeError(
+                "sequence has not been set; call set_sequence first"
+            )
+        return self._sequence
+
+    def _require_coefficients(self) -> Array:
+        if self._coefficients is None:
+            raise RuntimeError(
+                "coefficients are unavailable; call set_sequence first"
+            )
+        return self._coefficients
+
     def _update_cached_data(self) -> None:
         """Update cached basis matrix and coefficients."""
+        sequence = self._require_sequence()
         nterms = self.nsamples() + 1
         self._basis.set_nterms(nterms)
-        basis_vals = self._basis(self._sequence)
-        self._basis_mat = basis_vals[:, :-1]
-        self._basis_vec = basis_vals[:, -1:]
+        basis_vals = self._basis(sequence)
+        basis_mat = basis_vals[:, :-1]
+        basis_vec = basis_vals[:, -1:]
+        self._basis_mat = basis_mat
+        self._basis_vec = basis_vec
 
         # Compute weights at sequence points
-        self._weights = self._weighting(self._sequence, self._basis_mat)
+        self._weights = self._weighting(sequence, basis_mat)
 
         # Compute interpolation coefficients using weighted least squares
         sqrt_weights = self._bkd.sqrt(self._weights)
         self._coefficients = self._bkd.lstsq(
-            sqrt_weights * self._basis_mat,
-            sqrt_weights * self._basis_vec,
+            sqrt_weights * basis_mat,
+            sqrt_weights * basis_vec,
         )
 
     def __call__(self, samples: Array) -> Array:
@@ -247,7 +275,7 @@ class LejaObjective(Generic[Array]):
         new_basis = basis_vals[:, -1:]
         weights = self._weighting(samples, basis_mat)
 
-        pvals = basis_mat @ self._coefficients
+        pvals = basis_mat @ self._require_coefficients()
         residual = new_basis - pvals
         vals = -weights * self._bkd.sum(residual**2, axis=1)[:, None]
         return vals.T
@@ -270,10 +298,11 @@ class LejaObjective(Generic[Array]):
         basis_vals = self._basis(sample)
         basis_jac = self._basis.derivatives(sample, order=1)
 
+        coefficients = self._require_coefficients()
         bvals = basis_vals[:, -1:]
-        pvals = basis_vals[:, :-1] @ self._coefficients
+        pvals = basis_vals[:, :-1] @ coefficients
         bderivs = basis_jac[:, -1:]
-        pderivs = basis_jac[:, :-1] @ self._coefficients
+        pderivs = basis_jac[:, :-1] @ coefficients
 
         residual = bvals - pvals
         residual_jac = bderivs - pderivs
@@ -281,13 +310,9 @@ class LejaObjective(Generic[Array]):
         # Get weights and weight jacobians
         weight = self._weighting(sample, basis_vals[:, :-1])
 
-        # Compute weight jacobian if available
-        if hasattr(self._weighting, "jacobian"):
-            weight_jac = self._weighting.jacobian(
-                sample, basis_vals[:, :-1], basis_jac[:, :-1]
-            )
-        else:
-            weight_jac = self._bkd.zeros((1, 1))
+        weight_jac = self._weighting.jacobian(
+            sample, basis_vals[:, :-1], basis_jac[:, :-1]
+        )
 
         # Overflow protection
         if float(self._bkd.max(self._bkd.abs(residual))) > np.sqrt(
@@ -315,24 +340,25 @@ class LejaObjective(Generic[Array]):
         lb, ub = self._bounds
 
         # Sort sequence points (convert to numpy for sorting)
-        seq_np = self._bkd.to_numpy(self._sequence)
+        sequence = self._require_sequence()
+        seq_np = self._bkd.to_numpy(sequence)
         sorted_seq = np.sort(seq_np.flatten())
 
         # Build interval list
         intervals = sorted_seq.tolist()
 
         # Add bounds if sequence doesn't reach them
-        if np.isfinite(lb) and float(self._bkd.min(self._sequence)) > lb + eps:
+        if np.isfinite(lb) and float(self._bkd.min(sequence)) > lb + eps:
             intervals = [lb] + intervals
-        if np.isfinite(ub) and float(self._bkd.max(self._sequence)) < ub - eps:
+        if np.isfinite(ub) and float(self._bkd.max(sequence)) < ub - eps:
             intervals = intervals + [ub]
 
         # Handle infinite bounds
         if not np.isfinite(lb):
-            min_val = float(self._bkd.min(self._sequence))
+            min_val = float(self._bkd.min(sequence))
             intervals = [min(1.1 * min_val, min_val - 1.0)] + intervals
         if not np.isfinite(ub):
-            max_val = float(self._bkd.max(self._sequence))
+            max_val = float(self._bkd.max(sequence))
             intervals = intervals + [max(1.1 * max_val, max_val + 1.0)]
 
         # Generate iterates at midpoints
@@ -362,7 +388,7 @@ class TwoPointLejaObjective(LejaObjective[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    basis : Basis1DProtocol[Array]
+    basis : Basis1DWithDerivativesProtocol[Array]
         Univariate polynomial basis.
     weighting : LejaWeightingProtocol[Array]
         Weighting strategy.
@@ -376,20 +402,23 @@ class TwoPointLejaObjective(LejaObjective[Array]):
 
     def _update_cached_data(self) -> None:
         """Update cached basis matrix and coefficients for two new terms."""
+        sequence = self._require_sequence()
         nterms = self.nsamples() + 2
         self._basis.set_nterms(nterms)
-        basis_vals = self._basis(self._sequence)
-        self._basis_mat = basis_vals[:, :-2]
-        self._basis_vec = basis_vals[:, -2:]
+        basis_vals = self._basis(sequence)
+        basis_mat = basis_vals[:, :-2]
+        basis_vec = basis_vals[:, -2:]
+        self._basis_mat = basis_mat
+        self._basis_vec = basis_vec
 
         # Compute weights at sequence points
-        self._weights = self._weighting(self._sequence, self._basis_mat)
+        self._weights = self._weighting(sequence, basis_mat)
 
         # Compute interpolation coefficients using weighted least squares
         sqrt_weights = self._bkd.sqrt(self._weights)
         self._coefficients = self._bkd.lstsq(
-            sqrt_weights * self._basis_mat,
-            sqrt_weights * self._basis_vec,
+            sqrt_weights * basis_mat,
+            sqrt_weights * basis_vec,
         )
 
     def __call__(self, samples: Array) -> Array:
@@ -420,7 +449,7 @@ class TwoPointLejaObjective(LejaObjective[Array]):
         new_basis = basis_vals[:, -2:]
 
         sqrt_weights = self._bkd.sqrt(self._weighting(flat_samples, basis_mat))
-        pvals = basis_mat @ self._coefficients
+        pvals = basis_mat @ self._require_coefficients()
         residuals = sqrt_weights * (new_basis - pvals)
 
         # Compute 2x2 determinant for each pair
@@ -450,20 +479,18 @@ class TwoPointLejaObjective(LejaObjective[Array]):
         basis_vals = self._basis(flat_sample)
         basis_jac = self._basis.derivatives(flat_sample, order=1)
 
+        coefficients = self._require_coefficients()
         bvals = basis_vals[:, -2:]
-        pvals = basis_vals[:, :-2] @ self._coefficients
+        pvals = basis_vals[:, :-2] @ coefficients
         bderivs = basis_jac[:, -2:]
-        pderivs = basis_jac[:, :-2] @ self._coefficients
+        pderivs = basis_jac[:, :-2] @ coefficients
 
         sqrt_weights = self._bkd.sqrt(self._weighting(flat_sample, basis_vals[:, :-2]))
 
         # Compute weight jacobian for sqrt_weights
-        if hasattr(self._weighting, "jacobian"):
-            weights_jac = self._weighting.jacobian(
-                flat_sample, basis_vals[:, :-2], basis_jac[:, :-2]
-            )
-        else:
-            weights_jac = self._bkd.zeros((2, 1))
+        weights_jac = self._weighting.jacobian(
+            flat_sample, basis_vals[:, :-2], basis_jac[:, :-2]
+        )
 
         sqrt_weights_jac = weights_jac / (2 * sqrt_weights[:, 0:1])
 
@@ -532,7 +559,7 @@ class LejaSequence1D(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    basis : Basis1DProtocol[Array]
+    basis : Basis1DWithDerivativesProtocol[Array]
         Univariate polynomial basis.
     weighting : LejaWeightingProtocol[Array]
         Weighting strategy (e.g., ChristoffelWeighting, PDFWeighting).
@@ -582,7 +609,7 @@ class LejaSequence1D(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        basis: Basis1DProtocol[Array],
+        basis: Basis1DWithDerivativesProtocol[Array],
         weighting: LejaWeightingProtocol[Array],
         bounds: Tuple[float, float],
         initial_points: Optional[Array] = None,

@@ -9,11 +9,18 @@ from typing import Generic, List, Optional, Sequence
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
 )
-from pyapprox.probability.protocols.distribution import MarginalProtocol
+from pyapprox.probability.protocols.distribution import (
+    MarginalHasLogpdfJacobianProtocol,
+    MarginalHasLogpdfParamJacobianProtocol,
+    MarginalHasPdfJacobianProtocol,
+    MarginalProtocol,
+    MarginalWithHypListProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -61,7 +68,9 @@ class IndependentJoint(Generic[Array]):
         self._marginals = list(marginals)
         self._nvars = len(marginals)
         self._setup_hyperparameter_list()
-        self._setup_derivative_methods()
+        self._derivs: Derivatives[Array] = self._build_derivatives()
+        self._logpdf_derivs: Derivatives[Array] = self._build_logpdf_derivatives()
+        self._capture_param_jacobian_marginals()
 
     def _setup_hyperparameter_list(self) -> None:
         """
@@ -70,36 +79,91 @@ class IndependentJoint(Generic[Array]):
         Only available if all marginals have hyp_list() method.
         """
         self._hyp_list: Optional[HyperParameterList[Array]] = None
-        if all(hasattr(m, "hyp_list") for m in self._marginals):
-            hyp_lists = [m.hyp_list() for m in self._marginals]  # type: ignore
-            if hyp_lists:
-                combined = hyp_lists[0]
-                for hyp_list in hyp_lists[1:]:
-                    combined = combined + hyp_list
-                self._hyp_list = combined
+        hyp_marginals = [
+            m for m in self._marginals
+            if isinstance(m, MarginalWithHypListProtocol)
+        ]
+        if len(hyp_marginals) == len(self._marginals):
+            combined = hyp_marginals[0].hyp_list()
+            for hyp_marginal in hyp_marginals[1:]:
+                combined = combined + hyp_marginal.hyp_list()
+            self._hyp_list = combined
 
-    def _setup_derivative_methods(self) -> None:
+    def _build_derivatives(self) -> Derivatives[Array]:
+        """Capability bundle for the pdf (this function's __call__).
+
+        d(pdf)/dx is available exactly when every marginal provides
+        pdf_jacobian; the narrowed marginal list is captured once here.
         """
-        Conditionally add Jacobian methods based on marginal capabilities.
+        pdf_jac_marginals: List[MarginalHasPdfJacobianProtocol[Array]] = []
+        for m in self._marginals:
+            if isinstance(m, MarginalHasPdfJacobianProtocol):
+                pdf_jac_marginals.append(m)
+        self._pdf_jac_marginals: Optional[
+            List[MarginalHasPdfJacobianProtocol[Array]]
+        ] = (
+            pdf_jac_marginals
+            if len(pdf_jac_marginals) == len(self._marginals)
+            else None
+        )
+        if self._pdf_jac_marginals is None:
+            return Derivatives.none()
+        return Derivatives.first_order(
+            jacobian=self._jacobian, jacobian_batch=self._jacobian_batch
+        )
 
-        Uses dynamic method binding: methods are only available if ALL marginals
-        support the required operations.
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the pdf derivative bundle."""
+        return self._derivs
+
+    def _build_logpdf_derivatives(self) -> Derivatives[Array]:
+        """Capability bundle for the logpdf (currying rule: the accessor
+        name carries "of what").
+
+        d(logpdf)/dx is available exactly when every marginal provides
+        logpdf_jacobian; the narrowed marginal list is captured once here.
         """
-        # Check if all marginals have logpdf_jacobian
-        if all(hasattr(m, "logpdf_jacobian") for m in self._marginals):
-            self.logpdf_jacobian = self._logpdf_jacobian
-            self.logpdf_jacobian_batch = self._logpdf_jacobian_batch
+        logpdf_jac_marginals: List[MarginalHasLogpdfJacobianProtocol[Array]] = []
+        for m in self._marginals:
+            if isinstance(m, MarginalHasLogpdfJacobianProtocol):
+                logpdf_jac_marginals.append(m)
+        self._logpdf_jac_marginals: Optional[
+            List[MarginalHasLogpdfJacobianProtocol[Array]]
+        ] = (
+            logpdf_jac_marginals
+            if len(logpdf_jac_marginals) == len(self._marginals)
+            else None
+        )
+        if self._logpdf_jac_marginals is None:
+            return Derivatives.none()
+        return Derivatives.first_order(
+            jacobian=self._logpdf_jacobian,
+            jacobian_batch=self._logpdf_jacobian_batch,
+        )
 
-        # Check if all marginals have pdf_jacobian
-        if all(hasattr(m, "pdf_jacobian") for m in self._marginals):
-            self.jacobian = self._jacobian
-            self.jacobian_batch = self._jacobian_batch
+    def logpdf_derivatives(self) -> Derivatives[Array]:
+        """Return the logpdf derivative bundle (jacobian is d(logpdf)/dx)."""
+        return self._logpdf_derivs
 
-        # Check if all marginals have logpdf_jacobian_wrt_params
-        if all(hasattr(m, "logpdf_jacobian_wrt_params") for m in self._marginals):
-            self.logpdf_jacobian_wrt_params = (
-                self._logpdf_jacobian_wrt_params
-            )
+    def _capture_param_jacobian_marginals(self) -> None:
+        """Capture the parameter-jacobian capability once at construction."""
+        param_jac_marginals: List[
+            MarginalHasLogpdfParamJacobianProtocol[Array]
+        ] = []
+        for m in self._marginals:
+            if isinstance(m, MarginalHasLogpdfParamJacobianProtocol):
+                param_jac_marginals.append(m)
+        self._param_jac_marginals: Optional[
+            List[MarginalHasLogpdfParamJacobianProtocol[Array]]
+        ] = (
+            param_jac_marginals
+            if len(param_jac_marginals) == len(self._marginals)
+            else None
+        )
+
+    def has_logpdf_jacobian_wrt_params(self) -> bool:
+        """Whether all marginals provide logpdf_jacobian_wrt_params."""
+        return self._param_jac_marginals is not None
 
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
@@ -617,11 +681,17 @@ class IndependentJoint(Generic[Array]):
             Jacobian values. Shape: (1, nvars)
         """
         self._validate_input(sample)
+        marginals = self._logpdf_jac_marginals
+        if marginals is None:
+            raise RuntimeError(
+                "logpdf jacobian is unavailable; check logpdf_derivatives() "
+                "before calling"
+            )
         jac_values = []
-        for i, marginal in enumerate(self._marginals):
+        for i, marginal in enumerate(marginals):
             row_2d = self._bkd.reshape(sample[i], (1, -1))
             # marginal.logpdf_jacobian returns (1, 1) for single sample
-            marg_jac = marginal.logpdf_jacobian(row_2d)  # type: ignore
+            marg_jac = marginal.logpdf_jacobian(row_2d)
             jac_values.append(marg_jac[0, 0])
         return self._bkd.reshape(self._bkd.asarray(jac_values), (1, -1))
 
@@ -643,12 +713,18 @@ class IndependentJoint(Generic[Array]):
             Jacobian values. Shape: (nsamples, 1, nvars)
         """
         self._validate_input(samples)
+        marginals = self._logpdf_jac_marginals
+        if marginals is None:
+            raise RuntimeError(
+                "logpdf jacobian_batch is unavailable; check "
+                "logpdf_derivatives() before calling"
+            )
         nsamples = samples.shape[1]
         jac_list = []
-        for i, marginal in enumerate(self._marginals):
+        for i, marginal in enumerate(marginals):
             row_2d = self._bkd.reshape(samples[i], (1, -1))
             # marginal.logpdf_jacobian returns (1, nsamples)
-            marg_jac = marginal.logpdf_jacobian(row_2d)  # type: ignore
+            marg_jac = marginal.logpdf_jacobian(row_2d)
             jac_list.append(marg_jac[0])  # Shape: (nsamples,)
         # Stack to (nvars, nsamples) then transpose to (nsamples, nvars)
         jac_2d = self._bkd.stack(jac_list, axis=0).T
@@ -678,11 +754,17 @@ class IndependentJoint(Generic[Array]):
             row_2d = self._bkd.reshape(sample[i], (1, -1))
             pdf_vals.append(marginal(row_2d)[0, 0])  # Scalar
 
+        marginals = self._pdf_jac_marginals
+        if marginals is None:
+            raise RuntimeError(
+                "pdf jacobian is unavailable; check derivatives() before "
+                "calling"
+            )
         jac_values = []
-        for i, marginal in enumerate(self._marginals):
+        for i, marginal in enumerate(marginals):
             row_2d = self._bkd.reshape(sample[i], (1, -1))
             # marginal.pdf_jacobian returns (1, 1) for single sample
-            pdf_jac_i = marginal.pdf_jacobian(row_2d)[0, 0]  # type: ignore
+            pdf_jac_i = marginal.pdf_jacobian(row_2d)[0, 0]
             # Product of all other PDFs
             other_product = 1.0
             for j, pdf_val in enumerate(pdf_vals):
@@ -718,12 +800,18 @@ class IndependentJoint(Generic[Array]):
             pdf_vals.append(marginal(row_2d)[0])  # Shape: (nsamples,)
         pdf_stack = self._bkd.stack(pdf_vals, axis=0)  # Shape: (nvars, nsamples)
 
+        marginals = self._pdf_jac_marginals
+        if marginals is None:
+            raise RuntimeError(
+                "pdf jacobian_batch is unavailable; check derivatives() "
+                "before calling"
+            )
         # Compute Jacobian for each variable using product rule
         jac_list = []
-        for i, marginal in enumerate(self._marginals):
+        for i, marginal in enumerate(marginals):
             row_2d = self._bkd.reshape(samples[i], (1, -1))
             # marginal.pdf_jacobian returns (1, nsamples)
-            pdf_jac_i = marginal.pdf_jacobian(row_2d)[0]  # type: ignore
+            pdf_jac_i = marginal.pdf_jacobian(row_2d)[0]
             # Product of all other PDFs
             other_product = self._bkd.ones((nsamples,))
             for j in range(self._nvars):
@@ -736,7 +824,7 @@ class IndependentJoint(Generic[Array]):
         # Reshape to (nsamples, 1, nvars)
         return self._bkd.reshape(jac_2d, (nsamples, 1, self._nvars))
 
-    def _logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
+    def logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
         """
         Compute Jacobian of joint log-PDF w.r.t. all distribution parameters.
 
@@ -757,13 +845,18 @@ class IndependentJoint(Generic[Array]):
             where total_nparams = sum of nparams across all marginals.
         """
         self._validate_input(samples)
-        samples.shape[1]
+        marginals = self._param_jac_marginals
+        if marginals is None:
+            raise RuntimeError(
+                "logpdf_jacobian_wrt_params is unavailable; check "
+                "has_logpdf_jacobian_wrt_params before calling"
+            )
 
         jac_list = []
-        for i, marginal in enumerate(self._marginals):
+        for i, marginal in enumerate(marginals):
             row_2d = self._bkd.reshape(samples[i], (1, -1))
             # Each marginal returns shape (nsamples, marginal_nparams)
-            marg_jac = marginal.logpdf_jacobian_wrt_params(row_2d)  # type: ignore
+            marg_jac = marginal.logpdf_jacobian_wrt_params(row_2d)
             jac_list.append(marg_jac)
 
         # Concatenate along parameter dimension: shape (nsamples, total_nparams)

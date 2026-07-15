@@ -14,6 +14,7 @@ EncoderProtocol
 
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -50,18 +51,13 @@ class LearnedFunctionProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def jacobian_batch(self, samples: Array) -> Array:
-        """Compute dF/dx at each sample.
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (capability w.r.t. inputs).
 
-        Parameters
-        ----------
-        samples : Array
-            Shape: (nvars, nsamples)
-
-        Returns
-        -------
-        Array
-            Shape: (nsamples, nqoi, nvars)
+        Consumers that require dF/dx (e.g. BatchedBoundODEResidual) read
+        the bundle's ``jacobian_batch`` field, shape
+        ``(nvars, nsamples) -> (nsamples, nqoi, nvars)``, and raise at
+        construction when it is ``None``.
         """
         ...
 

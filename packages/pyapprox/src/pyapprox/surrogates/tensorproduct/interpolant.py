@@ -5,8 +5,9 @@ used independently of sparse grids. It requires 1D bases that satisfy the
 InterpolationBasis1DProtocol.
 """
 
-from typing import Generic, List, Optional, Sequence, cast
+from typing import Generic, List, Optional, Sequence
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.tensorproduct.dispatch import (
     get_tp_eval_impl,
 )
@@ -115,16 +116,58 @@ class TensorProductInterpolant(Generic[Array]):
         self._samples = cartesian_product_samples(self._samples_1d, bkd)
         self._nsamples = self._samples.shape[1]
 
-        # Detect derivative support from bases
-        self._jacobian_supported = all(
-            isinstance(b, Basis1DHasJacobianProtocol) for b in self._bases_1d
+        # Detect derivative support from bases, keeping the narrowed base
+        # lists so downstream evaluation needs no casts
+        jac_bases: List[Basis1DHasJacobianProtocol[Array]] = []
+        hess_bases: List[Basis1DHasHessianProtocol[Array]] = []
+        for b in self._bases_1d:
+            if isinstance(b, Basis1DHasJacobianProtocol):
+                jac_bases.append(b)
+            if isinstance(b, Basis1DHasHessianProtocol):
+                hess_bases.append(b)
+        self._jac_bases_1d: Optional[List[Basis1DHasJacobianProtocol[Array]]] = (
+            jac_bases if len(jac_bases) == len(self._bases_1d) else None
         )
-        self._hessian_supported = all(
-            isinstance(b, Basis1DHasHessianProtocol) for b in self._bases_1d
+        self._hess_bases_1d: Optional[List[Basis1DHasHessianProtocol[Array]]] = (
+            hess_bases if len(hess_bases) == len(self._bases_1d) else None
         )
+        self._jacobian_supported = self._jac_bases_1d is not None
+        self._hessian_supported = self._hess_bases_1d is not None
 
         # Select accelerated evaluation strategy based on backend
         self._tp_eval_impl = get_tp_eval_impl(bkd)
+
+        self._derivs: Derivatives[Array] = self._build_derivatives()
+
+    def _build_derivatives(self) -> Derivatives[Array]:
+        """Capability bundle; rebuilt by set_values(), the nqoi decision point.
+
+        Before values are set nqoi is unknown, so the scalar-only fields
+        (hessian/hvp) are included optimistically when the bases support
+        second derivatives; invoking them before set_values() raises, and
+        set_values() rebuilds the bundle to match the actual nqoi.
+        """
+        if not self._jacobian_supported:
+            return Derivatives.none()
+        if not self._hessian_supported:
+            return Derivatives.first_order(jacobian=self._jacobian)
+        if self._values is not None and self._values.shape[0] != 1:
+            # vector-valued: second order only through the weighted form
+            return Derivatives.second_order_weighted(
+                jacobian=self._jacobian, whvp=self._whvp
+            )
+        # jacobian + materialized hessian + hvp + whvp is an unusual
+        # combination, so the raw constructor is used
+        return Derivatives(
+            jacobian=self._jacobian,
+            hessian=self._hessian,
+            hvp=self._hvp,
+            whvp=self._whvp,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -191,6 +234,8 @@ class TensorProductInterpolant(Generic[Array]):
                 f"Expected {self._nsamples} samples, got {values.shape[1]}"
             )
         self._values = self._bkd.copy(values)
+        # nqoi is now known; rebuild the capability bundle to match
+        self._derivs = self._build_derivatives()
 
     def _basis_vals_1d(self, samples: Array) -> List[Array]:
         """Evaluate all 1D bases at samples.
@@ -266,13 +311,12 @@ class TensorProductInterpolant(Generic[Array]):
         List[Array]
             List of derivatives, each with shape (npoints, nterms_1d[d]).
         """
-        if not self._jacobian_supported:
+        if self._jac_bases_1d is None:
             raise RuntimeError("Jacobian not supported by univariate bases")
 
         derivs = []
         for dd in range(self.nvars()):
-            basis = cast(Basis1DHasJacobianProtocol[Array], self._bases_1d[dd])
-            jac = basis.jacobian_batch(samples[dd : dd + 1, :])
+            jac = self._jac_bases_1d[dd].jacobian_batch(samples[dd : dd + 1, :])
             derivs.append(jac)
         return derivs
 
@@ -289,17 +333,16 @@ class TensorProductInterpolant(Generic[Array]):
         List[Array]
             List of second derivatives, each with shape (npoints, nterms_1d[d]).
         """
-        if not self._hessian_supported:
+        if self._hess_bases_1d is None:
             raise RuntimeError("Hessian not supported by univariate bases")
 
         derivs = []
         for dd in range(self.nvars()):
-            basis = cast(Basis1DHasHessianProtocol[Array], self._bases_1d[dd])
-            hess = basis.hessian_batch(samples[dd : dd + 1, :])
+            hess = self._hess_bases_1d[dd].hessian_batch(samples[dd : dd + 1, :])
             derivs.append(hess)
         return derivs
 
-    def jacobian(self, sample: Array) -> Array:
+    def _jacobian(self, sample: Array) -> Array:
         """Compute Jacobian at a single sample point.
 
         Uses the product rule on the tensor product structure.
@@ -350,7 +393,7 @@ class TensorProductInterpolant(Generic[Array]):
 
         return jacobian
 
-    def hessian(self, sample: Array) -> Array:
+    def _hessian(self, sample: Array) -> Array:
         """Compute Hessian at a single sample point.
 
         Only valid when nqoi == 1. For multiple QoIs, use whvp().
@@ -417,7 +460,7 @@ class TensorProductInterpolant(Generic[Array]):
 
         return hessian
 
-    def hvp(self, sample: Array, vec: Array) -> Array:
+    def _hvp(self, sample: Array, vec: Array) -> Array:
         """Compute Hessian-vector product efficiently.
 
         Computes H @ v where H is the Hessian, without explicitly forming H.
@@ -537,7 +580,7 @@ class TensorProductInterpolant(Generic[Array]):
 
         return result
 
-    def whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
+    def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
         """Compute weighted Hessian-vector product.
 
         Computes sum_q weights[q] * H_q @ v where H_q is the Hessian for QoI q.

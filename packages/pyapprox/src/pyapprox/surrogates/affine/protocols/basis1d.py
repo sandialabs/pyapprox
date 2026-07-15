@@ -190,6 +190,22 @@ class Basis1DHasDerivativesProtocol(Protocol, Generic[Array]):
 # Composed protocols (combine base + "Has" protocols)
 
 
+@runtime_checkable
+class Basis1DWithDerivativesProtocol(
+    Basis1DProtocol[Array],
+    Basis1DHasDerivativesProtocol[Array],
+    Protocol,
+    Generic[Array],
+):
+    """Protocol for 1D bases with evaluation and arbitrary-order derivatives.
+
+    Required by the univariate Leja objectives, whose analytic jacobians
+    evaluate ``derivatives(samples, order=1)`` alongside ``__call__``.
+    """
+
+    pass
+
+
 class Basis1DWithJacobianProtocol(
     Basis1DProtocol[Array],
     Basis1DHasJacobianProtocol[Array],

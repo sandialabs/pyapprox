@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import functools
 import operator
-from typing import TYPE_CHECKING, Generic, List
+from typing import TYPE_CHECKING, Generic, List, Optional
 
 from pyapprox.probability.conditional.protocols import (
     ConditionalDistributionProtocol,
+    ConditionalWithHypListProtocol,
+    ConditionalWithParamJacobianProtocol,
+    ConditionalWithXJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
@@ -84,33 +87,80 @@ class ConditionalIndependentJoint(Generic[Array]):
         self._total_nqoi = sum(self._qoi_counts)
 
         # Setup optional methods based on capabilities
-        self._setup_methods()
+        self._capture_component_capabilities()
 
-    def _setup_methods(self) -> None:
-        """Bind optional methods based on component capabilities."""
-        # Combine hyp_lists if all conditionals have them
-        if all(hasattr(c, "hyp_list") for c in self._conditionals):
-            self._hyp_list = self._conditionals[0].hyp_list()
-            for c in self._conditionals[1:]:
-                self._hyp_list = self._hyp_list + c.hyp_list()
-            self.hyp_list = self._get_hyp_list
-            self.nparams = self._get_nparams
+    def _capture_component_capabilities(self) -> None:
+        """Capture child-conditional capability once at construction."""
+        hyp_conds: List[ConditionalWithHypListProtocol[Array]] = []
+        for c in self._conditionals:
+            if isinstance(c, ConditionalWithHypListProtocol) and c.has_hyp_list():
+                hyp_conds.append(c)
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
+        if len(hyp_conds) == len(self._conditionals):
+            combined = hyp_conds[0].hyp_list()
+            for hc in hyp_conds[1:]:
+                combined = combined + hc.hyp_list()
+            self._hyp_list = combined
 
-        # Bind jacobian_wrt_x if all conditionals support it
-        if all(hasattr(c, "logpdf_jacobian_wrt_x") for c in self._conditionals):
-            self.logpdf_jacobian_wrt_x = self._logpdf_jacobian_wrt_x
+        x_jac_conds: List[ConditionalWithXJacobianProtocol[Array]] = []
+        for c in self._conditionals:
+            if isinstance(c, ConditionalWithXJacobianProtocol) and (
+                c.has_logpdf_jacobian_wrt_x()
+            ):
+                x_jac_conds.append(c)
+        self._x_jac_conditionals: Optional[
+            List[ConditionalWithXJacobianProtocol[Array]]
+        ] = x_jac_conds if len(x_jac_conds) == len(self._conditionals) else None
 
-        # Bind jacobian_wrt_params if all conditionals support it
-        if all(hasattr(c, "logpdf_jacobian_wrt_params") for c in self._conditionals):
-            self.logpdf_jacobian_wrt_params = self._logpdf_jacobian_wrt_params
+        param_jac_conds: List[ConditionalWithParamJacobianProtocol[Array]] = []
+        for c in self._conditionals:
+            if isinstance(c, ConditionalWithParamJacobianProtocol) and (
+                c.has_logpdf_jacobian_wrt_params()
+            ):
+                param_jac_conds.append(c)
+        self._param_jac_conditionals: Optional[
+            List[ConditionalWithParamJacobianProtocol[Array]]
+        ] = (
+            param_jac_conds
+            if len(param_jac_conds) == len(self._conditionals)
+            else None
+        )
 
-    def _get_hyp_list(self) -> HyperParameterList[Array]:
-        """Return the combined hyperparameter list."""
+    def has_hyp_list(self) -> bool:
+        """Whether all child conditionals expose hyperparameters."""
+        return self._hyp_list is not None
+
+    def has_logpdf_jacobian_wrt_x(self) -> bool:
+        """Whether all child conditionals provide d(logpdf)/dx."""
+        return self._x_jac_conditionals is not None
+
+    def has_logpdf_jacobian_wrt_params(self) -> bool:
+        """Whether all child conditionals provide d(logpdf)/dparams."""
+        return self._param_jac_conditionals is not None
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """Return the combined hyperparameter list.
+
+        Raises
+        ------
+        RuntimeError
+            If not all child conditionals expose hyp_list().
+        """
+        if self._hyp_list is None:
+            raise RuntimeError(
+                "hyp_list is unavailable; check has_hyp_list before calling"
+            )
         return self._hyp_list
 
-    def _get_nparams(self) -> int:
-        """Return the total number of parameters."""
-        return self._hyp_list.nparams()
+    def nparams(self) -> int:
+        """Return the total number of parameters.
+
+        Raises
+        ------
+        RuntimeError
+            If not all child conditionals expose hyp_list().
+        """
+        return int(self.hyp_list().nparams())
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -206,7 +256,7 @@ class ConditionalIndependentJoint(Generic[Array]):
         samples = [c.rvs(x) for c in self._conditionals]
         return self._bkd.vstack(samples)  # (nqoi, nsamples)
 
-    def _logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
+    def logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
         """
         Compute Jacobian of log PDF w.r.t. conditioning variable x.
 
@@ -227,13 +277,19 @@ class ConditionalIndependentJoint(Generic[Array]):
         self._validate_inputs(x, y)
 
         ys = self._split_y(y)
-        jacs = [c.logpdf_jacobian_wrt_x(x, yi) for c, yi in zip(self._conditionals, ys)]
+        conds = self._x_jac_conditionals
+        if conds is None:
+            raise RuntimeError(
+                "logpdf_jacobian_wrt_x is unavailable; check "
+                "has_logpdf_jacobian_wrt_x before calling"
+            )
+        jacs = [c.logpdf_jacobian_wrt_x(x, yi) for c, yi in zip(conds, ys)]
 
         # Sum Jacobians across conditionals
         stacked = self._bkd.vstack(jacs)  # (nconditionals, nvars)
         return self._bkd.sum(stacked, axis=0, keepdims=True)  # (1, nvars)
 
-    def _logpdf_jacobian_wrt_params(self, x: Array, y: Array) -> Array:
+    def logpdf_jacobian_wrt_params(self, x: Array, y: Array) -> Array:
         """
         Compute Jacobian of log PDF w.r.t. active parameters.
 
@@ -253,10 +309,16 @@ class ConditionalIndependentJoint(Generic[Array]):
             Parameters are ordered: [cond1_params, cond2_params, ...]
         """
         self._validate_inputs(x, y)
+        conds = self._param_jac_conditionals
+        if conds is None:
+            raise RuntimeError(
+                "logpdf_jacobian_wrt_params is unavailable; check "
+                "has_logpdf_jacobian_wrt_params before calling"
+            )
 
         ys = self._split_y(y)
         jacs = [
-            c.logpdf_jacobian_wrt_params(x, yi) for c, yi in zip(self._conditionals, ys)
+            c.logpdf_jacobian_wrt_params(x, yi) for c, yi in zip(conds, ys)
         ]
 
         # Concatenate along parameter axis

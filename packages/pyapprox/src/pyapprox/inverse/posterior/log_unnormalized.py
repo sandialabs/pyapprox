@@ -15,7 +15,15 @@ from typing import Any, Callable, Generic, Optional
 import numpy as np
 from scipy import optimize
 
+from pyapprox.interface.functions.derivatives import (
+    HessianFn,
+    JacobianFn,
+)
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.probability.protocols import (
+    DistributionHasLogpdfDerivativesProtocol,
     DistributionProtocol,
     LogLikelihoodProtocol,
 )
@@ -89,6 +97,19 @@ class LogUnNormalizedPosterior(Generic[Array]):
         self._likelihood = likelihood
         self._prior = prior
         self._nvars = prior.nvars()
+        # Capture optional derivative capability once at construction;
+        # absence is None, never a missing attribute
+        self._likelihood_jac: Optional[JacobianFn[Array]] = (
+            likelihood.derivatives().jacobian
+            if isinstance(likelihood, ObjectiveProtocol)
+            else None
+        )
+        self._prior_logpdf_jac: Optional[JacobianFn[Array]] = None
+        self._prior_logpdf_hess: Optional[HessianFn[Array]] = None
+        if isinstance(prior, DistributionHasLogpdfDerivativesProtocol):
+            prior_derivs = prior.logpdf_derivatives()
+            self._prior_logpdf_jac = prior_derivs.jacobian
+            self._prior_logpdf_hess = prior_derivs.hessian
 
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
@@ -186,8 +207,10 @@ class LogUnNormalizedPosterior(Generic[Array]):
         # Likelihood gradient w.r.t. model output
         if likelihood_gradient_fn is not None:
             dloglike_doutput = likelihood_gradient_fn(model_output)
-        elif hasattr(self._likelihood, "gradient"):
-            dloglike_doutput = self._likelihood.gradient(model_output)
+        elif self._likelihood_jac is not None:
+            # bundle jacobian is (1, nobs); the chain rule below consumes
+            # a (nobs, 1) column
+            dloglike_doutput = self._likelihood_jac(model_output).T
         else:
             raise ValueError(
                 "Likelihood does not have gradient method. "
@@ -206,8 +229,9 @@ class LogUnNormalizedPosterior(Generic[Array]):
         # Prior gradient
         if prior_logpdf_jacobian_fn is not None:
             dlogprior_dtheta = prior_logpdf_jacobian_fn(sample)
-        elif hasattr(self._prior, "logpdf_jacobian"):
-            dlogprior_dtheta = self._prior.logpdf_jacobian(sample)
+        elif self._prior_logpdf_jac is not None:
+            # bundle jacobian is (1, nvars); the gradient term is (nvars, 1)
+            dlogprior_dtheta = self._prior_logpdf_jac(sample).T
         else:
             # Use finite differences
             dlogprior_dtheta = self._finite_diff_jacobian(
@@ -263,8 +287,8 @@ class LogUnNormalizedPosterior(Generic[Array]):
         # Prior Hessian
         if prior_logpdf_hessian_fn is not None:
             H_prior = prior_logpdf_hessian_fn(sample)
-        elif hasattr(self._prior, "logpdf_hessian"):
-            H_prior = self._prior.logpdf_hessian(sample)
+        elif self._prior_logpdf_hess is not None:
+            H_prior = self._prior_logpdf_hess(sample)
         else:
             # Use finite differences
             def logprior_fn(s: Array) -> Array:

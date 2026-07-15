@@ -9,6 +9,7 @@ from typing import Generic, Optional
 from pyapprox.interface.functions.derivative_checks._legacy_harvest import (
     resolve_bundle,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -175,6 +176,12 @@ class SingleSampleFromBatchJacobian(Generic[Array]):
             )
         self._fun = function
         self._jacobian_batch = derivs.jacobian_batch
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._fun.bkd()
@@ -224,6 +231,14 @@ class SingleSampleFromBatchHessian(Generic[Array]):
         self._fun = function
         self._jacobian_batch = derivs.jacobian_batch
         self._hessian_batch = derivs.hessian_batch
+        # jacobian + hvp + materialized hessian is an unusual combination,
+        # so the raw constructor is used instead of a named one.
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=self.jacobian, hvp=self.hvp, hessian=self.hessian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         return self._fun.bkd()

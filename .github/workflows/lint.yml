@@ -36,7 +36,7 @@ jobs:
       - run: pip install -e "packages/pyapprox[lint]"
       - run: pip install --no-deps -e packages/pyapprox-benchmarks
       - name: mypy ratchet (must not exceed baseline)
-        run: bash scripts/mypy_diff.sh 692 packages/pyapprox/src/pyapprox/
+        run: bash scripts/mypy_diff.sh 635 packages/pyapprox/src/pyapprox/
       - name: mypy ratchet for pyapprox-benchmarks
         run: bash scripts/mypy_diff.sh 30 packages/pyapprox-benchmarks/src/pyapprox_benchmarks/
 

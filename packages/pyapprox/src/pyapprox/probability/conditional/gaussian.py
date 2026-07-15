@@ -6,11 +6,20 @@ deviation are functions of the conditioning variable.
 """
 
 import math
-from typing import TYPE_CHECKING, Generic
+from typing import TYPE_CHECKING, Generic, Optional
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import JacobianFn
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
+from pyapprox.probability.conditional.protocols import (
+    ComponentWithHypListProtocol,
+    ComponentWithParamJacobianProtocol,
+    ComponentWithSyncParamsProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -84,36 +93,81 @@ class ConditionalGaussian(Generic[Array]):
         self._log_2pi = math.log(2.0 * math.pi)
 
         # Setup optional methods based on capabilities
-        self._setup_methods()
+        self._capture_component_capabilities()
 
-    def _setup_methods(self) -> None:
-        """Bind optional methods based on component capabilities."""
-        # Combine hyp_lists if both funcs have them
-        if hasattr(self._mean_func, "hyp_list") and hasattr(
-            self._log_stdev_func, "hyp_list"
+    def _capture_component_capabilities(self) -> None:
+        """Capture component capability once at construction.
+
+        Absent capability is None (or a False predicate), never a
+        missing attribute.
+        """
+        f1 = self._mean_func
+        f2 = self._log_stdev_func
+
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
+        if isinstance(f1, ComponentWithHypListProtocol) and isinstance(
+            f2, ComponentWithHypListProtocol
         ):
-            self._hyp_list: HyperParameterList[Array] = (
-                self._mean_func.hyp_list()
-                + self._log_stdev_func.hyp_list()
+            self._hyp_list = f1.hyp_list() + f2.hyp_list()
+
+        self._mean_jac: Optional[JacobianFn[Array]] = None
+        self._log_stdev_jac: Optional[JacobianFn[Array]] = None
+        if isinstance(f1, ObjectiveProtocol) and isinstance(
+            f2, ObjectiveProtocol
+        ):
+            jac1 = f1.derivatives().jacobian
+            jac2 = f2.derivatives().jacobian
+            if jac1 is not None and jac2 is not None:
+                self._mean_jac = jac1
+                self._log_stdev_jac = jac2
+
+        self._mean_params: Optional[
+            ComponentWithParamJacobianProtocol[Array]
+        ] = None
+        self._log_stdev_params: Optional[
+            ComponentWithParamJacobianProtocol[Array]
+        ] = None
+        if isinstance(f1, ComponentWithParamJacobianProtocol) and isinstance(
+            f2, ComponentWithParamJacobianProtocol
+        ):
+            self._mean_params = f1
+            self._log_stdev_params = f2
+
+    def has_hyp_list(self) -> bool:
+        """Whether both component functions expose hyperparameters."""
+        return self._hyp_list is not None
+
+    def has_logpdf_jacobian_wrt_x(self) -> bool:
+        """Whether both component functions declare an input jacobian."""
+        return self._mean_jac is not None
+
+    def has_logpdf_jacobian_wrt_params(self) -> bool:
+        """Whether both component functions provide parameter jacobians."""
+        return self._mean_params is not None
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """Return the combined hyperparameter list.
+
+        Raises
+        ------
+        RuntimeError
+            If not both component functions expose hyp_list().
+        """
+        if self._hyp_list is None:
+            raise RuntimeError(
+                "hyp_list is unavailable; check has_hyp_list before calling"
             )
-            self.hyp_list = self._get_hyp_list
-            self.nparams = self._get_nparams
+        return self._hyp_list
 
-        # Bind jacobian_wrt_x if both funcs support jacobian
-        if hasattr(self._mean_func, "jacobian") and hasattr(
-            self._log_stdev_func, "jacobian"
-        ):
-            self.logpdf_jacobian_wrt_x = self._logpdf_jacobian_wrt_x
+    def nparams(self) -> int:
+        """Return the total number of parameters.
 
-        # Bind jacobian_wrt_params if both funcs support jacobian_wrt_params
-        if hasattr(self._mean_func, "jacobian_wrt_params") and hasattr(
-            self._log_stdev_func, "jacobian_wrt_params"
-        ):
-            self.logpdf_jacobian_wrt_params = self._logpdf_jacobian_wrt_params
-            self.reparameterize_jacobian_wrt_params = (
-                self._reparameterize_jacobian_wrt_params
-            )
-
+        Raises
+        ------
+        RuntimeError
+            If not both component functions expose hyp_list().
+        """
+        return int(self.hyp_list().nparams())
     def _sync_param_funcs(self) -> None:
         """Sync parameter functions from hyp_list values.
 
@@ -122,18 +176,10 @@ class ConditionalGaussian(Generic[Array]):
         coefficients used by __call__ may be stale.  This method ensures
         consistency before every evaluation.
         """
-        if hasattr(self._mean_func, "sync_params"):
+        if isinstance(self._mean_func, ComponentWithSyncParamsProtocol):
             self._mean_func.sync_params()
-        if hasattr(self._log_stdev_func, "sync_params"):
+        if isinstance(self._log_stdev_func, ComponentWithSyncParamsProtocol):
             self._log_stdev_func.sync_params()
-
-    def _get_hyp_list(self) -> HyperParameterList[Array]:
-        """Return the combined hyperparameter list."""
-        return self._hyp_list
-
-    def _get_nparams(self) -> int:
-        """Return the total number of parameters."""
-        return int(self._hyp_list.nparams())
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -216,7 +262,7 @@ class ConditionalGaussian(Generic[Array]):
         base = self._bkd.asarray(np.random.randn(1, nsamples))
         return self.reparameterize(x, base)
 
-    def _logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
+    def logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
         """
         Compute Jacobian of log PDF w.r.t. conditioning variable x.
 
@@ -237,6 +283,13 @@ class ConditionalGaussian(Generic[Array]):
             Jacobian. Shape: (1, nvars)
         """
         self._validate_inputs(x, y)
+        mean_jac = self._mean_jac
+        log_stdev_jac = self._log_stdev_jac
+        if mean_jac is None or log_stdev_jac is None:
+            raise RuntimeError(
+                "logpdf_jacobian_wrt_x is unavailable; check "
+                "has_logpdf_jacobian_wrt_x before calling"
+            )
 
         mean = self._mean_func(x)  # (1, 1)
         log_stdev = self._log_stdev_func(x)  # (1, 1)
@@ -252,15 +305,15 @@ class ConditionalGaussian(Generic[Array]):
 
         # Get Jacobians of mean and log_stdev w.r.t. x
         # jacobian returns (nqoi, nvars) for single sample
-        dmean_dx = self._mean_func.jacobian(x)  # (1, nvars)
-        dlogstdev_dx = self._log_stdev_func.jacobian(x)  # (1, nvars)
+        dmean_dx = mean_jac(x)  # (1, nvars)
+        dlogstdev_dx = log_stdev_jac(x)  # (1, nvars)
 
         # Chain rule: d(logpdf)/dx = dlogpdf/dmean * dmean/dx + ...
         result = dlogpdf_dmean * dmean_dx + dlogpdf_dlogstdev * dlogstdev_dx
 
         return result  # (1, nvars)
 
-    def _logpdf_jacobian_wrt_params(self, x: Array, y: Array) -> Array:
+    def logpdf_jacobian_wrt_params(self, x: Array, y: Array) -> Array:
         """
         Compute Jacobian of log PDF w.r.t. active parameters.
 
@@ -281,6 +334,13 @@ class ConditionalGaussian(Generic[Array]):
                                    log_stdev_func.nactive_params()
         """
         self._validate_inputs(x, y)
+        mean_params = self._mean_params
+        log_stdev_params = self._log_stdev_params
+        if mean_params is None or log_stdev_params is None:
+            raise RuntimeError(
+                "logpdf_jacobian_wrt_params is unavailable; check "
+                "has_logpdf_jacobian_wrt_params before calling"
+            )
 
         nsamples = x.shape[1]
         mean = self._mean_func(x)  # (1, nsamples)
@@ -297,10 +357,10 @@ class ConditionalGaussian(Generic[Array]):
 
         # Get Jacobians of mean and log_stdev w.r.t. their params
         # jacobian_wrt_params returns (nsamples, nqoi, nactive_params_i)
-        dmean_dparams = self._mean_func.jacobian_wrt_params(
+        dmean_dparams = mean_params.jacobian_wrt_params(
             x
         )  # (nsamples, 1, n_mean_params)
-        dlogstdev_dparams = self._log_stdev_func.jacobian_wrt_params(
+        dlogstdev_dparams = log_stdev_params.jacobian_wrt_params(
             x
         )  # (nsamples, 1, n_stdev_params)
 
@@ -382,7 +442,7 @@ class ConditionalGaussian(Generic[Array]):
 
         return GaussianMarginal(0.0, 1.0, self._bkd)
 
-    def _reparameterize_jacobian_wrt_params(
+    def reparameterize_jacobian_wrt_params(
         self, x: Array, base_samples: Array
     ) -> Array:
         """Compute Jacobian of reparameterize w.r.t. active parameters.
@@ -405,15 +465,22 @@ class ConditionalGaussian(Generic[Array]):
             Jacobian. Shape: (nsamples, 1, nactive_params)
         """
         self._sync_param_funcs()
+        mean_params = self._mean_params
+        log_stdev_params = self._log_stdev_params
+        if mean_params is None or log_stdev_params is None:
+            raise RuntimeError(
+                "reparameterize_jacobian_wrt_params is unavailable; check "
+                "has_logpdf_jacobian_wrt_params before calling"
+            )
         nsamples = x.shape[1]
         log_s = self._log_stdev_func(x)  # (1, nsamples)
         stdev = self._bkd.exp(log_s)  # (1, nsamples)
 
         # d(mean_func)/d(params): (nsamples, 1, n_mean_params)
-        dmean_dparams = self._mean_func.jacobian_wrt_params(x)
+        dmean_dparams = mean_params.jacobian_wrt_params(x)
 
         # d(log_stdev_func)/d(params): (nsamples, 1, n_stdev_params)
-        dlogstdev_dparams = self._log_stdev_func.jacobian_wrt_params(x)
+        dlogstdev_dparams = log_stdev_params.jacobian_wrt_params(x)
 
         # dz/d(log_stdev_params) = stdev * base * d(log_stdev)/d(params)
         # stdev * base: (1, nsamples) -> (nsamples, 1, 1)

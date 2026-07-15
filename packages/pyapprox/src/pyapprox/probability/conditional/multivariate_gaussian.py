@@ -16,6 +16,10 @@ from typing import TYPE_CHECKING, Generic, Optional, Tuple
 
 import numpy as np
 
+from pyapprox.probability.conditional.protocols import (
+    ComponentWithHypListProtocol,
+    ComponentWithSyncParamsProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -101,24 +105,50 @@ class ConditionalDenseCholGaussian(Generic[Array]):
             self._offdiag_cols = cols
 
         self._log_2pi = math.log(2.0 * math.pi)
-        self._setup_methods()
+        self._capture_component_capabilities(self._collect_funcs())
 
-    def _setup_methods(self) -> None:
+    def _collect_funcs(self) -> list:
         funcs = [self._mean_func, self._log_chol_diag_func]
         if self._chol_offdiag_func is not None:
             funcs.append(self._chol_offdiag_func)
-        if all(hasattr(f, "hyp_list") for f in funcs):
-            self._hyp_list = funcs[0].hyp_list()
-            for f in funcs[1:]:
-                self._hyp_list = self._hyp_list + f.hyp_list()
-            self.hyp_list = self._get_hyp_list
-            self.nparams = self._get_nparams
+        return funcs
 
-    def _get_hyp_list(self) -> HyperParameterList[Array]:
+    def _capture_component_capabilities(self, funcs: list) -> None:
+        """Capture component hyperparameter capability at construction."""
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
+        if all(isinstance(f, ComponentWithHypListProtocol) for f in funcs):
+            combined = funcs[0].hyp_list()
+            for f in funcs[1:]:
+                combined = combined + f.hyp_list()
+            self._hyp_list = combined
+
+    def has_hyp_list(self) -> bool:
+        """Whether all component functions expose hyperparameters."""
+        return self._hyp_list is not None
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """Return the combined hyperparameter list.
+
+        Raises
+        ------
+        RuntimeError
+            If not all component functions expose hyp_list().
+        """
+        if self._hyp_list is None:
+            raise RuntimeError(
+                "hyp_list is unavailable; check has_hyp_list before calling"
+            )
         return self._hyp_list
 
-    def _get_nparams(self) -> int:
-        return self._hyp_list.nparams()
+    def nparams(self) -> int:
+        """Return the total number of parameters.
+
+        Raises
+        ------
+        RuntimeError
+            If not all component functions expose hyp_list().
+        """
+        return int(self.hyp_list().nparams())
 
     def _sync_param_funcs(self) -> None:
         for func in [
@@ -126,7 +156,7 @@ class ConditionalDenseCholGaussian(Generic[Array]):
             self._log_chol_diag_func,
             self._chol_offdiag_func,
         ]:
-            if func is not None and hasattr(func, "sync_params"):
+            if isinstance(func, ComponentWithSyncParamsProtocol):
                 func.sync_params()
 
     def bkd(self) -> Backend[Array]:
@@ -442,24 +472,50 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
                 raise ValueError("all parameter functions must have same nvars")
 
         self._log_2pi = math.log(2.0 * math.pi)
-        self._setup_methods()
+        self._capture_component_capabilities(self._collect_funcs())
 
-    def _setup_methods(self) -> None:
+    def _collect_funcs(self) -> list:
         funcs = [self._mean_func, self._log_diag_func]
         if self._factor_func is not None:
             funcs.append(self._factor_func)
-        if all(hasattr(f, "hyp_list") for f in funcs):
-            self._hyp_list = funcs[0].hyp_list()
-            for f in funcs[1:]:
-                self._hyp_list = self._hyp_list + f.hyp_list()
-            self.hyp_list = self._get_hyp_list
-            self.nparams = self._get_nparams
+        return funcs
 
-    def _get_hyp_list(self) -> HyperParameterList[Array]:
+    def _capture_component_capabilities(self, funcs: list) -> None:
+        """Capture component hyperparameter capability at construction."""
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
+        if all(isinstance(f, ComponentWithHypListProtocol) for f in funcs):
+            combined = funcs[0].hyp_list()
+            for f in funcs[1:]:
+                combined = combined + f.hyp_list()
+            self._hyp_list = combined
+
+    def has_hyp_list(self) -> bool:
+        """Whether all component functions expose hyperparameters."""
+        return self._hyp_list is not None
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """Return the combined hyperparameter list.
+
+        Raises
+        ------
+        RuntimeError
+            If not all component functions expose hyp_list().
+        """
+        if self._hyp_list is None:
+            raise RuntimeError(
+                "hyp_list is unavailable; check has_hyp_list before calling"
+            )
         return self._hyp_list
 
-    def _get_nparams(self) -> int:
-        return self._hyp_list.nparams()
+    def nparams(self) -> int:
+        """Return the total number of parameters.
+
+        Raises
+        ------
+        RuntimeError
+            If not all component functions expose hyp_list().
+        """
+        return int(self.hyp_list().nparams())
 
     def _sync_param_funcs(self) -> None:
         for func in [
@@ -467,7 +523,7 @@ class ConditionalLowRankCholGaussian(Generic[Array]):
             self._log_diag_func,
             self._factor_func,
         ]:
-            if func is not None and hasattr(func, "sync_params"):
+            if isinstance(func, ComponentWithSyncParamsProtocol):
                 func.sync_params()
 
     def bkd(self) -> Backend[Array]:

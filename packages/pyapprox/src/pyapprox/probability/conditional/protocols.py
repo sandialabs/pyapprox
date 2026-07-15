@@ -12,6 +12,7 @@ models where variance (or other parameters) depends on the input.
 from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.hyperparameter import HyperParameterList
 
 
 @runtime_checkable
@@ -39,12 +40,18 @@ class ConditionalDistributionProtocol(Protocol, Generic[Array]):
 
     Notes
     -----
-    Optional capabilities are checked via hasattr:
-    - hyp_list() -> HyperParameterList: Parameters for optimization
-    - logpdf_jacobian_wrt_x(x, y) -> Array: Gradient w.r.t. conditioning variable
-    - logpdf_jacobian_wrt_params(x, y) -> Array: Gradient w.r.t. parameters
+    Optional capabilities are declared, never probed with hasattr:
+    - hyp_list() / nparams() raise RuntimeError when unavailable; gate on
+      has_hyp_list().
+    - logpdf_jacobian_wrt_x(x, y) / logpdf_jacobian_wrt_params(x, y) raise
+      RuntimeError when the component functions lack the required
+      derivative capability; gate on has_logpdf_jacobian_wrt_x() /
+      has_logpdf_jacobian_wrt_params(). (These are two-argument
+      derivative families, so capability lives behind predicates rather
+      than a Derivatives bundle.)
 
-    Optional VI (variational inference) capabilities (checked via hasattr):
+    Optional VI (variational inference) capabilities (checked via
+    runtime protocol isinstance):
     - reparameterize(x, base_samples) -> Array: Transform base samples to
       distribution samples. Differentiable w.r.t. distribution parameters.
     - kl_divergence(x, prior) -> Array: Analytical KL(q(.|x) || prior),
@@ -131,4 +138,87 @@ class ConditionalDistributionProtocol(Protocol, Generic[Array]):
         ValueError
             If input is not 2D
         """
+        ...
+
+
+@runtime_checkable
+class ComponentWithHypListProtocol(Protocol, Generic[Array]):
+    """Component function exposing trainable hyperparameters."""
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """Return the hyperparameter list."""
+        ...
+
+
+@runtime_checkable
+class ComponentWithSyncParamsProtocol(Protocol):
+    """Component function whose coefficients sync from its hyp_list."""
+
+    def sync_params(self) -> None:
+        """Sync internal coefficients from hyp_list values."""
+        ...
+
+
+@runtime_checkable
+class ComponentWithParamJacobianProtocol(Protocol, Generic[Array]):
+    """Component function providing a parameter Jacobian.
+
+    Parameter-family derivatives are public named methods (the name
+    carries the "wrt params" context), so this structural gate — not the
+    Derivatives bundle, which covers derivatives w.r.t. inputs — is how
+    consumers detect them.
+    """
+
+    def jacobian_wrt_params(self, samples: Array) -> Array:
+        """Compute Jacobian w.r.t. active parameters.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Jacobians. Shape: (nsamples, nqoi, nactive_params)
+        """
+        ...
+
+
+@runtime_checkable
+class ConditionalWithHypListProtocol(Protocol, Generic[Array]):
+    """Conditional exposing (possibly unavailable) hyperparameters."""
+
+    def has_hyp_list(self) -> bool:
+        """Whether hyperparameters are available."""
+        ...
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """Return the hyperparameter list (raises when unavailable)."""
+        ...
+
+
+@runtime_checkable
+class ConditionalWithXJacobianProtocol(Protocol, Generic[Array]):
+    """Conditional exposing (possibly unavailable) d(logpdf)/dx."""
+
+    def has_logpdf_jacobian_wrt_x(self) -> bool:
+        """Whether the conditioning-variable jacobian is available."""
+        ...
+
+    def logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
+        """Compute d(logpdf)/dx (raises when unavailable)."""
+        ...
+
+
+@runtime_checkable
+class ConditionalWithParamJacobianProtocol(Protocol, Generic[Array]):
+    """Conditional exposing (possibly unavailable) d(logpdf)/dparams."""
+
+    def has_logpdf_jacobian_wrt_params(self) -> bool:
+        """Whether the parameter jacobian is available."""
+        ...
+
+    def logpdf_jacobian_wrt_params(self, x: Array, y: Array) -> Array:
+        """Compute d(logpdf)/dparams (raises when unavailable)."""
         ...

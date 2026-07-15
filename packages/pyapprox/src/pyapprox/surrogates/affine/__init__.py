@@ -93,10 +93,10 @@ from pyapprox.surrogates.affine.protocols import (
     Basis1DHasQuadratureProtocol,
     # Univariate protocols
     Basis1DProtocol,
+    Basis1DWithDerivativesProtocol,
     Basis1DWithJacobianAndHessianProtocol,
     Basis1DWithJacobianProtocol,
-    BasisExpansionHasHessianProtocol,
-    BasisExpansionHasJacobianProtocol,
+    BasisExpansionHasParamJacobianProtocol,
     # Expansion protocols
     BasisExpansionProtocol,
     BasisHasHessianProtocol,
@@ -188,6 +188,7 @@ __all__ = [
     "Basis1DHasJacobianProtocol",
     "Basis1DHasHessianProtocol",
     "Basis1DHasDerivativesProtocol",
+    "Basis1DWithDerivativesProtocol",
     "Basis1DWithJacobianProtocol",
     "Basis1DWithJacobianAndHessianProtocol",
     "OrthonormalPolynomial1DProtocol",
@@ -210,8 +211,7 @@ __all__ = [
     "CompositeAdmissibilityCriteriaProtocol",
     # Expansion protocols
     "BasisExpansionProtocol",
-    "BasisExpansionHasJacobianProtocol",
-    "BasisExpansionHasHessianProtocol",
+    "BasisExpansionHasParamJacobianProtocol",
     "FittableBasisExpansionProtocol",
     "PCEStatisticsProtocol",
     "LinearSystemSolverProtocol",

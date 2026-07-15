@@ -2,7 +2,10 @@
 
 from typing import Generic, List, Self, Tuple
 
-from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
+from pyapprox.surrogates.affine.protocols import (
+    BasisExpansionHasParamJacobianProtocol,
+    BasisExpansionProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -283,7 +286,7 @@ class FunctionTrainCore(Generic[Array]):
 
                 if bexp_nparams > 0:
                     # Get jacobian for this expansion
-                    if hasattr(bexp, "jacobian_wrt_params"):
+                    if isinstance(bexp, BasisExpansionHasParamJacobianProtocol):
                         bexp_jac = bexp.jacobian_wrt_params(sample_1d)
                     else:
                         bexp_jac = self._linear_jacobian_wrt_params(bexp, sample_1d)
@@ -406,7 +409,7 @@ class FunctionTrainCore(Generic[Array]):
         """
         for ii in range(self._r_left):
             for jj in range(self._r_right):
-                if not hasattr(self._basisexps[ii][jj], "jacobian_batch"):
+                if self._basisexps[ii][jj].derivatives().jacobian_batch is None:
                     return False
         return True
 
@@ -440,14 +443,15 @@ class FunctionTrainCore(Generic[Array]):
         for ii in range(self._r_left):
             for jj in range(self._r_right):
                 bexp = self._basisexps[ii][jj]
-                if not hasattr(bexp, "jacobian_batch"):
+                bexp_jac_batch = bexp.derivatives().jacobian_batch
+                if bexp_jac_batch is None:
                     raise RuntimeError(
                         f"Basis expansion at ({ii}, {jj}) does not support "
                         "jacobian_batch. Input Jacobian requires differentiable "
                         "bases."
                     )
                 # jacobian_batch returns (nsamples, nqoi, nvars=1)
-                jac = bexp.jacobian_batch(sample_1d)
+                jac = bexp_jac_batch(sample_1d)
                 # Extract the single variable dimension: (nsamples, nqoi)
                 result[ii, jj] = jac[:, :, 0]
         return result

@@ -9,6 +9,7 @@ from typing import Generic
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.probability.covariance import (
     DenseCholeskyCovarianceOperator,
 )
@@ -184,6 +185,27 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
             PDF values. Shape: (1, nsamples)
         """
         return self._bkd.exp(self.logpdf(samples))
+
+    def logpdf_derivatives(self) -> Derivatives[Array]:
+        """Return the logpdf derivative bundle.
+
+        The bundle's jacobian is d(logpdf)/dx, (nvars, 1) -> (1, nvars);
+        hessian is the (constant) negative precision. jacobian +
+        materialized hessian is an unusual combination, so the raw
+        constructor is used.
+        """
+        return Derivatives(
+            jacobian=self._logpdf_jacobian_single,
+            hessian=self._logpdf_hessian_single,
+        )
+
+    def _logpdf_jacobian_single(self, sample: Array) -> Array:
+        """d(logpdf)/dx for a single sample. Shape: (nvars, 1) -> (1, nvars)."""
+        return self.logpdf_gradient(sample).T
+
+    def _logpdf_hessian_single(self, sample: Array) -> Array:
+        """Constant logpdf Hessian. Shape: (nvars, 1) -> (nvars, nvars)."""
+        return self.logpdf_hessian()
 
     def logpdf_gradient(self, samples: Array) -> Array:
         """

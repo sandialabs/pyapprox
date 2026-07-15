@@ -2,6 +2,7 @@
 
 from typing import Generic, List
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.affine.protocols import BasisExpansionProtocol
 from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.functiontrain import FunctionTrain
@@ -30,6 +31,13 @@ class ConstantExpansion(Generic[Array]):
         self._nqoi = nqoi
         # Single constant coefficient
         self._coef = bkd.full((1, nqoi), value)
+        self._derivs: Derivatives[Array] = Derivatives.first_order(
+            jacobian=self.jacobian, jacobian_batch=self.jacobian_batch
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return computational backend."""

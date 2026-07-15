@@ -54,7 +54,7 @@ class TestSparseGridDerivatives:
         errors = checker.check_derivatives(test_pt, verbosity=0)
 
         # Jacobian should be [1, 2]
-        jac = surrogate.jacobian(test_pt)
+        jac = surrogate.derivatives().jacobian(test_pt)
         expected_jac = bkd.asarray([[1.0, 2.0]])
         bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
 
@@ -75,7 +75,7 @@ class TestSparseGridDerivatives:
         errors = checker.check_derivatives(test_pt, verbosity=0)
 
         # Jacobian at (0.3, 0.4) should be [2*0.3 + 0.4, 0.3] = [1.0, 0.3]
-        jac = surrogate.jacobian(test_pt)
+        jac = surrogate.derivatives().jacobian(test_pt)
         expected_jac = bkd.asarray([[1.0, 0.3]])
         bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
 
@@ -95,7 +95,7 @@ class TestSparseGridDerivatives:
         errors = checker.check_derivatives(test_pt, verbosity=0)
 
         # Jacobian should be [1, 1, 1]
-        jac = surrogate.jacobian(test_pt)
+        jac = surrogate.derivatives().jacobian(test_pt)
         expected_jac = bkd.asarray([[1.0, 1.0, 1.0]])
         bkd.assert_allclose(jac, expected_jac, rtol=1e-6)
 
@@ -129,7 +129,7 @@ class TestSparseGridDerivatives:
         test_pt = bkd.asarray([[0.3], [0.4]])
         vec = bkd.asarray([[1.0], [0.0]])
 
-        hvp = surrogate.hvp(test_pt, vec)
+        hvp = surrogate.derivatives().hvp(test_pt, vec)
 
         # Hessian is [[2, 0], [0, 2]]
         # HVP with [1, 0] should give [2, 0]
@@ -148,7 +148,7 @@ class TestSparseGridDerivatives:
         vec = bkd.asarray([[1.0], [1.0]])
         weights = bkd.asarray([[0.5]])
 
-        whvp = surrogate.whvp(test_pt, vec, weights)
+        whvp = surrogate.derivatives().whvp(test_pt, vec, weights)
 
         # Hessian is [[2, 0], [0, 2]]
         # WHVP with [1, 1] and weight 0.5 should give 0.5 * [2, 2] = [1, 1]

@@ -20,6 +20,7 @@ JointDistributionProtocol
 
 from typing import Generic, Protocol, Sequence, Tuple, runtime_checkable
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -493,4 +494,88 @@ class UniformQuadratureRule01Protocol(Protocol, Generic[Array]):
         weights : Array
             Quadrature weights (sum to 1). Shape: (npoints, 1)
         """
+        ...
+
+
+@runtime_checkable
+class MarginalWithHypListProtocol(Protocol, Generic[Array]):
+    """Marginal exposing trainable hyperparameters."""
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """Return the hyperparameter list."""
+        ...
+
+
+@runtime_checkable
+class MarginalHasLogpdfJacobianProtocol(Protocol, Generic[Array]):
+    """Marginal providing d(logpdf)/dx."""
+
+    def logpdf_jacobian(self, samples: Array) -> Array:
+        """Compute derivative of logpdf w.r.t. the input.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Derivatives. Shape: (1, nsamples)
+        """
+        ...
+
+
+@runtime_checkable
+class MarginalHasPdfJacobianProtocol(Protocol, Generic[Array]):
+    """Marginal providing d(pdf)/dx."""
+
+    def pdf_jacobian(self, samples: Array) -> Array:
+        """Compute derivative of pdf w.r.t. the input.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Derivatives. Shape: (1, nsamples)
+        """
+        ...
+
+
+@runtime_checkable
+class MarginalHasLogpdfParamJacobianProtocol(Protocol, Generic[Array]):
+    """Marginal providing d(logpdf)/dparams (parameter family)."""
+
+    def logpdf_jacobian_wrt_params(self, samples: Array) -> Array:
+        """Compute derivative of logpdf w.r.t. active parameters.
+
+        Parameters
+        ----------
+        samples : Array
+            Sample points. Shape: (1, nsamples)
+
+        Returns
+        -------
+        Array
+            Derivatives. Shape: (nsamples, nactive_params)
+        """
+        ...
+
+
+@runtime_checkable
+class DistributionHasLogpdfDerivativesProtocol(Protocol, Generic[Array]):
+    """Distribution exposing a derivative bundle for its logpdf.
+
+    Per the accessor-currying rule, the differently-named accessor
+    carries "of what": the bundle's ``jacobian`` is d(logpdf)/dx with
+    the standard single-sample shape ``(nvars, 1) -> (1, nvars)``, and
+    ``hessian`` (when present) is ``(nvars, 1) -> (nvars, nvars)``.
+    """
+
+    def logpdf_derivatives(self) -> Derivatives[Array]:
+        """Return the logpdf derivative bundle."""
         ...

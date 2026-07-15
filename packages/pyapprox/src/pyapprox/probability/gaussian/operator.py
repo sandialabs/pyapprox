@@ -9,6 +9,7 @@ from typing import Generic
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.probability.covariance import OperatorBasedCovarianceOperator
 from pyapprox.probability.gaussian.core import GaussianLogPDFCore
 from pyapprox.probability.protocols import SqrtCovarianceOperatorProtocol
@@ -213,6 +214,17 @@ class OperatorBasedMultivariateGaussian(Generic[Array]):
             PDF values. Shape: (nsamples,)
         """
         return self._bkd.exp(self.logpdf(samples))
+
+    def logpdf_derivatives(self) -> Derivatives[Array]:
+        """Return the logpdf derivative bundle.
+
+        The bundle's jacobian is d(logpdf)/dx, (nvars, 1) -> (1, nvars).
+        """
+        return Derivatives.first_order(jacobian=self._logpdf_jacobian_single)
+
+    def _logpdf_jacobian_single(self, sample: Array) -> Array:
+        """d(logpdf)/dx for a single sample. Shape: (nvars, 1) -> (1, nvars)."""
+        return self.logpdf_gradient(sample).T
 
     def logpdf_gradient(self, samples: Array) -> Array:
         """

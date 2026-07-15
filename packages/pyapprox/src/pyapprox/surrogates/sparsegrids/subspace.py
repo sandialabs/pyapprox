@@ -9,6 +9,7 @@ functionality: multi-index tracking, growth rules, and quadrature.
 
 from typing import Generic, List, Optional, Union
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
     InterpolationBasis1DProtocol,
@@ -205,82 +206,14 @@ class TensorProductSubspace(Generic[Array]):
         """Return whether Hessian computation is supported."""
         return self._interpolant.hessian_supported()
 
-    def jacobian(self, sample: Array) -> Array:
-        """Compute Jacobian at a single sample point.
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the interpolant's derivative bundle.
 
-        Parameters
-        ----------
-        sample : Array
-            Single evaluation point of shape (nvars, 1)
-
-        Returns
-        -------
-        Array
-            Jacobian matrix of shape (nqoi, nvars)
+        Capability (jacobian/hessian/hvp/whvp w.r.t. inputs) is declared
+        through the bundle fields; the bundle is rebuilt by set_values(),
+        when nqoi becomes known.
         """
-        return self._interpolant.jacobian(sample)
-
-    def hessian(self, sample: Array) -> Array:
-        """Compute Hessian at a single sample point for scalar QoI.
-
-        Only valid when nqoi == 1.
-
-        Parameters
-        ----------
-        sample : Array
-            Single evaluation point of shape (nvars, 1)
-
-        Returns
-        -------
-        Array
-            Hessian matrix of shape (nvars, nvars)
-        """
-        return self._interpolant.hessian(sample)
-
-    def hvp(self, sample: Array, vec: Array) -> Array:
-        """Compute Hessian-vector product efficiently.
-
-        Only valid when nqoi == 1.
-
-        Parameters
-        ----------
-        sample : Array
-            Single evaluation point of shape (nvars, 1)
-        vec : Array
-            Direction vector of shape (nvars, 1)
-
-        Returns
-        -------
-        Array
-            Hessian-vector product of shape (nvars, 1)
-        """
-        return self._interpolant.hvp(sample, vec)
-
-    def whvp(
-        self,
-        sample: Array,
-        vec: Array,
-        weights: Array,
-    ) -> Array:
-        """Compute weighted Hessian-vector product efficiently.
-
-        Computes sum_q weights[q] * H_q @ v where H_q is the Hessian for QoI q.
-
-        Parameters
-        ----------
-        sample : Array
-            Single evaluation point of shape (nvars, 1)
-        vec : Array
-            Direction vector of shape (nvars, 1)
-        weights : Array
-            Weights for each QoI. Shape: (nqoi, 1), (1, nqoi), or (nqoi,).
-
-        Returns
-        -------
-        Array
-            Weighted Hessian-vector product of shape (nvars, 1)
-        """
-        return self._interpolant.whvp(sample, vec, weights)
+        return self._interpolant.derivatives()
 
     def get_quadrature_weights(self) -> Array:
         """Return the tensor product quadrature weights.

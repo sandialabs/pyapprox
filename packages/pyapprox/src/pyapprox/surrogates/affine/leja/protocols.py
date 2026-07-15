@@ -44,15 +44,13 @@ class LejaWeightingProtocol(Protocol, Generic[Array]):
         """
         ...
 
-
-@runtime_checkable
-class LejaWeightingWithJacobianProtocol(LejaWeightingProtocol[Array], Protocol):
-    """Protocol for Leja weighting with Jacobian support."""
-
     def jacobian(
         self, samples: Array, basis_values: Array, basis_jacobians: Array
     ) -> Array:
         """Compute Jacobian of weights with respect to samples.
+
+        Required: the Leja objectives' analytic jacobians depend on the
+        weight derivative, and a silent zero here would corrupt them.
 
         Parameters
         ----------

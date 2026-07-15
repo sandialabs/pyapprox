@@ -5,11 +5,19 @@ Provides a conditional Gamma distribution where the log-shape and log-scale
 parameters are functions of the conditioning variable.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import JacobianFn
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
+from pyapprox.probability.conditional.protocols import (
+    ComponentWithHypListProtocol,
+    ComponentWithParamJacobianProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -83,40 +91,81 @@ class ConditionalGamma(Generic[Array]):
             )
 
         # Setup optional methods based on capabilities
-        self._setup_methods()
+        self._capture_component_capabilities()
 
-    def _setup_methods(self) -> None:
-        """Bind optional methods based on component capabilities."""
-        # Combine hyp_lists if both funcs have them
-        if hasattr(self._log_shape_func, "hyp_list") and hasattr(
-            self._log_scale_func, "hyp_list"
+    def _capture_component_capabilities(self) -> None:
+        """Capture component capability once at construction.
+
+        Absent capability is None (or a False predicate), never a
+        missing attribute.
+        """
+        f1 = self._log_shape_func
+        f2 = self._log_scale_func
+
+        self._hyp_list: Optional[HyperParameterList[Array]] = None
+        if isinstance(f1, ComponentWithHypListProtocol) and isinstance(
+            f2, ComponentWithHypListProtocol
         ):
-            self._hyp_list = (
-                self._log_shape_func.hyp_list() + self._log_scale_func.hyp_list()
+            self._hyp_list = f1.hyp_list() + f2.hyp_list()
+
+        self._log_shape_jac: Optional[JacobianFn[Array]] = None
+        self._log_scale_jac: Optional[JacobianFn[Array]] = None
+        if isinstance(f1, ObjectiveProtocol) and isinstance(
+            f2, ObjectiveProtocol
+        ):
+            jac1 = f1.derivatives().jacobian
+            jac2 = f2.derivatives().jacobian
+            if jac1 is not None and jac2 is not None:
+                self._log_shape_jac = jac1
+                self._log_scale_jac = jac2
+
+        self._log_shape_params: Optional[
+            ComponentWithParamJacobianProtocol[Array]
+        ] = None
+        self._log_scale_params: Optional[
+            ComponentWithParamJacobianProtocol[Array]
+        ] = None
+        if isinstance(f1, ComponentWithParamJacobianProtocol) and isinstance(
+            f2, ComponentWithParamJacobianProtocol
+        ):
+            self._log_shape_params = f1
+            self._log_scale_params = f2
+
+    def has_hyp_list(self) -> bool:
+        """Whether both component functions expose hyperparameters."""
+        return self._hyp_list is not None
+
+    def has_logpdf_jacobian_wrt_x(self) -> bool:
+        """Whether both component functions declare an input jacobian."""
+        return self._log_shape_jac is not None
+
+    def has_logpdf_jacobian_wrt_params(self) -> bool:
+        """Whether both component functions provide parameter jacobians."""
+        return self._log_shape_params is not None
+
+    def hyp_list(self) -> HyperParameterList[Array]:
+        """Return the combined hyperparameter list.
+
+        Raises
+        ------
+        RuntimeError
+            If not both component functions expose hyp_list().
+        """
+        if self._hyp_list is None:
+            raise RuntimeError(
+                "hyp_list is unavailable; check has_hyp_list before calling"
             )
-            self.hyp_list = self._get_hyp_list
-            self.nparams = self._get_nparams
-
-        # Bind jacobian_wrt_x if both funcs support jacobian
-        if hasattr(self._log_shape_func, "jacobian") and hasattr(
-            self._log_scale_func, "jacobian"
-        ):
-            self.logpdf_jacobian_wrt_x = self._logpdf_jacobian_wrt_x
-
-        # Bind jacobian_wrt_params if both funcs support jacobian_wrt_params
-        if hasattr(self._log_shape_func, "jacobian_wrt_params") and hasattr(
-            self._log_scale_func, "jacobian_wrt_params"
-        ):
-            self.logpdf_jacobian_wrt_params = self._logpdf_jacobian_wrt_params
-
-    def _get_hyp_list(self) -> HyperParameterList[Array]:
-        """Return the combined hyperparameter list."""
         return self._hyp_list
 
-    def _get_nparams(self) -> int:
-        """Return the total number of parameters."""
-        return int(self._hyp_list.nparams())
+    def nparams(self) -> int:
+        """Return the total number of parameters.
 
+        Raises
+        ------
+        RuntimeError
+            If not both component functions expose hyp_list().
+        """
+        return int(self.hyp_list().nparams())
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
@@ -208,7 +257,7 @@ class ConditionalGamma(Generic[Array]):
         samples = np.random.gamma(shape, scale)
         return self._bkd.reshape(self._bkd.asarray(samples), (1, -1))
 
-    def _logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
+    def logpdf_jacobian_wrt_x(self, x: Array, y: Array) -> Array:
         """
         Compute Jacobian of log PDF w.r.t. conditioning variable x.
 
@@ -229,6 +278,13 @@ class ConditionalGamma(Generic[Array]):
             Jacobian. Shape: (1, nvars)
         """
         self._validate_inputs(x, y)
+        log_shape_jac = self._log_shape_jac
+        log_scale_jac = self._log_scale_jac
+        if log_shape_jac is None or log_scale_jac is None:
+            raise RuntimeError(
+                "logpdf_jacobian_wrt_x is unavailable; check "
+                "has_logpdf_jacobian_wrt_x before calling"
+            )
 
         log_shape = self._log_shape_func(x)  # (1, 1)
         log_scale = self._log_scale_func(x)  # (1, 1)
@@ -250,15 +306,15 @@ class ConditionalGamma(Generic[Array]):
 
         # Get Jacobians of log_shape and log_scale w.r.t. x
         # jacobian returns (nqoi, nvars) for single sample
-        dlogshape_dx = self._log_shape_func.jacobian(x)  # (1, nvars)
-        dlogscale_dx = self._log_scale_func.jacobian(x)  # (1, nvars)
+        dlogshape_dx = log_shape_jac(x)  # (1, nvars)
+        dlogscale_dx = log_scale_jac(x)  # (1, nvars)
 
         # Chain rule
         result = dlogpdf_dlogshape * dlogshape_dx + dlogpdf_dlogscale * dlogscale_dx
 
         return result  # (1, nvars)
 
-    def _logpdf_jacobian_wrt_params(self, x: Array, y: Array) -> Array:
+    def logpdf_jacobian_wrt_params(self, x: Array, y: Array) -> Array:
         """
         Compute Jacobian of log PDF w.r.t. active parameters.
 
@@ -277,6 +333,13 @@ class ConditionalGamma(Generic[Array]):
             Jacobian. Shape: (nsamples, nactive_params)
         """
         self._validate_inputs(x, y)
+        log_shape_params = self._log_shape_params
+        log_scale_params = self._log_scale_params
+        if log_shape_params is None or log_scale_params is None:
+            raise RuntimeError(
+                "logpdf_jacobian_wrt_params is unavailable; check "
+                "has_logpdf_jacobian_wrt_params before calling"
+            )
 
         nsamples = x.shape[1]
         log_shape = self._log_shape_func(x)  # (1, nsamples)
@@ -297,10 +360,10 @@ class ConditionalGamma(Generic[Array]):
 
         # Get Jacobians of log_shape and log_scale w.r.t. their params
         # jacobian_wrt_params returns (nsamples, nqoi, nactive_params_i)
-        dlogshape_dparams = self._log_shape_func.jacobian_wrt_params(
+        dlogshape_dparams = log_shape_params.jacobian_wrt_params(
             x
         )  # (nsamples, 1, n_shape_params)
-        dlogscale_dparams = self._log_scale_func.jacobian_wrt_params(
+        dlogscale_dparams = log_scale_params.jacobian_wrt_params(
             x
         )  # (nsamples, 1, n_scale_params)
 

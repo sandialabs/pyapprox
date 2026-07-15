@@ -7,6 +7,7 @@ where phi_i are [1, cos(kx), sin(kx)] on [-pi, pi].
 
 from typing import Generic, Optional
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.affine.univariate.trigonometric import (
     TrigonometricPolynomial1D,
 )
@@ -36,6 +37,11 @@ class TrigonometricExpansion(Generic[Array]):
         self._bkd = bkd
         self._nqoi = 1
         self._coef: Optional[Array] = None
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (no derivative capability)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -52,6 +58,10 @@ class TrigonometricExpansion(Generic[Array]):
     def nqoi(self) -> int:
         """Return the number of quantities of interest."""
         return self._nqoi
+
+    def nparams(self) -> int:
+        """Return the total number of parameters (nterms * nqoi)."""
+        return self.nterms() * self._nqoi
 
     def set_coefficients(self, coef: Array) -> None:
         """Set expansion coefficients.

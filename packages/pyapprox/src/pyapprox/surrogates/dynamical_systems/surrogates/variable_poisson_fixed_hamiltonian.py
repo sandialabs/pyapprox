@@ -13,6 +13,7 @@ with autograd through the computation graph.
 
 from typing import Callable, Generic, List, Tuple
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 
@@ -77,6 +78,13 @@ class VariablePoissonFixedHamiltonianSurrogate(Generic[Array]):
             ],
             bkd,
         )
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian_batch=self.jacobian_batch
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     def _build_L(self) -> Array:
         """Assemble skew-symmetric L from current parameter values."""

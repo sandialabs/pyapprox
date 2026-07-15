@@ -781,7 +781,7 @@ class TestFitterDerivatives:
         """Test jacobian of interpolated x^2 + y^2."""
         surrogate = self._make_surrogate("quadratic", bkd)
         sample = bkd.asarray([[0.3], [0.5]])
-        jac = surrogate.jacobian(sample)
+        jac = surrogate.derivatives().jacobian(sample)
         expected_jac = bkd.asarray([[0.6, 1.0]])
         bkd.assert_allclose(jac, expected_jac, rtol=1e-10)
 
@@ -790,7 +790,7 @@ class TestFitterDerivatives:
         surrogate = self._make_surrogate("quadratic", bkd)
         sample = bkd.asarray([[0.3], [0.5]])
         vec = bkd.asarray([[1.0], [0.0]])
-        hvp = surrogate.hvp(sample, vec)
+        hvp = surrogate.derivatives().hvp(sample, vec)
         expected_hvp = bkd.asarray([[2.0], [0.0]])
         bkd.assert_allclose(hvp, expected_hvp, atol=1e-12)
 

@@ -121,9 +121,9 @@ class TestGaussianLogLikelihood:
         likelihood.set_observations(obs)
 
         model = bkd.asarray([[1.0, 1.1], [2.0, 2.1], [3.0, 3.1]])
-        grad = likelihood.gradient(model)
+        jac = likelihood.jacobian_batch(model)
 
-        assert grad.shape == (3, 2)
+        assert jac.shape == (2, 1, 3)
 
     def test_gradient_at_observations_zero(self, bkd) -> None:
         """Test gradient at observations is zero."""
@@ -131,9 +131,9 @@ class TestGaussianLogLikelihood:
         obs = bkd.asarray([[1.0], [2.0], [3.0]])
         likelihood.set_observations(obs)
 
-        grad = likelihood.gradient(obs)
-        expected = bkd.zeros((3, 1))
-        assert bkd.allclose(grad, expected, atol=1e-10)
+        jac = likelihood.jacobian(obs)
+        expected = bkd.zeros((1, 3))
+        assert bkd.allclose(jac, expected, atol=1e-10)
 
     def test_observations_not_set_raises(self, bkd) -> None:
         """Test logpdf without observations raises error."""
@@ -237,9 +237,9 @@ class TestDiagonalGaussianLogLikelihood:
         likelihood.set_observations(obs)
 
         model = bkd.asarray([[1.0], [2.0], [3.0]])
-        grad = likelihood.gradient(model)
+        jac = likelihood.jacobian(model)
 
-        assert grad.shape == (3, 1)
+        assert jac.shape == (1, 3)
 
     def test_logpdf_vectorized_shape(self, bkd) -> None:
         """Test vectorized logpdf returns correct shape."""

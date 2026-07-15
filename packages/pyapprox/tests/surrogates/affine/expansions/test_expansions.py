@@ -52,23 +52,25 @@ class TestBasisExpansion:
         assert exp.nvars() == 2
         assert exp.nterms() > 0
         assert exp.nqoi() == 2
-        # Check method availability via hasattr (dynamic binding pattern)
-        assert hasattr(exp, "jacobian_batch")
+        # Capability is declared through the Derivatives bundle
+        derivs = exp.derivatives()
+        assert derivs.jacobian_batch is not None
         # hessian_batch not available for nqoi != 1
-        assert not hasattr(exp, "hessian_batch")
+        assert derivs.hessian_batch is None
 
     def test_derivative_methods_available_for_nqoi_1(self, bkd):
         """Test derivative methods are available for nqoi=1."""
         basis = self._create_basis(bkd, nvars=2, max_level=3)
         exp = BasisExpansion(basis, bkd, nqoi=1)
 
-        # All derivative methods should be available
-        assert hasattr(exp, "jacobian_batch")
-        assert hasattr(exp, "hessian_batch")
-        assert hasattr(exp, "jacobian")
-        assert hasattr(exp, "hessian")
-        assert hasattr(exp, "hvp")
-        assert hasattr(exp, "whvp")
+        # All derivative fields should be populated in the bundle
+        derivs = exp.derivatives()
+        assert derivs.jacobian_batch is not None
+        assert derivs.hessian_batch is not None
+        assert derivs.jacobian is not None
+        assert derivs.hessian is not None
+        assert derivs.hvp is not None
+        assert derivs.whvp is not None
 
     def test_coefficient_shape(self, bkd):
         """Test coefficient storage."""
@@ -107,7 +109,7 @@ class TestBasisExpansion:
 
         nsamples = 10
         samples = bkd.asarray(np.random.uniform(-1, 1, (3, nsamples)))
-        jac = exp.jacobian_batch(samples)
+        jac = exp.derivatives().jacobian_batch(samples)
         assert jac.shape == (nsamples, 2, 3)
 
     def test_hessian_batch_shape(self, bkd):
@@ -119,7 +121,7 @@ class TestBasisExpansion:
 
         nsamples = 5
         samples = bkd.asarray(np.random.uniform(-1, 1, (2, nsamples)))
-        hess = exp.hessian_batch(samples)
+        hess = exp.derivatives().hessian_batch(samples)
         assert hess.shape == (nsamples, 2, 2)
 
     def test_hessian_batch_not_available_for_multi_qoi(self, bkd):
@@ -127,8 +129,8 @@ class TestBasisExpansion:
         basis = self._create_basis(bkd, nvars=2, max_level=2)
         exp = BasisExpansion(basis, bkd, nqoi=2)
 
-        # hessian_batch method should not be bound for nqoi > 1
-        assert not hasattr(exp, "hessian_batch")
+        # hessian_batch field is None for nqoi > 1
+        assert exp.derivatives().hessian_batch is None
 
     def test_basis_matrix_shape(self, bkd):
         """Test basis_matrix() returns correct shape."""
@@ -212,7 +214,7 @@ class TestBasisExpansion:
 
         nsamples = 5
         samples = bkd.asarray(np.random.uniform(-0.9, 0.9, (2, nsamples)))
-        jac = exp.jacobian_batch(samples)
+        jac = exp.derivatives().jacobian_batch(samples)
 
         eps = 1e-7
         for dd in range(2):
@@ -811,8 +813,9 @@ class TestMonomialBasisExpansion:
         exp = BasisExpansion(basis, bkd, nqoi=1)
 
         # MonomialBasis1D implements jacobian_batch and hessian_batch
-        assert hasattr(exp, "jacobian_batch")
-        assert hasattr(exp, "hessian_batch")
+        derivs = exp.derivatives()
+        assert derivs.jacobian_batch is not None
+        assert derivs.hessian_batch is not None
 
 
 class TestPolynomialChaosExpansion:
@@ -1215,7 +1218,7 @@ class TestMixedBasisExpansion:
         samples[1, :] = bkd.asarray(np.random.randn(nsamples))
         samples[2, :] = bkd.asarray(np.random.exponential(1.0, nsamples))
 
-        jac = pce.jacobian_batch(samples)
+        jac = pce.derivatives().jacobian_batch(samples)
         assert jac.shape == (nsamples, 2, 3)
 
     def test_mixed_basis_hessian_batch(self, bkd):
@@ -1231,7 +1234,7 @@ class TestMixedBasisExpansion:
         samples[1, :] = bkd.asarray(np.random.randn(nsamples))
         samples[2, :] = bkd.asarray(np.random.exponential(1.0, nsamples))
 
-        hess = pce.hessian_batch(samples)
+        hess = pce.derivatives().hessian_batch(samples)
         assert hess.shape == (nsamples, 3, 3)
 
 
@@ -1270,10 +1273,10 @@ class TestHypListSyncRegression:
         expansion.set_coefficients(coef)
 
         samples = bkd.array(rng.randn(2, 3))
-        jac_original = expansion.jacobian_batch(samples)
+        jac_original = expansion.derivatives().jacobian_batch(samples)
 
         new_coef = coef * 2.0
         expansion.hyp_list().set_active_values(bkd.flatten(new_coef))
-        jac_updated = expansion.jacobian_batch(samples)
+        jac_updated = expansion.derivatives().jacobian_batch(samples)
 
         bkd.assert_allclose(jac_updated, 2.0 * jac_original, rtol=1e-12)

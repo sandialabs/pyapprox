@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Generic, Optional
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.probability.covariance import DiagonalCovarianceOperator
 from pyapprox.probability.protocols.covariance import (
     SqrtCovarianceOperatorProtocol,
@@ -275,11 +276,68 @@ class GaussianLogLikelihood(Generic[Array]):
         log_det_L = self._noise_cov_op.log_determinant()
         return float(-0.5 * self._nobs * math.log(2 * math.pi) - log_det_L)
 
-    def gradient(self, model_outputs: Array) -> Array:
-        """
-        Compute gradient of log-likelihood w.r.t. model outputs.
+    def nvars(self) -> int:
+        """Return the input dimension (the number of observations)."""
+        return self.nobs()
 
-        d/d(model) log p = Cov^{-1} @ (obs - model)
+    def nqoi(self) -> int:
+        """Return the number of quantities of interest (always 1)."""
+        return 1
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the log-likelihood at model outputs (alias for logpdf).
+
+        Parameters
+        ----------
+        samples : Array
+            Model predictions. Shape: (nobs, nsamples)
+
+        Returns
+        -------
+        Array
+            Log-likelihood values. Shape: (1, nsamples)
+        """
+        return self.logpdf(samples)
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (jacobian w.r.t. model outputs).
+
+        The jacobian is unconditional class API; invoking it before
+        set_observations() raises.
+        """
+        return Derivatives.first_order(
+            jacobian=self.jacobian, jacobian_batch=self.jacobian_batch
+        )
+
+    def jacobian(self, model_outputs: Array) -> Array:
+        """
+        Compute Jacobian of log-likelihood w.r.t. a single model output.
+
+        Parameters
+        ----------
+        model_outputs : Array
+            Single model prediction. Shape: (nobs, 1)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (1, nobs)
+
+        Raises
+        ------
+        ValueError
+            If observations not set or model_outputs has wrong shape
+        """
+        if model_outputs.ndim != 2 or model_outputs.shape[1] != 1:
+            raise ValueError(
+                "model_outputs must be a single column with shape "
+                f"(nobs, 1), got {model_outputs.shape}"
+            )
+        return self._gradient_columns(model_outputs).T
+
+    def jacobian_batch(self, model_outputs: Array) -> Array:
+        """
+        Compute Jacobians of log-likelihood at multiple model outputs.
 
         Parameters
         ----------
@@ -289,12 +347,23 @@ class GaussianLogLikelihood(Generic[Array]):
         Returns
         -------
         Array
-            Gradient. Shape: (nobs, nsamples)
+            Jacobians. Shape: (nsamples, 1, nobs)
 
         Raises
         ------
         ValueError
             If observations not set or model_outputs has wrong shape
+        """
+        grads = self._gradient_columns(model_outputs)  # (nobs, nsamples)
+        nsamples = grads.shape[1]
+        return self._bkd.reshape(grads.T, (nsamples, 1, grads.shape[0]))
+
+    def _gradient_columns(self, model_outputs: Array) -> Array:
+        """Per-sample gradient columns d(logpdf)/d(model).
+
+        d/d(model) log p = Cov^{-1} @ (obs - model)
+
+        Shape: (nobs, nsamples) -> (nobs, nsamples).
         """
         if self._observations is None:
             raise ValueError("Observations not set.")
@@ -485,9 +554,68 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
         log_det = self._bkd.to_float(self._bkd.sum(self._bkd.log(self._variances)))
         return float(-0.5 * self._nobs * math.log(2 * math.pi) - 0.5 * log_det)
 
-    def gradient(self, model_outputs: Array) -> Array:
+    def nvars(self) -> int:
+        """Return the input dimension (the number of observations)."""
+        return self.nobs()
+
+    def nqoi(self) -> int:
+        """Return the number of quantities of interest (always 1)."""
+        return 1
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the log-likelihood at model outputs (alias for logpdf).
+
+        Parameters
+        ----------
+        samples : Array
+            Model predictions. Shape: (nobs, nsamples)
+
+        Returns
+        -------
+        Array
+            Log-likelihood values. Shape: (1, nsamples)
         """
-        Compute gradient of log-likelihood w.r.t. model outputs.
+        return self.logpdf(samples)
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (jacobian w.r.t. model outputs).
+
+        The jacobian is unconditional class API; invoking it before
+        set_observations() raises.
+        """
+        return Derivatives.first_order(
+            jacobian=self.jacobian, jacobian_batch=self.jacobian_batch
+        )
+
+    def jacobian(self, model_outputs: Array) -> Array:
+        """
+        Compute Jacobian of log-likelihood w.r.t. a single model output.
+
+        Parameters
+        ----------
+        model_outputs : Array
+            Single model prediction. Shape: (nobs, 1)
+
+        Returns
+        -------
+        Array
+            Jacobian. Shape: (1, nobs)
+
+        Raises
+        ------
+        ValueError
+            If observations not set or model_outputs has wrong shape
+        """
+        if model_outputs.ndim != 2 or model_outputs.shape[1] != 1:
+            raise ValueError(
+                "model_outputs must be a single column with shape "
+                f"(nobs, 1), got {model_outputs.shape}"
+            )
+        return self._gradient_columns(model_outputs).T
+
+    def jacobian_batch(self, model_outputs: Array) -> Array:
+        """
+        Compute Jacobians of log-likelihood at multiple model outputs.
 
         Parameters
         ----------
@@ -497,12 +625,21 @@ class DiagonalGaussianLogLikelihood(Generic[Array]):
         Returns
         -------
         Array
-            Gradient. Shape: (nobs, nsamples)
+            Jacobians. Shape: (nsamples, 1, nobs)
 
         Raises
         ------
         ValueError
             If observations not set or model_outputs has wrong shape
+        """
+        grads = self._gradient_columns(model_outputs)  # (nobs, nsamples)
+        nsamples = grads.shape[1]
+        return self._bkd.reshape(grads.T, (nsamples, 1, grads.shape[0]))
+
+    def _gradient_columns(self, model_outputs: Array) -> Array:
+        """Per-sample gradient columns d(logpdf)/d(model).
+
+        Shape: (nobs, nsamples) -> (nobs, nsamples).
         """
         if self._observations is None:
             raise ValueError("Observations not set.")

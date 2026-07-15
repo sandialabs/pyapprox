@@ -16,15 +16,22 @@ from .covariance import (
     SqrtCovarianceOperatorProtocol,
 )
 from .distribution import (
+    DistributionHasLogpdfDerivativesProtocol,
     DistributionProtocol,
     JointDistributionProtocol,
+    MarginalHasLogpdfJacobianProtocol,
+    MarginalHasLogpdfParamJacobianProtocol,
+    MarginalHasPdfJacobianProtocol,
     MarginalProtocol,
+    MarginalWithHypListProtocol,
     MarginalWithJacobianProtocol,
     MarginalWithParamJacobianProtocol,
     UniformQuadratureRule01Protocol,
 )
 from .likelihood import (
     GaussianLogLikelihoodProtocol,
+    LogLikelihoodHasDesignWeightsProtocol,
+    LogLikelihoodHasRVSProtocol,
     LogLikelihoodProtocol,
     VectorizedLogLikelihoodProtocol,
 )
@@ -37,7 +44,12 @@ from .transform import (
 __all__ = [
     # Distributions
     "DistributionProtocol",
+    "DistributionHasLogpdfDerivativesProtocol",
+    "MarginalHasLogpdfJacobianProtocol",
+    "MarginalHasLogpdfParamJacobianProtocol",
+    "MarginalHasPdfJacobianProtocol",
     "MarginalProtocol",
+    "MarginalWithHypListProtocol",
     "MarginalWithJacobianProtocol",
     "MarginalWithParamJacobianProtocol",
     "JointDistributionProtocol",
@@ -51,6 +63,8 @@ __all__ = [
     "InvertibleTransformProtocol",
     "TransformWithJacobianProtocol",
     # Likelihoods
+    "LogLikelihoodHasDesignWeightsProtocol",
+    "LogLikelihoodHasRVSProtocol",
     "LogLikelihoodProtocol",
     "GaussianLogLikelihoodProtocol",
     "VectorizedLogLikelihoodProtocol",

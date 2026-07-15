@@ -198,3 +198,21 @@ class VectorizedLogLikelihoodProtocol(Protocol, Generic[Array]):
             - Full: (n_model_samples, n_obs_samples)
         """
         ...
+
+
+@runtime_checkable
+class LogLikelihoodHasRVSProtocol(Protocol, Generic[Array]):
+    """Log-likelihood that can sample noisy observations."""
+
+    def rvs(self, model_outputs: Array, nsamples: int = 1) -> Array:
+        """Sample observations by adding noise to model outputs."""
+        ...
+
+
+@runtime_checkable
+class LogLikelihoodHasDesignWeightsProtocol(Protocol, Generic[Array]):
+    """Log-likelihood supporting experimental-design weights."""
+
+    def set_design_weights(self, weights: Array) -> None:
+        """Set weights for experimental design."""
+        ...

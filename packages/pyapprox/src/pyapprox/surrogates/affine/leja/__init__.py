@@ -41,7 +41,6 @@ from .protocols import (
     LejaSequence1DProtocol,
     # Weighting protocols
     LejaWeightingProtocol,
-    LejaWeightingWithJacobianProtocol,
 )
 from .univariate import (
     LejaObjective,
@@ -58,7 +57,6 @@ from .weighting import (
 __all__ = [
     # Weighting protocols
     "LejaWeightingProtocol",
-    "LejaWeightingWithJacobianProtocol",
     # Sequence protocols
     "LejaSequence1DProtocol",
     "LejaSamplerProtocol",

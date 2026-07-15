@@ -467,32 +467,32 @@ class TestIndependentJointDynamicBinding:
     def test_gaussian_has_logpdf_jacobian(self, bkd) -> None:
         """Test GaussianMarginal joint has logpdf_jacobian."""
         gaussian_joint, _ = self._setup(bkd)
-        assert hasattr(gaussian_joint, "logpdf_jacobian")
+        assert gaussian_joint.logpdf_derivatives().jacobian is not None
 
     def test_gaussian_has_logpdf_jacobian_batch(self, bkd) -> None:
         """Test GaussianMarginal joint has logpdf_jacobian_batch."""
         gaussian_joint, _ = self._setup(bkd)
-        assert hasattr(gaussian_joint, "logpdf_jacobian_batch")
+        assert gaussian_joint.logpdf_derivatives().jacobian_batch is not None
 
     def test_gaussian_has_jacobian(self, bkd) -> None:
         """Test GaussianMarginal joint has jacobian."""
         gaussian_joint, _ = self._setup(bkd)
-        assert hasattr(gaussian_joint, "jacobian")
+        assert gaussian_joint.derivatives().jacobian is not None
 
     def test_gaussian_has_jacobian_batch(self, bkd) -> None:
         """Test GaussianMarginal joint has jacobian_batch."""
         gaussian_joint, _ = self._setup(bkd)
-        assert hasattr(gaussian_joint, "jacobian_batch")
+        assert gaussian_joint.derivatives().jacobian_batch is not None
 
     def test_scipy_no_logpdf_jacobian(self, bkd) -> None:
         """Test ScipyContinuousMarginal joint does NOT have logpdf_jacobian."""
         _, scipy_joint = self._setup(bkd)
-        assert not hasattr(scipy_joint, "logpdf_jacobian")
+        assert scipy_joint.logpdf_derivatives().jacobian is None
 
     def test_scipy_no_jacobian(self, bkd) -> None:
         """Test ScipyContinuousMarginal joint does NOT have jacobian."""
         _, scipy_joint = self._setup(bkd)
-        assert not hasattr(scipy_joint, "jacobian")
+        assert scipy_joint.derivatives().jacobian is None
 
 
 class TestIndependentJointLogpdfJacobian:
@@ -510,14 +510,14 @@ class TestIndependentJointLogpdfJacobian:
         """Test logpdf_jacobian returns shape (1, nvars)."""
         _, joint = self._setup(bkd)
         sample = bkd.asarray([[0.5], [1.5]])  # (nvars=2, 1)
-        jac = joint.logpdf_jacobian(sample)
+        jac = joint.logpdf_derivatives().jacobian(sample)
         assert jac.shape == (1, 2)
 
     def test_logpdf_jacobian_batch_shape(self, bkd) -> None:
         """Test logpdf_jacobian_batch returns shape (nsamples, 1, nvars)."""
         _, joint = self._setup(bkd)
         samples = bkd.asarray([[0.0, 0.5, 1.0], [1.0, 1.5, 2.0]])
-        jac = joint.logpdf_jacobian_batch(samples)
+        jac = joint.logpdf_derivatives().jacobian_batch(samples)
         assert jac.shape == (3, 1, 2)
 
     def test_logpdf_jacobian_vs_numerical(self, bkd) -> None:
@@ -529,29 +529,10 @@ class TestIndependentJointLogpdfJacobian:
 
         _, joint = self._setup(bkd)
 
-        # Create a wrapper that has jacobian method for logpdf
-        class LogpdfWrapper:
-            def __init__(self, joint, bkd):
-                self._joint = joint
-                self._bkd = bkd
+        from pyapprox.probability import LogpdfFunction
 
-            def bkd(self):
-                return self._bkd
-
-            def nvars(self) -> int:
-                return self._joint.nvars()
-
-            def nqoi(self) -> int:
-                return 1
-
-            def __call__(self, samples):
-                return self._joint.logpdf(samples)
-
-            def jacobian(self, sample):
-                return self._joint.logpdf_jacobian(sample)
-
-        wrapper = LogpdfWrapper(joint, bkd)
-        checker = DerivativeChecker(wrapper)  # type: ignore[arg-type]
+        wrapper = LogpdfFunction(joint)
+        checker = DerivativeChecker(wrapper)
         sample = bkd.asarray([[0.3], [1.2]])
         errors = checker.check_derivatives(sample, verbosity=0)
         ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
@@ -562,11 +543,11 @@ class TestIndependentJointLogpdfJacobian:
         """Test logpdf_jacobian_batch is consistent with single sample version."""
         _, joint = self._setup(bkd)
         samples = bkd.asarray([[0.0, 0.5], [1.0, 1.5]])
-        batch_jac = joint.logpdf_jacobian_batch(samples)
+        batch_jac = joint.logpdf_derivatives().jacobian_batch(samples)
 
         for ii in range(2):
             single = samples[:, ii : ii + 1]
-            single_jac = joint.logpdf_jacobian(single)
+            single_jac = joint.logpdf_derivatives().jacobian(single)
             bkd.assert_allclose(batch_jac[ii, 0, :], single_jac[0, :])
 
 
@@ -585,14 +566,14 @@ class TestIndependentJointPdfJacobian:
         """Test jacobian returns shape (1, nvars)."""
         _, joint = self._setup(bkd)
         sample = bkd.asarray([[0.5], [1.5]])  # (nvars=2, 1)
-        jac = joint.jacobian(sample)
+        jac = joint.derivatives().jacobian(sample)
         assert jac.shape == (1, 2)
 
     def test_jacobian_batch_shape(self, bkd) -> None:
         """Test jacobian_batch returns shape (nsamples, 1, nvars)."""
         _, joint = self._setup(bkd)
         samples = bkd.asarray([[0.0, 0.5, 1.0], [1.0, 1.5, 2.0]])
-        jac = joint.jacobian_batch(samples)
+        jac = joint.derivatives().jacobian_batch(samples)
         assert jac.shape == (3, 1, 2)
 
     def test_jacobian_vs_numerical(self, bkd) -> None:
@@ -616,11 +597,11 @@ class TestIndependentJointPdfJacobian:
         """Test jacobian_batch is consistent with single sample version."""
         _, joint = self._setup(bkd)
         samples = bkd.asarray([[0.0, 0.5], [1.0, 1.5]])
-        batch_jac = joint.jacobian_batch(samples)
+        batch_jac = joint.derivatives().jacobian_batch(samples)
 
         for ii in range(2):
             single = samples[:, ii : ii + 1]
-            single_jac = joint.jacobian(single)
+            single_jac = joint.derivatives().jacobian(single)
             bkd.assert_allclose(batch_jac[ii, 0, :], single_jac[0, :])
 
     def test_jacobian_product_rule(self, bkd) -> None:
@@ -628,7 +609,7 @@ class TestIndependentJointPdfJacobian:
         p_j."""
         marginals, joint = self._setup(bkd)
         sample = bkd.asarray([[0.3], [1.2]])
-        jac = joint.jacobian(sample)
+        jac = joint.derivatives().jacobian(sample)
 
         # Compute expected using product rule
         pdf_vals = []
@@ -687,7 +668,7 @@ class TestIndependentJointJacobianCombinations:
         """Test jacobian shape for different marginal combinations."""
         joint = self._create_joint(marginal_specs, bkd)
         sample = self._create_sample(joint, bkd)
-        jac = joint.jacobian(sample)
+        jac = joint.derivatives().jacobian(sample)
         assert jac.shape == (1, joint.nvars())
 
     @pytest.mark.parametrize(
@@ -699,7 +680,7 @@ class TestIndependentJointJacobianCombinations:
         nsamples = 5
         joint = self._create_joint(marginal_specs, bkd)
         samples = self._create_samples(joint, bkd, nsamples)
-        jac = joint.jacobian_batch(samples)
+        jac = joint.derivatives().jacobian_batch(samples)
         assert jac.shape == (nsamples, 1, joint.nvars())
 
     @pytest.mark.parametrize(
@@ -710,7 +691,7 @@ class TestIndependentJointJacobianCombinations:
         """Test logpdf_jacobian shape for different marginal combinations."""
         joint = self._create_joint(marginal_specs, bkd)
         sample = self._create_sample(joint, bkd)
-        jac = joint.logpdf_jacobian(sample)
+        jac = joint.logpdf_derivatives().jacobian(sample)
         assert jac.shape == (1, joint.nvars())
 
     @pytest.mark.parametrize(
@@ -724,7 +705,7 @@ class TestIndependentJointJacobianCombinations:
         nsamples = 5
         joint = self._create_joint(marginal_specs, bkd)
         samples = self._create_samples(joint, bkd, nsamples)
-        jac = joint.logpdf_jacobian_batch(samples)
+        jac = joint.logpdf_derivatives().jacobian_batch(samples)
         assert jac.shape == (nsamples, 1, joint.nvars())
 
     @pytest.mark.parametrize(
@@ -762,10 +743,10 @@ class TestIndependentJointJacobianCombinations:
         """Test jacobian_batch matches single jacobian."""
         joint = self._create_joint(marginal_specs, bkd)
         samples = self._create_samples(joint, bkd, 3)
-        batch_jac = joint.jacobian_batch(samples)
+        batch_jac = joint.derivatives().jacobian_batch(samples)
         for ii in range(3):
             single = samples[:, ii : ii + 1]
-            single_jac = joint.jacobian(single)
+            single_jac = joint.derivatives().jacobian(single)
             bkd.assert_allclose(batch_jac[ii, 0, :], single_jac[0, :])
 
 

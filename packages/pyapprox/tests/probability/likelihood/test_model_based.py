@@ -8,6 +8,7 @@ import pytest
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
@@ -50,6 +51,9 @@ class LinearModel:
 
     def jacobian(self, sample):
         return self._A
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
 
 class LinearModelNoJacobian:
@@ -154,7 +158,7 @@ class TestModelBasedDiagonalGaussian:
             return composed.logpdf(params)
 
         def jac_fn(sample):
-            return composed.jacobian(sample)
+            return composed.derivatives().jacobian(sample)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=1,
@@ -179,29 +183,18 @@ class TestModelBasedDiagonalGaussian:
         sample = bkd.asarray([[0.5], [0.3]])
         model_out = model(sample)
         # gradient: (nobs, 1)
-        grad = noise_lik.gradient(model_out)
+        like_jac = noise_lik.jacobian(model_out)
         # model jacobian: (nobs, nvars) = A
         J_model = A
-        # chain rule: grad^T @ J_model = (1, nobs) @ (nobs, nvars) = (1, nvars)
-        expected = grad.T @ J_model
-        result = composed.jacobian(sample)
+        # chain rule: (1, nobs) @ (nobs, nvars) = (1, nvars)
+        expected = like_jac @ J_model
+        result = composed.derivatives().jacobian(sample)
         bkd.assert_allclose(result, expected)
 
-    def test_gradient_shape(self, bkd) -> None:
-        """gradient returns shape (nvars, 1)."""
+    def test_bundle_declares_jacobian(self, bkd) -> None:
+        """The bundle declares jacobian when model and noise support it."""
         _, _, _, _, composed, _ = self._setup(bkd)
-        sample = bkd.asarray([[0.5], [0.3]])
-        result = composed.gradient(sample)
-        assert result.shape == (2, 1)
-
-    def test_gradient_is_jacobian_transposed(self, bkd) -> None:
-        """gradient is jacobian transposed."""
-        _, _, _, _, composed, _ = self._setup(bkd)
-        sample = bkd.asarray([[0.5], [0.3]])
-        bkd.assert_allclose(
-            composed.gradient(sample),
-            composed.jacobian(sample).T,
-        )
+        assert composed.derivatives().jacobian is not None
 
     def test_logpdf_vectorized_shape(self, bkd) -> None:
         """logpdf_vectorized returns shape (n_params, n_obs)."""
@@ -319,7 +312,7 @@ class TestModelBasedDenseGaussian:
             return composed.logpdf(params)
 
         def jac_fn(sample):
-            return composed.jacobian(sample)
+            return composed.derivatives().jacobian(sample)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=1,
@@ -343,10 +336,10 @@ class TestModelBasedDenseGaussian:
         A, model, noise_lik, composed, _ = self._setup(bkd)
         sample = bkd.asarray([[0.5], [0.3]])
         model_out = model(sample)
-        grad = noise_lik.gradient(model_out)
+        like_jac = noise_lik.jacobian(model_out)
         J_model = A
-        expected = grad.T @ J_model
-        result = composed.jacobian(sample)
+        expected = like_jac @ J_model
+        result = composed.derivatives().jacobian(sample)
         bkd.assert_allclose(result, expected)
 
     def test_rvs_shape(self, bkd) -> None:
@@ -394,8 +387,7 @@ class TestModelBasedValidation:
         noise_var = bkd.asarray([0.01, 0.02])
         noise_lik = DiagonalGaussianLogLikelihood(noise_var, bkd)
         composed = ModelBasedLogLikelihood(model, noise_lik, bkd)
-        assert not hasattr(composed, "jacobian")
-        assert not hasattr(composed, "gradient")
+        assert composed.derivatives().jacobian is None
         # logpdf should still work
         composed.set_observations(bkd.asarray([[1.0], [2.0]]))
         result = composed.logpdf(bkd.asarray([[0.5], [0.3]]))
@@ -408,7 +400,8 @@ class TestModelBasedValidation:
         noise_var = bkd.asarray([0.01])
         noise_lik = DiagonalGaussianLogLikelihood(noise_var, bkd)
         composed = ModelBasedLogLikelihood(model, noise_lik, bkd)
-        assert hasattr(composed, "rvs")
+        samples = composed.rvs(bkd.asarray([[0.5], [0.3]]))
+        assert samples.shape[0] == 1
 
     def test_logpdf_vectorized_available(self, bkd) -> None:
         """logpdf_vectorized is available for DiagonalGaussian."""
@@ -417,7 +410,10 @@ class TestModelBasedValidation:
         noise_var = bkd.asarray([0.01])
         noise_lik = DiagonalGaussianLogLikelihood(noise_var, bkd)
         composed = ModelBasedLogLikelihood(model, noise_lik, bkd)
-        assert hasattr(composed, "logpdf_vectorized")
+        vals = composed.logpdf_vectorized(
+            bkd.asarray([[0.5], [0.3]]), bkd.asarray([[1.0, 1.5]])
+        )
+        assert vals.shape == (1, 2)
 
     def test_set_design_weights_available(self, bkd) -> None:
         """set_design_weights is available for DiagonalGaussian."""
@@ -426,7 +422,7 @@ class TestModelBasedValidation:
         noise_var = bkd.asarray([0.01])
         noise_lik = DiagonalGaussianLogLikelihood(noise_var, bkd)
         composed = ModelBasedLogLikelihood(model, noise_lik, bkd)
-        assert hasattr(composed, "set_design_weights")
+        composed.set_design_weights(bkd.asarray([1.0]))
 
 
 class TestModelBasedAutograd:
@@ -459,6 +455,6 @@ class TestModelBasedAutograd:
         # autograd_jac has shape (nvars, 1) from the (nvars, 1) input
         autograd_jac_2d = autograd_jac.reshape(1, -1)
 
-        analytical_jac = composed.jacobian(sample)
+        analytical_jac = composed.derivatives().jacobian(sample)
 
         bkd.assert_allclose(analytical_jac, autograd_jac_2d, rtol=1e-10)

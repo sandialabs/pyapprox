@@ -11,6 +11,7 @@ from pyapprox.surrogates.affine.protocols.basis1d import (
     Basis1DHasJacobianProtocol,
     Basis1DHasQuadratureProtocol,
     Basis1DProtocol,
+    Basis1DWithDerivativesProtocol,
     Basis1DWithJacobianAndHessianProtocol,
     Basis1DWithJacobianProtocol,
     InterpolationBasis1DProtocol,
@@ -18,8 +19,7 @@ from pyapprox.surrogates.affine.protocols.basis1d import (
     PhysicalDomainBasis1DProtocol,
 )
 from pyapprox.surrogates.affine.protocols.expansion import (
-    BasisExpansionHasHessianProtocol,
-    BasisExpansionHasJacobianProtocol,
+    BasisExpansionHasParamJacobianProtocol,
     BasisExpansionProtocol,
     FittableBasisExpansionProtocol,
     LinearSystemSolverProtocol,
@@ -66,6 +66,7 @@ __all__ = [
     "Basis1DHasJacobianProtocol",
     "Basis1DHasHessianProtocol",
     "Basis1DHasDerivativesProtocol",
+    "Basis1DWithDerivativesProtocol",
     "Basis1DWithJacobianProtocol",
     "Basis1DWithJacobianAndHessianProtocol",
     "InterpolationBasis1DProtocol",
@@ -91,8 +92,7 @@ __all__ = [
     "CompositeAdmissibilityCriteriaProtocol",
     # Expansion protocols
     "BasisExpansionProtocol",
-    "BasisExpansionHasJacobianProtocol",
-    "BasisExpansionHasHessianProtocol",
+    "BasisExpansionHasParamJacobianProtocol",
     "FittableBasisExpansionProtocol",
     "PCEStatisticsProtocol",
     "LinearSystemSolverProtocol",

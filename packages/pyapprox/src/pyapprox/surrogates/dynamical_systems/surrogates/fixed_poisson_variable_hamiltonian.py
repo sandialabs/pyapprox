@@ -9,6 +9,11 @@ Hamiltonian systems are the special case L = J = [[0, I], [-I, 0]].
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import (
+    Derivatives,
+    HessianBatchFn,
+    JacobianBatchFn,
+)
 from pyapprox.surrogates.affine.expansions.base import BasisExpansion
 from pyapprox.surrogates.affine.protocols import BasisHasJacobianProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -61,11 +66,14 @@ class FixedPoissonVariableHamiltonianSurrogate(Generic[Array]):
                 "poisson_matrix must be skew-symmetric (L + L^T = 0), "
                 f"max |L + L^T| = {float(skew_check)}"
             )
-        if not hasattr(hamiltonian, "jacobian_batch"):
+        h_derivs = hamiltonian.derivatives()
+        h_jac_batch = h_derivs.jacobian_batch
+        if h_jac_batch is None:
             raise ValueError(
                 "hamiltonian's basis must support jacobian_batch"
             )
-        if not hasattr(hamiltonian, "hessian_batch"):
+        h_hess_batch = h_derivs.hessian_batch
+        if h_hess_batch is None:
             raise ValueError(
                 "hamiltonian's basis must support hessian_batch "
                 "(required for jacobian_batch of the surrogate)"
@@ -79,6 +87,8 @@ class FixedPoissonVariableHamiltonianSurrogate(Generic[Array]):
                 f" + n_params({n_params}) = {expected_nvars}"
             )
         self._H = hamiltonian
+        self._H_jac_batch: JacobianBatchFn[Array] = h_jac_batch
+        self._H_hess_batch: HessianBatchFn[Array] = h_hess_batch
         self._L = poisson_matrix
         self._n_dynamic = n_dynamic
         self._has_time_input = has_time_input
@@ -87,6 +97,13 @@ class FixedPoissonVariableHamiltonianSurrogate(Generic[Array]):
         basis = hamiltonian.get_basis()
         assert isinstance(basis, BasisHasJacobianProtocol)
         self._jac_basis: BasisHasJacobianProtocol[Array] = basis
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian_batch=self.jacobian_batch
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
 
     @staticmethod
     def canonical(
@@ -165,7 +182,7 @@ class FixedPoissonVariableHamiltonianSurrogate(Generic[Array]):
         Array
             Shape: (n_dynamic, nsamples)
         """
-        grad_H = self._H.jacobian_batch(samples)[:, 0, : self._n_dynamic]
+        grad_H = self._H_jac_batch(samples)[:, 0, : self._n_dynamic]
         rhs = grad_H @ self._bkd.transpose(self._L)
         return self._bkd.transpose(rhs)
 
@@ -182,7 +199,7 @@ class FixedPoissonVariableHamiltonianSurrogate(Generic[Array]):
         Array
             Shape: (nsamples, n_dynamic, nvars)
         """
-        hess = self._H.hessian_batch(samples)
+        hess = self._H_hess_batch(samples)
         hess_state_rows = hess[:, : self._n_dynamic, :]
         return self._bkd.einsum(
             "rs,isk->irk", self._L, hess_state_rows

@@ -6,6 +6,7 @@ as linear combinations of basis functions: f(x) ≈ Σ_i c_i φ_i(x).
 
 from typing import Generic, Protocol, Self, runtime_checkable
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -31,6 +32,10 @@ class BasisExpansionProtocol(Protocol, Generic[Array]):
 
     def nqoi(self) -> int:
         """Return the number of quantities of interest."""
+        ...
+
+    def nparams(self) -> int:
+        """Return the total number of parameters (nterms * nqoi)."""
         ...
 
     def get_coefficients(self) -> Array:
@@ -71,6 +76,14 @@ class BasisExpansionProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle.
+
+        Capability w.r.t. inputs is declared through the bundle fields
+        (``jacobian_batch`` etc.); absent capability is ``None``.
+        """
+        ...
+
     def with_params(self, params: Array) -> Self:
         """Return NEW instance with parameters set. Original unchanged.
 
@@ -88,51 +101,30 @@ class BasisExpansionProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class BasisExpansionHasJacobianProtocol(Protocol, Generic[Array]):
-    """Protocol for expansions that support Jacobian computation."""
+class BasisExpansionHasParamJacobianProtocol(Protocol, Generic[Array]):
+    """Protocol for expansions providing their own parameter Jacobian.
 
-    def jacobian_batch(self, samples: Array) -> Array:
-        """Compute Jacobians of expansion at samples.
+    Expansions with a nonlinear (or otherwise custom) parameterization
+    implement ``jacobian_wrt_params``; linear expansions without it get
+    the generic linear formula derived from ``basis_matrix``. Parameter-
+    family derivatives are public named methods (they carry the
+    "wrt params" context in the name), so this structural gate — not the
+    Derivatives bundle, which covers derivatives w.r.t. inputs — is how
+    consumers detect them.
+    """
 
-        Parameters
-        ----------
-        samples : Array
-            Sample points. Shape: (nvars, nsamples). Must be 2D.
-
-        Returns
-        -------
-        Array
-            Jacobians. Shape: (nsamples, nqoi, nvars)
-
-        Raises
-        ------
-        ValueError
-            If samples is not 2D with shape (nvars, nsamples).
-        """
-        ...
-
-
-@runtime_checkable
-class BasisExpansionHasHessianProtocol(Protocol, Generic[Array]):
-    """Protocol for expansions that support Hessian computation."""
-
-    def hessian_batch(self, samples: Array) -> Array:
-        """Compute Hessians of expansion at samples.
+    def jacobian_wrt_params(self, samples: Array) -> Array:
+        """Compute Jacobian w.r.t. active parameters.
 
         Parameters
         ----------
         samples : Array
-            Sample points. Shape: (nvars, nsamples). Must be 2D.
+            Sample points. Shape: (nvars, nsamples)
 
         Returns
         -------
         Array
-            Hessians. Shape: (nsamples, nvars, nvars)
-
-        Raises
-        ------
-        ValueError
-            If nqoi != 1 (Hessian only supported for scalar-valued functions).
+            Jacobians. Shape: (nsamples, nqoi, nactive_params)
         """
         ...
 

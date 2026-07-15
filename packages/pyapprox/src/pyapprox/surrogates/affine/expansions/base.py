@@ -6,6 +6,7 @@ functions: f(x) = Σ_i c_i φ_i(x).
 
 from typing import Generic, Optional, Self
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.affine.protocols import (
     BasisHasHessianProtocol,
     BasisHasJacobianProtocol,
@@ -55,34 +56,45 @@ class BasisExpansion(Generic[Array]):
         # HyperParameterList[Array] for optimization (created lazily)
         self._hyp_list: Optional[HyperParameterList[Array]] = None
 
-        # Dynamically bind derivative methods based on basis capabilities
-        self._setup_derivative_methods()
+        # Construction-time capability branching keyed on the basis
+        # protocols; capability travels in the Derivatives bundle.
+        self._derivs: Derivatives[Array] = self._build_derivatives()
 
-    def _setup_derivative_methods(self) -> None:
-        """Dynamically bind derivative methods based on basis capabilities.
+    def _build_derivatives(self) -> Derivatives[Array]:
+        """Build the derivative bundle from the basis's capabilities.
 
-        This method conditionally binds jacobian_batch, hessian_batch, and
-        single-sample methods (jacobian, hessian, hvp, whvp) only if the
-        underlying basis supports them. This allows gradient-based optimizers
-        to check for method availability via hasattr().
+        Input derivatives exist only when the underlying basis can
+        differentiate its terms; second-order forms additionally require
+        nqoi == 1. The combination of batch fields with a materialized
+        single-sample hessian is unusual, so the raw constructor is used.
         """
         self._jac_basis: Optional[BasisHasJacobianProtocol[Array]] = None
         self._hess_basis: Optional[BasisHasHessianProtocol[Array]] = None
 
-        # Batch methods
         if isinstance(self._basis, BasisHasJacobianProtocol):
             self._jac_basis = self._basis
-            self.jacobian_batch = self._jacobian_batch
-            # Single-sample methods
-            self.jacobian = self._jacobian
-
-        # Hessian methods only available for nqoi=1
         if isinstance(self._basis, BasisHasHessianProtocol) and self._nqoi == 1:
             self._hess_basis = self._basis
-            self.hessian_batch = self._hessian_batch
-            self.hessian = self._hessian
-            self.hvp = self._hvp
-            self.whvp = self._whvp
+
+        if self._jac_basis is None:
+            return Derivatives.none()
+        if self._hess_basis is None:
+            return Derivatives.first_order(
+                jacobian=self._jacobian,
+                jacobian_batch=self._jacobian_batch,
+            )
+        return Derivatives(
+            jacobian=self._jacobian,
+            jacobian_batch=self._jacobian_batch,
+            hessian=self._hessian,
+            hessian_batch=self._hessian_batch,
+            hvp=self._hvp,
+            whvp=self._whvp,
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (w.r.t. the expansion's inputs)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""

@@ -351,6 +351,10 @@ class WeightedLejaSampler(LejaSampler[Array]):
         new_sqrt_weights = self._bkd.sqrt(new_weights)
 
         if self._current_weights is not None:
+            if self._factorizer is None:
+                raise RuntimeError(
+                    "factorizer is not initialized despite cached weights"
+                )
             # Update preconditioning in factorizer
             self._factorizer.update_preconditioning(
                 self._current_weights, new_sqrt_weights, self._nselected

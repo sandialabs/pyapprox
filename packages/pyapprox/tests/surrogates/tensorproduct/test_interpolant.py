@@ -150,7 +150,7 @@ class TestTensorProductInterpolant:
         interp.set_values(values)
 
         sample = bkd.asarray([[0.0], [0.0], [0.0]])
-        jac = interp.jacobian(sample)
+        jac = interp.derivatives().jacobian(sample)
         assert jac.shape == (2, 3)  # (nqoi, nvars)
 
     @pytest.mark.slow_on("TorchBkd")
@@ -162,7 +162,7 @@ class TestTensorProductInterpolant:
         interp.set_values(values)
 
         sample = bkd.asarray([[0.0], [0.0], [0.0]])
-        hess = interp.hessian(sample)
+        hess = interp.derivatives().hessian(sample)
         assert hess.shape == (3, 3)  # (nvars, nvars)
 
     def test_hvp_shape(self, bkd) -> None:
@@ -174,7 +174,7 @@ class TestTensorProductInterpolant:
 
         sample = bkd.asarray([[0.0], [0.0], [0.0]])
         vec = bkd.asarray([[1.0], [0.0], [0.0]])
-        hvp_result = interp.hvp(sample, vec)
+        hvp_result = interp.derivatives().hvp(sample, vec)
         assert hvp_result.shape == (3, 1)  # (nvars, 1)
 
     def test_whvp_shape(self, bkd) -> None:
@@ -187,7 +187,7 @@ class TestTensorProductInterpolant:
         sample = bkd.asarray([[0.0], [0.0], [0.0]])
         vec = bkd.asarray([[1.0], [0.0], [0.0]])
         weights = bkd.asarray([[0.5], [0.5]])
-        whvp_result = interp.whvp(sample, vec, weights)
+        whvp_result = interp.derivatives().whvp(sample, vec, weights)
         assert whvp_result.shape == (3, 1)  # (nvars, 1)
 
     def test_derivatives_with_checker(self, bkd) -> None:
@@ -256,8 +256,8 @@ class TestTensorProductInterpolant:
         sample = bkd.asarray([[0.3], [-0.4]])
         vec = bkd.asarray([[0.7], [-0.3]])
 
-        hvp_result = interp.hvp(sample, vec)
-        hess = interp.hessian(sample)
+        hvp_result = interp.derivatives().hvp(sample, vec)
+        hess = interp.derivatives().hessian(sample)
         expected = hess @ vec
 
         bkd.assert_allclose(hvp_result, expected, rtol=1e-10)
@@ -278,45 +278,34 @@ class TestTensorProductInterpolant:
         vec = bkd.asarray([[0.7], [-0.3]])
         weights = bkd.asarray([[0.6], [0.4]])
 
-        whvp_result = interp.whvp(sample, vec, weights)
+        whvp_result = interp.derivatives().whvp(sample, vec, weights)
 
         # Create separate single-QoI interpolants to compute individual hvps
         interp0 = self._make_interpolant(bkd, 2, 5)
         interp0.set_values(q1)  # (1, nsamples)
-        hvp0 = interp0.hvp(sample, vec)
+        hvp0 = interp0.derivatives().hvp(sample, vec)
 
         interp1 = self._make_interpolant(bkd, 2, 5)
         interp1.set_values(q2)  # (1, nsamples)
-        hvp1 = interp1.hvp(sample, vec)
+        hvp1 = interp1.derivatives().hvp(sample, vec)
 
         expected = 0.6 * hvp0 + 0.4 * hvp1
 
         bkd.assert_allclose(whvp_result, expected, rtol=1e-10)
 
-    def test_hessian_rejects_multi_qoi(self, bkd) -> None:
-        """Test that hessian raises ValueError when nqoi > 1."""
+    def test_multi_qoi_drops_scalar_second_order_fields(self, bkd) -> None:
+        """After set_values with nqoi > 1 the bundle omits hessian/hvp."""
         interp = self._make_interpolant(bkd, 2, 4)
         samples = interp.get_samples()
         values = bkd.zeros((2, samples.shape[1]))  # nqoi=2
         interp.set_values(values)
 
-        sample = bkd.asarray([[0.0], [0.0]])
-        with pytest.raises(ValueError) as ctx:
-            interp.hessian(sample)
-        assert "nqoi=1" in str(ctx.value)
-
-    def test_hvp_rejects_multi_qoi(self, bkd) -> None:
-        """Test that hvp raises ValueError when nqoi > 1."""
-        interp = self._make_interpolant(bkd, 2, 4)
-        samples = interp.get_samples()
-        values = bkd.zeros((2, samples.shape[1]))  # nqoi=2
-        interp.set_values(values)
-
-        sample = bkd.asarray([[0.0], [0.0]])
-        vec = bkd.asarray([[1.0], [0.0]])
-        with pytest.raises(ValueError) as ctx:
-            interp.hvp(sample, vec)
-        assert "nqoi=1" in str(ctx.value)
+        derivs = interp.derivatives()
+        assert derivs.hessian is None
+        assert derivs.hvp is None
+        # first-order and weighted second-order capability remain
+        assert derivs.jacobian is not None
+        assert derivs.whvp is not None
 
     def test_repr(self, bkd) -> None:
         """Test string representation."""

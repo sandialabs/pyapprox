@@ -5,13 +5,20 @@ Composes a forward model with a noise-model likelihood into a single
 parameter-to-log-likelihood object.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
+from pyapprox.interface.functions.derivatives import Derivatives, JacobianFn
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.probability.protocols.likelihood import (
+    LogLikelihoodHasDesignWeightsProtocol,
+    LogLikelihoodHasRVSProtocol,
     LogLikelihoodProtocol,
+    VectorizedLogLikelihoodProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -85,16 +92,28 @@ class ModelBasedLogLikelihood(Generic[Array]):
         self._noise_likelihood = noise_likelihood
         self._bkd = bkd
 
-        # Dynamically bind optional methods
-        if hasattr(noise_likelihood, "rvs"):
-            self.rvs = self._rvs
-        if hasattr(noise_likelihood, "gradient") and hasattr(model, "jacobian"):
-            self.jacobian = self._jacobian
-            self.gradient = self._gradient
-        if hasattr(noise_likelihood, "logpdf_vectorized"):
-            self.logpdf_vectorized = self._logpdf_vectorized
-        if hasattr(noise_likelihood, "set_design_weights"):
-            self.set_design_weights = self._set_design_weights
+        # Capture optional capability once at construction; absence is
+        # None, never a missing attribute
+        self._noise_jac: Optional[JacobianFn[Array]] = None
+        self._model_jac: Optional[JacobianFn[Array]] = None
+        if isinstance(noise_likelihood, ObjectiveProtocol) and isinstance(
+            model, ObjectiveProtocol
+        ):
+            noise_jac = noise_likelihood.derivatives().jacobian
+            model_jac = model.derivatives().jacobian
+            if noise_jac is not None and model_jac is not None:
+                self._noise_jac = noise_jac
+                self._model_jac = model_jac
+        if self._model_jac is not None:
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian
+            )
+        else:
+            self._derivs = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (jacobian w.r.t. parameters)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Get the backend used for computations."""
@@ -150,7 +169,7 @@ class ModelBasedLogLikelihood(Generic[Array]):
         """Alias for logpdf."""
         return self.logpdf(parameters)
 
-    def _rvs(self, parameters: Array, nsamples: int = 1) -> Array:
+    def rvs(self, parameters: Array, nsamples: int = 1) -> Array:
         """
         Sample from the likelihood given model parameters.
 
@@ -166,8 +185,13 @@ class ModelBasedLogLikelihood(Generic[Array]):
         Array
             Noisy observations. Shape: (nobs, nsamples * n_param_samples)
         """
+        noise_likelihood = self._noise_likelihood
+        if not isinstance(noise_likelihood, LogLikelihoodHasRVSProtocol):
+            raise RuntimeError(
+                "rvs is unavailable; the noise likelihood cannot sample"
+            )
         model_outputs = self._model(parameters)
-        return self._noise_likelihood.rvs(model_outputs, nsamples)
+        return noise_likelihood.rvs(model_outputs, nsamples)
 
     def _jacobian(self, sample: Array) -> Array:
         """
@@ -190,31 +214,21 @@ class ModelBasedLogLikelihood(Generic[Array]):
         Array
             Jacobian of log-likelihood. Shape: (1, nvars)
         """
+        noise_jac = self._noise_jac
+        model_jac = self._model_jac
+        if noise_jac is None or model_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
         model_output = self._model(sample)
-        # gradient: (nobs, 1)
-        grad_wrt_outputs = self._noise_likelihood.gradient(model_output)
+        # likelihood bundle jacobian: (1, nobs)
+        like_jac = noise_jac(model_output)
         # model jacobian: (nqoi, nvars) = (nobs, nvars)
-        J_model = self._model.jacobian(sample)
+        J_model = model_jac(sample)
         # chain rule: (1, nobs) @ (nobs, nvars) = (1, nvars)
-        return grad_wrt_outputs.T @ J_model
+        return like_jac @ J_model
 
-    def _gradient(self, sample: Array) -> Array:
-        """
-        Compute gradient of log-likelihood w.r.t. parameters.
-
-        Parameters
-        ----------
-        sample : Array
-            Single parameter sample. Shape: (nvars, 1)
-
-        Returns
-        -------
-        Array
-            Gradient. Shape: (nvars, 1)
-        """
-        return self._jacobian(sample).T
-
-    def _logpdf_vectorized(self, parameters: Array, observations: Array) -> Array:
+    def logpdf_vectorized(self, parameters: Array, observations: Array) -> Array:
         """
         Batched log-likelihood evaluation.
 
@@ -232,10 +246,16 @@ class ModelBasedLogLikelihood(Generic[Array]):
         Array
             Log-likelihood matrix. Shape: (n_param_samples, n_obs_samples)
         """
+        noise_likelihood = self._noise_likelihood
+        if not isinstance(noise_likelihood, VectorizedLogLikelihoodProtocol):
+            raise RuntimeError(
+                "logpdf_vectorized is unavailable; the noise likelihood "
+                "does not support batched evaluation"
+            )
         model_outputs = self._model(parameters)
-        return self._noise_likelihood.logpdf_vectorized(model_outputs, observations)
+        return noise_likelihood.logpdf_vectorized(model_outputs, observations)
 
-    def _set_design_weights(self, weights: Array) -> None:
+    def set_design_weights(self, weights: Array) -> None:
         """
         Set weights for experimental design.
 
@@ -244,7 +264,15 @@ class ModelBasedLogLikelihood(Generic[Array]):
         weights : Array
             Design weights. Shape: (nobs,)
         """
-        self._noise_likelihood.set_design_weights(weights)
+        noise_likelihood = self._noise_likelihood
+        if not isinstance(
+            noise_likelihood, LogLikelihoodHasDesignWeightsProtocol
+        ):
+            raise RuntimeError(
+                "set_design_weights is unavailable; the noise likelihood "
+                "does not support design weights"
+            )
+        noise_likelihood.set_design_weights(weights)
 
     def __repr__(self) -> str:
         """Return string representation."""
