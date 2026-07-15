@@ -244,6 +244,31 @@ class TestLejaObjective:
         error_ratio = float(checker.error_ratio(errors[0]).item())
         assert error_ratio < 1e-6
 
+    def test_jacobian_nonconstant_pdf_derivative_checker(self, bkd) -> None:
+        """FD-validate the jacobian with a NON-constant pdf weighting.
+
+        Regression guard: the objective jacobian must include the weight
+        derivative. A zero weight-jacobian (the old silent fallback for
+        weightings without jacobian) fails this finite-difference check
+        because the Beta(2, 2) pdf derivative is nonzero at the sample.
+        """
+        poly = JacobiPolynomial1D(1.0, 1.0, bkd)
+        marginal = BetaMarginal(2.0, 2.0, bkd, lb=-1.0, ub=1.0)
+        pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, bkd)
+        weighting = PDFWeighting(bkd, pdf_1d, pdf_jac_1d)
+        objective = LejaObjective(bkd, poly, weighting, bounds=(-1.0, 1.0))
+        objective.set_sequence(bkd.asarray([[0.1, 0.9]]))
+
+        sample = bkd.asarray([[0.5]])
+        # prove the test discriminates: the weight derivative is nonzero
+        weight_jac = pdf_jac_1d(bkd.flatten(sample))
+        assert float(bkd.abs(weight_jac[0])) > 1e-3
+
+        checker = DerivativeChecker(objective)
+        errors = checker.check_derivatives(sample, verbosity=0)
+        error_ratio = float(checker.error_ratio(errors[0]).item())
+        assert error_ratio < 1e-6
+
 
 # =============================================================================
 # TwoPointLejaObjective tests
@@ -320,6 +345,28 @@ class TestTwoPointLejaObjective:
         """Test Jacobian via DerivativeChecker with PDF weighting."""
         objective = self._create_objective(bkd, "pdf")
         sample = bkd.asarray([[0.3], [0.7]])
+        checker = DerivativeChecker(objective)
+        errors = checker.check_derivatives(sample, verbosity=0)
+        error_ratio = float(checker.error_ratio(errors[0]).item())
+        assert error_ratio < 1e-6
+
+    def test_jacobian_nonconstant_pdf_derivative_checker(self, bkd) -> None:
+        """FD-validate the two-point jacobian with a NON-constant pdf
+        weighting (regression guard against a zero weight-jacobian)."""
+        poly = JacobiPolynomial1D(1.0, 1.0, bkd)
+        marginal = BetaMarginal(2.0, 2.0, bkd, lb=-1.0, ub=1.0)
+        pdf_1d, pdf_jac_1d = _make_pdf_wrappers(marginal, bkd)
+        weighting = PDFWeighting(bkd, pdf_1d, pdf_jac_1d)
+        objective = TwoPointLejaObjective(
+            bkd, poly, weighting, bounds=(-1.0, 1.0)
+        )
+        objective.set_sequence(bkd.asarray([[0.1]]))
+
+        sample = bkd.asarray([[0.5], [-0.3]])
+        # prove the test discriminates: the weight derivative is nonzero
+        weight_jac = pdf_jac_1d(bkd.asarray([0.5]))
+        assert float(bkd.abs(weight_jac[0])) > 1e-3
+
         checker = DerivativeChecker(objective)
         errors = checker.check_derivatives(sample, verbosity=0)
         error_ratio = float(checker.error_ratio(errors[0]).item())

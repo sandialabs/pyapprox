@@ -10,6 +10,7 @@ The key design:
 - This ensures consistent forcing computation and residual evaluation
 """
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -66,6 +67,9 @@ class PhysicsDerivativeWrapper:
             )
         # Single sample: return (nqoi, 1)
         return self._physics.residual(samples, self._time).reshape(-1, 1)
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample):
         # sample shape: (nvars, 1), return (nqoi, nvars)

@@ -21,6 +21,7 @@ from typing import Generic
 
 import pytest
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -82,6 +83,9 @@ class PhysicsDerivativeWrapper(Generic[Array]):
         state = sample[:, 0]
         result = self._physics.residual(state, self._time)
         return result.reshape(-1, 1)
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample: Array) -> Array:
         # sample shape: (nvars, 1)

@@ -13,6 +13,7 @@ from typing import Generic
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -195,6 +196,9 @@ class ODEResidualHVPWrapper(Generic[Array]):
         jac = self._residual.jacobian(state.flatten())
         return (jac.T @ self._adj_state.reshape(-1, 1)).reshape(1, -1)
 
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.first_order(jacobian=self.jacobian)
+
     def jacobian(self, state: Array) -> Array:
         """Return d/dy [λ^T · df/dy] = λ^T · d²f/dy²."""
         # For quadratic ODE: df/dy = A + 2*p[0]*diag(y)
@@ -248,6 +252,9 @@ class ODEResidualParamHVPWrapper(Generic[Array]):
         result[0, 0] = 2.0 * float(self._bkd.sum(adj_flat * state_flat * wvec_flat))
         result[1, 0] = 0.0
         return result.T  # (1, nparams)
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, wvec: Array) -> Array:
         """Return d/dw [λ^T · d²f/dp dy · w]."""
@@ -516,6 +523,9 @@ class TimeResidualStateHVPWrapper(Generic[Array]):
         jac = self._time_residual.jacobian(state.flatten())
         return (jac.T @ self._adj_state.reshape(-1, 1)).reshape(1, -1)
 
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.first_order(jacobian=self.jacobian)
+
     def jacobian(self, state: Array) -> Array:
         """Return d/dy_n [λ^T · (dR/dy_n)]."""
         fsol_n = state.flatten()
@@ -571,6 +581,9 @@ class TimeResidualParamHVPWrapper(Generic[Array]):
             self._ctx, self._fsol_n, self._adj_state.flatten(), wvec_flat
         )
         return hvp.reshape(1, -1)
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, wvec: Array) -> Array:
         """Return d/dw [λ^T · (d²R/dp dy_n) · w]."""
@@ -742,6 +755,9 @@ class TestTimeResidualHVP:
                     - self._deltat * self._time_residual._residual.jacobian(y_nm1_flat)
                 )
                 return (jac.T @ self._adj_state.reshape(-1, 1)).reshape(1, -1)
+
+            def derivatives(self):
+                return Derivatives.first_order(jacobian=self.jacobian)
 
             def jacobian(self, y_nm1):
                 y_nm1_flat = y_nm1.flatten()

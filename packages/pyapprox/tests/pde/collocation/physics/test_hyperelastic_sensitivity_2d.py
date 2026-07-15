@@ -10,6 +10,7 @@ from typing import Generic
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -107,6 +108,9 @@ class _ResidualOfMu(Generic[Array]):
         self._physics.set_mu(self._mu_base)
         return res
 
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
+
     def jacobian(self, sample):
         if sample.ndim == 2:
             sample = sample[:, 0]
@@ -164,6 +168,9 @@ class _ResidualOfLamda(Generic[Array]):
         self._physics.set_lamda(self._lam_base)
         return res
 
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
+
     def jacobian(self, sample):
         if sample.ndim == 2:
             sample = sample[:, 0]
@@ -220,6 +227,9 @@ class _FluxComponentOfState(Generic[Array]):
             return bkd.stack(cols, axis=1)
         flux = self._physics.compute_flux(samples)
         return flux[self._row][self._col].reshape(-1, 1)
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample):
         if sample.ndim == 2:

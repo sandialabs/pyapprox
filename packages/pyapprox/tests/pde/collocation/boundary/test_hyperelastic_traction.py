@@ -12,6 +12,7 @@ from typing import Generic
 
 import numpy as np
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -61,6 +62,9 @@ class _TractionOfState(Generic[Array]):
                 axis=1,
             )
         return self._operator(samples).reshape(-1, 1)
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample):
         if sample.ndim == 2:

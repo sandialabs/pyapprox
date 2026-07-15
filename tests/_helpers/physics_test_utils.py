@@ -6,6 +6,7 @@ and NewtonSolver.
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -73,6 +74,9 @@ class PhysicsDerivativeWrapper(Generic[Array]):
             state = samples[:, 0]
         residual = self._physics.residual(state, self._time)
         return residual[:, None]
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample: Array) -> Array:
         """Compute Jacobian at sample.

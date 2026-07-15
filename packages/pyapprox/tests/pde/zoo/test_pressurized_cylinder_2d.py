@@ -9,6 +9,7 @@ Verifies:
 6. Factory produces valid model with correct protocol compliance
 """
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
@@ -556,6 +557,9 @@ class TestPressurizedCylinder2D:
                     ],
                     axis=1,
                 )
+
+            def derivatives(self):
+                return Derivatives.first_order(jacobian=self.jacobian)
 
             def jacobian(self, sample):
                 return self._p.jacobian(sample[:, 0], 0.0)

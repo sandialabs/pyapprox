@@ -9,6 +9,7 @@ Note: All tests use the reference domain [-1, 1] where the Chebyshev
 basis operates directly, avoiding coordinate transformation issues.
 """
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
@@ -99,6 +100,9 @@ class DtNResidualDerivativeWrapper(Generic[Array]):
             interface_dofs = samples[:, 0]
         residual = self._residual(interface_dofs)
         return residual[:, None]
+
+    def derivatives(self):
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, sample: Array) -> Array:
         """Compute Jacobian at sample.

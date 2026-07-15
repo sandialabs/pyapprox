@@ -8,6 +8,7 @@ matches the finite difference of the Jacobian.
 import numpy as np
 import pytest
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -79,6 +80,9 @@ class TimeAdjointOperatorWrapper:
     def __call__(self, param: Array) -> Array:
         self._operator.storage()._clear()
         return self._operator(self._init_state, param)
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.second_order(jacobian=self.jacobian, hvp=self.hvp)
 
     def jacobian(self, param: Array) -> Array:
         self._operator.storage()._clear()
