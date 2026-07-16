@@ -6,7 +6,7 @@ migration shim ``resolve_bundle``), never via attribute probing.
 
 from typing import Generic, Optional
 
-from pyapprox.interface.functions.derivative_checks._legacy_harvest import (
+from pyapprox.interface.functions.derivative_checks.resolve import (
     resolve_bundle,
 )
 from pyapprox.interface.functions.derivatives import Derivatives

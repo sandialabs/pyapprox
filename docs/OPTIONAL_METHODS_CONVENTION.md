@@ -166,8 +166,6 @@ unchecked annotation.
 - `with_shape_validation(d, nvars, nqoi)` wraps populated fields with
   boundary shape checks (opt-in, picklable wrappers).
 - `DerivativeChecker` finite-difference-validates every populated bundle
-  field. (Migration note: until the last legacy modules are retired,
-  the checker's `derivative_checks/_legacy_harvest.py` fallback may
-  harvest public methods of not-yet-migrated objects, warning loudly;
-  that file is a temporary, grep-gate-exempted exception and will be
-  deleted.)
+  field. It requires `derivatives()` (`derivative_checks/resolve.py`):
+  objects without the accessor are rejected with a `TypeError`; public
+  derivative methods are never harvested.

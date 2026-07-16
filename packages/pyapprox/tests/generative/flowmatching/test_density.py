@@ -6,6 +6,7 @@ from pyapprox.generative.flowmatching.density import (
     compute_flow_density,
     compute_kl_divergence,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 
 
 class _LinearVF:
@@ -32,6 +33,9 @@ class _LinearVF:
         jac = bkd.zeros((ns, 1, 2))
         jac[:, 0, 1] = self._a
         return jac
+
+    def derivatives(self):
+        return Derivatives(jacobian_batch=self.jacobian_batch)
 
 
 class TestComputeFlowDensity:

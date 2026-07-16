@@ -8,6 +8,7 @@ from typing import Generic
 
 from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.risk.avar import SampleAverageSmoothedAVaR
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -117,12 +118,13 @@ class AVaRDeviationMeasure(DeviationMeasure[Array], Generic[Array]):
         Array
             Jacobian. Shape: (npred * nouter, nvars)
         """
-        if hasattr(self._bkd, "jacobian"):
+        autodiff_bkd = self._bkd
+        if isinstance(autodiff_bkd, AutodiffBackend):
             # Autodiff returns shape (1, npred*nouter, nobs, 1)
             # Need to reshape to (npred*nouter, nobs)
             # TODO: fix so that autodiff code this calls returns the correct
             # shape
-            jac = self._bkd.jacobian(self._evaluate, design_weights)
+            jac = autodiff_bkd.jacobian(self._evaluate, design_weights)
             return self._bkd.reshape(jac, (self._npred * self.nouter(), self.nvars()))
 
         raise NotImplementedError(

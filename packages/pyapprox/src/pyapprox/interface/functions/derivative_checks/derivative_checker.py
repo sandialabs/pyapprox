@@ -1,9 +1,9 @@
 """Finite-difference checking of Derivatives-bundle capabilities.
 
-The checkers iterate whatever a function's bundle declares (via the
-migration shim ``resolve_bundle``): jacobian/jvp are checked directly;
-hvp is checked as the derivative of the gradient; whvp as the derivative
-of the weighted gradient w^T f.
+The checkers iterate whatever a function's bundle declares
+(``resolve_bundle`` requires the ``derivatives()`` accessor):
+jacobian/jvp are checked directly; hvp is checked as the derivative of
+the gradient; whvp as the derivative of the weighted gradient w^T f.
 """
 
 from typing import (
@@ -12,11 +12,11 @@ from typing import (
     Optional,
 )
 
-from pyapprox.interface.functions.derivative_checks._legacy_harvest import (
-    resolve_bundle,
-)
 from pyapprox.interface.functions.derivative_checks.base import (
     JVPChecker,
+)
+from pyapprox.interface.functions.derivative_checks.resolve import (
+    resolve_bundle,
 )
 from pyapprox.interface.functions.derivative_checks.wrappers import (
     FunctionWithJVP,

@@ -8,15 +8,19 @@ from typing import Callable, Optional
 
 import numpy as np
 
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _log_standard_normal(x: Array) -> Array:
-    return -0.5 * np.log(2 * np.pi) - 0.5 * x**2
+    log_2pi = float(np.log(2 * np.pi))
+    return -0.5 * log_2pi - 0.5 * x**2
 
 
 def compute_flow_density(
-    model: object,
+    model: ObjectiveProtocol[Array],
     x1_samples: Array,
     bkd: Backend[Array],
     n_steps: int = 100,
@@ -31,9 +35,9 @@ def compute_flow_density(
 
     Parameters
     ----------
-    model : object
-        Trained vector field with ``__call__`` and ``jacobian_batch`` methods.
-        Input shape ``(2, nsamples)`` for ``[t; x]``.
+    model : ObjectiveProtocol[Array]
+        Trained vector field declaring ``jacobian_batch`` in its
+        Derivatives bundle. Input shape ``(2, nsamples)`` for ``[t; x]``.
     x1_samples : Array
         Evaluation points at t=1, shape ``(1, nsamples)``.
     bkd : Backend[Array]
@@ -58,6 +62,14 @@ def compute_flow_density(
     if scheme not in ("euler", "heun"):
         raise ValueError(f"Unknown ODE scheme: {scheme!r}. Use 'euler' or 'heun'.")
 
+    model_jac_batch = model.derivatives().jacobian_batch
+    if model_jac_batch is None:
+        raise ValueError(
+            "model must declare jacobian_batch in its Derivatives bundle "
+            "(the divergence term needs d(v)/d(x)); got "
+            f"{type(model).__name__}"
+        )
+
     nsamples = x1_samples.shape[1]
     x = bkd.copy(x1_samples)
     log_div_integral = bkd.zeros((1, nsamples))
@@ -68,8 +80,8 @@ def compute_flow_density(
         t_row = bkd.full((1, nsamples), t)
 
         vf_in1 = bkd.vstack([t_row, x])
-        v1 = model(vf_in1)  # type: ignore[operator]
-        jac1 = model.jacobian_batch(vf_in1)  # type: ignore[attr-defined]
+        v1 = model(vf_in1)
+        jac1 = model_jac_batch(vf_in1)
         div1 = bkd.reshape(jac1[:, 0, 1], (1, -1))
 
         if scheme == "euler":
@@ -80,8 +92,8 @@ def compute_flow_density(
             t_row2 = bkd.full((1, nsamples), t2)
             x2 = x - dt * v1
             vf_in2 = bkd.vstack([t_row2, x2])
-            v2 = model(vf_in2)  # type: ignore[operator]
-            jac2 = model.jacobian_batch(vf_in2)  # type: ignore[attr-defined]
+            v2 = model(vf_in2)
+            jac2 = model_jac_batch(vf_in2)
             div2 = bkd.reshape(jac2[:, 0, 1], (1, -1))
 
             x = x - 0.5 * dt * (v1 + v2)
@@ -95,7 +107,7 @@ def compute_flow_density(
 
 
 def compute_kl_divergence(
-    model: object,
+    model: ObjectiveProtocol[Array],
     target_pdf_fn: object,
     quad_pts: Array,
     quad_wts: Array,
@@ -109,8 +121,9 @@ def compute_kl_divergence(
 
     Parameters
     ----------
-    model : object
-        Trained vector field.
+    model : ObjectiveProtocol[Array]
+        Trained vector field declaring ``jacobian_batch`` in its
+        Derivatives bundle.
     target_pdf_fn : callable
         Evaluates target density p(x), signature ``(Array) -> Array``.
     quad_pts : Array
