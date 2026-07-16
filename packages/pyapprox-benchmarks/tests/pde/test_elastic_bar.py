@@ -1,18 +1,12 @@
 """Integration tests for the 1D elastic bar forward UQ problems."""
 
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
 import numpy as np
 import pytest
-
-from pyapprox_benchmarks.pde.elastic_bar import build_elastic_bar_1d
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.interface.functions.fromcallable.jacobian import (
-    FunctionWithJacobianFromCallable,
-)
+from pyapprox_benchmarks.pde.elastic_bar import build_elastic_bar_1d
+
 from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
 )
@@ -38,15 +32,12 @@ def _make_problem(
 
 
 def _check_jacobian(bkd, fwd, num_kle_terms=2):
-    """Helper: run DerivativeChecker on a forward model."""
-    wrapper = FunctionWithJacobianFromCallable(
-        nqoi=fwd.nqoi(),
-        nvars=fwd.nvars(),
-        fun=fwd,
-        jacobian=fwd.jacobian,
-        bkd=bkd,
-    )
-    checker = DerivativeChecker(wrapper)
+    """Helper: run DerivativeChecker on a forward model.
+
+    The checker resolves the model's Derivatives bundle itself; public
+    derivative methods are never harvested.
+    """
+    checker = DerivativeChecker(fwd)
     np.random.seed(42)
     sample = bkd.array([0.1, -0.1][:num_kle_terms])[:, None]
     errors = checker.check_derivatives(sample, relative=True)[0]
@@ -167,12 +158,11 @@ class TestElasticBar1D:
     # --- Protocol compliance ---
 
     def test_function_protocol_compliance(self, bkd):
-        """Forward model is Function-shaped with a jacobian."""
+        """Forward model is Function-shaped and declares a jacobian."""
         prob = _make_problem(bkd, "linear", "tip_displacement")
         fwd = prob.function()
         assert isinstance(fwd, FunctionProtocol)
-        assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
     # --- Convergence tests ---
 
