@@ -78,8 +78,10 @@ class TestScipyTrustConstrOptimizer:
             objective, bounds, [constraint]
         )
         result = optimizer.minimize(bkd.asarray([[2.0], [2.0]]))
+        # trust-constr's stopping point varies with platform/scipy
+        # version: 8e-5 observed on CI (macos and minimal-install jobs)
         bkd.assert_allclose(
-            result.optima(), bkd.asarray([[0.5], [0.5]]), atol=1e-5
+            result.optima(), bkd.asarray([[0.5], [0.5]]), atol=3e-4
         )
 
     def test_constraint_without_jacobian(self, bkd):
