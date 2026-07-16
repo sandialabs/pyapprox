@@ -10,7 +10,7 @@ Criteria:
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, Tuple
+from typing import Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -216,7 +216,7 @@ class CostWeightedRefinementCriteria(RefinementCriteria[Array], Generic[Array]):
         if cost_function is None:
             cost_function = UnitCostFunction(bkd)
         super().__init__(bkd, cost_function)
-        self._error_estimates: dict[str, Any] = {}
+        self._error_estimates: dict[int, float] = {}
 
     def set_error_estimate(self, index_id: int, error: float) -> None:
         """Set error estimate for an index.
