@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Generic
 
-from pyapprox.interface.functions.derivatives import (
+from pyapprox.interface.functions._field_types import (
     HessianBatchFn,
     HessianFn,
     HVPBatchFn,
@@ -19,8 +19,6 @@ from pyapprox.interface.functions.derivatives import (
     WHVPBatchFn,
     WHVPFn,
     _check_shape,
-)
-from pyapprox.interface.functions.protocols.validation import (
     validate_jacobian,
     validate_sample,
     validate_samples,

@@ -47,21 +47,42 @@ back to its internal secant).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Generic, Optional, TypeVar, Union
+from typing import Generic, Optional, TypeVar, Union
 
+from pyapprox.interface.functions._field_types import (
+    HessianBatchFn as HessianBatchFn,
+)
+from pyapprox.interface.functions._field_types import (
+    HessianFn as HessianFn,
+)
+from pyapprox.interface.functions._field_types import (
+    HVPBatchFn as HVPBatchFn,
+)
+from pyapprox.interface.functions._field_types import (
+    HVPFn as HVPFn,
+)
+from pyapprox.interface.functions._field_types import (
+    InexactJacobianFn as InexactJacobianFn,
+)
+from pyapprox.interface.functions._field_types import (
+    InexactValueFn as InexactValueFn,
+)
+from pyapprox.interface.functions._field_types import (
+    JacobianBatchFn as JacobianBatchFn,
+)
+from pyapprox.interface.functions._field_types import (
+    JacobianFn as JacobianFn,
+)
+from pyapprox.interface.functions._field_types import (
+    JVPFn as JVPFn,
+)
+from pyapprox.interface.functions._field_types import (
+    WHVPBatchFn as WHVPBatchFn,
+)
+from pyapprox.interface.functions._field_types import (
+    WHVPFn as WHVPFn,
+)
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
-
-JacobianFn = Callable[[Array], Array]
-JacobianBatchFn = Callable[[Array], Array]
-JVPFn = Callable[[Array, Array], Array]
-HVPFn = Callable[[Array, Array], Array]
-WHVPFn = Callable[[Array, Array, Array], Array]
-HessianFn = Callable[[Array], Array]
-HessianBatchFn = Callable[[Array], Array]
-HVPBatchFn = Callable[[Array, Array], Array]
-WHVPBatchFn = Callable[[Array, Array, Array], Array]
-InexactValueFn = Callable[[Array, float], Array]
-InexactJacobianFn = Callable[[Array, float], Array]
 
 A = TypeVar("A", bound=ArrayProtocol)
 
@@ -380,8 +401,3 @@ def with_shape_validation(
     return out
 
 
-def _check_shape(
-    label: str, got: tuple[int, ...], expected: tuple[int, ...]
-) -> None:
-    if got != expected:
-        raise ValueError(f"{label}: expected shape {expected}, got {got}")
