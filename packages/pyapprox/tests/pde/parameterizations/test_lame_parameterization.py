@@ -131,8 +131,13 @@ class TestLameParameterization:
         expected = bkd.zeros((nstates, 1))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
-    def test_dynamic_binding_without_jacobian(self, bkd):
-        """No param_jacobian when field_map lacks jacobian method."""
+    def test_field_map_without_jacobian_rejected(self, bkd):
+        """FieldMapProtocol requires jacobian; eval-only maps are rejected.
+
+        A missing field-map jacobian would silently drop derivative
+        capability from the whole parameterization chain, so the
+        protocol makes it required and the constructor fails loudly.
+        """
 
         class NoJacFieldMap:
             """Field map without jacobian method."""
@@ -144,10 +149,9 @@ class TestLameParameterization:
                 return bkd.full((10,), 1.0)
 
         fm = NoJacFieldMap()
-        # Must satisfy FieldMapProtocol at least structurally
-        assert isinstance(fm, FieldMapProtocol)
-        param = YoungModulusParameterization(fm, [], bkd, 0.3)
-        assert not hasattr(param, "param_jacobian")
+        assert not isinstance(fm, FieldMapProtocol)
+        with pytest.raises(TypeError):
+            YoungModulusParameterization(fm, [], bkd, 0.3)
 
     def test_nonpositive_E_raises(self, bkd):
         """apply() raises ValueError when E field is non-positive."""

@@ -38,10 +38,6 @@ class ForcingParameterization(Generic[Array]):
             time_modulation if time_modulation is not None else lambda t: 1.0
         )
 
-        # Dynamic binding: param_jacobian only if field_map has jacobian
-        if hasattr(self._field_map, "jacobian"):
-            self.param_jacobian = self._param_jacobian
-            self.initial_param_jacobian = self._initial_param_jacobian
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -54,7 +50,7 @@ class ForcingParameterization(Generic[Array]):
         field = self._field_map(params_1d)
         physics.set_forcing(lambda t, _f=field: _f * self._time_mod(t))
 
-    def _param_jacobian(
+    def param_jacobian(
         self,
         physics: object,
         state: Array,
@@ -70,7 +66,7 @@ class ForcingParameterization(Generic[Array]):
         mod = self._time_mod(time)
         return fm_jac * mod
 
-    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
+    def initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         npts = physics.npts()
         return self._bkd.zeros((npts, self.nparams()))

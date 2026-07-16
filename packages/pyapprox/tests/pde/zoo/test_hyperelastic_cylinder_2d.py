@@ -497,7 +497,7 @@ class TestHyperelasticCylinder2D:
         result = fwd(sample)
         assert result.shape == (2 * npts, 1)
 
-        jac = fwd.jacobian(sample)
+        jac = fwd.derivatives().jacobian(sample)
         assert jac.shape == (2 * npts, num_kle_terms)
 
 

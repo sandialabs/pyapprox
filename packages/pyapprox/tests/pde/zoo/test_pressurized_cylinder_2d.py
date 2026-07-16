@@ -611,13 +611,13 @@ class TestPressurizedCylinder2D:
         )
 
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
             fun=fwd,
-            jacobian=fwd.jacobian,
+            jacobian=fwd.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -659,7 +659,7 @@ class TestPressurizedCylinder2D:
 
         # Check protocol compliance
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
         # Check dimensions
         npts = npts_r * npts_theta
@@ -672,7 +672,7 @@ class TestPressurizedCylinder2D:
         assert result.shape == (2 * npts, 1)
 
         # Jacobian shape
-        jac = fwd.jacobian(sample)
+        jac = fwd.derivatives().jacobian(sample)
         assert jac.shape == (2 * npts, num_kle_terms)
 
 

@@ -71,7 +71,7 @@ class TestSteadyDiffusionZoo:
     def test_has_jacobian(self, bkd):
         """Zoo model has jacobian."""
         fwd = self._create_model(bkd)
-        assert hasattr(fwd, "jacobian")
+        assert fwd.derivatives().jacobian is not None
 
     def test_isinstance_function_protocol(self, bkd):
         """Zoo model satisfies FunctionProtocol."""
@@ -82,7 +82,7 @@ class TestSteadyDiffusionZoo:
         """Zoo model satisfies FunctionProtocol."""
         fwd = self._create_model(bkd)
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
     def test_jacobian_derivative_checker(self, bkd):
         """Zoo model Jacobian passes DerivativeChecker."""
@@ -91,7 +91,7 @@ class TestSteadyDiffusionZoo:
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
             fun=fwd,
-            jacobian=fwd.jacobian,
+            jacobian=fwd.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -156,8 +156,8 @@ class TestSteadyDiffusionZoo:
             fwd_zoo(samples), fwd_manual(samples), rtol=1e-10, atol=1e-14
         )
         bkd.assert_allclose(
-            fwd_zoo.jacobian(samples),
-            fwd_manual.jacobian(samples),
+            fwd_zoo.derivatives().jacobian(samples),
+            fwd_manual.derivatives().jacobian(samples),
             rtol=1e-10,
             atol=1e-14,
         )
@@ -226,14 +226,14 @@ class TestTransientDiffusionZoo:
     def test_has_jacobian(self, bkd):
         """Zoo transient model has jacobian."""
         fwd = self._create_model(bkd)
-        assert hasattr(fwd, "jacobian")
+        assert fwd.derivatives().jacobian is not None
 
     def test_isinstance_protocols(self, bkd):
         """Zoo transient model satisfies expected protocols."""
         fwd = self._create_model(bkd)
         assert isinstance(fwd, FunctionProtocol)
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
     def test_jacobian_derivative_checker(self, bkd):
         """Zoo transient model Jacobian passes DerivativeChecker."""
@@ -242,7 +242,7 @@ class TestTransientDiffusionZoo:
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
             fun=fwd,
-            jacobian=fwd.jacobian,
+            jacobian=fwd.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)

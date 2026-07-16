@@ -45,13 +45,6 @@ class TransformedFieldMap(Generic[Array]):
         self._bkd = bkd
         self._transform_deriv2 = transform_deriv2
 
-        # Dynamic binding: jacobian only if inner has jacobian
-        if hasattr(self._inner, "jacobian"):
-            self.jacobian = self._jacobian
-
-        # Dynamic binding: hvp only if inner has jacobian AND deriv2 provided
-        if hasattr(self._inner, "jacobian") and transform_deriv2 is not None:
-            self.hvp = self._hvp
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -63,15 +56,29 @@ class TransformedFieldMap(Generic[Array]):
         """Evaluate transform(inner(params)). Must NOT use float()."""
         return self._transform(self._inner(params_1d))
 
-    def _jacobian(self, params_1d: Array) -> Array:
+    def has_hvp(self) -> bool:
+        """Whether hvp is available (requires transform_deriv2)."""
+        return self._transform_deriv2 is not None
+
+    def jacobian(self, params_1d: Array) -> Array:
         """Compute Jacobian via chain rule. Shape: (npts, nvars)."""
         inner_val = self._inner(params_1d)
         inner_jac = self._inner.jacobian(params_1d)
         t_deriv = self._transform_deriv(inner_val)
         return self._bkd.diag(t_deriv) @ inner_jac
 
-    def _hvp(self, params_1d: Array, adj_state: Array, vvec: Array) -> Array:
-        """Compute Hessian-vector product. Shape: (nvars,)."""
+    def hvp(self, params_1d: Array, adj_state: Array, vvec: Array) -> Array:
+        """Compute Hessian-vector product. Shape: (nvars,).
+
+        Raises
+        ------
+        RuntimeError
+            If transform_deriv2 was not provided; check has_hvp first.
+        """
+        if self._transform_deriv2 is None:
+            raise RuntimeError(
+                "hvp is unavailable; check has_hvp before calling"
+            )
         inner_val = self._inner(params_1d)
         inner_jac = self._inner.jacobian(params_1d)
         t_deriv2 = self._transform_deriv2(inner_val)

@@ -260,8 +260,10 @@ class TestFieldMaps:
         ratio = float(bkd.min(errors) / bkd.max(errors))
         assert ratio <= 1e-5
 
-    def test_transformed_no_jacobian_without_inner_jacobian(self, bkd) -> None:
-        """TransformedFieldMap has no jacobian if inner lacks it."""
+    def test_transformed_rejects_inner_without_jacobian(self, bkd) -> None:
+        """FieldMapProtocol requires jacobian, so eval-only inners are
+        rejected at construction (a missing field-map jacobian would
+        silently drop derivative capability from the whole chain)."""
 
         class EvalOnlyFieldMap:
             def nvars(self) -> int:
@@ -271,13 +273,13 @@ class TestFieldMaps:
                 return params_1d
 
         inner = EvalOnlyFieldMap()
-        tfm = TransformedFieldMap(
-            inner,
-            transform=lambda x: x,
-            transform_deriv=lambda x: bkd.ones(x.shape),
-            bkd=bkd,
-        )
-        assert not hasattr(tfm, "jacobian")
+        with pytest.raises(TypeError):
+            TransformedFieldMap(
+                inner,
+                transform=lambda x: x,
+                transform_deriv=lambda x: bkd.ones(x.shape),
+                bkd=bkd,
+            )
 
     def test_transformed_init_type_error(self, bkd) -> None:
         """TransformedFieldMap raises TypeError for non-FieldMap inner."""

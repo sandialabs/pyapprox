@@ -9,15 +9,31 @@ from pyapprox.util.backends.protocols import Array
 class FieldMapProtocol(Protocol, Generic[Array]):
     """Protocol for field maps: parameter vector -> spatial field.
 
-    Required methods:
-        nvars() -> int
-        __call__(params_1d) -> Array
-
-    Optional methods (detected via hasattr):
-        jacobian(params_1d) -> Array  shape (npts, nvars)
-        hvp(params_1d, adj_state, vvec) -> Array  shape (nvars,)
+    ``jacobian`` is required: every field map is an analytic leaf of the
+    parameterization chain, and a missing jacobian would silently drop
+    derivative capability from every consumer above it (ending in
+    finite differences of full PDE solves). Field maps use the pde
+    1D-array convention, so their derivatives are named methods rather
+    than a Derivatives bundle; optional capability (hvp) is declared by
+    FieldMapWithHVPProtocol.
     """
 
     def nvars(self) -> int: ...
 
     def __call__(self, params_1d: Array) -> Array: ...
+
+    def jacobian(self, params_1d: Array) -> Array:
+        """Compute d(field)/d(params). Shape: (npts, nvars)."""
+        ...
+
+
+@runtime_checkable
+class FieldMapWithHVPProtocol(FieldMapProtocol[Array], Protocol):
+    """Field map additionally providing an adjoint-weighted HVP."""
+
+    def hvp(self, params_1d: Array, adj_state: Array, vvec: Array) -> Array:
+        """Compute adj_state-weighted Hessian-vector product.
+
+        Shape: (nvars,).
+        """
+        ...

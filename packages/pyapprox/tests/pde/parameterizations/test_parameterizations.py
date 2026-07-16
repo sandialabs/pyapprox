@@ -508,7 +508,7 @@ class TestCompositeWithSteadyForwardModel:
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
             fun=fwd,
-            jacobian=fwd.jacobian,
+            jacobian=fwd.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)

@@ -45,11 +45,6 @@ class DiffusionParameterization(Generic[Array]):
             time_modulation if time_modulation is not None else lambda t: 1.0
         )
 
-        # Dynamic binding: param_jacobian only if field_map has jacobian
-        if hasattr(self._field_map, "jacobian"):
-            self.param_jacobian = self._param_jacobian
-            self.initial_param_jacobian = self._initial_param_jacobian
-            self.bc_flux_param_sensitivity = self._bc_flux_param_sensitivity
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -70,7 +65,7 @@ class DiffusionParameterization(Generic[Array]):
             )
         physics.set_diffusion(lambda t, _f=field: _f * self._time_mod(t))
 
-    def _param_jacobian(
+    def param_jacobian(
         self,
         physics: object,
         state: Array,
@@ -94,7 +89,7 @@ class DiffusionParameterization(Generic[Array]):
                 result[j, i] = col[j]
         return result
 
-    def _bc_flux_param_sensitivity(
+    def bc_flux_param_sensitivity(
         self,
         physics: object,
         state: Array,
@@ -117,7 +112,7 @@ class DiffusionParameterization(Generic[Array]):
             grad_u_dot_n = grad_u_dot_n + grad_u_d[bc_indices] * normals[:, d]
         return -grad_u_dot_n[:, None] * dD_dp
 
-    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
+    def initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         npts = physics.npts()
         return self._bkd.zeros((npts, self.nparams()))

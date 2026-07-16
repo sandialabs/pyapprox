@@ -267,9 +267,10 @@ class TestSteadyForwardModel:
         """SteadyForwardModel jacobian works."""
         physics, param, init_state = _create_parameterized_diffusion_problem(bkd)
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=param)
-        assert hasattr(fwd, "jacobian")
+        fwd_jac = fwd.derivatives().jacobian
+        assert fwd_jac is not None
         sample = bkd.array([0.3, 0.1])[:, None]
-        jac = fwd.jacobian(sample)
+        jac = fwd_jac(sample)
         assert jac.shape == (fwd.nqoi(), fwd.nvars())
 
     def test_jacobian_with_identity_functional(self, bkd):
@@ -286,7 +287,7 @@ class TestSteadyForwardModel:
             nqoi=forward_model.nqoi(),
             nvars=forward_model.nvars(),
             fun=forward_model,
-            jacobian=forward_model.jacobian,
+            jacobian=forward_model.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -318,7 +319,7 @@ class TestSteadyForwardModel:
             nqoi=forward_model.nqoi(),
             nvars=forward_model.nvars(),
             fun=forward_model,
-            jacobian=forward_model.jacobian,
+            jacobian=forward_model.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -349,7 +350,13 @@ class TestSteadyForwardModel:
         )
 
     def test_no_jacobian_with_eval_only_param(self, bkd):
-        """Eval-only field map -> hasattr(fwd, 'jacobian') is False."""
+        """Eval-only parameterization -> bundle jacobian is None.
+
+        Field maps must provide jacobian (protocol-required), so the
+        evaluation-only negative path lives at the parameterization
+        layer: a parameterization without param_jacobian yields a
+        forward model whose bundle declares no jacobian.
+        """
         npts = 20
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
@@ -374,23 +381,22 @@ class TestSteadyForwardModel:
             ]
         )
 
-        class EvalOnlyFieldMap:
-            def nvars(self):
+        class EvalOnlyParameterization:
+            def nparams(self):
                 return 2
 
-            def __call__(self, params_1d):
+            def apply(self, phys, params_1d):
                 phi0 = bkd.ones((npts,))
-                return (
+                field = (
                     bkd.full((npts,), 1.0) + params_1d[0] * phi0 + params_1d[1] * nodes
                 )
+                phys.set_diffusion(lambda t, _f=field: _f)
 
-        D_mats = [basis.derivative_matrix()]
-        fm = EvalOnlyFieldMap()
-        dp = DiffusionParameterization(fm, D_mats, bkd)
+        dp = EvalOnlyParameterization()
 
         init_state = bkd.zeros((npts,))
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=dp)
-        assert not hasattr(fwd, "jacobian")
+        assert fwd.derivatives().jacobian is None
         # __call__ still works
         samples = bkd.array([0.3, 0.1])[:, None]
         result = fwd(samples)
@@ -398,20 +404,19 @@ class TestSteadyForwardModel:
         assert result.shape[1] == 1
 
     def test_no_hvp_with_linear_param(self, bkd):
-        """Linear BasisExpansion has no HVP -> hasattr(fwd, 'hvp') is False."""
+        """Linear BasisExpansion has no HVP -> bundle hvp is None."""
         physics, param, init_state = _create_parameterized_diffusion_problem(bkd)
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=param)
-        assert not hasattr(fwd, "hvp")
+        assert fwd.derivatives().hvp is None
 
     def test_protocol_isinstance_with_jacobian(self, bkd):
         """Forward model with jacobian satisfies FunctionProtocol."""
         physics, param, init_state = _create_parameterized_diffusion_problem(bkd)
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=param)
         assert isinstance(fwd, FunctionProtocol)
-        # jacobian attached, hvp not (pde still uses conditional
-        # injection; bundle migration reaches it in the pde stage)
-        assert callable(fwd.jacobian)
-        assert not hasattr(fwd, "hvp")
+        derivs = fwd.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.hvp is None
 
     def test_torch_autograd_jacobian(self, torch_bkd):
         """Torch autograd.functional.jacobian matches fwd.jacobian."""
@@ -426,7 +431,7 @@ class TestSteadyForwardModel:
             return fwd(p[:, None])[:, 0]
 
         autograd_jac = torch.autograd.functional.jacobian(fwd_call, sample)
-        analytical_jac = fwd.jacobian(sample[:, None])
+        analytical_jac = fwd.derivatives().jacobian(sample[:, None])
         bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-8, atol=1e-12)
 
     def test_protocol_isinstance_eval_only(self, bkd):
@@ -455,21 +460,18 @@ class TestSteadyForwardModel:
             ]
         )
 
-        class EvalOnlyFieldMap:
-            def nvars(self):
+        class EvalOnlyParameterization:
+            def nparams(self):
                 return 1
 
-            def __call__(self, params_1d):
-                return bkd.full((npts,), 1.0) + params_1d[0] * bkd.ones((npts,))
+            def apply(self, phys, params_1d):
+                field = bkd.full((npts,), 1.0) + params_1d[0] * bkd.ones((npts,))
+                phys.set_diffusion(lambda t, _f=field: _f)
 
-        D_mats = [basis.derivative_matrix()]
-        fm = EvalOnlyFieldMap()
-        dp = DiffusionParameterization(fm, D_mats, bkd)
+        dp = EvalOnlyParameterization()
 
         init_state = bkd.zeros((npts,))
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=dp)
         assert isinstance(fwd, FunctionProtocol)
-        # eval-only parameterization: no jacobian is attached (pde still
-        # uses conditional injection; bundle migration reaches it in the
-        # pde stage)
-        assert not hasattr(fwd, "jacobian")
+        # eval-only parameterization: the bundle declares no capability
+        assert fwd.derivatives().jacobian is None

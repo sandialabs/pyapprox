@@ -7,6 +7,7 @@ adjoint-based Jacobian (scalar QoI) or forward sensitivity Jacobian
 
 from typing import Any, Generic, Optional, Tuple
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
@@ -17,6 +18,8 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
+    ParameterizationWithJacobianProtocol,
+    PhysicsWithParamJacobianProtocol,
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
@@ -81,12 +84,27 @@ class TransientForwardModel(Generic[Array]):
             )
         self._functional = functional
 
-        # Dynamic binding for jacobian
-        has_param_jac = (
-            parameterization is not None and hasattr(parameterization, "param_jacobian")
-        ) or (parameterization is None and hasattr(physics, "param_jacobian"))
-        if has_param_jac:
-            self.jacobian = self._jacobian_dispatch
+        # Capability: the adjoint/sensitivity jacobian needs a parameter
+        # jacobian from the parameterization (or legacy-path physics)
+        self._has_param_jac = (
+            parameterization is not None
+            and isinstance(
+                parameterization, ParameterizationWithJacobianProtocol
+            )
+        ) or (
+            parameterization is None
+            and isinstance(physics, PhysicsWithParamJacobianProtocol)
+        )
+        if self._has_param_jac:
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian_dispatch
+            )
+        else:
+            self._derivs = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (jacobian w.r.t. parameters)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""

@@ -232,15 +232,15 @@ class TestHyperelasticBar1D:
             field_map=field_map,
         )
 
-        assert hasattr(fwd, "jacobian")
+        assert fwd.derivatives().jacobian is not None
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
             fun=fwd,
-            jacobian=fwd.jacobian,
+            jacobian=fwd.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -424,7 +424,7 @@ class TestHyperelasticBar1D:
 
         assert isinstance(fwd, FunctionProtocol)
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
         samples = bkd.zeros((num_kle_terms, 1))
         result = fwd(samples)

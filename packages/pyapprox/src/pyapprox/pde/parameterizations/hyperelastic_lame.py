@@ -56,11 +56,6 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
             (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
         )
 
-        # Dynamic binding: param_jacobian only if field_map has jacobian
-        if hasattr(self._field_map, "jacobian"):
-            self.param_jacobian = self._param_jacobian
-            self.initial_param_jacobian = self._initial_param_jacobian
-            self.bc_flux_param_sensitivity = self._bc_flux_param_sensitivity
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -79,7 +74,7 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
         physics.set_mu(E_field * self._dmu_dE)
         physics.set_lamda(E_field * self._dlam_dE)
 
-    def _param_jacobian(
+    def param_jacobian(
         self,
         physics: object,
         state: Array,
@@ -120,11 +115,11 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
                 result[k, j] = col[k]
         return result
 
-    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
+    def initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         return self._bkd.zeros((physics.nstates(), self.nparams()))
 
-    def _bc_flux_param_sensitivity(
+    def bc_flux_param_sensitivity(
         self,
         physics: object,
         state: Array,

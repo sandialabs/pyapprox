@@ -324,3 +324,22 @@ class ParameterizationProtocol(Protocol, Generic[Array]):
     def nparams(self) -> int: ...
 
     def apply(self, physics: object, params_1d: Array) -> None: ...
+
+
+@runtime_checkable
+class ParameterizationWithJacobianProtocol(
+    ParameterizationProtocol[Array], Protocol
+):
+    """Parameterization additionally providing parameter jacobians."""
+
+    def param_jacobian(
+        self, physics: object, state: Array, time: float, params_1d: Array
+    ) -> Array:
+        """Compute d(residual)/d(params). Shape: (nstates, nparams)."""
+        ...
+
+    def initial_param_jacobian(
+        self, physics: object, params_1d: Array
+    ) -> Array:
+        """Compute d(initial_state)/d(params). Shape: (nstates, nparams)."""
+        ...

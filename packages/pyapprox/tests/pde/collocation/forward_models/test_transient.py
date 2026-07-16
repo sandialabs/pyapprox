@@ -170,7 +170,7 @@ class TestTransientForwardModel:
             nqoi=forward_model.nqoi(),
             nvars=forward_model.nvars(),
             fun=forward_model,
-            jacobian=forward_model.jacobian,
+            jacobian=forward_model.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -204,7 +204,7 @@ class TestTransientForwardModel:
             nqoi=forward_model.nqoi(),
             nvars=forward_model.nvars(),
             fun=forward_model,
-            jacobian=forward_model.jacobian,
+            jacobian=forward_model.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -225,7 +225,7 @@ class TestTransientForwardModel:
         fwd_vector = TransientForwardModel(
             physics, bkd, init_state, time_config, parameterization=param
         )
-        jac_vector = fwd_vector.jacobian(param_2d)
+        jac_vector = fwd_vector.derivatives().jacobian(param_2d)
 
         # Scalar QoI for a specific state
         state_idx = nstates // 2
@@ -238,7 +238,7 @@ class TestTransientForwardModel:
             functional=functional,
             parameterization=param,
         )
-        jac_scalar = fwd_scalar.jacobian(param_2d)
+        jac_scalar = fwd_scalar.derivatives().jacobian(param_2d)
 
         # Row state_idx of vector Jacobian should match scalar Jacobian
         bkd.assert_allclose(
@@ -262,7 +262,7 @@ class TestTransientForwardModel:
             return fwd(p[:, None])[:, 0]
 
         autograd_jac = torch.autograd.functional.jacobian(fwd_call, sample)
-        analytical_jac = fwd.jacobian(sample[:, None])
+        analytical_jac = fwd.derivatives().jacobian(sample[:, None])
         bkd.assert_allclose(analytical_jac, autograd_jac, rtol=1e-6, atol=1e-12)
 
     def test_protocol_isinstance(self, bkd):
@@ -275,7 +275,7 @@ class TestTransientForwardModel:
         )
         assert isinstance(fwd, FunctionProtocol)
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
 
 def _create_robin_transient_problem(bkd, npts=15):
@@ -425,7 +425,7 @@ class TestTransientRobinBC:
             nqoi=forward_model.nqoi(),
             nvars=forward_model.nvars(),
             fun=forward_model,
-            jacobian=forward_model.jacobian,
+            jacobian=forward_model.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -457,7 +457,7 @@ class TestTransientRobinBC:
             nqoi=forward_model.nqoi(),
             nvars=forward_model.nvars(),
             fun=forward_model,
-            jacobian=forward_model.jacobian,
+            jacobian=forward_model.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -475,7 +475,7 @@ class TestTransientRobinBC:
         fwd_vector = TransientForwardModel(
             physics, bkd, init_state, tc, parameterization=param
         )
-        jac_vector = fwd_vector.jacobian(param_2d)
+        jac_vector = fwd_vector.derivatives().jacobian(param_2d)
 
         state_idx = nstates // 2
         functional = EndpointFunctional(state_idx, nstates, nparams, bkd)
@@ -487,7 +487,7 @@ class TestTransientRobinBC:
             functional=functional,
             parameterization=param,
         )
-        jac_scalar = fwd_scalar.jacobian(param_2d)
+        jac_scalar = fwd_scalar.derivatives().jacobian(param_2d)
 
         bkd.assert_allclose(
             jac_vector[state_idx : state_idx + 1, :], jac_scalar, rtol=1e-8
@@ -510,7 +510,7 @@ class TestTransientMixedBC:
             nqoi=forward_model.nqoi(),
             nvars=forward_model.nvars(),
             fun=forward_model,
-            jacobian=forward_model.jacobian,
+            jacobian=forward_model.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -542,7 +542,7 @@ class TestTransientMixedBC:
             nqoi=forward_model.nqoi(),
             nvars=forward_model.nvars(),
             fun=forward_model,
-            jacobian=forward_model.jacobian,
+            jacobian=forward_model.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -560,7 +560,7 @@ class TestTransientMixedBC:
         fwd_vector = TransientForwardModel(
             physics, bkd, init_state, tc, parameterization=param
         )
-        jac_vector = fwd_vector.jacobian(param_2d)
+        jac_vector = fwd_vector.derivatives().jacobian(param_2d)
 
         state_idx = nstates // 2
         functional = EndpointFunctional(state_idx, nstates, nparams, bkd)
@@ -572,7 +572,7 @@ class TestTransientMixedBC:
             functional=functional,
             parameterization=param,
         )
-        jac_scalar = fwd_scalar.jacobian(param_2d)
+        jac_scalar = fwd_scalar.derivatives().jacobian(param_2d)
 
         bkd.assert_allclose(
             jac_vector[state_idx : state_idx + 1, :], jac_scalar, rtol=1e-8

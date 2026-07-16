@@ -5,8 +5,9 @@ physics as ParameterizedStateEquationWithJacobianProtocol) and SteadyForwardMode
 (satisfies FunctionProtocol with adjoint-based Jacobian computation).
 """
 
-from typing import Any, Generic, Optional
+from typing import Any, Generic, Optional, Union
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
@@ -21,6 +22,8 @@ from pyapprox.optimization.implicitfunction.operator.sensitivities import (
 )
 from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
+    ParameterizationWithJacobianProtocol,
+    PhysicsWithParamJacobianProtocol,
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
@@ -201,12 +204,24 @@ class CollocationStateEquationAdapter(Generic[Array]):
         """
         self._set_param(param)
         state_1d = state[:, 0]
-        if self._parameterization is not None:
-            pjac = self._parameterization.param_jacobian(
+        parameterization = self._parameterization
+        if parameterization is not None:
+            if not isinstance(
+                parameterization, ParameterizationWithJacobianProtocol
+            ):
+                raise RuntimeError(
+                    "parameterization does not provide param_jacobian"
+                )
+            pjac = parameterization.param_jacobian(
                 self._physics, state_1d, 0.0, param[:, 0]
             )
         else:
-            pjac = self._physics.param_jacobian(state_1d, 0.0)
+            physics = self._physics
+            if not isinstance(physics, PhysicsWithParamJacobianProtocol):
+                raise RuntimeError(
+                    "physics does not provide param_jacobian"
+                )
+            pjac = physics.param_jacobian(state_1d, 0.0)
 
         # Apply BC corrections (replaces _zero_bc_rows)
         if hasattr(self._physics, "boundary_conditions"):
@@ -310,15 +325,35 @@ class SteadyForwardModel(Generic[Array]):
         self._functional = functional
 
         # Lazy adjoint -- built on first jacobian call
-        self._adjoint_op = None
+        self._adjoint_op: Optional[
+            Union[
+                AdjointOperatorWithJacobian[Array],
+                VectorAdjointOperatorWithJacobian[Array],
+            ]
+        ] = None
         self._nparams = nparams
 
-        # Dynamic binding for jacobian
-        has_param_jac = (
-            parameterization is not None and hasattr(parameterization, "param_jacobian")
-        ) or (parameterization is None and hasattr(physics, "param_jacobian"))
-        if has_param_jac:
-            self.jacobian = self._jacobian
+        # Capability: the adjoint jacobian needs a parameter jacobian
+        # from the parameterization (or, on the legacy path, the physics)
+        self._has_param_jac = (
+            parameterization is not None
+            and isinstance(
+                parameterization, ParameterizationWithJacobianProtocol
+            )
+        ) or (
+            parameterization is None
+            and isinstance(physics, PhysicsWithParamJacobianProtocol)
+        )
+        if self._has_param_jac:
+            self._derivs: Derivatives[Array] = Derivatives.first_order(
+                jacobian=self._jacobian
+            )
+        else:
+            self._derivs = Derivatives.none()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (jacobian w.r.t. parameters)."""
+        return self._derivs
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -348,7 +383,7 @@ class SteadyForwardModel(Generic[Array]):
         """Build adjoint operator on first call."""
         if self._adjoint_op is not None:
             return
-        if not hasattr(self, "jacobian"):
+        if not self._has_param_jac:
             return
         if self._functional.nqoi() == 1:
             self._adjoint_op = AdjointOperatorWithJacobian(
@@ -400,4 +435,9 @@ class SteadyForwardModel(Generic[Array]):
             Jacobian matrix. Shape: (nqoi, nvars).
         """
         self._ensure_adjoint_op()
-        return self._adjoint_op.jacobian(self._init_state_2d, sample)
+        adjoint_op = self._adjoint_op
+        if adjoint_op is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
+        return adjoint_op.jacobian(self._init_state_2d, sample)
