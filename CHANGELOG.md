@@ -55,6 +55,11 @@ section is renamed to the version number when a release is tagged (see
 
 ### Changed
 
+- Derivative access goes through a `Derivatives` bundle: functions
+  declare jacobian/hessian/hvp capabilities via `derivatives()` instead
+  of duck-typed methods. The legacy capability-tier protocols, the
+  parameterized adapter package, and the `as_derivatives` shim were
+  removed; `DerivativeChecker` requires the bundle.
 - Randomized SVD classes renamed for accuracy (no aliases kept):
   `SinglePassRandomizedSVD` → `TwoPassRandomizedSVD` and
   `DoublePassRandomizedSVD` → `SymmetricRandomizedSVD`.
