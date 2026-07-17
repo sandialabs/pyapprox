@@ -69,9 +69,6 @@ from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
-from pyapprox.pde.galerkin.kle_factory import (
-    create_spde_lognormal_kle_field_map,
-)
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.probability.joint.independent import IndependentJoint
@@ -317,6 +314,9 @@ def _create_subdomain_spde_kle_field_maps(
 
         # Build submesh and basis
         from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+        from pyapprox.pde.galerkin.kle_factory import (
+            create_spde_lognormal_kle_field_map,
+        )
 
         submesh_skfem = skfem_mesh.restrict(elem_idx)
         submesh = _SkfemSubmesh(submesh_skfem, bkd)
@@ -919,18 +919,17 @@ def build_cantilever_beam_2d_linear(
     correlation_length : float
         Correlation length for KLE kernel (in normalized coordinates).
     """
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.solvers.steady_state import (
         SteadyStateSolver,
     )
     from skfem import Basis as SkfemBasis
-
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-    from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
@@ -1062,20 +1061,19 @@ def build_cantilever_beam_2d_neohookean(
     correlation_length : float
         Correlation length for KLE kernel (in normalized coordinates).
     """
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
+    )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.pde.galerkin.physics import (
+        CompositeHyperelasticityPhysics,
     )
     from pyapprox.pde.galerkin.solvers.steady_state import (
         SteadyStateSolver,
     )
     from skfem import Basis as SkfemBasis
-
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-    from pyapprox.pde.galerkin.physics import (
-        CompositeHyperelasticityPhysics,
-    )
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
@@ -1211,6 +1209,9 @@ def build_cantilever_beam_1d_spde(
         Correlation length for the SPDE Matern field.
     """
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+    from pyapprox.pde.galerkin.kle_factory import (
+        create_spde_lognormal_kle_field_map,
+    )
     from pyapprox.pde.galerkin.mesh.structured import StructuredMesh1D
 
     mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
@@ -1300,18 +1301,17 @@ def build_cantilever_beam_2d_linear_spde(
     correlation_length : float
         Correlation length for the SPDE Matern field.
     """
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.solvers.steady_state import (
         SteadyStateSolver,
     )
     from skfem import Basis as SkfemBasis
-
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-    from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
@@ -1439,20 +1439,19 @@ def build_cantilever_beam_2d_neohookean_spde(
     correlation_length : float
         Correlation length for the SPDE Matern field.
     """
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
+    )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.pde.galerkin.physics import (
+        CompositeHyperelasticityPhysics,
     )
     from pyapprox.pde.galerkin.solvers.steady_state import (
         SteadyStateSolver,
     )
     from skfem import Basis as SkfemBasis
-
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-    from pyapprox.pde.galerkin.physics import (
-        CompositeHyperelasticityPhysics,
-    )
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)
