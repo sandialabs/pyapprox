@@ -1,6 +1,9 @@
 from pyapprox.pde.parameterizations.composite import (
     CompositeParameterization,
 )
+from pyapprox.pde.parameterizations.derivatives import (
+    ParamDerivatives,
+)
 from pyapprox.pde.parameterizations.diffusion import (
     DiffusionParameterization,
     create_diffusion_parameterization,
@@ -28,6 +31,7 @@ from pyapprox.pde.parameterizations.reaction import (
 )
 
 __all__ = [
+    "ParamDerivatives",
     "ParameterizationProtocol",
     "DiffusionParameterization",
     "create_diffusion_parameterization",

@@ -4,9 +4,10 @@ NumPy-only tests (eigensolve is scipy-based; skfem is a dependency).
 Uses small meshes (10x10 or 20-element 1D) to keep tests fast and
 memory-light.
 
-These tests live in pde/field_maps/tests/ (not surrogates/kle/tests/)
-because the factory functions depend on skfem, which is a PDE-layer
-dependency.
+These tests live in tests/pde/galerkin/ (not surrogates/kle/ or
+pde/field_maps/) because the SPDE factory functions live in
+pde.galerkin.kle_factory — they assemble the precision operator with
+galerkin machinery (BiLaplacianPrior, Robin BCs, skfem).
 
 Math Behind the Three Cross-Method Tests
 =========================================
@@ -203,21 +204,21 @@ parameterization and both discretizations are correct
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-
 from pyapprox.pde.field_maps.kle_factory import (
     create_fem_galerkin_kle,
     create_fem_nystrom_nodes_kle,
+)
+from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+from pyapprox.pde.galerkin.kle_factory import (
     create_spde_lognormal_kle_field_map,
     create_spde_matern_kle,
 )
-from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.mesh.structured import (
     StructuredMesh1D,
     StructuredMesh2D,
@@ -639,16 +640,15 @@ class TestSPDEMaternKLE:
         :math:`\mu_k` are from :math:`A \phi_k = \mu_k M \phi_k`.
         """
         bkd = numpy_bkd
-        from scipy.sparse.linalg import eigsh, spsolve
-        from skfem import asm
-        from skfem.models.poisson import mass
-
-        from pyapprox.pde.field_maps.kle_factory import (
-            _compute_spde_tau_squared,
-        )
         from pyapprox.pde.galerkin.bilaplacian import (
             BiLaplacianPrior,
         )
+        from pyapprox.pde.galerkin.kle_factory import (
+            _compute_spde_tau_squared,
+        )
+        from scipy.sparse.linalg import eigsh, spsolve
+        from skfem import asm
+        from skfem.models.poisson import mass
 
         gamma, delta, sigma = 4.0, 1.0, 1.0
         nx = 50

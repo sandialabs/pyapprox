@@ -10,22 +10,17 @@ The key difference from collocation is that Galerkin uses weak formulation
 with mass matrices: M*du/dt = F(u,t) instead of du/dt = f(u,t).
 """
 
-from typing import (  # noqa: F401
+from typing import (
     Any,
     Generic,
     Optional,
     Protocol,
     Tuple,
-    TypeVar,
     runtime_checkable,
 )
 
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
-
-# ParameterizationProtocol consumes arrays (argument position only), so
-# its type variable must be contravariant: a parameterization accepting
-# any Array works where one accepting a specific Array is expected.
-Array_contra = TypeVar("Array_contra", contravariant=True)
 
 
 @runtime_checkable
@@ -207,14 +202,21 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class ParameterizationProtocol(Protocol, Generic[Array_contra]):
+class ParameterizationProtocol(Protocol, Generic[Array]):
     """Minimal interface for physics parameterizations.
 
     Maps a parameter vector to physics inputs. Implementations live in
     pde.parameterizations; this protocol is defined here so galerkin
-    can depend on the interface without importing that module.
+    can depend on the interface without importing the implementation
+    module. Optional derivative capability is expressed through the
+    :class:`ParamDerivatives` bundle — absence of a capability is a
+    ``None`` field, never a missing attribute. (The bundle appears in
+    return position, so the type variable is invariant, not
+    contravariant.)
     """
 
     def nparams(self) -> int: ...
 
-    def apply(self, physics: object, params_1d: Array_contra) -> None: ...
+    def apply(self, physics: object, params_1d: Array) -> None: ...
+
+    def param_derivatives(self) -> ParamDerivatives[Array]: ...

@@ -60,8 +60,10 @@ from pyapprox.surrogates.kle import MeshKLE
 from pyapprox.pde.galerkin.mesh.structured import StructuredMesh1D
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.field_maps.kle_factory import (
-    create_spde_matern_kle,
     create_fem_nystrom_nodes_kle,
+)
+from pyapprox.pde.galerkin.kle_factory import (
+    create_spde_matern_kle,
 )
 
 bkd = NumpyBkd()

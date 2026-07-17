@@ -10,6 +10,7 @@ from typing import Generic, List
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.protocol import (
     DerivativeMatrixBasisProtocol,
 )
@@ -55,10 +56,17 @@ class HyperelasticYoungsModulusParameterization(Generic[Array]):
         self._dlam_dE = poisson_ratio / (
             (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
         )
-
+        self._derivs: ParamDerivatives[Array] = ParamDerivatives.first_order(
+            self.param_jacobian,
+            self.initial_param_jacobian,
+            bc_flux_param_sensitivity=self.bc_flux_param_sensitivity,
+        )
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
+
+    def param_derivatives(self) -> ParamDerivatives[Array]:
+        return self._derivs
 
     def nparams(self) -> int:
         return self._field_map.nvars()

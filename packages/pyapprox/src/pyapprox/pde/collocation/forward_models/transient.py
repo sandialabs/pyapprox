@@ -18,7 +18,6 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
-    ParameterizationWithJacobianProtocol,
     PhysicsWithParamJacobianProtocol,
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
@@ -88,9 +87,8 @@ class TransientForwardModel(Generic[Array]):
         # jacobian from the parameterization (or legacy-path physics)
         self._has_param_jac = (
             parameterization is not None
-            and isinstance(
-                parameterization, ParameterizationWithJacobianProtocol
-            )
+            and parameterization.param_derivatives().param_jacobian
+            is not None
         ) or (
             parameterization is None
             and isinstance(physics, PhysicsWithParamJacobianProtocol)

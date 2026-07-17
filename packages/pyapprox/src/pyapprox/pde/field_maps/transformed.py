@@ -85,3 +85,21 @@ class TransformedFieldMap(Generic[Array]):
         jac_v = inner_jac @ vvec[:, None]
         weighted = adj_state * t_deriv2 * jac_v[:, 0]
         return inner_jac.T @ weighted
+
+
+class _ExpTransform(Generic[Array]):
+    """Picklable exp transform for :class:`TransformedFieldMap`.
+
+    One instance serves as ``transform``, ``transform_deriv``, and
+    ``transform_deriv2`` for the exp map (since ``d/dx exp = exp``).
+    Replaces the ``lambda x: bkd.exp(x)`` triple that previously broke
+    pickling of the :class:`TransformedFieldMap` returned by the
+    lognormal KLE factories (``pde.field_maps.kle_factory`` and
+    ``pde.galerkin.kle_factory``).
+    """
+
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def __call__(self, x: Array) -> Array:
+        return self._bkd.exp(x)

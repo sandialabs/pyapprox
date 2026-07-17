@@ -2,6 +2,7 @@
 
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array
 
 
@@ -22,20 +23,14 @@ class DerivativeMatrixBasisProtocol(Protocol, Generic[Array]):
 class ParameterizationProtocol(Protocol, Generic[Array]):
     """Protocol for physics parameterizations.
 
-    Required methods:
-        nparams() -> int
-        apply(physics, params_1d) -> None
-
-    Optional methods (detected via hasattr):
-        param_jacobian(physics, state, time, params_1d) -> Array  (nstates, nparams)
-        initial_param_jacobian(physics, params_1d) -> Array  (nstates, nparams)
-        bc_flux_param_sensitivity(physics, state, time, params_1d,
-            bc_indices, normals) -> Array  (n_bc, nparams)
-        param_param_hvp(physics, state, time, params_1d, adj_state, vvec) -> Array
-        state_param_hvp(physics, state, time, params_1d, adj_state, vvec) -> Array
-        param_state_hvp(physics, state, time, params_1d, adj_state, wvec) -> Array
+    Maps a parameter vector to physics inputs. Optional derivative
+    capability is expressed through the :class:`ParamDerivatives` bundle
+    returned by ``param_derivatives()`` — absence of a capability is a
+    ``None`` field, never a missing attribute.
     """
 
     def nparams(self) -> int: ...
 
     def apply(self, physics: object, params_1d: Array) -> None: ...
+
+    def param_derivatives(self) -> ParamDerivatives[Array]: ...

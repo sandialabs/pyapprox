@@ -68,6 +68,8 @@ MESH_PATHS = {
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
+)
+from pyapprox.pde.galerkin.kle_factory import (
     create_spde_lognormal_kle_field_map,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap

@@ -13,6 +13,7 @@ from typing import Dict, Generic, List, Tuple
 
 import numpy as np
 
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -57,10 +58,18 @@ class GalerkinLameParameterization(Generic[Array]):
         }
         self._nelems = nelems
         self._bkd = bkd
+        self._derivs: ParamDerivatives[Array] = ParamDerivatives.first_order(
+            self.param_jacobian,
+            self.initial_param_jacobian,
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
+
+    def param_derivatives(self) -> ParamDerivatives[Array]:
+        """Return the derivative capability bundle."""
+        return self._derivs
 
     def nparams(self) -> int:
         """Return number of parameters (2 per material: E, nu)."""

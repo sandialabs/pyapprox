@@ -22,7 +22,6 @@ from pyapprox.optimization.implicitfunction.operator.sensitivities import (
 )
 from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
-    ParameterizationWithJacobianProtocol,
     PhysicsWithParamJacobianProtocol,
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
@@ -206,13 +205,12 @@ class CollocationStateEquationAdapter(Generic[Array]):
         state_1d = state[:, 0]
         parameterization = self._parameterization
         if parameterization is not None:
-            if not isinstance(
-                parameterization, ParameterizationWithJacobianProtocol
-            ):
+            param_jac_fn = parameterization.param_derivatives().param_jacobian
+            if param_jac_fn is None:
                 raise RuntimeError(
                     "parameterization does not provide param_jacobian"
                 )
-            pjac = parameterization.param_jacobian(
+            pjac = param_jac_fn(
                 self._physics, state_1d, 0.0, param[:, 0]
             )
         else:
@@ -246,9 +244,12 @@ class CollocationStateEquationAdapter(Generic[Array]):
         bc_flux_param_sensitivity. Only applies to BCs whose normal operator
         has coefficient dependence (e.g., flux Neumann with parameterized D).
         """
-        if self._parameterization is None or not hasattr(
-            self._parameterization, "bc_flux_param_sensitivity"
-        ):
+        if self._parameterization is None:
+            return None
+        bc_flux_fn = (
+            self._parameterization.param_derivatives().bc_flux_param_sensitivity
+        )
+        if bc_flux_fn is None:
             return None
         if not hasattr(bc, "normal_operator"):
             return None
@@ -260,11 +261,9 @@ class CollocationStateEquationAdapter(Generic[Array]):
             return None
         bc_idx = bc.boundary_indices()
         normals = normal_op.normals()
-        dflux_n_dp = self._parameterization.bc_flux_param_sensitivity(
+        dflux_n_dp = bc_flux_fn(
             self._physics, state_1d, time, params_1d, bc_idx, normals
         )
-        if dflux_n_dp is None:
-            return None
         return {"dflux_n_dp": dflux_n_dp}
 
 
@@ -337,9 +336,8 @@ class SteadyForwardModel(Generic[Array]):
         # from the parameterization (or, on the legacy path, the physics)
         self._has_param_jac = (
             parameterization is not None
-            and isinstance(
-                parameterization, ParameterizationWithJacobianProtocol
-            )
+            and parameterization.param_derivatives().param_jacobian
+            is not None
         ) or (
             parameterization is None
             and isinstance(physics, PhysicsWithParamJacobianProtocol)

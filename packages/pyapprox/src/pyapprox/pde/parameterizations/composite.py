@@ -1,15 +1,42 @@
 """CompositeParameterization: chains multiple parameterizations."""
 
-from typing import Generic, List
+from typing import Generic, List, Optional, Sequence, TypeVar
 
+from pyapprox.pde.parameterizations.derivatives import (
+    BCFluxParamSensitivityFn,
+    InitialParamJacobianFn,
+    ParamDerivatives,
+    ParamHVPFn,
+    ParamJacobianFn,
+)
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
+_F = TypeVar("_F")
+
+
+def _all_or_none(fns: Sequence[Optional[_F]]) -> Optional[List[_F]]:
+    """Return the callables when every entry is populated, else None.
+
+    A composite capability exists iff EVERY part provides it.
+    """
+    result: List[_F] = []
+    for fn in fns:
+        if fn is None:
+            return None
+        result.append(fn)
+    return result
+
 
 class CompositeParameterization(Generic[Array]):
     """Chains multiple parameterizations over contiguous parameter slices.
+
+    Derivative capability is composed field-by-field from the parts'
+    :class:`ParamDerivatives` bundles: a field is populated iff EVERY
+    part's bundle has it. The bundle is rebuilt (never mutated) when a
+    part is appended.
 
     Parameters
     ----------
@@ -33,10 +60,14 @@ class CompositeParameterization(Generic[Array]):
         self._parts: List[ParameterizationProtocol[Array]] = list(parts)
         self._bkd = bkd
         self._recompute_offsets()
-        self._bind_optional_methods()
+        self._build_derivatives()
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
+
+    def param_derivatives(self) -> ParamDerivatives[Array]:
+        """Return the composed derivative capability bundle."""
+        return self._derivs
 
     def _recompute_offsets(self) -> None:
         """Recompute contiguous parameter slice offsets."""
@@ -47,36 +78,61 @@ class CompositeParameterization(Generic[Array]):
             offset += part.nparams()
         self._total_nparams = offset
 
-    def _bind_optional_methods(self) -> None:
-        """Bind optional methods if ALL parts support them."""
-        # param_jacobian: only if ALL parts have it
-        if all(hasattr(p, "param_jacobian") for p in self._parts):
-            self.param_jacobian = self._param_jacobian
-        elif hasattr(self, "param_jacobian"):
-            del self.param_jacobian
-
-        # initial_param_jacobian: only if ALL parts have it
-        if all(hasattr(p, "initial_param_jacobian") for p in self._parts):
-            self.initial_param_jacobian = self._initial_param_jacobian
-        elif hasattr(self, "initial_param_jacobian"):
-            del self.initial_param_jacobian
-
-        # bc_flux_param_sensitivity: only if ALL parts have it
-        if all(hasattr(p, "bc_flux_param_sensitivity") for p in self._parts):
-            self.bc_flux_param_sensitivity = self._bc_flux_param_sensitivity
-        elif hasattr(self, "bc_flux_param_sensitivity"):
-            del self.bc_flux_param_sensitivity
-
-        # HVP methods: only if ALL parts have them
-        for method_name, impl_name in [
-            ("param_param_hvp", "_param_param_hvp"),
-            ("state_param_hvp", "_state_param_hvp"),
-            ("param_state_hvp", "_param_state_hvp"),
-        ]:
-            if all(hasattr(p, method_name) for p in self._parts):
-                setattr(self, method_name, getattr(self, impl_name))
-            elif hasattr(self, method_name):
-                delattr(self, method_name)
+    def _build_derivatives(self) -> None:
+        """Compose the bundle field-by-field from the parts' bundles."""
+        part_derivs = [p.param_derivatives() for p in self._parts]
+        self._part_param_jacs: Optional[List[ParamJacobianFn[Array]]] = (
+            _all_or_none([d.param_jacobian for d in part_derivs])
+        )
+        self._part_initial_param_jacs: Optional[
+            List[InitialParamJacobianFn[Array]]
+        ] = _all_or_none([d.initial_param_jacobian for d in part_derivs])
+        self._part_param_param_hvps: Optional[List[ParamHVPFn[Array]]] = (
+            _all_or_none([d.param_param_hvp for d in part_derivs])
+        )
+        self._part_state_param_hvps: Optional[List[ParamHVPFn[Array]]] = (
+            _all_or_none([d.state_param_hvp for d in part_derivs])
+        )
+        self._part_param_state_hvps: Optional[List[ParamHVPFn[Array]]] = (
+            _all_or_none([d.param_state_hvp for d in part_derivs])
+        )
+        self._part_bc_flux_fns: Optional[
+            List[BCFluxParamSensitivityFn[Array]]
+        ] = _all_or_none(
+            [d.bc_flux_param_sensitivity for d in part_derivs]
+        )
+        self._derivs: ParamDerivatives[Array] = ParamDerivatives(
+            param_jacobian=(
+                self._param_jacobian
+                if self._part_param_jacs is not None
+                else None
+            ),
+            initial_param_jacobian=(
+                self._initial_param_jacobian
+                if self._part_initial_param_jacs is not None
+                else None
+            ),
+            param_param_hvp=(
+                self._param_param_hvp
+                if self._part_param_param_hvps is not None
+                else None
+            ),
+            state_param_hvp=(
+                self._state_param_hvp
+                if self._part_state_param_hvps is not None
+                else None
+            ),
+            param_state_hvp=(
+                self._param_state_hvp
+                if self._part_param_state_hvps is not None
+                else None
+            ),
+            bc_flux_param_sensitivity=(
+                self._bc_flux_param_sensitivity
+                if self._part_bc_flux_fns is not None
+                else None
+            ),
+        )
 
     def nparams(self) -> int:
         return self._total_nparams
@@ -89,14 +145,14 @@ class CompositeParameterization(Generic[Array]):
             part.apply(physics, params_1d[offset : offset + np_i])
 
     def append(self, part: ParameterizationProtocol[Array]) -> None:
-        """Append a parameterization. Re-binds optional methods."""
+        """Append a parameterization. Rebuilds the capability bundle."""
         if not isinstance(part, ParameterizationProtocol):
             raise TypeError(
                 f"part must satisfy ParameterizationProtocol, got {type(part).__name__}"
             )
         self._parts.append(part)
         self._recompute_offsets()
-        self._bind_optional_methods()
+        self._build_derivatives()
 
     def _param_jacobian(
         self,
@@ -106,14 +162,20 @@ class CompositeParameterization(Generic[Array]):
         params_1d: Array,
     ) -> Array:
         """Block-column assembly of param Jacobian. Shape: (npts, total_nparams)."""
+        fns = self._part_param_jacs
+        if fns is None:
+            raise RuntimeError(
+                "param_jacobian is unavailable; check param_derivatives() "
+                "before calling"
+            )
         npts = state.shape[0]
         result = self._bkd.zeros((npts, self._total_nparams))
         result = self._bkd.copy(result)
-        for ii, part in enumerate(self._parts):
+        for ii, fn in enumerate(fns):
             offset = self._offsets[ii]
-            np_i = part.nparams()
+            np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
-            block = part.param_jacobian(physics, state, time, sub_params)
+            block = fn(physics, state, time, sub_params)
             for col in range(np_i):
                 for row in range(npts):
                     result[row, offset + col] = block[row, col]
@@ -121,11 +183,17 @@ class CompositeParameterization(Generic[Array]):
 
     def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
         """Block-column assembly of initial param Jacobian."""
+        fns = self._part_initial_param_jacs
+        if fns is None:
+            raise RuntimeError(
+                "initial_param_jacobian is unavailable; check "
+                "param_derivatives() before calling"
+            )
         # Get npts from first part's result
         first_offset = self._offsets[0]
         np_0 = self._parts[0].nparams()
         sub_params_0 = params_1d[first_offset : first_offset + np_0]
-        block_0 = self._parts[0].initial_param_jacobian(physics, sub_params_0)
+        block_0 = fns[0](physics, sub_params_0)
         npts = block_0.shape[0]
 
         result = self._bkd.zeros((npts, self._total_nparams))
@@ -136,11 +204,10 @@ class CompositeParameterization(Generic[Array]):
                 result[row, first_offset + col] = block_0[row, col]
         # Fill remaining blocks
         for ii in range(1, len(self._parts)):
-            part = self._parts[ii]
             offset = self._offsets[ii]
-            np_i = part.nparams()
+            np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
-            block = part.initial_param_jacobian(physics, sub_params)
+            block = fns[ii](physics, sub_params)
             for col in range(np_i):
                 for row in range(npts):
                     result[row, offset + col] = block[row, col]
@@ -155,15 +222,25 @@ class CompositeParameterization(Generic[Array]):
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        """Block assembly of param-param HVP."""
+        """Block assembly of param-param HVP. Shape: (total_nparams,).
+
+        The block-diagonal Hessian assumption is valid because parts
+        parameterize distinct additive residual terms.
+        """
+        fns = self._part_param_param_hvps
+        if fns is None:
+            raise RuntimeError(
+                "param_param_hvp is unavailable; check param_derivatives() "
+                "before calling"
+            )
         result = self._bkd.zeros((self._total_nparams,))
         result = self._bkd.copy(result)
-        for ii, part in enumerate(self._parts):
+        for ii, fn in enumerate(fns):
             offset = self._offsets[ii]
-            np_i = part.nparams()
+            np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
             sub_vvec = vvec[offset : offset + np_i]
-            sub_result = part.param_param_hvp(
+            sub_result = fn(
                 physics, state, time, sub_params, adj_state, sub_vvec
             )
             for k in range(np_i):
@@ -179,19 +256,29 @@ class CompositeParameterization(Generic[Array]):
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        """Block assembly of state-param HVP."""
-        result = self._bkd.zeros((self._total_nparams,))
-        result = self._bkd.copy(result)
-        for ii, part in enumerate(self._parts):
+        """Sum of the parts' state-shaped HVPs. Shape: (nstates,).
+
+        lambda^T (d^2R/dy dp) v is state-shaped and additive over parts
+        (each part parameterizes a distinct additive residual term), so
+        the composite result is the SUM of part results, each contracted
+        with its own parameter slice of ``vvec`` — not a per-slot
+        assembly into a parameter-shaped vector.
+        """
+        fns = self._part_state_param_hvps
+        if fns is None:
+            raise RuntimeError(
+                "state_param_hvp is unavailable; check param_derivatives() "
+                "before calling"
+            )
+        result = self._bkd.zeros((state.shape[0],))
+        for ii, fn in enumerate(fns):
             offset = self._offsets[ii]
-            np_i = part.nparams()
+            np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
             sub_vvec = vvec[offset : offset + np_i]
-            sub_result = part.state_param_hvp(
+            result = result + fn(
                 physics, state, time, sub_params, adj_state, sub_vvec
             )
-            for k in range(np_i):
-                result[offset + k] = sub_result[k]
         return result
 
     def _param_state_hvp(
@@ -203,14 +290,20 @@ class CompositeParameterization(Generic[Array]):
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        """Block assembly of param-state HVP."""
+        """Block assembly of param-state HVP. Shape: (total_nparams,)."""
+        fns = self._part_param_state_hvps
+        if fns is None:
+            raise RuntimeError(
+                "param_state_hvp is unavailable; check param_derivatives() "
+                "before calling"
+            )
         result = self._bkd.zeros((self._total_nparams,))
         result = self._bkd.copy(result)
-        for ii, part in enumerate(self._parts):
+        for ii, fn in enumerate(fns):
             offset = self._offsets[ii]
-            np_i = part.nparams()
+            np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
-            sub_result = part.param_state_hvp(
+            sub_result = fn(
                 physics, state, time, sub_params, adj_state, wvec
             )
             for k in range(np_i):
@@ -227,18 +320,23 @@ class CompositeParameterization(Generic[Array]):
         normals: Array,
     ) -> Array:
         """Block-column assembly of BC flux param sensitivity."""
+        fns = self._part_bc_flux_fns
+        if fns is None:
+            raise RuntimeError(
+                "bc_flux_param_sensitivity is unavailable; check "
+                "param_derivatives() before calling"
+            )
         nbnd = bc_indices.shape[0]
         result = self._bkd.zeros((nbnd, self._total_nparams))
         result = self._bkd.copy(result)
-        for ii, part in enumerate(self._parts):
+        for ii, fn in enumerate(fns):
             offset = self._offsets[ii]
-            np_i = part.nparams()
+            np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
-            block = part.bc_flux_param_sensitivity(
+            block = fn(
                 physics, state, time, sub_params, bc_indices, normals
             )
-            if block is not None:
-                for col in range(np_i):
-                    for i in range(nbnd):
-                        result[i, offset + col] = block[i, col]
+            for col in range(np_i):
+                for i in range(nbnd):
+                    result[i, offset + col] = block[i, col]
         return result

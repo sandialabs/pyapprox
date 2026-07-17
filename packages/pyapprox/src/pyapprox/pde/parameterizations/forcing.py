@@ -5,6 +5,7 @@ from typing import Callable, Generic, Optional
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -37,10 +38,16 @@ class ForcingParameterization(Generic[Array]):
         self._time_mod = (
             time_modulation if time_modulation is not None else lambda t: 1.0
         )
-
+        self._derivs: ParamDerivatives[Array] = ParamDerivatives.first_order(
+            self.param_jacobian,
+            self.initial_param_jacobian,
+        )
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
+
+    def param_derivatives(self) -> ParamDerivatives[Array]:
+        return self._derivs
 
     def nparams(self) -> int:
         return self._field_map.nvars()

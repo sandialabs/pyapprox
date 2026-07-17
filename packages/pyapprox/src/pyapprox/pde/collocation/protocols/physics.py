@@ -9,6 +9,7 @@ Defines a 3-level protocol hierarchy for PDE physics:
 from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.pde.collocation.protocols.basis import BasisProtocol
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -318,28 +319,14 @@ class ParameterizationProtocol(Protocol, Generic[Array]):
 
     Maps a parameter vector to physics inputs. Implementations live in
     pde.parameterizations; this protocol is defined here so collocation
-    can depend on the interface without importing that module.
+    can depend on the interface without importing the implementation
+    module. Optional derivative capability is expressed through the
+    :class:`ParamDerivatives` bundle — absence of a capability is a
+    ``None`` field, never a missing attribute.
     """
 
     def nparams(self) -> int: ...
 
     def apply(self, physics: object, params_1d: Array) -> None: ...
 
-
-@runtime_checkable
-class ParameterizationWithJacobianProtocol(
-    ParameterizationProtocol[Array], Protocol
-):
-    """Parameterization additionally providing parameter jacobians."""
-
-    def param_jacobian(
-        self, physics: object, state: Array, time: float, params_1d: Array
-    ) -> Array:
-        """Compute d(residual)/d(params). Shape: (nstates, nparams)."""
-        ...
-
-    def initial_param_jacobian(
-        self, physics: object, params_1d: Array
-    ) -> Array:
-        """Compute d(initial_state)/d(params). Shape: (nstates, nparams)."""
-        ...
+    def param_derivatives(self) -> ParamDerivatives[Array]: ...
