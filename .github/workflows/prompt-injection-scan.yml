@@ -1,0 +1,72 @@
+# Save as .github/workflows/prompt-injection-scan.yml
+# Requires scripts/check_prompt_injection.py in the repo.
+#
+# Behavior:
+#   * On every pull request: scans (a) the files the PR adds/changes,
+#     (b) the PR title and description, (c) all commit messages in the PR.
+#     Hidden-Unicode findings (zero-width, bidi, tag chars) FAIL the check;
+#     phrase heuristics show as warning annotations but don't block.
+#   * Weekly (Mon 08:00 America/Denver) + manual runs: full-repo sweep.
+#
+# To make this a hard gate, add it to branch protection:
+#   Settings -> Branches -> require status check "scan-pr" before merging.
+#   Without that, a red X shows on the PR but merging is still possible.
+
+name: prompt-injection-scan
+
+on:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 14 * * 1" # 14:00 UTC Monday = 08:00 Denver (07:00 during MST)
+
+permissions:
+  contents: read
+
+jobs:
+  scan-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need base branch history to diff against
+
+      - name: Scan files changed in this PR
+        run: |
+          git diff --name-only -z --diff-filter=ACM \
+            "origin/${{ github.base_ref }}...HEAD" \
+          | xargs -0 --no-run-if-empty \
+              python3 scripts/check_prompt_injection.py --format github
+
+      # PR title/body are passed via env vars, NOT interpolated into the
+      # script text: ${{ }} inside `run:` would itself be a script-injection
+      # hole (a malicious PR body could execute shell commands here).
+      - name: Scan PR title and description
+        if: ${{ !cancelled() }}
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" \
+          | python3 scripts/check_prompt_injection.py \
+              --stdin "PR-title-and-description" --format github
+
+      - name: Scan commit messages in this PR
+        if: ${{ !cancelled() }}
+        run: |
+          git log --format=%B "origin/${{ github.base_ref }}...HEAD" \
+          | python3 scripts/check_prompt_injection.py \
+              --stdin "PR-commit-messages" --format github
+
+  scan-full:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Full-repo sweep
+        run: |
+          git ls-files -z \
+          | xargs -0 --no-run-if-empty \
+              python3 scripts/check_prompt_injection.py --format github

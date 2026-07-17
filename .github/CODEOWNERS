@@ -1,0 +1,19 @@
+# Save as .github/CODEOWNERS
+#
+# With branch protection's "Require review from Code Owners" enabled, any PR
+# touching these paths cannot merge without jdjakem's review.
+#
+# Deliberately short: agent-instruction and agent-config files (CLAUDE.md,
+# .cursorrules, etc.) are NOT listed here — they are hard-blocked outright
+# by security-files-guard.yml (no PR may add or change them), so no review
+# path for them needs to exist, and listing them would wrongly suggest this
+# repo uses those tools.
+#
+# A leading '/' anchors the pattern to the repo root. This file lives in
+# .github/, so it is covered by its own first rule; changing it via PR
+# additionally requires jdjakem's security-change-ack label (it is in the
+# guard's acknowledgeable tier).
+
+/.github/                          @jdjakem
+/.githooks/                        @jdjakem
+/scripts/check_prompt_injection.py @jdjakem

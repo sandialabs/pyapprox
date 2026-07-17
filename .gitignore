@@ -30,8 +30,13 @@ packages/pyapprox-tutorials/src/pyapprox_tutorials/_version.py
 _migrate*.py
 _fixup*.py
 
-# Ad-hoc scripts
-scripts/
+# Ad-hoc scripts (committed helpers re-included below; use scripts/*
+# not scripts/ so the negations can take effect)
+scripts/*
+!scripts/check_prompt_injection.py
+!scripts/check_core_test_imports.sh
+!scripts/mypy_baseline.sh
+!scripts/mypy_diff.sh
 
 # Design spikes
 scratch/

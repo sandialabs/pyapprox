@@ -1,0 +1,267 @@
+# Save as .github/workflows/security-files-guard.yml
+#
+# Two-tier protection for security-sensitive files in PRs:
+#
+#   BLOCKED tier — no PR may change these, not even the repo owner.
+#     The check fails unconditionally; there is no acknowledgment path.
+#     Covers git hooks, everything in .github/ EXCEPT workflows and
+#     CODEOWNERS (see ACKNOWLEDGEABLE), and all agent-instruction /
+#     agent-config files (an injection vector against every contributor
+#     who runs a coding agent in their clone).
+#
+#   ACKNOWLEDGEABLE tier — .github/workflows/, .github/CODEOWNERS, and
+#     the scanner script. ACKNOWLEDGEABLE entries act as carve-outs from
+#     BLOCKED, so these edits are reviewable rather than impossible. The
+#     check fails until jdjakem applies the "security-change-ack" label
+#     after reviewing the diff comment. The check verifies WHO applied
+#     the label via the PR timeline, so a contributor self-applying it
+#     does not pass. Pushing new commits (synchronize) removes the label
+#     automatically: an acknowledgment covers exactly the diff that was
+#     reviewed, so every push requires a fresh ack.
+#
+# Consequence of workflows being acknowledgeable: this guard file itself
+# can be changed by an acknowledged PR. Its diff appears in full in the
+# guard comment (rendered by the still-unmodified base-branch version),
+# so review THAT diff character-by-character before acknowledging.
+#
+# Escape hatch for the BLOCKED tier (deliberate, loud, admin-only):
+# updates to .githooks/ or other blocked paths cannot arrive via a green
+# PR. As repo admin you either push directly to the base branch, or merge
+# a red PR with an explicit admin bypass. Both are conscious admin acts —
+# which is the point.
+#
+# Why `pull_request_target` and not `pull_request`: pull_request runs the
+# workflow AS MODIFIED BY THE PR, so a malicious PR could neuter this guard
+# in the same PR it needs to sneak past. pull_request_target always runs the
+# version on the base branch — the PR cannot change how it is checked.
+# SAFETY RULE for this trigger: this job must NEVER check out or execute PR
+# code. It only reads PR metadata and patches through the GitHub API.
+#
+# Setup:
+#   * Branch protection: add "guard" as a required status check
+#     (alongside "scan-pr" and "Require review from Code Owners").
+#   * This protects PRs only after it is merged to the base branch.
+
+name: security-files-guard
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  # Directories end with '/'; exact file paths otherwise; a '**/' prefix
+  # matches that filename at ANY depth (repo root or any subdirectory).
+  # Nested paths matter: Claude Code, for example, reads a CLAUDE.md found
+  # in any subdirectory it works in.
+  BLOCKED_PATHS: |
+    .github/
+    .githooks/
+    .claude/
+    .cursor/
+    .windsurf/
+    .gemini/
+    .vscode/
+    .husky/
+    **/CLAUDE.md
+    **/CLAUDE.local.md
+    **/AGENTS.md
+    **/AGENT.md
+    **/GEMINI.md
+    **/.cursorrules
+    **/.clinerules
+    **/.windsurfrules
+    **/.goosehints
+    **/.aider.conf.yml
+    CONVENTIONS.md
+  # ACKNOWLEDGEABLE entries take precedence over BLOCKED (carve-out
+  # semantics): these are editable with an acknowledgment even though
+  # .github/ is blocked. Keep carve-outs as narrow as possible.
+  ACKNOWLEDGEABLE_PATHS: |
+    .github/workflows/
+    .github/CODEOWNERS
+    scripts/check_prompt_injection.py
+  ACK_LABEL: security-change-ack
+  CHANGED_LABEL: security-tooling-changed
+  SECURITY_ACK_AUTHORIZED: jdjakem
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check protected files (blocked + acknowledgeable tiers)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const MARKER = '<!-- security-files-guard -->';
+            const parse = (v) => v.split('\n').map(s => s.trim())
+              .filter(Boolean);
+            const blockedPrefixes = parse(process.env.BLOCKED_PATHS);
+            const acknowledgeablePrefixes =
+              parse(process.env.ACKNOWLEDGEABLE_PATHS);
+            const ackLabel = process.env.ACK_LABEL;
+            const changedLabel = process.env.CHANGED_LABEL;
+            const securityAckAuthorized = process.env.SECURITY_ACK_AUTHORIZED
+              .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+            const {owner, repo} = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            // New commits invalidate a prior acknowledgment: the ack
+            // covers exactly the diff that was reviewed, and the diff
+            // just changed. Strip the label BEFORE the no-protected-
+            // files early return below — otherwise a stale ack could
+            // linger on a PR that drops its protected changes in one
+            // push and re-adds different ones in the next.
+            let labels = context.payload.pull_request.labels
+              .map(l => l.name);
+            let ackInvalidated = false;
+            if (context.payload.action === 'synchronize' &&
+                labels.includes(ackLabel)) {
+              try {
+                await github.rest.issues.removeLabel(
+                  {owner, repo, issue_number: pull_number,
+                   name: ackLabel});
+              } catch (e) {
+                if (e.status !== 404) throw e;  // already removed: fine
+              }
+              labels = labels.filter(n => n !== ackLabel);
+              ackInvalidated = true;
+              core.notice(`New commits pushed: '${ackLabel}' removed; `
+                + `the updated diff must be re-acknowledged.`);
+            }
+
+            const matches = (f, prefixes) => prefixes.some(p => {
+              if (p.endsWith('/')) return f.startsWith(p);
+              if (p.startsWith('**/')) {
+                const name = p.slice(3);
+                return f === name || f.endsWith('/' + name);
+              }
+              return f === p;
+            });
+            const inSet = (f, prefixes) =>
+              matches(f.filename, prefixes) ||
+              (f.previous_filename &&
+               matches(f.previous_filename, prefixes));
+
+            const files = await github.paginate(github.rest.pulls.listFiles,
+              {owner, repo, pull_number, per_page: 100});
+            // ACKNOWLEDGEABLE wins over BLOCKED: acknowledgeable paths are
+            // deliberate carve-outs (e.g. .github/workflows/ out of
+            // .github/).
+            const acknowledgeable = files.filter(f =>
+              inSet(f, acknowledgeablePrefixes));
+            const blocked = files.filter(f =>
+              !inSet(f, acknowledgeablePrefixes) &&
+              inSet(f, blockedPrefixes));
+
+            if (blocked.length === 0 && acknowledgeable.length === 0) {
+              core.info('No protected security files touched.');
+              return;
+            }
+
+            const upsertComment = async (body) => {
+              const comments = await github.paginate(
+                github.rest.issues.listComments,
+                {owner, repo, issue_number: pull_number, per_page: 100});
+              const mine = comments.find(c => c.body?.includes(MARKER));
+              if (mine) {
+                await github.rest.issues.updateComment(
+                  {owner, repo, comment_id: mine.id, body});
+              } else {
+                await github.rest.issues.createComment(
+                  {owner, repo, issue_number: pull_number, body});
+              }
+            };
+
+            const renderDiffs = (list) => {
+              const MAX_PATCH = 6000;
+              let out = '';
+              for (const f of list) {
+                out += `### \`${f.filename}\` (${f.status}, `
+                  + `+${f.additions}/-${f.deletions})\n`;
+                if (f.patch) {
+                  const p = f.patch.length > MAX_PATCH
+                    ? f.patch.slice(0, MAX_PATCH) + '\n... [patch truncated]'
+                    : f.patch;
+                  out += '```diff\n' + p + '\n```\n';
+                } else {
+                  out += '_(no text patch available - binary or too large; '
+                    + 'inspect manually)_\n';
+                }
+              }
+              return out;
+            };
+
+            let body = `${MARKER}\n## ⚠️ Security-protected files `
+              + `modified in this PR\n\n`;
+            if (blocked.length) {
+              body += `## 🚫 Blocked changes — this PR cannot pass\n\n`
+                + `This repository does not accept PR changes to git `
+                + `hooks, non-workflow .github/ files, or `
+                + `agent-instruction/config files (prompt-injection `
+                + `surface). Remove these changes from the PR. No label `
+                + `or review can make this check pass.\n\n`
+                + renderDiffs(blocked);
+            }
+            if (acknowledgeable.length) {
+              body += `## ⚠️ Acknowledgment-required changes\n\n`
+                + `These security-tooling changes need review `
+                + `character-by-character, then the \`${ackLabel}\` label `
+                + `applied by: ${securityAckAuthorized.join(', ')}. A `
+                + `label applied by anyone else is ignored.\n\n`;
+              if (ackInvalidated) {
+                body += `**Note:** a previous acknowledgment was `
+                  + `invalidated by new commits; the diff below is the `
+                  + `current one and must be re-acknowledged.\n\n`;
+              }
+              body += renderDiffs(acknowledgeable);
+            }
+            await upsertComment(body);
+
+            // Label the PR (addLabels auto-creates missing labels).
+            await github.rest.issues.addLabels(
+              {owner, repo, issue_number: pull_number,
+               labels: [changedLabel]});
+
+            // Blocked tier: unconditional failure, no acknowledgment path.
+            if (blocked.length) {
+              core.setFailed(`PR changes blocked paths: `
+                + `${blocked.map(f => f.filename).join(', ')}. Changes to `
+                + `git hooks, non-workflow .github/ files, and `
+                + `agent-instruction/config files are not accepted via `
+                + `PR. Remove them to proceed.`);
+              return;
+            }
+
+            // Acknowledgeable tier: label must be present (and not just
+            // stripped by the synchronize invalidation above) AND its
+            // most recent application must come from an authorized user.
+            if (labels.includes(ackLabel)) {
+              const events = await github.paginate(
+                github.rest.issues.listEvents,
+                {owner, repo, issue_number: pull_number, per_page: 100});
+              const labelEvents = events.filter(e =>
+                (e.event === 'labeled' || e.event === 'unlabeled') &&
+                e.label?.name === ackLabel);
+              const last = labelEvents[labelEvents.length - 1];
+              const actor = last?.actor?.login?.toLowerCase() ?? '';
+              if (last?.event === 'labeled' &&
+                  securityAckAuthorized.includes(actor)) {
+                core.notice(`Protected-file changes acknowledged by `
+                  + `@${actor}.`);
+                return;
+              }
+              core.setFailed(`'${ackLabel}' label was applied by `
+                + `'${actor || 'unknown'}', who is not authorized to `
+                + `acknowledge security changes (authorized: `
+                + `${securityAckAuthorized.join(', ')}).`);
+              return;
+            }
+            core.setFailed(`PR modifies security tooling `
+              + `(${acknowledgeable.map(f => f.filename).join(', ')}). `
+              + `${securityAckAuthorized.join(', ')} must review the diff `
+              + `comment and apply the '${ackLabel}' label to pass.`);
