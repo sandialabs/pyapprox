@@ -1,18 +1,22 @@
 """Tests for tensor product evaluation dispatch.
 
 Verifies that all three dispatch strategies (Numba, torch.compile, vectorized)
-produce results matching the original dense assembly approach.
+produce results matching the original dense assembly approach, and that
+dispatched implementations survive pickle round-trips.
 """
 
+import pickle
 from typing import List
 
 import numpy as np
 import pytest
 import torch
-
 from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
 from pyapprox.surrogates.tensorproduct.compute import (
     tp_eval_vectorized,
+)
+from pyapprox.surrogates.tensorproduct.dispatch import (
+    get_tp_eval_impl,
 )
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.cartesian import cartesian_product_indices
@@ -290,3 +294,25 @@ class TestTpEvalTorchCompile:
         q2 = samples[1:2, :] ** 2
         interp.set_values(torch_bkd.vstack([q1, q2]))
         self._run_torch_comparison(torch_bkd, interp)
+
+
+class TestTpDispatchPickle:
+    """Dispatched impls are module-level functions that pickle by reference."""
+
+    def test_impl_pickles_by_reference(self, bkd):
+        impl = get_tp_eval_impl(bkd)
+        assert pickle.loads(pickle.dumps(impl)) is impl
+
+    @pytest.mark.slow_on("TorchBkd")
+    def test_interpolant_pickle_roundtrip(self, bkd):
+        bases = _make_lagrange_bases(bkd, 2)
+        interp = TensorProductInterpolant(bkd, bases, [4, 4])
+        samples = interp.get_samples()
+        interp.set_values(samples[0:1, :] ** 2 + samples[1:2, :] ** 2)
+
+        np.random.seed(42)
+        test_samples = bkd.asarray(np.random.uniform(-1, 1, (2, 17)))
+        expected = interp(test_samples)
+
+        restored = pickle.loads(pickle.dumps(interp))
+        bkd.assert_allclose(restored(test_samples), expected, rtol=1e-14)

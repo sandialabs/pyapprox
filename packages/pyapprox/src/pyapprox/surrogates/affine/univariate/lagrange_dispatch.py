@@ -4,8 +4,12 @@ Selects the best acceleration strategy based on the backend type:
 1. Numba kernel (NumpyBkd) — parallel barycentric evaluation in C
 2. torch.compile-wrapped torch-native implementation (TorchBkd)
 3. Backend-generic barycentric formula (fallback) — uses bkd.* methods
+
+All dispatched implementations are module-level functions (not closures) so
+that objects storing them as attributes remain picklable.
 """
 
+from functools import lru_cache
 from typing import Callable, cast
 
 import numpy as np
@@ -36,28 +40,25 @@ def _is_torch(bkd: Backend[Array]) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _make_numba_lagrange_eval() -> LagrangeEvalImpl[Array]:
-    """Create a numba-backed Lagrange evaluation implementation."""
+def _numba_lagrange_eval(
+    abscissa: Array,
+    samples: Array,
+    bary_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed Lagrange evaluation."""
     from pyapprox.surrogates.affine.univariate.lagrange_numba import (
         lagrange_eval_numba,
     )
 
-    def impl(
-        abscissa: Array,
-        samples: Array,
-        bary_weights: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        result: Array = bkd.asarray(
-            lagrange_eval_numba(
-                np.asarray(abscissa),
-                np.asarray(samples),
-                np.asarray(bary_weights),
-            )
+    result: Array = bkd.asarray(
+        lagrange_eval_numba(
+            np.asarray(abscissa),
+            np.asarray(samples),
+            np.asarray(bary_weights),
         )
-        return result
-
-    return impl
+    )
+    return result
 
 
 def _generic_lagrange_eval(
@@ -115,8 +116,9 @@ def _generic_lagrange_eval(
     return values
 
 
-def _make_compiled_lagrange_eval() -> LagrangeEvalImpl[Array]:
-    """Create a torch.compile-wrapped Lagrange evaluation implementation."""
+@lru_cache(maxsize=None)
+def _get_compiled_lagrange_eval() -> Callable[[Array, Array, Array], Array]:
+    """Create and cache the torch.compile-wrapped Lagrange evaluation."""
     import torch
 
     from pyapprox.surrogates.affine.univariate.lagrange_torch import (
@@ -125,20 +127,20 @@ def _make_compiled_lagrange_eval() -> LagrangeEvalImpl[Array]:
 
     # cast: torch.compile preserves the Tensor signature (stub-version
     # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
+    return cast(
         Callable[[Array, Array, Array], Array],
         torch.compile(lagrange_eval_torch),
     )
 
-    def impl(
-        abscissa: Array,
-        samples: Array,
-        bary_weights: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        return compiled_fn(abscissa, samples, bary_weights)
 
-    return impl
+def _compiled_lagrange_eval(
+    abscissa: Array,
+    samples: Array,
+    bary_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed Lagrange evaluation."""
+    return _get_compiled_lagrange_eval()(abscissa, samples, bary_weights)
 
 
 def get_lagrange_eval_impl(bkd: Backend[Array]) -> LagrangeEvalImpl[Array]:
@@ -161,9 +163,9 @@ def get_lagrange_eval_impl(bkd: Backend[Array]) -> LagrangeEvalImpl[Array]:
         (abscissa, samples, bary_weights, bkd) -> Array
     """
     if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
-        return _make_numba_lagrange_eval()
+        return _numba_lagrange_eval
     if _is_torch(bkd):
-        return _make_compiled_lagrange_eval()
+        return _compiled_lagrange_eval
     return _generic_lagrange_eval
 
 
@@ -253,32 +255,30 @@ def _generic_lagrange_jacobian(
     return derivs
 
 
-def _make_numba_lagrange_jacobian() -> LagrangeDerivImpl[Array]:
-    """Create a numba-backed first derivative implementation."""
+def _numba_lagrange_jacobian(
+    abscissa: Array,
+    samples: Array,
+    bary_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed first derivative of the Lagrange basis."""
     from pyapprox.surrogates.affine.univariate.lagrange_numba import (
         lagrange_jacobian_numba,
     )
 
-    def impl(
-        abscissa: Array,
-        samples: Array,
-        bary_weights: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        result: Array = bkd.asarray(
-            lagrange_jacobian_numba(
-                np.asarray(abscissa),
-                np.asarray(samples),
-                np.asarray(bary_weights),
-            )
+    result: Array = bkd.asarray(
+        lagrange_jacobian_numba(
+            np.asarray(abscissa),
+            np.asarray(samples),
+            np.asarray(bary_weights),
         )
-        return result
+    )
+    return result
 
-    return impl
 
-
-def _make_compiled_lagrange_jacobian() -> LagrangeDerivImpl[Array]:
-    """Create a torch.compile-wrapped first derivative implementation."""
+@lru_cache(maxsize=None)
+def _get_compiled_lagrange_jacobian() -> Callable[[Array, Array, Array], Array]:
+    """Create and cache the torch.compile-wrapped first derivative."""
     import torch
 
     from pyapprox.surrogates.affine.univariate.lagrange_torch import (
@@ -287,20 +287,20 @@ def _make_compiled_lagrange_jacobian() -> LagrangeDerivImpl[Array]:
 
     # cast: torch.compile preserves the Tensor signature (stub-version
     # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
+    return cast(
         Callable[[Array, Array, Array], Array],
         torch.compile(lagrange_jacobian_torch),
     )
 
-    def impl(
-        abscissa: Array,
-        samples: Array,
-        bary_weights: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        return compiled_fn(abscissa, samples, bary_weights)
 
-    return impl
+def _compiled_lagrange_jacobian(
+    abscissa: Array,
+    samples: Array,
+    bary_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed first derivative of the Lagrange basis."""
+    return _get_compiled_lagrange_jacobian()(abscissa, samples, bary_weights)
 
 
 def get_lagrange_jacobian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl[Array]:
@@ -318,9 +318,9 @@ def get_lagrange_jacobian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl[Array]:
         (abscissa, samples, bary_weights, bkd) -> Array
     """
     if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
-        return _make_numba_lagrange_jacobian()
+        return _numba_lagrange_jacobian
     if _is_torch(bkd):
-        return _make_compiled_lagrange_jacobian()
+        return _compiled_lagrange_jacobian
     return _generic_lagrange_jacobian
 
 
@@ -417,32 +417,30 @@ def _generic_lagrange_hessian(
     return derivs
 
 
-def _make_numba_lagrange_hessian() -> LagrangeDerivImpl[Array]:
-    """Create a numba-backed second derivative implementation."""
+def _numba_lagrange_hessian(
+    abscissa: Array,
+    samples: Array,
+    bary_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed second derivative of the Lagrange basis."""
     from pyapprox.surrogates.affine.univariate.lagrange_numba import (
         lagrange_hessian_numba,
     )
 
-    def impl(
-        abscissa: Array,
-        samples: Array,
-        bary_weights: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        result: Array = bkd.asarray(
-            lagrange_hessian_numba(
-                np.asarray(abscissa),
-                np.asarray(samples),
-                np.asarray(bary_weights),
-            )
+    result: Array = bkd.asarray(
+        lagrange_hessian_numba(
+            np.asarray(abscissa),
+            np.asarray(samples),
+            np.asarray(bary_weights),
         )
-        return result
+    )
+    return result
 
-    return impl
 
-
-def _make_compiled_lagrange_hessian() -> LagrangeDerivImpl[Array]:
-    """Create a torch.compile-wrapped second derivative implementation."""
+@lru_cache(maxsize=None)
+def _get_compiled_lagrange_hessian() -> Callable[[Array, Array, Array], Array]:
+    """Create and cache the torch.compile-wrapped second derivative."""
     import torch
 
     from pyapprox.surrogates.affine.univariate.lagrange_torch import (
@@ -451,20 +449,20 @@ def _make_compiled_lagrange_hessian() -> LagrangeDerivImpl[Array]:
 
     # cast: torch.compile preserves the Tensor signature (stub-version
     # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
+    return cast(
         Callable[[Array, Array, Array], Array],
         torch.compile(lagrange_hessian_torch),
     )
 
-    def impl(
-        abscissa: Array,
-        samples: Array,
-        bary_weights: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        return compiled_fn(abscissa, samples, bary_weights)
 
-    return impl
+def _compiled_lagrange_hessian(
+    abscissa: Array,
+    samples: Array,
+    bary_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed second derivative of the Lagrange basis."""
+    return _get_compiled_lagrange_hessian()(abscissa, samples, bary_weights)
 
 
 def get_lagrange_hessian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl[Array]:
@@ -482,7 +480,7 @@ def get_lagrange_hessian_impl(bkd: Backend[Array]) -> LagrangeDerivImpl[Array]:
         (abscissa, samples, bary_weights, bkd) -> Array
     """
     if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
-        return _make_numba_lagrange_hessian()
+        return _numba_lagrange_hessian
     if _is_torch(bkd):
-        return _make_compiled_lagrange_hessian()
+        return _compiled_lagrange_hessian
     return _generic_lagrange_hessian

@@ -76,6 +76,10 @@ section is renamed to the version number when a release is tagged (see
 
 ### Fixed
 
+- Surrogates and OED likelihood objects (Lagrange/tensor-product/sparse-grid
+  interpolants, `MultiIndexBasis`, Gaussian OED likelihoods) could not be
+  pickled, blocking multiprocess use
+  ([#31](https://github.com/sandialabs/pyapprox/issues/31)).
 - Nonlinear reaction Jacobian sign in the Galerkin
   advection–diffusion–reaction physics: `spatial_jacobian` was
   inconsistent with finite differences of `spatial_residual`, so Newton

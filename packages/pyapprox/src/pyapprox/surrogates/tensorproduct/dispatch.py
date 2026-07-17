@@ -7,8 +7,12 @@ Selects the best acceleration strategy based on the backend type:
 
 Each dispatch function returns a callable with a uniform signature so that
 the TensorProductInterpolant is unaware of which strategy is active.
+
+All dispatched implementations are module-level functions (not closures) so
+that objects storing them as attributes remain picklable.
 """
 
+from functools import lru_cache
 from typing import Callable, List, cast
 
 import numpy as np
@@ -33,8 +37,13 @@ def _is_torch(bkd: Backend[Array]) -> bool:
 TpEvalImpl = Callable[[List[Array], Array, List[int], Backend[Array]], Array]
 
 
-def _make_numba_tp_eval() -> TpEvalImpl[Array]:
-    """Create a Numba-backed tp_eval implementation.
+def _numba_tp_eval(
+    basis_vals_1d: List[Array],
+    values: Array,
+    nterms_1d: List[int],
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed tp_eval implementation.
 
     Wraps the raw Numba kernel by converting List[Array] to padded
     (nvars, npoints, max_n1d) array before calling the kernel.
@@ -43,46 +52,35 @@ def _make_numba_tp_eval() -> TpEvalImpl[Array]:
         tp_eval_numba,
     )
 
-    def impl(
-        basis_vals_1d: List[Array],
-        values: Array,
-        nterms_1d: List[int],
-        bkd: Backend[Array],
-    ) -> Array:
-        nvars = len(nterms_1d)
-        nqoi = values.shape[0]
-        npoints = basis_vals_1d[0].shape[0]
-        max_n1d = max(nterms_1d)
+    nvars = len(nterms_1d)
+    nqoi = values.shape[0]
+    npoints = basis_vals_1d[0].shape[0]
+    max_n1d = max(nterms_1d)
 
-        # Pack into padded array (nvars, npoints, max_n1d)
-        basis_vals_pad = np.zeros((nvars, npoints, max_n1d))
-        for d in range(nvars):
-            n_d = nterms_1d[d]
-            basis_vals_pad[d, :, :n_d] = basis_vals_1d[d]
+    # Pack into padded array (nvars, npoints, max_n1d)
+    basis_vals_pad = np.zeros((nvars, npoints, max_n1d))
+    for d in range(nvars):
+        n_d = nterms_1d[d]
+        basis_vals_pad[d, :, :n_d] = basis_vals_1d[d]
 
-        nterms_1d_arr = np.array(nterms_1d, dtype=np.int64)
+    nterms_1d_arr = np.array(nterms_1d, dtype=np.int64)
 
-        result: Array = bkd.asarray(
-            tp_eval_numba(
-                np.asarray(values),
-                basis_vals_pad,
-                nterms_1d_arr,
-                nvars,
-                nqoi,
-                npoints,
-            )
+    result: Array = bkd.asarray(
+        tp_eval_numba(
+            np.asarray(values),
+            basis_vals_pad,
+            nterms_1d_arr,
+            nvars,
+            nqoi,
+            npoints,
         )
-        return result
+    )
+    return result
 
-    return impl
 
-
-def _make_compiled_tp_eval() -> TpEvalImpl[Array]:
-    """Create a torch.compile-wrapped tp_eval implementation.
-
-    Uses torch.einsum directly (bypassing bkd.*) to avoid graph breaks
-    during torch.compile tracing.
-    """
+@lru_cache(maxsize=None)
+def _get_compiled_tp_eval() -> Callable[[List[Array], Array, List[int]], Array]:
+    """Create and cache the torch.compile-wrapped tp_eval kernel."""
     import torch
 
     from pyapprox.surrogates.tensorproduct.compute_torch import (
@@ -91,20 +89,24 @@ def _make_compiled_tp_eval() -> TpEvalImpl[Array]:
 
     # cast: torch.compile preserves the Tensor signature (stub-version
     # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
+    return cast(
         Callable[[List[Array], Array, List[int]], Array],
         torch.compile(tp_eval_torch),
     )
 
-    def impl(
-        basis_vals_1d: List[Array],
-        values: Array,
-        nterms_1d: List[int],
-        bkd: Backend[Array],
-    ) -> Array:
-        return compiled_fn(basis_vals_1d, values, nterms_1d)
 
-    return impl
+def _compiled_tp_eval(
+    basis_vals_1d: List[Array],
+    values: Array,
+    nterms_1d: List[int],
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed tp_eval implementation.
+
+    Uses torch.einsum directly (bypassing bkd.*) to avoid graph breaks
+    during torch.compile tracing.
+    """
+    return _get_compiled_tp_eval()(basis_vals_1d, values, nterms_1d)
 
 
 def get_tp_eval_impl(bkd: Backend[Array]) -> TpEvalImpl[Array]:
@@ -127,7 +129,7 @@ def get_tp_eval_impl(bkd: Backend[Array]) -> TpEvalImpl[Array]:
         (basis_vals_1d, values, nterms_1d, bkd) -> Array
     """
     if isinstance(bkd, NumpyBkd) and _HAS_NUMBA:
-        return _make_numba_tp_eval()
+        return _numba_tp_eval
     if _is_torch(bkd):
-        return _make_compiled_tp_eval()
+        return _compiled_tp_eval
     return tp_eval_vectorized

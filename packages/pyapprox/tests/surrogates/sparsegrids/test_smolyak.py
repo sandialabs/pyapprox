@@ -1,10 +1,19 @@
 """Tests for smolyak.py - Smolyak coefficient computation and index utilities."""
 
+import pickle
+
+import numpy as np
+import pytest
 from pyapprox.surrogates.sparsegrids import (
     check_admissibility,
     compute_smolyak_coefficients,
     is_downward_closed,
 )
+from pyapprox.surrogates.sparsegrids.smolyak_dispatch import (
+    _generic_smolyak,
+    get_smolyak_impl,
+)
+from pyapprox.util.optional_deps import package_available
 
 
 class TestSmolyakCoefficients:
@@ -164,3 +173,45 @@ class TestSmolyakMathematicalProperties:
         # At least one coefficient should be negative
         has_negative = bool(bkd.any_bool(coefs < 0))
         assert has_negative, "Smolyak should have negative coefficients"
+
+
+class TestSmolyakDispatch:
+    """Consistency and picklability of the Smolyak coefficient dispatch."""
+
+    def _make_dispatch_args(self, indices):
+        """Build the raw kernel arguments used by compute_smolyak_coefficients."""
+        np_indices = np.asarray(indices, dtype=np.int64)
+        nvars, nsubspaces = np_indices.shape
+        nshifts = 2**nvars
+        shift_ints = np.arange(nshifts, dtype=np.int64)
+        np_shifts = np.array(
+            [((shift_ints >> d) & 1) for d in range(nvars)], dtype=np.int64
+        )
+        np_signs = (-1.0) ** np_shifts.sum(axis=0)
+        return np_indices, np_shifts, np_signs, nvars, nsubspaces, nshifts
+
+    @pytest.mark.skipif(
+        not package_available("numba"), reason="numba not installed"
+    )
+    @pytest.mark.parametrize(
+        "indices",
+        [
+            [[0, 1, 2]],
+            [[0, 1, 0, 2, 1, 0], [0, 0, 1, 0, 1, 2]],
+            [[0, 1, 0, 0, 1, 1], [0, 0, 1, 0, 1, 0], [0, 0, 0, 1, 0, 1]],
+        ],
+    )
+    def test_numba_matches_generic(self, numpy_bkd, indices):
+        """The numba kernel must match the vectorized numpy fallback."""
+        args = self._make_dispatch_args(indices)
+        impl = get_smolyak_impl()
+        assert impl is not _generic_smolyak
+        numpy_bkd.assert_allclose(
+            numpy_bkd.asarray(impl(*args)),
+            numpy_bkd.asarray(_generic_smolyak(*args)),
+            rtol=1e-14,
+        )
+
+    def test_impl_pickles_by_reference(self):
+        impl = get_smolyak_impl()
+        assert pickle.loads(pickle.dumps(impl)) is impl

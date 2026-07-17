@@ -8,11 +8,18 @@ Tests cover:
 - Parallel vs sequential equivalence (when implemented)
 """
 
-import numpy as np
+import pickle
 
+import numpy as np
 from pyapprox.expdesign.likelihood import (
     GaussianOEDInnerLoopLikelihood,
     GaussianOEDOuterLoopLikelihood,
+)
+from pyapprox.expdesign.likelihood.dispatch import (
+    get_evidence_jacobian_impl,
+    get_jacobian_matrix_impl,
+    get_logpdf_matrix_impl,
+    get_weighted_jacobian_impl,
 )
 
 
@@ -227,3 +234,19 @@ class TestGaussianOEDLikelihood:
         # Diagonal of matrix should match outer values
         diag = bkd.asarray([matrix[i, i] for i in range(shapes.shape[1])])
         assert bkd.allclose(diag, values[0], rtol=1e-10)
+
+
+class TestLikelihoodDispatchPickle:
+    """Dispatched impls are module-level functions that pickle by reference."""
+
+    def test_impls_pickle_by_reference(self, bkd):
+        for getter in (
+            get_logpdf_matrix_impl,
+            get_jacobian_matrix_impl,
+            get_evidence_jacobian_impl,
+        ):
+            impl = getter(bkd)
+            assert pickle.loads(pickle.dumps(impl)) is impl
+        weighted_impl = get_weighted_jacobian_impl(bkd)
+        if weighted_impl is not None:
+            assert pickle.loads(pickle.dumps(weighted_impl)) is weighted_impl

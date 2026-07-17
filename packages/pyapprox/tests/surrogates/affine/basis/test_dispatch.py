@@ -12,10 +12,11 @@ Minor differences (~1e-14) from float64 arithmetic ordering are expected
 with Numba parallel mode. Tests use rtol=1e-12 to accommodate this.
 """
 
+import pickle
+
 import numpy as np
 import pytest
 import torch
-
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.optional_deps import package_available
@@ -612,3 +613,30 @@ class TestBasisDispatchIntegration:
 
         jac = basis.jacobian_batch(samples)
         assert jac.shape == (nsamples, basis.nterms(), 2)
+
+
+class TestDispatchPickle:
+    """Dispatched impls are module-level functions that pickle by reference."""
+
+    def test_impls_pickle_by_reference(self, bkd):
+        for getter in (
+            get_basis_eval_impl,
+            get_basis_jacobian_impl,
+            get_basis_hessian_impl,
+        ):
+            impl = getter(bkd)
+            assert pickle.loads(pickle.dumps(impl)) is impl
+
+    @pytest.mark.slow_on("TorchBkd")
+    def test_basis_pickle_roundtrip(self, bkd):
+        """A basis storing dispatched impls must survive pickling."""
+        np.random.seed(42)
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        bases_1d = create_bases_1d(marginals, bkd)
+        indices = compute_hyperbolic_indices(2, 3, 1.0, bkd)
+        basis = OrthonormalPolynomialBasis(bases_1d, bkd, indices)
+        samples = bkd.asarray(np.random.uniform(-1, 1, (2, 9)))
+        expected = basis(samples)
+
+        restored = pickle.loads(pickle.dumps(basis))
+        bkd.assert_allclose(restored(samples), expected, rtol=1e-14)

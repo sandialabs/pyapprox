@@ -9,8 +9,12 @@ Selects between three acceleration strategies based on backend type:
 Each dispatch function returns a callable with a uniform signature so that
 the calling class (GaussianOEDInnerLoopLikelihood) is unaware of which
 strategy is active. Dispatch is fully automatic — no flags needed.
+
+All dispatched implementations are module-level functions (not closures) so
+that objects storing them as attributes remain picklable.
 """
 
+from functools import lru_cache
 from typing import Callable, Optional, Tuple, cast
 
 import numpy as np
@@ -113,8 +117,9 @@ def _check_torch_compile_available() -> None:
     )
 
 
-def _make_compiled_logpdf() -> LogpdfMatrixImpl[Array]:
-    """Create a torch.compile-wrapped logpdf_matrix implementation."""
+@lru_cache(maxsize=None)
+def _get_compiled_logpdf() -> Callable[[Array, Array, Array, Array], Array]:
+    """Create and cache the torch.compile-wrapped logpdf_matrix kernel."""
     import torch
 
     _check_torch_compile_available()
@@ -124,25 +129,28 @@ def _make_compiled_logpdf() -> LogpdfMatrixImpl[Array]:
 
     # cast: torch.compile preserves the Tensor signature (stub-version
     # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
+    return cast(
         Callable[[Array, Array, Array, Array], Array],
         torch.compile(logpdf_matrix_torch),
     )
 
-    def impl(
-        shapes: Array,
-        obs: Array,
-        base_variances: Array,
-        design_weights: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        return compiled_fn(shapes, obs, base_variances, design_weights)
 
-    return impl
+def _compiled_logpdf_matrix(
+    shapes: Array,
+    obs: Array,
+    base_variances: Array,
+    design_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed logpdf_matrix implementation."""
+    return _get_compiled_logpdf()(shapes, obs, base_variances, design_weights)
 
 
-def _make_compiled_jacobian() -> JacobianMatrixImpl[Array]:
-    """Create a torch.compile-wrapped jacobian_matrix implementation."""
+@lru_cache(maxsize=None)
+def _get_compiled_jacobian() -> (
+    Callable[[Array, Array, Array, Array, Array, bool], Array]
+):
+    """Create and cache the torch.compile-wrapped jacobian_matrix kernel."""
     import torch
 
     _check_torch_compile_available()
@@ -152,90 +160,226 @@ def _make_compiled_jacobian() -> JacobianMatrixImpl[Array]:
 
     # cast: torch.compile preserves the Tensor signature (stub-version
     # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
+    return cast(
         Callable[[Array, Array, Array, Array, Array, bool], Array],
         torch.compile(jacobian_matrix_torch),
     )
 
-    def impl(
-        shapes: Array,
-        obs: Array,
-        latent_samples: Optional[Array],
-        base_variances: Array,
-        design_weights: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        has_latent = latent_samples is not None
-        if latent_samples is None:
-            import torch as _torch
 
-            latent_samples_t = cast(
-                Array, _torch.zeros_like(cast("torch.Tensor", obs))
-            )
-        else:
-            latent_samples_t = latent_samples
-        return compiled_fn(
-            shapes,
-            obs,
-            latent_samples_t,
-            base_variances,
-            design_weights,
-            has_latent,
-        )
+def _torch_latent_or_zeros(
+    latent_samples: Optional[Array], obs: Array
+) -> Array:
+    """Return latent samples, or zeros_like(obs) when None (torch only).
 
-    return impl
+    The compiled kernels need a concrete tensor even when latent samples
+    are absent (signalled separately via ``has_latent``).
+    """
+    if latent_samples is not None:
+        return latent_samples
+    import torch
+
+    return cast(Array, torch.zeros_like(cast("torch.Tensor", obs)))
 
 
-def _make_compiled_evidence_jacobian() -> EvidenceJacobianImpl[Array]:
-    """Create a torch.compile-wrapped evidence jacobian implementation."""
+def _compiled_jacobian_matrix(
+    shapes: Array,
+    obs: Array,
+    latent_samples: Optional[Array],
+    base_variances: Array,
+    design_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed jacobian_matrix implementation."""
+    has_latent = latent_samples is not None
+    latent_samples_t = _torch_latent_or_zeros(latent_samples, obs)
+    return _get_compiled_jacobian()(
+        shapes,
+        obs,
+        latent_samples_t,
+        base_variances,
+        design_weights,
+        has_latent,
+    )
+
+
+@lru_cache(maxsize=None)
+def _get_compiled_evidence_jacobian() -> Callable[[Array, Array], Array]:
+    """Create and cache the torch.compile-wrapped evidence jacobian kernel."""
     import torch
 
     _check_torch_compile_available()
     from pyapprox.expdesign.likelihood.compute_torch import (
         evidence_jacobian_torch,
-        jacobian_matrix_torch,
     )
 
     # cast: torch.compile preserves the Tensor signature (stub-version
-    # dependent); the wrappers are used generically over Array
-    compiled_jac = cast(
-        Callable[[Array, Array, Array, Array, Array, bool], Array],
-        torch.compile(jacobian_matrix_torch),
-    )
-    compiled_ev_jac = cast(
+    # dependent); the wrapper is used generically over Array
+    return cast(
         Callable[[Array, Array], Array],
         torch.compile(evidence_jacobian_torch),
     )
 
-    def impl(
-        shapes: Array,
-        obs: Array,
-        latent_samples: Optional[Array],
-        base_variances: Array,
-        design_weights: Array,
-        quad_weighted_like: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        has_latent = latent_samples is not None
-        if latent_samples is None:
-            import torch as _torch
 
-            latent_samples_t = cast(
-                Array, _torch.zeros_like(cast("torch.Tensor", obs))
-            )
-        else:
-            latent_samples_t = latent_samples
-        loglike_jac = compiled_jac(
-            shapes,
-            obs,
-            latent_samples_t,
-            base_variances,
-            design_weights,
+def _compiled_evidence_jacobian(
+    shapes: Array,
+    obs: Array,
+    latent_samples: Optional[Array],
+    base_variances: Array,
+    design_weights: Array,
+    quad_weighted_like: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed evidence jacobian implementation."""
+    has_latent = latent_samples is not None
+    latent_samples_t = _torch_latent_or_zeros(latent_samples, obs)
+    loglike_jac = _get_compiled_jacobian()(
+        shapes,
+        obs,
+        latent_samples_t,
+        base_variances,
+        design_weights,
+        has_latent,
+    )
+    return _get_compiled_evidence_jacobian()(loglike_jac, quad_weighted_like)
+
+
+# --- Numba implementations ---
+
+
+def _numba_logpdf_matrix(
+    shapes: Array,
+    obs: Array,
+    base_variances: Array,
+    design_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed logpdf_matrix implementation."""
+    return bkd.asarray(
+        logpdf_matrix_numba(
+            np.asarray(shapes),
+            np.asarray(obs),
+            np.asarray(base_variances),
+            np.asarray(design_weights),
+        )
+    )
+
+
+def _numba_jacobian_matrix(
+    shapes: Array,
+    obs: Array,
+    latent_samples: Optional[Array],
+    base_variances: Array,
+    design_weights: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed jacobian_matrix implementation."""
+    has_latent = latent_samples is not None
+    if not has_latent:
+        # Numba needs a concrete array; pass zeros (ignored)
+        latent_samples_np = np.zeros_like(obs)
+    else:
+        latent_samples_np = latent_samples
+    return bkd.asarray(
+        jacobian_matrix_numba(
+            np.asarray(shapes),
+            np.asarray(obs),
+            np.asarray(latent_samples_np),
+            np.asarray(base_variances),
+            np.asarray(design_weights),
             has_latent,
         )
-        return compiled_ev_jac(loglike_jac, quad_weighted_like)
+    )
 
-    return impl
+
+def _numba_evidence_jacobian(
+    shapes: Array,
+    obs: Array,
+    latent_samples: Optional[Array],
+    base_variances: Array,
+    design_weights: Array,
+    quad_weighted_like: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed fused evidence jacobian implementation."""
+    has_latent = latent_samples is not None
+    if not has_latent:
+        latent_samples_np = np.zeros_like(obs)
+    else:
+        latent_samples_np = latent_samples
+    return bkd.asarray(
+        fused_evidence_jacobian_numba(
+            np.asarray(shapes),
+            np.asarray(obs),
+            np.asarray(latent_samples_np),
+            np.asarray(base_variances),
+            np.asarray(design_weights),
+            np.asarray(quad_weighted_like),
+            has_latent,
+        )
+    )
+
+
+def _numba_weighted_jacobian(
+    shapes: Array,
+    obs: Array,
+    latent_samples: Optional[Array],
+    base_variances: Array,
+    design_weights: Array,
+    qwl_ratio: Array,
+    weights_a: Array,
+    weights_b: Array,
+    bkd: Backend[Array],
+) -> Tuple[Array, Array]:
+    """Numba-backed fused weighted jacobian implementation."""
+    has_latent = latent_samples is not None
+    if not has_latent:
+        latent_samples_np = np.zeros_like(obs)
+    else:
+        latent_samples_np = latent_samples
+
+    # Transpose to the contiguous layout the kernel expects.
+    shapes_ik = np.ascontiguousarray(shapes.T)                # (ninner, nobs)
+    obs_jk = np.ascontiguousarray(obs.T)                      # (nouter, nobs)
+    latent_jk = np.ascontiguousarray(latent_samples_np.T)
+    weights_a_qi = np.ascontiguousarray(weights_a.T)          # (npred, ninner)
+    weights_b_qi = np.ascontiguousarray(weights_b.T)
+
+    part_a, part_b = fused_weighted_jacobian_numba(
+        shapes_ik,
+        obs_jk,
+        latent_jk,
+        np.asarray(base_variances),
+        np.asarray(design_weights),
+        np.asarray(qwl_ratio),
+        weights_a_qi,
+        weights_b_qi,
+        has_latent,
+    )
+    return bkd.asarray(part_a), bkd.asarray(part_b)
+
+
+# --- Vectorized fallback implementations ---
+
+
+def _vectorized_evidence_jacobian(
+    shapes: Array,
+    obs: Array,
+    latent_samples: Optional[Array],
+    base_variances: Array,
+    design_weights: Array,
+    quad_weighted_like: Array,
+    bkd: Backend[Array],
+) -> Array:
+    """Backend-generic evidence jacobian: jacobian_matrix + einsum."""
+    loglike_jac = jacobian_matrix_vectorized(
+        shapes,
+        obs,
+        latent_samples,
+        base_variances,
+        design_weights,
+        bkd,
+    )
+    return evidence_jacobian_vectorized(loglike_jac, quad_weighted_like, bkd)
 
 
 # --- Public dispatch functions ---
@@ -263,26 +407,9 @@ def get_logpdf_matrix_impl(
         (shapes, obs, base_variances, design_weights, bkd) -> Array
     """
     if _is_numpy(bkd) and HAS_NUMBA:
-
-        def impl(
-            shapes: Array,
-            obs: Array,
-            base_variances: Array,
-            design_weights: Array,
-            bkd: Backend[Array],
-        ) -> Array:
-            return bkd.asarray(
-                logpdf_matrix_numba(
-                    np.asarray(shapes),
-                    np.asarray(obs),
-                    np.asarray(base_variances),
-                    np.asarray(design_weights),
-                )
-            )
-
-        return impl
+        return _numba_logpdf_matrix
     if _is_torch(bkd):
-        return _make_compiled_logpdf()
+        return _compiled_logpdf_matrix
     return logpdf_matrix_vectorized
 
 
@@ -308,35 +435,9 @@ def get_jacobian_matrix_impl(
         (shapes, obs, latent_samples, base_variances, design_weights, bkd) -> Array
     """
     if _is_numpy(bkd) and HAS_NUMBA:
-
-        def impl(
-            shapes: Array,
-            obs: Array,
-            latent_samples: Optional[Array],
-            base_variances: Array,
-            design_weights: Array,
-            bkd: Backend[Array],
-        ) -> Array:
-            has_latent = latent_samples is not None
-            if not has_latent:
-                # Numba needs a concrete array; pass zeros (ignored)
-                latent_samples_np = np.zeros_like(obs)
-            else:
-                latent_samples_np = latent_samples
-            return bkd.asarray(
-                jacobian_matrix_numba(
-                    np.asarray(shapes),
-                    np.asarray(obs),
-                    np.asarray(latent_samples_np),
-                    np.asarray(base_variances),
-                    np.asarray(design_weights),
-                    has_latent,
-                )
-            )
-
-        return impl
+        return _numba_jacobian_matrix
     if _is_torch(bkd):
-        return _make_compiled_jacobian()
+        return _compiled_jacobian_matrix
     return jacobian_matrix_vectorized
 
 
@@ -362,58 +463,12 @@ def get_evidence_jacobian_impl(
          quad_weighted_like, bkd) -> Array
     """
     if _is_numpy(bkd) and HAS_NUMBA:
-
-        def impl(
-            shapes: Array,
-            obs: Array,
-            latent_samples: Optional[Array],
-            base_variances: Array,
-            design_weights: Array,
-            quad_weighted_like: Array,
-            bkd: Backend[Array],
-        ) -> Array:
-            has_latent = latent_samples is not None
-            if not has_latent:
-                latent_samples_np = np.zeros_like(obs)
-            else:
-                latent_samples_np = latent_samples
-            return bkd.asarray(
-                fused_evidence_jacobian_numba(
-                    np.asarray(shapes),
-                    np.asarray(obs),
-                    np.asarray(latent_samples_np),
-                    np.asarray(base_variances),
-                    np.asarray(design_weights),
-                    np.asarray(quad_weighted_like),
-                    has_latent,
-                )
-            )
-
-        return impl
+        return _numba_evidence_jacobian
 
     if _is_torch(bkd):
-        return _make_compiled_evidence_jacobian()
+        return _compiled_evidence_jacobian
 
-    def vectorized_impl(
-        shapes: Array,
-        obs: Array,
-        latent_samples: Optional[Array],
-        base_variances: Array,
-        design_weights: Array,
-        quad_weighted_like: Array,
-        bkd: Backend[Array],
-    ) -> Array:
-        loglike_jac = jacobian_matrix_vectorized(
-            shapes,
-            obs,
-            latent_samples,
-            base_variances,
-            design_weights,
-            bkd,
-        )
-        return evidence_jacobian_vectorized(loglike_jac, quad_weighted_like, bkd)
-
-    return vectorized_impl
+    return _vectorized_evidence_jacobian
 
 
 def get_weighted_jacobian_impl(
@@ -453,44 +508,6 @@ def get_weighted_jacobian_impl(
         or ``None`` if no fused impl exists for this backend.
     """
     if _is_numpy(bkd) and HAS_NUMBA:
-
-        def impl(
-            shapes: Array,
-            obs: Array,
-            latent_samples: Optional[Array],
-            base_variances: Array,
-            design_weights: Array,
-            qwl_ratio: Array,
-            weights_a: Array,
-            weights_b: Array,
-            bkd: Backend[Array],
-        ) -> Tuple[Array, Array]:
-            has_latent = latent_samples is not None
-            if not has_latent:
-                latent_samples_np = np.zeros_like(obs)
-            else:
-                latent_samples_np = latent_samples
-
-            # Transpose to the contiguous layout the kernel expects.
-            shapes_ik = np.ascontiguousarray(shapes.T)                # (ninner, nobs)
-            obs_jk = np.ascontiguousarray(obs.T)                      # (nouter, nobs)
-            latent_jk = np.ascontiguousarray(latent_samples_np.T)
-            weights_a_qi = np.ascontiguousarray(weights_a.T)          # (npred, ninner)
-            weights_b_qi = np.ascontiguousarray(weights_b.T)
-
-            part_a, part_b = fused_weighted_jacobian_numba(
-                shapes_ik,
-                obs_jk,
-                latent_jk,
-                np.asarray(base_variances),
-                np.asarray(design_weights),
-                np.asarray(qwl_ratio),
-                weights_a_qi,
-                weights_b_qi,
-                has_latent,
-            )
-            return bkd.asarray(part_a), bkd.asarray(part_b)
-
-        return impl
+        return _numba_weighted_jacobian
 
     return None

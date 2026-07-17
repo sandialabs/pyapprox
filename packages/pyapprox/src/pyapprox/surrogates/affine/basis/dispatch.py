@@ -8,8 +8,12 @@ Selects between three acceleration strategies based on the backend type:
 
 Each dispatch function returns a callable with a uniform signature so that
 MultiIndexBasis is unaware of which strategy is active.
+
+All dispatched implementations are module-level functions (not closures) so
+that objects storing them as attributes remain picklable.
 """
 
+from functools import lru_cache
 from typing import Callable, List, cast
 
 import numpy as np
@@ -74,6 +78,190 @@ def _stack_1d_arrays_for_numba(
     return stacked
 
 
+# --- Numba implementations ---
+
+
+def _numba_basis_eval(
+    vals_1d: List[Array],
+    indices: Array,
+    nvars: int,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed basis evaluation."""
+    from pyapprox.surrogates.affine.basis.compute_numba import (
+        basis_eval_numba,
+    )
+
+    stacked = _stack_1d_arrays_for_numba(vals_1d)
+    indices_np = np.asarray(indices)
+    nsamples = vals_1d[0].shape[0]
+    nterms = indices_np.shape[1]
+    result: Array = bkd.asarray(
+        basis_eval_numba(
+            stacked,
+            indices_np,
+            nvars,
+            nsamples,
+            nterms,
+        )
+    )
+    return result
+
+
+def _numba_basis_jacobian(
+    vals_1d: List[Array],
+    derivs_1d: List[Array],
+    indices: Array,
+    nvars: int,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed basis Jacobian."""
+    from pyapprox.surrogates.affine.basis.compute_numba import (
+        basis_jacobian_numba,
+    )
+
+    stacked_vals = _stack_1d_arrays_for_numba(vals_1d)
+    stacked_derivs = _stack_1d_arrays_for_numba(derivs_1d)
+    indices_np = np.asarray(indices)
+    nsamples = vals_1d[0].shape[0]
+    nterms = indices_np.shape[1]
+    result: Array = bkd.asarray(
+        basis_jacobian_numba(
+            stacked_vals,
+            stacked_derivs,
+            indices_np,
+            nvars,
+            nsamples,
+            nterms,
+        )
+    )
+    return result
+
+
+def _numba_basis_hessian(
+    vals_1d: List[Array],
+    derivs_1d: List[Array],
+    hess_1d: List[Array],
+    indices: Array,
+    nvars: int,
+    bkd: Backend[Array],
+) -> Array:
+    """Numba-backed basis Hessian."""
+    from pyapprox.surrogates.affine.basis.compute_numba import (
+        basis_hessian_numba,
+    )
+
+    stacked_vals = _stack_1d_arrays_for_numba(vals_1d)
+    stacked_derivs = _stack_1d_arrays_for_numba(derivs_1d)
+    stacked_hess = _stack_1d_arrays_for_numba(hess_1d)
+    indices_np = np.asarray(indices)
+    nsamples = vals_1d[0].shape[0]
+    nterms = indices_np.shape[1]
+    result: Array = bkd.asarray(
+        basis_hessian_numba(
+            stacked_vals,
+            stacked_derivs,
+            stacked_hess,
+            indices_np,
+            nvars,
+            nsamples,
+            nterms,
+        )
+    )
+    return result
+
+
+# --- torch.compile implementations ---
+
+
+@lru_cache(maxsize=None)
+def _get_compiled_basis_eval() -> Callable[[List[Array], Array], Array]:
+    """Create and cache the torch.compile-wrapped basis eval kernel."""
+    import torch
+
+    from pyapprox.surrogates.affine.basis.compute_torch import (
+        basis_eval_torch,
+    )
+
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    return cast(
+        Callable[[List[Array], Array], Array],
+        torch.compile(basis_eval_torch),
+    )
+
+
+def _compiled_basis_eval(
+    vals_1d: List[Array],
+    indices: Array,
+    nvars: int,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed basis evaluation."""
+    return _get_compiled_basis_eval()(vals_1d, indices)
+
+
+@lru_cache(maxsize=None)
+def _get_compiled_basis_jacobian() -> (
+    Callable[[List[Array], List[Array], Array], Array]
+):
+    """Create and cache the torch.compile-wrapped basis Jacobian kernel."""
+    import torch
+
+    from pyapprox.surrogates.affine.basis.compute_torch import (
+        basis_jacobian_torch,
+    )
+
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    return cast(
+        Callable[[List[Array], List[Array], Array], Array],
+        torch.compile(basis_jacobian_torch),
+    )
+
+
+def _compiled_basis_jacobian(
+    vals_1d: List[Array],
+    derivs_1d: List[Array],
+    indices: Array,
+    nvars: int,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed basis Jacobian."""
+    return _get_compiled_basis_jacobian()(vals_1d, derivs_1d, indices)
+
+
+@lru_cache(maxsize=None)
+def _get_compiled_basis_hessian() -> (
+    Callable[[List[Array], List[Array], List[Array], Array], Array]
+):
+    """Create and cache the torch.compile-wrapped basis Hessian kernel."""
+    import torch
+
+    from pyapprox.surrogates.affine.basis.compute_torch import (
+        basis_hessian_torch,
+    )
+
+    # cast: torch.compile preserves the Tensor signature (stub-version
+    # dependent); the wrapper is used generically over Array
+    return cast(
+        Callable[[List[Array], List[Array], List[Array], Array], Array],
+        torch.compile(basis_hessian_torch),
+    )
+
+
+def _compiled_basis_hessian(
+    vals_1d: List[Array],
+    derivs_1d: List[Array],
+    hess_1d: List[Array],
+    indices: Array,
+    nvars: int,
+    bkd: Backend[Array],
+) -> Array:
+    """torch.compile-backed basis Hessian."""
+    return _get_compiled_basis_hessian()(vals_1d, derivs_1d, hess_1d, indices)
+
+
 # --- Public dispatch functions ---
 
 
@@ -94,35 +282,10 @@ def get_basis_eval_impl(bkd: Backend[Array]) -> BasisEvalImpl[Array]:
         (vals_1d, indices, nvars, bkd) -> Array
     """
     if _is_numpy(bkd) and _HAS_NUMBA:
-        from pyapprox.surrogates.affine.basis.compute_numba import (
-            basis_eval_numba,
-        )
-
-        def impl(
-            vals_1d: List[Array],
-            indices: Array,
-            nvars: int,
-            bkd: Backend[Array],
-        ) -> Array:
-            stacked = _stack_1d_arrays_for_numba(vals_1d)
-            indices_np = np.asarray(indices)
-            nsamples = vals_1d[0].shape[0]
-            nterms = indices_np.shape[1]
-            result: Array = bkd.asarray(
-                basis_eval_numba(
-                    stacked,
-                    indices_np,
-                    nvars,
-                    nsamples,
-                    nterms,
-                )
-            )
-            return result
-
-        return impl
+        return _numba_basis_eval
 
     if _is_torch(bkd):
-        return _make_compiled_eval()
+        return _compiled_basis_eval
 
     return basis_eval_vectorized
 
@@ -142,38 +305,10 @@ def get_basis_jacobian_impl(bkd: Backend[Array]) -> BasisJacobianImpl[Array]:
         (vals_1d, derivs_1d, indices, nvars, bkd) -> Array
     """
     if _is_numpy(bkd) and _HAS_NUMBA:
-        from pyapprox.surrogates.affine.basis.compute_numba import (
-            basis_jacobian_numba,
-        )
-
-        def impl(
-            vals_1d: List[Array],
-            derivs_1d: List[Array],
-            indices: Array,
-            nvars: int,
-            bkd: Backend[Array],
-        ) -> Array:
-            stacked_vals = _stack_1d_arrays_for_numba(vals_1d)
-            stacked_derivs = _stack_1d_arrays_for_numba(derivs_1d)
-            indices_np = np.asarray(indices)
-            nsamples = vals_1d[0].shape[0]
-            nterms = indices_np.shape[1]
-            result: Array = bkd.asarray(
-                basis_jacobian_numba(
-                    stacked_vals,
-                    stacked_derivs,
-                    indices_np,
-                    nvars,
-                    nsamples,
-                    nterms,
-                )
-            )
-            return result
-
-        return impl
+        return _numba_basis_jacobian
 
     if _is_torch(bkd):
-        return _make_compiled_jacobian()
+        return _compiled_basis_jacobian
 
     return basis_jacobian_vectorized
 
@@ -193,124 +328,9 @@ def get_basis_hessian_impl(bkd: Backend[Array]) -> BasisHessianImpl[Array]:
         (vals_1d, derivs_1d, hess_1d, indices, nvars, bkd) -> Array
     """
     if _is_numpy(bkd) and _HAS_NUMBA:
-        from pyapprox.surrogates.affine.basis.compute_numba import (
-            basis_hessian_numba,
-        )
-
-        def impl(
-            vals_1d: List[Array],
-            derivs_1d: List[Array],
-            hess_1d: List[Array],
-            indices: Array,
-            nvars: int,
-            bkd: Backend[Array],
-        ) -> Array:
-            stacked_vals = _stack_1d_arrays_for_numba(vals_1d)
-            stacked_derivs = _stack_1d_arrays_for_numba(derivs_1d)
-            stacked_hess = _stack_1d_arrays_for_numba(hess_1d)
-            indices_np = np.asarray(indices)
-            nsamples = vals_1d[0].shape[0]
-            nterms = indices_np.shape[1]
-            result: Array = bkd.asarray(
-                basis_hessian_numba(
-                    stacked_vals,
-                    stacked_derivs,
-                    stacked_hess,
-                    indices_np,
-                    nvars,
-                    nsamples,
-                    nterms,
-                )
-            )
-            return result
-
-        return impl
+        return _numba_basis_hessian
 
     if _is_torch(bkd):
-        return _make_compiled_hessian()
+        return _compiled_basis_hessian
 
     return basis_hessian_vectorized
-
-
-# --- torch.compile wrapper factories ---
-
-
-def _make_compiled_eval() -> BasisEvalImpl[Array]:
-    """Create a torch.compile-wrapped basis eval implementation."""
-    import torch
-
-    from pyapprox.surrogates.affine.basis.compute_torch import (
-        basis_eval_torch,
-    )
-
-    # cast: torch.compile preserves the Tensor signature (stub-version
-    # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
-        Callable[[List[Array], Array], Array],
-        torch.compile(basis_eval_torch),
-    )
-
-    def impl(
-        vals_1d: List[Array],
-        indices: Array,
-        nvars: int,
-        bkd: Backend[Array],
-    ) -> Array:
-        return compiled_fn(vals_1d, indices)
-
-    return impl
-
-
-def _make_compiled_jacobian() -> BasisJacobianImpl[Array]:
-    """Create a torch.compile-wrapped basis Jacobian implementation."""
-    import torch
-
-    from pyapprox.surrogates.affine.basis.compute_torch import (
-        basis_jacobian_torch,
-    )
-
-    # cast: torch.compile preserves the Tensor signature (stub-version
-    # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
-        Callable[[List[Array], List[Array], Array], Array],
-        torch.compile(basis_jacobian_torch),
-    )
-
-    def impl(
-        vals_1d: List[Array],
-        derivs_1d: List[Array],
-        indices: Array,
-        nvars: int,
-        bkd: Backend[Array],
-    ) -> Array:
-        return compiled_fn(vals_1d, derivs_1d, indices)
-
-    return impl
-
-
-def _make_compiled_hessian() -> BasisHessianImpl[Array]:
-    """Create a torch.compile-wrapped basis Hessian implementation."""
-    import torch
-
-    from pyapprox.surrogates.affine.basis.compute_torch import (
-        basis_hessian_torch,
-    )
-
-    # cast: torch.compile preserves the Tensor signature (stub-version
-    # dependent); the wrapper is used generically over Array
-    compiled_fn = cast(
-        Callable[[List[Array], List[Array], List[Array], Array], Array],
-        torch.compile(basis_hessian_torch),
-    )
-
-    def impl(
-        vals_1d: List[Array],
-        derivs_1d: List[Array],
-        hess_1d: List[Array],
-        indices: Array,
-        nvars: int,
-        bkd: Backend[Array],
-    ) -> Array:
-        return compiled_fn(vals_1d, derivs_1d, hess_1d, indices)
-
-    return impl

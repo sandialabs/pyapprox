@@ -8,6 +8,7 @@ across different dimensions, basis types (Gauss, Leja, Clenshaw-Curtis,
 piecewise), and marginal distributions.
 """
 
+import pickle
 from typing import List
 
 import numpy as np
@@ -253,6 +254,27 @@ class TestIsotropicFitter:
         sg_result = surrogate(test_pts)
         expected = pce(test_pts)
         bkd.assert_allclose(sg_result, expected, rtol=1e-10)
+
+    @pytest.mark.slow_on("TorchBkd")
+    def test_surrogate_pickle_roundtrip(self, bkd) -> None:
+        """Fitted surrogates must pickle for use with multiprocess tools."""
+        nvars = 2
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories = [GaussLagrangeFactory(marginal, bkd)] * nvars
+        growth = LinearGrowthRule(scale=1, shift=1)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        fitter = IsotropicSparseGridFitter(bkd, tp_factory, level=3)
+
+        samples = fitter.get_samples()
+        values = samples[0:1, :] ** 2 + samples[1:2, :]
+        surrogate = fitter.fit(values).surrogate
+
+        np.random.seed(42)
+        test_pts = bkd.asarray(np.random.uniform(-1, 1, (nvars, 7)))
+        expected = surrogate(test_pts)
+
+        restored = pickle.loads(pickle.dumps(surrogate))
+        bkd.assert_allclose(restored(test_pts), expected, rtol=1e-14)
 
     def test_smolyak_coefficients_sum(self, bkd) -> None:
         """Test Smolyak coefficients sum to 1."""

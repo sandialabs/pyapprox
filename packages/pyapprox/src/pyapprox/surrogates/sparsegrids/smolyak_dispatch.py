@@ -52,31 +52,31 @@ def _generic_smolyak(
     return np_coefs
 
 
-def _make_numba_smolyak() -> SmolyakImpl:
-    """Create a numba-backed Smolyak implementation."""
+def _numba_smolyak(
+    np_indices: np.ndarray,
+    np_shifts: np.ndarray,
+    np_signs: np.ndarray,
+    nvars: int,
+    nsubspaces: int,
+    nshifts: int,
+) -> np.ndarray:
+    """Numba-backed Smolyak coefficient implementation.
+
+    Module-level (not a closure) so objects storing it remain picklable.
+    """
     from pyapprox.surrogates.sparsegrids.smolyak_numba import (
         smolyak_coefficients_numba,
     )
 
-    def impl(
-        np_indices: np.ndarray,
-        np_shifts: np.ndarray,
-        np_signs: np.ndarray,
-        nvars: int,
-        nsubspaces: int,
-        nshifts: int,
-    ) -> np.ndarray:
-        result: np.ndarray = smolyak_coefficients_numba(
-            np_indices,
-            np_shifts,
-            np_signs,
-            nvars,
-            nsubspaces,
-            nshifts,
-        )
-        return result
-
-    return impl
+    result: np.ndarray = smolyak_coefficients_numba(
+        np_indices,
+        np_shifts,
+        np_signs,
+        nvars,
+        nsubspaces,
+        nshifts,
+    )
+    return result
 
 
 def get_smolyak_impl() -> SmolyakImpl:
@@ -85,5 +85,5 @@ def get_smolyak_impl() -> SmolyakImpl:
     Returns numba kernel if available, otherwise vectorized numpy fallback.
     """
     if _HAS_NUMBA:
-        return _make_numba_smolyak()
+        return _numba_smolyak
     return _generic_smolyak
