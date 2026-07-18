@@ -2,7 +2,7 @@
 
 Stokes has a singular mass matrix [M_vel, 0; 0, 0] because the continuity
 equation div(u) = 0 is an algebraic constraint (no dp/dt). The standard
-GalerkinPhysicsODEAdapter (which computes M^{-1}*F) cannot be used.
+GalerkinPhysicsToODEResidualAdapter (which computes M^{-1}*F) cannot be used.
 
 This module directly forms the implicit time-stepping residual:
 

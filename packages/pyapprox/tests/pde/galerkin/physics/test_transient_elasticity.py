@@ -26,7 +26,7 @@ from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
 )
 from pyapprox.pde.galerkin.time_integration import (
     ConstrainedTimeStepResidual,
-    GalerkinPhysicsODEAdapter,
+    GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
@@ -181,7 +181,7 @@ class TestTransientElasticity2D:
         assert abs(physics.lame_mu() - 1.0) < 1e-10
 
         # Time stepping with constrained wrapper
-        ode_adapter = GalerkinPhysicsODEAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
 
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)

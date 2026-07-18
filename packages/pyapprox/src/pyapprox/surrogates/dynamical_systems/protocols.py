@@ -141,7 +141,7 @@ class EncoderProtocol(Protocol, Generic[Array]):
         """Return the Jacobian of the encoder.
 
         For linear encoders this is constant. For nonlinear encoders
-        this would need to accept a state argument (Phase 3 extension).
+        this would need to accept a state argument (future extension).
 
         Returns
         -------

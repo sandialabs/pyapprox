@@ -48,7 +48,7 @@ class ConstrainedTimeStepResidual(Generic[Array]):
     ----------
     stepper : TimeSteppingResidualProtocol
         The time stepping residual (e.g., BackwardEulerHVP).
-    adapter : GalerkinPhysicsODEAdapter
+    adapter : GalerkinPhysicsToODEResidualAdapter
         The physics adapter with dirichlet_dof_info(time) method.
     """
 

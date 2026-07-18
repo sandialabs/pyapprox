@@ -1,6 +1,6 @@
 """BC-clean ODE adapter for explicit Galerkin time stepping.
 
-The standard GalerkinPhysicsODEAdapter computes f = M^{-1} * residual(),
+The standard GalerkinPhysicsToODEResidualAdapter computes f = M^{-1} * residual(),
 but residual() includes Dirichlet row replacement (state[dof] - g(t)).
 Applying M^{-1} to those rows creates positive eigenvalues, making
 explicit stepping unconditionally unstable.

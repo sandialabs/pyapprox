@@ -33,7 +33,7 @@ from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration import (
     ConstrainedTimeStepResidual,
-    GalerkinPhysicsODEAdapter,
+    GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
@@ -255,7 +255,7 @@ class TestParametrizedBurgersTransient:
     """Parametrized 1D Burgers transient tests with P2 + backward Euler.
 
     Replicates legacy test_finite_elements.py test_transient_burgers DD case.
-    Uses GalerkinPhysicsODEAdapter + BackwardEulerHVP for time stepping
+    Uses GalerkinPhysicsToODEResidualAdapter + BackwardEulerHVP for time stepping
     with Newton iteration at each step.
     """
 
@@ -306,7 +306,7 @@ class TestParametrizedBurgersTransient:
         )
 
         # Create ODE adapter and time stepper with constrained wrapper
-        ode_adapter = GalerkinPhysicsODEAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:

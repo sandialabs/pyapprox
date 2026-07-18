@@ -31,7 +31,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.time_integration import (
     ConstrainedTimeStepResidual,
-    GalerkinPhysicsODEAdapter,
+    GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
@@ -136,7 +136,7 @@ class TestTransientHyperelasticity1D:
         )
 
         # Time stepping
-        ode_adapter = GalerkinPhysicsODEAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:
@@ -254,7 +254,7 @@ class TestTransientHyperelasticity2D:
         )
 
         # Time stepping
-        ode_adapter = GalerkinPhysicsODEAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:

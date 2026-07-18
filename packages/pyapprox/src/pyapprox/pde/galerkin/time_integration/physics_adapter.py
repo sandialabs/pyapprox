@@ -1,23 +1,37 @@
-"""Adapter to use Galerkin physics with time integration from typing.pde.time.
+"""Adapter to use Galerkin physics with time integration from pyapprox.ode.
 
 The time module expects ODEResidualProtocol: M * dy/dt = f(y, t)
 Galerkin physics provides: M * du/dt = F(u, t)
 
-This adapter returns raw (unmodified) quantities:
+The adapters return raw (unmodified) quantities:
   f(y, t) = spatial_residual(y, t)   (no Dirichlet row zeroing)
   jacobian = spatial_jacobian(y, t)  (no Dirichlet row replacement)
   mass_matrix() = MassMatrixProtocol wrapping raw FEM mass matrix
 
-Dirichlet BCs are enforced by ConstrainedTimeStepResidual, which wraps
-the stepper and applies R[d] = y[d] - g(t), J[d,:] = e_d after the
-stepper assembles the full Newton system.
+Dirichlet BCs are enforced by the BC-enforcing time residual wrapper,
+which wraps the stepper and applies R[d] = y[d] - g(t), J[d,:] = e_d
+after the stepper assembles the full Newton system.
 
-Parameter sensitivity is provided through an optional
-``ParameterizationProtocol`` object, which maps parameter vectors to
-physics coefficients and computes chain-rule Jacobians.
+Capability is decided ONCE at construction by
+:func:`create_galerkin_physics_ode_residual`, which None-checks the
+parameterization's :class:`ParamDerivatives` bundle to select a
+fixed-tier adapter class (never ``hasattr``):
+
+- :class:`GalerkinPhysicsToODEResidualAdapter` — raw f/J/M, no
+  parameters.
+- :class:`GalerkinPhysicsToODEResidualWithSetParamAdapter` — adds
+  ``nparams``/``set_param`` (parameterization without derivative
+  capability).
+- :class:`GalerkinPhysicsToODEResidualWithParamJacobianAdapter` — adds
+  ``param_jacobian``/``initial_param_jacobian`` (first-order bundle).
+
+No HVP tier exists yet: the galerkin parameterization HVP
+implementations arrive in a later phase of the time-integration
+refactor, so the factory caps at the WithParamJacobian tier even for
+second-order bundles.
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Generic, Optional, Tuple, overload
 
 from pyapprox.ode.mass_matrix import MassMatrixProtocol, create_mass_matrix
 from pyapprox.ode.mixins.default_newton_jacobian import (
@@ -27,98 +41,49 @@ from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
     ParameterizationProtocol,
 )
+from pyapprox.pde.parameterizations.derivatives import (
+    InitialParamJacobianFn,
+    ParamJacobianFn,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class GalerkinPhysicsODEAdapter(
+class GalerkinPhysicsToODEResidualAdapter(
     DefaultNewtonJacobianMixin[Array], Generic[Array]
 ):
-    """Adapter from GalerkinPhysics to ODEResidualProtocol.
+    """Adapter from GalerkinPhysics to ODEResidualProtocol (base tier).
 
     Returns raw M, F, J_F -- no BC modifications:
     - f(y) = spatial_residual(y, t) (unmodified)
     - jacobian(y) = spatial_jacobian(y, t) (unmodified)
     - mass_matrix() = MassMatrixProtocol wrapping M
-    - mass_matrix().apply(v) = M @ v
 
-    Dirichlet BCs are applied externally by ConstrainedTimeStepResidual.
+    Dirichlet BCs are applied externally by the BC-enforcing time
+    residual wrapper.
 
     Parameters
     ----------
     physics : GalerkinPhysicsProtocol
         The Galerkin physics to adapt. Must have spatial_residual(),
         spatial_jacobian(), and dirichlet_dof_info() methods.
-    parameterization : ParameterizationProtocol, optional
-        Optional parameterization mapping parameter vectors to physics
-        coefficients. When provided, ``nparams``, ``set_param``,
-        ``param_jacobian``, and ``initial_param_jacobian`` methods are
-        exposed (if the parameterization supports them).
 
     Examples
     --------
-    >>> ode_residual = GalerkinPhysicsODEAdapter(physics)
+    >>> ode_residual = create_galerkin_physics_ode_residual(physics)
     >>> time_stepper = BackwardEulerHVP(ode_residual)
-
-    With parameterization:
-
-    >>> param = GalerkinLameParameterization(...)
-    >>> ode_residual = GalerkinPhysicsODEAdapter(physics, param)
-    >>> ode_residual.set_param(param_vector)
     """
 
-    def __init__(
-        self,
-        physics: GalerkinPhysicsProtocol[Array],
-        parameterization: Optional[ParameterizationProtocol[Array]] = None,
-    ):
-        if parameterization is not None:
-            if not isinstance(parameterization, ParameterizationProtocol):
-                raise TypeError(
-                    f"parameterization must satisfy "
-                    f"ParameterizationProtocol, "
-                    f"got {type(parameterization).__name__}"
-                )
+    def __init__(self, physics: GalerkinPhysicsProtocol[Array]) -> None:
+        if not isinstance(physics, GalerkinPhysicsProtocol):
+            raise TypeError(
+                f"physics must satisfy GalerkinPhysicsProtocol, "
+                f"got {type(physics).__name__}"
+            )
         self._physics = physics
         self._bkd = physics.bkd()
         self._time: float = 0.0
-        self._parameterization = parameterization
-        self._current_params_1d: Optional[Array] = None
-
         # Cache mass matrix as value-object (handles sparse via splu)
         self._mass = create_mass_matrix(physics.mass_matrix(), self._bkd)
-
-        # Setup optional methods based on parameterization capabilities
-        self._setup_optional_methods()
-
-    def _setup_optional_methods(self) -> None:
-        """Conditionally expose methods based on parameterization."""
-        if self._parameterization is not None:
-            # Parameterization path
-            self.nparams = self._parameterization.nparams
-            self.set_param = self._set_param_via_parameterization
-            if hasattr(self._parameterization, "param_jacobian"):
-                self.param_jacobian = self._param_jacobian_via_parameterization
-            if hasattr(self._parameterization, "initial_param_jacobian"):
-                self.initial_param_jacobian = (
-                    self._initial_param_jacobian_via_parameterization
-                )
-            # HVP methods from parameterization if available
-            for method_name in (
-                "param_param_hvp",
-                "state_param_hvp",
-                "param_state_hvp",
-            ):
-                if hasattr(self._parameterization, method_name):
-                    hvp_impl = getattr(
-                        self,
-                        f"_{method_name}_via_parameterization",
-                        None,
-                    )
-                    if hvp_impl is not None:
-                        setattr(self, method_name, hvp_impl)
-            # state_state_hvp stays from physics
-            if hasattr(self._physics, "state_state_hvp"):
-                self.state_state_hvp = self._state_state_hvp
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
@@ -186,61 +151,195 @@ class GalerkinPhysicsODEAdapter(
         """
         return self._physics.dirichlet_dof_info(time)
 
-    # =========================================================================
-    # Parameterization delegation methods
-    # =========================================================================
+    def __repr__(self) -> str:
+        return (
+            f"{type(self).__name__}("
+            f"physics={type(self._physics).__name__})"
+        )
 
-    def _set_param_via_parameterization(self, param: Array) -> None:
-        """Set parameter values through parameterization."""
-        if self._parameterization is None:
-            raise RuntimeError("parameterization is None")
+
+class GalerkinPhysicsToODEResidualWithSetParamAdapter(
+    GalerkinPhysicsToODEResidualAdapter[Array]
+):
+    """Adapter with a parameterization (evaluation-only tier).
+
+    Adds ``nparams``/``set_param`` on top of the base tier. Selected by
+    the factory when the parameterization's bundle declares no
+    derivative capability.
+
+    Parameters
+    ----------
+    physics : GalerkinPhysicsProtocol
+        The Galerkin physics to adapt.
+    parameterization : ParameterizationProtocol
+        Maps parameter vectors to physics coefficients.
+    """
+
+    def __init__(
+        self,
+        physics: GalerkinPhysicsProtocol[Array],
+        parameterization: ParameterizationProtocol[Array],
+    ) -> None:
+        if not isinstance(parameterization, ParameterizationProtocol):
+            raise TypeError(
+                f"parameterization must satisfy ParameterizationProtocol, "
+                f"got {type(parameterization).__name__}"
+            )
+        super().__init__(physics)
+        self._parameterization = parameterization
+        self._current_params_1d: Optional[Array] = None
+
+    def parameterization(self) -> ParameterizationProtocol[Array]:
+        """Return the parameterization."""
+        return self._parameterization
+
+    def nparams(self) -> int:
+        """Return the number of parameters."""
+        return self._parameterization.nparams()
+
+    def set_param(self, param: Array) -> None:
+        """Set parameter values through the parameterization.
+
+        Parameters
+        ----------
+        param : Array
+            Parameter vector. Shape: (nparams,) — the ODEResidual
+            protocol convention (strictly validated; callers convert at
+            the optimizer/ode boundary).
+        """
+        if param.ndim != 1:
+            raise ValueError(
+                f"param must be 1D with shape (nparams,), got shape "
+                f"{tuple(param.shape)}"
+            )
         self._current_params_1d = param
         self._parameterization.apply(self._physics, param)
 
-    def _param_jacobian_via_parameterization(
-        self,
-        state: Array,
-    ) -> Array:
-        """Compute parameter Jacobian through parameterization."""
-        if self._parameterization is None:
-            raise RuntimeError("parameterization is None")
-        if self._current_params_1d is None:
-            raise RuntimeError("set_param() must be called before param_jacobian()")
-        fn = getattr(self._parameterization, "param_jacobian")
-        result: Array = fn(
-            self._physics, state, self._time, self._current_params_1d
-        )
-        return result
-
-    def _initial_param_jacobian_via_parameterization(self) -> Array:
-        """Get initial condition Jacobian through parameterization."""
-        if self._parameterization is None:
-            raise RuntimeError("parameterization is None")
+    def _require_params(self) -> Array:
+        """Return the current parameters or raise if set_param not called."""
         if self._current_params_1d is None:
             raise RuntimeError(
-                "set_param() must be called before initial_param_jacobian()"
+                "set_param() must be called before parameter derivatives"
             )
-        fn = getattr(self._parameterization, "initial_param_jacobian")
-        result: Array = fn(self._physics, self._current_params_1d)
-        return result
+        return self._current_params_1d
 
-    # =========================================================================
-    # HVP Methods (optional, from physics or parameterization)
-    # =========================================================================
 
-    def _state_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
-        """Compute (d^2F/du^2)w contracted with adjoint."""
-        fn = getattr(self._physics, "state_state_hvp")
-        result: Array = fn(state, adj_state, wvec, self._time)
-        return result
+class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
+    GalerkinPhysicsToODEResidualWithSetParamAdapter[Array]
+):
+    """Adapter with first-order parameter derivatives.
 
-    def __repr__(self) -> str:
-        parts = [
-            f"GalerkinPhysicsODEAdapter(\n"
-            f"  physics={self._physics!r},\n"
-            f"  time={self._time},\n"
-        ]
-        if self._parameterization is not None:
-            parts.append(f"  parameterization={self._parameterization!r},\n")
-        parts.append(")")
-        return "".join(parts)
+    Adds ``param_jacobian``/``initial_param_jacobian`` on top of the
+    evaluation tier. Selected by the factory when the bundle has both
+    parameter jacobians. The bundle is narrowed ONCE here into
+    always-present private attributes.
+    """
+
+    def __init__(
+        self,
+        physics: GalerkinPhysicsProtocol[Array],
+        parameterization: ParameterizationProtocol[Array],
+    ) -> None:
+        super().__init__(physics, parameterization)
+        derivs = parameterization.param_derivatives()
+        param_jacobian = derivs.param_jacobian
+        initial_param_jacobian = derivs.initial_param_jacobian
+        if param_jacobian is None or initial_param_jacobian is None:
+            raise TypeError(
+                f"{type(self).__name__} requires a parameterization whose "
+                "bundle has param_jacobian and initial_param_jacobian; use "
+                "create_galerkin_physics_ode_residual to select the right "
+                "tier"
+            )
+        self._param_jacobian_fn: ParamJacobianFn[Array] = param_jacobian
+        self._initial_param_jacobian_fn: InitialParamJacobianFn[Array] = (
+            initial_param_jacobian
+        )
+
+    def param_jacobian(self, state: Array) -> Array:
+        """Compute the parameter Jacobian dF/dp (raw, no Dirichlet).
+
+        Parameters
+        ----------
+        state : Array
+            Current state. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Parameter Jacobian. Shape: (nstates, nparams)
+        """
+        return self._param_jacobian_fn(
+            self._physics, state, self._time, self._require_params()
+        )
+
+    def initial_param_jacobian(self) -> Array:
+        """Compute d(initial_state)/d(params).
+
+        Returns
+        -------
+        Array
+            Initial-condition Jacobian. Shape: (nstates, nparams)
+        """
+        return self._initial_param_jacobian_fn(
+            self._physics, self._require_params()
+        )
+
+
+@overload
+def create_galerkin_physics_ode_residual(
+    physics: GalerkinPhysicsProtocol[Array],
+    parameterization: None = None,
+) -> GalerkinPhysicsToODEResidualAdapter[Array]: ...
+
+
+@overload
+def create_galerkin_physics_ode_residual(
+    physics: GalerkinPhysicsProtocol[Array],
+    parameterization: ParameterizationProtocol[Array],
+) -> GalerkinPhysicsToODEResidualWithSetParamAdapter[Array]: ...
+
+
+def create_galerkin_physics_ode_residual(
+    physics: GalerkinPhysicsProtocol[Array],
+    parameterization: Optional[ParameterizationProtocol[Array]] = None,
+) -> GalerkinPhysicsToODEResidualAdapter[Array]:
+    """Create the widest adapter tier the inputs support.
+
+    Capability enters the stepper stack exactly here: the factory
+    None-checks the parameterization's ParamDerivatives bundle once,
+    then everything above sees unconditional fixed-tier methods. No
+    HVP tier exists yet (galerkin param-HVP implementations arrive in a
+    later phase of the time-integration refactor), so second-order
+    bundles also produce the WithParamJacobian tier.
+
+    Parameters
+    ----------
+    physics : GalerkinPhysicsProtocol
+        The Galerkin physics to adapt.
+    parameterization : ParameterizationProtocol, optional
+        Maps parameter vectors to physics coefficients.
+
+    Returns
+    -------
+    GalerkinPhysicsToODEResidualAdapter
+        The widest tier supported by the bundle.
+    """
+    if parameterization is None:
+        return GalerkinPhysicsToODEResidualAdapter(physics)
+    if not isinstance(parameterization, ParameterizationProtocol):
+        raise TypeError(
+            f"parameterization must satisfy ParameterizationProtocol, "
+            f"got {type(parameterization).__name__}"
+        )
+    derivs = parameterization.param_derivatives()
+    if (
+        derivs.param_jacobian is not None
+        and derivs.initial_param_jacobian is not None
+    ):
+        return GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
+            physics, parameterization
+        )
+    return GalerkinPhysicsToODEResidualWithSetParamAdapter(
+        physics, parameterization
+    )

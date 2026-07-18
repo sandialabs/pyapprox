@@ -12,8 +12,8 @@ Absence of a capability is ``None``, never a missing attribute. No
 finite-difference fallback exists here or in producers: what to do about
 an absent capability is the consumer's decision.
 
-Field signatures (``physics`` is typed ``object`` until the Phase 0.6
-per-module physics protocols land):
+Field signatures (``physics`` is typed ``object`` until per-module
+physics protocols land in a later phase of the refactor):
 
 - ``param_jacobian``: ``(physics, state, time, params_1d)
   -> (nstates, nparams)`` — d(residual)/d(params), RAW (no Dirichlet

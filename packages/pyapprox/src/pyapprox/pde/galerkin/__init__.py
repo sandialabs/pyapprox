@@ -37,7 +37,7 @@ from pyapprox.pde.galerkin.solvers import (
     SteadyStateSolver,
 )
 from pyapprox.pde.galerkin.time_integration import (
-    GalerkinPhysicsODEAdapter,
+    GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.util.optional_deps import package_available
 
@@ -56,7 +56,7 @@ __all__ = [
     "NeumannBCProtocol",
     "RobinBCProtocol",
     # Time integration adapter
-    "GalerkinPhysicsODEAdapter",
+    "GalerkinPhysicsToODEResidualAdapter",
     # Solvers
     "SteadyStateSolver",
     # Postprocessing

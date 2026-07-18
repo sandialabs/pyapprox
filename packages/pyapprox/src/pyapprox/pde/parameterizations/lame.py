@@ -2,8 +2,8 @@
 
 This class calls physics.residual_mu_sensitivity / residual_lamda_sensitivity,
 which are implemented by both LinearElasticityPhysics and HyperelasticityPhysics.
-Once HyperelasticityPhysics gains 2D sensitivity methods (Phase 9), this class
-can replace HyperelasticYoungsModulusParameterization as the universal E-to-Lame
+Once HyperelasticityPhysics gains 2D sensitivity methods, this class can
+replace HyperelasticYoungsModulusParameterization as the universal E-to-Lame
 parameterization for all elasticity types.
 """
 

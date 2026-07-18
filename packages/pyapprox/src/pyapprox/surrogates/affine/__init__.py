@@ -16,14 +16,14 @@ basis
 expansions
     Basis expansions including PCE with statistics support.
 
-Phases:
-- Phase 1: Univariate basis protocols and implementations
-- Phase 2: Index generation with composable admissibility criteria
-- Phase 3: Multivariate basis with Jacobian/Hessian support
-- Phase 4: Basis expansions and PCE statistics
-- Phase 5: Linear system solvers
-- Phase 6: Extended univariate polynomials (Laguerre, discrete, numeric)
-- Phase 7: Adaptive indexing (priority queue, refinement criteria, basis generator)
+Features:
+- Univariate basis protocols and implementations
+- Index generation with composable admissibility criteria
+- Multivariate basis with Jacobian/Hessian support
+- Basis expansions and PCE statistics
+- Linear system solvers
+- Extended univariate polynomials (Laguerre, discrete, numeric)
+- Adaptive indexing (priority queue, refinement criteria, basis generator)
 """
 
 from pyapprox.surrogates.affine.basis import (

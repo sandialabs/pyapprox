@@ -33,7 +33,7 @@ from pyapprox.pde.galerkin.time_integration.explicit_adapter import (
     GalerkinExplicitODEAdapter,
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
-    GalerkinPhysicsODEAdapter,
+    create_galerkin_physics_ode_residual,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -57,7 +57,7 @@ class GalerkinModel(Generic[Array]):
     PDE problems using Galerkin finite element methods.
 
     Reuses existing time stepping residuals from pde.time and the
-    GalerkinPhysicsODEAdapter for mass matrix handling.
+    GalerkinPhysicsToODEResidualAdapter for mass matrix handling.
 
     Parameters
     ----------
@@ -82,7 +82,7 @@ class GalerkinModel(Generic[Array]):
     ):
         self._physics = physics
         self._bkd = bkd
-        self._adapter = GalerkinPhysicsODEAdapter(physics)
+        self._adapter = create_galerkin_physics_ode_residual(physics)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -146,7 +146,7 @@ class GalerkinModel(Generic[Array]):
         For explicit methods, uses GalerkinExplicitODEAdapter which provides
         BC-clean f(y,t) = M_bc^{-1} * spatial_residual. Dirichlet values are
         injected after each step. For implicit methods, uses the standard
-        GalerkinPhysicsODEAdapter with ConstrainedTimeStepResidual wrapper
+        GalerkinPhysicsToODEResidualAdapter with ConstrainedTimeStepResidual wrapper
         for Dirichlet BC enforcement via Newton solver.
 
         Parameters
@@ -265,7 +265,7 @@ class GalerkinModel(Generic[Array]):
         """Create a time stepping residual for the given method.
 
         For explicit methods, uses GalerkinExplicitODEAdapter (BC-clean).
-        For implicit methods, uses GalerkinPhysicsODEAdapter (raw) with
+        For implicit methods, uses GalerkinPhysicsToODEResidualAdapter (raw) with
         ConstrainedTimeStepResidual wrapper for Dirichlet enforcement.
 
         Parameters

@@ -33,7 +33,7 @@ from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
     ConstrainedTimeStepResidual,
     GalerkinModel,
-    GalerkinPhysicsODEAdapter,
+    GalerkinPhysicsToODEResidualAdapter,
     TimeIntegrationConfig,
 )
 from pyapprox.ode.implicit_steppers import (
@@ -578,7 +578,7 @@ class TestManualNewtonWithConstraint:
         )
 
         # Manual setup: adapter + stepper + constrained wrapper
-        ode_adapter = GalerkinPhysicsODEAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
         stepper = BackwardEulerHVP(ode_adapter)
         constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
 
@@ -655,7 +655,7 @@ class TestManualNewtonWithConstraint:
                 return u[:, 0] if u.shape[1] == 1 else u.flatten()
             return u
 
-        ode_adapter = GalerkinPhysicsODEAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
         stepper = CrankNicolsonHVP(ode_adapter)
         constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
 
