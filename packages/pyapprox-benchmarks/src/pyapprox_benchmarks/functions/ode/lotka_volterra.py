@@ -77,10 +77,13 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         ----------
         param : Array
             Parameters [r_0, ..., r_{n-1}, a_00, a_01, ..., a_{n-1,n-1}].
-            Shape: (nparams,) or (nparams, 1)
+            Shape: (nparams,)
         """
-        if param.ndim == 2:
-            param = self._bkd.flatten(param)
+        if param.ndim != 1:
+            raise ValueError(
+                f"param must be 1D with shape (nparams,), got shape "
+                f"{tuple(param.shape)}"
+            )
         if param.shape[0] != self._nparams:
             raise ValueError(
                 f"Expected {self._nparams} parameters, got {param.shape[0]}"
@@ -279,8 +282,11 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         y = state
         lam = adj_state
 
-        if vvec.ndim == 2:
-            vvec = self._bkd.flatten(vvec)
+        if vvec.ndim != 1:
+            raise ValueError(
+                f"vvec must be 1D with shape (nparams,), got shape "
+                f"{tuple(vvec.shape)}"
+            )
 
         v_r = vvec[:n]
         v_A = self._bkd.reshape(vvec[n:], (n, n))
@@ -377,8 +383,11 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         y = state
         lam = adj_state
 
-        if vvec.ndim == 2:
-            vvec = self._bkd.flatten(vvec)
+        if vvec.ndim != 1:
+            raise ValueError(
+                f"vvec must be 1D with shape (nparams,), got shape "
+                f"{tuple(vvec.shape)}"
+            )
 
         v_r = vvec[:n]
         v_A = self._bkd.reshape(vvec[n:], (n, n))

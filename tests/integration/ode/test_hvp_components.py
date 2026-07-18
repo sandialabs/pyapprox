@@ -12,14 +12,10 @@ Uses DerivativeChecker with error_ratio tolerance 1e-6.
 from typing import Generic
 
 import numpy as np
-
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox_benchmarks.functions.ode.linear_ode import (
-    QuadraticODEResidual,
-)
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerHVP,
 )
@@ -28,6 +24,9 @@ from pyapprox.ode.implicit_steppers.backward_euler import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox_benchmarks.functions.ode.linear_ode import (
+    QuadraticODEResidual,
+)
 
 # =============================================================================
 # Sympy Analytical Solutions
@@ -204,7 +203,7 @@ class ODEResidualHVPWrapper(Generic[Array]):
         # For quadratic ODE: df/dy = A + 2*p[0]*diag(y)
         # d²f/dy² is a tensor, but contracted with λ gives a matrix
         # For diagonal Hessian: d/dy_j [λ^T · df/dy]_i = λ_i * 2*p[0] * δ_{ij}
-        p0 = float(self._residual._param[0, 0])
+        p0 = float(self._residual._param[0])
         # Result is diagonal: 2*p[0]*diag(λ)
         return 2.0 * p0 * self._bkd.diag(self._adj_state.flatten())
 

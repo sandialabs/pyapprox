@@ -228,8 +228,12 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         self._time_residual.bind(ctx_0)
         dy0dp = self._time_residual.initial_param_jacobian()
         n_unique = self._functional.nunique_params()
-        v_res = vvec[n_unique:] if n_unique > 0 else vvec
-        w_sols[:, 0] = self._bkd.flatten(dy0dp @ v_res)
+        # Residual-facing direction is 1D (ODEResidual protocol); the
+        # operator's public vvec stays a 2D column.
+        v_res = self._bkd.flatten(
+            vvec[n_unique:] if n_unique > 0 else vvec
+        )
+        w_sols[:, 0] = dy0dp @ v_res
 
         # Forward sweep: propagate sensitivity
         for nn in range(1, ntimes):
@@ -249,11 +253,11 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 ctx_nn, fwd_sols[:, nn]
             )
 
-            n_unique = self._functional.nunique_params()
-            v_res = vvec[n_unique:] if n_unique > 0 else vvec
-
             # w_n = -(dR_n/dy_n)^{-1} · [dR_n/dy_{n-1} · w_{n-1} + dR_n/dp · v]
-            rhs = drdy_nm1 @ w_sols[:, nn - 1 : nn] + drdp_n @ v_res
+            rhs = (
+                drdy_nm1 @ w_sols[:, nn - 1 : nn]
+                + (drdp_n @ v_res)[:, None]
+            )
             w_sols[:, nn : nn + 1] = -self._bkd.solve(drdy_n, rhs)
 
         return w_sols
@@ -282,7 +286,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         s_sols = self._bkd.zeros(fwd_sols.shape)
         s_sols = self._bkd.copy(s_sols)
 
-        v_res = (
+        v_res = self._bkd.flatten(
             vvec[self._functional.nunique_params():]
             if self._functional.nunique_params() > 0
             else vvec
@@ -457,7 +461,9 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         hvp += qpp_hvp
 
         n_unique = self._functional.nunique_params()
-        v_res = vvec[n_unique:] if n_unique > 0 else vvec
+        v_res = self._bkd.flatten(
+            vvec[n_unique:] if n_unique > 0 else vvec
+        )
 
         # Cross-step contribution at y_0: R_1 depends on y_0 as prev_state
         ctx_1 = self._make_ctx(times, 1, fwd_sols)

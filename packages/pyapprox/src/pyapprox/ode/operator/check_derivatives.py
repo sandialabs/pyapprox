@@ -34,6 +34,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualWithHVPProtocol,
+    ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.ode.protocols.time_stepping import (
     HVPEnabledTimeSteppingResidualProtocol,
@@ -72,15 +73,32 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             )
         self._time_residual: HVPEnabledTimeSteppingResidualProtocol[Array] = hvp_tr
         native = hvp_tr.native_residual
-        if not isinstance(native, ODEResidualWithHVPProtocol):
+        if not isinstance(native, ODEResidualWithParamJacobianProtocol):
             raise TypeError(
-                "TimeAdjointDerivativeChecker requires an HVP-capable ODE "
-                f"residual; got {type(native).__name__} (construct the "
-                "residual with a parameterization providing second-order "
-                "derivatives)"
+                "TimeAdjointDerivativeChecker requires an ODE residual "
+                f"with parameter support; got {type(native).__name__} "
+                "(construct the residual with a parameterization)"
             )
-        self._ode_residual: ODEResidualWithHVPProtocol[Array] = native
+        self._ode_residual: ODEResidualWithParamJacobianProtocol[Array] = (
+            native
+        )
         self._bkd = self._ode_residual.bkd()
+
+    @property
+    def _hvp_ode_residual(self) -> ODEResidualWithHVPProtocol[Array]:
+        """Narrow the ODE residual to HVP capable, or raise.
+
+        Lazy: jacobian-level checks work with first-order residuals; only
+        the ODE HVP checks reach this accessor.
+        """
+        residual = self._ode_residual
+        if not isinstance(residual, ODEResidualWithHVPProtocol):
+            raise TypeError(
+                "ODE HVP checks require an HVP-capable ODE residual; got "
+                f"{type(residual).__name__} (construct the residual with a "
+                "parameterization providing second-order derivatives)"
+            )
+        return residual
 
     def _get_fd_eps(self, fd_eps: Optional[Array] = None) -> Array:
         """Get default finite difference step sizes if not provided."""
@@ -222,7 +240,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         def jvp(y_2d: Array, w_2d: Array) -> Array:
             y_1d = self._from_2d(y_2d)
             w_1d = self._from_2d(w_2d)
-            result = self._ode_residual.state_state_hvp(y_1d, adj_1d, w_1d)
+            result = self._hvp_ode_residual.state_state_hvp(y_1d, adj_1d, w_1d)
             return self._to_2d(result)
 
         wrapper = FunctionWithJVPFromCallable(
@@ -260,7 +278,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         def jvp(p_2d: Array, v_2d: Array) -> Array:
             self._ode_residual.set_param(self._from_2d(p_2d))
             self._ode_residual.set_time(time)
-            result = self._ode_residual.state_param_hvp(
+            result = self._hvp_ode_residual.state_param_hvp(
                 state_1d, adj_1d, self._from_2d(v_2d)
             )
             return self._to_2d(result)
@@ -303,7 +321,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             y_1d = self._from_2d(y_2d)
             w_1d = self._from_2d(w_2d)
             self._ode_residual.set_time(time)
-            result = self._ode_residual.param_state_hvp(y_1d, adj_1d, w_1d)
+            result = self._hvp_ode_residual.param_state_hvp(y_1d, adj_1d, w_1d)
             return self._to_2d(result)
 
         wrapper = FunctionWithJVPFromCallable(
@@ -340,7 +358,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         def jvp(p_2d: Array, v_2d: Array) -> Array:
             self._ode_residual.set_param(self._from_2d(p_2d))
             self._ode_residual.set_time(time)
-            result = self._ode_residual.param_param_hvp(
+            result = self._hvp_ode_residual.param_param_hvp(
                 state_1d, adj_1d, self._from_2d(v_2d)
             )
             return self._to_2d(result)

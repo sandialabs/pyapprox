@@ -17,10 +17,6 @@ versions for comparison.
 
 import pytest
 import torch
-
-from pyapprox_benchmarks.functions.ode.linear_ode import (
-    QuadraticODEResidual,
-)
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerHVP,
 )
@@ -38,6 +34,9 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
 )
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox_benchmarks.functions.ode.linear_ode import (
+    QuadraticODEResidual,
+)
 
 # =============================================================================
 # Autograd-compatible forward simulation functions
@@ -229,7 +228,7 @@ class TestTorchAutogradComparison:
         init_state = bkd.asarray([1.0, 0.5])
 
         # Compute analytical Jacobian via adjoint
-        ode_residual.set_param(param)
+        ode_residual.set_param(bkd.flatten(param))
         operator.storage()._clear()
         analytical_jac = operator.jacobian(init_state, param)
 
@@ -265,7 +264,7 @@ class TestTorchAutogradComparison:
             pytest.skip(f"HVP not available for {stepper_class.__name__}")
 
         # Compute analytical HVP via second-order adjoints
-        ode_residual.set_param(param)
+        ode_residual.set_param(bkd.flatten(param))
         operator.storage()._clear()
         analytical_hvp = operator.hvp(init_state, param, vvec)
 
@@ -352,7 +351,7 @@ class TestTorchAutogradComparison:
             vvec = vvec / torch.norm(vvec)
 
             # Compute analytical HVP
-            ode_residual.set_param(param)
+            ode_residual.set_param(bkd.flatten(param))
             operator.storage()._clear()
             analytical_hvp = operator.hvp(init_state, param, vvec)
 
@@ -389,11 +388,11 @@ class TestTorchAutogradComparison:
             param_plus[ii, 0] += eps
             param_minus[ii, 0] -= eps
 
-            ode_residual.set_param(param_plus)
+            ode_residual.set_param(bkd.flatten(param_plus))
             operator.storage()._clear()
             jac_plus = operator.jacobian(init_state, param_plus)
 
-            ode_residual.set_param(param_minus)
+            ode_residual.set_param(bkd.flatten(param_minus))
             operator.storage()._clear()
             jac_minus = operator.jacobian(init_state, param_minus)
 
@@ -404,7 +403,7 @@ class TestTorchAutogradComparison:
             ei = torch.zeros(nparams, 1, dtype=torch.float64)
             ei[ii, 0] = 1.0
 
-            ode_residual.set_param(param)
+            ode_residual.set_param(bkd.flatten(param))
             operator.storage()._clear()
             hvp_ei = operator.hvp(init_state, param, ei)
 

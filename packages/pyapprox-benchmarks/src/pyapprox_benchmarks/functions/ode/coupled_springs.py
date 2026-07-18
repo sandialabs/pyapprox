@@ -62,8 +62,11 @@ class CoupledSpringsResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
     def set_param(self, param: Array) -> None:
         """Set the parameters."""
-        if param.ndim == 2:
-            param = self._bkd.flatten(param)
+        if param.ndim != 1:
+            raise ValueError(
+                f"param must be 1D with shape (nparams,), got shape "
+                f"{tuple(param.shape)}"
+            )
         if param.shape[0] != self._nparams:
             raise ValueError(
                 f"Expected {self._nparams} parameters, got {param.shape[0]}"

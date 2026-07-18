@@ -8,10 +8,6 @@ This module tests the derivative checking functionality at three levels:
 """
 
 
-from pyapprox_benchmarks.functions.ode.linear_ode import (
-    LinearODEResidual,
-    QuadraticODEResidual,
-)
 from pyapprox.ode.explicit_steppers.heun import HeunHVP
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
@@ -23,6 +19,10 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox_benchmarks.functions.ode.linear_ode import (
+    LinearODEResidual,
+    QuadraticODEResidual,
+)
 
 
 class TestTimeAdjointDerivativeChecker:
@@ -75,7 +75,7 @@ class TestTimeAdjointDerivativeChecker:
         init_state = bkd.asarray([1.0, 0.5])
         param = bkd.asarray([[0.1], [0.2]])
 
-        operator._integrator._newton_solver._residual._residual.set_param(param)
+        operator._integrator._newton_solver._residual._residual.set_param(bkd.flatten(param))
 
         errors = checker.check_ode_jacobian(init_state, time=0.0, verbosity=0)
         min_err = float(bkd.min(errors))
@@ -108,7 +108,7 @@ class TestTimeAdjointDerivativeChecker:
         param = bkd.asarray([[0.1], [0.2]])
         adj_state = bkd.asarray([1.0, 0.0])
 
-        operator._integrator._newton_solver._residual._residual.set_param(param)
+        operator._integrator._newton_solver._residual._residual.set_param(bkd.flatten(param))
 
         errors = checker.check_ode_state_state_hvp(
             init_state, adj_state, time=0.0, verbosity=0
@@ -163,7 +163,7 @@ class TestTimeAdjointDerivativeChecker:
 
         # Check at t=0, t=dt, t=2*dt
         for t in [0.0, self._deltat, 2 * self._deltat]:
-            operator._integrator._newton_solver._residual._residual.set_param(param)
+            operator._integrator._newton_solver._residual._residual.set_param(bkd.flatten(param))
 
             errors = checker.check_ode_jacobian(init_state, time=t, verbosity=0)
             min_err = float(bkd.min(errors))
@@ -221,7 +221,7 @@ class TestTimeAdjointDerivativeCheckerTimeResidual:
         param = bkd.asarray([[0.1], [0.2]])
 
         # Get forward trajectory
-        operator._integrator._newton_solver._residual._residual.set_param(param)
+        operator._integrator._newton_solver._residual._residual.set_param(bkd.flatten(param))
         operator.storage()._clear()
         fwd_sols, times = operator._get_forward_trajectory(init_state, param)
 
@@ -248,7 +248,7 @@ class TestTimeAdjointDerivativeCheckerTimeResidual:
         adj_state = bkd.asarray([1.0, 0.0])
 
         # Get forward trajectory
-        operator._integrator._newton_solver._residual._residual.set_param(param)
+        operator._integrator._newton_solver._residual._residual.set_param(bkd.flatten(param))
         operator.storage()._clear()
         fwd_sols, times = operator._get_forward_trajectory(init_state, param)
 

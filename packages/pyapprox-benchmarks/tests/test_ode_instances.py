@@ -69,7 +69,7 @@ class TestLotkaVolterra3Species:
         residual = problem.residual()
 
         param = bkd.asarray(problem.nominal_parameters())
-        residual.set_param(param)
+        residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
         f = residual(state)
@@ -80,7 +80,7 @@ class TestLotkaVolterra3Species:
         residual = problem.residual()
 
         param = bkd.asarray(problem.nominal_parameters())
-        residual.set_param(param)
+        residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
         jac = residual.jacobian(state)
@@ -91,7 +91,7 @@ class TestLotkaVolterra3Species:
         residual = problem.residual()
 
         param = bkd.asarray(problem.nominal_parameters())
-        residual.set_param(param)
+        residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
         pjac = residual.param_jacobian(state)
@@ -140,7 +140,7 @@ class TestCoupledSprings2Mass:
         residual = problem.residual()
 
         param = bkd.asarray(problem.nominal_parameters())
-        residual.set_param(param)
+        residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
         f = residual(state)
@@ -183,7 +183,7 @@ class TestHastingsEcology3Species:
         residual = problem.residual()
 
         param = bkd.asarray(problem.nominal_parameters())
-        residual.set_param(param)
+        residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
         f = residual(state)
@@ -233,7 +233,7 @@ class TestChemicalReactionSurface:
         residual = problem.residual()
 
         param = bkd.asarray(problem.nominal_parameters())
-        residual.set_param(param)
+        residual.set_param(bkd.flatten(param))
 
         state = bkd.flatten(problem.initial_condition())
         f = residual(state)

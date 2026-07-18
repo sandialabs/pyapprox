@@ -18,6 +18,14 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
 
+def _require_1d(name: str, arr: Array) -> None:
+    """Raise if a direction vector is not 1D (silent broadcast risk)."""
+    if arr.ndim != 1:
+        raise ValueError(
+            f"{name} must be 1D, got shape {tuple(arr.shape)}"
+        )
+
+
 class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
     Linear ODE residual: f(y, t; p) = A·y + B·p.
@@ -70,10 +78,13 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         Parameters
         ----------
         param : Array
-            Parameters. Shape: (nparams, 1) or (nparams,)
+            Parameters. Shape: (nparams,)
         """
-        if param.ndim == 1:
-            param = param[:, None]
+        if param.ndim != 1:
+            raise ValueError(
+                f"param must be 1D with shape (nparams,), got shape "
+                f"{tuple(param.shape)}"
+            )
         self._param = param
 
     def __call__(self, state: Array) -> Array:
@@ -94,7 +105,7 @@ class LinearODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         if self._param is None:
             raise RuntimeError("Must call set_param() first")
-        forcing = self._bkd.flatten(self._Bmat @ self._param)
+        forcing = self._Bmat @ self._param
         return self._Amat @ state + forcing
 
     def jacobian(self, state: Array) -> Array:
@@ -239,10 +250,13 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         Parameters
         ----------
         param : Array
-            Parameters [quad_coeff, constant]. Shape: (2, 1) or (2,)
+            Parameters [quad_coeff, constant]. Shape: (2,)
         """
-        if param.ndim == 1:
-            param = param[:, None]
+        if param.ndim != 1:
+            raise ValueError(
+                f"param must be 1D with shape (nparams,), got shape "
+                f"{tuple(param.shape)}"
+            )
         self._param = param
 
     def __call__(self, state: Array) -> Array:
@@ -261,8 +275,8 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         if self._param is None:
             raise RuntimeError("Must call set_param() first")
-        p0 = float(self._param[0, 0])
-        p1 = float(self._param[1, 0])
+        p0 = self._param[0]
+        p1 = self._param[1]
         return self._Amat @ state + p0 * state**2 + p1
 
     def jacobian(self, state: Array) -> Array:
@@ -281,8 +295,7 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         if self._param is None:
             raise RuntimeError("Must call set_param() first")
-        p0 = float(self._param[0, 0])
-        return self._Amat + 2.0 * p0 * self._bkd.diag(state)
+        return self._Amat + 2.0 * self._param[0] * self._bkd.diag(state)
 
     def mass_matrix(self) -> IdentityMassMatrix[Array]:
         return self._mass
@@ -335,8 +348,8 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         if self._param is None:
             raise RuntimeError("Must call set_param() first")
-        p0 = float(self._param[0, 0])
-        return 2.0 * p0 * adj_state * wvec
+        _require_1d("wvec", wvec)
+        return 2.0 * self._param[0] * adj_state * wvec
 
     def state_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:
         """
@@ -353,9 +366,8 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
         Returns shape (nstates,).
         """
-        _to_f = self._bkd.to_float
-        v0 = _to_f(vvec[0, 0]) if vvec.ndim == 2 else _to_f(vvec[0])
-        return 2.0 * adj_state * state * v0
+        _require_1d("vvec", vvec)
+        return 2.0 * adj_state * state * vvec[0]
 
     def param_state_hvp(self, state: Array, adj_state: Array, wvec: Array) -> Array:
         """
@@ -369,7 +381,8 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """
         result = self._bkd.zeros((self._nparams,))
         result = self._bkd.copy(result)
-        result[0] = 2.0 * self._bkd.to_float(self._bkd.sum(adj_state * state * wvec))
+        _require_1d("wvec", wvec)
+        result[0] = 2.0 * self._bkd.sum(adj_state * state * wvec)
         return result
 
     def param_param_hvp(self, state: Array, adj_state: Array, vvec: Array) -> Array:

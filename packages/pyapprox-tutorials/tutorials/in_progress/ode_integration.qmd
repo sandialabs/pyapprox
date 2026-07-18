@@ -84,7 +84,7 @@ problem = build_lotka_volterra_3species(bkd)
 residual = problem.residual()
 
 # Set parameters and time
-residual.set_param(problem.nominal_parameters())
+residual.set_param(bkd.flatten(problem.nominal_parameters()))
 residual.set_time(0.0)
 
 # Evaluate at initial condition (flatten from (3,1) to (3,))
@@ -233,7 +233,7 @@ We can easily swap the time stepping method by using a different stepper class:
 from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonStepper
 
 residual_cn = problem.residual()
-residual_cn.set_param(problem.nominal_parameters())
+residual_cn.set_param(bkd.flatten(problem.nominal_parameters()))
 
 cn_stepper = CrankNicolsonStepper(residual_cn)
 newton_cn = NewtonSolver(cn_stepper)
@@ -262,7 +262,7 @@ def solve_with_deltat(deltat):
     from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 
     residual = problem.residual()
-    residual.set_param(problem.nominal_parameters())
+    residual.set_param(bkd.flatten(problem.nominal_parameters()))
 
     time_residual = BackwardEulerStepper(residual)
     newton_solver = NewtonSolver(time_residual)

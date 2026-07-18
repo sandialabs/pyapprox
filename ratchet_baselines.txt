@@ -2,4 +2,4 @@
 # its baseline here in the same commit. Read by .github/workflows/lint.yml
 # (protected); this file is deliberately editable agent-side data.
 mypy_src=589
-mypy_benchmarks=484
+mypy_benchmarks=479
