@@ -18,10 +18,12 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
-    PhysicsWithParamJacobianProtocol,
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
+)
+from pyapprox.pde.collocation.time_integration.physics_adapter import (
+    PhysicsToODEResidualWithSetParamAdapter,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -37,8 +39,8 @@ class TransientForwardModel(Generic[Array]):
     Parameters
     ----------
     physics : object
-        Parameterized collocation physics (must have set_param,
-        param_jacobian, nparams, and satisfy PhysicsProtocol).
+        Collocation physics (must satisfy PhysicsProtocol). Parameter
+        handling comes from the required ``parameterization``.
     bkd : Backend
         Computational backend.
     init_state : Array
@@ -59,9 +61,7 @@ class TransientForwardModel(Generic[Array]):
         functional: Any = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ) -> None:
-        if parameterization is not None and not isinstance(
-            parameterization, ParameterizationProtocol
-        ):
+        if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
@@ -70,12 +70,10 @@ class TransientForwardModel(Generic[Array]):
         self._physics = physics
         self._init_state = init_state
         self._time_config = time_config
-        self._parameterization = parameterization
-
-        if parameterization is not None:
-            self._nparams = parameterization.nparams()
-        else:
-            self._nparams = physics.nparams()
+        self._parameterization: ParameterizationProtocol[Array] = (
+            parameterization
+        )
+        self._nparams = parameterization.nparams()
 
         if functional is None:
             functional = AllStatesEndpointFunctional(
@@ -84,14 +82,9 @@ class TransientForwardModel(Generic[Array]):
         self._functional = functional
 
         # Capability: the adjoint/sensitivity jacobian needs a parameter
-        # jacobian from the parameterization (or legacy-path physics)
+        # jacobian from the parameterization's bundle
         self._has_param_jac = (
-            parameterization is not None
-            and parameterization.param_derivatives().param_jacobian
-            is not None
-        ) or (
-            parameterization is None
-            and isinstance(physics, PhysicsWithParamJacobianProtocol)
+            parameterization.param_derivatives().param_jacobian is not None
         )
         if self._has_param_jac:
             self._derivs: Derivatives[Array] = Derivatives.first_order(
@@ -135,17 +128,20 @@ class TransientForwardModel(Generic[Array]):
         times : Array
             Time points. Shape: (ntimes,).
         """
-        if self._parameterization is not None:
-            self._parameterization.apply(self._physics, param_2d[:, 0])
-        else:
-            self._physics.set_param(param_2d[:, 0])
+        self._parameterization.apply(self._physics, param_2d[:, 0])
         model = CollocationModel(
             self._physics,
             self._bkd,
             parameterization=self._parameterization,
         )
         # Store params on adapter so param_jacobian can access them
-        model.adapter().set_param(param_2d[:, 0])
+        adapter = model.adapter()
+        if not isinstance(adapter, PhysicsToODEResidualWithSetParamAdapter):
+            raise TypeError(
+                "CollocationModel built with a parameterization must "
+                f"produce a parameterized adapter; got {type(adapter).__name__}"
+            )
+        adapter.set_param(param_2d[:, 0])
         solutions, times = model.solve_transient(self._init_state, self._time_config)
         return model, solutions, times
 

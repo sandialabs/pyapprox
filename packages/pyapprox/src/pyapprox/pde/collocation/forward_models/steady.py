@@ -22,7 +22,6 @@ from pyapprox.optimization.implicitfunction.operator.sensitivities import (
 )
 from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
-    PhysicsWithParamJacobianProtocol,
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
@@ -46,10 +45,12 @@ class CollocationStateEquationAdapter(Generic[Array]):
     Parameters
     ----------
     model : CollocationModel
-        Collocation model (must wrap parameterized physics with set_param,
-        param_jacobian, nparams methods).
+        Collocation model wrapping the physics.
     bkd : Backend
         Computational backend.
+    parameterization : ParameterizationProtocol
+        Required; maps parameter vectors to physics coefficients and
+        provides derivative capability via its ParamDerivatives bundle.
     """
 
     def __init__(
@@ -58,9 +59,7 @@ class CollocationStateEquationAdapter(Generic[Array]):
         bkd: Backend[Array],
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ):
-        if parameterization is not None and not isinstance(
-            parameterization, ParameterizationProtocol
-        ):
+        if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
@@ -69,7 +68,9 @@ class CollocationStateEquationAdapter(Generic[Array]):
         self._bkd = bkd
         self._physics = model.physics()
         self._adapter = model.adapter()
-        self._parameterization = parameterization
+        self._parameterization: ParameterizationProtocol[Array] = (
+            parameterization
+        )
         self._bc_indices = self._collect_bc_indices()
 
     def _collect_bc_indices(self) -> list[int]:
@@ -94,10 +95,7 @@ class CollocationStateEquationAdapter(Generic[Array]):
 
     def _set_param(self, param: Array) -> None:
         """Set parameter on physics (converts 2D column to 1D)."""
-        if self._parameterization is not None:
-            self._parameterization.apply(self._physics, param[:, 0])
-        else:
-            self._physics.set_param(param[:, 0])
+        self._parameterization.apply(self._physics, param[:, 0])
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -109,9 +107,7 @@ class CollocationStateEquationAdapter(Generic[Array]):
 
     def nparams(self) -> int:
         """Return number of parameters."""
-        if self._parameterization is not None:
-            return self._parameterization.nparams()
-        return self._physics.nparams()
+        return self._parameterization.nparams()
 
     def solve(self, init_state: Array, param: Array) -> Array:
         """Solve the steady-state problem R(u, p) = 0 for u.
@@ -203,23 +199,14 @@ class CollocationStateEquationAdapter(Generic[Array]):
         """
         self._set_param(param)
         state_1d = state[:, 0]
-        parameterization = self._parameterization
-        if parameterization is not None:
-            param_jac_fn = parameterization.param_derivatives().param_jacobian
-            if param_jac_fn is None:
-                raise RuntimeError(
-                    "parameterization does not provide param_jacobian"
-                )
-            pjac = param_jac_fn(
-                self._physics, state_1d, 0.0, param[:, 0]
+        param_jac_fn = (
+            self._parameterization.param_derivatives().param_jacobian
+        )
+        if param_jac_fn is None:
+            raise RuntimeError(
+                "parameterization does not provide param_jacobian"
             )
-        else:
-            physics = self._physics
-            if not isinstance(physics, PhysicsWithParamJacobianProtocol):
-                raise RuntimeError(
-                    "physics does not provide param_jacobian"
-                )
-            pjac = physics.param_jacobian(state_1d, 0.0)
+        pjac = param_jac_fn(self._physics, state_1d, 0.0, param[:, 0])
 
         # Apply BC corrections (replaces _zero_bc_rows)
         if hasattr(self._physics, "boundary_conditions"):
@@ -244,8 +231,6 @@ class CollocationStateEquationAdapter(Generic[Array]):
         bc_flux_param_sensitivity. Only applies to BCs whose normal operator
         has coefficient dependence (e.g., flux Neumann with parameterized D).
         """
-        if self._parameterization is None:
-            return None
         bc_flux_fn = (
             self._parameterization.param_derivatives().bc_flux_param_sensitivity
         )
@@ -277,8 +262,8 @@ class SteadyForwardModel(Generic[Array]):
     Parameters
     ----------
     physics : object
-        Parameterized collocation physics (must have set_param, param_jacobian,
-        nparams, and satisfy PhysicsProtocol).
+        Collocation physics (must satisfy PhysicsProtocol). Parameter
+        handling comes from the required ``parameterization``.
     bkd : Backend
         Computational backend.
     init_state : Array
@@ -296,16 +281,16 @@ class SteadyForwardModel(Generic[Array]):
         functional: Optional[ParameterizedFunctionalWithJacobianProtocol[Array]] = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ) -> None:
-        if parameterization is not None and not isinstance(
-            parameterization, ParameterizationProtocol
-        ):
+        if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
         self._bkd = bkd
         self._physics = physics
-        self._parameterization = parameterization
+        self._parameterization: ParameterizationProtocol[Array] = (
+            parameterization
+        )
         self._init_state_1d = init_state
         self._init_state_2d = init_state[:, None]
 
@@ -333,14 +318,9 @@ class SteadyForwardModel(Generic[Array]):
         self._nparams = nparams
 
         # Capability: the adjoint jacobian needs a parameter jacobian
-        # from the parameterization (or, on the legacy path, the physics)
+        # from the parameterization's bundle
         self._has_param_jac = (
-            parameterization is not None
-            and parameterization.param_derivatives().param_jacobian
-            is not None
-        ) or (
-            parameterization is None
-            and isinstance(physics, PhysicsWithParamJacobianProtocol)
+            parameterization.param_derivatives().param_jacobian is not None
         )
         if self._has_param_jac:
             self._derivs: Derivatives[Array] = Derivatives.first_order(

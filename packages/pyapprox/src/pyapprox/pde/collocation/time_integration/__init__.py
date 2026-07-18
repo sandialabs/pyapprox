@@ -12,10 +12,18 @@ from pyapprox.pde.collocation.time_integration.collocation_model import (
 )
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
     PhysicsToODEResidualAdapter,
+    PhysicsToODEResidualWithHVPAdapter,
+    PhysicsToODEResidualWithParamJacobianAdapter,
+    PhysicsToODEResidualWithSetParamAdapter,
+    create_physics_ode_residual,
 )
 
 __all__ = [
     "PhysicsToODEResidualAdapter",
+    "PhysicsToODEResidualWithSetParamAdapter",
+    "PhysicsToODEResidualWithParamJacobianAdapter",
+    "PhysicsToODEResidualWithHVPAdapter",
+    "create_physics_ode_residual",
     "TimeIntegrationConfig",
     "CollocationModel",
     "BCEnforcingForwardResidual",

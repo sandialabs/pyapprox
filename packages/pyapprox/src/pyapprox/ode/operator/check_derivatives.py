@@ -176,12 +176,12 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         nparams = param_2d.shape[0]
 
         def fun(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._ode_residual.set_time(time)
             return self._to_2d(self._ode_residual(state_1d))
 
         def jac(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._ode_residual.set_time(time)
             return self._ode_residual.param_jacobian(state_1d)
 
@@ -247,15 +247,17 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         nparams = param_2d.shape[0]
 
         def fun(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._ode_residual.set_time(time)
             result = self._ode_residual.jacobian(state_1d).T @ adj_1d
             return self._to_2d(result)
 
         def jvp(p_2d: Array, v_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._ode_residual.set_time(time)
-            result = self._ode_residual.state_param_hvp(state_1d, adj_1d, v_2d)
+            result = self._ode_residual.state_param_hvp(
+                state_1d, adj_1d, self._from_2d(v_2d)
+            )
             return self._to_2d(result)
 
         wrapper = FunctionWithJVPFromCallable(
@@ -284,7 +286,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         nstates = state_1d.shape[0]
         nparams = param_2d.shape[0]
 
-        self._ode_residual.set_param(param_2d)
+        self._ode_residual.set_param(self._from_2d(param_2d))
 
         def fun(y_2d: Array) -> Array:
             y_1d = self._from_2d(y_2d)
@@ -325,15 +327,17 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         nparams = param_2d.shape[0]
 
         def fun(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._ode_residual.set_time(time)
             result = self._ode_residual.param_jacobian(state_1d).T @ adj_1d
             return self._to_2d(result)
 
         def jvp(p_2d: Array, v_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._ode_residual.set_time(time)
-            result = self._ode_residual.param_param_hvp(state_1d, adj_1d, v_2d)
+            result = self._ode_residual.param_param_hvp(
+                state_1d, adj_1d, self._from_2d(v_2d)
+            )
             return self._to_2d(result)
 
         wrapper = FunctionWithJVPFromCallable(
@@ -371,13 +375,13 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             return StepContext(t_prev=time, deltat=deltat, y_prev=fsol_nm1_1d)
 
         def fun(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             ctx = _make_ctx()
             self._time_residual.bind(ctx)
             return self._to_2d(self._time_residual(fsol_n_1d))
 
         def jac(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             ctx = _make_ctx()
             self._time_residual.bind(ctx)
             return self._time_residual.param_jacobian(ctx, fsol_n_1d)
@@ -410,7 +414,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         adj_1d = self._from_2d(adj_state)
         nstates = fsol_n_1d.shape[0]
 
-        self._ode_residual.set_param(param_2d)
+        self._ode_residual.set_param(self._from_2d(param_2d))
 
         def fun(y_nm1_2d: Array) -> Array:
             y_nm1_1d = self._from_2d(y_nm1_2d)
@@ -464,7 +468,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             return StepContext(t_prev=time, deltat=deltat, y_prev=fsol_nm1_1d)
 
         def fun(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             ctx = _make_ctx()
             self._time_residual.bind(ctx)
             jac = self._time_residual.param_jacobian(ctx, fsol_n_1d)
@@ -472,11 +476,11 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             return self._to_2d(result)
 
         def jvp(p_2d: Array, v_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             ctx = _make_ctx()
             self._time_residual.bind(ctx)
             result = self._time_residual.param_param_hvp(
-                ctx, fsol_n_1d, adj_1d, v_2d
+                ctx, fsol_n_1d, adj_1d, self._from_2d(v_2d)
             )
             return self._to_2d(result)
 
@@ -513,7 +517,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             return StepContext(t_prev=time, deltat=deltat, y_prev=fsol_nm1_1d)
 
         def fun(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             ctx = _make_ctx()
             self._time_residual.bind(ctx)
             result = (
@@ -523,11 +527,11 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             return self._to_2d(result)
 
         def jvp(p_2d: Array, v_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             ctx = _make_ctx()
             self._time_residual.bind(ctx)
             result = self._time_residual.state_param_hvp(
-                ctx, fsol_n_1d, adj_1d, v_2d
+                ctx, fsol_n_1d, adj_1d, self._from_2d(v_2d)
             )
             return self._to_2d(result)
 
@@ -560,7 +564,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         nstates = fsol_n_1d.shape[0]
         nparams = param_2d.shape[0]
 
-        self._ode_residual.set_param(param_2d)
+        self._ode_residual.set_param(self._from_2d(param_2d))
 
         def fun(y_nm1_2d: Array) -> Array:
             y_nm1_1d = self._from_2d(y_nm1_2d)
@@ -607,7 +611,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         nparams = param_2d.shape[0]
 
         def fun(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._operator.storage()._clear()
             fwd_sols, times = self._operator._get_forward_trajectory(
                 init_state_1d, p_2d
@@ -615,7 +619,7 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
             return self._functional(fwd_sols, p_2d)
 
         def jac(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._operator.storage()._clear()
             return self._operator.jacobian(init_state_1d, p_2d)
 
@@ -642,12 +646,12 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
         nparams = param_2d.shape[0]
 
         def fun(p_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._operator.storage()._clear()
             return self._operator.jacobian(init_state_1d, p_2d).T
 
         def jvp(p_2d: Array, v_2d: Array) -> Array:
-            self._ode_residual.set_param(p_2d)
+            self._ode_residual.set_param(self._from_2d(p_2d))
             self._operator.storage()._clear()
             _ = self._operator.jacobian(init_state_1d, p_2d)
             return self._operator.hvp(init_state_1d, p_2d, v_2d)

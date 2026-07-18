@@ -1,9 +1,12 @@
 """Physics protocols for spectral collocation methods.
 
-Defines a 3-level protocol hierarchy for PDE physics:
-1. PhysicsProtocol - basic residual and Jacobian
-2. PhysicsWithParamJacobianProtocol - adds parameter sensitivity (for adjoint)
-3. PhysicsWithHVPProtocol - adds Hessian-vector products (for second-order)
+Defines the protocols for PDE physics:
+- PhysicsProtocol - basic residual and Jacobian
+- PhysicsWithStateStateHVPProtocol - adds the state-state HVP contraction
+
+Parameter sensitivity (param_jacobian, parameter HVPs) is owned by the
+separate ParameterizationProtocol layer via its ParamDerivatives bundle,
+not embedded in physics.
 """
 
 from typing import Generic, Protocol, Tuple, runtime_checkable
@@ -133,93 +136,14 @@ class PhysicsProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
-class PhysicsWithParamJacobianProtocol(Protocol, Generic[Array]):
-    """Protocol for physics with parameter sensitivity (Level 2).
+class PhysicsWithStateStateHVPProtocol(PhysicsProtocol[Array], Protocol):
+    """Physics additionally providing the state-state HVP contraction.
 
-    Extends PhysicsProtocol with parameter Jacobian for adjoint
-    sensitivity analysis.
+    Required by the HVP-tier ODE-residual adapter: parameterizations own
+    the parameter-facing second derivatives (via their ParamDerivatives
+    bundle), but lambda^T (d^2f/dy^2) w depends only on the physics.
     """
 
-    # --- All PhysicsProtocol methods ---
-    def bkd(self) -> Backend[Array]: ...
-    def basis(self) -> BasisProtocol[Array]: ...
-    def nstates(self) -> int: ...
-    def ncomponents(self) -> int: ...
-    def residual(self, state: Array, time: float) -> Array: ...
-    def jacobian(self, state: Array, time: float) -> Array: ...
-    def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array
-    ) -> Tuple[Array, Array]: ...
-    def mass_matrix(self) -> Array: ...
-
-    # --- Additional parameter methods ---
-    def nparams(self) -> int:
-        """Return number of parameters."""
-        ...
-
-    def set_param(self, param: Array) -> None:
-        """Set parameter values.
-
-        Parameters
-        ----------
-        param : Array
-            Parameter vector. Shape: (nparams,) or (nparams, 1)
-        """
-        ...
-
-    def param_jacobian(self, state: Array, time: float) -> Array:
-        """Compute parameter Jacobian df/dp.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Parameter Jacobian. Shape: (nstates, nparams)
-        """
-        ...
-
-    def initial_param_jacobian(self) -> Array:
-        """Compute initial condition parameter Jacobian d(u_0)/dp.
-
-        Returns
-        -------
-        Array
-            Initial condition Jacobian. Shape: (nstates, nparams)
-        """
-        ...
-
-
-@runtime_checkable
-class PhysicsWithHVPProtocol(Protocol, Generic[Array]):
-    """Protocol for physics with Hessian-vector products (Level 3).
-
-    Extends PhysicsWithParamJacobianProtocol with HVP methods for
-    second-order optimization (Newton methods, Gauss-Newton, etc.).
-    """
-
-    # --- All PhysicsWithParamJacobianProtocol methods ---
-    def bkd(self) -> Backend[Array]: ...
-    def basis(self) -> BasisProtocol[Array]: ...
-    def nstates(self) -> int: ...
-    def ncomponents(self) -> int: ...
-    def residual(self, state: Array, time: float) -> Array: ...
-    def jacobian(self, state: Array, time: float) -> Array: ...
-    def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array
-    ) -> Tuple[Array, Array]: ...
-    def mass_matrix(self) -> Array: ...
-    def nparams(self) -> int: ...
-    def set_param(self, param: Array) -> None: ...
-    def param_jacobian(self, state: Array, time: float) -> Array: ...
-    def initial_param_jacobian(self) -> Array: ...
-
-    # --- HVP methods ---
     def state_state_hvp(
         self, state: Array, adj_state: Array, wvec: Array, time: float
     ) -> Array:
@@ -240,75 +164,6 @@ class PhysicsWithHVPProtocol(Protocol, Generic[Array]):
         -------
         Array
             HVP result. Shape: (nstates,)
-        """
-        ...
-
-    def state_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array, time: float
-    ) -> Array:
-        """Compute lambda^T * (d^2f/dudp) * v.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        adj_state : Array
-            Adjoint variable. Shape: (nstates,)
-        vvec : Array
-            Parameter direction. Shape: (nparams,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            HVP result. Shape: (nstates,)
-        """
-        ...
-
-    def param_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array, time: float
-    ) -> Array:
-        """Compute lambda^T * (d^2f/dpdu) * w.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        adj_state : Array
-            Adjoint variable. Shape: (nstates,)
-        wvec : Array
-            State direction. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            HVP result. Shape: (nparams,)
-        """
-        ...
-
-    def param_param_hvp(
-        self, state: Array, adj_state: Array, vvec: Array, time: float
-    ) -> Array:
-        """Compute lambda^T * (d^2f/dp^2) * v.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        adj_state : Array
-            Adjoint variable. Shape: (nstates,)
-        vvec : Array
-            Parameter direction. Shape: (nparams,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            HVP result. Shape: (nparams,)
         """
         ...
 

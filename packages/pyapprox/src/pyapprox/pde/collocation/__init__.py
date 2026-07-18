@@ -19,8 +19,7 @@ from pyapprox.pde.collocation.protocols import (
     MeshProtocol,
     MeshWithTransformProtocol,
     PhysicsProtocol,
-    PhysicsWithHVPProtocol,
-    PhysicsWithParamJacobianProtocol,
+    PhysicsWithStateStateHVPProtocol,
     TransformProtocol,
 )
 
@@ -35,10 +34,9 @@ __all__ = [
     # Operator protocols
     "FieldProtocol",
     "FieldWithJacobianProtocol",
-    # Physics protocols (3-level hierarchy)
+    # Physics protocols
     "PhysicsProtocol",
-    "PhysicsWithParamJacobianProtocol",
-    "PhysicsWithHVPProtocol",
+    "PhysicsWithStateStateHVPProtocol",
     # Solver protocols
     "LinearSolverProtocol",
     "IterativeSolverProtocol",

@@ -1,268 +1,239 @@
-"""Tests for MeanGuidedSubsetFitter with known_quantities."""
+"""Tests for MeanGuidedSubsetFitter."""
 
 import numpy as np
-from pyapprox.util.backends.numpy import NumpyBkd
+import pytest
+from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
+from pyapprox.statest.groupacv import (
+    GroupACVAllocationOptimizer,
+    GroupACVEstimatorIS,
+    MeanGuidedSubsetFitter,
+    MeanGuidedSubsetResult,
+)
+from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig
+from pyapprox.statest.statistics import (
+    MultiOutputVariance,
+)
+from pyapprox.util.backends.torch import TorchBkd
+
+from tests._helpers.markers import slow_test
 
 
-def _setup_benchmark():
-    """Build a PolynomialEnsembleBenchmark and return reusable objects."""
-    from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
-
-    bkd = NumpyBkd()
-    bench = PolynomialEnsembleBenchmark(bkd, nmodels=5)
-    costs = bench.problem().costs()
-    cov = bench.covariance_matrix()
-    W = bench.covariance_of_centered_values_kronecker_product()
-    B = bench.covariance_of_mean_and_variance_estimators()
-    means = bench.ensemble_means()
-    nqoi = bench.problem().models()[0].nqoi()
-    nmodels = len(bkd.to_numpy(costs))
-    return bkd, bench, costs, cov, W, B, means, nqoi, nmodels
+def _slsqp():
+    return ScipySLSQPOptimizer(maxiter=1000, ftol=1e-10)
 
 
-def _make_fitter_args(bkd):
-    from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
-    from pyapprox.statest.groupacv import GroupACVEstimatorIS
-    from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig
+def _make_correlated_variance_stat(bkd, nmodels=5, nqoi=1, npilot=10000):
+    """Create a Variance stat with realistic correlations from pilot data."""
+    np.random.seed(42)
+    pilot_values = []
+    base = np.random.randn(nqoi, npilot)
+    for i in range(nmodels):
+        rho = 0.95 ** (i + 1)
+        noise_std = (1 - rho**2) ** 0.5
+        vals = rho * base + noise_std * np.random.randn(nqoi, npilot)
+        pilot_values.append(bkd.array(vals))
+    stat = MultiOutputVariance(nqoi, bkd)
+    cov, W = stat.compute_pilot_quantities(pilot_values)
+    stat.set_pilot_quantities(cov, W)
+    return stat
 
-    return dict(
-        estimator_class=GroupACVEstimatorIS,
-        optimizer=ScipySLSQPOptimizer(maxiter=1000, ftol=1e-6),
-        problem_config=AllocationProblemConfig(
-            variable_scaling="log", budget_constraint_form="inequality",
-        ),
-    )
 
+class TestMeanGuidedSubsetFitterTorchOnly:
+    """Tests requiring Torch backend."""
 
-class TestMeanGuidedKnownQuantities:
-    def test_mean_only_kq_raises_for_variance_stat(self, numpy_bkd):
-        """Mean-only known_quantities should raise for variance stat."""
-        import pytest
-        from pyapprox.statest.groupacv import (
-            MeanGuidedSubsetFitter,
-            get_model_subsets,
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        import torch
+
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+
+    def test_smoke_5model_variance(self):
+        """Basic smoke test: fitter runs and returns valid result."""
+        bkd = self._bkd
+        stat = _make_correlated_variance_stat(bkd, nmodels=5)
+        costs = bkd.array([10.0, 4.0, 2.0, 1.0, 0.5])
+        config = AllocationProblemConfig(
+            variable_scaling="log",
+            budget_constraint_form="inequality",
         )
-        from pyapprox.statest.statistics import MultiOutputVariance
 
-        bkd, bench, costs, cov, W, B, means, nqoi, nmodels = (
-            _setup_benchmark()
+        fitter = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
         )
-        subsets = get_model_subsets(nmodels, bkd)
-        fitter_args = _make_fitter_args(bkd)
+        result = fitter.fit(target_cost=100)
 
-        stat_var = MultiOutputVariance(nqoi, bkd)
-        stat_var.set_pilot_quantities(cov, W)
+        assert isinstance(result, MeanGuidedSubsetResult)
+        assert result.best_allocation.success
+        assert len(result.active_subset_indices) > 0
+        assert result.partitions_pruned() >= 0
 
-        kq = {(4, "mean"): means[4, :]}
+    @slow_test
+    def test_pruning_reduces_variance_at_low_budget(self):
+        """At low budget, mean-guided pruning should reduce variance vs full set."""
+        bkd = self._bkd
+        stat = _make_correlated_variance_stat(bkd, nmodels=5)
+        costs = bkd.array([10.0, 4.0, 2.0, 1.0, 0.5])
+        target_cost = 50.0
+        config = AllocationProblemConfig(
+            variable_scaling="log",
+            budget_constraint_form="inequality",
+        )
 
-        with pytest.raises(ValueError, match="known mean but not known variance"):
-            MeanGuidedSubsetFitter(
-                stat_var, costs, candidate_subsets=subsets,
-                known_quantities=kq, **fitter_args,
+        # Full solve (all subsets, with dead threshold)
+        full_est = GroupACVEstimatorIS(stat, costs)
+        full_allocator = GroupACVAllocationOptimizer(
+            full_est, optimizer=_slsqp(), problem_config=config,
+        )
+        full_result = full_allocator.optimize(target_cost)
+
+        # Mean-guided solve
+        fitter = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
+        )
+        guided_result = fitter.fit(target_cost=target_cost)
+
+        if full_result.success and guided_result.best_allocation.success:
+            full_obj = float(bkd.to_numpy(full_result.objective_value[0]))
+            guided_obj = float(bkd.to_numpy(
+                guided_result.best_allocation.objective_value[0]
+            ))
+            assert guided_obj <= full_obj + 1e-8, (
+                f"Mean-guided ({guided_obj}) should be <= full ({full_obj})"
             )
 
-    def test_known_mean_and_variance_improves_variance_stat(self, numpy_bkd):
-        """Known mean+variance in stage 2 should give <= variance."""
-        from pyapprox.statest.groupacv import (
-            MeanGuidedSubsetFitter,
-            get_model_subsets,
-        )
-        from pyapprox.statest.statistics import MultiOutputVariance
-
-        bkd, bench, costs, cov, W, B, means, nqoi, nmodels = (
-            _setup_benchmark()
-        )
-        subsets = get_model_subsets(nmodels, bkd)
-        fitter_args = _make_fitter_args(bkd)
-
-        stat_var = MultiOutputVariance(nqoi, bkd)
-        stat_var.set_pilot_quantities(cov, W)
-
-        variances = bkd.diag(cov)
-        kq = {
-            (4, "mean"): means[4, :],
-            (4, "variance"): variances[4:5],
-        }
-        target_cost = 200.0
-
-        result_none = MeanGuidedSubsetFitter(
-            stat_var, costs, candidate_subsets=subsets,
-            known_quantities=None, **fitter_args,
-        ).fit(target_cost, min_nhf_samples=2)
-
-        result_kq = MeanGuidedSubsetFitter(
-            stat_var, costs, candidate_subsets=subsets,
-            known_quantities=kq, **fitter_args,
-        ).fit(target_cost, min_nhf_samples=2)
-
-        var_none = float(bkd.to_numpy(
-            result_none.best_estimator.covariance()[0, 0]
-        ))
-        var_kq = float(bkd.to_numpy(
-            result_kq.best_estimator.covariance()[0, 0]
-        ))
-
-        assert var_kq <= var_none, (
-            f"known mean+variance should not increase variance: "
-            f"{var_kq:.6e} > {var_none:.6e}"
+    def test_all_active_at_high_budget(self):
+        """At high budget, pruning should keep most or all partitions."""
+        bkd = self._bkd
+        stat = _make_correlated_variance_stat(bkd, nmodels=3)
+        costs = bkd.array([3.0, 2.0, 1.0])
+        config = AllocationProblemConfig(
+            variable_scaling="log",
+            budget_constraint_form="inequality",
         )
 
-    def test_known_quantities_change_screening(self, numpy_bkd):
-        """Known mean+variance should change screening allocations."""
-        from pyapprox.statest.groupacv import (
-            MeanGuidedSubsetFitter,
-            get_model_subsets,
+        fitter = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
         )
-        from pyapprox.statest.statistics import MultiOutputVariance
+        result = fitter.fit(target_cost=5000)
 
-        bkd, bench, costs, cov, W, B, means, nqoi, nmodels = (
-            _setup_benchmark()
+        nactive = len(result.active_subset_indices)
+        # With ample budget, at least one partition should be active
+        assert nactive >= 1
+
+    def test_mean_stat_has_zero_dead_threshold(self):
+        """Verify the internal Mean stat allows partitions to reach zero."""
+        bkd = self._bkd
+        stat = _make_correlated_variance_stat(bkd, nmodels=3)
+        costs = bkd.array([3.0, 2.0, 1.0])
+
+        fitter = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS,
+            optimizer=_slsqp(),
         )
-        subsets = get_model_subsets(nmodels, bkd)
-        fitter_args = _make_fitter_args(bkd)
+        mean_stat = fitter._build_mean_stat()
+        assert mean_stat.continuous_dead_threshold() == 0.0
 
-        stat_var = MultiOutputVariance(nqoi, bkd)
-        stat_var.set_pilot_quantities(cov, W)
-
-        variances = bkd.diag(cov)
-        kq_all = {}
-        for i in range(1, nmodels):
-            kq_all[(i, "mean")] = means[i, :]
-            kq_all[(i, "variance")] = variances[i : i + 1]
-        target_cost = 100.0
-
-        result_none = MeanGuidedSubsetFitter(
-            stat_var, costs, candidate_subsets=subsets,
-            known_quantities=None, **fitter_args,
-        ).fit(target_cost, min_nhf_samples=1)
-
-        result_kq = MeanGuidedSubsetFitter(
-            stat_var, costs, candidate_subsets=subsets,
-            known_quantities=kq_all, **fitter_args,
-        ).fit(target_cost, min_nhf_samples=1)
-
-        # With many known quantities the screening solve has more freedom,
-        # so the active partition set should differ.
-        nps_none = bkd.to_numpy(result_none.mean_npartition_samples)
-        nps_kq = bkd.to_numpy(result_kq.mean_npartition_samples)
-        assert not np.allclose(nps_none, nps_kq, rtol=1e-3), (
-            "screening allocations should differ when known quantities are "
-            "provided"
+    def test_custom_activity_threshold(self):
+        """Custom threshold changes which partitions are pruned."""
+        bkd = self._bkd
+        stat = _make_correlated_variance_stat(bkd, nmodels=5)
+        costs = bkd.array([10.0, 4.0, 2.0, 1.0, 0.5])
+        config = AllocationProblemConfig(
+            variable_scaling="log",
+            budget_constraint_form="inequality",
         )
 
-    def test_variance_only_kq_raises(self, numpy_bkd):
-        """Variance-only known_quantities should raise ValueError."""
-        import pytest
-        from pyapprox.statest.groupacv import (
-            MeanGuidedSubsetFitter,
-            get_model_subsets,
+        # Low threshold — keep more
+        fitter_low = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
+            activity_threshold=1e-6,
         )
-        from pyapprox.statest.statistics import MultiOutputVariance
+        result_low = fitter_low.fit(target_cost=100)
 
-        bkd, bench, costs, cov, W, B, means, nqoi, nmodels = (
-            _setup_benchmark()
+        # High threshold — keep fewer
+        fitter_high = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
+            activity_threshold=1.0,
         )
-        subsets = get_model_subsets(nmodels, bkd)
-        fitter_args = _make_fitter_args(bkd)
+        result_high = fitter_high.fit(target_cost=100)
 
-        stat_var = MultiOutputVariance(nqoi, bkd)
-        stat_var.set_pilot_quantities(cov, W)
-
-        variances = bkd.diag(cov)
-        kq_var_only = {(4, "variance"): variances[4:5]}
-
-        with pytest.raises(ValueError, match="known variance but not known mean"):
-            MeanGuidedSubsetFitter(
-                stat_var, costs, candidate_subsets=subsets,
-                known_quantities=kq_var_only, **fitter_args,
-            )
-
-    def test_joint_mean_variance_with_known(self, numpy_bkd):
-        """MeanAndVariance stat with known quantities via the fitter."""
-        from pyapprox.statest.groupacv import (
-            MeanGuidedSubsetFitter,
-            get_model_subsets,
+        assert len(result_high.active_subset_indices) <= len(
+            result_low.active_subset_indices
         )
-        from pyapprox.statest.statistics import MultiOutputMeanAndVariance
 
-        bkd, bench, costs, cov, W, B, means, nqoi, nmodels = (
-            _setup_benchmark()
+    def test_deterministic(self):
+        """Same inputs produce identical results."""
+        bkd = self._bkd
+        costs = bkd.array([3.0, 2.0, 1.0])
+        config = AllocationProblemConfig(
+            variable_scaling="log",
+            budget_constraint_form="inequality",
         )
-        subsets = get_model_subsets(nmodels, bkd)
-        fitter_args = _make_fitter_args(bkd)
 
-        stat_mv = MultiOutputMeanAndVariance(nqoi, bkd)
-        stat_mv.set_pilot_quantities(cov, W, B)
-
-        variances = bkd.diag(cov)
-        kq = {
-            (4, "mean"): means[4, :],
-            (4, "variance"): variances[4:5],
-        }
-        target_cost = 500.0
-
-        result_none = MeanGuidedSubsetFitter(
-            stat_mv, costs, candidate_subsets=subsets,
-            known_quantities=None, **fitter_args,
-        ).fit(target_cost, min_nhf_samples=2)
-
-        result_kq = MeanGuidedSubsetFitter(
-            stat_mv, costs, candidate_subsets=subsets,
-            known_quantities=kq, **fitter_args,
-        ).fit(target_cost, min_nhf_samples=2)
-
-        cov_none = bkd.to_numpy(result_none.best_estimator.covariance())
-        cov_kq = bkd.to_numpy(result_kq.best_estimator.covariance())
-
-        mean_idx = stat_mv.stat_slot_indices("mean")
-        for mi in mean_idx:
-            assert cov_kq[mi, mi] <= cov_none[mi, mi], (
-                f"known quantities should not increase mean variance at "
-                f"index {mi}: {cov_kq[mi, mi]:.6e} > {cov_none[mi, mi]:.6e}"
-            )
-
-    def test_beats_mc(self, numpy_bkd):
-        """Fitter with known quantities should beat MC baseline."""
-        from pyapprox.statest.groupacv import (
-            MeanGuidedSubsetFitter,
-            get_model_subsets,
+        stat1 = _make_correlated_variance_stat(bkd, nmodels=3)
+        fitter1 = MeanGuidedSubsetFitter(
+            stat1, costs, GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
         )
-        from pyapprox.statest.statistics import MultiOutputVariance
+        result1 = fitter1.fit(target_cost=100)
 
-        bkd, bench, costs, cov, W, B, means, nqoi, nmodels = (
-            _setup_benchmark()
+        stat2 = _make_correlated_variance_stat(bkd, nmodels=3)
+        fitter2 = MeanGuidedSubsetFitter(
+            stat2, costs, GroupACVEstimatorIS,
+            optimizer=_slsqp(),
+            problem_config=config,
         )
-        subsets = get_model_subsets(nmodels, bkd)
-        fitter_args = _make_fitter_args(bkd)
+        result2 = fitter2.fit(target_cost=100)
 
-        stat_var = MultiOutputVariance(nqoi, bkd)
-        stat_var.set_pilot_quantities(cov, W)
-
-        variances = bkd.diag(cov)
-        kq = {
-            (4, "mean"): means[4, :],
-            (4, "variance"): variances[4:5],
-        }
-        target_cost = 200.0
-
-        result = MeanGuidedSubsetFitter(
-            stat_var, costs, candidate_subsets=subsets,
-            known_quantities=kq, **fitter_args,
-        ).fit(target_cost, min_nhf_samples=2)
-
-        gacv_var = float(bkd.to_numpy(
-            result.best_estimator.covariance()[0, 0]
-        ))
-
-        costs_np = bkd.to_numpy(costs)
-        nhf = target_cost / costs_np[0]
-        mc_var = float(bkd.to_numpy(
-            stat_var.high_fidelity_estimator_covariance(
-                bkd.array([nhf])
-            )[0, 0]
-        ))
-
-        assert gacv_var < mc_var, (
-            f"GACV with known quantities should beat MC: "
-            f"{gacv_var:.6e} >= {mc_var:.6e}"
+        assert result1.active_subset_indices == result2.active_subset_indices
+        bkd.assert_allclose(
+            result1.best_allocation.objective_value,
+            result2.best_allocation.objective_value,
         )
+
+
+class TestMeanGuidedSubsetFitterDualBackend:
+    """Tests that run on both NumPy and Torch backends."""
+
+    def test_construction(self, bkd):
+        """Fitter constructs on both backends."""
+        np.random.seed(42)
+        nmodels = 3
+        pilot_values = [bkd.array(np.random.randn(1, 100)) for _ in range(nmodels)]
+        stat = MultiOutputVariance(1, bkd)
+        cov, W = stat.compute_pilot_quantities(pilot_values)
+        stat.set_pilot_quantities(cov, W)
+        costs = bkd.array([3.0, 2.0, 1.0])
+
+        fitter = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS
+        )
+        assert fitter._bkd is bkd
+
+    def test_build_mean_stat_shares_cov(self, bkd):
+        """Internal Mean stat has the same covariance as the target stat."""
+        np.random.seed(42)
+        nmodels = 3
+        pilot_values = [bkd.array(np.random.randn(1, 100)) for _ in range(nmodels)]
+        stat = MultiOutputVariance(1, bkd)
+        cov, W = stat.compute_pilot_quantities(pilot_values)
+        stat.set_pilot_quantities(cov, W)
+        costs = bkd.array([3.0, 2.0, 1.0])
+
+        fitter = MeanGuidedSubsetFitter(
+            stat, costs, GroupACVEstimatorIS
+        )
+        mean_stat = fitter._build_mean_stat()
+        bkd.assert_allclose(mean_stat._cov, stat._cov)

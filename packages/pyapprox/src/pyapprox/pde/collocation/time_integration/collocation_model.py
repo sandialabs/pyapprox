@@ -29,6 +29,7 @@ from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
 )
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
     PhysicsToODEResidualAdapter,
+    create_physics_ode_residual,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -93,8 +94,8 @@ class CollocationModel(Generic[Array]):
             )
         self._physics = physics
         self._bkd = bkd
-        self._adapter = PhysicsToODEResidualAdapter(
-            physics, bkd, parameterization=parameterization
+        self._adapter = create_physics_ode_residual(
+            physics, bkd, parameterization
         )
         self._mass_matrix = physics.mass_matrix()
         self._last_integrator = None

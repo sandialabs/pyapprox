@@ -40,8 +40,7 @@ from pyapprox.pde.collocation.protocols.operators import (
 from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
     PhysicsProtocol,
-    PhysicsWithHVPProtocol,
-    PhysicsWithParamJacobianProtocol,
+    PhysicsWithStateStateHVPProtocol,
 )
 
 __all__ = [
@@ -60,10 +59,9 @@ __all__ = [
     "FieldProtocol",
     "FieldWithJacobianProtocol",
     "DifferentialOperatorProtocol",
-    # Physics (3-level hierarchy)
+    # Physics
     "PhysicsProtocol",
-    "PhysicsWithParamJacobianProtocol",
-    "PhysicsWithHVPProtocol",
+    "PhysicsWithStateStateHVPProtocol",
     # Parameterization
     "ParameterizationProtocol",
     # Solvers

@@ -29,14 +29,19 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
+      # Pin the type-relevant toolchain to the versions the local dev envs
+      # run, so the ratchet counts in ratchet_baselines.txt mean the same
+      # thing in CI and locally. Full runtime extras + benchmarks WITH
+      # deps: optional packages (skfem, numba, ...) must be visible to
+      # mypy or their typed code is silently unchecked (Any).
       - run: |
-          pip install mypy numpy
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -e "packages/pyapprox[lint]"
-      - run: pip install --no-deps -e packages/pyapprox-benchmarks
+          pip install "mypy==1.19.1" "numpy==2.3.5"
+          pip install "torch==2.7.1" --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -e "packages/pyapprox[lint,runtime-extras]"
+      - run: pip install -e packages/pyapprox-benchmarks
       - name: mypy ratchet (must not exceed baseline)
-        run: bash scripts/mypy_diff.sh 595 packages/pyapprox/src/pyapprox/
+        run: bash scripts/mypy_diff.sh "$(sed -n 's/^mypy_src=//p' ratchet_baselines.txt)" packages/pyapprox/src/pyapprox/
       - name: mypy ratchet for pyapprox-benchmarks
-        run: bash scripts/mypy_diff.sh 30 packages/pyapprox-benchmarks/src/pyapprox_benchmarks/
+        run: bash scripts/mypy_diff.sh "$(sed -n 's/^mypy_benchmarks=//p' ratchet_baselines.txt)" packages/pyapprox-benchmarks/src/pyapprox_benchmarks/
 
