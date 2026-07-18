@@ -17,10 +17,6 @@ Time Stepping Residuals (framework):
             -> AdjointEnabledTimeSteppingResidualProtocol
                 -> HVPEnabledTimeSteppingResidualProtocol
 
-Base Classes:
-    TimeSteppingResidualBase
-        Abstract base for all time steppers.
-
 Time Handling
 -------------
 Newton-facing methods read from bound state via ``bind(ctx)``.
@@ -28,11 +24,6 @@ Post-hoc methods (adjoint, HVP, param_jacobian) take their
 ``StepContext`` as explicit parameters — no mutable state reads.
 """
 
-from .base import (
-    HVPCapableMixin,
-    ParamJacobianCapableMixin,
-    TimeSteppingResidualBase,
-)
 from .ode_residual import (
     ImplicitODEResidualProtocol,
     ImplicitODEResidualWithHVPProtocol,
@@ -63,7 +54,4 @@ __all__ = [
     "AdjointEnabledTimeSteppingResidualProtocol",
     "HVPEnabledTimeSteppingResidualProtocol",
     # Base Classes and Mixins
-    "TimeSteppingResidualBase",
-    "ParamJacobianCapableMixin",
-    "HVPCapableMixin",
 ]

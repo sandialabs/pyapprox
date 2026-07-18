@@ -17,12 +17,11 @@ Use ``create_bc_enforcing_residual()`` factory to create the appropriate
 wrapper based on the inner stepper's protocol level.
 """
 
-from typing import Generic, Tuple, cast, overload
+from typing import Generic, Tuple, overload
 
 from pyapprox.ode.linear_operator import LinearOperatorProtocol, MatrixOperator
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
-    ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
@@ -34,6 +33,9 @@ from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.pde.collocation.protocols.boundary import (
     BoundaryConditionProtocol,
     BoundaryConditionWithParamJacobianProtocol,
+)
+from pyapprox.pde.collocation.time_integration.physics_adapter import (
+    PhysicsToODEResidualWithParamJacobianAdapter,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -230,40 +232,41 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
 
     @property
     def _adjoint_inner(self) -> AdjointEnabledTimeSteppingResidualProtocol[Array]:
-        """Typed accessor for inner as AdjointEnabled. Safe via constructor."""
-        return cast(AdjointEnabledTimeSteppingResidualProtocol[Array], self._inner)
+        """Narrow the inner stepper to the adjoint tier, or raise."""
+        inner = self._inner
+        if not isinstance(inner, AdjointEnabledTimeSteppingResidualProtocol):
+            raise TypeError(
+                f"{type(self).__name__} requires an adjoint-tier inner "
+                f"stepper; got {type(inner).__name__}"
+            )
+        return inner
 
-    @property
-    def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]:
-        """Access the underlying ODE residual (narrowed to ParamJacobian)."""
-        return self._adjoint_inner.native_residual
+    # native_residual inherited from BCEnforcingForwardResidual
+    # (base-typed; capability narrowing is lazy).
 
     def param_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
     ) -> Array:
         """Compute parameter Jacobian dR/dp with BC corrections."""
         result = self._adjoint_inner.param_jacobian(ctx, y_curr)
-        if hasattr(self._physics, "boundary_conditions"):
-            for bc in self._physics.boundary_conditions():
-                if not isinstance(
-                    bc, BoundaryConditionWithParamJacobianProtocol
-                ):
-                    raise TypeError(
-                        f"BC {type(bc).__name__} must satisfy "
-                        f"BoundaryConditionWithParamJacobianProtocol "
-                        f"for parameter sensitivity"
-                    )
-                phys_sens = self._build_bc_physical_sensitivities(
-                    bc, y_curr, ctx.t_curr
+        for bc in self._physics.boundary_conditions():
+            if not isinstance(
+                bc, BoundaryConditionWithParamJacobianProtocol
+            ):
+                raise TypeError(
+                    f"BC {type(bc).__name__} must satisfy "
+                    f"BoundaryConditionWithParamJacobianProtocol "
+                    f"for parameter sensitivity"
                 )
-                result = bc.apply_to_param_jacobian(
-                    result,
-                    y_curr,
-                    ctx.t_curr,
-                    physical_sensitivities=phys_sens,
-                )
-        else:
-            result = self._zero_bc_rows(result)
+            phys_sens = self._build_bc_physical_sensitivities(
+                bc, y_curr, ctx.t_curr
+            )
+            result = bc.apply_to_param_jacobian(
+                result,
+                y_curr,
+                ctx.t_curr,
+                physical_sensitivities=phys_sens,
+            )
         return result
 
     def _build_bc_physical_sensitivities(
@@ -279,7 +282,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         has coefficient dependence (e.g., flux Neumann with parameterized D).
         """
         native = self._adjoint_inner.native_residual
-        if not hasattr(native, "bc_flux_param_sensitivity"):
+        if not isinstance(native, PhysicsToODEResidualWithParamJacobianAdapter):
             return None
         if not hasattr(bc, "normal_operator"):
             return None
@@ -361,7 +364,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
 
     def initial_param_jacobian(self) -> Array:
         """Compute initial condition param Jacobian with BC rows zeroed."""
-        result = self._adjoint_inner.native_residual.initial_param_jacobian()
+        result = self._adjoint_inner.initial_param_jacobian()
         return self._zero_bc_rows(result)
 
 
@@ -397,8 +400,14 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
 
     @property
     def _hvp_inner(self) -> HVPEnabledTimeSteppingResidualProtocol[Array]:
-        """Typed accessor for inner as HVPEnabled. Safe via constructor."""
-        return cast(HVPEnabledTimeSteppingResidualProtocol[Array], self._inner)
+        """Narrow the inner stepper to the HVP tier, or raise."""
+        inner = self._inner
+        if not isinstance(inner, HVPEnabledTimeSteppingResidualProtocol):
+            raise TypeError(
+                f"{type(self).__name__} requires an HVP-tier inner "
+                f"stepper; got {type(inner).__name__}"
+            )
+        return inner
 
     # -- Same-step HVP methods --
 

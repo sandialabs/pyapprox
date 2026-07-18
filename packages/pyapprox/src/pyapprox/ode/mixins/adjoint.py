@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, cast
+from typing import TYPE_CHECKING, Generic
 
 from pyapprox.ode.linear_operator import LinearOperatorProtocol
 from pyapprox.ode.protocols.ode_residual import (
@@ -34,18 +34,25 @@ class AdjointMixin(ABC, Generic[Array]):
     def _adjoint_residual(
         self,
     ) -> ODEResidualWithParamJacobianProtocol[Array]:
-        """Typed access to the ODE residual as param-jacobian capable.
+        """Narrow the ODE residual to param-jacobian capable, or raise.
 
-        Safe because concrete stepper __init__ enforces this type.
+        Capability narrowing is lazy: constructing an adjoint-tier
+        stepper over a residual without parameter derivatives is legal
+        until the first adjoint method call reaches this accessor.
         """
-        return cast(
-            ODEResidualWithParamJacobianProtocol[Array], self._residual
-        )
+        residual = self._residual
+        if not isinstance(residual, ODEResidualWithParamJacobianProtocol):
+            raise TypeError(
+                f"{type(self).__name__} adjoint methods require an ODE "
+                "residual with param_jacobian; got "
+                f"{type(residual).__name__} (construct the residual with "
+                "a parameterization providing first-order derivatives)"
+            )
+        return residual
 
-    @property
-    def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]:
-        """Get the underlying ODE residual (narrowed to param jacobian capable)."""
-        return self._adjoint_residual
+    # native_residual deliberately NOT overridden here: general access
+    # stays base-typed (CoreStepperMixin), so capability is demanded only
+    # when an adjoint method reaches _adjoint_residual.
 
     @abstractmethod
     def _param_jacobian_impl(

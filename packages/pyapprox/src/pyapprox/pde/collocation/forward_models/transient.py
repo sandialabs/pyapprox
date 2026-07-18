@@ -15,6 +15,9 @@ from pyapprox.ode.functionals.all_states_endpoint import (
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
+from pyapprox.ode.protocols.time_stepping import (
+    AdjointEnabledTimeSteppingResidualProtocol,
+)
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.protocols.physics import (
     ParameterizationProtocol,
@@ -248,7 +251,7 @@ class TransientForwardModel(Generic[Array]):
         self,
         fwd_sols: Array,
         times: Array,
-        time_residual: object,
+        time_residual: AdjointEnabledTimeSteppingResidualProtocol[Array],
     ) -> Array:
         """Solve tangent linear model for full sensitivity matrix.
 
@@ -263,9 +266,8 @@ class TransientForwardModel(Generic[Array]):
             Forward solutions. Shape: (nstates, ntimes).
         times : Array
             Time points. Shape: (ntimes,).
-        time_residual : object
-            Time stepping residual with param_jacobian and
-            sensitivity_off_diag_jacobian methods.
+        time_residual : AdjointEnabledTimeSteppingResidualProtocol
+            Time stepping residual at the adjoint tier.
 
         Returns
         -------
@@ -273,21 +275,16 @@ class TransientForwardModel(Generic[Array]):
             Sensitivity matrix at final time. Shape: (nstates, nparams).
         """
         bkd = self._bkd
-        nstates = fwd_sols.shape[0]
-        nparams = self._nparams
         ntimes = fwd_sols.shape[1]
 
-        W_prev = bkd.zeros((nstates, nparams))
-
-        if hasattr(time_residual, "initial_param_jacobian"):
-            deltat_0 = float(times[1] - times[0])
-            ctx_0 = StepContext(
-                t_prev=float(times[0]),
-                deltat=deltat_0,
-                y_prev=fwd_sols[:, 0],
-            )
-            time_residual.bind(ctx_0)
-            W_prev = time_residual.initial_param_jacobian()
+        deltat_0 = float(times[1] - times[0])
+        ctx_0 = StepContext(
+            t_prev=float(times[0]),
+            deltat=deltat_0,
+            y_prev=fwd_sols[:, 0],
+        )
+        time_residual.bind(ctx_0)
+        W_prev = time_residual.initial_param_jacobian()
 
         for nn in range(1, ntimes):
             deltat_n = float(times[nn] - times[nn - 1])

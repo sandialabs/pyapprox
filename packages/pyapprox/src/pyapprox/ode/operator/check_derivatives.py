@@ -23,7 +23,7 @@ Usage::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, List, Optional, cast
+from typing import TYPE_CHECKING, Generic, List, Optional
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -71,10 +71,15 @@ class TimeAdjointDerivativeChecker(Generic[Array]):
                 f"Got {type(self._integrator.time_residual()).__name__}."
             )
         self._time_residual: HVPEnabledTimeSteppingResidualProtocol[Array] = hvp_tr
-        self._ode_residual: ODEResidualWithHVPProtocol[Array] = cast(
-            ODEResidualWithHVPProtocol[Array],
-            hvp_tr.native_residual,
-        )
+        native = hvp_tr.native_residual
+        if not isinstance(native, ODEResidualWithHVPProtocol):
+            raise TypeError(
+                "TimeAdjointDerivativeChecker requires an HVP-capable ODE "
+                f"residual; got {type(native).__name__} (construct the "
+                "residual with a parameterization providing second-order "
+                "derivatives)"
+            )
+        self._ode_residual: ODEResidualWithHVPProtocol[Array] = native
         self._bkd = self._ode_residual.bkd()
 
     def _get_fd_eps(self, fd_eps: Optional[Array] = None) -> Array:

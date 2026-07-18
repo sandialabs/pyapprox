@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, cast
+from typing import TYPE_CHECKING, Generic
 
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
@@ -31,16 +31,27 @@ class HVPMixin(ABC, Generic[Array]):
 
     @property
     def _hvp_residual(self) -> ODEResidualWithHVPProtocol[Array]:
-        """Typed access to the ODE residual as HVP capable.
+        """Narrow the ODE residual to HVP capable, or raise.
 
-        Safe because concrete stepper __init__ enforces this type.
+        Capability narrowing is lazy: constructing an HVP-tier stepper
+        over a residual without second-order derivatives is legal until
+        the first HVP method call reaches this accessor.
         """
-        return cast(ODEResidualWithHVPProtocol[Array], self._residual)
+        residual = self._residual
+        if not isinstance(residual, ODEResidualWithHVPProtocol):
+            raise TypeError(
+                f"{type(self).__name__} HVP methods require an ODE "
+                "residual with the four HVP contractions; got "
+                f"{type(residual).__name__} (construct the residual with "
+                "a parameterization providing second-order derivatives)"
+            )
+        return residual
 
-    @property
-    def native_residual(self) -> ODEResidualWithHVPProtocol[Array]:
-        """Get the underlying ODE residual (narrowed to HVP capable)."""
-        return self._hvp_residual
+    # native_residual deliberately NOT overridden here: general access
+    # narrows only to the adjoint tier (AdjointMixin), so gradient-only
+    # flows on an HVP-class stepper never demand second-order
+    # capability. HVP-internal calls use _hvp_residual, which narrows
+    # (and raises actionably) at the first genuine HVP call.
 
     # -- Same-step HVP methods --
 

@@ -19,6 +19,9 @@ from pyapprox.ode.functionals.protocols import (
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.storage import TimeTrajectoryStorage
+from pyapprox.ode.protocols.ode_residual import (
+    ODEResidualWithParamJacobianProtocol,
+)
 from pyapprox.ode.protocols.time_stepping import (
     HVPEnabledTimeSteppingResidualProtocol,
 )
@@ -107,7 +110,14 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             or not self._storage.has_forward_trajectory()
         ):
             self._storage.set_parameter(param)
-            self._time_residual.native_residual.set_param(self._bkd.flatten(param))
+            native = self._time_residual.native_residual
+            if not isinstance(native, ODEResidualWithParamJacobianProtocol):
+                raise TypeError(
+                    "adjoint/HVP operators require an ODE residual with "
+                    f"parameter support; got {type(native).__name__} "
+                    "(construct the residual with a parameterization)"
+                )
+            native.set_param(self._bkd.flatten(param))
             fwd_sols, times = self._integrator.solve(init_state)
             self._storage.set_forward_trajectory(fwd_sols, times)
         return self._storage.get_forward_trajectory()

@@ -18,7 +18,6 @@ from pyapprox.ode.explicit_steppers.protocols import (
     ODEResidualProtocol,
     ODEResidualWithHVPProtocol,
     ODEResidualWithParamJacobianProtocol,
-    TimeSteppingResidualBase,
     TimeSteppingResidualProtocol,
 )
 
@@ -37,7 +36,6 @@ __all__ = [
     "TimeSteppingResidualProtocol",
     "AdjointEnabledTimeSteppingResidualProtocol",
     "HVPEnabledTimeSteppingResidualProtocol",
-    "TimeSteppingResidualBase",
     # Legacy alias
     "ExplicitODEResidualProtocol",
 ]

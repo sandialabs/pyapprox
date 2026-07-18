@@ -22,7 +22,6 @@ from typing import Generic, Protocol, Tuple, runtime_checkable
 from pyapprox.ode.linear_operator import LinearOperatorProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
-    ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
@@ -197,8 +196,8 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def is_one_step_solvable(self) -> bool: ...
 
     @property
-    def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]:
-        """Return the underlying ODE residual."""
+    def native_residual(self) -> ODEResidualProtocol[Array]:
+        """Return the underlying ODE residual (base-typed; narrow lazily)."""
         ...
 
     def is_explicit(self) -> bool: ...
@@ -380,7 +379,7 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def is_one_step_solvable(self) -> bool: ...
 
     @property
-    def native_residual(self) -> ODEResidualWithParamJacobianProtocol[Array]: ...
+    def native_residual(self) -> ODEResidualProtocol[Array]: ...
 
     def is_explicit(self) -> bool: ...
 
