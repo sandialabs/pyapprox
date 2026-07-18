@@ -7,18 +7,13 @@ This module provides:
 
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, Generic, List, Optional
+from typing import Callable, Dict, Generic, List, Optional
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.objective import (
     ObjectiveProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
-if TYPE_CHECKING:
-    from pyapprox.interface.functions.protocols.function import (
-        FunctionProtocol,
-    )
 
 
 class WorkTracker(Generic[Array]):
@@ -246,8 +241,10 @@ class TrackedModel(Generic[Array]):
 
     Parameters
     ----------
-    model : FunctionProtocol[Array]
-        The model to wrap. Must have bkd(), nvars(), nqoi(), and __call__.
+    model : ObjectiveProtocol[Array]
+        The model to wrap. Must have bkd(), nvars(), nqoi(), __call__
+        and derivatives(); a derivative-free model participates by
+        returning ``Derivatives.none()``.
     tracker : WorkTracker[Array]
         The tracker to record to.
 
@@ -271,14 +268,14 @@ class TrackedModel(Generic[Array]):
 
     def __init__(
         self,
-        model: "FunctionProtocol[Array]",
+        model: ObjectiveProtocol[Array],
         tracker: WorkTracker[Array],
     ) -> None:
         """Initialize the tracked model.
 
         Parameters
         ----------
-        model : FunctionProtocol[Array]
+        model : ObjectiveProtocol[Array]
             The model to wrap.
         tracker : WorkTracker[Array]
             The tracker to record to.
@@ -290,7 +287,9 @@ class TrackedModel(Generic[Array]):
         if not isinstance(model, ObjectiveProtocol):
             raise TypeError(
                 f"{type(model).__name__} must satisfy ObjectiveProtocol "
-                "(a FunctionProtocol exposing derivatives())"
+                "(a FunctionProtocol exposing derivatives()). If the "
+                "model has no derivative capability, add a "
+                "derivatives() method returning Derivatives.none()."
             )
         md = model.derivatives()
         self._derivs: Derivatives[Array] = Derivatives(
@@ -344,7 +343,7 @@ class TrackedModel(Generic[Array]):
         """Return the tracker."""
         return self._tracker
 
-    def wrapped(self) -> "FunctionProtocol[Array]":
+    def wrapped(self) -> ObjectiveProtocol[Array]:
         """Return the wrapped model."""
         return self._model
 

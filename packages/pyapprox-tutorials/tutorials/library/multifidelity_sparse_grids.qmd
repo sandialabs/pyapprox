@@ -53,6 +53,9 @@ Complete [Adaptive Sparse Grids](adaptive_sparse_grids.qmd) before this tutorial
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 
 bkd = NumpyBkd()
 np.random.seed(42)
@@ -194,12 +197,14 @@ from pyapprox.surrogates.sparsegrids import (
 
 
 def make_cosine_model(eps):
-    """Return a model callable: samples (1, n) -> values (1, n)."""
-    def model(samples):
+    """Return a FunctionProtocol model: samples (1, n) -> values (1, n)."""
+    def _fn(samples):
         return bkd.reshape(
             bkd.cos(np.pi * (samples[0] + 1) / 2 + eps), (1, -1)
         )
-    return model
+    # Wrap the plain callable so downstream wrappers (e.g.
+    # TimedModelFactory) can introspect it as a FunctionProtocol.
+    return FunctionFromCallable(nvars=1, nqoi=1, fun=_fn, bkd=bkd)
 
 
 # Build model factory from a dictionary

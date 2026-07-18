@@ -2,6 +2,7 @@
 
 from typing import Callable, Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -35,6 +36,9 @@ class TunableModelFunction(Generic[Array]):
     def nqoi(self) -> int:
         """Return number of quantities of interest."""
         return 1
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate the model.

@@ -1,5 +1,6 @@
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
@@ -100,6 +101,9 @@ class LinearStateEquation(Generic[Array]):
             Number of state variables.
         """
         return self.nstates()
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, state: Array, param: Array) -> Array:
         """

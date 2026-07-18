@@ -404,8 +404,10 @@ class ActiveSetFunction(Generic[Array]):
     Parameters
     ----------
     function : object
-        A function satisfying FunctionProtocol. Its derivative
-        capability is read from its ``Derivatives`` bundle.
+        A function satisfying ObjectiveProtocol. Its derivative
+        capability is read from its ``Derivatives`` bundle; a
+        derivative-free function participates by returning
+        ``Derivatives.none()``.
     nominal_values : Array
         Shape (nvars,). Nominal values for ALL variables.
     keep_indices : List[int]
@@ -416,7 +418,7 @@ class ActiveSetFunction(Generic[Array]):
 
     def __init__(
         self,
-        function: FunctionProtocol[Array],
+        function: ObjectiveProtocol[Array],
         nominal_values: Array,
         keep_indices: List[int],
         bkd: Backend[Array],
@@ -434,7 +436,9 @@ class ActiveSetFunction(Generic[Array]):
         if not isinstance(function, ObjectiveProtocol):
             raise TypeError(
                 f"{type(function).__name__} must satisfy ObjectiveProtocol "
-                "(a FunctionProtocol exposing derivatives())"
+                "(a FunctionProtocol exposing derivatives()). If the "
+                "function has no derivative capability, add a "
+                "derivatives() method returning Derivatives.none()."
             )
         fd = function.derivatives()
         self._function_jac: Optional[JacobianFn[Array]] = fd.jacobian

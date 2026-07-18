@@ -8,6 +8,7 @@ other time point.
 
 from typing import Generic, Tuple
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 from pyapprox_benchmarks.functions.ode import (
@@ -38,6 +39,9 @@ class ObservationFunctional(Generic[Array]):
     def nqoi(self) -> int:
         return 2 * self._ntimes
 
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
+
     def __call__(self, sol: Array, times: Array) -> Array:
         return self._bkd.concatenate([sol[0, :], sol[2, :]])
 
@@ -56,6 +60,9 @@ class PredictionFunctional(Generic[Array]):
 
     def nqoi(self) -> int:
         return len(self._pred_indices)
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, sol: Array, times: Array) -> Array:
         return sol[1, self._pred_indices]

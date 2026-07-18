@@ -65,6 +65,7 @@ MESH_PATHS = {
     ),
 }
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
@@ -466,6 +467,9 @@ class CantileverBeam2DForwardModel(Generic[Array]):
     def nqoi(self) -> int:
         return 2
 
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
+
     def __call__(self, samples: Array) -> Array:
         """Evaluate: KLE coefficients -> [tip displacement, total VM stress].
 
@@ -607,6 +611,9 @@ class CompositeBeam1DForwardModel(Generic[Array]):
     def nqoi(self) -> int:
         return 3
 
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
+
     def __call__(self, samples: Array) -> Array:
         """Evaluate: (E1, E2) -> [tip deflection, integrated stress, max curvature].
 
@@ -691,6 +698,9 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
 
     def nqoi(self) -> int:
         return 3
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate: KLE coefficients -> [tip deflection, integrated stress, max

@@ -21,6 +21,7 @@ Proceedings of the Royal Society A, 473(2198), 20160751.
 import math
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -77,6 +78,9 @@ class BraninModelFunction(Generic[Array]):
 
     def nqoi(self) -> int:
         return 1
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate the Branin variant.

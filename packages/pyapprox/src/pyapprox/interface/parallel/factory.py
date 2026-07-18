@@ -14,7 +14,6 @@ from pyapprox.interface.functions.derivatives import (
     JacobianFn,
     WHVPFn,
 )
-from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.interface.functions.protocols.objective import (
     ObjectiveProtocol,
 )
@@ -40,9 +39,11 @@ class ParallelFunctionWrapper(Generic[Array]):
 
     Parameters
     ----------
-    function : FunctionProtocol[Array]
-        Function object with bkd(), nvars(), nqoi(), __call__(). Its
-        derivative capability is read from its ``Derivatives`` bundle.
+    function : ObjectiveProtocol[Array]
+        Function object with bkd(), nvars(), nqoi(), __call__() and
+        derivatives(). Its derivative capability is read from its
+        ``Derivatives`` bundle; a derivative-free function participates
+        by returning ``Derivatives.none()``.
     config : ParallelConfig, optional
         Parallel execution configuration. Default uses joblib with -1 jobs.
 
@@ -56,14 +57,16 @@ class ParallelFunctionWrapper(Generic[Array]):
 
     def __init__(
         self,
-        function: FunctionProtocol[Array],
+        function: ObjectiveProtocol[Array],
         config: Optional[ParallelConfig] = None,
     ) -> None:
         if not isinstance(function, ObjectiveProtocol):
             raise TypeError(
                 "function must satisfy ObjectiveProtocol (a "
                 "FunctionProtocol exposing derivatives()), got "
-                f"{type(function).__name__}"
+                f"{type(function).__name__}. If the function has no "
+                "derivative capability, add a derivatives() method "
+                "returning Derivatives.none()."
             )
         self._function = function
         self._config = config or ParallelConfig()
@@ -349,7 +352,7 @@ class ParallelFunctionWrapper(Generic[Array]):
 
 
 def make_parallel(
-    function: FunctionProtocol[Array],
+    function: ObjectiveProtocol[Array],
     backend: Literal[
         "joblib_processes",
         "joblib_threads",
@@ -366,9 +369,11 @@ def make_parallel(
 
     Parameters
     ----------
-    function : FunctionProtocol[Array]
-        Function object with bkd(), nvars(), nqoi(), __call__(). Its
-        derivative capability is read from its ``Derivatives`` bundle.
+    function : ObjectiveProtocol[Array]
+        Function object with bkd(), nvars(), nqoi(), __call__() and
+        derivatives(). Its derivative capability is read from its
+        ``Derivatives`` bundle; a derivative-free function participates
+        by returning ``Derivatives.none()``.
     backend : {"joblib_processes", "joblib_threads", "futures", "mpire", "sequential"}
         Parallel execution backend.
     n_jobs : int

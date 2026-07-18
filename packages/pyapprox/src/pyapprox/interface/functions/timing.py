@@ -1,15 +1,16 @@
 """Function timing wrapper module.
 
-Provides transparent timing wrappers for FunctionProtocol objects,
+Provides transparent timing wrappers for ObjectiveProtocol objects,
 recording per-method timing statistics with batch-size awareness.
 
 Classes
 -------
 - MethodTimer: Per-method timing with median/total/count/reset
 - FunctionTimer: Aggregates MethodTimers by method name
-- TimedFunction: Wrapper for FunctionProtocol; derivative capability is
+- TimedFunction: Wrapper for ObjectiveProtocol; derivative capability is
   mirrored from the wrapped function's ``Derivatives`` bundle with each
-  populated field wrapped in a timing recorder
+  populated field wrapped in a timing recorder. A derivative-free
+  function participates by returning ``Derivatives.none()``.
 
 Functions
 ---------
@@ -29,9 +30,6 @@ from dataclasses import dataclass
 from typing import Callable, Dict, Generic, List, Optional, Tuple
 
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
 from pyapprox.interface.functions.protocols.objective import (
     ObjectiveProtocol,
 )
@@ -223,7 +221,7 @@ class _TimedTernary(Generic[Array]):
 
 
 class TimedFunction(Generic[Array]):
-    """Transparent timing wrapper for FunctionProtocol objects.
+    """Transparent timing wrapper for ObjectiveProtocol objects.
 
     Derivative capability is mirrored from the wrapped function's
     ``Derivatives`` bundle: each populated field is re-exposed through
@@ -232,8 +230,9 @@ class TimedFunction(Generic[Array]):
 
     Parameters
     ----------
-    function : FunctionProtocol[Array]
-        The function to wrap.
+    function : ObjectiveProtocol[Array]
+        The function to wrap. A derivative-free function participates
+        by implementing ``derivatives()`` returning ``Derivatives.none()``.
     timer : FunctionTimer, optional
         Shared timer instance. If None, creates a new one.
         Pass a shared timer to aggregate stats across multiple
@@ -242,7 +241,7 @@ class TimedFunction(Generic[Array]):
 
     def __init__(
         self,
-        function: FunctionProtocol[Array],
+        function: ObjectiveProtocol[Array],
         timer: Optional[FunctionTimer] = None,
     ) -> None:
         self._function = function
@@ -250,7 +249,9 @@ class TimedFunction(Generic[Array]):
         if not isinstance(function, ObjectiveProtocol):
             raise TypeError(
                 f"{type(function).__name__} must satisfy ObjectiveProtocol "
-                "(a FunctionProtocol exposing derivatives())"
+                "(a FunctionProtocol exposing derivatives()). If the "
+                "function has no derivative capability, add a "
+                "derivatives() method returning Derivatives.none()."
             )
         fd = function.derivatives()
         t = self._timer
@@ -306,7 +307,7 @@ class TimedFunction(Generic[Array]):
         """Return the FunctionTimer."""
         return self._timer
 
-    def wrapped(self) -> FunctionProtocol[Array]:
+    def wrapped(self) -> ObjectiveProtocol[Array]:
         """Return the wrapped function."""
         return self._function
 
@@ -326,7 +327,7 @@ class TimedFunction(Generic[Array]):
 
 
 def timed(
-    function: FunctionProtocol[Array],
+    function: ObjectiveProtocol[Array],
     timer: Optional[FunctionTimer] = None,
 ) -> TimedFunction[Array]:
     """Wrap a function with timing instrumentation.
@@ -342,8 +343,9 @@ def timed(
 
     Parameters
     ----------
-    function : FunctionProtocol[Array]
-        The function to wrap.
+    function : ObjectiveProtocol[Array]
+        The function to wrap. A derivative-free function participates
+        by implementing ``derivatives()`` returning ``Derivatives.none()``.
     timer : FunctionTimer, optional
         Shared timer instance. If None, creates a new one.
         Pass a shared timer to aggregate stats across multiple
@@ -357,10 +359,6 @@ def timed(
     Raises
     ------
     TypeError
-        If function does not satisfy FunctionProtocol.
+        If function does not satisfy ObjectiveProtocol.
     """
-    if not isinstance(function, FunctionProtocol):
-        raise TypeError(
-            f"function must satisfy FunctionProtocol, got {type(function).__name__}"
-        )
     return TimedFunction(function, timer)

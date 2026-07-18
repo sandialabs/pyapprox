@@ -1,14 +1,17 @@
 """Integration tests for the cantilever beam forward UQ problems."""
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.protocols import FunctionProtocol
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
     CantileverBeam1DAnalytical,
 )
@@ -25,11 +28,7 @@ from pyapprox_benchmarks.pde.cantilever_beam import (
 from pyapprox_benchmarks.pde.cantilever_beam_1d_analytical import (
     build_cantilever_beam_1d_analytical,
 )
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
-from pyapprox.interface.functions.protocols import FunctionProtocol
-from pyapprox.util.backends.numpy import NumpyBkd
+
 from tests._helpers.markers import slower_test  # noqa: F401
 
 _TEST_MESH = MESH_PATHS[2]  # h=2 for fast tests
@@ -41,16 +40,23 @@ _TEST_MESH = MESH_PATHS[2]  # h=2 for fast tests
 
 
 class TestCantileverBeam1D:
-    @classmethod
-    def setup_class(cls):
-        cls._bkd = NumpyBkd()
-        cls._bm = build_cantilever_beam_1d(cls._bkd, nx=20, num_kle_terms=2)
-        cls._bm3 = build_cantilever_beam_1d(cls._bkd, num_kle_terms=3)
-        cls._bm1 = build_cantilever_beam_1d(cls._bkd, nx=20, num_kle_terms=1)
+    # Models cached per backend so each is built once per backend, not
+    # once per test (mirrors the former setup_class economy).
+    _cache: dict = {}
 
-    def test_evaluate_at_zero(self):
-        bkd = self._bkd
-        fwd = self._bm.function()
+    @classmethod
+    def _models(cls, bkd):
+        key = type(bkd).__name__
+        if key not in cls._cache:
+            cls._cache[key] = {
+                "bm": build_cantilever_beam_1d(bkd, nx=20, num_kle_terms=2),
+                "bm3": build_cantilever_beam_1d(bkd, num_kle_terms=3),
+                "bm1": build_cantilever_beam_1d(bkd, nx=20, num_kle_terms=1),
+            }
+        return cls._cache[key]
+
+    def test_evaluate_at_zero(self, bkd):
+        fwd = self._models(bkd)["bm"].function()
         assert fwd.nvars() == 2
         assert fwd.nqoi() == 3
         result = fwd(bkd.zeros((2, 1)))
@@ -62,35 +68,34 @@ class TestCantileverBeam1D:
         # QoI 2: max curvature should be positive
         assert float(result[2, 0]) > 0.0
 
-    def test_different_params_give_different_output(self):
-        bkd = self._bkd
-        fwd = self._bm.function()
+    def test_different_params_give_different_output(self, bkd):
+        fwd = self._models(bkd)["bm"].function()
         r1 = fwd(bkd.zeros((2, 1)))
         r2 = fwd(bkd.array([[1.0], [0.0]]))
         assert not np.allclose(
             bkd.to_numpy(r1), bkd.to_numpy(r2)
         ), "Different KLE params should give different results"
 
-    def test_batch_evaluation(self):
-        bkd = self._bkd
-        fwd = self._bm.function()
+    def test_batch_evaluation(self, bkd):
+        fwd = self._models(bkd)["bm"].function()
         samples = bkd.array([[0.0, 0.5, -0.5], [0.0, 0.3, -0.3]])
         result = fwd(samples)
         assert result.shape == (3, 3)
 
-    def test_prior_shape(self):
-        bm = self._bm3
+    def test_prior_shape(self, bkd):
+        bm = self._models(bkd)["bm3"]
         np.random.seed(42)
         samples = bm.prior().rvs(5)
         assert samples.shape == (3, 5)
 
-    def test_protocol_compliance(self):
-        assert isinstance(self._bm1.function(), FunctionProtocol)
+    def test_protocol_compliance(self, bkd):
+        assert isinstance(
+            self._models(bkd)["bm1"].function(), FunctionProtocol
+        )
 
-    def test_one_kle_term_recovers_constant(self):
+    def test_one_kle_term_recovers_constant(self, bkd):
         """With 1 KLE term at params=0, result is deterministic baseline."""
-        bkd = self._bkd
-        fwd = self._bm1.function()
+        fwd = self._models(bkd)["bm1"].function()
         r1 = fwd(bkd.zeros((1, 1)))
         r2 = fwd(bkd.zeros((1, 1)))
         bkd.assert_allclose(r1, r2)
@@ -102,6 +107,11 @@ class TestCantileverBeam1D:
 
 
 class TestCantileverBeam2DLinear:
+    """TODO NumPy only: the 2D builders currently fail on TorchBkd (a
+    non-integer array reaches numpy fancy indexing during KLE setup) and
+    the torch build takes minutes. Un-pin once that bug is fixed.
+    """
+
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
@@ -150,6 +160,8 @@ class TestCantileverBeam2DLinear:
 
 
 class TestCantileverBeam2DNeoHookean:
+    """TODO NumPy only: see TestCantileverBeam2DLinear docstring."""
+
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
@@ -199,16 +211,27 @@ class TestCantileverBeam2DNeoHookean:
 
 
 class TestCantileverBeam1DSPDE:
-    @classmethod
-    def setup_class(cls):
-        cls._bkd = NumpyBkd()
-        cls._bm = build_cantilever_beam_1d_spde(cls._bkd, nx=20, num_kle_terms=2)
-        cls._bm3 = build_cantilever_beam_1d_spde(cls._bkd, num_kle_terms=3)
-        cls._bm1 = build_cantilever_beam_1d_spde(cls._bkd, nx=20, num_kle_terms=1)
+    # Models cached per backend so each is built once per backend, not
+    # once per test (mirrors the former setup_class economy).
+    _cache: dict = {}
 
-    def test_evaluate_at_zero(self):
-        bkd = self._bkd
-        fwd = self._bm.function()
+    @classmethod
+    def _models(cls, bkd):
+        key = type(bkd).__name__
+        if key not in cls._cache:
+            cls._cache[key] = {
+                "bm": build_cantilever_beam_1d_spde(
+                    bkd, nx=20, num_kle_terms=2
+                ),
+                "bm3": build_cantilever_beam_1d_spde(bkd, num_kle_terms=3),
+                "bm1": build_cantilever_beam_1d_spde(
+                    bkd, nx=20, num_kle_terms=1
+                ),
+            }
+        return cls._cache[key]
+
+    def test_evaluate_at_zero(self, bkd):
+        fwd = self._models(bkd)["bm"].function()
         assert fwd.nvars() == 2
         assert fwd.nqoi() == 3
         result = fwd(bkd.zeros((2, 1)))
@@ -217,35 +240,34 @@ class TestCantileverBeam1DSPDE:
         assert float(result[1, 0]) > 0.0
         assert float(result[2, 0]) > 0.0
 
-    def test_different_params_give_different_output(self):
-        bkd = self._bkd
-        fwd = self._bm.function()
+    def test_different_params_give_different_output(self, bkd):
+        fwd = self._models(bkd)["bm"].function()
         r1 = fwd(bkd.zeros((2, 1)))
         r2 = fwd(bkd.array([[1.0], [0.0]]))
         assert not np.allclose(
             bkd.to_numpy(r1), bkd.to_numpy(r2)
         ), "Different KLE params should give different results"
 
-    def test_batch_evaluation(self):
-        bkd = self._bkd
-        fwd = self._bm.function()
+    def test_batch_evaluation(self, bkd):
+        fwd = self._models(bkd)["bm"].function()
         samples = bkd.array([[0.0, 0.5, -0.5], [0.0, 0.3, -0.3]])
         result = fwd(samples)
         assert result.shape == (3, 3)
 
-    def test_prior_shape(self):
-        bm = self._bm3
+    def test_prior_shape(self, bkd):
+        bm = self._models(bkd)["bm3"]
         np.random.seed(42)
         samples = bm.prior().rvs(5)
         assert samples.shape == (3, 5)
 
-    def test_protocol_compliance(self):
-        assert isinstance(self._bm1.function(), FunctionProtocol)
+    def test_protocol_compliance(self, bkd):
+        assert isinstance(
+            self._models(bkd)["bm1"].function(), FunctionProtocol
+        )
 
-    def test_one_kle_term_recovers_constant(self):
+    def test_one_kle_term_recovers_constant(self, bkd):
         """With 1 KLE term at params=0, result is deterministic baseline."""
-        bkd = self._bkd
-        fwd = self._bm1.function()
+        fwd = self._models(bkd)["bm1"].function()
         r1 = fwd(bkd.zeros((1, 1)))
         r2 = fwd(bkd.zeros((1, 1)))
         bkd.assert_allclose(r1, r2)
@@ -257,6 +279,8 @@ class TestCantileverBeam1DSPDE:
 
 
 class TestCantileverBeam2DLinearSPDE:
+    """TODO NumPy only: see TestCantileverBeam2DLinear docstring."""
+
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
@@ -305,6 +329,8 @@ class TestCantileverBeam2DLinearSPDE:
 
 
 class TestCantileverBeam2DNeoHookeanSPDE:
+    """TODO NumPy only: see TestCantileverBeam2DLinear docstring."""
+
     @classmethod
     def setup_class(cls):
         cls._bkd = NumpyBkd()
@@ -356,9 +382,8 @@ class TestCantileverBeam2DNeoHookeanSPDE:
 class TestFEMvsAnalytical:
     """Verify FEM results match analytical closed-form solutions."""
 
-    def test_uniform_EI_matches_analytical(self):
+    def test_uniform_EI_matches_analytical(self, bkd):
         """CompositeBeam1DForwardModel vs CantileverBeam1DAnalytical."""
-        bkd = NumpyBkd()
         L, H, q0, skin_t = 100.0, 30.0, 10.0, 5.0
 
         fem_model = CompositeBeam1DForwardModel(
@@ -392,9 +417,8 @@ class TestFEMvsAnalytical:
         # Max curvature: FEM finite differences are less accurate
         bkd.assert_allclose(fem_result[2:3, :], ana_result[2:3, :], rtol=1e-2)
 
-    def test_analytical_jacobian(self):
+    def test_analytical_jacobian(self, bkd):
         """Verify analytical Jacobian via DerivativeChecker."""
-        bkd = NumpyBkd()
         model = CantileverBeam1DAnalytical(
             length=100.0,
             height=30.0,
@@ -412,9 +436,8 @@ class TestFEMvsAnalytical:
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-6
 
-    def test_analytical_builder(self):
+    def test_analytical_builder(self, bkd):
         """Verify analytical builder returns working ForwardUQProblem."""
-        bkd = NumpyBkd()
         prob = build_cantilever_beam_1d_analytical(bkd)
         fwd = prob.function()
         assert fwd.nvars() == 2

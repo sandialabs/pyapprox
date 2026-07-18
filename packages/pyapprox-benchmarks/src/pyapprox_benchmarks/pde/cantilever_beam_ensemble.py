@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     )
 
 import numpy as np
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
@@ -192,6 +193,9 @@ class SharedFieldBeamModel(Generic[Array]):
     def nqoi(self) -> int:
         return 2
 
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
+
     def __call__(self, samples: Array) -> Array:
         from pyapprox.pde.galerkin.postprocessing import (
             integrate,
@@ -293,15 +297,14 @@ def build_shared_field_beam(
     SharedFieldBeamModel
         Callable model: ``(num_kle_terms+1, nsamples) -> (2, nsamples)``.
     """
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
     from skfem import Basis as SkfemBasis
-
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)

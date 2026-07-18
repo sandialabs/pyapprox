@@ -9,6 +9,7 @@ Domain: x in [0, 1].
 
 from typing import Generic, Optional
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -53,6 +54,9 @@ class ForresterModelFunction(Generic[Array]):
 
     def nqoi(self) -> int:
         return 1
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate the Forrester function.

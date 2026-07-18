@@ -74,6 +74,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 from pyapprox.surrogates.sparsegrids import (
     SingleFidelityAdaptiveSparseGridFitter,
     TensorProductSubspaceFactory,
@@ -107,7 +110,7 @@ or other costly evaluation.
 ```{python}
 COST_PER_SAMPLE_SECONDS = 0.002  # 2 ms per sample — cheap, but nonzero
 
-def simulator(samples):
+def _expensive_fn(samples):
     """
     Smooth target: cos(pi*z1) * cos(pi*z2/2).
     Artificially sleeps to simulate an expensive per-sample cost.
@@ -116,6 +119,10 @@ def simulator(samples):
     time.sleep(COST_PER_SAMPLE_SECONDS * n)
     z1, z2 = samples[0], samples[1]
     return bkd.reshape(bkd.cos(np.pi * z1) * bkd.cos(np.pi * z2 / 2), (1, -1))
+
+# TimedModelFactory times models through TimedFunction, which requires a
+# FunctionProtocol object — wrap the plain callable.
+simulator = FunctionFromCallable(nvars=2, nqoi=1, fun=_expensive_fn, bkd=bkd)
 ```
 
 

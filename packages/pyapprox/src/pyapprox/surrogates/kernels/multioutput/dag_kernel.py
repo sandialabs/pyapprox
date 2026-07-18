@@ -15,6 +15,7 @@ from pyapprox.surrogates.kernels.scalings import (
     PolynomialScalingFunction,
     ScalingFunctionProtocol,
 )
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -358,7 +359,18 @@ class DAGMultiOutputKernel(Generic[Array]):
     ) -> Optional[Callable[[List[Array]], Array]]:
         """Analytic parameter jacobian (see MultiOutputKernelProtocol);
         AND logic — declared only when every discrepancy kernel declares
-        one."""
+        one.
+
+        The analytic implementation does not support cross-covariance
+        blocks where outputs are trained on different point sets (the
+        standard multifidelity design). On an autodiff backend decline
+        to declare, so the consumer's fallback (loss-level autograd)
+        provides exact gradients for every design; the analytic path is
+        kept for non-autodiff backends, where it covers the
+        overlapping-design case.
+        """
+        if isinstance(self._bkd, AutodiffBackend):
+            return None
         for kernel in self._discrepancy_kernels:
             if kernel.param_derivatives().jacobian is None:
                 return None

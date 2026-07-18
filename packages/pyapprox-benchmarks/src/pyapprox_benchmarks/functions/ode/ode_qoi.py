@@ -9,6 +9,7 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -58,6 +59,9 @@ class AllStatesEndpointODEFunctional(Generic[Array]):
     def nqoi(self) -> int:
         return self._nstates
 
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
+
     def __call__(self, sol: Array, times: Array) -> Array:
         return sol[:, -1]
 
@@ -76,6 +80,9 @@ class SingleStateEndpointODEFunctional(Generic[Array]):
 
     def nqoi(self) -> int:
         return 1
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, sol: Array, times: Array) -> Array:
         return sol[self._state_idx : self._state_idx + 1, -1]
@@ -98,6 +105,9 @@ class MaxODEFunctional(Generic[Array]):
 
     def nqoi(self) -> int:
         return self._nstates
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, sol: Array, times: Array) -> Array:
         return self._bkd.max(sol, axis=1)
@@ -195,6 +205,9 @@ class ODEQoIFunction(Generic[Array]):
     def nqoi(self) -> int:
         """Return number of QoI outputs."""
         return self._functional.nqoi()
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.none()
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate QoI for each parameter sample.
