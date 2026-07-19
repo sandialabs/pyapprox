@@ -1,7 +1,6 @@
 """Tests for SympyField2D and field factory functions."""
 
 import pytest
-
 from pyapprox.pde.collocation.fields.sympy_field import (
     SympyField2D,
     create_beta_surface,

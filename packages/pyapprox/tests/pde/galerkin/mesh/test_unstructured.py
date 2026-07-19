@@ -1,7 +1,6 @@
 """Tests for UnstructuredMesh2D."""
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,10 +9,10 @@ if not package_available("skfem"):
 import os
 
 import numpy as np
-
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh.unstructured import UnstructuredMesh2D
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
+
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 
 # Path to the beam mesh JSON
 _BEAM_MESH_PATH = os.path.join(

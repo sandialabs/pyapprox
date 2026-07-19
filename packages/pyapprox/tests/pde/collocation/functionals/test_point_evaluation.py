@@ -1,13 +1,13 @@
 """Tests for PointEvaluationFunctional."""
 
 import numpy as np
-
-from pyapprox.pde.collocation.functionals.point_evaluation import (
-    PointEvaluationFunctional,
-)
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
+from pyapprox.pde.collocation.functionals.point_evaluation import (
+    PointEvaluationFunctional,
+)
+
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,

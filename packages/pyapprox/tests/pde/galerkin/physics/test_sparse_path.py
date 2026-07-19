@@ -6,23 +6,14 @@ that physics assembly methods return scipy sparse matrices.
 
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-from scipy.sparse import issparse
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
-)
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
-from pyapprox.pde.galerkin.physics import (
-    Helmholtz,
-    LinearAdvectionDiffusionReaction,
 )
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
@@ -31,11 +22,19 @@ from pyapprox.pde.galerkin.physics.euler_bernoulli import (
     EulerBernoulliBeamFEM,
 )
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.sparse_dispatch import (
     solve_maybe_sparse,
     sparse_or_dense_solve,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
+from scipy.sparse import issparse
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.pde.galerkin.physics import (
+    Helmholtz,
+    LinearAdvectionDiffusionReaction,
+)
 
 
 class TestSparsePathADR:

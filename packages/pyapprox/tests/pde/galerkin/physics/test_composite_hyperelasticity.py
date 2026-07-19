@@ -10,25 +10,28 @@ Tests:
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-from scipy.sparse import issparse
-from skfem.models.elasticity import lame_parameters
-
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinHyperelasticityAdapter,
     create_hyperelasticity_manufactured_test,
 )
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.pde.parameterizations.galerkin_lame import (
+    create_galerkin_lame_parameterization,
+)
+from scipy.sparse import issparse
+from skfem.models.elasticity import lame_parameters
+
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
@@ -37,10 +40,6 @@ from pyapprox.pde.galerkin.physics import (
     CompositeHyperelasticityPhysics,
     CompositeLinearElasticity,
     HyperelasticityPhysics,
-)
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
-from pyapprox.pde.parameterizations.galerkin_lame import (
-    create_galerkin_lame_parameterization,
 )
 
 

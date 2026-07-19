@@ -1,7 +1,6 @@
 """Tests for BiLaplacianPrior."""
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,10 +9,6 @@ if not package_available("skfem"):
 from typing import Any, Generic
 
 import numpy as np
-from scipy.sparse import issparse
-from skfem import Basis, MeshQuad  # noqa: F401
-from skfem.element import ElementQuad1  # noqa: F401
-
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
 from pyapprox.pde.galerkin.boundary.implementations import RobinBC
@@ -23,6 +18,9 @@ from pyapprox.pde.galerkin.mesh.structured import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
+from scipy.sparse import issparse
+from skfem import Basis, MeshQuad  # noqa: F401
+from skfem.element import ElementQuad1  # noqa: F401
 
 
 class _SkfemMeshWrapper(Generic[Array]):

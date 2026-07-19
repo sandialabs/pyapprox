@@ -6,6 +6,17 @@ verifying that the numerical solution matches the exact solution.
 
 import math
 
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
+    ManufacturedLinearElasticityEquations,
+)
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
+from pyapprox.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
+)
+
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -20,23 +31,13 @@ from pyapprox.pde.collocation.boundary import (
     traction_neumann_bc,
     traction_robin_bc,
 )
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction,
-)
-from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
-    ManufacturedLinearElasticityEquations,
-)
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
     create_uniform_mesh_1d,
     create_uniform_mesh_2d,
 )
-from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
-from pyapprox.pde.collocation.physics.linear_elasticity import (
-    LinearElasticityPhysics,
-)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,

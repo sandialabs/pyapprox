@@ -2,6 +2,9 @@
 
 
 import numpy as np
+from pyapprox.pde.collocation.boundary.normal_operators import (
+    _LegacyNormalOperator,
+)
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -14,9 +17,6 @@ from pyapprox.pde.collocation.boundary import (
     homogeneous_robin_bc,
     zero_dirichlet_bc,
     zero_neumann_bc,
-)
-from pyapprox.pde.collocation.boundary.normal_operators import (
-    _LegacyNormalOperator,
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,

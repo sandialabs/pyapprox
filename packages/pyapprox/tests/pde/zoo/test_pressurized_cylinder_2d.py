@@ -9,40 +9,40 @@ Verifies:
 6. Factory produces valid model with correct protocol compliance
 """
 
-from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
 import math
 
 import numpy as np
 import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.boundary import (
-    traction_neumann_bc,
-    zero_dirichlet_bc,
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
 )
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedLinearElasticityEquations,
 )
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
 from pyapprox.pde.zoo.pressurized_cylinder_2d import (
     create_linear_pressurized_cylinder_2d,
 )
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import (
+    traction_neumann_bc,
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+from pyapprox.pde.collocation.physics import LinearElasticityPhysics
+from pyapprox.pde.collocation.time_integration import CollocationModel
 
 # ======================================================================
 # Helpers

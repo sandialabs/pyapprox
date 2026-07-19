@@ -1,7 +1,6 @@
 """Tests for LinearElasticity physics."""
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -9,6 +8,9 @@ if not package_available("skfem"):
 
 
 import numpy as np
+from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity,
+)
 from scipy.sparse import issparse
 
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
@@ -16,9 +18,6 @@ from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
-)
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity,
 )
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 
@@ -105,14 +104,13 @@ class TestLinearElasticityBase:
         for a bug where 1D DOFs were returned empty.
         """
         bkd = numpy_bkd
-        from skfem.models.elasticity import lame_parameters as _lame
-
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
         )
         from pyapprox.pde.galerkin.manufactured.adapter import (
             create_elasticity_manufactured_test,
         )
+        from skfem.models.elasticity import lame_parameters as _lame
 
         E, nu = 1.0, 0.3
         lam, mu = _lame(E, nu)

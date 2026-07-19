@@ -3,7 +3,6 @@
 import math
 
 import pytest
-
 from pyapprox.pde.collocation.mesh.transforms.affine import (
     AffineTransform2D,
     AffineTransform3D,

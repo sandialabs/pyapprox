@@ -3,21 +3,21 @@
 
 import numpy as np
 import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
-)
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
 from pyapprox.pde.zoo.hyperelastic_bar_1d import (
     create_hyperelastic_bar_1d,
+)
+
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
 )
 
 
@@ -47,20 +47,21 @@ class TestHyperelasticBar1D:
         lamda_val = 2.0
         mu_val = 1.0
 
+        from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+            ManufacturedHyperelasticityEquations,
+        )
+        from pyapprox.pde.collocation.physics.hyperelasticity import (
+            HyperelasticityPhysics,
+        )
+
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.boundary import (
             flux_neumann_bc,
             zero_dirichlet_bc,
         )
-        from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
-            ManufacturedHyperelasticityEquations,
-        )
         from pyapprox.pde.collocation.mesh import (
             AffineTransform1D,
             TransformedMesh1D,
-        )
-        from pyapprox.pde.collocation.physics.hyperelasticity import (
-            HyperelasticityPhysics,
         )
         from pyapprox.pde.collocation.physics.stress_models import (
             NeoHookeanStress,
@@ -131,20 +132,21 @@ class TestHyperelasticBar1D:
         lamda_val = 3.0
         mu_val = 2.0
 
+        from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+            ManufacturedHyperelasticityEquations,
+        )
+        from pyapprox.pde.collocation.physics.hyperelasticity import (
+            HyperelasticityPhysics,
+        )
+
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.boundary import (
             flux_neumann_bc,
             zero_dirichlet_bc,
         )
-        from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
-            ManufacturedHyperelasticityEquations,
-        )
         from pyapprox.pde.collocation.mesh import (
             AffineTransform1D,
             TransformedMesh1D,
-        )
-        from pyapprox.pde.collocation.physics.hyperelasticity import (
-            HyperelasticityPhysics,
         )
         from pyapprox.pde.collocation.physics.stress_models import (
             NeoHookeanStress,
@@ -264,12 +266,13 @@ class TestHyperelasticBar1D:
         small_traction = 0.01
         num_kle_terms = 2
 
+        from pyapprox.pde.zoo.elastic_bar_1d import (
+            create_linear_elastic_bar_1d,
+        )
+
         from pyapprox.pde.collocation.mesh import (
             AffineTransform1D,
             TransformedMesh1D,
-        )
-        from pyapprox.pde.zoo.elastic_bar_1d import (
-            create_linear_elastic_bar_1d,
         )
 
         transform = AffineTransform1D((0.0, length), bkd)
@@ -370,13 +373,14 @@ class TestHyperelasticBar1D:
 
     def test_set_mu_nonpositive_raises(self, bkd):
         """Setting non-positive mu raises ValueError."""
+        from pyapprox.pde.collocation.physics.hyperelasticity import (
+            HyperelasticityPhysics,
+        )
+
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import (
             AffineTransform1D,
             TransformedMesh1D,
-        )
-        from pyapprox.pde.collocation.physics.hyperelasticity import (
-            HyperelasticityPhysics,
         )
         from pyapprox.pde.collocation.physics.stress_models import (
             NeoHookeanStress,

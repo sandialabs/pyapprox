@@ -2,25 +2,26 @@
 
 import math
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedShallowWave,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.shallow_wave import (
     ShallowWavePhysics,
     create_shallow_wave,
 )
-from tests._helpers.physics_test_utils import (
-    PhysicsTestBase,
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
+)
+from tests._helpers.physics_test_utils import (
+    PhysicsTestBase,
 )
 
 

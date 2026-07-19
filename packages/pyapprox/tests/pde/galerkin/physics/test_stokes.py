@@ -16,7 +16,6 @@ Euler (1st order) and Crank-Nicolson (2nd order) reproduce the exact solution.
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -25,23 +24,23 @@ if not package_available("skfem"):
 from typing import Callable, Dict, List, Tuple
 
 import numpy as np
-from scipy.sparse import issparse
-
+from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.manufactured_solutions.stokes import (
     ManufacturedStokes,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
     StokesTimeStepResidual,
 )
-from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Backend
+from scipy.sparse import issparse
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 
 # ---------------------------------------------------------------------------
 # Helpers

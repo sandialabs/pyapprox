@@ -31,14 +31,15 @@ from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.collocation.manufactured_solutions.burgers import (
     ManufacturedBurgers1D,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.pde.galerkin.time_integration.galerkin_model import (
     GalerkinModel,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 
 
 def _make_periodic_burgers(bkd, nx, viscosity=0.1, degree=1, forcing=None):

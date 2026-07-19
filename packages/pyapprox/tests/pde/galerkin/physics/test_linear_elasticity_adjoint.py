@@ -7,32 +7,31 @@ physics.residual_lam_sensitivity() and residual_mu_sensitivity().
 
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-from scipy.sparse import issparse
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
-from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity as LinearElasticity,
 )
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
 from pyapprox.util.backends.protocols import Array
+from scipy.sparse import issparse
+
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 
 
 def _to_dense(mat):

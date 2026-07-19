@@ -13,11 +13,12 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from skfem import BilinearForm, asm
+from skfem.helpers import dot, grad
+
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from skfem import BilinearForm, asm
-from skfem.helpers import dot, grad
 
 
 def _make_physics(

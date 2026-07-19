@@ -2,17 +2,10 @@
 
 import numpy as np
 import pytest
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
-from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.pde.collocation.manufactured_solutions.shallow_shelf import (
     ManufacturedShallowShelfVelocityAndDepthEquations,
     ManufacturedShallowShelfVelocityEquations,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    TransformedMesh2D,
 )
 from pyapprox.pde.collocation.physics.shallow_shelf import (
     ShallowShelfDepthPhysics,
@@ -21,14 +14,21 @@ from pyapprox.pde.collocation.physics.shallow_shelf import (
     create_shallow_shelf_depth,
     create_shallow_shelf_velocity,
 )
-from tests._helpers.physics_test_utils import (
-    PhysicsTestBase,
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    TransformedMesh2D,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
 from tests._helpers.markers import slow_test
+from tests._helpers.physics_test_utils import (
+    PhysicsTestBase,
+)
 
 
 class TestShallowShelfVelocityPhysics(PhysicsTestBase):

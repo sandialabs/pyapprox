@@ -5,7 +5,6 @@ Tests Dirichlet, Neumann, Robin BCs and the ManufacturedSolutionBC factory.
 
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):

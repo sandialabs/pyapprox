@@ -13,7 +13,6 @@ Crank-Nicolson. Explicit cases use GalerkinModel with CFL-constrained dt.
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -22,12 +21,17 @@ if not package_available("skfem"):
 from typing import List, Tuple
 
 import numpy as np
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.ode.implicit_steppers import (
+    BackwardEulerHVP,
+    CrankNicolsonHVP,
+)
+from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
 )
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
@@ -36,11 +40,6 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
     TimeIntegrationConfig,
 )
-from pyapprox.ode.implicit_steppers import (
-    BackwardEulerHVP,
-    CrankNicolsonHVP,
-)
-from pyapprox.ode.step_context import StepContext
 from tests._helpers.markers import slow_test
 
 # =========================================================================

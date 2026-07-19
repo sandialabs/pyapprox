@@ -20,6 +20,18 @@ This is conceptually stitching two domains together at a shared interface.
 from typing import Tuple
 
 import numpy as np
+from pyapprox.pde.collocation.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
+)
+from pyapprox.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
+)
+from pyapprox.pde.collocation.physics.reaction_diffusion import (
+    LinearReaction,
+    TwoSpeciesReactionDiffusionPhysics,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
@@ -35,16 +47,6 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
     TransformedMesh3D,
 )
-from pyapprox.pde.collocation.physics.advection_diffusion import (
-    AdvectionDiffusionReaction,
-)
-from pyapprox.pde.collocation.physics.linear_elasticity import (
-    LinearElasticityPhysics,
-)
-from pyapprox.pde.collocation.physics.reaction_diffusion import (
-    LinearReaction,
-    TwoSpeciesReactionDiffusionPhysics,
-)
 from pyapprox.pde.decomposition.interface import (
     Interface,
     Interface1D,
@@ -57,8 +59,6 @@ from pyapprox.pde.decomposition.solver import (
     DtNSolver,
 )
 from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.markers import slow_test
 
 

@@ -2,32 +2,33 @@
 
 import math
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    constant_dirichlet_bc,
-    zero_dirichlet_bc,
-)
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedAdvectionDiffusionReaction,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
     create_advection_diffusion,
     create_steady_diffusion,
 )
-from pyapprox.pde.collocation.time_integration import (
-    CollocationModel,
-    TimeIntegrationConfig,
-)
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
+)
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    constant_dirichlet_bc,
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
+from pyapprox.pde.collocation.time_integration import (
+    CollocationModel,
+    TimeIntegrationConfig,
 )
 
 

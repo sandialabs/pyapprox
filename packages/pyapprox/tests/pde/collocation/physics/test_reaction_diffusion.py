@@ -3,17 +3,8 @@
 import math
 
 import numpy as np
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    zero_dirichlet_bc,
-)
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedTwoSpeciesReactionDiffusion,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.fitzhugh_nagumo import (
     FitzHughNagumoPhysics,
@@ -25,15 +16,24 @@ from pyapprox.pde.collocation.physics.reaction_diffusion import (
     TwoSpeciesReactionDiffusionPhysics,
     create_two_species_reaction_diffusion,
 )
-from tests._helpers.physics_test_utils import (
-    PhysicsNewtonResidual,
-    PhysicsTestBase,
+from pyapprox.util.rootfinding.newton import NewtonSolver
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.rootfinding.newton import NewtonSolver
+from tests._helpers.physics_test_utils import (
+    PhysicsNewtonResidual,
+    PhysicsTestBase,
+)
 
 
 class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):

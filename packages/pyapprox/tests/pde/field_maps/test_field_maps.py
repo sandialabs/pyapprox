@@ -4,7 +4,6 @@ import math
 
 import numpy as np
 import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

@@ -5,7 +5,6 @@ using manufactured solutions with time-dependent displacement fields.
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -14,26 +13,26 @@ if not package_available("skfem"):
 from typing import List, Tuple
 
 import numpy as np
-
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.pde.galerkin.boundary import DirichletBC
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    create_elasticity_manufactured_test,
-)
-from pyapprox.pde.galerkin.mesh import StructuredMesh2D
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity as LinearElasticity,
-)
-from pyapprox.pde.galerkin.time_integration import (
-    ConstrainedTimeStepResidual,
-    GalerkinPhysicsToODEResidualAdapter,
-)
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.pde.galerkin.manufactured.adapter import (
+    create_elasticity_manufactured_test,
+)
+from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity as LinearElasticity,
+)
 from pyapprox.util.rootfinding.newton import NewtonSolver
+
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.boundary import DirichletBC
+from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.pde.galerkin.time_integration import (
+    ConstrainedTimeStepResidual,
+    GalerkinPhysicsToODEResidualAdapter,
+)
 
 # =========================================================================
 # Helpers

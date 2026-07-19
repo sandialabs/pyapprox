@@ -2,31 +2,31 @@
 
 
 import numpy as np
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    constant_dirichlet_bc,
-)
 from pyapprox.pde.collocation.manufactured_solutions.shallow_ice import (
     ManufacturedShallowIce,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.shallow_ice import (
     ShallowIcePhysics,
     create_shallow_ice,
 )
-from tests._helpers.physics_test_utils import (
-    PhysicsNewtonResidual,
-    PhysicsTestBase,
+from pyapprox.util.rootfinding.newton import NewtonSolver
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    constant_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.rootfinding.newton import NewtonSolver
+from tests._helpers.physics_test_utils import (
+    PhysicsNewtonResidual,
+    PhysicsTestBase,
+)
 
 
 class TestShallowIcePhysics(PhysicsTestBase):

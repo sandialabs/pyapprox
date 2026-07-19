@@ -9,11 +9,10 @@ Verifies dP/dmu and dP/dlambda in 2D via:
 from typing import Generic
 
 import numpy as np
-
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )

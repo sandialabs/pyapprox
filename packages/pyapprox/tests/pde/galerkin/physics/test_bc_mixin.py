@@ -1,7 +1,6 @@
 """Tests for GalerkinBCMixin."""
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,17 +9,17 @@ if not package_available("skfem"):
 from typing import Generic
 
 import numpy as np
-from scipy.sparse import csr_matrix
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC,
     NeumannBC,
     RobinBC,
 )
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
 from pyapprox.util.backends.protocols import Array
+from scipy.sparse import csr_matrix
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 
 
 class _ConcreteMixinUser(GalerkinBCMixin[Array], Generic[Array]):

@@ -12,22 +12,23 @@ precision residuals (< 1e-12).
 
 from typing import Generic
 
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedLinearElasticityEquations,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):

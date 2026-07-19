@@ -2,7 +2,6 @@
 
 
 import numpy as np
-
 from pyapprox.pde.collocation.basis.chebyshev.derivative import (
     ChebyshevDerivativeMatrix1D,
 )

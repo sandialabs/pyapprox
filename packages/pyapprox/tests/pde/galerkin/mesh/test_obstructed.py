@@ -2,14 +2,12 @@
 
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-
 from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
 from pyapprox.util.backends.numpy import NumpyBkd
 

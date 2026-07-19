@@ -4,7 +4,6 @@ import importlib
 import sys
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 

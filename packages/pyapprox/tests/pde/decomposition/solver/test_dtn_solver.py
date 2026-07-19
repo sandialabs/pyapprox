@@ -9,15 +9,18 @@ Note: All tests use the reference domain [-1, 1] where the Chebyshev
 basis operates directly, avoiding coordinate transformation issues.
 """
 
-from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
 from typing import Generic
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.pde.collocation.physics.advection_diffusion import (
+    create_steady_diffusion,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -32,9 +35,6 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
     TransformedMesh3D,
 )
-from pyapprox.pde.collocation.physics.advection_diffusion import (
-    create_steady_diffusion,
-)
 from pyapprox.pde.decomposition.interface import (
     Interface,
     Interface1D,
@@ -48,8 +48,6 @@ from pyapprox.pde.decomposition.solver import (
     DtNSolver,
 )
 from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DtNResidualDerivativeWrapper(Generic[Array]):

@@ -2,24 +2,24 @@
 
 
 import numpy as np
-
-from pyapprox.pde.collocation.basis import (
-    ChebyshevBasis1D,
-    ChebyshevBasis2D,
-)
 from pyapprox.pde.collocation.boundary.normal_operators import (
     FluxNormalOperator,
     GradientNormalOperator,
     TractionNormalOperator,
     _LegacyNormalOperator,
 )
+from pyapprox.pde.collocation.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
+)
+
+from pyapprox.pde.collocation.basis import (
+    ChebyshevBasis1D,
+    ChebyshevBasis2D,
+)
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
     create_uniform_mesh_1d,
-)
-from pyapprox.pde.collocation.physics.advection_diffusion import (
-    AdvectionDiffusionReaction,
 )
 
 

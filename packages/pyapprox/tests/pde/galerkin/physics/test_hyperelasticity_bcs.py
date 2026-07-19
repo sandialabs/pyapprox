@@ -5,7 +5,6 @@ manufactured solutions with non-zero boundary values.
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -13,21 +12,21 @@ if not package_available("skfem"):
 
 
 import numpy as np
-
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinHyperelasticityAdapter,
     create_hyperelasticity_manufactured_test,
 )
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
 
 def _get_exact_displacement(funcs, basis, bkd):

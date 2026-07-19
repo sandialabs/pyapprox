@@ -11,12 +11,10 @@ Verifies via DerivativeChecker:
 from typing import Generic
 
 import numpy as np
-
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     HyperelasticTractionNormalOperator,
     hyperelastic_traction_neumann_bc,
@@ -25,11 +23,13 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
     TractionNormalOperator,
 )
 from pyapprox.pde.collocation.boundary.robin import RobinBC
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.util.backends.protocols import Array
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
 
 
 class _TractionOfState(Generic[Array]):

@@ -1,7 +1,6 @@
 """Tests for CompositeLinearElasticity physics."""
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -9,6 +8,12 @@ if not package_available("skfem"):
 
 
 import numpy as np
+from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity,
+)
+from pyapprox.pde.parameterizations.galerkin_lame import (
+    create_galerkin_lame_parameterization,
+)
 from scipy.sparse import issparse
 
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
@@ -17,13 +22,7 @@ from pyapprox.pde.galerkin.mesh import (
     StructuredMesh2D,
     StructuredMesh3D,
 )
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity,
-)
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.parameterizations.galerkin_lame import (
-    create_galerkin_lame_parameterization,
-)
 
 
 def _to_dense(mat, bkd):
@@ -98,14 +97,13 @@ class TestCompositeLinearElasticityBase:
 
     def test_1d_manufactured_solution(self, numpy_bkd) -> None:
         bkd = numpy_bkd
-        from skfem.models.elasticity import lame_parameters as _lame
-
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
         )
         from pyapprox.pde.galerkin.manufactured.adapter import (
             create_elasticity_manufactured_test,
         )
+        from skfem.models.elasticity import lame_parameters as _lame
 
         E, nu = 1.0, 0.3
         lam, mu = _lame(E, nu)

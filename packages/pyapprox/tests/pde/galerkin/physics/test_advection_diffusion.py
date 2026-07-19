@@ -9,7 +9,6 @@ This module contains:
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -18,6 +17,7 @@ if not package_available("skfem"):
 from typing import List, Tuple
 
 import numpy as np
+from pyapprox.util.backends.numpy import NumpyBkd
 from scipy.sparse import issparse
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
@@ -28,7 +28,6 @@ from pyapprox.pde.galerkin.mesh import (
 )
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestLinearADRBase:

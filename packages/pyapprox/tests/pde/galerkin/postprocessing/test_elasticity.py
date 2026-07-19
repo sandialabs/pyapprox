@@ -1,7 +1,6 @@
 """Tests for elasticity post-processing (strain/stress/von Mises)."""
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):

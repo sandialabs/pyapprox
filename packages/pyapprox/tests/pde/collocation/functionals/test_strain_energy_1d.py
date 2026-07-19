@@ -1,7 +1,6 @@
 """Tests for StrainEnergyFunctional1D and factory functions."""
 
 import numpy as np
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -15,6 +14,7 @@ from pyapprox.pde.collocation.functionals.strain_energy_1d import (
     create_linear_strain_energy_1d,
     create_neo_hookean_strain_energy_1d,
 )
+
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,

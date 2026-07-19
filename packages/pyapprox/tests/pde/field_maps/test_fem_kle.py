@@ -10,16 +10,12 @@ factory functions depend on skfem, which is a PDE-layer dependency.
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-from skfem import Basis, ElementLineP1, MeshLine, asm
-from skfem.models.poisson import mass
-
 from pyapprox.pde.field_maps.kle_factory import (
     create_fem_galerkin_kle,
     create_fem_nystrom_nodes_kle,
@@ -30,6 +26,8 @@ from pyapprox.surrogates.kle.analytical import (
     AnalyticalExponentialKLE1D,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from skfem import Basis, ElementLineP1, MeshLine, asm
+from skfem.models.poisson import mass
 
 
 def _make_1d_setup(nelems=25, nterms=3, corr_len=1.0, dom_len=2.0):

@@ -3,31 +3,31 @@
 import math
 
 import numpy as np
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    zero_dirichlet_bc,
-)
 from pyapprox.pde.collocation.manufactured_solutions.burgers import (
     ManufacturedBurgers1D,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.burgers import (
     BurgersPhysics1D,
     create_burgers_1d,
 )
-from tests._helpers.physics_test_utils import (
-    PhysicsNewtonResidual,
-    PhysicsTestBase,
+from pyapprox.util.rootfinding.newton import NewtonSolver
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.rootfinding.newton import NewtonSolver
+from tests._helpers.physics_test_utils import (
+    PhysicsNewtonResidual,
+    PhysicsTestBase,
+)
 
 
 class TestBurgersPhysics(PhysicsTestBase):

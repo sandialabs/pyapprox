@@ -5,11 +5,12 @@ integrates the time derivative exactly while backward Euler (1st order) has
 O(dt) temporal error.
 """
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedLinearElasticityEquations,
 )
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
     create_uniform_mesh_2d,

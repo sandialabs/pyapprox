@@ -7,30 +7,14 @@ the exact solution to high accuracy, they implicitly agree.
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-
-# -- Collocation imports --
-from pyapprox.pde.collocation.basis import (
-    ChebyshevBasis1D,
-    ChebyshevBasis2D,
-)
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
-)
-from pyapprox.pde.collocation.mesh import (
-    AffineTransform1D,
-    AffineTransform2D,
-    TransformedMesh1D,
-    TransformedMesh2D,
-    create_uniform_mesh_1d,
-    create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics as CollocationHyperelasticityPhysics,
@@ -40,13 +24,29 @@ from pyapprox.pde.collocation.physics.hyperelasticity import (
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
-from pyapprox.pde.collocation.time_integration import CollocationModel
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinHyperelasticityAdapter,
     create_hyperelasticity_manufactured_test,
 )
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+
+# -- Collocation imports --
+from pyapprox.pde.collocation.basis import (
+    ChebyshevBasis1D,
+    ChebyshevBasis2D,
+)
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.mesh import (
+    AffineTransform1D,
+    AffineTransform2D,
+    TransformedMesh1D,
+    TransformedMesh2D,
+    create_uniform_mesh_1d,
+    create_uniform_mesh_2d,
+)
+from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 
 # -- Galerkin imports --
 from pyapprox.pde.galerkin.mesh import (
@@ -56,7 +56,6 @@ from pyapprox.pde.galerkin.mesh import (
 from pyapprox.pde.galerkin.physics import (
     HyperelasticityPhysics as GalerkinHyperelasticityPhysics,
 )
-from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from tests._helpers.markers import slow_test
 
 # =========================================================================

@@ -22,20 +22,21 @@ To make them compatible, we negate the wave number squared when passing to physi
 from typing import Generic
 
 import pytest
-
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedHelmholtz,
+)
+from pyapprox.util.backends.protocols import Array
+
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
 )
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
-)
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedHelmholtz,
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
@@ -44,7 +45,6 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import HelmholtzPhysics
-from pyapprox.util.backends.protocols import Array
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):

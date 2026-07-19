@@ -9,7 +9,6 @@ Tests the analytical and FEM implementations using:
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -17,13 +16,12 @@ if not package_available("skfem"):
 
 
 import numpy as np
-from scipy.sparse import issparse
-
 from pyapprox.pde.galerkin.physics.euler_bernoulli import (
     EulerBernoulliBeamAnalytical,
     EulerBernoulliBeamFEM,
 )
 from pyapprox.util.backends.protocols import Array
+from scipy.sparse import issparse
 
 
 def _to_dense(mat):

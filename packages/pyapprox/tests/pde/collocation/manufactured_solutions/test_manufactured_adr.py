@@ -15,11 +15,16 @@ import math
 from typing import Generic
 
 import pytest
-
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.pde.collocation.manufactured_solutions import (
+    ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.cartesian import cartesian_product_samples
+
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -27,9 +32,6 @@ from pyapprox.pde.collocation.basis import (
 )
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
-)
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction,
 )
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
@@ -45,8 +47,6 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.cartesian import cartesian_product_samples
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):

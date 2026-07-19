@@ -10,15 +10,16 @@ The key design:
 - This ensures consistent forcing computation and residual evaluation
 """
 
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.manufactured_solutions import (
     ManufacturedTwoSpeciesReactionDiffusion,
 )
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,

@@ -3,6 +3,9 @@
 import math
 
 import pytest
+from pyapprox.pde.collocation.post_processing.stress import (
+    StressPostProcessor2D,
+)
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (
@@ -12,9 +15,6 @@ from pyapprox.pde.collocation.boundary import (
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
-from pyapprox.pde.collocation.post_processing.stress import (
-    StressPostProcessor2D,
-)
 from pyapprox.pde.collocation.time_integration import CollocationModel
 
 # ======================================================================

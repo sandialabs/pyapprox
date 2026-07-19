@@ -10,7 +10,6 @@ The periodic case is skipped (known legacy bug).
 """
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -19,28 +18,28 @@ if not package_available("skfem"):
 from typing import List, Tuple
 
 import numpy as np
-from scipy.sparse import issparse
-
-from pyapprox.pde.collocation.manufactured_solutions.burgers import (
-    ManufacturedBurgers1D,
-)
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinManufacturedSolutionAdapter,
-)
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
-from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-from pyapprox.pde.galerkin.time_integration import (
-    ConstrainedTimeStepResidual,
-    GalerkinPhysicsToODEResidualAdapter,
-)
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.pde.collocation.manufactured_solutions.burgers import (
+    ManufacturedBurgers1D,
+)
+from pyapprox.pde.galerkin.manufactured.adapter import (
+    GalerkinManufacturedSolutionAdapter,
+)
+from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.util.rootfinding.newton import NewtonSolver
+from scipy.sparse import issparse
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.galerkin.time_integration import (
+    ConstrainedTimeStepResidual,
+    GalerkinPhysicsToODEResidualAdapter,
+)
 
 # =========================================================================
 # Part A: Unit Tests

@@ -3,7 +3,6 @@
 
 import numpy as np
 import pytest
-
 from pyapprox.pde.collocation.basis.chebyshev.nodes import (
     ChebyshevGaussLobattoNodes1D,
 )

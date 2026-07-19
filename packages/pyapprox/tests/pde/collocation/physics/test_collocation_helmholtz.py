@@ -3,6 +3,11 @@
 import math
 
 import numpy as np
+from pyapprox.pde.collocation.physics.helmholtz import (
+    HelmholtzPhysics,
+    create_helmholtz,
+)
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -12,15 +17,10 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
 )
-from pyapprox.pde.collocation.physics.helmholtz import (
-    HelmholtzPhysics,
-    create_helmholtz,
-)
 from tests._helpers.physics_test_utils import (
     PhysicsNewtonResidual,
     PhysicsTestBase,
 )
-from pyapprox.util.rootfinding.newton import NewtonSolver
 
 
 class TestHelmholtzPhysics(PhysicsTestBase):

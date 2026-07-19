@@ -4,19 +4,11 @@ import math
 
 import numpy as np
 import pytest
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     hyperelastic_traction_neumann_bc,
 )
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
-)
-from pyapprox.pde.collocation.physics.stress_models import (
-    NeoHookeanStress,
 )
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
@@ -24,6 +16,14 @@ from pyapprox.pde.collocation.post_processing.stress import (
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
+)
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+from pyapprox.pde.collocation.physics.stress_models import (
+    NeoHookeanStress,
 )
 
 # ======================================================================

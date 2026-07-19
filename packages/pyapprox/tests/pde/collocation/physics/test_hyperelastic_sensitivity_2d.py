@@ -9,18 +9,18 @@ Verifies via DerivativeChecker:
 from typing import Generic
 
 import numpy as np
-
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.physics import HyperelasticityPhysics
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.util.backends.protocols import Array
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.physics import HyperelasticityPhysics
 
 
 def _setup_2d_hyperelastic(bkd, npts_1d=6, lamda=1.0, mu=1.0):
