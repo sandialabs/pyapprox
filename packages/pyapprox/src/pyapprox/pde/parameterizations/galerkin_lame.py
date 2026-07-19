@@ -9,12 +9,37 @@ Satisfies ParameterizationProtocol. The ``apply`` method calls
 ``physics.residual_mu_sensitivity()`` via the chain rule.
 """
 
-from typing import Dict, Generic, List, Tuple
+from typing import (
+    Dict,
+    Generic,
+    List,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 import numpy as np
 
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class _LameSensitivityPhysicsProtocol(Protocol, Generic[Array]):
+    """Galerkin elasticity physics exposing per-material Lame sensitivities.
+
+    Defined locally (parameterizations cannot import pde.galerkin — that
+    would close an import cycle); declares exactly the members this
+    parameterization duck-calls.
+    """
+
+    def residual_lam_sensitivity(
+        self, state: Array, material_index: int
+    ) -> Array: ...
+
+    def residual_mu_sensitivity(
+        self, state: Array, material_index: int
+    ) -> Array: ...
 
 
 def _lame_from_E_nu(E: float, nu: float) -> Tuple[float, float]:
@@ -152,10 +177,11 @@ class GalerkinLameParameterization(Generic[Array]):
             If physics lacks ``residual_lam_sensitivity`` or
             ``residual_mu_sensitivity``.
         """
-        if not hasattr(physics, "residual_lam_sensitivity"):
+        if not isinstance(physics, _LameSensitivityPhysicsProtocol):
             raise NotImplementedError(
                 f"Physics {type(physics).__name__} does not support "
-                f"residual_lam_sensitivity — param_jacobian not available"
+                f"residual_lam_sensitivity/residual_mu_sensitivity — "
+                f"param_jacobian not available"
             )
 
         params_np = self._bkd.to_numpy(params_1d)

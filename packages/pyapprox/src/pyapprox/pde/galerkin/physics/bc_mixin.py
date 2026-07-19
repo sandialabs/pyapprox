@@ -9,6 +9,7 @@ from typing import Any, Generic, List, Optional, Tuple
 import numpy as np
 
 from pyapprox.pde.galerkin.protocols.boundary import (
+    BoundaryConditionWithParamJacobianProtocol,
     DirichletBCProtocol,
     NeumannBCProtocol,
     RobinBCProtocol,
@@ -176,8 +177,9 @@ class GalerkinBCMixin(Generic[Array]):
     ) -> Array:
         """Apply Dirichlet row replacement to parameter Jacobian.
 
-        Uses ``hasattr(bc, "apply_to_param_jacobian")`` since not all
-        Dirichlet BCs support this operation.
+        Only BCs satisfying
+        ``BoundaryConditionWithParamJacobianProtocol`` are applied; other
+        Dirichlet BCs do not support this operation and are skipped.
 
         Parameters
         ----------
@@ -196,9 +198,8 @@ class GalerkinBCMixin(Generic[Array]):
         for bc in self._boundary_conditions:
             if isinstance(bc, RobinBCProtocol):
                 continue
-            if isinstance(bc, DirichletBCProtocol):
-                if hasattr(bc, "apply_to_param_jacobian"):
-                    pjac = bc.apply_to_param_jacobian(pjac, state, time)
+            if isinstance(bc, BoundaryConditionWithParamJacobianProtocol):
+                pjac = bc.apply_to_param_jacobian(pjac, state, time)
         return pjac
 
     def apply_boundary_conditions(
