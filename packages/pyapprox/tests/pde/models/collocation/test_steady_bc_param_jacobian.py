@@ -12,10 +12,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    CollocationStateEquationAdapter,
-    SteadyForwardModel,
-)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -24,6 +20,10 @@ from pyapprox.pde.collocation.time_integration.collocation_model import (
 )
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
+)
+from pyapprox.pde.models.collocation.steady import (
+    CollocationStateEquationAdapter,
+    SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,

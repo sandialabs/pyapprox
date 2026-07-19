@@ -17,9 +17,6 @@ from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     hyperelastic_traction_neumann_bc,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics.hyperelasticity import (
@@ -30,6 +27,9 @@ from pyapprox.pde.collocation.physics.stress_models import (
 )
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+)
+from pyapprox.pde.models.collocation.steady import (
+    SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.hyperelastic_lame import (
     create_hyperelastic_youngs_modulus_parameterization,

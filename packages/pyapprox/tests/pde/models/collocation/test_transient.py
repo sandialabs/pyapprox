@@ -11,9 +11,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
-from pyapprox.pde.collocation.forward_models.transient import (
-    TransientForwardModel,
-)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -22,6 +19,9 @@ from pyapprox.pde.collocation.time_integration.collocation_model import (
 )
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
+)
+from pyapprox.pde.models.collocation.transient import (
+    TransientForwardModel,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,

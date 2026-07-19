@@ -5,12 +5,6 @@ from typing import Any, Callable, List, Optional, Tuple
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
-from pyapprox.pde.collocation.forward_models.transient import (
-    TransientForwardModel,
-)
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
@@ -23,6 +17,12 @@ from pyapprox.pde.field_maps.basis_expansion import (
 )
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+)
+from pyapprox.pde.models.collocation.steady import (
+    SteadyForwardModel,
+)
+from pyapprox.pde.models.collocation.transient import (
+    TransientForwardModel,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,

@@ -18,9 +18,6 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
     AdjointOperatorWithJacobianAndHVP,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -32,6 +29,9 @@ from pyapprox.pde.field_maps.kle_factory import (
 )
 from pyapprox.pde.field_maps.scalar import (
     ScalarAmplitude,
+)
+from pyapprox.pde.models.collocation.steady import (
+    SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.composite import (
     CompositeParameterization,

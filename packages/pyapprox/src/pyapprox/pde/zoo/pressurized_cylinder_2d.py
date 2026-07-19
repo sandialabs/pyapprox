@@ -16,14 +16,14 @@ from pyapprox.pde.collocation.boundary import (
     traction_neumann_bc,
     zero_dirichlet_bc,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+)
+from pyapprox.pde.models.collocation.steady import (
+    SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.lame import (
     create_youngs_modulus_parameterization,

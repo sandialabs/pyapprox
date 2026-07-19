@@ -13,9 +13,6 @@ from pyapprox.pde.collocation.boundary import (
     flux_neumann_bc,
     zero_dirichlet_bc,
 )
-from pyapprox.pde.collocation.forward_models.steady import (
-    SteadyForwardModel,
-)
 from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
@@ -25,6 +22,9 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
 )
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+)
+from pyapprox.pde.models.collocation.steady import (
+    SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,

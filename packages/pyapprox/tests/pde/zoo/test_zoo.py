@@ -3,23 +3,23 @@
 import math
 
 import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
-)
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
-from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.zoo.diffusion import (
     create_steady_diffusion_1d,
     create_transient_diffusion_1d,
+)
+
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
 )
 
 
@@ -103,20 +103,21 @@ class TestSteadyDiffusionZoo:
     def test_matches_manual_construction(self, bkd):
         """Zoo factory matches manually constructed forward model."""
         npts = 20
-        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-        from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-        from pyapprox.pde.collocation.forward_models.steady import (
-            SteadyForwardModel,
-        )
-        from pyapprox.pde.collocation.mesh import (
-            TransformedMesh1D,
-            create_uniform_mesh_1d,
-        )
         from pyapprox.pde.collocation.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
+        from pyapprox.pde.models.collocation.steady import (
+            SteadyForwardModel,
+        )
         from pyapprox.pde.parameterizations.diffusion import (
             create_diffusion_parameterization,
+        )
+
+        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+        from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+        from pyapprox.pde.collocation.mesh import (
+            TransformedMesh1D,
+            create_uniform_mesh_1d,
         )
 
         mesh = TransformedMesh1D(npts, bkd)
@@ -255,8 +256,6 @@ class TestTransientDiffusionZoo:
 class TestDiffusionPositivityValidation:
     """Tests for strict positivity validation in DiffusionParameterization."""
     def _make_param_and_physics(self, bkd, npts) :
-        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-        from pyapprox.pde.collocation.mesh import TransformedMesh1D
         from pyapprox.pde.collocation.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
@@ -266,6 +265,9 @@ class TestDiffusionPositivityValidation:
         from pyapprox.pde.parameterizations.diffusion import (
             create_diffusion_parameterization,
         )
+
+        from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+        from pyapprox.pde.collocation.mesh import TransformedMesh1D
 
         mesh = TransformedMesh1D(npts, bkd)
         basis = ChebyshevBasis1D(mesh, bkd)
