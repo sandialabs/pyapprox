@@ -278,3 +278,80 @@ class OEDInnerLoopLikelihoodProtocol(Protocol, Generic[Array]):
             Outer loop likelihood with same noise model.
         """
         ...
+
+
+@runtime_checkable
+class OEDInnerLoopLikelihoodWithEvidenceJacobianProtocol(
+    OEDInnerLoopLikelihoodProtocol[Array], Protocol
+):
+    """Inner-loop likelihood with a fused evidence-jacobian kernel.
+
+    The fused kernel contracts the quadrature-weighted likelihood
+    against the per-sample log-likelihood jacobian without
+    materializing the (ninner, nouter, nobs) intermediate.
+    """
+
+    def evidence_jacobian(
+        self,
+        design_weights: Array,
+        quad_weighted_like: Array,
+    ) -> Array:
+        """Compute the fused evidence jacobian.
+
+        Parameters
+        ----------
+        design_weights : Array
+            Design weights. Shape: (nobs, 1).
+        quad_weighted_like : Array
+            Quadrature-weighted likelihood. Shape: (ninner, nouter).
+
+        Returns
+        -------
+        Array
+            Evidence jacobian. Shape: (nouter, nobs).
+        """
+        ...
+
+
+@runtime_checkable
+class OEDInnerLoopLikelihoodWithWeightedJacobianProtocol(
+    OEDInnerLoopLikelihoodWithEvidenceJacobianProtocol[Array], Protocol
+):
+    """Inner-loop likelihood with a fused weighted-jacobian kernel.
+
+    Extends the evidence-jacobian capability (the fused
+    weighted-jacobian path also needs ``evidence_jacobian`` for its
+    rank-1 correction term). Availability can still be
+    backend-dependent at runtime — check ``has_weighted_jacobian()``.
+    """
+
+    def has_weighted_jacobian(self) -> bool:
+        """Whether the fused weighted-jacobian kernel is available."""
+        ...
+
+    def weighted_jacobian(
+        self,
+        design_weights: Array,
+        qwl_ratio: Array,
+        weights_a: Array,
+        weights_b: Array,
+    ) -> "tuple[Array, Array]":
+        """Fused weighted-jacobian first-term contractions.
+
+        Parameters
+        ----------
+        design_weights : Array
+            Design weights. Shape: (nobs, 1).
+        qwl_ratio : Array
+            Normalized quadrature-weighted likelihood.
+            Shape: (ninner, nouter).
+        weights_a, weights_b : Array
+            Independent inner-weight matrices. Shape: (ninner, npred).
+
+        Returns
+        -------
+        tuple[Array, Array]
+            First-term contractions, each of shape
+            (npred, nouter, nobs).
+        """
+        ...

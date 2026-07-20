@@ -10,10 +10,12 @@ For numerical computation with quadrature:
 where likelihood[i, j] = p(obs_j | theta_i, design).
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Callable, Generic, Optional, Tuple
 
 from pyapprox.expdesign.protocols.likelihood import (
     OEDInnerLoopLikelihoodProtocol,
+    OEDInnerLoopLikelihoodWithEvidenceJacobianProtocol,
+    OEDInnerLoopLikelihoodWithWeightedJacobianProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -46,8 +48,15 @@ class Evidence(Generic[Array]):
     ):
         self._bkd = bkd
         self._loglike = inner_likelihood
-        self._has_fused_evidence_jacobian = hasattr(
-            inner_likelihood, "evidence_jacobian"
+        self._evidence_jacobian_fn: Optional[
+            Callable[[Array, Array], Array]
+        ] = (
+            inner_likelihood.evidence_jacobian
+            if isinstance(
+                inner_likelihood,
+                OEDInnerLoopLikelihoodWithEvidenceJacobianProtocol,
+            )
+            else None
         )
         self._ninner = inner_likelihood.ninner()
         self._nouter = inner_likelihood.nouter()
@@ -156,8 +165,8 @@ class Evidence(Generic[Array]):
 
         quad_weighted_like = self._quad_weights[:, None] * like_matrix
 
-        if self._has_fused_evidence_jacobian:
-            return self._loglike.evidence_jacobian(
+        if self._evidence_jacobian_fn is not None:
+            return self._evidence_jacobian_fn(
                 design_weights,
                 quad_weighted_like,
             )
@@ -194,13 +203,16 @@ class Evidence(Generic[Array]):
     def has_fused_weighted_jacobian(self) -> bool:
         """Whether a fused weighted-jacobian kernel is available.
 
-        Requires the inner likelihood to expose ``weighted_jacobian`` and
-        ``has_weighted_jacobian`` (currently only the Gaussian likelihood
-        with the numpy+numba backend satisfies this).
+        Requires the inner likelihood to satisfy
+        ``OEDInnerLoopLikelihoodWithWeightedJacobianProtocol`` and report
+        the kernel available at runtime (currently only the Gaussian
+        likelihood with the numpy+numba backend satisfies this).
         """
         return (
-            hasattr(self._loglike, "weighted_jacobian")
-            and hasattr(self._loglike, "has_weighted_jacobian")
+            isinstance(
+                self._loglike,
+                OEDInnerLoopLikelihoodWithWeightedJacobianProtocol,
+            )
             and self._loglike.has_weighted_jacobian()
         )
 
@@ -263,7 +275,10 @@ class Evidence(Generic[Array]):
             If no fused kernel is available. Check
             ``has_fused_weighted_jacobian()`` first.
         """
-        if not self.has_fused_weighted_jacobian():
+        loglike = self._loglike
+        if not isinstance(
+            loglike, OEDInnerLoopLikelihoodWithWeightedJacobianProtocol
+        ) or not loglike.has_weighted_jacobian():
             raise RuntimeError(
                 "No fused weighted_jacobian kernel for this backend / "
                 "likelihood; check has_fused_weighted_jacobian() and fall "
@@ -279,7 +294,7 @@ class Evidence(Generic[Array]):
         qwl_ratio = qwl / evid                                 # (ninner, nouter)
 
         # First term via fused kernel.
-        part_a, part_b = self._loglike.weighted_jacobian(
+        part_a, part_b = loglike.weighted_jacobian(
             design_weights, qwl_ratio, weights_a, weights_b,
         )
 
@@ -289,7 +304,7 @@ class Evidence(Generic[Array]):
         M_a = bkd.einsum("iq,io->qo", weights_a, qwl_by_evid2)  # (npred, nouter)
         M_b = bkd.einsum("iq,io->qo", weights_b, qwl_by_evid2)
 
-        evid_jac = self._loglike.evidence_jacobian(
+        evid_jac = loglike.evidence_jacobian(
             design_weights, qwl,
         )                                                       # (nouter, nobs)
 
@@ -384,8 +399,15 @@ class LogEvidence(Generic[Array]):
     ):
         self._bkd = bkd
         self._loglike = inner_likelihood
-        self._has_fused_evidence_jacobian = hasattr(
-            inner_likelihood, "evidence_jacobian"
+        self._evidence_jacobian_fn: Optional[
+            Callable[[Array, Array], Array]
+        ] = (
+            inner_likelihood.evidence_jacobian
+            if isinstance(
+                inner_likelihood,
+                OEDInnerLoopLikelihoodWithEvidenceJacobianProtocol,
+            )
+            else None
         )
         self._ninner = inner_likelihood.ninner()
         self._nouter = inner_likelihood.nouter()
@@ -516,8 +538,8 @@ class LogEvidence(Generic[Array]):
         # quad_weighted_like: (ninner, nouter) = quad_weights[i] * like[i, j]
         quad_weighted_like = self._quad_weights[:, None] * like_matrix
 
-        if self._has_fused_evidence_jacobian:
-            evidence_jac = self._loglike.evidence_jacobian(
+        if self._evidence_jacobian_fn is not None:
+            evidence_jac = self._evidence_jacobian_fn(
                 design_weights,
                 quad_weighted_like,
             )

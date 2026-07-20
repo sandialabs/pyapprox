@@ -1,5 +1,4 @@
 # CI ratchet baselines. Rule: any commit that improves a metric lowers
 # its baseline here in the same commit. Read by .github/workflows/lint.yml
-# (protected); this file is deliberately editable agent-side data.
-mypy_src=545
+mypy_src=539
 mypy_benchmarks=479
