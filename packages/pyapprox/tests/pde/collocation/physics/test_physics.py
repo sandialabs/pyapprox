@@ -260,17 +260,17 @@ class TestDiffusionParameterization:
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         # Set parameters
         param = bkd.array([0.5, 0.2])
-        dp.apply(physics, param)
+        dp.apply(param)
 
         # State
         u = bkd.sin(math.pi * nodes)
 
         # Analytical parameter Jacobian
-        param_jac = dp.param_jacobian(physics, u, 0.0, param)
+        param_jac = dp.param_jacobian(u, 0.0, param)
 
         # Verify via finite differences
         eps = 1e-7
@@ -281,16 +281,16 @@ class TestDiffusionParameterization:
             param_minus = bkd.copy(param)
             param_minus[j] = param_minus[j] - eps
 
-            dp.apply(physics, param_plus)
+            dp.apply(param_plus)
             res_plus = physics.residual(u, 0.0)
-            dp.apply(physics, param_minus)
+            dp.apply(param_minus)
             res_minus = physics.residual(u, 0.0)
 
             for i in range(npts):
                 param_jac_fd[i, j] = (res_plus[i] - res_minus[i]) / (2 * eps)
 
         # Reset to original
-        dp.apply(physics, param)
+        dp.apply(param)
 
         bkd.assert_allclose(param_jac, param_jac_fd, atol=1e-5)
 
@@ -304,8 +304,10 @@ class TestDiffusionParameterization:
         phi1 = basis.nodes()
         phi2 = basis.nodes() ** 2
 
+        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
+
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1, phi2])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         assert dp.nparams() == 3
 
@@ -320,10 +322,10 @@ class TestDiffusionParameterization:
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         param = bkd.array([0.5])
-        ic_jac = dp.initial_param_jacobian(physics, param)
+        ic_jac = dp.initial_param_jacobian(param)
 
         expected = bkd.zeros((npts, 1))
         bkd.assert_allclose(ic_jac, expected, atol=1e-14)

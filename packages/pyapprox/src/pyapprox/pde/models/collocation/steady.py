@@ -98,7 +98,7 @@ class CollocationStateEquationAdapter(Generic[Array]):
 
     def _set_param(self, param: Array) -> None:
         """Set parameter on physics (converts 2D column to 1D)."""
-        self._parameterization.apply(self._physics, param[:, 0])
+        self._parameterization.apply(param[:, 0])
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -209,7 +209,7 @@ class CollocationStateEquationAdapter(Generic[Array]):
             raise RuntimeError(
                 "parameterization does not provide param_jacobian"
             )
-        pjac = param_jac_fn(self._physics, state_1d, 0.0, param[:, 0])
+        pjac = param_jac_fn(state_1d, 0.0, param[:, 0])
 
         # Apply BC corrections (replaces _zero_bc_rows)
         if hasattr(self._physics, "boundary_conditions"):
@@ -249,9 +249,7 @@ class CollocationStateEquationAdapter(Generic[Array]):
             return None
         bc_idx = bc.boundary_indices()
         normals = normal_op.normals()
-        dflux_n_dp = bc_flux_fn(
-            self._physics, state_1d, time, params_1d, bc_idx, normals
-        )
+        dflux_n_dp = bc_flux_fn(state_1d, time, params_1d, bc_idx, normals)
         return {"dflux_n_dp": dflux_n_dp}
 
 

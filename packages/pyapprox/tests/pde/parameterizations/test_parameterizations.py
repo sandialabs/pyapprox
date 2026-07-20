@@ -90,10 +90,16 @@ def _create_diffusion_physics_and_basis(bkd, npts=20):
 class _EvalOnlyParam:
     """Parameterization with no derivative capability."""
 
+    def __init__(self, physics):
+        self._physics = physics
+
     def nparams(self) -> int:
         return 1
 
-    def apply(self, physics, params_1d):
+    def physics(self):
+        return self._physics
+
+    def apply(self, params_1d):
         pass
 
     def param_derivatives(self):
@@ -114,7 +120,8 @@ class _MockSecondOrderParam:
     - lam^T d2R/dpdy w     = scale * sum(p) * (lam . w) * ones(np)
     """
 
-    def __init__(self, bkd, nparams, nstates, scale):
+    def __init__(self, physics, bkd, nparams, nstates, scale):
+        self._physics = physics
         self._bkd = bkd
         self._np = nparams
         self._nstates = nstates
@@ -130,13 +137,16 @@ class _MockSecondOrderParam:
     def nparams(self) -> int:
         return self._np
 
-    def apply(self, physics, params_1d):
+    def physics(self):
+        return self._physics
+
+    def apply(self, params_1d):
         pass
 
     def param_derivatives(self):
         return self._derivs
 
-    def _param_jacobian(self, physics, state, time, params_1d):
+    def _param_jacobian(self, state, time, params_1d):
         return (
             self._scale
             * self._bkd.sum(params_1d)
@@ -144,10 +154,10 @@ class _MockSecondOrderParam:
             * self._bkd.ones((1, self._np))
         )
 
-    def _initial_param_jacobian(self, physics, params_1d):
+    def _initial_param_jacobian(self, params_1d):
         return self._bkd.zeros((self._nstates, self._np))
 
-    def _param_param_hvp(self, physics, state, time, params_1d, adj_state, vvec):
+    def _param_param_hvp(self, state, time, params_1d, adj_state, vvec):
         return (
             self._scale
             * self._bkd.sum(adj_state * state)
@@ -155,7 +165,7 @@ class _MockSecondOrderParam:
             * self._bkd.ones((self._np,))
         )
 
-    def _state_param_hvp(self, physics, state, time, params_1d, adj_state, vvec):
+    def _state_param_hvp(self, state, time, params_1d, adj_state, vvec):
         return (
             self._scale
             * self._bkd.sum(params_1d)
@@ -163,7 +173,7 @@ class _MockSecondOrderParam:
             * adj_state
         )
 
-    def _param_state_hvp(self, physics, state, time, params_1d, adj_state, wvec):
+    def _param_state_hvp(self, state, time, params_1d, adj_state, wvec):
         return (
             self._scale
             * self._bkd.sum(params_1d)
@@ -227,7 +237,7 @@ class _ToyCompositeStateEquation:
         return self._kappa(param[:, 0]) * self._bkd.eye(self.nstates())
 
     def param_jacobian(self, state, param):
-        return self._param_jacobian(object(), state[:, 0], 0.0, param[:, 0])
+        return self._param_jacobian(state[:, 0], 0.0, param[:, 0])
 
     def state_state_hvp(self, state, param, adj_state, wvec):
         # R is linear in y
@@ -235,17 +245,17 @@ class _ToyCompositeStateEquation:
 
     def param_param_hvp(self, state, param, adj_state, vvec):
         return self._param_param_hvp(
-            object(), state[:, 0], 0.0, param[:, 0], adj_state[:, 0], vvec[:, 0]
+            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], vvec[:, 0]
         )[:, None]
 
     def state_param_hvp(self, state, param, adj_state, vvec):
         return self._state_param_hvp(
-            object(), state[:, 0], 0.0, param[:, 0], adj_state[:, 0], vvec[:, 0]
+            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], vvec[:, 0]
         )[:, None]
 
     def param_state_hvp(self, state, param, adj_state, wvec):
         return self._param_state_hvp(
-            object(), state[:, 0], 0.0, param[:, 0], adj_state[:, 0], wvec[:, 0]
+            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], wvec[:, 0]
         )[:, None]
 
 
@@ -256,7 +266,7 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
         assert isinstance(dp, ParameterizationProtocol)
         derivs = dp.param_derivatives()
         assert derivs.param_jacobian is not None
@@ -266,8 +276,9 @@ class TestParameterizations:
 
     def test_diffusion_init_type_error(self, bkd) -> None:
         """DiffusionParameterization raises TypeError for non-FieldMap."""
+        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            DiffusionParameterization("not_a_field_map", [], bkd)
+            DiffusionParameterization(physics, "not_a_field_map", [], bkd)
 
     def test_diffusion_apply_sets_field(self, bkd) -> None:
         """DiffusionParameterization.apply sets diffusion on physics."""
@@ -276,10 +287,10 @@ class TestParameterizations:
         phi0 = bkd.ones((npts,))
         phi1 = nodes
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         params = bkd.array([0.5, -0.3])
-        dp.apply(physics, params)
+        dp.apply(params)
 
         # After apply, diffusion should be 1.0 + 0.5*1 + (-0.3)*nodes
         expected_diff = bkd.full((npts,), 1.0) + 0.5 * phi0 + (-0.3) * phi1
@@ -300,7 +311,7 @@ class TestParameterizations:
             num_kle_terms=num_kle_terms,
             sigma=0.3,
         )
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         # Get a non-trivial state by solving with some parameters
         state = bkd.sin(math.pi * nodes)
@@ -310,15 +321,15 @@ class TestParameterizations:
             results = []
             for i in range(samples.shape[1]):
                 p = samples[:, i]
-                dp.apply(physics, p)
+                dp.apply(p)
                 res = physics.residual(state, time)
                 results.append(res)
             return bkd.stack(results, axis=1)
 
         def jac_of_params(sample):
             p = sample[:, 0]
-            dp.apply(physics, p)
-            return dp.param_jacobian(physics, state, time, p)
+            dp.apply(p)
+            return dp.param_jacobian(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -357,7 +368,7 @@ class TestParameterizations:
         phi0 = bkd.ones((npts,))
         phi1 = nodes
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         # Use a state that's non-zero everywhere to avoid near-zero issues
         state = bkd.cos(0.5 * math.pi * nodes) + 1.0
@@ -366,12 +377,12 @@ class TestParameterizations:
         params = torch.tensor([0.3, -0.1], dtype=torch.float64)
 
         def torch_residual(p):
-            dp.apply(physics, p)
+            dp.apply(p)
             return physics.residual(state, time)
 
         autograd_jac = torch.autograd.functional.jacobian(torch_residual, params)
-        dp.apply(physics, params)
-        analytical_jac = dp.param_jacobian(physics, state, time, params)
+        dp.apply(params)
+        analytical_jac = dp.param_jacobian(state, time, params)
         bkd.assert_allclose(analytical_jac, autograd_jac, atol=1e-12)
 
     def test_diffusion_initial_param_jacobian_zeros(self, bkd) -> None:
@@ -380,9 +391,9 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
         params = bkd.array([0.5])
-        result = dp.initial_param_jacobian(physics, params)
+        result = dp.initial_param_jacobian(params)
         expected = bkd.zeros((npts, 1))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
@@ -392,7 +403,7 @@ class TestParameterizations:
         npts = basis.npts()
         base_forcing = bkd.sin(math.pi * nodes)
         fm = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(fm, bkd)
+        fp = ForcingParameterization(physics, fm, bkd)
 
         assert isinstance(fp, ParameterizationProtocol)
         assert fp.nparams() == 1
@@ -406,15 +417,15 @@ class TestParameterizations:
             results = []
             for i in range(samples.shape[1]):
                 p = samples[:, i]
-                fp.apply(physics, p)
+                fp.apply(p)
                 res = physics.residual(state, time)
                 results.append(res)
             return bkd.stack(results, axis=1)
 
         def jac_of_params(sample):
             p = sample[:, 0]
-            fp.apply(physics, p)
-            return fp.param_jacobian(physics, state, time, p)
+            fp.apply(p)
+            return fp.param_jacobian(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -435,7 +446,7 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 0.0, [phi0])
-        rp = ReactionParameterization(fm, bkd)
+        rp = ReactionParameterization(physics, fm, bkd)
 
         assert isinstance(rp, ParameterizationProtocol)
         assert rp.nparams() == 1
@@ -449,15 +460,15 @@ class TestParameterizations:
             results = []
             for i in range(samples.shape[1]):
                 p = samples[:, i]
-                rp.apply(physics, p)
+                rp.apply(p)
                 res = physics.residual(state, time)
                 results.append(res)
             return bkd.stack(results, axis=1)
 
         def jac_of_params(sample):
             p = sample[:, 0]
-            rp.apply(physics, p)
-            return rp.param_jacobian(physics, state, time, p)
+            rp.apply(p)
+            return rp.param_jacobian(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -478,11 +489,11 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm_d = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
 
         base_forcing = bkd.sin(math.pi * nodes)
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(fm_f, bkd)
+        fp = ForcingParameterization(physics, fm_f, bkd)
 
         comp = CompositeParameterization([dp, fp], bkd)
         assert isinstance(comp, ParameterizationProtocol)
@@ -499,11 +510,11 @@ class TestParameterizations:
         phi0 = bkd.ones((npts,))
         phi1 = nodes
         fm_d = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
 
         base_forcing = bkd.sin(math.pi * nodes)
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(fm_f, bkd)
+        fp = ForcingParameterization(physics, fm_f, bkd)
 
         comp = CompositeParameterization([dp, fp], bkd)
         assert comp.nparams() == 3
@@ -522,11 +533,11 @@ class TestParameterizations:
             num_kle_terms=num_kle_terms,
             sigma=0.3,
         )
-        dp = create_diffusion_parameterization(bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
 
         base_forcing = bkd.sin(math.pi * nodes)
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(fm_f, bkd)
+        fp = ForcingParameterization(physics, fm_f, bkd)
 
         comp = CompositeParameterization([dp, fp], bkd)
         state = bkd.sin(math.pi * nodes)
@@ -536,7 +547,7 @@ class TestParameterizations:
             results = []
             for i in range(samples.shape[1]):
                 p = samples[:, i]
-                comp.apply(physics, p)
+                comp.apply(p)
                 res = physics.residual(state, time)
                 results.append(res)
             return bkd.stack(results, axis=1)
@@ -546,8 +557,8 @@ class TestParameterizations:
 
         def jac_of_params(sample):
             p = sample[:, 0]
-            comp.apply(physics, p)
-            return comp_param_jac(physics, state, time, p)
+            comp.apply(p)
+            return comp_param_jac(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -568,17 +579,17 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm_d = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
 
         base_forcing = bkd.ones((npts,))
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(fm_f, bkd)
+        fp = ForcingParameterization(physics, fm_f, bkd)
 
         comp = CompositeParameterization([dp, fp], bkd)
         params = bkd.array([0.5, 1.0])
         init_jac_fn = comp.param_derivatives().initial_param_jacobian
         assert init_jac_fn is not None
-        result = init_jac_fn(physics, params)
+        result = init_jac_fn(params)
         expected = bkd.zeros((npts, 2))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
@@ -588,7 +599,7 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
         comp = CompositeParameterization([dp], bkd)
         derivs = comp.param_derivatives()
         assert derivs.param_jacobian is not None
@@ -600,7 +611,8 @@ class TestParameterizations:
 
     def test_composite_bundle_eval_only(self, bkd) -> None:
         """Composite with eval-only part declares no capability."""
-        comp = CompositeParameterization([_EvalOnlyParam()], bkd)
+        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
+        comp = CompositeParameterization([_EvalOnlyParam(physics)], bkd)
         assert comp.param_derivatives().param_jacobian is None
         assert comp.param_derivatives().initial_param_jacobian is None
 
@@ -610,27 +622,28 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         comp = CompositeParameterization([dp], bkd)
         assert comp.param_derivatives().param_jacobian is not None
 
-        comp.append(_EvalOnlyParam())
+        comp.append(_EvalOnlyParam(physics))
         assert comp.param_derivatives().param_jacobian is None
 
     def test_composite_unavailable_capability_raises(self, bkd) -> None:
         """The guarded private impl raises when capability is absent."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
-        comp = CompositeParameterization([_EvalOnlyParam()], bkd)
+        comp = CompositeParameterization([_EvalOnlyParam(physics)], bkd)
         state = bkd.zeros((basis.npts(),))
         params = bkd.array([0.5])
         with pytest.raises(RuntimeError, match="param_jacobian is unavailable"):
-            comp._param_jacobian(physics, state, 0.0, params)
+            comp._param_jacobian(state, 0.0, params)
 
     def test_composite_second_order_bundle(self, bkd) -> None:
         """Composite of second-order parts exposes all three HVPs."""
-        p1 = _MockSecondOrderParam(bkd, 2, 5, 2.0)
-        p2 = _MockSecondOrderParam(bkd, 3, 5, -1.5)
+        physics = object()
+        p1 = _MockSecondOrderParam(physics, bkd, 2, 5, 2.0)
+        p2 = _MockSecondOrderParam(physics, bkd, 3, 5, -1.5)
         comp = CompositeParameterization([p1, p2], bkd)
         derivs = comp.param_derivatives()
         assert derivs.param_param_hvp is not None
@@ -645,8 +658,9 @@ class TestParameterizations:
         """
         nstates = 5
         s1, s2 = 2.0, -1.5
-        p1 = _MockSecondOrderParam(bkd, 2, nstates, s1)
-        p2 = _MockSecondOrderParam(bkd, 3, nstates, s2)
+        physics = object()
+        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1)
+        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2)
         comp = CompositeParameterization([p1, p2], bkd)
         fn = comp.param_derivatives().state_param_hvp
         assert fn is not None
@@ -656,7 +670,7 @@ class TestParameterizations:
         params = bkd.array([0.3, -0.1, 0.8, 0.5, -0.4])
         vvec = bkd.array([1.0, 2.0, -1.0, 0.5, 3.0])
 
-        result = fn(object(), state, 0.0, params, adj, vvec)
+        result = fn(state, 0.0, params, adj, vvec)
         assert result.shape == (nstates,)
         expected = (
             s1 * bkd.sum(params[:2]) * bkd.sum(vvec[:2]) * adj
@@ -668,8 +682,9 @@ class TestParameterizations:
         """param_param_hvp / param_state_hvp assemble per-part blocks."""
         nstates = 5
         s1, s2 = 2.0, -1.5
-        p1 = _MockSecondOrderParam(bkd, 2, nstates, s1)
-        p2 = _MockSecondOrderParam(bkd, 3, nstates, s2)
+        physics = object()
+        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1)
+        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2)
         comp = CompositeParameterization([p1, p2], bkd)
         derivs = comp.param_derivatives()
         assert derivs.param_param_hvp is not None
@@ -681,7 +696,7 @@ class TestParameterizations:
         vvec = bkd.array([1.0, 2.0, -1.0, 0.5, 3.0])
         wvec = bkd.array([-0.3, 1.2, 0.1, -0.8, 0.6])
 
-        pp = derivs.param_param_hvp(object(), state, 0.0, params, adj, vvec)
+        pp = derivs.param_param_hvp(state, 0.0, params, adj, vvec)
         assert pp.shape == (5,)
         lam_dot_y = bkd.sum(adj * state)
         expected_pp = bkd.concatenate(
@@ -693,7 +708,7 @@ class TestParameterizations:
         )
         bkd.assert_allclose(pp, expected_pp, rtol=1e-12)
 
-        ps = derivs.param_state_hvp(object(), state, 0.0, params, adj, wvec)
+        ps = derivs.param_state_hvp(state, 0.0, params, adj, wvec)
         assert ps.shape == (5,)
         lam_dot_w = bkd.sum(adj * wvec)
         expected_ps = bkd.concatenate(
@@ -717,8 +732,9 @@ class TestParameterizations:
         """
         nstates = 5
         s1, s2 = 2.0, -1.5
-        p1 = _MockSecondOrderParam(bkd, 2, nstates, s1)
-        p2 = _MockSecondOrderParam(bkd, 3, nstates, s2)
+        physics = object()
+        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1)
+        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2)
         comp = CompositeParameterization([p1, p2], bkd)
 
         def kappa(p_1d):
@@ -747,13 +763,15 @@ class TestParameterizations:
 
     def test_forcing_init_type_error(self, bkd) -> None:
         """ForcingParameterization raises TypeError for non-FieldMap."""
+        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            ForcingParameterization("not_a_field_map", bkd)
+            ForcingParameterization(physics, "not_a_field_map", bkd)
 
     def test_reaction_init_type_error(self, bkd) -> None:
         """ReactionParameterization raises TypeError for non-FieldMap."""
+        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            ReactionParameterization("not_a_field_map", bkd)
+            ReactionParameterization(physics, "not_a_field_map", bkd)
 
 
 class TestCompositeWithSteadyForwardModel:
@@ -771,11 +789,11 @@ class TestCompositeWithSteadyForwardModel:
             num_kle_terms=num_kle_terms,
             sigma=0.3,
         )
-        dp = create_diffusion_parameterization(bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
 
         base_forcing = bkd.sin(math.pi * nodes)
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(fm_f, bkd)
+        fp = ForcingParameterization(physics, fm_f, bkd)
 
         comp = CompositeParameterization([dp, fp], bkd)
         init_state = bkd.zeros((npts,))

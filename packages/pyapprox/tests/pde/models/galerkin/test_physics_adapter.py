@@ -7,19 +7,18 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 
-from pyapprox.pde.models.galerkin import (
-    GalerkinPhysicsToODEResidualWithParamJacobianAdapter,
-    GalerkinPhysicsToODEResidualWithSetParamAdapter,
-    create_galerkin_physics_ode_residual,
-)
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
-
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
 )
+from pyapprox.pde.models.galerkin import (
+    GalerkinPhysicsToODEResidualWithParamJacobianAdapter,
+    GalerkinPhysicsToODEResidualWithSetParamAdapter,
+    create_galerkin_physics_ode_residual,
+)
+from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 
 
 class TestGalerkinAdapterFactoryTiers:
@@ -44,17 +43,23 @@ class TestGalerkinAdapterFactoryTiers:
         physics = self._make_physics(bkd)
 
         class EvalOnlyParameterization:
+            def __init__(self, physics):
+                self._physics = physics
+
             def nparams(self):
                 return 1
 
-            def apply(self, phys, params_1d):
+            def physics(self):
+                return self._physics
+
+            def apply(self, params_1d):
                 pass
 
             def param_derivatives(self):
                 return ParamDerivatives.none()
 
         adapter = create_galerkin_physics_ode_residual(
-            physics, EvalOnlyParameterization()
+            physics, EvalOnlyParameterization(physics)
         )
         assert type(adapter) is GalerkinPhysicsToODEResidualWithSetParamAdapter
         assert not hasattr(adapter, "param_jacobian")
@@ -66,24 +71,30 @@ class TestGalerkinAdapterFactoryTiers:
         physics = self._make_physics(bkd)
         nstates = physics.nstates()
 
-        def _jac(phys, state, time, params_1d):
+        def _jac(state, time, params_1d):
             return bkd.zeros((nstates, 1))
 
-        def _init_jac(phys, params_1d):
+        def _init_jac(params_1d):
             return bkd.zeros((nstates, 1))
 
         class FirstOrderParameterization:
+            def __init__(self, physics):
+                self._physics = physics
+
             def nparams(self):
                 return 1
 
-            def apply(self, phys, params_1d):
+            def physics(self):
+                return self._physics
+
+            def apply(self, params_1d):
                 pass
 
             def param_derivatives(self):
                 return ParamDerivatives.first_order(_jac, _init_jac)
 
         adapter = create_galerkin_physics_ode_residual(
-            physics, FirstOrderParameterization()
+            physics, FirstOrderParameterization(physics)
         )
         assert isinstance(
             adapter, GalerkinPhysicsToODEResidualWithParamJacobianAdapter
@@ -98,17 +109,23 @@ class TestGalerkinAdapterFactoryTiers:
         physics = self._make_physics(bkd)
 
         class EvalOnlyParameterization:
+            def __init__(self, physics):
+                self._physics = physics
+
             def nparams(self):
                 return 1
 
-            def apply(self, phys, params_1d):
+            def physics(self):
+                return self._physics
+
+            def apply(self, params_1d):
                 pass
 
             def param_derivatives(self):
                 return ParamDerivatives.none()
 
         adapter = create_galerkin_physics_ode_residual(
-            physics, EvalOnlyParameterization()
+            physics, EvalOnlyParameterization(physics)
         )
         with pytest.raises(ValueError, match="must be 1D"):
             adapter.set_param(bkd.array([[0.5]]))

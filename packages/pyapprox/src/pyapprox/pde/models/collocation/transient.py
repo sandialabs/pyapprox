@@ -134,7 +134,7 @@ class TransientForwardModel(Generic[Array]):
         times : Array
             Time points. Shape: (ntimes,).
         """
-        self._parameterization.apply(self._physics, param_2d[:, 0])
+        self._parameterization.apply(param_2d[:, 0])
         model = create_collocation_model(
             self._physics,
             self._bkd,

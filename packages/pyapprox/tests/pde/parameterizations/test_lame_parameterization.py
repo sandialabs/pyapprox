@@ -72,13 +72,14 @@ class TestLameParameterization:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        param = create_youngs_modulus_parameterization(bkd, basis, fm, 0.3)
+        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, 0.3)
         assert isinstance(param, ParameterizationProtocol)
 
     def test_type_error_non_field_map(self, bkd):
         """TypeError when passing non-FieldMap object."""
+        physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            YoungModulusParameterization("not_a_field_map", [], bkd, 0.3)
+            YoungModulusParameterization(physics, "not_a_field_map", [], bkd, 0.3)
 
     def test_apply_sets_lame_params(self, bkd):
         """apply() correctly converts E to mu and lambda."""
@@ -89,10 +90,10 @@ class TestLameParameterization:
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 2.0, [phi0])
         nu = 0.3
-        param = create_youngs_modulus_parameterization(bkd, basis, fm, nu)
+        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, nu)
 
         params = bkd.array([0.5])  # E = 2.5
-        param.apply(physics, params)
+        param.apply(params)
 
         E_val = 2.5
         expected_mu = E_val / (2.0 * (1.0 + nu))
@@ -114,7 +115,7 @@ class TestLameParameterization:
         phi0 = bkd.ones((npts,))
         phi1 = nodes[0, :]  # x-coordinate
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        param = create_youngs_modulus_parameterization(bkd, basis, fm, 0.3)
+        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, 0.3)
         assert param.nparams() == 2
         assert param.nparams() == fm.nvars()
 
@@ -125,9 +126,9 @@ class TestLameParameterization:
         nstates = 2 * npts
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        param = create_youngs_modulus_parameterization(bkd, basis, fm, 0.3)
+        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, 0.3)
         params = bkd.array([0.5])
-        result = param.initial_param_jacobian(physics, params)
+        result = param.initial_param_jacobian(params)
         expected = bkd.zeros((nstates, 1))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
@@ -150,8 +151,9 @@ class TestLameParameterization:
 
         fm = NoJacFieldMap()
         assert not isinstance(fm, FieldMapProtocol)
+        physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            YoungModulusParameterization(fm, [], bkd, 0.3)
+            YoungModulusParameterization(physics, fm, [], bkd, 0.3)
 
     def test_nonpositive_E_raises(self, bkd):
         """apply() raises ValueError when E field is non-positive."""
@@ -159,11 +161,11 @@ class TestLameParameterization:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 0.5, [phi0])
-        param = create_youngs_modulus_parameterization(bkd, basis, fm, 0.3)
+        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, 0.3)
         # E = 0.5 + (-1.0)*ones = -0.5, non-positive
         params = bkd.array([-1.0])
         with pytest.raises(ValueError):
-            param.apply(physics, params)
+            param.apply(params)
 
     def test_param_jacobian_fd(self, bkd):
         """param_jacobian matches FD via DerivativeChecker."""
@@ -177,7 +179,7 @@ class TestLameParameterization:
         phi1 = bkd.cos(math.pi * x)
         fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
         nu = 0.3
-        param = create_youngs_modulus_parameterization(bkd, basis, fm, nu)
+        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, nu)
 
         # Non-trivial state
         y = nodes[1, :]
@@ -193,15 +195,15 @@ class TestLameParameterization:
             results = []
             for i in range(samples.shape[1]):
                 p = samples[:, i]
-                param.apply(physics, p)
+                param.apply(p)
                 res = physics.residual(state, time)
                 results.append(res)
             return bkd.stack(results, axis=1)
 
         def jac_of_params(sample):
             p = sample[:, 0]
-            param.apply(physics, p)
-            return param.param_jacobian(physics, state, time, p)
+            param.apply(p)
+            return param.param_jacobian(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=nstates,

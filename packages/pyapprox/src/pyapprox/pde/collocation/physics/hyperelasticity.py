@@ -5,14 +5,15 @@ Implements the equilibrium equation for hyperelastic materials:
 
 where P is the first Piola-Kirchhoff stress computed by a pluggable
 stress model. Supports 1D, 2D, and 3D with any constitutive law that
-satisfies StressModelProtocol.
+satisfies StressModelWithSensitivityProtocol.
 """
 
-from typing import Any, Callable, Generic, List, Optional, Tuple
+from typing import Any, Callable, Generic, List, Optional, Tuple, Union
 
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.physics.stress_models.protocols import (
-    StressModelProtocol,
+    StressModelWithSensitivityProtocol,
+    StressModelWithTangentProtocol,
 )
 from pyapprox.pde.collocation.physics.stress_models.registry import (
     create_stress_model,
@@ -41,8 +42,9 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Collocation basis (1D, 2D, or 3D).
     bkd : Backend
         Computational backend.
-    stress_model : StressModelProtocol
-        Constitutive model for PK1 stress.
+    stress_model : StressModelWithSensitivityProtocol
+        Constitutive model for PK1 stress with Lame-parameter setters
+        and stress sensitivities.
     forcing : Callable[[float], Array] or Array, optional
         Body force. If callable, takes time and returns shape (nstates,).
         If Array, shape (nstates,). Default: None (zero forcing).
@@ -52,12 +54,18 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         self,
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
-        stress_model: StressModelProtocol[Array],
+        stress_model: StressModelWithSensitivityProtocol[Array],
         forcing: Optional[Callable[[float], Array]] = None,
     ):
         ndim = basis.ndim()
         if ndim not in (1, 2, 3):
             raise ValueError(f"Unsupported dimension: {ndim}")
+        if not isinstance(stress_model, StressModelWithSensitivityProtocol):
+            raise TypeError(
+                f"stress_model must satisfy "
+                f"StressModelWithSensitivityProtocol, "
+                f"got {type(stress_model).__name__}"
+            )
 
         super().__init__(basis, bkd, ncomponents=ndim)
 
@@ -68,7 +76,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         # Precompute first-order derivative matrices
         self._D: List[Array] = [basis.derivative_matrix(1, dim) for dim in range(ndim)]
 
-    def stress_model(self) -> StressModelProtocol[Array]:
+    def stress_model(self) -> StressModelWithSensitivityProtocol[Array]:
         """Return the stress model."""
         return self._stress_model
 
@@ -76,7 +84,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     # Material property setters
     # ------------------------------------------------------------------
 
-    def set_mu(self, mu_values: Any) -> None:
+    def set_mu(self, mu_values: Union[float, Array]) -> None:
         """Set shear modulus (scalar or per-point array).
 
         Parameters
@@ -90,7 +98,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             raise ValueError(f"mu must be positive; found min {min_val:.2e}")
         self._stress_model.set_mu(mu_values)
 
-    def set_lamda(self, lamda_values: Any) -> None:
+    def set_lamda(self, lamda_values: Union[float, Array]) -> None:
         """Set Lame's first parameter (scalar or per-point array).
 
         Parameters
@@ -181,6 +189,10 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         1D: List[Array] — each shape (npts, npts).
         2D: List[List[Array]] — each shape (npts, 2*npts).
         """
+        if not isinstance(self._stress_model, StressModelWithTangentProtocol):
+            raise NotImplementedError(
+                "Stress model does not provide a tangent modulus."
+            )
         if self._ndim == 1:
             Dx = self._D[0]
             F = 1.0 + Dx @ state
@@ -443,7 +455,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         F = 1.0 + Dx @ u
 
-        if not hasattr(self._stress_model, "compute_tangent_1d"):
+        if not isinstance(self._stress_model, StressModelWithTangentProtocol):
             raise NotImplementedError(
                 "Stress model does not provide 1D tangent modulus."
             )
@@ -475,7 +487,7 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         F21 = Dx @ v
         F22 = 1.0 + Dy @ v
 
-        if not hasattr(self._stress_model, "compute_tangent_2d"):
+        if not isinstance(self._stress_model, StressModelWithTangentProtocol):
             raise NotImplementedError(
                 "Stress model does not provide 2D tangent modulus."
             )

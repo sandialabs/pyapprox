@@ -73,6 +73,12 @@ class CollocationPhysicsToODEResidualWithSetParamAdapter(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
+        if parameterization.physics() is not physics:
+            raise ValueError(
+                "parameterization binds a different physics instance "
+                "than the one passed to the adapter; construct one "
+                "parameterization per physics"
+            )
         super().__init__(physics, bkd)
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None
@@ -101,7 +107,7 @@ class CollocationPhysicsToODEResidualWithSetParamAdapter(
                 f"{tuple(param.shape)}"
             )
         self._current_params_1d = param
-        self._parameterization.apply(self._physics, param)
+        self._parameterization.apply(param)
 
     def _require_params(self) -> Array:
         """Return the current parameters or raise if set_param not called."""
@@ -163,7 +169,7 @@ class CollocationPhysicsToODEResidualWithParamJacobianAdapter(
             Parameter Jacobian. Shape: (nstates, nparams)
         """
         return self._param_jacobian_fn(
-            self._physics, state, self._time, self._require_params()
+            state, self._time, self._require_params()
         )
 
     def initial_param_jacobian(self) -> Array:
@@ -174,9 +180,7 @@ class CollocationPhysicsToODEResidualWithParamJacobianAdapter(
         Array
             Initial-condition Jacobian. Shape: (nstates, nparams)
         """
-        return self._initial_param_jacobian_fn(
-            self._physics, self._require_params()
-        )
+        return self._initial_param_jacobian_fn(self._require_params())
 
     def bc_flux_param_sensitivity(
         self,
@@ -193,7 +197,6 @@ class CollocationPhysicsToODEResidualWithParamJacobianAdapter(
         if self._bc_flux_fn is None or self._current_params_1d is None:
             return None
         return self._bc_flux_fn(
-            self._physics,
             state,
             time,
             self._current_params_1d,
@@ -257,12 +260,7 @@ class CollocationPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2f/dp^2) v. Shape: (nparams,)."""
         return self._param_param_hvp_fn(
-            self._physics,
-            state,
-            self._time,
-            self._require_params(),
-            adj_state,
-            vvec,
+            state, self._time, self._require_params(), adj_state, vvec
         )
 
     def state_param_hvp(
@@ -270,12 +268,7 @@ class CollocationPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2f/dy dp) v. Shape: (nstates,)."""
         return self._state_param_hvp_fn(
-            self._physics,
-            state,
-            self._time,
-            self._require_params(),
-            adj_state,
-            vvec,
+            state, self._time, self._require_params(), adj_state, vvec
         )
 
     def param_state_hvp(
@@ -283,12 +276,7 @@ class CollocationPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2f/dp dy) w. Shape: (nparams,)."""
         return self._param_state_hvp_fn(
-            self._physics,
-            state,
-            self._time,
-            self._require_params(),
-            adj_state,
-            wvec,
+            state, self._time, self._require_params(), adj_state, wvec
         )
 
 

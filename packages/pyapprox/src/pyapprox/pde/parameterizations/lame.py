@@ -7,7 +7,7 @@ replace HyperelasticYoungsModulusParameterization as the universal E-to-Lame
 parameterization for all elasticity types.
 """
 
-from typing import Generic, List
+from typing import Generic, List, Protocol, Union, runtime_checkable
 
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
@@ -19,6 +19,28 @@ from pyapprox.pde.parameterizations.protocol import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+@runtime_checkable
+class _CollocationElasticityPhysicsProtocol(Protocol, Generic[Array]):
+    """Physics members this parameterization calls (interim; the typed
+    facades of the parameterization redesign replace it)."""
+
+    def npts(self) -> int: ...
+
+    def nstates(self) -> int: ...
+
+    def set_mu(self, mu: Union[float, Array]) -> None: ...
+
+    def set_lamda(self, lamda: Union[float, Array]) -> None: ...
+
+    def residual_mu_sensitivity(
+        self, state: Array, time: float, delta_mu: Array
+    ) -> Array: ...
+
+    def residual_lamda_sensitivity(
+        self, state: Array, time: float, delta_lamda: Array
+    ) -> Array: ...
+
+
 class YoungModulusParameterization(Generic[Array]):
     """Parameterization mapping Young's modulus E to Lame parameters.
 
@@ -28,8 +50,13 @@ class YoungModulusParameterization(Generic[Array]):
 
     Works for 2D linear elasticity with vector state (2*npts DOFs).
 
+    The physics is bound at construction: one instance serves one
+    physics (ensembles construct one parameterization per physics).
+
     Parameters
     ----------
+    physics : _CollocationElasticityPhysicsProtocol
+        Elasticity physics with Lame setters and sensitivity members.
     field_map : FieldMapProtocol
         Maps parameter vector to Young's modulus field E(x).
     derivative_matrices : List[Array]
@@ -42,16 +69,24 @@ class YoungModulusParameterization(Generic[Array]):
 
     def __init__(
         self,
+        physics: _CollocationElasticityPhysicsProtocol[Array],
         field_map: FieldMapProtocol[Array],
         derivative_matrices: List[Array],
         bkd: Backend[Array],
         poisson_ratio: float,
     ) -> None:
+        if not isinstance(physics, _CollocationElasticityPhysicsProtocol):
+            raise TypeError(
+                f"physics must provide set_mu/set_lamda/"
+                f"residual_mu_sensitivity/residual_lamda_sensitivity/"
+                f"npts/nstates, got {type(physics).__name__}"
+            )
         if not isinstance(field_map, FieldMapProtocol):
             raise TypeError(
                 f"field_map must satisfy FieldMapProtocol, "
                 f"got {type(field_map).__name__}"
             )
+        self._physics = physics
         self._field_map = field_map
         self._D_matrices = derivative_matrices
         self._bkd = bkd
@@ -69,13 +104,17 @@ class YoungModulusParameterization(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
+    def physics(self) -> _CollocationElasticityPhysicsProtocol[Array]:
+        """Return the bound physics instance."""
+        return self._physics
+
     def param_derivatives(self) -> ParamDerivatives[Array]:
         return self._derivs
 
     def nparams(self) -> int:
         return self._field_map.nvars()
 
-    def apply(self, physics: object, params_1d: Array) -> None:
+    def apply(self, params_1d: Array) -> None:
         """Apply parameterization: convert E field to Lame params on physics."""
         E_field = self._field_map(params_1d)
         min_val = self._bkd.to_float(self._bkd.min(E_field))
@@ -83,12 +122,11 @@ class YoungModulusParameterization(Generic[Array]):
             raise ValueError(
                 f"Young's modulus must be positive; found min {min_val:.2e}"
             )
-        physics.set_mu(E_field * self._dmu_dE)
-        physics.set_lamda(E_field * self._dlam_dE)
+        self._physics.set_mu(E_field * self._dmu_dE)
+        self._physics.set_lamda(E_field * self._dlam_dE)
 
     def param_jacobian(
         self,
-        physics: object,
         state: Array,
         time: float,
         params_1d: Array,
@@ -99,27 +137,28 @@ class YoungModulusParameterization(Generic[Array]):
         """
         fm_jac = self._field_map.jacobian(params_1d)  # (npts, nparams)
         nparams = self.nparams()
-        nstates = physics.nstates()
+        nstates = self._physics.nstates()
         result = self._bkd.zeros((nstates, nparams))
         result = self._bkd.copy(result)
         for j in range(nparams):
             delta_E = fm_jac[:, j]
             delta_mu = delta_E * self._dmu_dE
             delta_lam = delta_E * self._dlam_dE
-            col = physics.residual_mu_sensitivity(
+            col = self._physics.residual_mu_sensitivity(
                 state, time, delta_mu
-            ) + physics.residual_lamda_sensitivity(state, time, delta_lam)
+            ) + self._physics.residual_lamda_sensitivity(
+                state, time, delta_lam
+            )
             for k in range(nstates):
                 result[k, j] = col[k]
         return result
 
-    def initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
+    def initial_param_jacobian(self, params_1d: Array) -> Array:
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
-        return self._bkd.zeros((physics.nstates(), self.nparams()))
+        return self._bkd.zeros((self._physics.nstates(), self.nparams()))
 
     def bc_flux_param_sensitivity(
         self,
-        physics: object,
         state: Array,
         time: float,
         params_1d: Array,
@@ -136,7 +175,7 @@ class YoungModulusParameterization(Generic[Array]):
         """
         bkd = self._bkd
         fm_jac = self._field_map.jacobian(params_1d)  # (npts, nparams)
-        npts = physics.npts()
+        npts = self._physics.npts()
 
         u = state[:npts]
         v = state[npts:]
@@ -175,6 +214,7 @@ class YoungModulusParameterization(Generic[Array]):
 
 
 def create_youngs_modulus_parameterization(
+    physics: _CollocationElasticityPhysicsProtocol[Array],
     bkd: Backend[Array],
     basis: DerivativeMatrixBasisProtocol[Array],
     field_map: FieldMapProtocol[Array],
@@ -184,6 +224,8 @@ def create_youngs_modulus_parameterization(
 
     Parameters
     ----------
+    physics : _CollocationElasticityPhysicsProtocol
+        Elasticity physics to bind.
     bkd : Backend
         Computational backend.
     basis : DerivativeMatrixBasisProtocol
@@ -194,4 +236,6 @@ def create_youngs_modulus_parameterization(
         Fixed Poisson ratio.
     """
     D_matrices = [basis.derivative_matrix(1, dim) for dim in range(basis.ndim())]
-    return YoungModulusParameterization(field_map, D_matrices, bkd, poisson_ratio)
+    return YoungModulusParameterization(
+        physics, field_map, D_matrices, bkd, poisson_ratio
+    )

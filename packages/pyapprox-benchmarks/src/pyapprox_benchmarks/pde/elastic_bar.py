@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Tuple, Union
 
 from pyapprox.interface.functions.protocols import FunctionProtocol
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.functionals.point_evaluation import (
     PointEvaluationFunctional,
 )
@@ -21,6 +22,10 @@ from pyapprox.pde.collocation.functionals.strain_energy_1d import (
 from pyapprox.pde.collocation.functionals.subdomain_integral import (
     SubdomainIntegralFunctional,
 )
+from pyapprox.pde.collocation.mesh import (
+    AffineTransform1D,
+    TransformedMesh1D,
+)
 from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
     NeoHookeanStress,
 )
@@ -28,6 +33,7 @@ from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
+from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 from pyapprox.pde.zoo.elastic_bar_1d import (
     create_linear_elastic_bar_1d,
 )
@@ -38,11 +44,6 @@ from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import (
-    AffineTransform1D,
-    TransformedMesh1D,
-)
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 
 
@@ -304,7 +305,7 @@ def build_elastic_bar_1d(
     )
 
     # Forward model via zoo factory
-    forcing = lambda t: bkd.ones((npts,))  # noqa: E731
+    forcing = ConstantInTimeField(bkd.ones((npts,)))
     if constitutive == "linear":
         fwd = create_linear_elastic_bar_1d(
             bkd=bkd,

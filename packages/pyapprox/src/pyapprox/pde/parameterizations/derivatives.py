@@ -1,9 +1,10 @@
 """Frozen bundle of optional parameterization derivative capabilities.
 
 The pde parameterization family's optional derivatives are
-``(physics, state, time, params, ...)`` callables — they cannot be curried
-into the optimizer :class:`~pyapprox.interface.functions.derivatives.
-Derivatives` bundle (physics/state/time vary per call), so per the
+``(state, time, params, ...)`` callables closed over a physics instance
+bound at producer construction — they cannot be curried into the
+optimizer :class:`~pyapprox.interface.functions.derivatives.
+Derivatives` bundle (state/time vary per call), so per the
 family-bundle rule in ``docs/OPTIONAL_METHODS_CONVENTION.md`` the family
 gets its own frozen bundle, exposed through the
 ``param_derivatives()`` accessor on ``ParameterizationProtocol``.
@@ -12,21 +13,22 @@ Absence of a capability is ``None``, never a missing attribute. No
 finite-difference fallback exists here or in producers: what to do about
 an absent capability is the consumer's decision.
 
-Field signatures (``physics`` is typed ``object`` until per-module
-physics protocols land in a later phase of the refactor):
+Field signatures (the producer holds its physics; one producer
+instance binds ONE physics instance — ensembles construct one producer
+per physics):
 
-- ``param_jacobian``: ``(physics, state, time, params_1d)
+- ``param_jacobian``: ``(state, time, params_1d)
   -> (nstates, nparams)`` — d(residual)/d(params), RAW (no Dirichlet
   handling; BC wrappers own all constraint corrections).
-- ``initial_param_jacobian``: ``(physics, params_1d)
-  -> (nstates, nparams)`` — d(initial_state)/d(params).
-- ``param_param_hvp``: ``(physics, state, time, params_1d, adj_state,
+- ``initial_param_jacobian``: ``(params_1d) -> (nstates, nparams)`` —
+  d(initial_state)/d(params).
+- ``param_param_hvp``: ``(state, time, params_1d, adj_state,
   vvec (nparams,)) -> (nparams,)`` — lambda^T (d^2R/dp^2) v.
-- ``state_param_hvp``: ``(physics, state, time, params_1d, adj_state,
+- ``state_param_hvp``: ``(state, time, params_1d, adj_state,
   vvec (nparams,)) -> (nstates,)`` — lambda^T (d^2R/dy dp) v.
-- ``param_state_hvp``: ``(physics, state, time, params_1d, adj_state,
+- ``param_state_hvp``: ``(state, time, params_1d, adj_state,
   wvec (nstates,)) -> (nparams,)`` — lambda^T (d^2R/dp dy) w.
-- ``bc_flux_param_sensitivity``: ``(physics, state, time, params_1d,
+- ``bc_flux_param_sensitivity``: ``(state, time, params_1d,
   bc_indices, normals) -> (n_bc, nparams)`` — d(flux·n)/d(params) at
   boundary nodes.
 """
@@ -40,11 +42,11 @@ from pyapprox.util.backends.protocols import Array, ArrayProtocol
 
 A = TypeVar("A", bound=ArrayProtocol)
 
-ParamJacobianFn = Callable[[object, Array, float, Array], Array]
-InitialParamJacobianFn = Callable[[object, Array], Array]
-ParamHVPFn = Callable[[object, Array, float, Array, Array, Array], Array]
+ParamJacobianFn = Callable[[Array, float, Array], Array]
+InitialParamJacobianFn = Callable[[Array], Array]
+ParamHVPFn = Callable[[Array, float, Array, Array, Array], Array]
 BCFluxParamSensitivityFn = Callable[
-    [object, Array, float, Array, Array, Array], Array
+    [Array, float, Array, Array, Array], Array
 ]
 
 _FIELD_NAMES = (

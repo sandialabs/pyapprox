@@ -147,7 +147,7 @@ class TestGalerkinLameParameterization:
 
         K1 = _to_dense(physics.stiffness_matrix()).copy()
 
-        param.apply(physics, numpy_bkd.asarray(np.array([2.0, 0.25])))
+        param.apply(numpy_bkd.asarray(np.array([2.0, 0.25])))
         K2 = _to_dense(physics.stiffness_matrix())
 
         diff = np.linalg.norm(K2 - K1)
@@ -158,7 +158,7 @@ class TestGalerkinLameParameterization:
         physics = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         with pytest.raises(ValueError):
-            param.apply(physics, numpy_bkd.asarray(np.array([1.0, 0.5])))
+            param.apply(numpy_bkd.asarray(np.array([1.0, 0.5])))
 
     def test_param_jacobian_fd_validation(self, numpy_bkd) -> None:
         """FD validation of param_jacobian via DerivativeChecker."""
@@ -166,6 +166,8 @@ class TestGalerkinLameParameterization:
         E0, nu0 = 2.0, 0.3
         physics = _make_physics(bkd, E=E0, nu=nu0, with_bcs=False)
         param = create_galerkin_lame_parameterization(physics, bkd)
+        param_jac = param.param_derivatives().param_jacobian
+        assert param_jac is not None
         nstates = physics.nstates()
 
         rng = np.random.RandomState(42)
@@ -176,17 +178,17 @@ class TestGalerkinLameParameterization:
             results = []
             for ii in range(nsamples):
                 p = params[:, ii]
-                param.apply(physics, p)
+                param.apply(p)
                 res = physics.spatial_residual(u, 0.0)
                 results.append(bkd.reshape(res, (nstates, 1)))
-            param.apply(physics, bkd.asarray(np.array([E0, nu0])))
+            param.apply(bkd.asarray(np.array([E0, nu0])))
             return bkd.hstack(results)
 
         def jacobian_of_params(params: Array) -> Array:
             p = params[:, 0]
-            param.apply(physics, p)
-            pj = param.param_jacobian(physics, u, 0.0, p)
-            param.apply(physics, bkd.asarray(np.array([E0, nu0])))
+            param.apply(p)
+            pj = param_jac(u, 0.0, p)
+            param.apply(bkd.asarray(np.array([E0, nu0])))
             return pj
 
         wrapper = FunctionWithJacobianFromCallable(
@@ -207,6 +209,8 @@ class TestGalerkinLameParameterization:
         bkd = numpy_bkd
         physics = _make_multi_material_physics(bkd, with_bcs=False)
         param = create_galerkin_lame_parameterization(physics, bkd)
+        param_jac = param.param_derivatives().param_jacobian
+        assert param_jac is not None
         nstates = physics.nstates()
 
         rng = np.random.RandomState(42)
@@ -218,17 +222,17 @@ class TestGalerkinLameParameterization:
             results = []
             for ii in range(nsamples):
                 p = params[:, ii]
-                param.apply(physics, p)
+                param.apply(p)
                 res = physics.spatial_residual(u, 0.0)
                 results.append(bkd.reshape(res, (nstates, 1)))
-            param.apply(physics, bkd.asarray(p0))
+            param.apply(bkd.asarray(p0))
             return bkd.hstack(results)
 
         def jacobian_of_params(params: Array) -> Array:
             p = params[:, 0]
-            param.apply(physics, p)
-            pj = param.param_jacobian(physics, u, 0.0, p)
-            param.apply(physics, bkd.asarray(p0))
+            param.apply(p)
+            pj = param_jac(u, 0.0, p)
+            param.apply(bkd.asarray(p0))
             return pj
 
         wrapper = FunctionWithJacobianFromCallable(
@@ -250,7 +254,7 @@ class TestGalerkinLameParameterization:
         physics = _make_physics(bkd)
         param = create_galerkin_lame_parameterization(physics, bkd)
         p = bkd.asarray(np.array([1.0, 0.3]))
-        ipj = param.initial_param_jacobian(physics, p)
+        ipj = param.initial_param_jacobian(p)
         ipj_np = bkd.to_numpy(ipj)
         np.testing.assert_array_equal(ipj_np, 0.0)
 
@@ -264,6 +268,8 @@ class TestGalerkinLameParameterization:
         E0, nu0 = 1.0, 0.3
         physics = _make_physics(bkd, E=E0, nu=nu0, with_bcs=True)
         param = create_galerkin_lame_parameterization(physics, bkd)
+        param_jac = param.param_derivatives().param_jacobian
+        assert param_jac is not None
 
         np.random.seed(42)
         n = physics.nstates()
@@ -274,7 +280,7 @@ class TestGalerkinLameParameterization:
             results = []
             for ii in range(nsamples):
                 p = params[:, ii]
-                param.apply(physics, p)
+                param.apply(p)
                 r = SteadyStateSolver(
                     physics,
                     tol=1e-12,
@@ -284,12 +290,12 @@ class TestGalerkinLameParameterization:
                 u_np = bkd.to_numpy(r.solution)
                 Q = c_np @ u_np
                 results.append(Q)
-            param.apply(physics, bkd.asarray(np.array([E0, nu0])))
+            param.apply(bkd.asarray(np.array([E0, nu0])))
             return bkd.reshape(bkd.asarray(np.array(results)), (1, nsamples))
 
         def adjoint_gradient(params: Array) -> Array:
             p = params[:, 0]
-            param.apply(physics, p)
+            param.apply(p)
             r = SteadyStateSolver(
                 physics,
                 tol=1e-12,
@@ -303,7 +309,7 @@ class TestGalerkinLameParameterization:
             lam_np = np.linalg.solve(J_np.T, -c_np)
 
             # Use parameterization param_jacobian (raw, no BC enforcement)
-            dF_dp_raw = bkd.to_numpy(param.param_jacobian(physics, u_sol, 0.0, p))
+            dF_dp_raw = bkd.to_numpy(param_jac(u_sol, 0.0, p))
 
             # Apply BC enforcement for steady-state
             dF_dp = bkd.to_numpy(
@@ -313,7 +319,7 @@ class TestGalerkinLameParameterization:
             )
 
             grad = dF_dp.T @ lam_np
-            param.apply(physics, bkd.asarray(np.array([E0, nu0])))
+            param.apply(bkd.asarray(np.array([E0, nu0])))
             return bkd.reshape(bkd.asarray(grad), (1, 2))
 
         wrapper = FunctionWithJacobianFromCallable(

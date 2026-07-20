@@ -524,7 +524,7 @@ class TestCompositeLinearElasticityBase:
         param = create_galerkin_lame_parameterization(physics, bkd)
 
         K1 = _to_dense(physics.stiffness_matrix(), bkd)
-        param.apply(physics, bkd.asarray(np.array([2.0, 0.25])))
+        param.apply(bkd.asarray(np.array([2.0, 0.25])))
         K2 = _to_dense(physics.stiffness_matrix(), bkd)
         assert np.linalg.norm(K1 - K2) > 1e-6
 
@@ -601,7 +601,7 @@ class TestCompositeLinearElasticityBase:
         params_1d = bkd.asarray(np.array([2.0, 0.3]))
 
         # Get param_jacobian via parameterization
-        pjac = bkd.to_numpy(param.param_jacobian(physics, u, 0.0, params_1d))
+        pjac = bkd.to_numpy(param.param_derivatives().param_jacobian(u, 0.0, params_1d))
 
         E, nu = 2.0, 0.3
         denom = (1.0 + nu) * (1.0 - 2.0 * nu)
@@ -666,7 +666,7 @@ class TestCompositeLinearElasticityBase:
         params_1d = bkd.asarray(
             np.array([E_vals[0], nu_vals[0], E_vals[1], nu_vals[1]])
         )
-        pjac = bkd.to_numpy(param.param_jacobian(physics, u, 0.0, params_1d))
+        pjac = bkd.to_numpy(param.param_derivatives().param_jacobian(u, 0.0, params_1d))
 
         for i, (E, nu) in enumerate(zip(E_vals, nu_vals)):
             denom = (1.0 + nu) * (1.0 - 2.0 * nu)
@@ -750,7 +750,7 @@ class TestCompositeLinearElasticityBase:
         p0_arr = bkd.asarray(p0)
 
         pjac = bkd.to_numpy(
-            parameterization.param_jacobian(physics, u0, 0.0, p0_arr)
+            parameterization.param_derivatives().param_jacobian(u0, 0.0, p0_arr)
         )
 
         # FD check
@@ -761,9 +761,9 @@ class TestCompositeLinearElasticityBase:
             p_minus = p0.copy()
             p_minus[j] -= eps
 
-            parameterization.apply(physics, bkd.asarray(p_plus))
+            parameterization.apply(bkd.asarray(p_plus))
             res_plus = bkd.to_numpy(physics.spatial_residual(u0, 0.0))
-            parameterization.apply(physics, bkd.asarray(p_minus))
+            parameterization.apply(bkd.asarray(p_minus))
             res_minus = bkd.to_numpy(physics.spatial_residual(u0, 0.0))
 
             fd_col = (res_plus - res_minus) / (2 * eps)
@@ -775,6 +775,6 @@ class TestCompositeLinearElasticityBase:
             )
 
         # Restore
-        parameterization.apply(physics, p0_arr)
+        parameterization.apply(p0_arr)
 
 

@@ -9,6 +9,9 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
+)
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
     SubsetOfStatesAdjointFunctional,
 )
@@ -17,6 +20,14 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 )
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
     VectorAdjointOperatorWithJacobian,
+)
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
@@ -35,18 +46,7 @@ from pyapprox.pde.parameterizations.derivatives import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
-)
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    zero_dirichlet_bc,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
-)
+from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 
 
 def _create_parameterized_diffusion_problem(bkd, npts=20):
@@ -87,7 +87,7 @@ def _create_parameterized_diffusion_problem(bkd, npts=20):
     physics.set_boundary_conditions([bc_left, bc_right])
 
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, basis, fm)
     init_state = bkd.zeros((npts,))
     return physics, param, init_state
 
@@ -105,7 +105,7 @@ class TestCollocationStateEquationAdapter:
         init_state_2d = init_state_1d[:, None]
 
         # Direct solve
-        param.apply(physics, param_1d)
+        param.apply(param_1d)
         u_direct = model.solve_steady(init_state_1d)
 
         # Adapter solve
@@ -211,7 +211,7 @@ class TestSteadyForwardModel:
         samples = param_1d[:, None]  # (nvars, 1)
 
         # Direct solve
-        param.apply(physics, param_1d)
+        param.apply(param_1d)
         model = create_collocation_model(physics, bkd, parameterization=param)
         u_direct = model.solve_steady(init_state)
 
@@ -382,20 +382,26 @@ class TestSteadyForwardModel:
         )
 
         class EvalOnlyParameterization:
+            def __init__(self, physics):
+                self._physics = physics
+
             def nparams(self):
                 return 2
 
-            def apply(self, phys, params_1d):
+            def physics(self):
+                return self._physics
+
+            def apply(self, params_1d):
                 phi0 = bkd.ones((npts,))
                 field = (
                     bkd.full((npts,), 1.0) + params_1d[0] * phi0 + params_1d[1] * nodes
                 )
-                phys.set_diffusion(lambda t, _f=field: _f)
+                self._physics.set_diffusion(ConstantInTimeField(field))
 
             def param_derivatives(self):
                 return ParamDerivatives.none()
 
-        dp = EvalOnlyParameterization()
+        dp = EvalOnlyParameterization(physics)
 
         init_state = bkd.zeros((npts,))
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=dp)
@@ -464,17 +470,23 @@ class TestSteadyForwardModel:
         )
 
         class EvalOnlyParameterization:
+            def __init__(self, physics):
+                self._physics = physics
+
             def nparams(self):
                 return 1
 
-            def apply(self, phys, params_1d):
+            def physics(self):
+                return self._physics
+
+            def apply(self, params_1d):
                 field = bkd.full((npts,), 1.0) + params_1d[0] * bkd.ones((npts,))
-                phys.set_diffusion(lambda t, _f=field: _f)
+                self._physics.set_diffusion(ConstantInTimeField(field))
 
             def param_derivatives(self):
                 return ParamDerivatives.none()
 
-        dp = EvalOnlyParameterization()
+        dp = EvalOnlyParameterization(physics)
 
         init_state = bkd.zeros((npts,))
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=dp)

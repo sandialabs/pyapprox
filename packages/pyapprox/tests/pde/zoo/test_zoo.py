@@ -144,7 +144,7 @@ class TestSteadyDiffusionZoo:
                 zero_dirichlet_bc(bkd, right_idx),
             ]
         )
-        param = create_diffusion_parameterization(bkd, basis, field_map)
+        param = create_diffusion_parameterization(physics, bkd, basis, field_map)
         init_state = bkd.zeros((npts,))
         fwd_manual = SteadyForwardModel(
             physics, bkd, init_state, parameterization=param
@@ -274,7 +274,7 @@ class TestDiffusionPositivityValidation:
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         # Single basis function = ones, so field = base + p[0]*ones
         fm = BasisExpansion(bkd, 0.0, [bkd.ones((npts,))])
-        param = create_diffusion_parameterization(bkd, basis, fm)
+        param = create_diffusion_parameterization(physics, bkd, basis, fm)
         return param, physics
 
     def test_nonpositive_diffusion_raises(self, bkd):
@@ -283,7 +283,7 @@ class TestDiffusionPositivityValidation:
         param, physics = self._make_param_and_physics(bkd, npts)
         # field = 0.0 + (-0.1)*ones = -0.1 everywhere
         with pytest.raises(ValueError) as ctx:
-            param.apply(physics, bkd.array([-0.1]))
+            param.apply(bkd.array([-0.1]))
         assert "positive" in str(ctx.value)
 
     def test_zero_diffusion_raises(self, bkd):
@@ -291,11 +291,11 @@ class TestDiffusionPositivityValidation:
         npts = 5
         param, physics = self._make_param_and_physics(bkd, npts)
         with pytest.raises(ValueError):
-            param.apply(physics, bkd.array([0.0]))
+            param.apply(bkd.array([0.0]))
 
     def test_positive_diffusion_succeeds(self, bkd):
         """No error when parameterized diffusion is positive."""
         npts = 5
         param, physics = self._make_param_and_physics(bkd, npts)
         # field = 0.0 + 1.5*ones = 1.5 everywhere
-        param.apply(physics, bkd.array([1.5]))  # Should not raise
+        param.apply(bkd.array([1.5]))  # Should not raise

@@ -528,7 +528,7 @@ class TestCompositeMultiMaterial:
         res1 = bkd.to_numpy(physics.residual(state, 0.0)).copy()
 
         # Change parameters via parameterization
-        param.apply(physics, bkd.asarray(np.array([5.0, 0.2])))
+        param.apply(bkd.asarray(np.array([5.0, 0.2])))
         res2 = bkd.to_numpy(physics.residual(state, 0.0))
 
         assert not np.allclose(res1, res2)

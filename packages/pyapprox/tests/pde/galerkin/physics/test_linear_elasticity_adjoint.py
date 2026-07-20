@@ -101,8 +101,8 @@ class TestLinearElasticityAdjoint:
         n = physics.nstates()
         u = numpy_bkd.asarray(np.ones(n) * 0.01)
         params_1d = numpy_bkd.asarray(np.array([1.0, 0.3]))
-        param.apply(physics, params_1d)
-        pj = param.param_jacobian(physics, u, 0.0, params_1d)
+        param.apply(params_1d)
+        pj = param.param_derivatives().param_jacobian(u, 0.0, params_1d)
         assert pj.shape == (n, 2)
 
     def test_initial_param_jacobian_is_zero(self, numpy_bkd) -> None:
@@ -111,7 +111,7 @@ class TestLinearElasticityAdjoint:
         physics = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         params_1d = numpy_bkd.asarray(np.array([1.0, 0.3]))
-        ipj = param.initial_param_jacobian(physics, params_1d)
+        ipj = param.initial_param_jacobian(params_1d)
         ipj_np = numpy_bkd.to_numpy(ipj)
         numpy_bkd.assert_allclose(
             numpy_bkd.asarray(ipj_np),
@@ -125,7 +125,7 @@ class TestLinearElasticityAdjoint:
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         K1 = _to_dense(physics.stiffness_matrix()).copy()
 
-        param.apply(physics, numpy_bkd.asarray(np.array([2.0, 0.25])))
+        param.apply(numpy_bkd.asarray(np.array([2.0, 0.25])))
         K2 = _to_dense(physics.stiffness_matrix())
 
         diff = np.linalg.norm(K2 - K1)
@@ -159,20 +159,20 @@ class TestLinearElasticityAdjoint:
             results = []
             for ii in range(nsamples):
                 p = params[:, ii]
-                param.apply(physics, p)
+                param.apply(p)
                 res = physics.residual(u, 0.0)
                 results.append(bkd.reshape(res, (nstates, 1)))
-            param.apply(physics, bkd.asarray(np.array([E0, nu0])))
+            param.apply(bkd.asarray(np.array([E0, nu0])))
             return bkd.hstack(results)
 
         def jacobian_of_params(params: Array) -> Array:
             p = params[:, 0]
-            param.apply(physics, p)
+            param.apply(p)
             # Raw param_jacobian (no BC enforcement)
-            pj_raw = param.param_jacobian(physics, u, 0.0, p)
+            pj_raw = param.param_derivatives().param_jacobian(u, 0.0, p)
             # Apply BC enforcement
             pj = physics._apply_dirichlet_to_param_jacobian(pj_raw, u, 0.0)
-            param.apply(physics, bkd.asarray(np.array([E0, nu0])))
+            param.apply(bkd.asarray(np.array([E0, nu0])))
             return pj
 
         wrapper = FunctionWithJacobianFromCallable(
@@ -219,7 +219,7 @@ class TestLinearElasticityAdjoint:
             results = []
             for ii in range(nsamples):
                 p = params[:, ii]
-                param.apply(physics, p)
+                param.apply(p)
                 r = SteadyStateSolver(
                     physics,
                     tol=1e-12,
@@ -229,12 +229,12 @@ class TestLinearElasticityAdjoint:
                 u_np = bkd.to_numpy(r.solution)
                 Q = c_np @ u_np
                 results.append(Q)
-            param.apply(physics, bkd.asarray(np.array([E0, nu0])))
+            param.apply(bkd.asarray(np.array([E0, nu0])))
             return bkd.reshape(bkd.asarray(np.array(results)), (1, nsamples))
 
         def adjoint_gradient(params: Array) -> Array:
             p = params[:, 0]
-            param.apply(physics, p)
+            param.apply(p)
             r = SteadyStateSolver(
                 physics,
                 tol=1e-12,
@@ -248,7 +248,7 @@ class TestLinearElasticityAdjoint:
             lam_np = np.linalg.solve(J_np.T, -c_np)
 
             # Parameterization param_jacobian (raw) + BC enforcement
-            dF_dp_raw = bkd.to_numpy(param.param_jacobian(physics, u_sol, 0.0, p))
+            dF_dp_raw = bkd.to_numpy(param.param_derivatives().param_jacobian(u_sol, 0.0, p))
             dF_dp = bkd.to_numpy(
                 physics._apply_dirichlet_to_param_jacobian(
                     bkd.asarray(dF_dp_raw), u_sol, 0.0
@@ -256,7 +256,7 @@ class TestLinearElasticityAdjoint:
             )
 
             grad = dF_dp.T @ lam_np
-            param.apply(physics, bkd.asarray(np.array([E0, nu0])))
+            param.apply(bkd.asarray(np.array([E0, nu0])))
             return bkd.reshape(bkd.asarray(grad), (1, 2))
 
         wrapper = FunctionWithJacobianFromCallable(

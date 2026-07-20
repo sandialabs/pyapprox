@@ -1,15 +1,17 @@
 """Protocols for hyperelastic stress models.
 
-Defines a 3-level protocol hierarchy for constitutive models:
+Defines a protocol hierarchy for constitutive models:
 1. StressModelProtocol - numerical PK1 stress computation
 2. StressModelWithTangentProtocol - adds analytical tangent modulus dP/dF
-3. SymbolicStressModelProtocol - adds sympy expressions for MMS
+3. StressModelWithSensitivityProtocol - adds Lame-parameter setters and
+   stress sensitivities dP/dmu, dP/dlambda
+4. SymbolicStressModelProtocol - adds sympy expressions for MMS
 
 All protocols use the full (potentially non-symmetric) first Piola-Kirchhoff
 stress tensor P_iJ, supporting both isotropic and anisotropic materials.
 """
 
-from typing import Dict, Generic, Protocol, Tuple, runtime_checkable
+from typing import Dict, Generic, Protocol, Tuple, Union, runtime_checkable
 
 import sympy as sp
 
@@ -184,6 +186,133 @@ class StressModelWithTangentProtocol(Protocol, Generic[Array]):
         Array
             Stacked tangent modulus with A[i, J, k, L] = A_iJkL.
             Shape: (3, 3, 3, 3) + batch shape.
+        """
+        ...
+
+
+@runtime_checkable
+class StressModelWithSensitivityProtocol(Protocol, Generic[Array]):
+    """Extended protocol for Lame-parameterized stress models.
+
+    Adds setters for the Lame parameters (mu, lambda) and the stress
+    sensitivities dP/dmu and dP/dlambda. The sensitivities are only
+    meaningful for models whose material parameters are the Lame
+    parameters, so the setters are part of the same capability.
+
+    Required by HyperelasticityPhysics (which updates material fields
+    via the setters and exposes residual sensitivities) and by
+    HyperelasticYoungsModulusParameterization.
+
+    Implementations should also satisfy StressModelProtocol.
+    """
+
+    def compute_stress_1d(self, F: Array, bkd: Backend[Array]) -> Array: ...
+
+    def compute_stress_2d(
+        self,
+        F11: Array,
+        F12: Array,
+        F21: Array,
+        F22: Array,
+        bkd: Backend[Array],
+    ) -> Tuple[Array, Array, Array, Array]: ...
+
+    def compute_stress_3d(
+        self,
+        F: Tuple[Tuple[Array, ...], ...],
+        bkd: Backend[Array],
+    ) -> Tuple[Tuple[Array, ...], ...]: ...
+
+    def set_mu(self, mu: Union[float, Array]) -> None:
+        """Set shear modulus (scalar or per-point array)."""
+        ...
+
+    def set_lamda(self, lamda: Union[float, Array]) -> None:
+        """Set Lame's first parameter (scalar or per-point array)."""
+        ...
+
+    def stress_sensitivity_mu_1d(self, F: Array, bkd: Backend[Array]) -> Array:
+        """Compute dP/dmu in 1D.
+
+        Parameters
+        ----------
+        F : Array
+            Deformation gradient. Shape: (npts,).
+        bkd : Backend
+            Computational backend.
+
+        Returns
+        -------
+        Array
+            Stress sensitivity dP/dmu. Shape: (npts,).
+        """
+        ...
+
+    def stress_sensitivity_lamda_1d(
+        self, F: Array, bkd: Backend[Array]
+    ) -> Array:
+        """Compute dP/dlambda in 1D.
+
+        Parameters
+        ----------
+        F : Array
+            Deformation gradient. Shape: (npts,).
+        bkd : Backend
+            Computational backend.
+
+        Returns
+        -------
+        Array
+            Stress sensitivity dP/dlambda. Shape: (npts,).
+        """
+        ...
+
+    def stress_sensitivity_mu_2d(
+        self,
+        F11: Array,
+        F12: Array,
+        F21: Array,
+        F22: Array,
+        bkd: Backend[Array],
+    ) -> Tuple[Array, Array, Array, Array]:
+        """Compute dP/dmu in 2D for each stress component.
+
+        Parameters
+        ----------
+        F11, F12, F21, F22 : Array
+            Deformation gradient components. Each shape: (npts,).
+        bkd : Backend
+            Computational backend.
+
+        Returns
+        -------
+        Tuple[Array, Array, Array, Array]
+            (dP11/dmu, dP12/dmu, dP21/dmu, dP22/dmu). Each shape: (npts,).
+        """
+        ...
+
+    def stress_sensitivity_lamda_2d(
+        self,
+        F11: Array,
+        F12: Array,
+        F21: Array,
+        F22: Array,
+        bkd: Backend[Array],
+    ) -> Tuple[Array, Array, Array, Array]:
+        """Compute dP/dlambda in 2D for each stress component.
+
+        Parameters
+        ----------
+        F11, F12, F21, F22 : Array
+            Deformation gradient components. Each shape: (npts,).
+        bkd : Backend
+            Computational backend.
+
+        Returns
+        -------
+        Tuple[Array, Array, Array, Array]
+            (dP11/dlam, dP12/dlam, dP21/dlam, dP22/dlam).
+            Each shape: (npts,).
         """
         ...
 

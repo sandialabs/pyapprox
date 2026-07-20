@@ -52,18 +52,42 @@ class CompositeParameterization(Generic[Array]):
         bkd: Backend[Array],
     ) -> None:
         for part in parts:
-            if not isinstance(part, ParameterizationProtocol):
-                raise TypeError(
-                    f"Each part must satisfy ParameterizationProtocol, "
-                    f"got {type(part).__name__}"
-                )
+            self._validate_part(part, parts[0])
         self._parts: List[ParameterizationProtocol[Array]] = list(parts)
         self._bkd = bkd
         self._recompute_offsets()
         self._build_derivatives()
 
+    @staticmethod
+    def _validate_part(
+        part: ParameterizationProtocol[Array],
+        first_part: ParameterizationProtocol[Array],
+    ) -> None:
+        """Validate protocol conformance and shared physics identity."""
+        if not isinstance(part, ParameterizationProtocol):
+            raise TypeError(
+                f"Each part must satisfy ParameterizationProtocol, "
+                f"got {type(part).__name__}"
+            )
+        if part.physics() is not first_part.physics():
+            raise ValueError(
+                f"All parts must bind the SAME physics instance; "
+                f"{type(part).__name__} binds a different physics than "
+                f"{type(first_part).__name__}. Ensembles must construct "
+                f"one composite per physics."
+            )
+
     def bkd(self) -> Backend[Array]:
         return self._bkd
+
+    def physics(self) -> object:
+        """Return the physics instance shared by all parts."""
+        if not self._parts:
+            raise RuntimeError(
+                "CompositeParameterization has no parts; physics() is "
+                "undefined until a part is appended"
+            )
+        return self._parts[0].physics()
 
     def param_derivatives(self) -> ParamDerivatives[Array]:
         """Return the composed derivative capability bundle."""
@@ -137,26 +161,24 @@ class CompositeParameterization(Generic[Array]):
     def nparams(self) -> int:
         return self._total_nparams
 
-    def apply(self, physics: object, params_1d: Array) -> None:
+    def apply(self, params_1d: Array) -> None:
         """Apply all parameterizations in sequence."""
         for ii, part in enumerate(self._parts):
             offset = self._offsets[ii]
             np_i = part.nparams()
-            part.apply(physics, params_1d[offset : offset + np_i])
+            part.apply(params_1d[offset : offset + np_i])
 
     def append(self, part: ParameterizationProtocol[Array]) -> None:
         """Append a parameterization. Rebuilds the capability bundle."""
-        if not isinstance(part, ParameterizationProtocol):
-            raise TypeError(
-                f"part must satisfy ParameterizationProtocol, got {type(part).__name__}"
-            )
+        self._validate_part(
+            part, self._parts[0] if self._parts else part
+        )
         self._parts.append(part)
         self._recompute_offsets()
         self._build_derivatives()
 
     def _param_jacobian(
         self,
-        physics: object,
         state: Array,
         time: float,
         params_1d: Array,
@@ -175,13 +197,13 @@ class CompositeParameterization(Generic[Array]):
             offset = self._offsets[ii]
             np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
-            block = fn(physics, state, time, sub_params)
+            block = fn(state, time, sub_params)
             for col in range(np_i):
                 for row in range(npts):
                     result[row, offset + col] = block[row, col]
         return result
 
-    def _initial_param_jacobian(self, physics: object, params_1d: Array) -> Array:
+    def _initial_param_jacobian(self, params_1d: Array) -> Array:
         """Block-column assembly of initial param Jacobian."""
         fns = self._part_initial_param_jacs
         if fns is None:
@@ -193,7 +215,7 @@ class CompositeParameterization(Generic[Array]):
         first_offset = self._offsets[0]
         np_0 = self._parts[0].nparams()
         sub_params_0 = params_1d[first_offset : first_offset + np_0]
-        block_0 = fns[0](physics, sub_params_0)
+        block_0 = fns[0](sub_params_0)
         npts = block_0.shape[0]
 
         result = self._bkd.zeros((npts, self._total_nparams))
@@ -207,7 +229,7 @@ class CompositeParameterization(Generic[Array]):
             offset = self._offsets[ii]
             np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
-            block = fns[ii](physics, sub_params)
+            block = fns[ii](sub_params)
             for col in range(np_i):
                 for row in range(npts):
                     result[row, offset + col] = block[row, col]
@@ -215,7 +237,6 @@ class CompositeParameterization(Generic[Array]):
 
     def _param_param_hvp(
         self,
-        physics: object,
         state: Array,
         time: float,
         params_1d: Array,
@@ -241,7 +262,7 @@ class CompositeParameterization(Generic[Array]):
             sub_params = params_1d[offset : offset + np_i]
             sub_vvec = vvec[offset : offset + np_i]
             sub_result = fn(
-                physics, state, time, sub_params, adj_state, sub_vvec
+                state, time, sub_params, adj_state, sub_vvec
             )
             for k in range(np_i):
                 result[offset + k] = sub_result[k]
@@ -249,7 +270,6 @@ class CompositeParameterization(Generic[Array]):
 
     def _state_param_hvp(
         self,
-        physics: object,
         state: Array,
         time: float,
         params_1d: Array,
@@ -277,13 +297,12 @@ class CompositeParameterization(Generic[Array]):
             sub_params = params_1d[offset : offset + np_i]
             sub_vvec = vvec[offset : offset + np_i]
             result = result + fn(
-                physics, state, time, sub_params, adj_state, sub_vvec
+                state, time, sub_params, adj_state, sub_vvec
             )
         return result
 
     def _param_state_hvp(
         self,
-        physics: object,
         state: Array,
         time: float,
         params_1d: Array,
@@ -304,7 +323,7 @@ class CompositeParameterization(Generic[Array]):
             np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
             sub_result = fn(
-                physics, state, time, sub_params, adj_state, wvec
+                state, time, sub_params, adj_state, wvec
             )
             for k in range(np_i):
                 result[offset + k] = sub_result[k]
@@ -312,7 +331,6 @@ class CompositeParameterization(Generic[Array]):
 
     def _bc_flux_param_sensitivity(
         self,
-        physics: object,
         state: Array,
         time: float,
         params_1d: Array,
@@ -334,7 +352,7 @@ class CompositeParameterization(Generic[Array]):
             np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]
             block = fn(
-                physics, state, time, sub_params, bc_indices, normals
+                state, time, sub_params, bc_indices, normals
             )
             for col in range(np_i):
                 for i in range(nbnd):

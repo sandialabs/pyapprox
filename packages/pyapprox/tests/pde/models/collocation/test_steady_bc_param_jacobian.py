@@ -12,6 +12,16 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    flux_neumann_bc,
+    gradient_robin_bc,
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    AffineTransform1D,
+    TransformedMesh1D,
+)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -25,17 +35,6 @@ from pyapprox.pde.models.collocation.steady import (
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
-)
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    flux_neumann_bc,
-    gradient_robin_bc,
-    zero_dirichlet_bc,
-)
-from pyapprox.pde.collocation.mesh import (
-    AffineTransform1D,
-    TransformedMesh1D,
 )
 
 
@@ -74,7 +73,7 @@ def _create_flux_neumann_problem(bkd, npts=20):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, basis, fm)
 
     init_state = bkd.zeros((npts,))
     return physics, param, init_state
@@ -136,7 +135,7 @@ def _create_gradient_robin_problem(bkd, npts=20):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, basis, fm)
 
     init_state = bkd.zeros((npts,))
     return physics, param, init_state
@@ -172,7 +171,7 @@ def _create_all_dirichlet_problem(bkd, npts=20):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, basis, fm)
 
     init_state = bkd.zeros((npts,))
     return physics, param, init_state

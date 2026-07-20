@@ -4,9 +4,11 @@ For Galerkin composite elasticity physics with per-element material properties.
 The parameter vector is [E1, nu1, E2, nu2, ...] of length 2*nmaterials.
 
 Satisfies ParameterizationProtocol. The ``apply`` method calls
-``physics.set_lame_parameters()`` with per-element Lame arrays. The
-``param_jacobian`` method uses ``physics.residual_lam_sensitivity()`` and
-``physics.residual_mu_sensitivity()`` via the chain rule.
+``physics.set_lame_parameters()`` with per-element Lame arrays. When the
+physics provides ``residual_lam_sensitivity()``/
+``residual_mu_sensitivity()``, the derivative bundle carries a parameter
+jacobian computed from them via the chain rule; otherwise the bundle is
+empty.
 """
 
 from typing import (
@@ -25,13 +27,28 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
-class _LameSensitivityPhysicsProtocol(Protocol, Generic[Array]):
-    """Galerkin elasticity physics exposing per-material Lame sensitivities.
+class _GalerkinLamePhysicsProtocol(Protocol):
+    """Galerkin elasticity physics members ``apply`` calls
+    (interim; the typed facades of the parameterization redesign
+    replace it). Array-free, hence non-generic."""
 
-    Defined locally (parameterizations cannot import pde.galerkin — that
-    would close an import cycle); declares exactly the members this
-    parameterization duck-calls.
-    """
+    def nstates(self) -> int: ...
+
+    def set_lame_parameters(
+        self,
+        lam_per_elem: "np.ndarray[Tuple[int], np.dtype[np.float64]]",
+        mu_per_elem: "np.ndarray[Tuple[int], np.dtype[np.float64]]",
+    ) -> None: ...
+
+
+@runtime_checkable
+class _GalerkinLameSensitivityPhysicsProtocol(
+    _GalerkinLamePhysicsProtocol, Protocol, Generic[Array]
+):
+    """Adds the residual sensitivities ``param_jacobian`` needs.
+
+    Physics lacking these (e.g. hyperelastic composites) still support
+    ``apply``; the derivative bundle is simply empty."""
 
     def residual_lam_sensitivity(
         self, state: Array, material_index: int
@@ -40,6 +57,38 @@ class _LameSensitivityPhysicsProtocol(Protocol, Generic[Array]):
     def residual_mu_sensitivity(
         self, state: Array, material_index: int
     ) -> Array: ...
+
+
+@runtime_checkable
+class _GalerkinLameFactoryPhysicsProtocol(
+    _GalerkinLamePhysicsProtocol, Protocol
+):
+    """Additional members the convenience factory reads at construction."""
+
+    def basis(self) -> "_SkfemBasisHolderProtocol": ...
+
+    def material_names(self) -> List[str]: ...
+
+    def element_materials(self) -> Dict[str, np.ndarray]: ...
+
+
+class _SkfemMeshProtocol(Protocol):
+    """Mesh member the factory reads (skfem is untyped)."""
+
+    nelements: int
+
+
+class _SkfemBasisProtocol(Protocol):
+    """skfem basis member the factory reads."""
+
+    mesh: _SkfemMeshProtocol
+
+
+@runtime_checkable
+class _SkfemBasisHolderProtocol(Protocol):
+    """Basis member the factory reads (skfem mesh is untyped)."""
+
+    def skfem_basis(self) -> _SkfemBasisProtocol: ...
 
 
 def _lame_from_E_nu(E: float, nu: float) -> Tuple[float, float]:
@@ -52,14 +101,18 @@ def _lame_from_E_nu(E: float, nu: float) -> Tuple[float, float]:
 class GalerkinLameParameterization(Generic[Array]):
     """Maps [E1, nu1, E2, nu2, ...] to per-element Lame parameters.
 
-    Satisfies ``ParameterizationProtocol``. Always exposes ``param_jacobian``
-    and ``initial_param_jacobian``, but ``param_jacobian`` requires the
-    physics to have ``residual_lam_sensitivity()`` and
-    ``residual_mu_sensitivity()`` methods (raises ``NotImplementedError``
-    if absent).
+    Satisfies ``ParameterizationProtocol``. The physics is bound at
+    construction and must provide ``set_lame_parameters()`` and
+    ``nstates()`` (validated eagerly). If it additionally provides
+    ``residual_lam_sensitivity()``/``residual_mu_sensitivity()`` the
+    derivative bundle carries first-order capability; otherwise the
+    bundle is empty. One instance serves one physics — ensembles
+    construct one parameterization per physics.
 
     Parameters
     ----------
+    physics : _GalerkinLamePhysicsProtocol
+        Galerkin elasticity physics to bind.
     material_names : List[str]
         Ordered list of material names.
     element_materials : Dict[str, np.ndarray]
@@ -72,25 +125,41 @@ class GalerkinLameParameterization(Generic[Array]):
 
     def __init__(
         self,
+        physics: _GalerkinLamePhysicsProtocol,
         material_names: List[str],
         element_materials: Dict[str, np.ndarray],
         nelems: int,
         bkd: Backend[Array],
     ) -> None:
+        if not isinstance(physics, _GalerkinLamePhysicsProtocol):
+            raise TypeError(
+                f"physics must provide set_lame_parameters/nstates, "
+                f"got {type(physics).__name__}"
+            )
+        self._physics = physics
         self._material_names = list(material_names)
         self._element_materials = {
             k: np.asarray(v) for k, v in element_materials.items()
         }
         self._nelems = nelems
         self._bkd = bkd
-        self._derivs: ParamDerivatives[Array] = ParamDerivatives.first_order(
-            self.param_jacobian,
-            self.initial_param_jacobian,
-        )
+        if isinstance(physics, _GalerkinLameSensitivityPhysicsProtocol):
+            self._derivs: ParamDerivatives[Array] = (
+                ParamDerivatives.first_order(
+                    self._param_jacobian,
+                    self.initial_param_jacobian,
+                )
+            )
+        else:
+            self._derivs = ParamDerivatives.none()
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
+
+    def physics(self) -> _GalerkinLamePhysicsProtocol:
+        """Return the bound physics instance."""
+        return self._physics
 
     def param_derivatives(self) -> ParamDerivatives[Array]:
         """Return the derivative capability bundle."""
@@ -100,15 +169,13 @@ class GalerkinLameParameterization(Generic[Array]):
         """Return number of parameters (2 per material: E, nu)."""
         return 2 * len(self._material_names)
 
-    def apply(self, physics: object, params_1d: Array) -> None:
+    def apply(self, params_1d: Array) -> None:
         """Convert [E1, nu1, ...] to per-element Lame arrays.
 
         Calls ``physics.set_lame_parameters(lam_per_elem, mu_per_elem)``.
 
         Parameters
         ----------
-        physics : object
-            Galerkin elasticity physics with ``set_lame_parameters`` method.
         params_1d : Array
             Parameter vector [E1, nu1, E2, nu2, ...].
             Shape: ``(2*nmaterials,)``.
@@ -130,11 +197,10 @@ class GalerkinLameParameterization(Generic[Array]):
             lam_per_elem[elem_idx] = lam
             mu_per_elem[elem_idx] = mu
 
-        physics.set_lame_parameters(lam_per_elem, mu_per_elem)
+        self._physics.set_lame_parameters(lam_per_elem, mu_per_elem)
 
-    def param_jacobian(
+    def _param_jacobian(
         self,
-        physics: object,
         state: Array,
         time: float,
         params_1d: Array,
@@ -157,8 +223,6 @@ class GalerkinLameParameterization(Generic[Array]):
 
         Parameters
         ----------
-        physics : object
-            Galerkin elasticity physics with sensitivity methods.
         state : Array
             Current displacement. Shape: ``(nstates,)``.
         time : float
@@ -170,20 +234,14 @@ class GalerkinLameParameterization(Generic[Array]):
         -------
         Array
             Parameter Jacobian. Shape: ``(nstates, 2*nmaterials)``.
-
-        Raises
-        ------
-        NotImplementedError
-            If physics lacks ``residual_lam_sensitivity`` or
-            ``residual_mu_sensitivity``.
         """
-        if not isinstance(physics, _LameSensitivityPhysicsProtocol):
-            raise NotImplementedError(
-                f"Physics {type(physics).__name__} does not support "
-                f"residual_lam_sensitivity/residual_mu_sensitivity — "
-                f"param_jacobian not available"
+        if not isinstance(
+            self._physics, _GalerkinLameSensitivityPhysicsProtocol
+        ):
+            raise RuntimeError(
+                "param_jacobian is unavailable; check param_derivatives() "
+                "before calling"
             )
-
         params_np = self._bkd.to_numpy(params_1d)
         cols = []
 
@@ -197,8 +255,8 @@ class GalerkinLameParameterization(Generic[Array]):
             dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom**2
             dMu_dnu = -E / (2.0 * (1.0 + nu) ** 2)
 
-            lam_sens = physics.residual_lam_sensitivity(state, i)
-            mu_sens = physics.residual_mu_sensitivity(state, i)
+            lam_sens = self._physics.residual_lam_sensitivity(state, i)
+            mu_sens = self._physics.residual_mu_sensitivity(state, i)
 
             col_E = dLambda_dE * lam_sens + dMu_dE * mu_sens
             col_nu = dLambda_dnu * lam_sens + dMu_dnu * mu_sens
@@ -209,15 +267,12 @@ class GalerkinLameParameterization(Generic[Array]):
 
     def initial_param_jacobian(
         self,
-        physics: object,
         params_1d: Array,
     ) -> Array:
         """Return d(u_0)/dp = 0 (IC does not depend on material params).
 
         Parameters
         ----------
-        physics : object
-            Galerkin elasticity physics.
         params_1d : Array
             Parameter vector (unused).
 
@@ -226,11 +281,13 @@ class GalerkinLameParameterization(Generic[Array]):
         Array
             Zero matrix. Shape: ``(nstates, 2*nmaterials)``.
         """
-        return self._bkd.asarray(np.zeros((physics.nstates(), self.nparams())))
+        return self._bkd.asarray(
+            np.zeros((self._physics.nstates(), self.nparams()))
+        )
 
 
 def create_galerkin_lame_parameterization(
-    physics: object,
+    physics: _GalerkinLameFactoryPhysicsProtocol,
     bkd: Backend[Array],
 ) -> "GalerkinLameParameterization[Array]":
     """Create a GalerkinLameParameterization from a Galerkin elasticity physics.
@@ -240,7 +297,7 @@ def create_galerkin_lame_parameterization(
 
     Parameters
     ----------
-    physics : object
+    physics : _GalerkinLameFactoryPhysicsProtocol
         Galerkin elasticity physics with ``material_names()``,
         ``element_materials()``, and a skfem basis.
     bkd : Backend[Array]
@@ -250,8 +307,10 @@ def create_galerkin_lame_parameterization(
     -------
     GalerkinLameParameterization
     """
-    nelems = physics._basis.skfem_basis().mesh.nelements
+    skfem_basis = physics.basis().skfem_basis()
+    nelems = int(skfem_basis.mesh.nelements)
     return GalerkinLameParameterization(
+        physics=physics,
         material_names=physics.material_names(),
         element_materials=physics.element_materials(),
         nelems=nelems,

@@ -9,8 +9,20 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
+)
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    gradient_robin_bc,
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -23,19 +35,6 @@ from pyapprox.pde.models.collocation.transient import (
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
-)
-
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
-)
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    gradient_robin_bc,
-    zero_dirichlet_bc,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
 )
 
 
@@ -74,7 +73,7 @@ def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
     physics.set_boundary_conditions([bc_left, bc_right])
 
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, basis, fm)
 
     init_state = bkd.sin(math.pi * nodes)
 
@@ -105,7 +104,7 @@ class TestTransientForwardModel:
         samples = param_1d[:, None]
 
         # Direct solve
-        param.apply(physics, param_1d)
+        param.apply(param_1d)
         model = create_collocation_model(physics, bkd, parameterization=param)
         solutions, times = model.solve_transient(init_state, time_config)
 
@@ -332,7 +331,7 @@ def _create_robin_transient_problem(bkd, npts=15):
     physics.set_boundary_conditions([bc_left, bc_right])
 
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, basis, fm)
 
     init_state = bkd.sin(math.pi * nodes)
 
@@ -391,7 +390,7 @@ def _create_mixed_bc_transient_problem(bkd, npts=15):
     physics.set_boundary_conditions([bc_left, bc_right])
 
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, basis, fm)
 
     init_state = bkd.sin(math.pi * nodes)
 

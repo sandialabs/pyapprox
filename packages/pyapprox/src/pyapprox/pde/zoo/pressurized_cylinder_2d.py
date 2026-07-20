@@ -208,6 +208,7 @@ def create_linear_pressurized_cylinder_2d(
 
     # Parameterization: E field -> Lame parameters
     param = create_youngs_modulus_parameterization(
+        physics,
         bkd,
         basis,
         field_map,

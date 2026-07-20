@@ -65,6 +65,12 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
+        if parameterization.physics() is not physics:
+            raise ValueError(
+                "parameterization binds a different physics instance "
+                "than the one passed to the adapter; construct one "
+                "parameterization per physics"
+            )
         super().__init__(physics)
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None
@@ -93,7 +99,7 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
                 f"{tuple(param.shape)}"
             )
         self._current_params_1d = param
-        self._parameterization.apply(self._physics, param)
+        self._parameterization.apply(param)
 
     def _require_params(self) -> Array:
         """Return the current parameters or raise if set_param not called."""
@@ -150,7 +156,7 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
             Parameter Jacobian. Shape: (nstates, nparams)
         """
         return self._param_jacobian_fn(
-            self._physics, state, self._time, self._require_params()
+            state, self._time, self._require_params()
         )
 
     def initial_param_jacobian(self) -> Array:
@@ -161,9 +167,7 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         Array
             Initial-condition Jacobian. Shape: (nstates, nparams)
         """
-        return self._initial_param_jacobian_fn(
-            self._physics, self._require_params()
-        )
+        return self._initial_param_jacobian_fn(self._require_params())
 
 
 @overload

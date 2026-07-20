@@ -133,6 +133,17 @@ and `input_derivatives(X2)`; a distribution exposing d(logpdf)/dx uses a
 (`jacobian_wrt_params`, shape `(nqoi, nactive_params)`) remain public
 named methods.
 
+Family bundles that need heavyweight context bind it at producer
+construction, never per call. The PDE parameterization bundle
+(`pde.parameterizations.derivatives.ParamDerivatives`) is the
+reference case: its callables take `(state, time, params_1d, ...)`
+with no physics argument — the physics is bound in the
+parameterization's `__init__` (exposed via a `physics()` accessor),
+and model adapters validate at construction that the
+parameterization's bound physics **is** the adapter's own instance
+(identity, not equality). One parameterization serves one physics;
+ensembles construct one per physics.
+
 ## Lifecycle
 
 Bundles are frozen; capability is fixed per `bind()`/`minimize()` run.

@@ -23,7 +23,10 @@ class DerivativeMatrixBasisProtocol(Protocol, Generic[Array]):
 class ParameterizationProtocol(Protocol, Generic[Array]):
     """Protocol for physics parameterizations.
 
-    Maps a parameter vector to physics inputs. Optional derivative
+    Maps a parameter vector to physics inputs. The physics is bound at
+    construction — one parameterization instance serves ONE physics
+    instance (ensembles construct one per physics); ``physics()``
+    returns it so consumers can validate identity. Optional derivative
     capability is expressed through the :class:`ParamDerivatives` bundle
     returned by ``param_derivatives()`` — absence of a capability is a
     ``None`` field, never a missing attribute.
@@ -31,6 +34,8 @@ class ParameterizationProtocol(Protocol, Generic[Array]):
 
     def nparams(self) -> int: ...
 
-    def apply(self, physics: object, params_1d: Array) -> None: ...
+    def physics(self) -> object: ...
+
+    def apply(self, params_1d: Array) -> None: ...
 
     def param_derivatives(self) -> ParamDerivatives[Array]: ...
