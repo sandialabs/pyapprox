@@ -15,12 +15,10 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.collocation.time_integration.collocation_model import (
-    CollocationModel,
-)
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
+from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
     CollocationStateEquationAdapter,
     SteadyForwardModel,
@@ -209,7 +207,7 @@ class TestSteadyBCParamJacobian:
         """DerivativeChecker validates adapter param_jacobian with flux Neumann."""
         physics, param, init_state = _create_flux_neumann_problem(bkd)
 
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         adapter = CollocationStateEquationAdapter(
             model,
             bkd,

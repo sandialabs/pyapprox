@@ -2,6 +2,9 @@
 
 This module provides adapters that allow Galerkin physics (with mass matrices)
 to be used with the time steppers in typing.pde.time.
+
+The parameterized adapter tiers and their factory live in
+``pyapprox.pde.models.galerkin``.
 """
 
 from pyapprox.ode.config import TimeIntegrationConfig
@@ -16,9 +19,6 @@ from pyapprox.pde.galerkin.time_integration.galerkin_model import (
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
-    GalerkinPhysicsToODEResidualWithParamJacobianAdapter,
-    GalerkinPhysicsToODEResidualWithSetParamAdapter,
-    create_galerkin_physics_ode_residual,
 )
 from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
     StokesTimeStepResidual,
@@ -26,9 +26,6 @@ from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
 
 __all__ = [
     "GalerkinPhysicsToODEResidualAdapter",
-    "GalerkinPhysicsToODEResidualWithSetParamAdapter",
-    "GalerkinPhysicsToODEResidualWithParamJacobianAdapter",
-    "create_galerkin_physics_ode_residual",
     "GalerkinExplicitODEAdapter",
     "ConstrainedTimeStepResidual",
     "StokesTimeStepResidual",

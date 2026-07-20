@@ -33,7 +33,7 @@ from pyapprox.pde.galerkin.time_integration.explicit_adapter import (
     GalerkinExplicitODEAdapter,
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
-    create_galerkin_physics_ode_residual,
+    GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -82,7 +82,7 @@ class GalerkinModel(Generic[Array]):
     ):
         self._physics = physics
         self._bkd = bkd
-        self._adapter = create_galerkin_physics_ode_residual(physics)
+        self._adapter = GalerkinPhysicsToODEResidualAdapter(physics)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""

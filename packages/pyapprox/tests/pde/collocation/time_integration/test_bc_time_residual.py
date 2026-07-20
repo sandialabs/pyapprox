@@ -23,7 +23,7 @@ from pyapprox.pde.collocation.physics import (
 from pyapprox.pde.collocation.time_integration import (
     BCEnforcingAdjointResidual,
     BCEnforcingForwardResidual,
-    PhysicsToODEResidualAdapter,
+    CollocationPhysicsToODEResidualAdapter,
     create_bc_enforcing_residual,
 )
 
@@ -46,7 +46,7 @@ class TestBCEnforcingTimeResidual:
         bc_right = zero_dirichlet_bc(bkd, right_idx)
         physics.set_boundary_conditions([bc_left, bc_right])
 
-        adapter = PhysicsToODEResidualAdapter(physics, bkd)
+        adapter = CollocationPhysicsToODEResidualAdapter(physics, bkd)
         stepper = BackwardEulerStepper(adapter)
         bc_residual = create_bc_enforcing_residual(stepper, physics, bkd)
 

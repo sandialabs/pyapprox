@@ -21,15 +21,11 @@ from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
 )
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
-from pyapprox.pde.collocation.protocols.physics import (
-    ParameterizationProtocol,
-)
 from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
     create_bc_enforcing_residual,
 )
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
-    PhysicsToODEResidualAdapter,
-    create_physics_ode_residual,
+    CollocationPhysicsToODEResidualAdapter,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -83,20 +79,27 @@ class CollocationModel(Generic[Array]):
         self,
         physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
-        parameterization: Optional[ParameterizationProtocol[Array]] = None,
+        adapter: Optional[CollocationPhysicsToODEResidualAdapter[Array]] = None,
     ):
-        if parameterization is not None and not isinstance(
-            parameterization, ParameterizationProtocol
-        ):
-            raise TypeError(
-                f"parameterization must satisfy ParameterizationProtocol, "
-                f"got {type(parameterization).__name__}"
-            )
+        if adapter is not None:
+            if not isinstance(
+                adapter, CollocationPhysicsToODEResidualAdapter
+            ):
+                raise TypeError(
+                    f"adapter must be a "
+                    f"CollocationPhysicsToODEResidualAdapter, "
+                    f"got {type(adapter).__name__}"
+                )
+            if adapter.physics() is not physics:
+                raise ValueError(
+                    "adapter wraps a different physics instance than the "
+                    "one passed to CollocationModel"
+                )
         self._physics = physics
         self._bkd = bkd
-        self._adapter = create_physics_ode_residual(
-            physics, bkd, parameterization
-        )
+        if adapter is None:
+            adapter = CollocationPhysicsToODEResidualAdapter(physics, bkd)
+        self._adapter = adapter
         self._mass_matrix = physics.mass_matrix()
         self._last_integrator = None
 
@@ -108,7 +111,7 @@ class CollocationModel(Generic[Array]):
         """Return the physics object."""
         return self._physics
 
-    def adapter(self) -> PhysicsToODEResidualAdapter[Array]:
+    def adapter(self) -> CollocationPhysicsToODEResidualAdapter[Array]:
         """Return the ODE residual adapter."""
         return self._adapter
 

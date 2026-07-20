@@ -14,12 +14,10 @@ from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.collocation.time_integration.collocation_model import (
-    CollocationModel,
-)
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
+from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.transient import (
     TransientForwardModel,
 )
@@ -108,7 +106,7 @@ class TestTransientForwardModel:
 
         # Direct solve
         param.apply(physics, param_1d)
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         solutions, times = model.solve_transient(init_state, time_config)
 
         # Forward model

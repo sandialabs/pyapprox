@@ -17,7 +17,14 @@ Use ``create_bc_enforcing_residual()`` factory to create the appropriate
 wrapper based on the inner stepper's protocol level.
 """
 
-from typing import Generic, Tuple, overload
+from typing import (
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    overload,
+    runtime_checkable,
+)
 
 from pyapprox.ode.linear_operator import LinearOperatorProtocol, MatrixOperator
 from pyapprox.ode.protocols.ode_residual import (
@@ -34,10 +41,27 @@ from pyapprox.pde.collocation.protocols.boundary import (
     BoundaryConditionProtocol,
     BoundaryConditionWithParamJacobianProtocol,
 )
-from pyapprox.pde.collocation.time_integration.physics_adapter import (
-    PhysicsToODEResidualWithParamJacobianAdapter,
-)
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class _BCFluxParamSensitivityProtocol(Protocol, Generic[Array]):
+    """Consumer-side capability protocol for BC flux parameter sensitivity.
+
+    Declares exactly the member this module calls on the native ODE
+    residual. The parameterized adapter tiers (which live in the models
+    layer, above this module) satisfy it structurally — checking a
+    protocol instead of the concrete class keeps this module free of
+    upward imports.
+    """
+
+    def bc_flux_param_sensitivity(
+        self,
+        state: Array,
+        time: float,
+        bc_indices: Array,
+        normals: Array,
+    ) -> Optional[Array]: ...
 
 # =========================================================================
 # Level 1: Forward + Sensitivity
@@ -282,7 +306,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         has coefficient dependence (e.g., flux Neumann with parameterized D).
         """
         native = self._adjoint_inner.native_residual
-        if not isinstance(native, PhysicsToODEResidualWithParamJacobianAdapter):
+        if not isinstance(native, _BCFluxParamSensitivityProtocol):
             return None
         if not hasattr(bc, "normal_operator"):
             return None

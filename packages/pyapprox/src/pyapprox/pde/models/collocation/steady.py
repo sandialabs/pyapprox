@@ -26,6 +26,9 @@ from pyapprox.pde.collocation.protocols.physics import (
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
+from pyapprox.pde.models.collocation.factory import (
+    create_collocation_model,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -294,7 +297,9 @@ class SteadyForwardModel(Generic[Array]):
         self._init_state_1d = init_state
         self._init_state_2d = init_state[:, None]
 
-        model = CollocationModel(physics, bkd, parameterization=parameterization)
+        model = create_collocation_model(
+            physics, bkd, parameterization=parameterization
+        )
         self._state_eq = CollocationStateEquationAdapter(
             model, bkd, parameterization=parameterization
         )

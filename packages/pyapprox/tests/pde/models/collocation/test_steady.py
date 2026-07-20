@@ -21,12 +21,10 @@ from pyapprox.optimization.implicitfunction.operator.sensitivities import (
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
-from pyapprox.pde.collocation.time_integration.collocation_model import (
-    CollocationModel,
-)
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
+from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
     CollocationStateEquationAdapter,
     SteadyForwardModel,
@@ -99,7 +97,7 @@ class TestCollocationStateEquationAdapter:
         """Adapter solve matches direct CollocationModel.solve_steady."""
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
 
         param_1d = bkd.array([0.5, 0.1])
@@ -119,7 +117,7 @@ class TestCollocationStateEquationAdapter:
         """Residual should be near-zero at the converged solution."""
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
 
         param_2d = bkd.array([0.3, -0.1])[:, None]
@@ -134,7 +132,7 @@ class TestCollocationStateEquationAdapter:
         """DerivativeChecker validates state Jacobian via FD."""
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
@@ -160,7 +158,7 @@ class TestCollocationStateEquationAdapter:
         """DerivativeChecker validates parameter Jacobian via FD."""
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
@@ -183,7 +181,7 @@ class TestCollocationStateEquationAdapter:
         """Boundary rows of param_jacobian should be zero."""
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
@@ -214,7 +212,7 @@ class TestSteadyForwardModel:
 
         # Direct solve
         param.apply(physics, param_1d)
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         u_direct = model.solve_steady(init_state)
 
         # Forward model
@@ -337,7 +335,7 @@ class TestSteadyForwardModel:
         subset = bkd.asarray(np.array([3, 7, 12]))
         functional = SubsetOfStatesAdjointFunctional(nstates, nparams, subset, bkd)
 
-        model = CollocationModel(physics, bkd, parameterization=param)
+        model = create_collocation_model(physics, bkd, parameterization=param)
         state_eq = CollocationStateEquationAdapter(model, bkd, parameterization=param)
         adjoint_op = VectorAdjointOperatorWithJacobian(state_eq, functional)
 

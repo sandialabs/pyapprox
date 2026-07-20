@@ -25,8 +25,11 @@ from pyapprox.pde.collocation.protocols.physics import (
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
-from pyapprox.pde.collocation.time_integration.physics_adapter import (
-    PhysicsToODEResidualWithSetParamAdapter,
+from pyapprox.pde.models.collocation.factory import (
+    create_collocation_model,
+)
+from pyapprox.pde.models.collocation.physics_adapter import (
+    CollocationPhysicsToODEResidualWithSetParamAdapter,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -132,16 +135,18 @@ class TransientForwardModel(Generic[Array]):
             Time points. Shape: (ntimes,).
         """
         self._parameterization.apply(self._physics, param_2d[:, 0])
-        model = CollocationModel(
+        model = create_collocation_model(
             self._physics,
             self._bkd,
             parameterization=self._parameterization,
         )
         # Store params on adapter so param_jacobian can access them
         adapter = model.adapter()
-        if not isinstance(adapter, PhysicsToODEResidualWithSetParamAdapter):
+        if not isinstance(
+            adapter, CollocationPhysicsToODEResidualWithSetParamAdapter
+        ):
             raise TypeError(
-                "CollocationModel built with a parameterization must "
+                "create_collocation_model with a parameterization must "
                 f"produce a parameterized adapter; got {type(adapter).__name__}"
             )
         adapter.set_param(param_2d[:, 0])

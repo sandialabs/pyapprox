@@ -1,4 +1,8 @@
-"""Time integration bridge for spectral collocation methods."""
+"""Time integration bridge for spectral collocation methods.
+
+The parameterized adapter tiers and their factory live in
+``pyapprox.pde.models.collocation``.
+"""
 
 from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
     BCEnforcingAdjointResidual,
@@ -11,19 +15,11 @@ from pyapprox.pde.collocation.time_integration.collocation_model import (
     TimeIntegrationConfig,
 )
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
-    PhysicsToODEResidualAdapter,
-    PhysicsToODEResidualWithHVPAdapter,
-    PhysicsToODEResidualWithParamJacobianAdapter,
-    PhysicsToODEResidualWithSetParamAdapter,
-    create_physics_ode_residual,
+    CollocationPhysicsToODEResidualAdapter,
 )
 
 __all__ = [
-    "PhysicsToODEResidualAdapter",
-    "PhysicsToODEResidualWithSetParamAdapter",
-    "PhysicsToODEResidualWithParamJacobianAdapter",
-    "PhysicsToODEResidualWithHVPAdapter",
-    "create_physics_ode_residual",
+    "CollocationPhysicsToODEResidualAdapter",
     "TimeIntegrationConfig",
     "CollocationModel",
     "BCEnforcingForwardResidual",
