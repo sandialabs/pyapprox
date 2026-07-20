@@ -12,7 +12,6 @@ not embedded in physics.
 from typing import Generic, Protocol, Tuple, runtime_checkable
 
 from pyapprox.pde.collocation.protocols.basis import BasisProtocol
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -166,22 +165,3 @@ class PhysicsWithStateStateHVPProtocol(PhysicsProtocol[Array], Protocol):
             HVP result. Shape: (nstates,)
         """
         ...
-
-
-@runtime_checkable
-class ParameterizationProtocol(Protocol, Generic[Array]):
-    """Minimal interface for physics parameterizations.
-
-    Maps a parameter vector to physics inputs. Implementations live in
-    pde.parameterizations; this protocol is defined here so collocation
-    can depend on the interface without importing the implementation
-    module. Optional derivative capability is expressed through the
-    :class:`ParamDerivatives` bundle — absence of a capability is a
-    ``None`` field, never a missing attribute.
-    """
-
-    def nparams(self) -> int: ...
-
-    def apply(self, physics: object, params_1d: Array) -> None: ...
-
-    def param_derivatives(self) -> ParamDerivatives[Array]: ...

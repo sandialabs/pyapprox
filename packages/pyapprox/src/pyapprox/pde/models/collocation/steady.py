@@ -20,14 +20,14 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian impo
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
     VectorAdjointOperatorWithJacobian,
 )
-from pyapprox.pde.collocation.protocols.physics import (
-    ParameterizationProtocol,
-)
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
 from pyapprox.pde.models.collocation.factory import (
     create_collocation_model,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

@@ -19,7 +19,6 @@ from typing import (
     runtime_checkable,
 )
 
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -199,24 +198,3 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
             Modified (residual, jacobian).
         """
         ...
-
-
-@runtime_checkable
-class ParameterizationProtocol(Protocol, Generic[Array]):
-    """Minimal interface for physics parameterizations.
-
-    Maps a parameter vector to physics inputs. Implementations live in
-    pde.parameterizations; this protocol is defined here so galerkin
-    can depend on the interface without importing the implementation
-    module. Optional derivative capability is expressed through the
-    :class:`ParamDerivatives` bundle — absence of a capability is a
-    ``None`` field, never a missing attribute. (The bundle appears in
-    return position, so the type variable is invariant, not
-    contravariant.)
-    """
-
-    def nparams(self) -> int: ...
-
-    def apply(self, physics: object, params_1d: Array) -> None: ...
-
-    def param_derivatives(self) -> ParamDerivatives[Array]: ...

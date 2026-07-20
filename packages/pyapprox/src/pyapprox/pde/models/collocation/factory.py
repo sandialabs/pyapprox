@@ -3,14 +3,14 @@
 from typing import Optional
 
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
-from pyapprox.pde.collocation.protocols.physics import (
-    ParameterizationProtocol,
-)
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
 from pyapprox.pde.models.collocation.physics_adapter import (
     create_collocation_physics_ode_residual,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

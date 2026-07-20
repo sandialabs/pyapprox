@@ -24,7 +24,6 @@ from typing import Optional, overload
 
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
-    ParameterizationProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
@@ -32,6 +31,9 @@ from pyapprox.pde.galerkin.time_integration.physics_adapter import (
 from pyapprox.pde.parameterizations.derivatives import (
     InitialParamJacobianFn,
     ParamJacobianFn,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array
 

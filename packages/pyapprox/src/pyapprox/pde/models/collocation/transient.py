@@ -19,9 +19,6 @@ from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.collocation.protocols.physics import (
-    ParameterizationProtocol,
-)
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
@@ -30,6 +27,9 @@ from pyapprox.pde.models.collocation.factory import (
 )
 from pyapprox.pde.models.collocation.physics_adapter import (
     CollocationPhysicsToODEResidualWithSetParamAdapter,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

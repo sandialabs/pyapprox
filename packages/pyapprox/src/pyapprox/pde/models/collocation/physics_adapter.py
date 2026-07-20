@@ -26,7 +26,6 @@ from typing import Optional, overload
 
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.collocation.protocols.physics import (
-    ParameterizationProtocol,
     PhysicsWithStateStateHVPProtocol,
 )
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
@@ -37,6 +36,9 @@ from pyapprox.pde.parameterizations.derivatives import (
     InitialParamJacobianFn,
     ParamHVPFn,
     ParamJacobianFn,
+)
+from pyapprox.pde.parameterizations.protocol import (
+    ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
