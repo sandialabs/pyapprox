@@ -14,7 +14,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.collocation.manufactured_solutions import (
+from pyapprox.pde.manufactured import (
     ManufacturedTwoSpeciesReactionDiffusion,
 )
 

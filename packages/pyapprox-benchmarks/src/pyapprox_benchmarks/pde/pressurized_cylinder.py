@@ -424,7 +424,9 @@ def build_hyperelastic_pressurized_cylinder_2d(
     dlam_dE = poisson_ratio / ((1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio))
     mu_init = E_mean * dmu_dE
     lamda_init = E_mean * dlam_dE
-    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(lamda=lamda_init, mu=mu_init)
+    stress_model: NeoHookeanStress[Array] = NeoHookeanStress(
+        lamda=lamda_init, mu=mu_init
+    )
 
     # QoI functional
     functional = _make_hyperelastic_functional(

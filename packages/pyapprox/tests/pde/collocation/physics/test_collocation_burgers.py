@@ -3,7 +3,7 @@
 import math
 
 import numpy as np
-from pyapprox.pde.collocation.manufactured_solutions.burgers import (
+from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,
 )
 from pyapprox.pde.collocation.physics.burgers import (

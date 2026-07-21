@@ -5,7 +5,7 @@ integrates the time derivative exactly while backward Euler (1st order) has
 O(dt) temporal error.
 """
 
-from pyapprox.pde.collocation.manufactured_solutions import (
+from pyapprox.pde.manufactured import (
     ManufacturedLinearElasticityEquations,
 )
 

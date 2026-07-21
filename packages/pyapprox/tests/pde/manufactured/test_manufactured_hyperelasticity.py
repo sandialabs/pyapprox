@@ -16,7 +16,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+from pyapprox.pde.manufactured.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
 )
 from pyapprox.pde.collocation.physics.hyperelasticity import (

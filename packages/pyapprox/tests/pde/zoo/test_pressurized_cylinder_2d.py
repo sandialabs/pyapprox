@@ -24,7 +24,7 @@ from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
-from pyapprox.pde.collocation.manufactured_solutions import (
+from pyapprox.pde.manufactured import (
     ManufacturedLinearElasticityEquations,
 )
 from pyapprox.pde.field_maps.kle_factory import (

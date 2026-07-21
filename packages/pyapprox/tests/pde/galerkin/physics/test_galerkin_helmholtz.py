@@ -20,7 +20,7 @@ if not package_available("skfem"):
 from typing import Callable, Dict, List, Tuple
 
 import numpy as np
-from pyapprox.pde.collocation.manufactured_solutions import (
+from pyapprox.pde.manufactured import (
     ManufacturedAdvectionDiffusionReaction,
     ManufacturedHelmholtz,
 )

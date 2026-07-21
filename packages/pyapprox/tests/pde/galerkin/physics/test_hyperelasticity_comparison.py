@@ -13,7 +13,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+from pyapprox.pde.manufactured.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
 )
 from pyapprox.pde.collocation.physics.hyperelasticity import (

@@ -9,7 +9,7 @@ These tests verify:
 
 import math
 
-from pyapprox.pde.collocation.manufactured_solutions import (
+from pyapprox.pde.manufactured import (
     ManufacturedBurgers1D,
     ManufacturedHelmholtz,
     ManufacturedShallowIce,

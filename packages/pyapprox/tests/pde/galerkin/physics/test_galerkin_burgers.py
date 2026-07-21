@@ -23,7 +23,7 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.collocation.manufactured_solutions.burgers import (
+from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,
 )
 from pyapprox.pde.galerkin.manufactured.adapter import (

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
-from pyapprox.pde.collocation.manufactured_solutions.shallow_shelf import (
+from pyapprox.pde.manufactured.shallow_shelf import (
     ManufacturedShallowShelfVelocityAndDepthEquations,
     ManufacturedShallowShelfVelocityEquations,
 )

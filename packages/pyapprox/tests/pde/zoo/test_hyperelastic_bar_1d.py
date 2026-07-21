@@ -47,7 +47,7 @@ class TestHyperelasticBar1D:
         lamda_val = 2.0
         mu_val = 1.0
 
-        from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+        from pyapprox.pde.manufactured.hyperelasticity import (
             ManufacturedHyperelasticityEquations,
         )
         from pyapprox.pde.collocation.physics.hyperelasticity import (
@@ -132,7 +132,7 @@ class TestHyperelasticBar1D:
         lamda_val = 3.0
         mu_val = 2.0
 
-        from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+        from pyapprox.pde.manufactured.hyperelasticity import (
             ManufacturedHyperelasticityEquations,
         )
         from pyapprox.pde.collocation.physics.hyperelasticity import (

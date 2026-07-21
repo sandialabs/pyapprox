@@ -6,10 +6,10 @@ verifying that the numerical solution matches the exact solution.
 
 import math
 
-from pyapprox.pde.collocation.manufactured_solutions import (
+from pyapprox.pde.manufactured import (
     ManufacturedAdvectionDiffusionReaction,
 )
-from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
+from pyapprox.pde.manufactured.linear_elasticity import (
     ManufacturedLinearElasticityEquations,
 )
 from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform

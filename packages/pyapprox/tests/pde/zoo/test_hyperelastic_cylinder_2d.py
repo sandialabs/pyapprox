@@ -26,7 +26,7 @@ from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
 from pyapprox.pde.collocation.functionals.elasticity_2d import (
     OuterWallRadialDisplacementFunctional,
 )
-from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
+from pyapprox.pde.manufactured.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
 )
 from pyapprox.pde.collocation.physics.hyperelasticity import (

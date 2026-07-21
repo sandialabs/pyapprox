@@ -1,7 +1,7 @@
 """Adapter for using collocation manufactured solutions with Galerkin tests.
 
 Bridges the existing manufactured solution infrastructure in
-`pyapprox.pde.collocation.manufactured_solutions` with the
+`pyapprox.pde.manufactured` with the
 Galerkin boundary conditions and physics implementations.
 """
 
@@ -10,16 +10,6 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
-from pyapprox.pde.collocation.manufactured_solutions import (
-    ManufacturedAdvectionDiffusionReaction,
-    ManufacturedHelmholtz,
-)
-from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
-    ManufacturedHyperelasticityEquations,
-)
-from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
-    ManufacturedLinearElasticityEquations,
-)
 from pyapprox.pde.constitutive.protocols import (
     SymbolicStressModelProtocol,
 )
@@ -31,6 +21,16 @@ from pyapprox.pde.galerkin.boundary import (
     canonical_boundary_normal,
 )
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.pde.manufactured import (
+    ManufacturedAdvectionDiffusionReaction,
+    ManufacturedHelmholtz,
+)
+from pyapprox.pde.manufactured.hyperelasticity import (
+    ManufacturedHyperelasticityEquations,
+)
+from pyapprox.pde.manufactured.linear_elasticity import (
+    ManufacturedLinearElasticityEquations,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -62,7 +62,7 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
     Examples
     --------
     >>> from pyapprox.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.pde.collocation.manufactured_solutions import (
+    >>> from pyapprox.pde.manufactured import (
     ...     ManufacturedAdvectionDiffusionReaction
     ... )
     >>> from pyapprox.pde.galerkin.mesh import StructuredMesh1D

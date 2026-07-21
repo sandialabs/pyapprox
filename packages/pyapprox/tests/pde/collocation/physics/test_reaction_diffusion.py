@@ -3,7 +3,7 @@
 import math
 
 import numpy as np
-from pyapprox.pde.collocation.manufactured_solutions import (
+from pyapprox.pde.manufactured import (
     ManufacturedTwoSpeciesReactionDiffusion,
 )
 from pyapprox.pde.collocation.physics.fitzhugh_nagumo import (

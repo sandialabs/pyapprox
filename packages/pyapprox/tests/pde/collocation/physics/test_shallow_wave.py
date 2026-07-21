@@ -2,7 +2,7 @@
 
 import math
 
-from pyapprox.pde.collocation.manufactured_solutions import (
+from pyapprox.pde.manufactured import (
     ManufacturedShallowWave,
 )
 from pyapprox.pde.collocation.physics.shallow_wave import (

@@ -45,7 +45,7 @@ class TestElasticBar1D:
         length = 2.0
         E_val = 3.0
 
-        from pyapprox.pde.collocation.manufactured_solutions import (
+        from pyapprox.pde.manufactured import (
             ManufacturedAdvectionDiffusionReaction,
         )
         from pyapprox.pde.collocation.physics.advection_diffusion import (
@@ -123,7 +123,7 @@ class TestElasticBar1D:
         length = 1.0
         E_val = 2.0
 
-        from pyapprox.pde.collocation.manufactured_solutions import (
+        from pyapprox.pde.manufactured import (
             ManufacturedAdvectionDiffusionReaction,
         )
         from pyapprox.pde.collocation.physics.advection_diffusion import (

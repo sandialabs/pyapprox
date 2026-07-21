@@ -28,7 +28,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.pde.collocation.manufactured_solutions.burgers import (
+from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,
 )
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics

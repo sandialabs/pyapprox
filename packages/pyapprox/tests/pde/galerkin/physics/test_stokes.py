@@ -25,7 +25,7 @@ from typing import Callable, Dict, List, Tuple
 
 import numpy as np
 from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.collocation.manufactured_solutions.stokes import (
+from pyapprox.pde.manufactured.stokes import (
     ManufacturedStokes,
 )
 from pyapprox.pde.galerkin.basis.vector_lagrange import (

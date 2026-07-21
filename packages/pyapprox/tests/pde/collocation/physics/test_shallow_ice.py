@@ -2,7 +2,7 @@
 
 
 import numpy as np
-from pyapprox.pde.collocation.manufactured_solutions.shallow_ice import (
+from pyapprox.pde.manufactured.shallow_ice import (
     ManufacturedShallowIce,
 )
 from pyapprox.pde.collocation.physics.shallow_ice import (
