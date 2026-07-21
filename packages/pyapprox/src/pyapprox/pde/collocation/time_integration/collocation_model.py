@@ -7,19 +7,10 @@ spectral collocation with various time integration methods.
 from typing import Generic, Optional, Tuple
 
 from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.ode.explicit_steppers.forward_euler import (
-    ForwardEulerHVP,
-)
-from pyapprox.ode.explicit_steppers.heun import HeunHVP
-from pyapprox.ode.implicit_steppers.backward_euler import (
-    BackwardEulerHVP,
-)
-from pyapprox.ode.implicit_steppers.crank_nicolson import (
-    CrankNicolsonHVP,
-)
 from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
 )
+from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
 from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
     create_bc_enforcing_residual,
@@ -29,13 +20,6 @@ from pyapprox.pde.collocation.time_integration.physics_adapter import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
-
-_STEPPER_REGISTRY = {
-    "backward_euler": BackwardEulerHVP,
-    "crank_nicolson": CrankNicolsonHVP,
-    "forward_euler": ForwardEulerHVP,
-    "heun": HeunHVP,
-}
 
 
 class CollocationModel(Generic[Array]):
@@ -70,7 +54,9 @@ class CollocationModel(Generic[Array]):
     >>>
     >>> # Solve transient problem
     >>> config = TimeIntegrationConfig(
-    ...     method="backward_euler", final_time=1.0, deltat=0.01
+    ...     method="backward_euler", init_time=0.0, final_time=1.0,
+    ...     deltat=0.01, newton_tol=1e-10, newton_maxiter=20,
+    ...     lumped_mass=False, verbosity=0,
     ... )
     >>> u_all, times = model.solve_transient(u0, config)
     """
@@ -265,7 +251,7 @@ class CollocationModel(Generic[Array]):
     def solve_transient(
         self,
         initial_condition: Array,
-        config: TimeIntegrationConfig,
+        config: TimeIntegrationConfig[Array],
     ) -> Tuple[Array, Array]:
         """Solve the time-dependent problem.
 
@@ -292,15 +278,8 @@ class CollocationModel(Generic[Array]):
         ValueError
             If config.method is not a recognized time integration method.
         """
-        if config.method not in _STEPPER_REGISTRY:
-            raise ValueError(
-                f"Unknown time integration method: '{config.method}'. "
-                f"Available: {list(_STEPPER_REGISTRY.keys())}"
-            )
-
         # Build pipeline: adapter → stepper → BC residual → Newton → integrator
-        stepper_cls = _STEPPER_REGISTRY[config.method]
-        stepper = stepper_cls(self._adapter)
+        stepper = create_stepper(config.method, self._adapter)
         bc_residual = create_bc_enforcing_residual(stepper, self._physics, self._bkd)
         newton = NewtonSolver(bc_residual)
         newton.set_options(

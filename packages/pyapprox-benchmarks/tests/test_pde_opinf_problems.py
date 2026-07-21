@@ -24,14 +24,14 @@ import math
 
 import numpy as np
 from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.pde.manufactured.burgers import (
-    ManufacturedBurgers1D,
-)
 from pyapprox.pde.galerkin.manufactured.adapter import (
     create_adr_manufactured_test,
 )
 from pyapprox.pde.galerkin.time_integration.galerkin_model import (
     GalerkinModel,
+)
+from pyapprox.pde.manufactured.burgers import (
+    ManufacturedBurgers1D,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.functions.pde.burgers import (
@@ -96,7 +96,8 @@ class TestPeriodicBurgersOpInfProblem:
         model = problem.model()
         config = TimeIntegrationConfig(
             method="forward_euler", init_time=0.0, final_time=0.02,
-            deltat=1e-4,
+            deltat=1e-4, newton_tol=1e-10, newton_maxiter=20,
+            lumped_mass=False, verbosity=0,
         )
         states, _ = model.solve_transient(
             problem.initial_condition(), config
@@ -130,7 +131,8 @@ class TestPeriodicBurgersOpInfProblem:
             u0 = bkd.ravel(solution(coords, 0.0))
             config = TimeIntegrationConfig(
                 method="crank_nicolson", init_time=0.0,
-                final_time=0.1, deltat=1e-3,
+                final_time=0.1, deltat=1e-3, newton_tol=1e-10,
+                newton_maxiter=20, lumped_mass=False, verbosity=0,
             )
             states, times = GalerkinModel(physics, bkd).solve_transient(
                 u0, config
@@ -179,7 +181,8 @@ class TestChafeeInfanteOpInfProblem:
         model = problem.model()
         config = TimeIntegrationConfig(
             method="crank_nicolson", init_time=0.0, final_time=0.5,
-            deltat=5e-3,
+            deltat=5e-3, newton_tol=1e-10, newton_maxiter=20,
+            lumped_mass=False, verbosity=0,
         )
         u0 = problem.initial_condition()
         states, _ = model.solve_transient(u0, config)
@@ -218,7 +221,8 @@ class TestChafeeInfanteOpInfProblem:
             u0 = bkd.ravel(solution(coords, 0.0))
             config = TimeIntegrationConfig(
                 method="crank_nicolson", init_time=0.0,
-                final_time=0.1, deltat=1e-3,
+                final_time=0.1, deltat=1e-3, newton_tol=1e-10,
+                newton_maxiter=20, lumped_mass=False, verbosity=0,
             )
             states, times = GalerkinModel(physics, bkd).solve_transient(
                 u0, config

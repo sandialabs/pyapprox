@@ -24,8 +24,6 @@ from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
-    ODEResidualWithHVPProtocol,
-    ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
@@ -141,7 +139,7 @@ class HeunAdjoint(
     """Heun's method with adjoint capability for gradient computation."""
 
     def __init__(
-        self, residual: ODEResidualWithParamJacobianProtocol[Array]
+        self, residual: ODEResidualProtocol[Array]
     ) -> None:
         super().__init__(residual)
 
@@ -247,7 +245,7 @@ class HeunHVP(
     under autonomous f, wrong otherwise.
     """
 
-    def __init__(self, residual: ODEResidualWithHVPProtocol[Array]) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
     # -- Same-step HVP methods (all zero: R_n is linear in y_n) --

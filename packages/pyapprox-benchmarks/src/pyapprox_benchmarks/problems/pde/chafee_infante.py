@@ -149,6 +149,10 @@ def build_chafee_infante_opinf_problem(
             init_time=0.0,
             final_time=final_time,
             deltat=deltat,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         ),
         initial_condition=initial_condition,
         nominal_parameters=bkd.array(

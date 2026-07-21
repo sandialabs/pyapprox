@@ -2,10 +2,12 @@
 
 import numpy as np
 import pytest
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
+from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
-from pyapprox.pde.manufactured.shallow_shelf import (
-    ManufacturedShallowShelfVelocityAndDepthEquations,
-    ManufacturedShallowShelfVelocityEquations,
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    TransformedMesh2D,
 )
 from pyapprox.pde.collocation.physics.shallow_shelf import (
     ShallowShelfDepthPhysics,
@@ -14,17 +16,15 @@ from pyapprox.pde.collocation.physics.shallow_shelf import (
     create_shallow_shelf_depth,
     create_shallow_shelf_velocity,
 )
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
-from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    TransformedMesh2D,
-)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.manufactured.shallow_shelf import (
+    ManufacturedShallowShelfVelocityAndDepthEquations,
+    ManufacturedShallowShelfVelocityEquations,
+)
+
 from tests._helpers.markers import slow_test
 from tests._helpers.physics_test_utils import (
     PhysicsTestBase,
@@ -407,6 +407,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
             init_time=0.0,
             final_time=0.01,
             deltat=0.002,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(H0, config)
@@ -455,6 +459,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
             init_time=0.0,
             final_time=final_time,
             deltat=0.01,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(H0, config)
@@ -539,6 +547,10 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
             init_time=0.0,
             final_time=final_time,
             deltat=0.01,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(state0, config)
@@ -767,6 +779,9 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
             final_time=final_time,
             deltat=0.1,
             newton_maxiter=50,
+            newton_tol=1e-10,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(state0, config)

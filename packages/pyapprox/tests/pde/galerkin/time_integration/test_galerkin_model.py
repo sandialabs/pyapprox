@@ -12,18 +12,18 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
 )
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinModel,
     TimeIntegrationConfig,
 )
+
 from tests._helpers.markers import slow_test
 
 
@@ -99,6 +99,10 @@ class TestGalerkinModelImplicit:
             init_time=0.0,
             final_time=5.0,
             deltat=1.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
 
@@ -143,6 +147,10 @@ class TestGalerkinModelExplicit:
             init_time=0.0,
             final_time=5e-4,
             deltat=1e-5,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
         solutions, times = model.solve_transient(y0, config)
 

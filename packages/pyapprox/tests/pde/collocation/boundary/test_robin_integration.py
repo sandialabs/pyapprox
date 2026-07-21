@@ -6,17 +6,6 @@ verifying that the numerical solution matches the exact solution.
 
 import math
 
-from pyapprox.pde.manufactured import (
-    ManufacturedAdvectionDiffusionReaction,
-)
-from pyapprox.pde.manufactured.linear_elasticity import (
-    ManufacturedLinearElasticityEquations,
-)
-from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
-from pyapprox.pde.collocation.physics.linear_elasticity import (
-    LinearElasticityPhysics,
-)
-
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -37,10 +26,20 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_1d,
     create_uniform_mesh_2d,
 )
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import AdvectionDiffusionReaction
+from pyapprox.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
+)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
+)
+from pyapprox.pde.manufactured import (
+    ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.pde.manufactured.linear_elasticity import (
+    ManufacturedLinearElasticityEquations,
 )
 
 
@@ -700,6 +699,11 @@ class TestTransientRobinSolve:
             method="backward_euler",
             final_time=1.0,
             deltat=0.25,
+            init_time=0.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(u_initial, config)

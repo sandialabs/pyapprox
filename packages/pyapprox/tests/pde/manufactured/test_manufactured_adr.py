@@ -19,12 +19,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.manufactured import (
-    ManufacturedAdvectionDiffusionReaction,
-)
-from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.cartesian import cartesian_product_samples
-
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -47,6 +41,11 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.manufactured import (
+    ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.cartesian import cartesian_product_samples
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):
@@ -756,6 +755,10 @@ class TestManufacturedADRTransient:
             deltat=0.01,
             init_time=time_start,
             final_time=time_end,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
         solutions, times = model.solve_transient(u0, config)
 

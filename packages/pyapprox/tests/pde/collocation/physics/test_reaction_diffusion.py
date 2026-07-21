@@ -3,8 +3,13 @@
 import math
 
 import numpy as np
-from pyapprox.pde.manufactured import (
-    ManufacturedTwoSpeciesReactionDiffusion,
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import (
+    zero_dirichlet_bc,
+)
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.fitzhugh_nagumo import (
     FitzHughNagumoPhysics,
@@ -16,20 +21,15 @@ from pyapprox.pde.collocation.physics.reaction_diffusion import (
     TwoSpeciesReactionDiffusionPhysics,
     create_two_species_reaction_diffusion,
 )
-from pyapprox.util.rootfinding.newton import NewtonSolver
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import (
-    zero_dirichlet_bc,
-)
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
-)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.manufactured import (
+    ManufacturedTwoSpeciesReactionDiffusion,
+)
+from pyapprox.util.rootfinding.newton import NewtonSolver
+
 from tests._helpers.physics_test_utils import (
     PhysicsNewtonResidual,
     PhysicsTestBase,
@@ -267,6 +267,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             init_time=0.0,
             final_time=final_time,
             deltat=0.005,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(state0, config)
@@ -346,6 +350,10 @@ class TestTwoSpeciesReactionDiffusion(PhysicsTestBase):
             init_time=0.0,
             final_time=final_time,
             deltat=0.01,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(state0, config)
@@ -484,6 +492,10 @@ class TestFitzHughNagumoPhysics(PhysicsTestBase):
             init_time=0.0,
             final_time=1.0,
             deltat=0.01,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(state0, config)

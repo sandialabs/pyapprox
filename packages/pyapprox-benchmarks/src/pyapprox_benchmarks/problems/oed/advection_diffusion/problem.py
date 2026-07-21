@@ -444,10 +444,13 @@ class AdvectionDiffusionOEDProblem(
         # roundoff without masking genuine nonlinearity.
         config = TimeIntegrationConfig(
             method=self._time_integrator,
+            init_time=0.0,
             final_time=self._final_time,
             deltat=self._deltat,
             newton_tol=1e-6,
             newton_maxiter=1,
+            lumped_mass=False,
+            verbosity=0,
         )
         return model.solve_transient(bkd.asarray(ic), config)
 

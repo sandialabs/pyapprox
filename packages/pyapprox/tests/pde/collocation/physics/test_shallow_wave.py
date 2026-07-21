@@ -2,24 +2,24 @@
 
 import math
 
-from pyapprox.pde.manufactured import (
-    ManufacturedShallowWave,
-)
-from pyapprox.pde.collocation.physics.shallow_wave import (
-    ShallowWavePhysics,
-    create_shallow_wave,
-)
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
 )
+from pyapprox.pde.collocation.physics.shallow_wave import (
+    ShallowWavePhysics,
+    create_shallow_wave,
+)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.manufactured import (
+    ManufacturedShallowWave,
+)
+
 from tests._helpers.physics_test_utils import (
     PhysicsTestBase,
 )
@@ -220,6 +220,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
             init_time=0.0,
             final_time=0.01,
             deltat=0.005,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(state0, config)
@@ -305,6 +309,10 @@ class TestShallowWavePhysics(PhysicsTestBase):
             init_time=0.0,
             final_time=final_time,
             deltat=0.01,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(state0, config)

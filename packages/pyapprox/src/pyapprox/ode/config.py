@@ -4,17 +4,26 @@ Used by both collocation and Galerkin modules.
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Generic, Union
+
+from pyapprox.ode.stepper_table import StepperFactory
+from pyapprox.util.backends.protocols import Array
 
 
 @dataclass
-class TimeIntegrationConfig:
+class TimeIntegrationConfig(Generic[Array]):
     """Configuration for time integration.
+
+    All fields are required: time-integration settings are problem
+    dependent, so silent defaults would mask configuration mistakes.
 
     Parameters
     ----------
-    method : str
-        Time integration method. One of:
+    method : str or StepperFactory
+        Time integration method: a built-in name resolved against the
+        closed stepper table, or a StepperFactory callable (typed
+        extension path for custom steppers; no registration needed).
+        Built-in names:
         - "forward_euler": Explicit first-order
         - "backward_euler": Implicit first-order (A-stable)
         - "crank_nicolson": Implicit second-order
@@ -23,30 +32,27 @@ class TimeIntegrationConfig:
           symplectic; conserves a modified energy for nonlinear
           Hamiltonian systems, where Crank-Nicolson drifts)
     init_time : float
-        Initial time. Default: 0.0
+        Initial time.
     final_time : float
         Final time.
     deltat : float
         Time step size.
     newton_tol : float
-        Newton solver tolerance for implicit methods. Default: 1e-10
+        Newton solver tolerance for implicit methods.
     newton_maxiter : int
-        Newton solver maximum iterations. Default: 20
+        Newton solver maximum iterations.
+    lumped_mass : bool
+        Use a lumped (diagonal) mass matrix for explicit Galerkin
+        stepping instead of the consistent mass.
     verbosity : int
-        Verbosity level. Default: 0
+        Verbosity level.
     """
 
-    method: Literal[
-        "forward_euler",
-        "backward_euler",
-        "crank_nicolson",
-        "heun",
-        "implicit_midpoint",
-    ] = "backward_euler"
-    init_time: float = 0.0
-    final_time: float = 1.0
-    deltat: float = 0.01
-    newton_tol: float = 1e-10
-    newton_maxiter: int = 20
-    lumped_mass: bool = False
-    verbosity: int = 0
+    method: Union[str, StepperFactory[Array]]
+    init_time: float
+    final_time: float
+    deltat: float
+    newton_tol: float
+    newton_maxiter: int
+    lumped_mass: bool
+    verbosity: int

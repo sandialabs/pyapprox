@@ -26,9 +26,9 @@ from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
-    ImplicitODEResidualProtocol,
     ImplicitODEResidualWithHVPProtocol,
     ImplicitODEResidualWithParamJacobianProtocol,
+    ODEResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
@@ -55,9 +55,7 @@ class CrankNicolsonStepper(
         \bigl[f(y_{n-1}, t_{n-1}) + f(y_n, t_n)\bigr] = 0
     """
 
-    _residual: ImplicitODEResidualProtocol[Array]
-
-    def __init__(self, residual: ImplicitODEResidualProtocol[Array]) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
     def _newton_coefficient(self) -> float:
@@ -79,7 +77,7 @@ class CrankNicolsonStepper(
     def jacobian(self, state: Array) -> Array:
         r"""Compute :math:`dR/dy_n = M - (\Delta t/2) \, (df/dy)|_{y_n}`."""
         self._residual.set_time(self._ctx.t_curr)
-        return self._residual.newton_jacobian(
+        return self._implicit_residual.newton_jacobian(
             state, self._newton_coefficient()
         ).as_matrix()
 
@@ -139,7 +137,7 @@ class CrankNicolsonAdjoint(
     _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
 
     def __init__(
-        self, residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
+        self, residual: ODEResidualProtocol[Array]
     ) -> None:
         super().__init__(residual)
 
@@ -167,7 +165,7 @@ class CrankNicolsonAdjoint(
     ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2) \, J)^T`."""
         self._residual.set_time(ctx.t_curr)
-        op = self._residual.newton_jacobian(
+        op = self._implicit_residual.newton_jacobian(
             y_curr, 0.5 * ctx.deltat
         )
         return TransposeLinearOperator(op)
@@ -193,7 +191,7 @@ class CrankNicolsonAdjoint(
     ) -> Array:
         r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
         self._residual.set_time(ctx.t_curr)
-        op = self._residual.newton_jacobian(
+        op = self._implicit_residual.newton_jacobian(
             final_fwd_sol, 0.5 * ctx.deltat
         )
         return op.solve_transpose(-final_dqdu)
@@ -232,7 +230,7 @@ class CrankNicolsonHVP(
 
     _residual: ImplicitODEResidualWithHVPProtocol[Array]
 
-    def __init__(self, residual: ImplicitODEResidualWithHVPProtocol[Array]) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
     # -- Same-step HVP methods --

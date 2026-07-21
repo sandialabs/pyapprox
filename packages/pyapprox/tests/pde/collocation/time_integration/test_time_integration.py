@@ -2,6 +2,8 @@
 
 import math
 
+import numpy as np
+import pytest
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
@@ -231,7 +233,11 @@ class TestCollocationModel:
             method="backward_euler",
             init_time=0.0,
             final_time=1.0,
-            deltat=0.01,  # Smaller dt for better accuracy
+            deltat=0.01,  # Smaller dt for better accuracy,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         # Solve
@@ -256,7 +262,12 @@ class TestCollocationModel:
         config = TimeIntegrationConfig(
             method="forward_euler",
             final_time=0.5,
-            deltat=0.01,  # Small dt for stability
+            deltat=0.01,  # Small dt for stability,
+            init_time=0.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(u0, config)
@@ -280,6 +291,11 @@ class TestCollocationModel:
             method="heun",
             final_time=0.5,
             deltat=0.05,
+            init_time=0.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(u0, config)
@@ -304,12 +320,81 @@ class TestCollocationModel:
             method="crank_nicolson",
             final_time=0.5,
             deltat=0.1,
+            init_time=0.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(u0, config)
 
         u_exact_final = math.exp(-r * 0.5) * bkd.ones((npts,))
         bkd.assert_allclose(solutions[:, -1], u_exact_final, rtol=0.01)
+
+    @pytest.mark.parametrize(
+        "method,expected_order",
+        [
+            ("backward_euler", 1.0),
+            ("crank_nicolson", 2.0),
+            ("implicit_midpoint", 2.0),
+        ],
+    )
+    def test_transient_temporal_convergence(
+        self, bkd, method: str, expected_order: float
+    ):
+        """Observed temporal order matches the stepper's design order.
+
+        Manufactured reaction ODE with cubic time dependence (so first-
+        and second-order methods separate): du/dt = -r*u + 3t^2 + r*t^3
+        has exact solution u(t) = u0*exp(-r*t) + t^3 at every node.
+        """
+        npts = 5
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+
+        r = 1.0
+
+        def forcing(t: float):
+            return (3.0 * t**2 + r * t**3) * bkd.ones((npts,))
+
+        physics = AdvectionDiffusionReaction(
+            basis, bkd, reaction=-r, forcing=forcing
+        )
+        model = CollocationModel(physics, bkd)
+
+        u0 = bkd.ones((npts,))
+        final_time = 0.5
+        u_exact_final = (
+            math.exp(-r * final_time) + final_time**3
+        ) * bkd.ones((npts,))
+
+        dt_values = [0.1, 0.05, 0.025]
+        errors = []
+        for deltat in dt_values:
+            config = TimeIntegrationConfig(
+                method=method,
+                init_time=0.0,
+                final_time=final_time,
+                deltat=deltat,
+                newton_tol=1e-12,
+                newton_maxiter=20,
+                lumped_mass=False,
+                verbosity=0,
+            )
+            solutions, _ = model.solve_transient(u0, config)
+            err = bkd.to_float(bkd.norm(solutions[:, -1] - u_exact_final))
+            errors.append(err)
+
+        err_arr = np.array(errors)
+        dt_arr = np.array(dt_values)
+        rates = np.log(err_arr[:-1] / err_arr[1:]) / np.log(
+            dt_arr[:-1] / dt_arr[1:]
+        )
+        assert np.all(rates > expected_order - 0.15), (
+            f"{method}: observed rates {rates} below expected "
+            f"order {expected_order}"
+        )
 
     def test_transient_diffusion(self, bkd):
         """Test transient diffusion equation.
@@ -342,6 +427,11 @@ class TestCollocationModel:
             method="backward_euler",
             final_time=0.5,
             deltat=0.01,
+            init_time=0.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(u0, config)
@@ -368,6 +458,11 @@ class TestCollocationModel:
             method="backward_euler",
             final_time=0.5,
             deltat=0.1,
+            init_time=0.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(u0, config)

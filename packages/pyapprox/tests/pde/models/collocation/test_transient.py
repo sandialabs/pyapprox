@@ -84,6 +84,8 @@ def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
         deltat=0.02,
         newton_tol=1e-10,
         newton_maxiter=20,
+        lumped_mass=False,
+        verbosity=0,
     )
 
     return physics, param, init_state, time_config
@@ -342,6 +344,8 @@ def _create_robin_transient_problem(bkd, npts=15):
         deltat=0.02,
         newton_tol=1e-10,
         newton_maxiter=20,
+        lumped_mass=False,
+        verbosity=0,
     )
 
     return physics, param, init_state, time_config
@@ -401,6 +405,8 @@ def _create_mixed_bc_transient_problem(bkd, npts=15):
         deltat=0.02,
         newton_tol=1e-10,
         newton_maxiter=20,
+        lumped_mass=False,
+        verbosity=0,
     )
 
     return physics, param, init_state, time_config

@@ -129,7 +129,7 @@ def create_transient_diffusion_1d(
     npts: int,
     domain: Tuple[float, float],
     init_state_func: Callable[..., Any],
-    time_config: TimeIntegrationConfig,
+    time_config: TimeIntegrationConfig[Array],
     forcing: Optional[Callable[..., Any]] = None,
     diffusion_base: Optional[float] = None,
     basis_funs: Optional[List[Array]] = None,

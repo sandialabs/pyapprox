@@ -63,7 +63,7 @@ class TransientForwardModel(Generic[Array]):
         physics: Any,
         bkd: Backend[Array],
         init_state: Array,
-        time_config: TimeIntegrationConfig,
+        time_config: TimeIntegrationConfig[Array],
         functional: Any = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ) -> None:

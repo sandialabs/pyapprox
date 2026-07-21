@@ -22,8 +22,6 @@ from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
-    ODEResidualWithHVPProtocol,
-    ODEResidualWithParamJacobianProtocol,
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
@@ -109,7 +107,7 @@ class ForwardEulerAdjoint(
     """Forward Euler with adjoint capability for gradient computation."""
 
     def __init__(
-        self, residual: ODEResidualWithParamJacobianProtocol[Array]
+        self, residual: ODEResidualProtocol[Array]
     ) -> None:
         super().__init__(residual)
 
@@ -161,7 +159,7 @@ class ForwardEulerHVP(
     f(y_k). param_param_hvp is nonzero because both terms depend on p.
     """
 
-    def __init__(self, residual: ODEResidualWithHVPProtocol[Array]) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
     # -- Same-step HVP methods (all zero: R_n is linear in y_n) --

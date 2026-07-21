@@ -28,18 +28,17 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.pde.manufactured.burgers import (
-    ManufacturedBurgers1D,
-)
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.pde.galerkin.time_integration.galerkin_model import (
     GalerkinModel,
 )
+from pyapprox.pde.manufactured.burgers import (
+    ManufacturedBurgers1D,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 
 
 def _make_periodic_burgers(bkd, nx, viscosity=0.1, degree=1, forcing=None):
@@ -104,6 +103,10 @@ class TestDiscreteConservation:
         config = TimeIntegrationConfig(
             method="forward_euler", init_time=0.0, final_time=0.02,
             deltat=1e-4,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
         states, _ = GalerkinModel(physics, bkd).solve_transient(u0, config)
         row_sums = _mass_row_sums(physics, bkd)
@@ -119,6 +122,10 @@ class TestDiscreteConservation:
         config = TimeIntegrationConfig(
             method="backward_euler", init_time=0.0, final_time=0.2,
             deltat=5e-3,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
         states, _ = GalerkinModel(physics, bkd).solve_transient(u0, config)
         # M @ states is the skfem-seam contraction; analysis stays bkd
@@ -156,6 +163,10 @@ class TestManufacturedSolutionRecovery:
             config = TimeIntegrationConfig(
                 method="crank_nicolson", init_time=0.0,
                 final_time=final_time, deltat=1e-3,
+                newton_tol=1e-10,
+                newton_maxiter=20,
+                lumped_mass=False,
+                verbosity=0,
             )
             states, times = GalerkinModel(physics, bkd).solve_transient(
                 u0, config

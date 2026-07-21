@@ -31,9 +31,9 @@ from pyapprox.ode.mixins.hvp import HVPMixin
 from pyapprox.ode.mixins.implicit import ImplicitStepperMixin
 from pyapprox.ode.mixins.sensitivity import SensitivityMixin
 from pyapprox.ode.protocols.ode_residual import (
-    ImplicitODEResidualProtocol,
     ImplicitODEResidualWithHVPProtocol,
     ImplicitODEResidualWithParamJacobianProtocol,
+    ODEResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array
@@ -60,9 +60,7 @@ class ImplicitMidpointStepper(
         t_{n-1} + \tfrac{\Delta t}{2}\bigr) = 0
     """
 
-    _residual: ImplicitODEResidualProtocol[Array]
-
-    def __init__(self, residual: ImplicitODEResidualProtocol[Array]) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
     def _newton_coefficient(self) -> float:
@@ -88,7 +86,7 @@ class ImplicitMidpointStepper(
         """
         y_mid = self._midpoint_state(self._ctx, state)
         self._set_midpoint_time(self._ctx)
-        return self._residual.newton_jacobian(
+        return self._implicit_residual.newton_jacobian(
             y_mid, self._newton_coefficient()
         ).as_matrix()
 
@@ -138,7 +136,7 @@ class ImplicitMidpointAdjoint(
     _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
 
     def __init__(
-        self, residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
+        self, residual: ODEResidualProtocol[Array]
     ) -> None:
         super().__init__(residual)
 
@@ -158,7 +156,7 @@ class ImplicitMidpointAdjoint(
         \, J(y_{\mathrm{mid}}))^T`."""
         y_mid = self._midpoint_state(ctx, y_curr)
         self._set_midpoint_time(ctx)
-        op = self._residual.newton_jacobian(y_mid, 0.5 * ctx.deltat)
+        op = self._implicit_residual.newton_jacobian(y_mid, 0.5 * ctx.deltat)
         return TransposeLinearOperator(op)
 
     def adjoint_off_diag_jacobian(
@@ -186,7 +184,7 @@ class ImplicitMidpointAdjoint(
         r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
         y_mid = self._midpoint_state(ctx, final_fwd_sol)
         self._set_midpoint_time(ctx)
-        op = self._residual.newton_jacobian(y_mid, 0.5 * ctx.deltat)
+        op = self._implicit_residual.newton_jacobian(y_mid, 0.5 * ctx.deltat)
         return op.solve_transpose(-final_dqdu)
 
 
@@ -218,7 +216,7 @@ class ImplicitMidpointHVP(
     _residual: ImplicitODEResidualWithHVPProtocol[Array]
 
     def __init__(
-        self, residual: ImplicitODEResidualWithHVPProtocol[Array]
+        self, residual: ODEResidualProtocol[Array]
     ) -> None:
         super().__init__(residual)
 

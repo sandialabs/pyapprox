@@ -24,17 +24,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.manufactured import (
-    ManufacturedAdvectionDiffusionReaction,
-    ManufacturedHelmholtz,
-    ManufacturedLinearElasticityEquations,
-)
-from pyapprox.pde.collocation.mesh.transforms.elliptical import (
-    EllipticalTransform,
-)
-from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
-from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis2D,
 )
@@ -44,6 +33,10 @@ from pyapprox.pde.collocation.boundary import (
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
 )
+from pyapprox.pde.collocation.mesh.transforms.elliptical import (
+    EllipticalTransform,
+)
+from pyapprox.pde.collocation.mesh.transforms.polar import PolarTransform
 from pyapprox.pde.collocation.physics import (
     AdvectionDiffusionReaction,
     HelmholtzPhysics,
@@ -53,6 +46,13 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.manufactured import (
+    ManufacturedAdvectionDiffusionReaction,
+    ManufacturedHelmholtz,
+    ManufacturedLinearElasticityEquations,
+)
+from pyapprox.util.backends.protocols import Array, Backend
+
 from tests._helpers.markers import slow_test
 
 
@@ -513,6 +513,11 @@ class TestTransientPolarADR:
             final_time=1.0,
             deltat=0.25,
             method="backward_euler",
+            init_time=0.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         # Solve - returns (solutions, times) where solutions shape is (nstates, ntimes)
@@ -557,6 +562,11 @@ class TestTransientPolarADR:
             final_time=1.0,
             deltat=0.5,
             method="crank_nicolson",
+            init_time=0.0,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         # Solve - returns (solutions, times) where solutions shape is (nstates, ntimes)

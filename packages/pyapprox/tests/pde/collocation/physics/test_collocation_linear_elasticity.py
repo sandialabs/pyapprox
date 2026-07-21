@@ -5,10 +5,6 @@ integrates the time derivative exactly while backward Euler (1st order) has
 O(dt) temporal error.
 """
 
-from pyapprox.pde.manufactured import (
-    ManufacturedLinearElasticityEquations,
-)
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
@@ -19,6 +15,9 @@ from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
+)
+from pyapprox.pde.manufactured import (
+    ManufacturedLinearElasticityEquations,
 )
 
 
@@ -95,6 +94,10 @@ class TestLinearElasticityTransient:
             init_time=0.0,
             final_time=final_time,
             deltat=0.01,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(u0, config)

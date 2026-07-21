@@ -2,21 +2,6 @@
 
 import math
 
-from pyapprox.pde.manufactured import (
-    ManufacturedAdvectionDiffusionReaction,
-)
-from pyapprox.pde.collocation.physics.advection_diffusion import (
-    AdvectionDiffusionReaction,
-    create_advection_diffusion,
-    create_steady_diffusion,
-)
-from pyapprox.pde.field_maps.basis_expansion import (
-    BasisExpansion,
-)
-from pyapprox.pde.parameterizations.diffusion import (
-    create_diffusion_parameterization,
-)
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
@@ -26,9 +11,23 @@ from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     create_uniform_mesh_1d,
 )
+from pyapprox.pde.collocation.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
+    create_advection_diffusion,
+    create_steady_diffusion,
+)
 from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
+)
+from pyapprox.pde.field_maps.basis_expansion import (
+    BasisExpansion,
+)
+from pyapprox.pde.manufactured import (
+    ManufacturedAdvectionDiffusionReaction,
+)
+from pyapprox.pde.parameterizations.diffusion import (
+    create_diffusion_parameterization,
 )
 
 
@@ -413,6 +412,10 @@ class TestADRTransient:
             init_time=0.0,
             final_time=final_time,
             deltat=0.005,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
         )
 
         solutions, times = model.solve_transient(u0, config)
