@@ -1,13 +1,14 @@
-"""Tests for BlockDiagonalLinearOperator."""
+"""Tests for the concrete LinearOperatorProtocol implementations."""
 
 import numpy as np
 import pytest
-
 from pyapprox.ode.linear_operator import (
     BlockDiagonalLinearOperator,
     LinearOperatorProtocol,
     MatrixOperator,
+    SparseMatrixOperator,
 )
+from scipy.sparse import diags
 
 
 class TestBlockDiagonalLinearOperator:
@@ -119,3 +120,87 @@ class TestBlockDiagonalLinearOperator:
     def test_invalid_shape_not_square(self, bkd):
         with pytest.raises(ValueError, match="square"):
             BlockDiagonalLinearOperator(bkd.array(np.zeros((2, 3, 4))), bkd)
+
+
+class TestSparseMatrixOperator:
+    def _make_sparse_system(self, n=12, seed=3):
+        """SPD tridiagonal sparse matrix and a dense RHS."""
+        rng = np.random.RandomState(seed)
+        lower = rng.rand(n - 1)
+        matrix = diags(
+            [lower, 2.0 + np.arange(n), 0.5 * lower], [-1, 0, 1]
+        ).tocsr()
+        rhs = rng.randn(n)
+        return matrix, rhs
+
+    def test_protocol_conformance(self, numpy_bkd):
+        matrix, _ = self._make_sparse_system()
+        op = SparseMatrixOperator(matrix, numpy_bkd)
+        assert isinstance(op, LinearOperatorProtocol)
+
+    def test_solve_matches_dense(self, numpy_bkd):
+        matrix, rhs = self._make_sparse_system()
+        op = SparseMatrixOperator(matrix, numpy_bkd)
+        dense = matrix.toarray()
+        numpy_bkd.assert_allclose(
+            op.solve(numpy_bkd.asarray(rhs)),
+            numpy_bkd.asarray(np.linalg.solve(dense, rhs)),
+            rtol=1e-12,
+        )
+
+    def test_solve_transpose_matches_dense(self, numpy_bkd):
+        matrix, rhs = self._make_sparse_system()
+        op = SparseMatrixOperator(matrix, numpy_bkd)
+        dense = matrix.toarray()
+        numpy_bkd.assert_allclose(
+            op.solve_transpose(numpy_bkd.asarray(rhs)),
+            numpy_bkd.asarray(np.linalg.solve(dense.T, rhs)),
+            rtol=1e-12,
+        )
+
+    def test_apply_and_transpose_match_dense(self, numpy_bkd):
+        matrix, rhs = self._make_sparse_system()
+        op = SparseMatrixOperator(matrix, numpy_bkd)
+        dense = matrix.toarray()
+        v = numpy_bkd.asarray(rhs)
+        numpy_bkd.assert_allclose(op.apply(v), dense @ rhs, rtol=1e-12)
+        numpy_bkd.assert_allclose(
+            op.apply_transpose(v), dense.T @ rhs, rtol=1e-12
+        )
+        numpy_bkd.assert_allclose(op.as_matrix(), dense, rtol=1e-15)
+
+    def test_factorization_cached_and_shared(self, numpy_bkd, monkeypatch):
+        """One splu call serves solve and solve_transpose alike."""
+        import pyapprox.ode.linear_operator as lin_op_module
+
+        matrix, rhs = self._make_sparse_system()
+        op = SparseMatrixOperator(matrix, numpy_bkd)
+
+        calls = []
+        real_splu = lin_op_module.splu
+
+        def counting_splu(*args, **kwargs):
+            calls.append(1)
+            return real_splu(*args, **kwargs)
+
+        monkeypatch.setattr(lin_op_module, "splu", counting_splu)
+        v = numpy_bkd.asarray(rhs)
+        op.solve(v)
+        op.solve(v)
+        op.solve_transpose(v)
+        assert len(calls) == 1
+
+    def test_rejects_dense_matrix(self, numpy_bkd):
+        with pytest.raises(TypeError, match="sparse"):
+            SparseMatrixOperator(np.eye(3), numpy_bkd)
+
+    def test_rejects_nonsquare(self, numpy_bkd):
+        matrix, _ = self._make_sparse_system()
+        with pytest.raises(ValueError, match="square"):
+            SparseMatrixOperator(matrix[:, :-1], numpy_bkd)
+
+    def test_rejects_torch_backend(self, torch_bkd):
+        """Sparse factorization would break autograd; constructor raises."""
+        matrix, _ = self._make_sparse_system()
+        with pytest.raises(TypeError, match="NumpyBkd"):
+            SparseMatrixOperator(matrix, torch_bkd)

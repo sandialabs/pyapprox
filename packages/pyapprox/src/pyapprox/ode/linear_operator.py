@@ -7,9 +7,15 @@ M - coefficient*J. Explicit steppers return a MassMatrixTransposeOperator
 wrapping the full assembled matrix.
 """
 
-from typing import Generic, Protocol, runtime_checkable
+from typing import Any, Generic, Optional, Protocol, runtime_checkable
+
+import numpy as np
+from numpy.typing import NDArray
+from scipy.sparse import csc_matrix, issparse, spmatrix
+from scipy.sparse.linalg import SuperLU, splu
 
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
@@ -75,6 +81,69 @@ class MatrixOperator(Generic[Array]):
 
     def apply_transpose(self, vec: Array) -> Array:
         return self._bkd.dot(self._matrix.T, vec)
+
+
+class SparseMatrixOperator:
+    """Wraps a scipy sparse matrix with a cached LU factorization.
+
+    Unlike MatrixOperator, which re-solves from scratch on every call
+    (O(n^3)-ish per solve), the first ``solve``/``solve_transpose``
+    triggers a single sparse LU factorization that is reused for all
+    subsequent solves in either orientation (``trans="T"`` reuses the
+    same factors). Intended for implicit time stepping where one
+    Jacobian is solved against many right-hand sides.
+
+    NumPy backend only — deliberately non-generic and concretely
+    NDArray-typed: routing a sparse factorization through scipy would
+    silently break the torch autograd graph, the same reason
+    ``TorchBkd.solve_sparse`` raises. Satisfies
+    ``LinearOperatorProtocol[ndarray]``.
+    """
+
+    def __init__(self, matrix: spmatrix, bkd: NumpyBkd) -> None:
+        if not issparse(matrix):
+            raise TypeError(
+                "SparseMatrixOperator requires a scipy sparse matrix, "
+                f"got {type(matrix).__name__}. Use MatrixOperator for "
+                "dense matrices."
+            )
+        if matrix.shape[0] != matrix.shape[1]:
+            raise ValueError(f"matrix must be square, got shape {matrix.shape}")
+        if not isinstance(bkd, NumpyBkd):
+            raise TypeError(
+                "SparseMatrixOperator supports only NumpyBkd (sparse "
+                "factorization would break the torch autograd graph), "
+                f"got {type(bkd).__name__}"
+            )
+        self._matrix = csc_matrix(matrix) if matrix.format != "csc" else matrix
+        self._bkd = bkd
+        self._lu: Optional[SuperLU] = None
+
+    def _factorization(self) -> SuperLU:
+        if self._lu is None:
+            self._lu = splu(self._matrix)
+        return self._lu
+
+    def solve(self, rhs: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+        return self._bkd.asarray(self._factorization().solve(rhs))
+
+    def apply(self, vec: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+        return self._bkd.asarray(self._matrix @ vec)
+
+    def as_matrix(self) -> NDArray[np.floating[Any]]:
+        """Materialize the operator as a dense matrix (like the
+        block-diagonal operator, only on explicit request)."""
+        return self._bkd.asarray(self._matrix.toarray())
+
+    def solve_transpose(
+        self, rhs: NDArray[np.floating[Any]]
+    ) -> NDArray[np.floating[Any]]:
+        return self._bkd.asarray(self._factorization().solve(rhs, trans="T"))
+
+    def apply_transpose(
+        self, vec: NDArray[np.floating[Any]]
+    ) -> NDArray[np.floating[Any]]:
+        return self._bkd.asarray(self._matrix.T @ vec)
 
 
 class TransposeLinearOperator(Generic[Array]):

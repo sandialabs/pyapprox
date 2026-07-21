@@ -12,7 +12,6 @@ will be wrong and the error ratio will be large.
 from typing import Callable, Optional, Tuple
 
 import torch
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

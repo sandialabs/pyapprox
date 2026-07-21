@@ -1,7 +1,6 @@
 """Tests for TimeIntegrator."""
 
 import pytest
-
 from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerAdjoint
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.mass_matrix import IdentityMassMatrix
