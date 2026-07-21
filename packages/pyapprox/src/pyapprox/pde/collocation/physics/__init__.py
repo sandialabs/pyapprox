@@ -52,7 +52,7 @@ from pyapprox.pde.collocation.physics.shallow_wave import (
     ShallowWavePhysics,
     create_shallow_wave,
 )
-from pyapprox.pde.collocation.physics.stress_models import (
+from pyapprox.pde.constitutive import (
     NeoHookeanStress,
     StressModelProtocol,
     StressModelWithTangentProtocol,

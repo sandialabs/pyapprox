@@ -21,7 +21,7 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC

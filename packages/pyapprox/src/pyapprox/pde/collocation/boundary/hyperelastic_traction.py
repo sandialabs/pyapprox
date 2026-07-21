@@ -16,7 +16,7 @@ from pyapprox.pde.collocation.boundary.robin import RobinBC
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
-    from pyapprox.pde.collocation.physics.stress_models.protocols import (
+    from pyapprox.pde.constitutive.protocols import (
         StressModelWithTangentProtocol,
     )
 

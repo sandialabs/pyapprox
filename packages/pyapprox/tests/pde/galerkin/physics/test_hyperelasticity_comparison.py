@@ -21,7 +21,7 @@ from pyapprox.pde.collocation.physics.hyperelasticity import (
 )
 
 # -- Shared --
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC

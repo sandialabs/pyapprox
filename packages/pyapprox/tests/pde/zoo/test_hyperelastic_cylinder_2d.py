@@ -45,7 +45,7 @@ from pyapprox.pde.zoo.pressurized_cylinder_2d import (
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.collocation.physics.stress_models import (
+from pyapprox.pde.constitutive import (
     NeoHookeanStress,
 )
 from pyapprox.pde.collocation.time_integration import CollocationModel

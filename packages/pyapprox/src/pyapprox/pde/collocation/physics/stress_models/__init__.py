@@ -1,34 +1,26 @@
-"""Hyperelastic stress models for spectral collocation physics.
+"""Temporary re-export shim: stress models moved to pyapprox.pde.constitutive.
 
-Provides protocols, implementations, and a registry for pluggable
-constitutive models used by HyperelasticityPhysics.
+Import from ``pyapprox.pde.constitutive`` instead. This shim is removed
+once external callers have migrated.
 """
 
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+from pyapprox.pde.constitutive import (
     NeoHookeanStress,
-)
-from pyapprox.pde.collocation.physics.stress_models.protocols import (
     StressModelProtocol,
+    StressModelWithSensitivityProtocol,
     StressModelWithTangentProtocol,
     SymbolicStressModelProtocol,
-)
-from pyapprox.pde.collocation.physics.stress_models.registry import (
     create_stress_model,
     list_stress_models,
     register_stress_model,
 )
 
-# Auto-register built-in stress models
-register_stress_model("neo_hookean", lambda **kw: NeoHookeanStress(**kw))
-
 __all__ = [
-    # Protocols
     "StressModelProtocol",
+    "StressModelWithSensitivityProtocol",
     "StressModelWithTangentProtocol",
     "SymbolicStressModelProtocol",
-    # Implementations
     "NeoHookeanStress",
-    # Registry
     "register_stress_model",
     "create_stress_model",
     "list_stress_models",

@@ -26,7 +26,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.pde.galerkin.basis.vector_lagrange import (

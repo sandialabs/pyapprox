@@ -33,7 +33,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
-from pyapprox.pde.collocation.physics.stress_models.protocols import (
+from pyapprox.pde.constitutive.protocols import (
     StressModelProtocol,
     StressModelWithTangentProtocol,
 )

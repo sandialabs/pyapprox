@@ -15,11 +15,11 @@ from typing import Callable, Generic, Optional, Tuple
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
-    NeoHookeanStress,
-)
 from pyapprox.pde.collocation.quadrature.collocation_quadrature import (
     CollocationQuadrature1D,
+)
+from pyapprox.pde.constitutive.neo_hookean import (
+    NeoHookeanStress,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

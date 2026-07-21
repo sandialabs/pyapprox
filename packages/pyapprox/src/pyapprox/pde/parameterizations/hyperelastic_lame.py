@@ -7,7 +7,7 @@ residual_mu/lamda_sensitivity methods (same as YoungModulusParameterization).
 
 from typing import Generic, List, Protocol, Union, runtime_checkable
 
-from pyapprox.pde.collocation.physics.stress_models.protocols import (
+from pyapprox.pde.constitutive.protocols import (
     StressModelWithSensitivityProtocol,
 )
 from pyapprox.pde.field_maps.protocol import (

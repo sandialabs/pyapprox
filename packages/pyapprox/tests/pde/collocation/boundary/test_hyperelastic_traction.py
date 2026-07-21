@@ -23,7 +23,7 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
     TractionNormalOperator,
 )
 from pyapprox.pde.collocation.boundary.robin import RobinBC
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.util.backends.protocols import Array

@@ -14,7 +14,7 @@ if not package_available("skfem"):
 
 
 import numpy as np
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC

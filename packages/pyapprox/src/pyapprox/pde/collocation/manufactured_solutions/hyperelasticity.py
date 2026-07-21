@@ -13,7 +13,7 @@ from pyapprox.pde.collocation.manufactured_solutions.base import (
     ManufacturedSolution,
     VectorSolutionMixin,
 )
-from pyapprox.pde.collocation.physics.stress_models.protocols import (
+from pyapprox.pde.constitutive.protocols import (
     SymbolicStressModelProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

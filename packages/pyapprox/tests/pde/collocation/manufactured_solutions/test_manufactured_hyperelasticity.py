@@ -41,7 +41,7 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
     create_uniform_mesh_3d,
 )
-from pyapprox.pde.collocation.physics.stress_models import (
+from pyapprox.pde.constitutive import (
     NeoHookeanStress,
 )
 from pyapprox.pde.collocation.time_integration import CollocationModel

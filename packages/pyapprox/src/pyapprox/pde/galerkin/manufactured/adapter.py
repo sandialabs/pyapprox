@@ -20,7 +20,7 @@ from pyapprox.pde.collocation.manufactured_solutions.hyperelasticity import (
 from pyapprox.pde.collocation.manufactured_solutions.linear_elasticity import (
     ManufacturedLinearElasticityEquations,
 )
-from pyapprox.pde.collocation.physics.stress_models.protocols import (
+from pyapprox.pde.constitutive.protocols import (
     SymbolicStressModelProtocol,
 )
 from pyapprox.pde.galerkin.boundary import (

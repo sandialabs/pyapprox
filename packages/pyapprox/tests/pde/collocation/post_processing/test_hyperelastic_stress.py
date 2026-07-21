@@ -22,7 +22,7 @@ from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.collocation.physics.stress_models import (
+from pyapprox.pde.constitutive import (
     NeoHookeanStress,
 )
 

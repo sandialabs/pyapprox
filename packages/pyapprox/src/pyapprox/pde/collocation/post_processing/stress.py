@@ -8,7 +8,7 @@ strain energy density, and their state Jacobians.
 
 from typing import Callable, Generic, Optional, Tuple
 
-from pyapprox.pde.collocation.physics.stress_models.protocols import (
+from pyapprox.pde.constitutive.protocols import (
     StressModelWithTangentProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

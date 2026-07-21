@@ -11,15 +11,15 @@ satisfies StressModelWithSensitivityProtocol.
 from typing import Any, Callable, Generic, List, Optional, Tuple, Union
 
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
-from pyapprox.pde.collocation.physics.stress_models.protocols import (
+from pyapprox.pde.collocation.protocols.basis import (
+    TensorProductBasisProtocol,
+)
+from pyapprox.pde.constitutive.protocols import (
     StressModelWithSensitivityProtocol,
     StressModelWithTangentProtocol,
 )
-from pyapprox.pde.collocation.physics.stress_models.registry import (
+from pyapprox.pde.constitutive.registry import (
     create_stress_model,
-)
-from pyapprox.pde.collocation.protocols.basis import (
-    TensorProductBasisProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 

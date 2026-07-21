@@ -26,7 +26,7 @@ from pyapprox.pde.collocation.mesh import (
     AffineTransform1D,
     TransformedMesh1D,
 )
-from pyapprox.pde.collocation.physics.stress_models.neo_hookean import (
+from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.pde.field_maps.kle_factory import (

@@ -20,7 +20,7 @@ from pyapprox.pde.collocation.mesh import (
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
-from pyapprox.pde.collocation.physics.stress_models import (
+from pyapprox.pde.constitutive import (
     NeoHookeanStress,
 )
 from pyapprox.pde.field_maps.protocol import (

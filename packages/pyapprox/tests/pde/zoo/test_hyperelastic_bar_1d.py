@@ -63,7 +63,7 @@ class TestHyperelasticBar1D:
             AffineTransform1D,
             TransformedMesh1D,
         )
-        from pyapprox.pde.collocation.physics.stress_models import (
+        from pyapprox.pde.constitutive import (
             NeoHookeanStress,
         )
         from pyapprox.pde.collocation.time_integration import (
@@ -148,7 +148,7 @@ class TestHyperelasticBar1D:
             AffineTransform1D,
             TransformedMesh1D,
         )
-        from pyapprox.pde.collocation.physics.stress_models import (
+        from pyapprox.pde.constitutive import (
             NeoHookeanStress,
         )
 
@@ -325,7 +325,7 @@ class TestHyperelasticBar1D:
             AffineTransform1D,
             TransformedMesh1D,
         )
-        from pyapprox.pde.collocation.physics.stress_models import (
+        from pyapprox.pde.constitutive import (
             NeoHookeanStress,
         )
 
@@ -382,7 +382,7 @@ class TestHyperelasticBar1D:
             AffineTransform1D,
             TransformedMesh1D,
         )
-        from pyapprox.pde.collocation.physics.stress_models import (
+        from pyapprox.pde.constitutive import (
             NeoHookeanStress,
         )
 
