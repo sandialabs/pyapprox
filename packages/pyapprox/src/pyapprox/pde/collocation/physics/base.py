@@ -6,9 +6,9 @@ Provides common functionality for PDE physics implementations.
 from abc import ABC, abstractmethod
 from typing import Generic, List, Tuple
 
+from pyapprox.pde.boundary import BCDofClassification
 from pyapprox.pde.collocation.protocols import (
     BasisProtocol,
-    BCDofClassification,
     BoundaryConditionProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend

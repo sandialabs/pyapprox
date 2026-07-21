@@ -19,7 +19,6 @@ from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
 from pyapprox.pde.collocation.protocols.boundary import (
-    BCDofClassification,
     BoundaryConditionProtocol,
     BoundaryConditionWithParamJacobianProtocol,
     DirichletBCProtocol,
@@ -69,7 +68,6 @@ __all__ = [
     "PreconditionerProtocol",
     "PreconditionerWithSetupProtocol",
     # Boundary conditions
-    "BCDofClassification",
     "BoundaryConditionProtocol",
     "BoundaryConditionWithParamJacobianProtocol",
     "DirichletBCProtocol",
