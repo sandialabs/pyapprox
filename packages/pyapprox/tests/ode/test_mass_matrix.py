@@ -1,6 +1,7 @@
 """Tests for MassMatrix value objects."""
 
 import numpy as np
+import pytest
 from pyapprox.ode.mass_matrix import (
     ConstantDenseMassMatrix,
     ConstantSparseMassMatrix,
@@ -200,3 +201,78 @@ class TestCreateMassMatrix:
         S = speye(4, format="csc")
         m = create_mass_matrix(S, numpy_bkd)
         assert isinstance(m, ConstantSparseMassMatrix)
+
+
+class TestSingularityDetection:
+    def _make_stokes_block_mass(self, nvel=6, npres=3):
+        """Stokes-style DAE mass [[M_vel, 0], [0, 0]] as sparse csc."""
+        from scipy.sparse import bmat, csr_matrix, diags
+
+        M_vel = diags(
+            [2.0 + np.arange(nvel), -0.5 * np.ones(nvel - 1)], [0, -1]
+        )
+        zero = csr_matrix((npres, npres))
+        return bmat(
+            [[M_vel, None], [None, zero]], format="csc"
+        ), list(range(nvel, nvel + npres))
+
+    def test_identity_not_singular(self, bkd):
+        m = IdentityMassMatrix(4, bkd)
+        assert not m.is_singular()
+        assert m.zero_rows() == []
+
+    def test_dense_nonsingular(self, bkd):
+        rng = np.random.RandomState(1)
+        A = rng.randn(4, 4)
+        m = ConstantDenseMassMatrix(bkd.array(A @ A.T + 2.0 * np.eye(4)), bkd)
+        assert not m.is_singular()
+        assert m.zero_rows() == []
+
+    def test_dense_zero_rows_detected(self, bkd):
+        A = np.diag([1.0, 0.0, 2.0, 0.0])
+        m = ConstantDenseMassMatrix(bkd.array(A), bkd)
+        assert m.is_singular()
+        assert m.zero_rows() == [1, 3]
+
+    def test_dense_singular_constructible_and_applies(self, bkd):
+        """Deferred LU: construction and apply() work for a DAE mass."""
+        A = np.diag([1.0, 2.0, 0.0])
+        m = ConstantDenseMassMatrix(bkd.array(A), bkd)
+        v = bkd.array([1.0, 2.0, 3.0])
+        bkd.assert_allclose(m.apply(v), bkd.array([1.0, 4.0, 0.0]), rtol=1e-14)
+
+    def test_sparse_nonsingular(self, numpy_bkd):
+        from scipy.sparse import diags
+
+        S = diags([1.0, -0.5, -0.5], [0, -1, 1], shape=(5, 5), format="csc")
+        m = ConstantSparseMassMatrix(S, numpy_bkd)
+        assert not m.is_singular()
+        assert m.zero_rows() == []
+
+    def test_stokes_block_mass(self, numpy_bkd):
+        """Sparse DAE mass: singular, pressure rows identified, apply works,
+        mass-only solve fails."""
+        bkd = numpy_bkd
+        S, pressure_rows = self._make_stokes_block_mass()
+        m = ConstantSparseMassMatrix(S, bkd)
+
+        assert m.is_singular()
+        assert m.zero_rows() == pressure_rows
+
+        n = S.shape[0]
+        v = bkd.array(np.arange(1.0, n + 1.0))
+        result = m.apply(v)
+        bkd.assert_allclose(
+            result[pressure_rows], bkd.zeros((len(pressure_rows),)), atol=1e-15
+        )
+
+        with pytest.raises(RuntimeError):
+            m.solve(v)
+
+    def test_zero_rows_returns_copy(self, numpy_bkd):
+        """Mutating the returned list must not corrupt the operator."""
+        S, pressure_rows = self._make_stokes_block_mass()
+        m = ConstantSparseMassMatrix(S, numpy_bkd)
+        rows = m.zero_rows()
+        rows.append(999)
+        assert m.zero_rows() == pressure_rows
