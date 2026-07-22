@@ -41,6 +41,9 @@ class _EssentialBC:
     def constrained_values(self, time: float) -> Any:
         return self._vals * (1.0 + self._time_scale * time)
 
+    def is_time_invariant(self) -> bool:
+        return self._time_scale == 0.0
+
 
 def _example_set(
     bkd: Backend[Any], time_scale: float = 0.0

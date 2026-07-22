@@ -348,11 +348,40 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 ret2: NDArray[np.floating[Any]] = vals
                 return ret2
 
+        # Analytic boundary velocity: manufactured solutions know their
+        # time dependence (sympy d/dT), so stage-based steppers get the
+        # exact g_dot. Steady problems have g_dot = 0.
+        if self._time_dependent:
+            sol_dot_func = self._functions["solution_time_derivative"]
+
+            def value_time_derivative_func(
+                x: NDArray[np.floating[Any]],
+                t: Optional[float] = None,
+            ) -> NDArray[np.floating[Any]]:
+                vals = sol_dot_func(x, t)
+                if hasattr(vals, "shape") and vals.ndim > 1:
+                    ret: NDArray[np.floating[Any]] = (
+                        vals[:, 0]
+                        if vals.shape[1] == 1
+                        else vals
+                    )
+                    return ret
+                ret2: NDArray[np.floating[Any]] = vals
+                return ret2
+        else:
+
+            def value_time_derivative_func(
+                x: NDArray[np.floating[Any]],
+                t: Optional[float] = None,
+            ) -> NDArray[np.floating[Any]]:
+                return np.zeros(x.shape[1])
+
         return DirichletBC(
             basis=self._basis,
             boundary_name=boundary_name,
             value_func=value_func,
             bkd=self._bkd,
+            value_time_derivative_func=value_time_derivative_func,
         )
 
     def _create_neumann_bc(
@@ -775,11 +804,33 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
                 result[j] = vals[j, j % ndim]
             return result
 
+        # Analytic boundary velocity per interleaved DOF (sympy d/dT);
+        # zero for steady problems.
+        if time_dep:
+            sol_dot_func = self._functions["solution_time_derivative"]
+
+            def value_time_derivative_func(
+                coords: NDArray[np.floating[Any]], time: float = 0.0,
+            ) -> NDArray[np.floating[Any]]:
+                nbndry_dofs = coords.shape[1]
+                vals = sol_dot_func(coords, time)
+                result = np.zeros(nbndry_dofs)
+                for j in range(nbndry_dofs):
+                    result[j] = vals[j, j % ndim]
+                return result
+        else:
+
+            def value_time_derivative_func(
+                coords: NDArray[np.floating[Any]], time: float = 0.0,
+            ) -> NDArray[np.floating[Any]]:
+                return np.zeros(coords.shape[1])
+
         return DirichletBC(
             basis=self._basis,
             boundary_name=boundary_name,
             value_func=value_func,
             bkd=self._bkd,
+            value_time_derivative_func=value_time_derivative_func,
         )
 
     def _compute_traction(

@@ -15,7 +15,7 @@ time-integration wrappers; ``DirichletConstraintSet`` (constraint_set.py)
 is the default implementation.
 """
 
-from typing import Generic, Protocol, Union, overload, runtime_checkable
+from typing import Generic, List, Protocol, Union, overload, runtime_checkable
 
 from scipy.sparse import spmatrix
 
@@ -173,6 +173,60 @@ class EssentialBCProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def is_time_invariant(self) -> bool:
+        """Whether the prescribed values are constant in time.
+
+        Static BCs let consumers skip all time-derivative machinery:
+        the constraint set caches values and returns exact zero
+        boundary velocities without evaluating anything.
+        """
+        ...
+
+
+@runtime_checkable
+class EssentialBCWithTimeDerivativeProtocol(Protocol, Generic[Array]):
+    """Essential BC additionally exposing the analytic boundary velocity.
+
+    ``constrained_values_time_derivative`` must be the ANALYTIC time
+    derivative of ``constrained_values`` — never a finite-difference
+    approximation (a user wanting FD writes it into their own BC,
+    visibly). Required for stage-based steppers with a consistent mass
+    matrix, where boundary motion couples into interior stage slopes
+    via the off-diagonal mass block; static-value BCs satisfy it
+    exactly by returning zeros.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def constrained_dofs(self) -> Array:
+        """Return the constrained global DOF indices. Shape: (ndofs,)"""
+        ...
+
+    def constrained_values(self, time: float) -> Array:
+        """Return the prescribed values at ``time``. Shape: (ndofs,)"""
+        ...
+
+    def is_time_invariant(self) -> bool:
+        """Whether the prescribed values are constant in time."""
+        ...
+
+    def constrained_values_time_derivative(self, time: float) -> Array:
+        """Return d/dt of the prescribed values at ``time``.
+
+        Parameters
+        ----------
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Analytic boundary velocity ġ(time). Shape: (ndofs,)
+        """
+        ...
+
 
 @runtime_checkable
 class ConstraintSetProtocol(Protocol, Generic[Array]):
@@ -194,6 +248,26 @@ class ConstraintSetProtocol(Protocol, Generic[Array]):
 
     def values(self, time: float) -> Array:
         """Return all prescribed values at ``time``. Shape: (ndofs,)"""
+        ...
+
+    def values_time_derivative(self, time: float) -> Array:
+        """Return the analytic boundary velocity ġ at ``time``.
+
+        Raises an actionable TypeError if any member BC lacks
+        ``constrained_values_time_derivative``.
+        """
+        ...
+
+    def has_time_derivatives(self) -> bool:
+        """Whether every member BC provides the analytic ġ."""
+        ...
+
+    def missing_time_derivative_bcs(self) -> List[str]:
+        """Descriptions of member BCs lacking the analytic ġ."""
+        ...
+
+    def is_time_invariant(self) -> bool:
+        """Whether every member BC has time-constant values."""
         ...
 
     def ndofs(self) -> int:

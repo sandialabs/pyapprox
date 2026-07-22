@@ -138,12 +138,17 @@ class ManufacturedSolutionBC(Generic[Array]):
         flux_func: Callable[..., Any],
         bkd: Backend[Array],
         time_dependent: bool = False,
+        solution_time_derivative_func: Optional[Callable[..., Any]] = None,
     ):
         self._basis = basis
         self._solution_func = solution_func
         self._flux_func = flux_func
         self._bkd = bkd
         self._time_dependent = time_dependent
+        # ANALYTIC du/dT on the boundary; required for stage-based
+        # steppers with consistent mass. Steady problems get exact
+        # zeros automatically.
+        self._solution_time_derivative_func = solution_time_derivative_func
 
         # Get mesh dimension for determining number of boundaries
         self._ndim = basis.mesh().ndim()
@@ -185,11 +190,32 @@ class ManufacturedSolutionBC(Generic[Array]):
                 ret: NDArray[np.floating[Any]] = sol_func(x)
                 return ret
 
+        value_time_derivative_func: Optional[Callable[..., Any]]
+        if not time_dep:
+
+            def value_time_derivative_func(
+                x: NDArray[np.floating[Any]], t: float = 0.0
+            ) -> NDArray[np.floating[Any]]:
+                return np.zeros(x.shape[1])
+        elif self._solution_time_derivative_func is not None:
+            sol_dot_func = self._solution_time_derivative_func
+
+            def value_time_derivative_func(
+                x: NDArray[np.floating[Any]], t: float = 0.0
+            ) -> NDArray[np.floating[Any]]:
+                ret: NDArray[np.floating[Any]] = sol_dot_func(x, t)
+                return ret
+        else:
+            # No analytic derivative supplied: the BC will not satisfy
+            # EssentialBCWithTimeDerivativeProtocol.
+            value_time_derivative_func = None
+
         return DirichletBC(
             basis=self._basis,
             boundary_name=boundary_name,
             value_func=value_func,
             bkd=self._bkd,
+            value_time_derivative_func=value_time_derivative_func,
         )
 
     def _create_neumann_bc(

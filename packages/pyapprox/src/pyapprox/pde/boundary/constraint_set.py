@@ -11,14 +11,17 @@ All dense/vector operations stay in the computational backend
 sparse-matrix interface, which lives outside the backend system.
 """
 
-from typing import Any, Generic, Optional, Sequence, Union, overload
+from typing import Any, Generic, List, Optional, Sequence, Union, overload
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import diags, issparse, spmatrix
 
 from pyapprox.pde.boundary.classification import BCDofClassification
-from pyapprox.pde.boundary.protocols import EssentialBCProtocol
+from pyapprox.pde.boundary.protocols import (
+    EssentialBCProtocol,
+    EssentialBCWithTimeDerivativeProtocol,
+)
 from pyapprox.pde.sparse_utils import apply_dirichlet_rows
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -94,6 +97,13 @@ class DirichletConstraintSet(Generic[Array]):
             [position_of[dof] for dof in unique_dofs],
             dtype=bkd.int64_dtype(),
         )
+        # Static sets skip all time-derivative machinery and cache
+        # their (time-independent) values on first evaluation.
+        self._time_invariant = all(
+            bc.is_time_invariant() for bc in self._bcs
+        )
+        self._cached_values: Optional[Array] = None
+        self._cached_zero_derivative: Optional[Array] = None
         # Numpy copy of the indices, built lazily and used only at the
         # scipy sparse-matrix interface (outside the backend system).
         self._dofs_np: Optional[NDArray[np.int64]] = None
@@ -125,18 +135,85 @@ class DirichletConstraintSet(Generic[Array]):
             self._dofs_np = self._bkd.to_numpy(self._dofs).astype(np.int64)
         return self._dofs_np
 
+    def is_time_invariant(self) -> bool:
+        """Whether every member BC has time-constant values."""
+        return self._time_invariant
+
     def values(self, time: float) -> Array:
         """Return all prescribed values at ``time``. Shape: (ndofs,)
 
         Ordered to match ``dofs()``; at DOFs shared by several BCs the
-        last BC's value wins.
+        last BC's value wins. Time-invariant sets evaluate once and
+        return the cached values thereafter.
         """
+        if self._time_invariant and self._cached_values is not None:
+            return self._cached_values
         if not self._bcs:
-            return self._bkd.zeros((0,))
-        all_values = self._bkd.concatenate(
-            [bc.constrained_values(time) for bc in self._bcs]
+            values = self._bkd.zeros((0,))
+        else:
+            all_values = self._bkd.concatenate(
+                [bc.constrained_values(time) for bc in self._bcs]
+            )
+            values = all_values[self._value_sel]
+        if self._time_invariant:
+            self._cached_values = values
+        return values
+
+    def missing_time_derivative_bcs(self) -> List[str]:
+        """Descriptions of member BCs lacking the analytic ġ.
+
+        Time-invariant BCs never appear here: their boundary velocity
+        is exactly zero without any evaluation.
+        """
+        return [
+            repr(bc)
+            for bc in self._bcs
+            if not bc.is_time_invariant()
+            and not isinstance(bc, EssentialBCWithTimeDerivativeProtocol)
+        ]
+
+    def has_time_derivatives(self) -> bool:
+        """Whether every member BC provides the analytic ġ."""
+        return not self.missing_time_derivative_bcs()
+
+    def values_time_derivative(self, time: float) -> Array:
+        """Return the analytic boundary velocity ġ at ``time``.
+
+        Ordered to match ``dofs()``, last-BC-wins at shared DOFs, like
+        ``values``. Time-invariant sets return cached exact zeros with
+        no evaluation.
+
+        Raises
+        ------
+        TypeError
+            If any time-varying member BC lacks
+            ``constrained_values_time_derivative``. The message names
+            the offending BCs; supply the analytic derivative —
+            finite differencing is never done here.
+        """
+        if self._time_invariant:
+            if self._cached_zero_derivative is None:
+                self._cached_zero_derivative = self._bkd.zeros(
+                    (self.ndofs(),)
+                )
+            return self._cached_zero_derivative
+        missing = self.missing_time_derivative_bcs()
+        if missing:
+            raise TypeError(
+                "essential BCs lack constrained_values_time_derivative "
+                f"(analytic ġ): {missing}. Supply the analytic "
+                "derivative on each BC — finite differencing is never "
+                "done by the framework."
+            )
+        all_dots = self._bkd.concatenate(
+            [
+                bc.constrained_values_time_derivative(time)
+                if isinstance(bc, EssentialBCWithTimeDerivativeProtocol)
+                else self._bkd.full_like(bc.constrained_values(time), 0.0)
+                for bc in self._bcs
+            ]
         )
-        return all_values[self._value_sel]
+        return all_dots[self._value_sel]
 
     def apply_to_residual(
         self, residual: Array, state: Array, time: float

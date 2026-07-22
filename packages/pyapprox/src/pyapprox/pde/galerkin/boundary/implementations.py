@@ -60,6 +60,13 @@ class DirichletBC(Generic[Array]):
         the boundary (e.g. ``components=(2,)`` fixes u_z only — a
         symmetry/roller condition). Default is None (all components).
         Requires a basis whose ``get_dofs`` supports component selection.
+    value_time_derivative_func : Callable, optional
+        ANALYTIC time derivative of ``value_func`` (same signature and
+        return shape). Only meaningful for callable ``value_func``:
+        constant values get an exact zero derivative automatically.
+        When absent for a callable ``value_func`` the BC does not
+        satisfy ``EssentialBCWithTimeDerivativeProtocol`` and cannot be
+        used with stage-based steppers on a consistent mass matrix.
 
     Examples
     --------
@@ -79,18 +86,37 @@ class DirichletBC(Generic[Array]):
         value_func: Union[Callable[..., Any], float],
         bkd: Backend[Array],
         components: Optional[tuple[int, ...]] = None,
+        value_time_derivative_func: Optional[Callable[..., Any]] = None,
     ):
         self._basis = basis
         self._boundary_name = boundary_name
         self._bkd = bkd
 
         # Store value function
+        self._time_invariant = not callable(value_func)
         if callable(value_func):
             self._value_func = value_func
+            self._value_time_derivative_func = value_time_derivative_func
         else:
             # Constant value
             const = float(value_func)
             self._value_func = lambda x, t=None: np.full(x.shape[1], const)
+            if value_time_derivative_func is not None:
+                raise ValueError(
+                    "value_time_derivative_func is only meaningful for "
+                    "callable value_func; constant values get an exact "
+                    "zero derivative automatically"
+                )
+            self._value_time_derivative_func = lambda x, t=None: np.zeros(
+                x.shape[1]
+            )
+        # Capability is present only when the analytic derivative is
+        # known (dynamic binding: runtime protocol checks see the
+        # method only on instances that can honor it).
+        if self._value_time_derivative_func is not None:
+            self.constrained_values_time_derivative = (
+                self._constrained_values_time_derivative_impl
+            )
 
         if isinstance(basis, ComponentDofsBasisProtocol):
             self._ncomponents = basis.ncomponents()
@@ -137,6 +163,10 @@ class DirichletBC(Generic[Array]):
         """Return prescribed values at ``time`` (EssentialBCProtocol)."""
         return self.boundary_values(time)
 
+    def is_time_invariant(self) -> bool:
+        """Constant values are time-invariant; callables assumed not."""
+        return self._time_invariant
+
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Dirichlet boundary values at given time.
 
@@ -150,6 +180,20 @@ class DirichletBC(Generic[Array]):
         Array
             Boundary values. Shape: (nboundary_dofs,)
         """
+        return self._evaluate_on_boundary(self._value_func, time)
+
+    def _constrained_values_time_derivative_impl(self, time: float) -> Array:
+        """Analytic boundary velocity (EssentialBCWithTimeDerivative)."""
+        if self._value_time_derivative_func is None:
+            raise RuntimeError("time-derivative capability not bound")
+        return self._evaluate_on_boundary(
+            self._value_time_derivative_func, time
+        )
+
+    def _evaluate_on_boundary(
+        self, func: Callable[..., Any], time: float
+    ) -> Array:
+        """Evaluate a boundary function at the constrained DOF coords."""
         # Get DOF coordinates on boundary
         dof_coords = self._basis.dof_coordinates()
         dof_coords_np = self._bkd.to_numpy(dof_coords)
@@ -159,7 +203,7 @@ class DirichletBC(Generic[Array]):
         bndry_coords = dof_coords_np[:, bndry_dofs_np]
 
         # Evaluate boundary function
-        values_np = np.asarray(self._value_func(bndry_coords, time))
+        values_np = np.asarray(func(bndry_coords, time))
 
         if values_np.ndim == 2:
             # Vector-valued return (ncomponents, nboundary_dofs): select
@@ -943,6 +987,14 @@ class DirectDirichletBC(Generic[Array]):
         """Return prescribed values (EssentialBCProtocol)."""
         return self.boundary_values(time)
 
+    def constrained_values_time_derivative(self, time: float) -> Array:
+        """Return the boundary velocity: exactly zero (static values)."""
+        return self._bkd.full_like(self._values, 0.0)
+
+    def is_time_invariant(self) -> bool:
+        """Values are fixed at construction."""
+        return True
+
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Dirichlet values (constant, ignores time)."""
         return self._values
@@ -1002,6 +1054,11 @@ class CallableDirichletBC(Generic[Array]):
         Must return array of shape (nboundary_dofs,).
     bkd : Backend[Array]
         Computational backend.
+    value_time_derivative_func : Callable[[float], np.ndarray], optional
+        ANALYTIC time derivative of ``value_func`` (same signature and
+        return shape). When absent the BC does not satisfy
+        ``EssentialBCWithTimeDerivativeProtocol`` and cannot be used
+        with stage-based steppers on a consistent mass matrix.
     """
 
     def __init__(
@@ -1009,12 +1066,29 @@ class CallableDirichletBC(Generic[Array]):
         dof_indices: npt.ArrayLike,
         value_func: Callable[[float], np.ndarray],
         bkd: Backend[Array],
+        value_time_derivative_func: Optional[
+            Callable[[float], np.ndarray]
+        ] = None,
     ) -> None:
         self._bkd = bkd
         self._dof_indices = bkd.asarray(
             np.asarray(dof_indices, dtype=np.int64), dtype=bkd.int64_dtype()
         )
         self._value_func = value_func
+        self._value_time_derivative_func = value_time_derivative_func
+        # Dynamic binding: the capability exists only when the analytic
+        # derivative was supplied.
+        if value_time_derivative_func is not None:
+            self.constrained_values_time_derivative = (
+                self._constrained_values_time_derivative_impl
+            )
+
+    def _constrained_values_time_derivative_impl(self, time: float) -> Array:
+        """Analytic boundary velocity (EssentialBCWithTimeDerivative)."""
+        if self._value_time_derivative_func is None:
+            raise RuntimeError("time-derivative capability not bound")
+        vals = self._value_time_derivative_func(time)
+        return self._bkd.asarray(np.asarray(vals, dtype=np.float64))
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -1031,6 +1105,10 @@ class CallableDirichletBC(Generic[Array]):
     def constrained_values(self, time: float) -> Array:
         """Return prescribed values at ``time`` (EssentialBCProtocol)."""
         return self.boundary_values(time)
+
+    def is_time_invariant(self) -> bool:
+        """Values come from a time callable; assumed time-varying."""
+        return False
 
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Dirichlet values at given time."""

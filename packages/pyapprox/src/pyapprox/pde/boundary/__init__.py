@@ -9,6 +9,7 @@ from pyapprox.pde.boundary.constraint_set import DirichletConstraintSet
 from pyapprox.pde.boundary.protocols import (
     ConstraintSetProtocol,
     EssentialBCProtocol,
+    EssentialBCWithTimeDerivativeProtocol,
     WeakFormBCProtocol,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "ConstraintSetProtocol",
     "DirichletConstraintSet",
     "EssentialBCProtocol",
+    "EssentialBCWithTimeDerivativeProtocol",
     "WeakFormBCProtocol",
 ]

@@ -398,6 +398,7 @@ class ScalarSolutionMixin:
     _expressions: Dict[str, Any]
     transient: Dict[str, bool]
     _set_expression: Callable[..., Any]
+    _set_expression_from_bool: Callable[..., Any]
     time_symbol: Callable[..., Any]
     is_transient: Callable[..., Any]
 
@@ -424,9 +425,16 @@ class ScalarSolutionMixin:
                 self._expressions["forcing"],
                 self._sol_str,
             )
-            self._expressions["forcing"] += self._expressions["solution"].diff(
+            sol_dot = self._expressions["solution"].diff(
                 self.time_symbol()[0]
             )
+            # Analytic du/dT as its own function: consumed for boundary
+            # velocities (stage-based steppers need g_dot on essential
+            # DOFs). Marked transient so the callable takes (pts, time).
+            self._set_expression_from_bool(
+                "solution_time_derivative", sol_dot, True
+            )
+            self._expressions["forcing"] += sol_dot
 
     def ncomponents(self) -> int:
         """Return 1 for scalar solutions."""
@@ -445,6 +453,7 @@ class VectorSolutionMixin:
     _expressions: Dict[str, Any]
     transient: Dict[str, bool]
     _set_expression: Callable[..., Any]
+    _set_expression_from_bool: Callable[..., Any]
     time_symbol: Callable[..., Any]
     is_transient: Callable[..., Any]
 
@@ -476,7 +485,15 @@ class VectorSolutionMixin:
                 copy.deepcopy(self._expressions["forcing"]),
                 self._sol_strs[0],
             )
+            sol_dots = [
+                self._expressions["solution"][ii].diff(self.time_symbol()[0])
+                for ii in range(self.ncomponents())
+            ]
+            # Analytic du/dT per component: consumed for boundary
+            # velocities (stage-based steppers need g_dot on essential
+            # DOFs). Marked transient so the callable takes (pts, time).
+            self._set_expression_from_bool(
+                "solution_time_derivative", sol_dots, True
+            )
             for ii in range(self.ncomponents()):
-                self._expressions["forcing"][ii] += self._expressions["solution"][
-                    ii
-                ].diff(self.time_symbol()[0])
+                self._expressions["forcing"][ii] += sol_dots[ii]
