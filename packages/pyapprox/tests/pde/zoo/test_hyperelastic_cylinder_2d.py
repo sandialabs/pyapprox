@@ -441,13 +441,13 @@ class TestHyperelasticCylinder2D:
         )
 
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=fwd.nqoi(),
             nvars=fwd.nvars(),
             fun=fwd,
-            jacobian=fwd.jacobian,
+            jacobian=fwd.derivatives().jacobian,
             bkd=bkd,
         )
         checker = DerivativeChecker(wrapper)
@@ -488,7 +488,7 @@ class TestHyperelasticCylinder2D:
         )
 
         assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert fwd.derivatives().jacobian is not None
 
         npts = npts_r * npts_theta
         assert fwd.nvars() == num_kle_terms
