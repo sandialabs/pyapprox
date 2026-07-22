@@ -21,36 +21,44 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
-from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.manufactured.stokes import (
-    ManufacturedStokes,
-)
+from numpy.typing import NDArray
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
-from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
-from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
-    StokesTimeStepResidual,
-)
-from pyapprox.util.backends.protocols import Backend
-from scipy.sparse import issparse
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.galerkin.time_integration import (
+    GalerkinModel,
+    TimeIntegrationConfig,
+)
+from pyapprox.pde.manufactured.stokes import (
+    ManufacturedStokes,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from scipy.sparse import spmatrix
+
+# These tests are numpy-only (numpy_bkd fixture), so generics are
+# instantiated with the concrete numpy array type rather than erased.
+# NDArray[Any] is the instantiation NumpyBkd itself is declared with
+# (Backend[NDArray[Any]]); a floating-dtype parameter fails the
+# ArrayProtocol bound.
+_NumpyArray = NDArray[Any]
+_ManufacturedFuncs = Dict[str, Callable[..., _NumpyArray]]
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _to_dense(mat):
+def _to_dense(mat: Union[spmatrix, _NumpyArray]) -> _NumpyArray:
     """Convert sparse matrix to dense numpy array if needed."""
-    if issparse(mat):
-        return mat.toarray()
+    if isinstance(mat, spmatrix):
+        return np.asarray(mat.toarray())
     return np.asarray(mat)
 
 
@@ -62,14 +70,14 @@ def _boundary_names(nvars: int) -> List[str]:
 
 
 def _get_exact_state(
-    funcs: Dict[str, Callable],
+    funcs: _ManufacturedFuncs,
     nvars: int,
-    vel_basis: VectorLagrangeBasis,
-    pres_basis: LagrangeBasis,
-    bkd: Backend,
+    vel_basis: VectorLagrangeBasis[_NumpyArray],
+    pres_basis: LagrangeBasis[_NumpyArray],
+    bkd: NumpyBkd,
     time: float = 0.0,
     transient: bool = False,
-) -> np.ndarray:
+) -> _NumpyArray:
     """Evaluate manufactured solution at DOF locations.
 
     Returns the exact state vector [vel_dofs | pres_dofs].
@@ -102,18 +110,20 @@ def _get_exact_state(
 
     pres_exact = sol_pres[:, nvars]
 
-    return np.concatenate([vel_exact, pres_exact]).astype(np.float64)
+    return np.asarray(
+        np.concatenate([vel_exact, pres_exact]).astype(np.float64)
+    )
 
 
 def _build_stokes_from_manufactured(
-    funcs: Dict[str, Callable],
+    funcs: _ManufacturedFuncs,
     nvars: int,
-    vel_basis: VectorLagrangeBasis,
-    pres_basis: LagrangeBasis,
-    bkd: Backend,
+    vel_basis: VectorLagrangeBasis[_NumpyArray],
+    pres_basis: LagrangeBasis[_NumpyArray],
+    bkd: NumpyBkd,
     navier_stokes: bool = False,
     transient: bool = False,
-) -> StokesPhysics:
+) -> StokesPhysics[_NumpyArray]:
     """Create StokesPhysics from manufactured solution functions.
 
     Parameters
@@ -128,53 +138,65 @@ def _build_stokes_from_manufactured(
     """
     bc_names = _boundary_names(nvars)
 
-    def _make_vel_bc(funcs, nvars, transient):
-        def vel_bc(coords, time=0.0):
+    def _make_vel_bc(
+        funcs: _ManufacturedFuncs, nvars: int, transient: bool
+    ) -> Callable[..., _NumpyArray]:
+        def vel_bc(coords: _NumpyArray, time: float = 0.0) -> _NumpyArray:
             x_eval = coords[0] if nvars == 1 else coords
             if transient:
                 vals = funcs["solution"](x_eval, time)
             else:
                 vals = funcs["solution"](x_eval)
-            return vals[:, :nvars]
+            return np.asarray(vals[:, :nvars])
 
         return vel_bc
 
-    def _make_pres_bc(funcs, nvars, transient):
-        def pres_bc(coords, time=0.0):
+    def _make_pres_bc(
+        funcs: _ManufacturedFuncs, nvars: int, transient: bool
+    ) -> Callable[..., _NumpyArray]:
+        def pres_bc(coords: _NumpyArray, time: float = 0.0) -> _NumpyArray:
             x_eval = coords[0] if nvars == 1 else coords
             if transient:
                 vals = funcs["solution"](x_eval, time)
             else:
                 vals = funcs["solution"](x_eval)
-            return vals[:, nvars]
+            return np.asarray(vals[:, nvars])
 
         return pres_bc
 
     if transient:
         # For transient: use full forcing (includes du/dT for velocity)
-        def _make_vel_forcing(funcs, nvars):
-            def vel_forcing(x_eval, time):
+        def _make_vel_forcing(
+            funcs: _ManufacturedFuncs, nvars: int
+        ) -> Callable[..., _NumpyArray]:
+            def vel_forcing(x_eval: _NumpyArray, time: float) -> _NumpyArray:
                 vals = funcs["forcing"](x_eval, time)
-                return vals[:, :nvars]
+                return np.asarray(vals[:, :nvars])
 
             return vel_forcing
 
-        def _make_pres_forcing(funcs, nvars):
-            def pres_forcing(x_eval, time):
+        def _make_pres_forcing(
+            funcs: _ManufacturedFuncs, nvars: int
+        ) -> Callable[..., _NumpyArray]:
+            def pres_forcing(x_eval: _NumpyArray, time: float) -> _NumpyArray:
                 vals = funcs["forcing"](x_eval, time)
-                return vals[:, nvars]
+                return np.asarray(vals[:, nvars])
 
             return pres_forcing
     else:
         # For steady state: use spatial-only forcing
-        def _make_vel_forcing(funcs, nvars):
-            def vel_forcing(x_eval, time=0.0):
+        def _make_vel_forcing(
+            funcs: _ManufacturedFuncs, nvars: int
+        ) -> Callable[..., _NumpyArray]:
+            def vel_forcing(x_eval: _NumpyArray, time: float = 0.0) -> _NumpyArray:
                 return funcs["vel_forcing"](x_eval)
 
             return vel_forcing
 
-        def _make_pres_forcing(funcs, nvars):
-            def pres_forcing(x_eval, time=0.0):
+        def _make_pres_forcing(
+            funcs: _ManufacturedFuncs, nvars: int
+        ) -> Callable[..., _NumpyArray]:
+            def pres_forcing(x_eval: _NumpyArray, time: float = 0.0) -> _NumpyArray:
                 return funcs["pres_forcing"](x_eval)
 
             return pres_forcing
@@ -204,7 +226,7 @@ def _build_stokes_from_manufactured(
 
 class TestStokesBase:
     """Base test class for Stokes physics."""
-    def test_nstates_1d(self, numpy_bkd) -> None:
+    def test_nstates_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Test nstates matches vel_ndofs + pres_ndofs in 1D."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -215,13 +237,13 @@ class TestStokesBase:
         )
         assert physics.nstates() == physics.vel_ndofs() + physics.pres_ndofs()
 
-    def test_nstates_2d(self, numpy_bkd) -> None:
+    def test_nstates_2d(self, numpy_bkd: NumpyBkd) -> None:
         """Test nstates matches vel_ndofs + pres_ndofs in 2D."""
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=3,
             ny=3,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
+            bounds=[(0.0, 1.0), (0.0, 1.0)],
             bkd=bkd,
         )
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
@@ -231,7 +253,7 @@ class TestStokesBase:
         )
         assert physics.nstates() == physics.vel_ndofs() + physics.pres_ndofs()
 
-    def test_residual_shape_1d(self, numpy_bkd) -> None:
+    def test_residual_shape_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape in 1D."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -244,7 +266,7 @@ class TestStokesBase:
         res = physics.residual(u0, 0.0)
         assert res.shape == (physics.nstates(),)
 
-    def test_jacobian_shape_1d(self, numpy_bkd) -> None:
+    def test_jacobian_shape_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Test Jacobian has correct shape in 1D."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -257,7 +279,7 @@ class TestStokesBase:
         jac = physics.jacobian(u0, 0.0)
         assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_mass_matrix_shape_1d(self, numpy_bkd) -> None:
+    def test_mass_matrix_shape_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Test mass matrix has correct shape."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -269,7 +291,7 @@ class TestStokesBase:
         M = physics.mass_matrix()
         assert M.shape == (physics.nstates(), physics.nstates())
 
-    def test_mass_matrix_block_structure(self, numpy_bkd) -> None:
+    def test_mass_matrix_block_structure(self, numpy_bkd: NumpyBkd) -> None:
         """Test mass matrix has [M_vel, 0; 0, 0] block structure."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -291,7 +313,7 @@ class TestStokesBase:
         eigenvalues = np.linalg.eigvalsh(M_vel)
         assert np.all(eigenvalues > 0)
 
-    def test_ndim(self, numpy_bkd) -> None:
+    def test_ndim(self, numpy_bkd: NumpyBkd) -> None:
         """Test ndim returns spatial dimension."""
         bkd = numpy_bkd
         mesh1d = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
@@ -303,7 +325,7 @@ class TestStokesBase:
         mesh2d = StructuredMesh2D(
             nx=3,
             ny=3,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
+            bounds=[(0.0, 1.0), (0.0, 1.0)],
             bkd=bkd,
         )
         vel2d = VectorLagrangeBasis(mesh2d, degree=2)
@@ -380,7 +402,7 @@ class TestParametrizedSteadyStokes:
     )
     def test_manufactured_stokes(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bounds: List[float],
         nrefine: int,
@@ -400,6 +422,9 @@ class TestParametrizedSteadyStokes:
         funcs = man_sol.functions
 
         # Create mesh
+        mesh: Union[
+            StructuredMesh1D[_NumpyArray], StructuredMesh2D[_NumpyArray]
+        ]
         if nvars == 1:
             nx = 10 * (2**nrefine)
             mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
@@ -408,7 +433,7 @@ class TestParametrizedSteadyStokes:
             mesh = StructuredMesh2D(
                 nx=nx,
                 ny=nx,
-                bounds=[[bounds[0], bounds[1]], [bounds[2], bounds[3]]],
+                bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
                 bkd=bkd,
             )
 
@@ -511,13 +536,14 @@ class TestParametrizedTransientStokes:
     where f_full = du/dt - Lap(u) + grad(p).
     """
 
+    @pytest.mark.parametrize("navier_stokes", [False, True])
     @pytest.mark.parametrize(
         "name,bounds,nrefine,vel_strs,pres_str,bndry_types,method",
         STOKES_TRANSIENT_CASES,
     )
     def test_transient_stokes(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bounds: List[float],
         nrefine: int,
@@ -525,18 +551,29 @@ class TestParametrizedTransientStokes:
         pres_str: str,
         bndry_types: List[str],
         method: str,
+        navier_stokes: bool,
     ) -> None:
-        """Test transient manufactured solution for Stokes equations."""
+        """Test transient manufactured solution for (Navier-)Stokes.
+
+        Time-linear solutions are reproduced exactly by BE and CN even
+        for the nonlinear convective term (u_dot is constant in time,
+        so the manufactured forcing balances F at every time level).
+        The Navier-Stokes cases exercise genuine multi-iteration
+        Newton through the unified DAE pipeline.
+        """
         bkd = numpy_bkd
         nvars = len(bounds) // 2
         sol_strs = vel_strs + [pres_str]
 
         man_sol = ManufacturedStokes(
-            sol_strs, nvars, navier_stokes=False, bkd=bkd, oned=True
+            sol_strs, nvars, navier_stokes=navier_stokes, bkd=bkd, oned=True
         )
         funcs = man_sol.functions
 
         # Create mesh
+        mesh: Union[
+            StructuredMesh1D[_NumpyArray], StructuredMesh2D[_NumpyArray]
+        ]
         if nvars == 1:
             nx = 10 * (2**nrefine)
             mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
@@ -545,7 +582,7 @@ class TestParametrizedTransientStokes:
             mesh = StructuredMesh2D(
                 nx=nx,
                 ny=nx,
-                bounds=[[bounds[0], bounds[1]], [bounds[2], bounds[3]]],
+                bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
                 bkd=bkd,
             )
 
@@ -559,13 +596,13 @@ class TestParametrizedTransientStokes:
             vel_basis,
             pres_basis,
             bkd,
-            navier_stokes=False,
+            navier_stokes=navier_stokes,
             transient=True,
         )
 
-        # Time stepping
-        stepper = StokesTimeStepResidual(physics, method=method)
-        y = bkd.asarray(
+        # Time stepping through the unified DAE pipeline
+        model = GalerkinModel(physics, bkd)
+        y0 = bkd.asarray(
             _get_exact_state(
                 funcs,
                 nvars,
@@ -576,15 +613,19 @@ class TestParametrizedTransientStokes:
                 transient=True,
             )
         )
-
-        dt = 0.1
-        nsteps = 5
-        t = 0.0
-
-        for step in range(nsteps):
-            stepper.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
-            y = stepper.solve_step()
-            t += dt
+        config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
+            method=method,
+            init_time=0.0,
+            final_time=0.5,
+            deltat=0.1,
+            newton_tol=1e-12,
+            newton_maxiter=50,
+            lumped_mass=False,
+            verbosity=0,
+        )
+        solutions, times = model.solve_transient(y0, config)
+        y = solutions[:, -1]
+        t = float(times[-1])
 
         # Compare to exact at final time
         y_exact = _get_exact_state(

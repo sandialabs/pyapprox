@@ -18,14 +18,10 @@ from pyapprox.pde.galerkin.time_integration.galerkin_model import (
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
-from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
-    StokesTimeStepResidual,
-)
 
 __all__ = [
     "GalerkinPhysicsToODEResidualAdapter",
     "GalerkinBCEnforcingForwardResidual",
-    "StokesTimeStepResidual",
     "GalerkinModel",
     "TimeIntegrationConfig",
     "create_galerkin_bc_enforcing_residual",
