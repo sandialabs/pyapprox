@@ -15,7 +15,7 @@ time-integration wrappers; ``DirichletConstraintSet`` (constraint_set.py)
 is the default implementation.
 """
 
-from typing import Generic, Protocol, Union, runtime_checkable
+from typing import Generic, Protocol, Union, overload, runtime_checkable
 
 from scipy.sparse import spmatrix
 
@@ -51,6 +51,14 @@ class WeakFormBCProtocol(Protocol, Generic[Array]):
             Modified load vector. Shape: (nstates,)
         """
         ...
+
+    @overload
+    def apply_to_stiffness(self, stiffness: Array, time: float) -> Array: ...
+
+    @overload
+    def apply_to_stiffness(
+        self, stiffness: spmatrix, time: float
+    ) -> spmatrix: ...
 
     def apply_to_stiffness(
         self, stiffness: Union[spmatrix, Array], time: float
@@ -94,6 +102,16 @@ class WeakFormBCProtocol(Protocol, Generic[Array]):
             Modified residual. Shape: (nstates,)
         """
         ...
+
+    @overload
+    def apply_to_jacobian(
+        self, jacobian: Array, state: Array, time: float
+    ) -> Array: ...
+
+    @overload
+    def apply_to_jacobian(
+        self, jacobian: spmatrix, state: Array, time: float
+    ) -> spmatrix: ...
 
     def apply_to_jacobian(
         self, jacobian: Union[spmatrix, Array], state: Array, time: float
@@ -188,11 +206,23 @@ class ConstraintSetProtocol(Protocol, Generic[Array]):
         """Replace constrained rows with ``state[d] - g(time)``."""
         ...
 
+    @overload
+    def apply_to_jacobian(self, jacobian: Array) -> Array: ...
+
+    @overload
+    def apply_to_jacobian(self, jacobian: spmatrix) -> spmatrix: ...
+
     def apply_to_jacobian(
         self, jacobian: Union[spmatrix, Array]
     ) -> Union[spmatrix, Array]:
         """Replace constrained rows with identity rows ``e_d``."""
         ...
+
+    @overload
+    def apply_to_mass(self, mass: Array) -> Array: ...
+
+    @overload
+    def apply_to_mass(self, mass: spmatrix) -> spmatrix: ...
 
     def apply_to_mass(
         self, mass: Union[spmatrix, Array]
@@ -203,11 +233,23 @@ class ConstraintSetProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    @overload
+    def zero_rows(self, matrix: Array) -> Array: ...
+
+    @overload
+    def zero_rows(self, matrix: spmatrix) -> spmatrix: ...
+
     def zero_rows(
         self, matrix: Union[spmatrix, Array]
     ) -> Union[spmatrix, Array]:
         """Zero constrained rows (e.g. dR/dp, same-step HVP outputs)."""
         ...
+
+    @overload
+    def zero_cols(self, matrix: Array) -> Array: ...
+
+    @overload
+    def zero_cols(self, matrix: spmatrix) -> spmatrix: ...
 
     def zero_cols(
         self, matrix: Union[spmatrix, Array]

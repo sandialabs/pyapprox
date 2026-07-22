@@ -12,12 +12,14 @@ with mass matrices: M*du/dt = F(u,t) instead of du/dt = f(u,t).
 
 from typing import (
     Generic,
+    List,
     Optional,
     Protocol,
     Tuple,
     runtime_checkable,
 )
 
+from pyapprox.pde.boundary import ConstraintSetProtocol, WeakFormBCProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -148,6 +150,18 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         Array
             Jacobian matrix. Shape: (nstates, nstates)
         """
+        ...
+
+    def constraint_set(self) -> ConstraintSetProtocol[Array]:
+        """Return the essential-constraint set for this physics.
+
+        Aggregates all essential (Dirichlet) BCs into a single cached
+        constraint object used for row replacement.
+        """
+        ...
+
+    def weak_form_bcs(self) -> List[WeakFormBCProtocol[Array]]:
+        """Return the natural (Neumann/Robin) BCs, in list order."""
         ...
 
     def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:

@@ -6,43 +6,58 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Generic
+from typing import Any, Generic, List, Optional
 
 import numpy as np
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC,
     NeumannBC,
     RobinBC,
 )
-from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
-from pyapprox.util.backends.protocols import Array
-from scipy.sparse import csr_matrix
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from scipy.sparse import csr_matrix
 
 
 class _ConcreteMixinUser(GalerkinBCMixin[Array], Generic[Array]):
     """Minimal class using GalerkinBCMixin for testing."""
 
-    def __init__(self, bkd, boundary_conditions=None):
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        boundary_conditions: Optional[List[Any]] = None,
+        nstates: int = 11,
+    ) -> None:
         self._bkd = bkd
         self._boundary_conditions = boundary_conditions or []
+        self._nstates = nstates
+
+    def nstates(self) -> int:
+        return self._nstates
 
 
-def _make_basis(bkd, nx=10):
+def _make_basis(bkd: Backend[Any], nx: int = 10) -> LagrangeBasis[Any]:
     """Create a simple 1D Lagrange basis for testing."""
     mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
     return LagrangeBasis(mesh, degree=1)
 
 
 class TestGalerkinBCMixin:
-    def _make_user(self, bkd, boundary_conditions=None) :
-        return _ConcreteMixinUser(bkd, boundary_conditions)
+    def _make_user(
+        self,
+        bkd: Backend[Any],
+        boundary_conditions: Optional[List[Any]] = None,
+        nstates: int = 11,
+    ) -> _ConcreteMixinUser[Any]:
+        # default nstates matches _make_basis(nx=10) -> 11 DOFs
+        return _ConcreteMixinUser(bkd, boundary_conditions, nstates)
 
     # --- _apply_bc_to_stiffness ---
 
-    def test_apply_bc_to_stiffness_no_bcs(self, numpy_bkd) -> None:
+    def test_apply_bc_to_stiffness_no_bcs(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         user = self._make_user(bkd)
         n = 5
@@ -54,7 +69,7 @@ class TestGalerkinBCMixin:
             bkd.asarray(np.eye(n)),
         )
 
-    def test_apply_bc_to_stiffness_robin(self, numpy_bkd) -> None:
+    def test_apply_bc_to_stiffness_robin(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         robin = RobinBC(
@@ -72,7 +87,7 @@ class TestGalerkinBCMixin:
         result_dense = result.toarray() if hasattr(result, "toarray") else result
         assert not np.allclose(result_dense, 0.0), "Robin BC should modify stiffness"
 
-    def test_apply_bc_to_stiffness_skips_dirichlet(self, numpy_bkd) -> None:
+    def test_apply_bc_to_stiffness_skips_dirichlet(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         dirichlet = DirichletBC(
@@ -93,7 +108,7 @@ class TestGalerkinBCMixin:
 
     # --- _apply_bc_to_load ---
 
-    def test_apply_bc_to_load_neumann(self, numpy_bkd) -> None:
+    def test_apply_bc_to_load_neumann(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         neumann = NeumannBC(
@@ -109,7 +124,7 @@ class TestGalerkinBCMixin:
         # Neumann should add flux contribution
         assert not np.allclose(result, 0.0), "Neumann BC should modify load"
 
-    def test_apply_bc_to_load_robin(self, numpy_bkd) -> None:
+    def test_apply_bc_to_load_robin(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         robin = RobinBC(
@@ -127,14 +142,14 @@ class TestGalerkinBCMixin:
 
     # --- dirichlet_dof_info ---
 
-    def test_dirichlet_dof_info_no_bcs(self, numpy_bkd) -> None:
+    def test_dirichlet_dof_info_no_bcs(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         user = self._make_user(bkd)
         dofs, vals = user.dirichlet_dof_info(0.0)
         assert len(bkd.to_numpy(dofs)) == 0
         assert len(bkd.to_numpy(vals)) == 0
 
-    def test_dirichlet_dof_info_with_dirichlet(self, numpy_bkd) -> None:
+    def test_dirichlet_dof_info_with_dirichlet(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         dirichlet = DirichletBC(
@@ -155,7 +170,7 @@ class TestGalerkinBCMixin:
             bkd.asarray(np.full_like(vals_np, 5.0)),
         )
 
-    def test_dirichlet_dof_info_skips_robin(self, numpy_bkd) -> None:
+    def test_dirichlet_dof_info_skips_robin(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         robin = RobinBC(
@@ -170,7 +185,7 @@ class TestGalerkinBCMixin:
         # Robin should be skipped — no Dirichlet DOFs
         assert len(bkd.to_numpy(dofs)) == 0
 
-    def test_dirichlet_dof_info_robin_then_dirichlet(self, numpy_bkd) -> None:
+    def test_dirichlet_dof_info_robin_then_dirichlet(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         robin = RobinBC(
@@ -196,7 +211,7 @@ class TestGalerkinBCMixin:
 
     # --- _apply_dirichlet_to_residual ---
 
-    def test_apply_dirichlet_to_residual(self, numpy_bkd) -> None:
+    def test_apply_dirichlet_to_residual(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         dirichlet = DirichletBC(
@@ -222,7 +237,7 @@ class TestGalerkinBCMixin:
             bkd.asarray(np.ones(n - 1)),
         )
 
-    def test_apply_dirichlet_to_residual_skips_robin(self, numpy_bkd) -> None:
+    def test_apply_dirichlet_to_residual_skips_robin(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         robin = RobinBC(
@@ -246,7 +261,7 @@ class TestGalerkinBCMixin:
 
     # --- _apply_dirichlet_to_jacobian ---
 
-    def test_apply_dirichlet_to_jacobian(self, numpy_bkd) -> None:
+    def test_apply_dirichlet_to_jacobian(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         dirichlet = DirichletBC(
@@ -278,7 +293,9 @@ class TestGalerkinBCMixin:
 
     # --- apply_boundary_conditions ---
 
-    def test_apply_boundary_conditions_robin_then_dirichlet(self, numpy_bkd) -> None:
+    def test_apply_boundary_conditions_robin_then_dirichlet(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         robin = RobinBC(
@@ -308,7 +325,7 @@ class TestGalerkinBCMixin:
             bkd.asarray([0.0]),
         )
 
-    def test_apply_boundary_conditions_none_residual(self, numpy_bkd) -> None:
+    def test_apply_boundary_conditions_none_residual(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         dirichlet = DirichletBC(
@@ -325,7 +342,7 @@ class TestGalerkinBCMixin:
         assert res is None
         assert jac is not None
 
-    def test_apply_boundary_conditions_none_jacobian(self, numpy_bkd) -> None:
+    def test_apply_boundary_conditions_none_jacobian(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         basis = _make_basis(bkd)
         dirichlet = DirichletBC(

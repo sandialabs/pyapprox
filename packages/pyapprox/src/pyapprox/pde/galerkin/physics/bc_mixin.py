@@ -1,19 +1,19 @@
 """Mixin providing boundary condition dispatch logic for Galerkin physics.
 
-All dispatch loops use Robin-first ordering to handle the fact that
-RobinBC structurally satisfies DirichletBCProtocol.
+Dispatch uses the disjoint solver-neutral BC roles from
+``pyapprox.pde.boundary``: weak-form BCs (Neumann, Robin) are applied
+to assembled operators, essential (Dirichlet) constraints are applied
+through a single cached ``DirichletConstraintSet``.
 """
 
-from typing import Any, Generic, List, Optional, Tuple
+from typing import Any, Callable, Generic, List, Optional, Tuple
 
-import numpy as np
-
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionWithParamJacobianProtocol,
-    DirichletBCProtocol,
-    NeumannBCProtocol,
-    RobinBCProtocol,
+from pyapprox.pde.boundary import (
+    DirichletConstraintSet,
+    EssentialBCProtocol,
+    WeakFormBCProtocol,
 )
+from pyapprox.pde.galerkin.protocols.boundary import RobinBCProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -22,13 +22,44 @@ class GalerkinBCMixin(Generic[Array]):
 
     Pure method provider — no ``__init__``. Using classes must set
     ``_bkd`` (Backend) and ``_boundary_conditions``
-    (list of BoundaryConditionProtocol) before calling mixin methods.
-    ``GalerkinPhysicsBase.__init__`` handles this for most classes;
-    ``EulerBernoulliBeamFEM`` and ``StokesPhysics`` set them directly.
+    (list of role-protocol BCs) before calling mixin methods, and must
+    provide ``nstates()``. ``GalerkinPhysicsBase.__init__`` handles the
+    attributes for most classes; ``EulerBernoulliBeamFEM`` and
+    ``StokesPhysics`` set them directly.
     """
 
     _bkd: Backend[Array]
     _boundary_conditions: List[Any]
+    nstates: Callable[[], int]
+    _constraint_set: Optional[DirichletConstraintSet[Array]] = None
+
+    def weak_form_bcs(self) -> List[WeakFormBCProtocol[Array]]:
+        """Return the natural (Neumann/Robin) BCs, in list order."""
+        return [
+            bc
+            for bc in self._boundary_conditions
+            if isinstance(bc, WeakFormBCProtocol)
+        ]
+
+    def essential_bcs(self) -> List[EssentialBCProtocol[Array]]:
+        """Return the essential (Dirichlet) BCs, in list order."""
+        return [
+            bc
+            for bc in self._boundary_conditions
+            if isinstance(bc, EssentialBCProtocol)
+        ]
+
+    def constraint_set(self) -> DirichletConstraintSet[Array]:
+        """Return the cached essential-constraint set for this physics.
+
+        Built lazily on first call; constrained DOF locations are fixed
+        at construction so the cache never invalidates.
+        """
+        if self._constraint_set is None:
+            self._constraint_set = DirichletConstraintSet(
+                self.essential_bcs(), self.nstates(), self._bkd
+            )
+        return self._constraint_set
 
     def _apply_bc_to_stiffness(self, stiffness: Array, time: float) -> Array:
         """Apply Robin BC contributions to stiffness matrix.
@@ -45,9 +76,8 @@ class GalerkinBCMixin(Generic[Array]):
         Array
             Modified stiffness matrix.
         """
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                stiffness = bc.apply_to_stiffness(stiffness, time)
+        for bc in self.weak_form_bcs():
+            stiffness = bc.apply_to_stiffness(stiffness, time)
         return stiffness
 
     def _apply_bc_to_load(self, load: Array, time: float) -> Array:
@@ -65,18 +95,16 @@ class GalerkinBCMixin(Generic[Array]):
         Array
             Modified load vector.
         """
-        for bc in self._boundary_conditions:
-            if isinstance(bc, NeumannBCProtocol):
-                load = bc.apply_to_load(load, time)
-            elif isinstance(bc, RobinBCProtocol):
-                load = bc.apply_to_load(load, time)
+        for bc in self.weak_form_bcs():
+            load = bc.apply_to_load(load, time)
         return load
 
     def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
         """Return Dirichlet DOF indices and their exact values.
 
-        Collects information from all Dirichlet boundary conditions
-        (excluding Robin BCs which also satisfy DirichletBCProtocol).
+        Deprecated delegating shim: use ``constraint_set()`` directly.
+        DOFs are unique and sorted; DOFs shared by several BCs take the
+        last BC's value.
 
         Parameters
         ----------
@@ -91,30 +119,8 @@ class GalerkinBCMixin(Generic[Array]):
             dof_values : Array
                 Exact Dirichlet values. Shape: (ndirichlet,)
         """
-        all_dofs = []
-        all_vals = []
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                dofs_np = self._bkd.to_numpy(bc.boundary_dofs())
-                vals_np = self._bkd.to_numpy(bc.boundary_values(time))
-                all_dofs.append(dofs_np)
-                all_vals.append(vals_np)
-        if all_dofs:
-            return (
-                self._bkd.asarray(
-                    np.concatenate(all_dofs).astype(np.int64),
-                    dtype=self._bkd.int64_dtype(),
-                ),
-                self._bkd.asarray(np.concatenate(all_vals).astype(np.float64)),
-            )
-        return (
-            self._bkd.asarray(
-                np.array([], dtype=np.int64), dtype=self._bkd.int64_dtype()
-            ),
-            self._bkd.asarray(np.array([], dtype=np.float64)),
-        )
+        constraint_set = self.constraint_set()
+        return constraint_set.dofs(), constraint_set.values(time)
 
     def _apply_dirichlet_to_residual(
         self, residual: Array, state: Array, time: float
@@ -137,12 +143,7 @@ class GalerkinBCMixin(Generic[Array]):
         Array
             Residual with Dirichlet rows replaced.
         """
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                residual = bc.apply_to_residual(residual, state, time)
-        return residual
+        return self.constraint_set().apply_to_residual(residual, state, time)
 
     def _apply_dirichlet_to_jacobian(
         self, jacobian: Array, state: Array, time: float
@@ -165,21 +166,17 @@ class GalerkinBCMixin(Generic[Array]):
         Array
             Jacobian with Dirichlet rows replaced by identity.
         """
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                jacobian = bc.apply_to_jacobian(jacobian, state, time)
-        return jacobian
+        return self.constraint_set().apply_to_jacobian(jacobian)
 
     def _apply_dirichlet_to_param_jacobian(
         self, pjac: Array, state: Array, time: float
     ) -> Array:
-        """Apply Dirichlet row replacement to parameter Jacobian.
+        """Zero essential-BC rows of a parameter Jacobian.
 
-        Only BCs satisfying
-        ``BoundaryConditionWithParamJacobianProtocol`` are applied; other
-        Dirichlet BCs do not support this operation and are skipped.
+        Essential constraints do not depend on PDE parameters, so all
+        constrained rows of dR/dp are zeroed. The ``state`` and ``time``
+        arguments are kept for backward compatibility; row zeroing
+        depends on neither.
 
         Parameters
         ----------
@@ -193,14 +190,9 @@ class GalerkinBCMixin(Generic[Array]):
         Returns
         -------
         Array
-            Parameter Jacobian with Dirichlet rows zeroed.
+            Parameter Jacobian with constrained rows zeroed.
         """
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, BoundaryConditionWithParamJacobianProtocol):
-                pjac = bc.apply_to_param_jacobian(pjac, state, time)
-        return pjac
+        return self.constraint_set().zero_rows(pjac)
 
     def apply_boundary_conditions(
         self,
@@ -233,7 +225,10 @@ class GalerkinBCMixin(Generic[Array]):
         res = residual
         jac = jacobian
 
-        # Robin BCs first (modify interior)
+        # Robin BCs first (modify interior). Deliberately Robin-only,
+        # not all weak-form BCs: this legacy path predates
+        # NeumannBC.apply_to_residual and callers pass residuals whose
+        # load already contains the Neumann contribution.
         for bc in self._boundary_conditions:
             if isinstance(bc, RobinBCProtocol):
                 if res is not None:
@@ -241,14 +236,11 @@ class GalerkinBCMixin(Generic[Array]):
                 if jac is not None:
                     jac = bc.apply_to_jacobian(jac, state, time)
 
-        # Dirichlet BCs last (replace rows)
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                continue
-            if isinstance(bc, DirichletBCProtocol):
-                if res is not None:
-                    res = bc.apply_to_residual(res, state, time)
-                if jac is not None:
-                    jac = bc.apply_to_jacobian(jac, state, time)
+        # Essential constraints last (replace rows)
+        constraint_set = self.constraint_set()
+        if res is not None:
+            res = constraint_set.apply_to_residual(res, state, time)
+        if jac is not None:
+            jac = constraint_set.apply_to_jacobian(jac)
 
         return res, jac

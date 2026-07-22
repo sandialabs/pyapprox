@@ -126,6 +126,14 @@ class DirichletBC(Generic[Array]):
         """
         return self._boundary_dofs
 
+    def constrained_dofs(self) -> Array:
+        """Return constrained DOF indices (EssentialBCProtocol)."""
+        return self._boundary_dofs
+
+    def constrained_values(self, time: float) -> Array:
+        """Return prescribed values at ``time`` (EssentialBCProtocol)."""
+        return self.boundary_values(time)
+
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Dirichlet boundary values at given time.
 
@@ -415,6 +423,39 @@ class NeumannBC(Generic[Array]):
         load_np += contribution
 
         return self._bkd.asarray(load_np.astype(np.float64))
+
+    def apply_to_stiffness(
+        self,
+        stiffness: Union[spmatrix, Array],
+        time: float,
+    ) -> Union[spmatrix, Array]:
+        """Return the stiffness matrix unchanged (WeakFormBCProtocol).
+
+        A pure Neumann BC adds no state-dependent boundary term.
+        """
+        return stiffness
+
+    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
+        """Apply Neumann BC to residual (WeakFormBCProtocol).
+
+        In the residual convention used by ``RobinBC.apply_to_residual``
+        (``F = K*u - b``) the flux enters with a minus sign:
+        subtracts ``integral_{Gamma} g . phi ds``.
+        """
+        zero = self._bkd.full_like(residual, 0.0)
+        return residual - self.apply_to_load(zero, time)
+
+    def apply_to_jacobian(
+        self,
+        jacobian: Union[spmatrix, Array],
+        state: Array,
+        time: float,
+    ) -> Union[spmatrix, Array]:
+        """Return the Jacobian unchanged (WeakFormBCProtocol).
+
+        The Neumann contribution is state-independent.
+        """
+        return jacobian
 
     def __repr__(self) -> str:
         return (
@@ -732,6 +773,16 @@ class BoundaryConditionSet(Generic[Array]):
         """Return number of Robin BCs."""
         return len(self._robin_bcs)
 
+    def weak_form_bcs(
+        self,
+    ) -> List[Union[NeumannBC[Array], RobinBC[Array]]]:
+        """Return the natural (Neumann/Robin) BCs, in insertion order."""
+        return list(self._neumann_bcs) + list(self._robin_bcs)
+
+    def essential_bcs(self) -> List[DirichletBC[Array]]:
+        """Return the essential (Dirichlet) BCs, in insertion order."""
+        return list(self._dirichlet_bcs)
+
     def all_conditions(
         self,
     ) -> List[Union[DirichletBC[Array], NeumannBC[Array], RobinBC[Array]]]:
@@ -879,6 +930,14 @@ class DirectDirichletBC(Generic[Array]):
         """Return indices of DOFs on this boundary."""
         return self._dof_indices
 
+    def constrained_dofs(self) -> Array:
+        """Return constrained DOF indices (EssentialBCProtocol)."""
+        return self._dof_indices
+
+    def constrained_values(self, time: float) -> Array:
+        """Return prescribed values (EssentialBCProtocol)."""
+        return self.boundary_values(time)
+
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Dirichlet values (constant, ignores time)."""
         return self._values
@@ -959,6 +1018,14 @@ class CallableDirichletBC(Generic[Array]):
     def boundary_dofs(self) -> Array:
         """Return indices of DOFs on this boundary."""
         return self._dof_indices
+
+    def constrained_dofs(self) -> Array:
+        """Return constrained DOF indices (EssentialBCProtocol)."""
+        return self._dof_indices
+
+    def constrained_values(self, time: float) -> Array:
+        """Return prescribed values at ``time`` (EssentialBCProtocol)."""
+        return self.boundary_values(time)
 
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Dirichlet values at given time."""

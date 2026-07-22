@@ -11,7 +11,7 @@ All dense/vector operations stay in the computational backend
 sparse-matrix interface, which lives outside the backend system.
 """
 
-from typing import Any, Generic, Optional, Sequence, Union
+from typing import Any, Generic, Optional, Sequence, Union, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -165,6 +165,23 @@ class DirichletConstraintSet(Generic[Array]):
             residual, self._dofs, state[self._dofs] - self.values(time)
         )
 
+    def _replace_rows_identity(
+        self, matrix: Union[spmatrix, Array]
+    ) -> Union[spmatrix, Array]:
+        """Shared row-replacement body for jacobian and mass paths."""
+        if not self.ndofs():
+            return matrix
+        if issparse(matrix):
+            return apply_dirichlet_rows(matrix, self._dofs_numpy())
+        mat = self._bkd.index_update(matrix, self._dofs, 0.0)
+        return self._bkd.index_update(mat, (self._dofs, self._dofs), 1.0)
+
+    @overload
+    def apply_to_jacobian(self, jacobian: Array) -> Array: ...
+
+    @overload
+    def apply_to_jacobian(self, jacobian: spmatrix) -> spmatrix: ...
+
     def apply_to_jacobian(
         self, jacobian: Union[spmatrix, Array]
     ) -> Union[spmatrix, Array]:
@@ -180,12 +197,13 @@ class DirichletConstraintSet(Generic[Array]):
         sparse matrix or Array
             Modified Jacobian (same type as input).
         """
-        if not self.ndofs():
-            return jacobian
-        if issparse(jacobian):
-            return apply_dirichlet_rows(jacobian, self._dofs_numpy())
-        jac = self._bkd.index_update(jacobian, self._dofs, 0.0)
-        return self._bkd.index_update(jac, (self._dofs, self._dofs), 1.0)
+        return self._replace_rows_identity(jacobian)
+
+    @overload
+    def apply_to_mass(self, mass: Array) -> Array: ...
+
+    @overload
+    def apply_to_mass(self, mass: spmatrix) -> spmatrix: ...
 
     def apply_to_mass(
         self, mass: Union[spmatrix, Array]
@@ -210,7 +228,7 @@ class DirichletConstraintSet(Generic[Array]):
             return mass
         if mass is not self._cached_mass_input:
             self._cached_mass_input = mass
-            self._cached_mass_result = self.apply_to_jacobian(mass)
+            self._cached_mass_result = self._replace_rows_identity(mass)
         cached = self._cached_mass_result
         if cached is None:
             raise RuntimeError("apply_to_mass cache is unexpectedly empty")
@@ -221,6 +239,12 @@ class DirichletConstraintSet(Generic[Array]):
         mask = np.ones(self._nstates, dtype=np.float64)
         mask[self._dofs_numpy()] = 0.0
         return mask
+
+    @overload
+    def zero_rows(self, matrix: Array) -> Array: ...
+
+    @overload
+    def zero_rows(self, matrix: spmatrix) -> spmatrix: ...
 
     def zero_rows(
         self, matrix: Union[spmatrix, Array]
@@ -243,6 +267,12 @@ class DirichletConstraintSet(Generic[Array]):
         if issparse(matrix):
             return (diags(self._sparse_row_mask()) @ matrix).tocsr()
         return self._bkd.index_update(matrix, self._dofs, 0.0)
+
+    @overload
+    def zero_cols(self, matrix: Array) -> Array: ...
+
+    @overload
+    def zero_cols(self, matrix: spmatrix) -> spmatrix: ...
 
     def zero_cols(
         self, matrix: Union[spmatrix, Array]
