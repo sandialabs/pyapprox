@@ -116,6 +116,15 @@ class TimeSteppingResidualProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def is_multistage(self) -> bool:
+        """Whether the scheme forms internal stage states.
+
+        Stage-based steppers solve intermediate mass systems whose
+        constrained rows need boundary velocities. One-step schemes
+        return False.
+        """
+        ...
+
 
 @runtime_checkable
 class SensitivityStepperProtocol(Protocol, Generic[Array]):
@@ -137,6 +146,8 @@ class SensitivityStepperProtocol(Protocol, Generic[Array]):
     def linsolve(self, state: Array, residual: Array) -> Array: ...
 
     def is_one_step_solvable(self) -> bool: ...
+
+    def is_multistage(self) -> bool: ...
 
     @property
     def native_residual(self) -> ODEResidualProtocol[Array]:
@@ -194,6 +205,8 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def linsolve(self, state: Array, residual: Array) -> Array: ...
 
     def is_one_step_solvable(self) -> bool: ...
+
+    def is_multistage(self) -> bool: ...
 
     @property
     def native_residual(self) -> ODEResidualProtocol[Array]:
@@ -377,6 +390,8 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
     def linsolve(self, state: Array, residual: Array) -> Array: ...
 
     def is_one_step_solvable(self) -> bool: ...
+
+    def is_multistage(self) -> bool: ...
 
     @property
     def native_residual(self) -> ODEResidualProtocol[Array]: ...

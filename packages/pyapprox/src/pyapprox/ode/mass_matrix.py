@@ -37,6 +37,14 @@ class MassMatrixProtocol(Protocol, Generic[Array]):
 
     def as_matrix(self) -> Array: ...
 
+    def is_diagonal(self) -> bool:
+        """Whether the mass matrix is diagonal (incl. identity).
+
+        Diagonal mass decouples boundary DOFs from interior rows, so
+        stage-based steppers need no boundary velocities.
+        """
+        ...
+
     def is_identity(self) -> bool: ...
 
     def is_singular(self) -> bool:
@@ -84,6 +92,9 @@ class IdentityMassMatrix(Generic[Array]):
         return self._cached_matrix
 
     def is_identity(self) -> bool:
+        return True
+
+    def is_diagonal(self) -> bool:
         return True
 
     def is_singular(self) -> bool:
@@ -134,6 +145,71 @@ class ConstantDenseMassMatrix(Generic[Array]):
 
     def is_identity(self) -> bool:
         return False
+
+    def is_diagonal(self) -> bool:
+        return False
+
+    def is_singular(self) -> bool:
+        return len(self._zero_rows) > 0
+
+    def zero_rows(self) -> list[int]:
+        return list(self._zero_rows)
+
+
+class DiagonalMassMatrix(Generic[Array]):
+    """Diagonal mass matrix built from its 1D diagonal.
+
+    The canonical product of row-sum lumping: diagonality is a
+    STRUCTURAL property of the type, and solve/apply are elementwise
+    backend arithmetic — no factorization, autograd-safe on every
+    backend.
+    """
+
+    def __init__(self, diagonal: Array, bkd: Backend[Array]) -> None:
+        if diagonal.ndim != 1:
+            raise ValueError(
+                "diagonal must be a 1D array, got shape "
+                f"{diagonal.shape}. DiagonalMassMatrix takes the "
+                "diagonal itself, not a matrix."
+            )
+        self._diag = diagonal
+        self._bkd = bkd
+        # One-time construction scan; python iteration keeps the
+        # comparison typing exact (Array __eq__ is Union-typed).
+        self._zero_rows: list[int] = [
+            ii for ii, val in enumerate(diagonal) if float(val) == 0.0
+        ]
+
+    def diagonal(self) -> Array:
+        """Return the diagonal. Shape: (nstates,)"""
+        return self._diag
+
+    def _broadcast(self, vec: Array) -> Array:
+        """Diagonal aligned with vec: per-row for matrix rhs."""
+        if vec.ndim == 2:
+            return self._diag[:, None]
+        return self._diag
+
+    def apply(self, vec: Array) -> Array:
+        return self._broadcast(vec) * vec
+
+    def solve(self, vec: Array) -> Array:
+        return vec / self._broadcast(vec)
+
+    def apply_transpose(self, vec: Array) -> Array:
+        return self.apply(vec)
+
+    def solve_transpose(self, vec: Array) -> Array:
+        return self.solve(vec)
+
+    def as_matrix(self) -> Array:
+        return self._bkd.diag(self._diag)
+
+    def is_identity(self) -> bool:
+        return False
+
+    def is_diagonal(self) -> bool:
+        return True
 
     def is_singular(self) -> bool:
         return len(self._zero_rows) > 0
@@ -191,6 +267,9 @@ class ConstantSparseMassMatrix(Generic[Array]):
         return self._matrix
 
     def is_identity(self) -> bool:
+        return False
+
+    def is_diagonal(self) -> bool:
         return False
 
     def is_singular(self) -> bool:

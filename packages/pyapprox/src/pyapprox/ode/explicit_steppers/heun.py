@@ -12,7 +12,9 @@ Split into three classes via mixin composition:
 - HeunHVP: + HVP methods
 """
 
-from typing import Generic
+from typing import Generic, Union
+
+from scipy.sparse import spmatrix
 
 from pyapprox.ode.linear_operator import (
     LinearOperatorProtocol,
@@ -26,7 +28,15 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Backend
+
+
+def _dense(bkd: Backend[Array], matrix: Union[spmatrix, Array]) -> Array:
+    """Return the matrix as a dense backend array (no-op when dense)."""
+    if isinstance(matrix, spmatrix):
+        return bkd.asarray(matrix.toarray())
+    return matrix
+
 
 # =========================================================================
 # Base stepper: core + sensitivity + quadrature
@@ -59,12 +69,15 @@ class HeunStepper(
         self._residual.set_time(self._ctx.t_prev)
         k1 = self._residual(self._ctx.y_prev)
 
-        # k2 = f(y_{n-1} + Δt·k1, t_n)
-        next_state = self._ctx.y_prev + self._ctx.deltat * k1
+        # Stage: y_{n-1} + Δt·M^{-1}·k1. The ODE is M·dy/dt = f, so the
+        # slope is M^{-1}f; for identity mass (collocation) the solve is
+        # a no-op and this reduces to y_{n-1} + Δt·k1.
+        mass = self._residual.mass_matrix()
+        next_state = self._ctx.y_prev + self._ctx.deltat * mass.solve(k1)
         self._residual.set_time(self._ctx.t_curr)
         k2 = self._residual(next_state)
 
-        return self._residual.mass_matrix().apply(
+        return mass.apply(
             state - self._ctx.y_prev
         ) - 0.5 * self._ctx.deltat * (k1 + k2)
 
@@ -82,6 +95,10 @@ class HeunStepper(
     def is_one_step_solvable(self) -> bool:
         return True
 
+    def is_multistage(self) -> bool:
+        """Heun forms the predictor stage y + dt*M^{-1}*k1."""
+        return True
+
     def has_prev_state_hessian(self) -> bool:
         return True
 
@@ -91,27 +108,39 @@ class HeunStepper(
         r"""Compute :math:`dR_n/dy_{n-1}` for forward sensitivity propagation.
 
         For Heun with :math:`k_1 = f(y_{n-1})`,
-        :math:`k_2 = f(y_{n-1} + \Delta t \cdot k_1)`:
+        :math:`k_2 = f(y_{n-1} + \Delta t \, M^{-1} k_1)`:
 
         .. math::
 
             \frac{dR_n}{dy_{n-1}} = -\left(M + \frac{\Delta t}{2}
-            (J_1 + J_2 (M + \Delta t \, J_1))\right)
+            (J_1 + J_2 (I + \Delta t \, M^{-1} J_1))\right)
+
+        One path for every mass: ``mass.solve`` is a passthrough for
+        identity mass. :math:`M^{-1} J_1` is inherently dense (inverse
+        fill-in), so sparse operands are normalized to dense before
+        mixing with it — a no-op for backend arrays.
         """
+        mass_obj = self._residual.mass_matrix()
+
         self._residual.set_time(ctx.t_prev)
         k1_jac = self._residual.jacobian(ctx.y_prev)
 
         k1 = self._residual(ctx.y_prev)
-        k2_state = ctx.y_prev + ctx.deltat * k1
+        k2_state = ctx.y_prev + ctx.deltat * mass_obj.solve(k1)
 
         self._residual.set_time(ctx.t_curr)
         k2_jac = self._residual.jacobian(k2_state)
 
-        mass = self._residual.mass_matrix().as_matrix()
-
-        # dR/dy_{n-1} = -(M + (Δt/2)·(J1 + J2·(M + Δt·J1)))
-        inner = k1_jac + k2_jac @ (mass + ctx.deltat * k1_jac)
-        return -(mass + 0.5 * ctx.deltat * inner)
+        minv_j1 = mass_obj.solve(_dense(self._bkd, k1_jac))
+        inner = (
+            _dense(self._bkd, k1_jac)
+            + _dense(self._bkd, k2_jac)
+            + ctx.deltat * (k2_jac @ minv_j1)
+        )
+        return -(
+            _dense(self._bkd, mass_obj.as_matrix())
+            + 0.5 * ctx.deltat * inner
+        )
 
     # -- QuadratureMixin --
 

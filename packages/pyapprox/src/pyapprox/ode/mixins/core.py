@@ -34,6 +34,17 @@ class CoreStepperMixin(ABC, Generic[Array]):
         """Bind the step context for Newton-facing methods."""
         self._ctx = ctx
 
+    def is_multistage(self) -> bool:
+        """Whether the scheme forms internal stage states.
+
+        Stage-based steppers solve intermediate mass systems whose
+        constrained rows need boundary velocities (see the stage-BC
+        requirement in the galerkin BC wrapper). One-step schemes
+        (forward/backward Euler, Crank-Nicolson, implicit midpoint)
+        return False.
+        """
+        return False
+
     @abstractmethod
     def __call__(self, state: Array) -> Array:
         """Evaluate the time stepping residual."""

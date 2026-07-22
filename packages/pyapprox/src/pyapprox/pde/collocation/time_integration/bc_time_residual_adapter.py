@@ -164,6 +164,10 @@ class BCEnforcingForwardResidual(Generic[Array]):
         # identity solve. Could return residual directly + BC fixup.
         return bool(self._inner.is_one_step_solvable())
 
+    def is_multistage(self) -> bool:
+        """Whether the wrapped scheme forms internal stage states."""
+        return self._inner.is_multistage()
+
     def has_prev_state_hessian(self) -> bool:
         """Return whether R_{n+1} depends on f(y_n)."""
         return bool(self._inner.has_prev_state_hessian())
