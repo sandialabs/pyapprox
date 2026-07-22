@@ -11,7 +11,6 @@ with mass matrices: M*du/dt = F(u,t) instead of du/dt = f(u,t).
 """
 
 from typing import (
-    Any,
     Generic,
     Optional,
     Protocol,
@@ -36,10 +35,6 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
-        ...
-
-    def basis(self) -> Any:
-        """Return the finite element basis."""
         ...
 
     def nstates(self) -> int:

@@ -111,13 +111,6 @@ def _solve_stokes(
         vel_dirichlet_bcs=vel_bcs,
     )
 
-    # NOTE: StokesPhysics does not structurally satisfy
-    # GalerkinPhysicsProtocol because it has two bases (velocity and
-    # pressure) rather than a single ``basis()``. A proper fix needs a
-    # dedicated protocol for vector/multi-field Galerkin physics that
-    # both AdvectionDiffusionReaction (single basis) and StokesPhysics
-    # (multiple bases) can satisfy. Flagged by mypy; left for a
-    # future upstream refactor so the CI ratchet keeps it visible.
     model = GalerkinModel(stokes, bkd)
     init_guess = stokes.init_guess(0.0)
     sol = model.solve_steady(init_guess, tol=1e-10, maxiter=50)
