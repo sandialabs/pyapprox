@@ -6,7 +6,7 @@ This module contains:
 2. 4 parametrized 2D transient tests (new coverage)
 3. Crank-Nicolson variants (1D + 2D)
 4. Explicit integrator tests (Forward Euler + Heun, with/without advection)
-5. Low-level manual Newton test using ConstrainedTimeStepResidual wrapper
+5. Low-level manual Newton test using the BC-enforcing residual wrapper
 
 Implicit cases use GalerkinModel.solve_transient() with backward Euler or
 Crank-Nicolson. Explicit cases use GalerkinModel with CFL-constrained dt.
@@ -34,10 +34,10 @@ from pyapprox.pde.galerkin.manufactured.adapter import (
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
-    ConstrainedTimeStepResidual,
     GalerkinModel,
     GalerkinPhysicsToODEResidualAdapter,
     TimeIntegrationConfig,
+    create_galerkin_bc_enforcing_residual,
 )
 
 from tests._helpers.markers import slow_test
@@ -546,19 +546,19 @@ class TestTransientADRExplicit1D:
 
 
 # =========================================================================
-# Manual Newton test using ConstrainedTimeStepResidual wrapper
+# Manual Newton test using the BC-enforcing residual wrapper
 # =========================================================================
 
 
 class TestManualNewtonWithConstraint:
-    """Low-level test of ConstrainedTimeStepResidual with manual Newton.
+    """Low-level test of the BC-enforcing residual with manual Newton.
 
     Verifies that the wrapper correctly applies Dirichlet constraints
     to the assembled Newton system at a low level.
     """
 
     def test_manual_newton_backward_euler(self, numpy_bkd) -> None:
-        """Manual Newton with BE + ConstrainedTimeStepResidual."""
+        """Manual Newton with BE + the BC-enforcing residual."""
         bkd = numpy_bkd
         _, _, exact_at_time = _setup_1d_problem(
             bkd,
@@ -599,7 +599,9 @@ class TestManualNewtonWithConstraint:
         # Manual setup: adapter + stepper + constrained wrapper
         ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
         stepper = BackwardEulerHVP(ode_adapter)
-        constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
+        constrained = create_galerkin_bc_enforcing_residual(
+            stepper, physics, bkd
+        )
 
         y = bkd.asarray(exact_at_time(0.0))
         dt = 1.0
@@ -609,9 +611,7 @@ class TestManualNewtonWithConstraint:
         for step in range(nsteps):
             t_np1 = t + dt
             # Set stepper with unmodified prev_state
-            stepper.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
-            # Set constraint time
-            constrained.set_bc_time(t_np1)
+            constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             # Initial guess with Dirichlet values injected
             d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
@@ -639,7 +639,7 @@ class TestManualNewtonWithConstraint:
         assert rel_error < 1e-6
 
     def test_manual_newton_crank_nicolson(self, numpy_bkd) -> None:
-        """Manual Newton with CN + ConstrainedTimeStepResidual."""
+        """Manual Newton with CN + the BC-enforcing residual."""
         bkd = numpy_bkd
 
         functions, _ = create_adr_manufactured_test(
@@ -676,7 +676,9 @@ class TestManualNewtonWithConstraint:
 
         ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
         stepper = CrankNicolsonHVP(ode_adapter)
-        constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
+        constrained = create_galerkin_bc_enforcing_residual(
+            stepper, physics, bkd
+        )
 
         y = bkd.asarray(exact_at_time(0.0))
         dt = 1.0
@@ -685,8 +687,7 @@ class TestManualNewtonWithConstraint:
 
         for step in range(nsteps):
             t_np1 = t + dt
-            stepper.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
-            constrained.set_bc_time(t_np1)
+            constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             y_new_np = bkd.to_numpy(y).copy()

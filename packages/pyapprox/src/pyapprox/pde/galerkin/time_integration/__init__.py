@@ -12,9 +12,6 @@ from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingForwardResidual,
     create_galerkin_bc_enforcing_residual,
 )
-from pyapprox.pde.galerkin.time_integration.constrained_residual import (
-    ConstrainedTimeStepResidual,
-)
 from pyapprox.pde.galerkin.time_integration.explicit_adapter import (
     GalerkinExplicitODEAdapter,
 )
@@ -32,7 +29,6 @@ __all__ = [
     "GalerkinPhysicsToODEResidualAdapter",
     "GalerkinBCEnforcingForwardResidual",
     "GalerkinExplicitODEAdapter",
-    "ConstrainedTimeStepResidual",
     "StokesTimeStepResidual",
     "GalerkinModel",
     "TimeIntegrationConfig",

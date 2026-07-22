@@ -23,23 +23,22 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.manufactured.burgers import (
-    ManufacturedBurgers1D,
-)
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
 )
-from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
-from pyapprox.util.rootfinding.newton import NewtonSolver
-from scipy.sparse import issparse
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration import (
-    ConstrainedTimeStepResidual,
     GalerkinPhysicsToODEResidualAdapter,
+    create_galerkin_bc_enforcing_residual,
 )
+from pyapprox.pde.manufactured.burgers import (
+    ManufacturedBurgers1D,
+)
+from pyapprox.util.rootfinding.newton import NewtonSolver
+from scipy.sparse import issparse
 
 # =========================================================================
 # Part A: Unit Tests
@@ -310,7 +309,9 @@ class TestParametrizedBurgersTransient:
             stepper = BackwardEulerHVP(ode_adapter)
         else:
             stepper = CrankNicolsonHVP(ode_adapter)
-        constrained = ConstrainedTimeStepResidual(stepper, ode_adapter)
+        constrained = create_galerkin_bc_enforcing_residual(
+            stepper, physics, bkd
+        )
 
         newton = NewtonSolver(constrained)
         newton.set_options(maxiters=20, atol=1e-10, rtol=0.0)
@@ -334,8 +335,7 @@ class TestParametrizedBurgersTransient:
 
         for step in range(nsteps):
             t_np1 = t + dt
-            stepper.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
-            constrained.set_bc_time(t_np1)
+            constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
 
             # Inject Dirichlet values into initial guess
             d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
