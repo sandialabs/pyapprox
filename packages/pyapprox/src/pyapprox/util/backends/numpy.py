@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csc_matrix, spmatrix
 from scipy.sparse.linalg import spsolve
 
-from pyapprox.util.backends.protocols import ArrayLike, Backend
+from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
 
 
 # Implement the NumPy backend
@@ -832,7 +832,7 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
     @staticmethod
     def index_update(
         array: NDArray[Any],
-        index: Union[int, Tuple[int, ...]],
+        index: IndexLike[NDArray[Any]],
         value: Any,
     ) -> NDArray[Any]:
         """Return a copy of array with array[index] = value.
@@ -844,8 +844,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         ----------
         array : NDArray
             Array to update.
-        index : int or tuple of int
-            Index to update.
+        index : int, slice, index array, or tuple of those
+            Any index expression valid in ``array[index] = value``.
         value : Any
             Value to set at index.
 

@@ -16,7 +16,7 @@ import torch
 from numpy.typing import NDArray
 from scipy.sparse import spmatrix
 
-from pyapprox.util.backends.protocols import ArrayLike, Backend
+from pyapprox.util.backends.protocols import ArrayLike, Backend, IndexLike
 
 # annotated alias: set_default_dtype is untyped in older torch stubs, and
 # a type: ignore would be flagged unused under newer (typed) stubs
@@ -986,7 +986,7 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     @staticmethod
     def index_update(
         array: torch.Tensor,
-        index: Union[int, Tuple[int, ...]],
+        index: IndexLike[torch.Tensor],
         value: Any,
     ) -> torch.Tensor:
         """Return a copy of array with array[index] = value.
@@ -998,8 +998,8 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         ----------
         array : torch.Tensor
             Tensor to update.
-        index : int or tuple of int
-            Index to update.
+        index : int, slice, index array, or tuple of those
+            Any index expression valid in ``array[index] = value``.
         value : Any
             Value to set at index.
 

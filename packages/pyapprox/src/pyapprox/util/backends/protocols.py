@@ -32,6 +32,11 @@ ArrayLike = Union[
     Sequence[Any], float, int, "NDArray[Any]", "torch.Tensor", "ArrayProtocol"
 ]
 
+# Index expression for index_update: every form that both backends
+# accept in ``array[index] = value`` (fancy indexing included). The
+# parameter is the backend's array type (integer or boolean arrays).
+IndexLike = Union[int, slice, Array, Tuple[Union[int, slice, Array], ...]]
+
 
 @runtime_checkable
 class ArrayProtocol(Protocol):
@@ -1114,7 +1119,7 @@ class Backend(Protocol, Generic[Array]):
     @staticmethod
     def index_update(
         array: Array,
-        index: Union[int, Tuple[int, ...]],
+        index: IndexLike[Array],
         value: Any,
     ) -> Array:
         """Return a copy of array with array[index] = value.
@@ -1126,8 +1131,8 @@ class Backend(Protocol, Generic[Array]):
         ----------
         array : Array
             Array to update.
-        index : int or tuple of int
-            Index to update.
+        index : int, slice, index Array, or tuple of those
+            Any index expression valid in ``array[index] = value``.
         value : Any
             Value to set at index.
 
