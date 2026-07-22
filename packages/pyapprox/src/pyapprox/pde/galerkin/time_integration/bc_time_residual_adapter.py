@@ -141,6 +141,10 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
         """Constraint rows are linear in y, so this delegates unchanged."""
         return bool(self._inner.is_one_step_solvable())
 
+    def is_multistage(self) -> bool:
+        """Whether the wrapped scheme forms internal stage states."""
+        return self._inner.is_multistage()
+
     # -- SensitivityStepperProtocol --
 
     @property
@@ -227,5 +231,36 @@ def create_galerkin_bc_enforcing_residual(
     -------
     GalerkinBCEnforcingForwardResidual
         The BC-enforcing wrapper.
+
+    Raises
+    ------
+    TypeError
+        If the stepper is stage-based, the mass matrix is consistent
+        (not diagonal/identity), and any time-varying essential BC
+        lacks an analytic ``constrained_values_time_derivative``.
+        Checked eagerly here, not at the first stage solve.
     """
+    if inner.is_multistage() and isinstance(
+        inner, SensitivityStepperProtocol
+    ):
+        mass = inner.native_residual.mass_matrix()
+        if not mass.is_diagonal():
+            missing = physics.constraint_set().missing_time_derivative_bcs()
+            if missing:
+                raise TypeError(
+                    "stage-based stepper "
+                    f"{type(inner).__name__} with a consistent mass "
+                    "matrix requires an analytic boundary velocity "
+                    "(constrained_values_time_derivative) on every "
+                    "time-varying essential BC, but these lack it: "
+                    f"{missing}. A consistent mass couples boundary "
+                    "motion into interior rows via M_id*g_dot; "
+                    "dropping or FD-approximating it silently corrupts "
+                    "stage slopes. Remedies: (a) supply the analytic "
+                    "derivative on each BC, (b) use lumped mass "
+                    "(config.lumped_mass=True), or (c) use a one-step "
+                    "implicit method (backward_euler/crank_nicolson), "
+                    "whose difference quotient supplies the term "
+                    "exactly."
+                )
     return GalerkinBCEnforcingForwardResidual(inner, physics, bkd)

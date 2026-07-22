@@ -104,6 +104,9 @@ class _FakeExplicitStepper:
     def is_one_step_solvable(self) -> bool:
         return True
 
+    def is_multistage(self) -> bool:
+        return False
+
     @property
     def native_residual(self) -> ODEResidualProtocol[Any]:
         raise NotImplementedError
@@ -250,3 +253,77 @@ class TestForwardWrapper:
         out2 = wrapper.linsolve(bkd.asarray(np.zeros(n)), rhs)
         assert fake.jacobian_calls == 1
         bkd.assert_allclose(out1, out2)
+
+
+class TestStageBCRequirement:
+    """D4.5 policy: analytic g_dot required for multistage + consistent
+    mass; exempt for one-step steppers, lumped mass, and static BCs."""
+
+    def _physics_with_callable_bc(
+        self, bkd: NumpyBkd, with_derivative: bool
+    ) -> AdvectionDiffusionReaction[Any]:
+        from pyapprox.pde.galerkin.boundary import CallableDirichletBC
+        from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+
+        mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        kwargs: Any = {}
+        if with_derivative:
+            kwargs["value_time_derivative_func"] = lambda t: np.array([2.0])
+        bc = CallableDirichletBC(
+            [0], lambda t: np.array([2.0 * t]), bkd, **kwargs
+        )
+        return AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=1.0,
+            bkd=bkd,
+            forcing=lambda x: np.zeros(x.shape[1]),
+            boundary_conditions=[bc],
+        )
+
+    def test_multistage_consistent_mass_missing_gdot_raises(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        physics = self._physics_with_callable_bc(
+            numpy_bkd, with_derivative=False
+        )
+        adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        stepper = create_stepper("heun", adapter)
+        with pytest.raises(TypeError, match="analytic boundary velocity"):
+            create_galerkin_bc_enforcing_residual(
+                stepper, physics, numpy_bkd
+            )
+
+    def test_one_step_stepper_exempt(self, numpy_bkd: NumpyBkd) -> None:
+        physics = self._physics_with_callable_bc(
+            numpy_bkd, with_derivative=False
+        )
+        adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        stepper = create_stepper("backward_euler", adapter)
+        create_galerkin_bc_enforcing_residual(stepper, physics, numpy_bkd)
+
+    def test_lumped_mass_exempt(self, numpy_bkd: NumpyBkd) -> None:
+        physics = self._physics_with_callable_bc(
+            numpy_bkd, with_derivative=False
+        )
+        adapter = GalerkinPhysicsToODEResidualAdapter(
+            physics, lumped_mass=True
+        )
+        stepper = create_stepper("heun", adapter)
+        create_galerkin_bc_enforcing_residual(stepper, physics, numpy_bkd)
+
+    def test_static_bcs_pass_with_multistage(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        physics, _ = _setup_adr(numpy_bkd)  # static + manufactured g_dot
+        adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        stepper = create_stepper("heun", adapter)
+        create_galerkin_bc_enforcing_residual(stepper, physics, numpy_bkd)
+
+    def test_supplied_gdot_passes(self, numpy_bkd: NumpyBkd) -> None:
+        physics = self._physics_with_callable_bc(
+            numpy_bkd, with_derivative=True
+        )
+        adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        stepper = create_stepper("heun", adapter)
+        create_galerkin_bc_enforcing_residual(stepper, physics, numpy_bkd)
