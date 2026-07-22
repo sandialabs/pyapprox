@@ -9,11 +9,14 @@ Tests use typing array convention: (nqoi, nsamples) for outputs.
 import numpy as np
 import pytest
 import torch
-
-from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
+from pyapprox.interface.functions.autograd import (
+    WithAutogradJacobian,
+    WithAutogradJacobianConstraint,
+)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.statest.acv.base import ACVEstimator
 from pyapprox.statest.acv.optimization import (
     ACVLogDeterminantObjective,
     ACVPartitionConstraint,
@@ -29,6 +32,8 @@ from pyapprox.statest.acv.variants import (
 )
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.util.backends.torch import TorchBkd
+from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
+
 from tests._helpers.markers import slow_test
 
 
@@ -40,12 +45,14 @@ class TestACVLogDeterminantObjectiveGradients:
     """
 
     @pytest.fixture(autouse=True)
-    def _setup(self):
+    def _setup(self) -> None:
         np.random.seed(42)
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    def _create_estimator(self, est_type: str, nmodels: int = 3, nqoi: int = 1):
+    def _create_estimator(
+        self, est_type: str, nmodels: int = 3, nqoi: int = 1
+    ) -> ACVEstimator[torch.Tensor]:
         """Create estimator for testing."""
         bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
         cov = bm.ensemble_covariance()
@@ -84,14 +91,18 @@ class TestACVLogDeterminantObjectiveGradients:
         target_cost = 50.0
         est = self._create_estimator(est_type, nmodels=nmodels)
 
-        objective = ACVLogDeterminantObjective()
+        objective: ACVLogDeterminantObjective[torch.Tensor] = (
+            ACVLogDeterminantObjective()
+        )
         objective.set_target_cost(target_cost)
         objective.set_estimator(est)
 
         # Use a starting point away from optimum
         partition_ratios = self._bkd.ones((nmodels - 1, 1)) * 2.0
 
-        checker = DerivativeChecker(objective)
+        # ACV objectives declare no analytical jacobian; production
+        # composes autograd on an autodiff backend — test that object.
+        checker = DerivativeChecker(WithAutogradJacobian(objective, self._bkd))
         errors = checker.check_derivatives(partition_ratios, verbosity=0)
 
         # Check Jacobian accuracy (use 1e-5 tolerance for numerical precision)
@@ -115,13 +126,17 @@ class TestACVLogDeterminantObjectiveGradients:
         target_cost = 100.0
         est = self._create_estimator(est_type, nmodels=nmodels)
 
-        objective = ACVLogDeterminantObjective()
+        objective: ACVLogDeterminantObjective[torch.Tensor] = (
+            ACVLogDeterminantObjective()
+        )
         objective.set_target_cost(target_cost)
         objective.set_estimator(est)
 
         partition_ratios = self._bkd.ones((nmodels - 1, 1)) * 3.0
 
-        checker = DerivativeChecker(objective)
+        # ACV objectives declare no analytical jacobian; production
+        # composes autograd on an autodiff backend — test that object.
+        checker = DerivativeChecker(WithAutogradJacobian(objective, self._bkd))
         errors = checker.check_derivatives(partition_ratios, verbosity=0)
 
         assert float(checker.error_ratio(errors[0])) <= 1e-6
@@ -135,12 +150,14 @@ class TestACVPartitionConstraintGradients:
     """
 
     @pytest.fixture(autouse=True)
-    def _setup(self):
+    def _setup(self) -> None:
         np.random.seed(42)
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
 
-    def _create_estimator(self, est_type: str, nmodels: int = 3):
+    def _create_estimator(
+        self, est_type: str, nmodels: int = 3
+    ) -> ACVEstimator[torch.Tensor]:
         """Create estimator for testing."""
         bm = PolynomialEnsembleBenchmark(self._bkd, nmodels=nmodels)
         cov = bm.ensemble_covariance()
@@ -183,7 +200,10 @@ class TestACVPartitionConstraintGradients:
         # Use a starting point
         partition_ratios = self._bkd.ones((nmodels - 1, 1)) * 2.0
 
-        checker = DerivativeChecker(constraint)
+        # Constraints likewise get their jacobian composed in production.
+        checker = DerivativeChecker(
+            WithAutogradJacobianConstraint(constraint, self._bkd)
+        )
         # Need weights for multi-qoi constraint
         weights = self._bkd.ones((constraint.nqoi(), 1))
         errors = checker.check_derivatives(
@@ -198,7 +218,7 @@ class TestMFMCOptimalSolutionGradients:
     """Test that gradients are zero at MFMC analytical optimal solution."""
 
     @pytest.fixture(autouse=True)
-    def _setup(self):
+    def _setup(self) -> None:
         np.random.seed(42)
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -227,12 +247,20 @@ class TestMFMCOptimalSolutionGradients:
         partition_ratios = est._native_ratios_to_npartition_ratios(mfmc_ratios)
 
         # Create objective
-        objective = ACVLogDeterminantObjective()
+        objective: ACVLogDeterminantObjective[torch.Tensor] = (
+            ACVLogDeterminantObjective()
+        )
         objective.set_target_cost(target_cost)
         objective.set_estimator(est)
 
-        # Gradient should be zero at optimum
-        jacobian = objective.jacobian(partition_ratios[:, None])
+        # Gradient should be zero at optimum (jacobian composed from
+        # autograd, as in production)
+        wrapped: WithAutogradJacobian[torch.Tensor] = WithAutogradJacobian(
+            objective, self._bkd
+        )
+        jacobian_fn = wrapped.derivatives().jacobian
+        assert jacobian_fn is not None
+        jacobian = jacobian_fn(partition_ratios[:, None])
         expected_zeros = self._bkd.zeros((1, nmodels - 1))
 
         self._bkd.assert_allclose(jacobian, expected_zeros, atol=1e-8)
@@ -258,7 +286,9 @@ class TestMFMCOptimalSolutionGradients:
         )
         partition_ratios = est._native_ratios_to_npartition_ratios(mfmc_ratios)
 
-        objective = ACVLogDeterminantObjective()
+        objective: ACVLogDeterminantObjective[torch.Tensor] = (
+            ACVLogDeterminantObjective()
+        )
         objective.set_target_cost(target_cost)
         objective.set_estimator(est)
 
@@ -275,7 +305,7 @@ class TestMLMCOptimalSolutionGradients:
     """Test that gradients are zero at MLMC analytical optimal solution."""
 
     @pytest.fixture(autouse=True)
-    def _setup(self):
+    def _setup(self) -> None:
         np.random.seed(42)
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -307,12 +337,20 @@ class TestMLMCOptimalSolutionGradients:
         partition_ratios = est._native_ratios_to_npartition_ratios(mlmc_ratios)
 
         # Create objective
-        objective = ACVLogDeterminantObjective()
+        objective: ACVLogDeterminantObjective[torch.Tensor] = (
+            ACVLogDeterminantObjective()
+        )
         objective.set_target_cost(target_cost)
         objective.set_estimator(est)
 
-        # Gradient should be zero at optimum
-        jacobian = objective.jacobian(partition_ratios[:, None])
+        # Gradient should be zero at optimum (jacobian composed from
+        # autograd, as in production)
+        wrapped: WithAutogradJacobian[torch.Tensor] = WithAutogradJacobian(
+            objective, self._bkd
+        )
+        jacobian_fn = wrapped.derivatives().jacobian
+        assert jacobian_fn is not None
+        jacobian = jacobian_fn(partition_ratios[:, None])
         expected_zeros = self._bkd.zeros((1, nmodels - 1))
 
         self._bkd.assert_allclose(jacobian, expected_zeros, atol=1e-8)
@@ -338,7 +376,9 @@ class TestMLMCOptimalSolutionGradients:
         )
         partition_ratios = est._native_ratios_to_npartition_ratios(mlmc_ratios)
 
-        objective = ACVLogDeterminantObjective()
+        objective: ACVLogDeterminantObjective[torch.Tensor] = (
+            ACVLogDeterminantObjective()
+        )
         objective.set_target_cost(target_cost)
         objective.set_estimator(est)
 
@@ -355,7 +395,7 @@ class TestDerivativeCheckerConvergence:
     """Test that DerivativeChecker shows proper convergence behavior."""
 
     @pytest.fixture(autouse=True)
-    def _setup(self):
+    def _setup(self) -> None:
         np.random.seed(42)
         torch.set_default_dtype(torch.float64)
         self._bkd = TorchBkd()
@@ -378,6 +418,7 @@ class TestDerivativeCheckerConvergence:
         stat = MultiOutputMean(1, self._bkd)
         stat.set_pilot_quantities(cov)
 
+        est: ACVEstimator[torch.Tensor]
         if est_type == "gmf":
             rec_idx = self._bkd.array([0] * (nmodels - 1), dtype=int)
             est = GMFEstimator(stat, costs, recursion_index=rec_idx)
@@ -387,7 +428,9 @@ class TestDerivativeCheckerConvergence:
         else:
             est = MFMCEstimator(stat, costs)
 
-        objective = ACVLogDeterminantObjective()
+        objective: ACVLogDeterminantObjective[torch.Tensor] = (
+            ACVLogDeterminantObjective()
+        )
         objective.set_target_cost(target_cost)
         objective.set_estimator(est)
 
@@ -396,7 +439,9 @@ class TestDerivativeCheckerConvergence:
         # Custom fd_eps to test convergence
         fd_eps = self._bkd.flip(self._bkd.logspace(-12, 0, 13))
 
-        checker = DerivativeChecker(objective)
+        # ACV objectives declare no analytical jacobian; production
+        # composes autograd on an autodiff backend — test that object.
+        checker = DerivativeChecker(WithAutogradJacobian(objective, self._bkd))
         errors = checker.check_derivatives(partition_ratios, fd_eps=fd_eps, verbosity=0)
 
         # Error ratio should show second-order convergence (~0.25)
