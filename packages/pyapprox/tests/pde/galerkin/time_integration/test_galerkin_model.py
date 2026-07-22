@@ -76,6 +76,7 @@ def _setup_adr_physics(bkd, nx=32):
 IMPLICIT_CASES = [
     "backward_euler",
     "crank_nicolson",
+    "implicit_midpoint",
 ]
 
 

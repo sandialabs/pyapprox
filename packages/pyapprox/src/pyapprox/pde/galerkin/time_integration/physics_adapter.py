@@ -20,6 +20,12 @@ parameterization.
 
 from typing import Generic, Tuple
 
+from scipy.sparse import issparse
+
+from pyapprox.ode.linear_operator import (
+    LinearOperatorProtocol,
+    SparseMatrixOperator,
+)
 from pyapprox.ode.mass_matrix import MassMatrixProtocol, create_mass_matrix
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
@@ -27,6 +33,7 @@ from pyapprox.ode.mixins.default_newton_jacobian import (
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -118,6 +125,30 @@ class GalerkinPhysicsToODEResidualAdapter(
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
         """Return the FEM mass matrix as a value-object."""
         return self._mass
+
+    def newton_jacobian(
+        self, state: Array, coefficient: float
+    ) -> LinearOperatorProtocol[Array]:
+        """Return M - coefficient * dF/du as a linear operator.
+
+        Sparse FEM systems get a ``SparseMatrixOperator`` whose
+        ``as_matrix()`` returns the SPARSE Newton matrix, keeping
+        sparsity flowing to the implicit steppers and the BC-enforcing
+        wrapper (which applies constraint rows sparsely). Dense systems
+        (e.g. the torch backend) fall back to the default dense
+        operator.
+        """
+        jacobian = self.jacobian(state)
+        mass = self._mass.as_matrix()
+        if (
+            issparse(jacobian)
+            and issparse(mass)
+            and isinstance(self._bkd, NumpyBkd)
+        ):
+            return SparseMatrixOperator(
+                mass - coefficient * jacobian, self.bkd()
+            )
+        return super().newton_jacobian(state, coefficient)
 
     def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
         """Return Dirichlet DOF indices and values at given time.

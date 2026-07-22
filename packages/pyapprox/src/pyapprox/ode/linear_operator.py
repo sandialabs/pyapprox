@@ -7,10 +7,8 @@ M - coefficient*J. Explicit steppers return a MassMatrixTransposeOperator
 wrapping the full assembled matrix.
 """
 
-from typing import Any, Generic, Optional, Protocol, runtime_checkable
+from typing import Generic, Optional, Protocol, runtime_checkable
 
-import numpy as np
-from numpy.typing import NDArray
 from scipy.sparse import csc_matrix, issparse, spmatrix
 from scipy.sparse.linalg import SuperLU, splu
 
@@ -83,7 +81,7 @@ class MatrixOperator(Generic[Array]):
         return self._bkd.dot(self._matrix.T, vec)
 
 
-class SparseMatrixOperator:
+class SparseMatrixOperator(Generic[Array]):
     """Wraps a scipy sparse matrix with a cached LU factorization.
 
     Unlike MatrixOperator, which re-solves from scratch on every call
@@ -93,14 +91,15 @@ class SparseMatrixOperator:
     same factors). Intended for implicit time stepping where one
     Jacobian is solved against many right-hand sides.
 
-    NumPy backend only — deliberately non-generic and concretely
-    NDArray-typed: routing a sparse factorization through scipy would
-    silently break the torch autograd graph, the same reason
-    ``TorchBkd.solve_sparse`` raises. Satisfies
-    ``LinearOperatorProtocol[ndarray]``.
+    NumPy backend only at runtime (constructor raises otherwise):
+    routing a sparse factorization through scipy would silently break
+    the torch autograd graph, the same reason ``TorchBkd.solve_sparse``
+    raises. Typed ``Generic[Array]`` like ``ConstantSparseMassMatrix``
+    so numpy-guarded generic call sites conform to
+    ``LinearOperatorProtocol[Array]``.
     """
 
-    def __init__(self, matrix: spmatrix, bkd: NumpyBkd) -> None:
+    def __init__(self, matrix: spmatrix, bkd: Backend[Array]) -> None:
         if not issparse(matrix):
             raise TypeError(
                 "SparseMatrixOperator requires a scipy sparse matrix, "
@@ -109,6 +108,10 @@ class SparseMatrixOperator:
             )
         if matrix.shape[0] != matrix.shape[1]:
             raise ValueError(f"matrix must be square, got shape {matrix.shape}")
+        # Store before the runtime guard: assigning after it would let
+        # the isinstance narrowing type the attribute as NumpyBkd and
+        # break the Array-typed method signatures.
+        self._bkd: Backend[Array] = bkd
         if not isinstance(bkd, NumpyBkd):
             raise TypeError(
                 "SparseMatrixOperator supports only NumpyBkd (sparse "
@@ -116,7 +119,6 @@ class SparseMatrixOperator:
                 f"got {type(bkd).__name__}"
             )
         self._matrix = csc_matrix(matrix) if matrix.format != "csc" else matrix
-        self._bkd = bkd
         self._lu: Optional[SuperLU] = None
 
     def _factorization(self) -> SuperLU:
@@ -124,26 +126,33 @@ class SparseMatrixOperator:
             self._lu = splu(self._matrix)
         return self._lu
 
-    def solve(self, rhs: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
-        return self._bkd.asarray(self._factorization().solve(rhs))
+    def solve(self, rhs: Array) -> Array:
+        rhs_np = self._bkd.to_numpy(rhs)
+        return self._bkd.asarray(self._factorization().solve(rhs_np))
 
-    def apply(self, vec: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
-        return self._bkd.asarray(self._matrix @ vec)
+    def apply(self, vec: Array) -> Array:
+        vec_np = self._bkd.to_numpy(vec)
+        return self._bkd.asarray(self._matrix @ vec_np)
 
-    def as_matrix(self) -> NDArray[np.floating[Any]]:
-        """Materialize the operator as a dense matrix (like the
-        block-diagonal operator, only on explicit request)."""
-        return self._bkd.asarray(self._matrix.toarray())
+    def as_matrix(self) -> spmatrix:
+        """Return the wrapped SPARSE matrix (no densify, no factorize).
 
-    def solve_transpose(
-        self, rhs: NDArray[np.floating[Any]]
-    ) -> NDArray[np.floating[Any]]:
-        return self._bkd.asarray(self._factorization().solve(rhs, trans="T"))
+        Sparsity contract: implicit steppers build their Newton system
+        via ``newton_jacobian(...).as_matrix()`` and the BC-enforcing
+        wrappers then apply constraint rows sparsely — densifying here
+        would silently destroy that path.
+        """
+        return self._matrix
 
-    def apply_transpose(
-        self, vec: NDArray[np.floating[Any]]
-    ) -> NDArray[np.floating[Any]]:
-        return self._bkd.asarray(self._matrix.T @ vec)
+    def solve_transpose(self, rhs: Array) -> Array:
+        rhs_np = self._bkd.to_numpy(rhs)
+        return self._bkd.asarray(
+            self._factorization().solve(rhs_np, trans="T")
+        )
+
+    def apply_transpose(self, vec: Array) -> Array:
+        vec_np = self._bkd.to_numpy(vec)
+        return self._bkd.asarray(self._matrix.T @ vec_np)
 
 
 class TransposeLinearOperator(Generic[Array]):

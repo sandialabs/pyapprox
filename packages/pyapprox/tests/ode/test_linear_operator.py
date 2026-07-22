@@ -8,7 +8,7 @@ from pyapprox.ode.linear_operator import (
     MatrixOperator,
     SparseMatrixOperator,
 )
-from scipy.sparse import diags
+from scipy.sparse import diags, issparse
 
 
 class TestBlockDiagonalLinearOperator:
@@ -167,7 +167,9 @@ class TestSparseMatrixOperator:
         numpy_bkd.assert_allclose(
             op.apply_transpose(v), dense.T @ rhs, rtol=1e-12
         )
-        numpy_bkd.assert_allclose(op.as_matrix(), dense, rtol=1e-15)
+        # as_matrix() must return the sparse matrix (no densify)
+        assert issparse(op.as_matrix())
+        numpy_bkd.assert_allclose(op.as_matrix().toarray(), dense, rtol=1e-15)
 
     def test_factorization_cached_and_shared(self, numpy_bkd, monkeypatch):
         """One splu call serves solve and solve_transpose alike."""

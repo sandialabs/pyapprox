@@ -8,6 +8,10 @@ The parameterized adapter tiers and their factory live in
 """
 
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
+    GalerkinBCEnforcingForwardResidual,
+    create_galerkin_bc_enforcing_residual,
+)
 from pyapprox.pde.galerkin.time_integration.constrained_residual import (
     ConstrainedTimeStepResidual,
 )
@@ -26,9 +30,11 @@ from pyapprox.pde.galerkin.time_integration.stokes_time_stepper import (
 
 __all__ = [
     "GalerkinPhysicsToODEResidualAdapter",
+    "GalerkinBCEnforcingForwardResidual",
     "GalerkinExplicitODEAdapter",
     "ConstrainedTimeStepResidual",
     "StokesTimeStepResidual",
     "GalerkinModel",
     "TimeIntegrationConfig",
+    "create_galerkin_bc_enforcing_residual",
 ]

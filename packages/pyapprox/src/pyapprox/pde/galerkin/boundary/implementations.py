@@ -19,6 +19,9 @@ from pyapprox.pde.galerkin.protocols.basis import (
     ComponentDofsBasisProtocol,
     GalerkinBasisProtocol,
 )
+from pyapprox.pde.galerkin.protocols.boundary import (
+    BoundaryConditionProtocol,
+)
 from pyapprox.pde.sparse_utils import apply_dirichlet_rows
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -783,9 +786,7 @@ class BoundaryConditionSet(Generic[Array]):
         """Return the essential (Dirichlet) BCs, in insertion order."""
         return list(self._dirichlet_bcs)
 
-    def all_conditions(
-        self,
-    ) -> List[Union[DirichletBC[Array], NeumannBC[Array], RobinBC[Array]]]:
+    def all_conditions(self) -> List[BoundaryConditionProtocol[Array]]:
         """Return all boundary conditions as a flat list.
 
         The order is: Dirichlet, then Neumann, then Robin.
@@ -797,7 +798,11 @@ class BoundaryConditionSet(Generic[Array]):
         List
             All boundary conditions.
         """
-        return self._dirichlet_bcs + self._neumann_bcs + self._robin_bcs
+        return (
+            list(self._dirichlet_bcs)
+            + list(self._neumann_bcs)
+            + list(self._robin_bcs)
+        )
 
     def dirichlet_dofs(self) -> Array:
         """Return all Dirichlet DOF indices."""
