@@ -2,8 +2,8 @@
 
 Wraps time stepping residuals and applies the physics' essential
 constraints (via its cached ``DirichletConstraintSet``) to the residual,
-Jacobian, and sensitivity quantities after the stepper assembles the
-raw Newton system. Mirrors the collocation wrapper family
+Jacobian, and sensitivity/adjoint quantities after the stepper
+assembles the raw Newton system. Mirrors the collocation wrapper family
 (``pde/collocation/time_integration/bc_time_residual_adapter.py``) but
 is implemented on the constraint set with sparse-aware operations.
 
@@ -11,23 +11,27 @@ Class Hierarchy
 ---------------
 GalerkinBCEnforcingForwardResidual
     Wraps SensitivityStepperProtocol: forward solve + sensitivity.
+GalerkinBCEnforcingAdjointResidual
+    Wraps AdjointEnabledTimeSteppingResidualProtocol: + adjoint methods.
 
-Adjoint and HVP tiers follow in later phases of the time-integration
-refactor. Use ``create_galerkin_bc_enforcing_residual()`` to create the
-appropriate wrapper for an inner stepper.
+The HVP tier follows in a later phase of the time-integration refactor.
+Use ``create_galerkin_bc_enforcing_residual()`` to create the widest
+wrapper the inner stepper supports.
 """
 
-from typing import Generic, Optional
+from typing import Generic, Optional, Tuple, Union, overload
 
-from scipy.sparse import issparse
+from scipy.sparse import issparse, spmatrix
 
 from pyapprox.ode.linear_operator import (
     LinearOperatorProtocol,
     MatrixOperator,
     SparseMatrixOperator,
+    TransposeLinearOperator,
 )
 from pyapprox.ode.protocols.ode_residual import ODEResidualProtocol
 from pyapprox.ode.protocols.time_stepping import (
+    AdjointEnabledTimeSteppingResidualProtocol,
     SensitivityStepperProtocol,
     TimeSteppingResidualProtocol,
 )
@@ -205,17 +209,165 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
         )
 
 
+class GalerkinBCEnforcingAdjointResidual(
+    GalerkinBCEnforcingForwardResidual[Array], Generic[Array]
+):
+    """Extends the forward wrapper with adjoint methods.
+
+    Wraps an AdjointEnabledTimeSteppingResidualProtocol. All Dirichlet
+    handling is owned here (parameterizations return RAW dR/dp per the
+    refactor design): constrained rows of parameter Jacobians are
+    zeroed, the adjoint diagonal is the transpose of the BC-enforced
+    forward Jacobian (sparse-factored when possible), and the adjoint
+    off-diagonal has constrained COLUMNS zeroed (the transpose of the
+    forward off-diagonal's zeroed rows).
+
+    DAE masses (singular, e.g. Stokes) are not yet supported by the
+    mass-only adjoint solves; that lands with the D6 adjoint work.
+    """
+
+    def __init__(
+        self,
+        time_residual: TimeSteppingResidualProtocol[Array],
+        physics: GalerkinPhysicsProtocol[Array],
+        bkd: Backend[Array],
+    ) -> None:
+        super().__init__(time_residual, physics, bkd)
+        if not isinstance(
+            time_residual, AdjointEnabledTimeSteppingResidualProtocol
+        ):
+            raise TypeError(
+                f"{type(self).__name__} requires an adjoint-tier inner "
+                f"stepper, got {type(time_residual).__name__}"
+            )
+        self._adjoint_inner: AdjointEnabledTimeSteppingResidualProtocol[
+            Array
+        ] = time_residual
+
+    def _transposed_operator(
+        self, matrix: Union[spmatrix, Array]
+    ) -> LinearOperatorProtocol[Array]:
+        """Wrap a matrix as its transpose operator, sparse-factored."""
+        if issparse(matrix) and isinstance(self._bkd, NumpyBkd):
+            return TransposeLinearOperator(
+                SparseMatrixOperator(matrix, self.bkd())
+            )
+        return MatrixOperator(matrix.T, self._bkd)
+
+    def param_jacobian(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> Array:
+        """Compute dR/dp with constrained rows zeroed.
+
+        The inner stepper returns the raw parameter Jacobian; essential
+        constraints are parameter-independent, so their rows vanish.
+        """
+        result = self._adjoint_inner.param_jacobian(ctx, y_curr)
+        return self._constraint_set.zero_rows(result)
+
+    def adjoint_diag_jacobian(
+        self, ctx: StepContext[Array], y_curr: Array
+    ) -> LinearOperatorProtocol[Array]:
+        """Adjoint diagonal block: transpose of the BC-enforced forward
+        Jacobian, as a (sparse-factored where possible) operator.
+
+        Binds the given step context first: the forward ``jacobian``
+        reads bound state (deltat, t_{n+1}), which otherwise holds the
+        LAST forward step's values during the backward sweep.
+        """
+        self.bind(ctx)
+        return self._transposed_operator(self.jacobian(y_curr))
+
+    def adjoint_off_diag_jacobian(
+        self, next_ctx: StepContext[Array], y_curr_of_next: Array
+    ) -> Array:
+        """Adjoint off-diagonal block: B_{n+1}^T with constrained
+        COLUMNS zeroed (rows of B_{n+1} were replaced, so its transpose
+        has zero columns there)."""
+        result = self._adjoint_inner.adjoint_off_diag_jacobian(
+            next_ctx, y_curr_of_next
+        )
+        return self._constraint_set.zero_cols(result)
+
+    def adjoint_initial_condition(
+        self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
+    ) -> Array:
+        """Adjoint terminal condition via the BC-enforced Jacobian."""
+        final_dqdu = self.zero_adjoint_rhs(final_dqdu)
+        drdu_diag_t = self.adjoint_diag_jacobian(ctx, final_fwd_sol)
+        return drdu_diag_t.solve(-final_dqdu)
+
+    def adjoint_final_solution(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        asol_1: Array,
+        dqdu_0: Array,
+    ) -> Array:
+        """Adjoint at the initial time via the BC-neutralized mass.
+
+        The adapter's mass already carries identity rows at essential
+        DOFs, so M^T has identity columns there and the solve pins
+        lambda_0[d] correctly with dQ/dy zeroed at essential DOFs.
+        """
+        mass = self._adjoint_inner.native_residual.mass_matrix()
+        if mass.is_singular():
+            raise NotImplementedError(
+                "adjoint_final_solution with a singular (DAE) mass "
+                "matrix is not yet supported; it lands with the DAE "
+                "adjoint work"
+            )
+        dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
+        drdu_offdiag_t = self.adjoint_off_diag_jacobian(ctx, y_curr)
+        rhs = -self._matvec(drdu_offdiag_t, asol_1) - dqdu_0
+        return mass.solve_transpose(rhs)
+
+    def _matvec(
+        self, matrix: Union[spmatrix, Array], vec: Array
+    ) -> Array:
+        """Sparse-aware matrix-vector product returning a backend array."""
+        if issparse(matrix):
+            return self._bkd.asarray(matrix @ self._bkd.to_numpy(vec))
+        return self._bkd.dot(matrix, vec)
+
+    def quadrature_samples_weights(
+        self, times: Array
+    ) -> Tuple[Array, Array]:
+        """Quadrature rule consistent with the time discretization."""
+        return self._adjoint_inner.quadrature_samples_weights(times)
+
+    def initial_param_jacobian(self) -> Array:
+        """d(initial_state)/dp with constrained rows zeroed."""
+        result = self._adjoint_inner.initial_param_jacobian()
+        return self._constraint_set.zero_rows(result)
+
+
+@overload
+def create_galerkin_bc_enforcing_residual(
+    inner: AdjointEnabledTimeSteppingResidualProtocol[Array],
+    physics: GalerkinPhysicsProtocol[Array],
+    bkd: Backend[Array],
+) -> GalerkinBCEnforcingAdjointResidual[Array]: ...
+
+
+@overload
+def create_galerkin_bc_enforcing_residual(
+    inner: TimeSteppingResidualProtocol[Array],
+    physics: GalerkinPhysicsProtocol[Array],
+    bkd: Backend[Array],
+) -> GalerkinBCEnforcingForwardResidual[Array]: ...
+
+
 def create_galerkin_bc_enforcing_residual(
     inner: TimeSteppingResidualProtocol[Array],
     physics: GalerkinPhysicsProtocol[Array],
     bkd: Backend[Array],
 ) -> GalerkinBCEnforcingForwardResidual[Array]:
-    """Create a BC-enforcing wrapper for an inner stepper.
+    """Create the widest BC-enforcing wrapper the inner stepper supports.
 
-    Currently returns the forward-level wrapper; adjoint and HVP tiers
-    are added in later phases of the time-integration refactor, at
-    which point this factory narrows by protocol (most specific first)
-    like collocation's ``create_bc_enforcing_residual``.
+    Narrows by protocol, most specific first (Adjoint -> Forward), like
+    collocation's ``create_bc_enforcing_residual``. The HVP tier is
+    added in a later phase of the time-integration refactor.
 
     Parameters
     ----------
@@ -230,7 +382,7 @@ def create_galerkin_bc_enforcing_residual(
     Returns
     -------
     GalerkinBCEnforcingForwardResidual
-        The BC-enforcing wrapper.
+        The widest BC-enforcing wrapper (may be a subclass).
 
     Raises
     ------
@@ -263,4 +415,6 @@ def create_galerkin_bc_enforcing_residual(
                     "whose difference quotient supplies the term "
                     "exactly."
                 )
+    if isinstance(inner, AdjointEnabledTimeSteppingResidualProtocol):
+        return GalerkinBCEnforcingAdjointResidual(inner, physics, bkd)
     return GalerkinBCEnforcingForwardResidual(inner, physics, bkd)

@@ -9,6 +9,9 @@ Analogous to CollocationModel but for weak-form (Galerkin) physics.
 from typing import Generic, Optional, Tuple
 
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.functionals.protocols import (
+    TransientFunctionalWithJacobianProtocol,
+)
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.galerkin.protocols.physics import (
@@ -63,13 +66,49 @@ class GalerkinModel(Generic[Array]):
         self._last_integrator: Optional[TimeIntegrator[Array]] = None
 
     def last_integrator(self) -> TimeIntegrator[Array]:
-        """Return the TimeIntegrator from the most recent implicit solve."""
+        """Return the TimeIntegrator from the most recent transient solve."""
         if self._last_integrator is None:
             raise RuntimeError(
                 "no transient solve has been run yet; call "
-                "solve_transient with an implicit method first"
+                "solve_transient first"
             )
         return self._last_integrator
+
+    def set_functional(
+        self, functional: TransientFunctionalWithJacobianProtocol[Array]
+    ) -> None:
+        """Set the QoI functional on the most recent solve's integrator.
+
+        Forwarded to :meth:`TimeIntegrator.set_functional`; required
+        before :meth:`gradient`.
+        """
+        self.last_integrator().set_functional(functional)
+
+    def gradient(
+        self, fwd_sols: Array, times: Array, param: Array
+    ) -> Array:
+        """Compute dQ/dp by the adjoint method on the last solve.
+
+        Delegates to :meth:`TimeIntegrator.gradient`; the integrator
+        raises an actionable TypeError when the stepper was created
+        without adjoint support.
+
+        Parameters
+        ----------
+        fwd_sols : Array
+            Forward trajectory from solve_transient.
+            Shape: (nstates, ntimes)
+        times : Array
+            Time points. Shape: (ntimes,)
+        param : Array
+            Parameters. Shape: (nparams, 1)
+
+        Returns
+        -------
+        Array
+            Gradient dQ/dp. Shape: (1, nparams)
+        """
+        return self.last_integrator().gradient(fwd_sols, times, param)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
