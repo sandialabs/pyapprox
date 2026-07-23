@@ -21,8 +21,9 @@ Use ``create_galerkin_bc_enforcing_residual()`` to create the widest
 wrapper the inner stepper supports.
 """
 
-from typing import Generic, Optional, Tuple, Union, overload
+from typing import Generic, List, Optional, Tuple, Union, overload
 
+import numpy as np
 from scipy.sparse import issparse, spmatrix
 
 from pyapprox.ode.linear_operator import (
@@ -43,6 +44,23 @@ from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
+
+
+def _with_identity_rows(
+    matrix: Union[spmatrix, np.ndarray], rows: List[int]
+) -> Union[spmatrix, np.ndarray]:
+    """Return a copy of ``matrix`` with the given rows set to identity."""
+    if isinstance(matrix, spmatrix):
+        lil = matrix.tolil(copy=True)
+        for row in rows:
+            lil.rows[row] = [row]
+            lil.data[row] = [1.0]
+        return lil.tocsc()
+    dense = np.array(matrix, copy=True)
+    for row in rows:
+        dense[row, :] = 0.0
+        dense[row, row] = 1.0
+    return dense
 
 
 class GalerkinBCEnforcingForwardResidual(Generic[Array]):
@@ -307,23 +325,49 @@ class GalerkinBCEnforcingAdjointResidual(
         asol_1: Array,
         dqdu_0: Array,
     ) -> Array:
-        """Adjoint at the initial time via the BC-neutralized mass.
+        r"""Adjoint at the initial time via the BC-neutralized mass.
 
         The adapter's mass already carries identity rows at essential
-        DOFs, so M^T has identity columns there and the solve pins
-        lambda_0[d] correctly with dQ/dy zeroed at essential DOFs.
+        DOFs, so :math:`M^T` has identity columns there and the solve
+        pins :math:`\lambda_0[d]` correctly with :math:`dQ/dy` zeroed
+        at essential DOFs.
+
+        Singular (DAE) mass: :math:`\lambda_0` on algebraic DOFs (zero
+        mass rows, e.g. Stokes pressure) is DEFINED as 0 — the solve
+        uses identity rows there with the rhs zeroed. This is correct
+        exactly when the initial-condition parameterization has no
+        support on algebraic DOFs (:math:`\lambda_0`'s only gradient
+        role is :math:`\lambda_0^T \, d(y_0)/dp`), which is checked via
+        ``initial_param_jacobian`` and raises otherwise.
         """
         mass = self._adjoint_inner.native_residual.mass_matrix()
-        if mass.is_singular():
-            raise NotImplementedError(
-                "adjoint_final_solution with a singular (DAE) mass "
-                "matrix is not yet supported; it lands with the DAE "
-                "adjoint work"
-            )
         dqdu_0 = self.zero_adjoint_rhs(dqdu_0)
         drdu_offdiag_t = self.adjoint_off_diag_jacobian(ctx, y_curr)
         rhs = -self._matvec(drdu_offdiag_t, asol_1) - dqdu_0
-        return mass.solve_transpose(rhs)
+        if not mass.is_singular():
+            return mass.solve_transpose(rhs)
+
+        algebraic = mass.zero_rows()
+        init_jac = np.asarray(
+            self._bkd.to_numpy(self.initial_param_jacobian())
+        )
+        if float(np.max(np.abs(init_jac[algebraic, :]))) > 0.0:
+            raise NotImplementedError(
+                "singular (DAE) mass defines lambda_0 = 0 on algebraic "
+                "DOFs, which requires the initial-condition "
+                "parameterization to have no support there; "
+                "initial_param_jacobian has nonzero rows at algebraic "
+                f"DOFs {algebraic[:5]}..."
+            )
+        rhs_np = np.asarray(self._bkd.to_numpy(rhs)).copy()
+        rhs_np[algebraic] = 0.0
+        regularized = _with_identity_rows(mass.as_matrix(), algebraic)
+        # spmatrix.T is untyped in the scipy stubs; pin the solve's
+        # declared return type.
+        solution: Array = solve_maybe_sparse(
+            self._bkd, regularized.T, self._bkd.asarray(rhs_np)
+        )
+        return solution
 
     def _matvec(
         self, matrix: Union[spmatrix, Array], vec: Array

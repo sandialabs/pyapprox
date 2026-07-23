@@ -249,6 +249,17 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         """Return number of pressure DOFs."""
         return self._pres_basis.ndofs()
 
+    def viscosity(self) -> float:
+        """Return the kinematic viscosity."""
+        return self._viscosity
+
+    def set_viscosity(self, viscosity: float) -> None:
+        """Set the kinematic viscosity, invalidating the cached viscous
+        stiffness (the divergence and mass operators are
+        viscosity-independent)."""
+        self._viscosity = viscosity
+        self._A_cached = None
+
     # ------------------------------------------------------------------
     # Assembly
     # ------------------------------------------------------------------
@@ -520,7 +531,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         """
         state_np = self._bkd.to_numpy(state)
         K = self._assemble_block_stiffness(state_np)
-        return -K
+        # Sparse at the skfem seam, typed Array per the assembly
+        # convention.
+        jacobian_matrix: Array = -K
+        return jacobian_matrix
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute residual F(u, t) = load - K*u with BCs applied.
@@ -622,14 +636,14 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         M_vel = self.vel_mass_matrix()
         n_vel = self.vel_ndofs()
 
-        if rhs_np.ndim == 1:
-            result = np.zeros_like(rhs_np)
-            result[:n_vel] = solve_maybe_sparse(self._bkd, M_vel, rhs_np[:n_vel])
-            result[n_vel:] = rhs_np[n_vel:]
-        else:
-            result = np.zeros_like(rhs_np)
-            result[:n_vel, :] = np.linalg.solve(M_vel.toarray(), rhs_np[:n_vel, :])
-            result[n_vel:, :] = rhs_np[n_vel:, :]
+        # solve_maybe_sparse handles vector and matrix right-hand
+        # sides sparse-aware — the velocity mass is never densified.
+        result = np.zeros_like(rhs_np)
+        vel_solution: Array = solve_maybe_sparse(
+            self._bkd, M_vel, self._bkd.asarray(rhs_np[:n_vel])
+        )
+        result[:n_vel] = self._bkd.to_numpy(vel_solution)
+        result[n_vel:] = rhs_np[n_vel:]
 
         return self._bkd.asarray(result.astype(np.float64))
 
