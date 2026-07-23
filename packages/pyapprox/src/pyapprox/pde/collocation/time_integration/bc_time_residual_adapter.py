@@ -404,9 +404,25 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
 class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
     """Extends BCEnforcingAdjointResidual with all HVP methods.
 
-    Wraps an HVPEnabledTimeSteppingResidualProtocol, which now includes
-    both same-step (state_state_hvp, etc.) and cross-step (prev_state_state_hvp,
-    etc.) methods for all steppers.
+    Wraps an HVPEnabledTimeSteppingResidualProtocol, which includes
+    both same-step (state_state_hvp, etc.) and cross-step
+    (prev_state_state_hvp, etc.) methods for all steppers.
+
+    Every method returns the TRUE wrapped second-derivative tensor
+    contraction: replaced BC rows are affine in (state, params), so
+    their true second derivatives vanish while unreplaced rows equal
+    the raw ones — the ONLY correction is passing the adjoint with
+    row_replaced entries zeroed into every inner contraction.
+    State-shaped outputs are NOT masked: their entries at replaced
+    indices are genuine (unreplaced rows depend on boundary DOFs) and
+    feed only the decoupled component of the second-order adjoint
+    recursion (identity Jacobian rows; dR/dp rows zeroed; cross-step
+    B rows zeroed).
+
+    BCs whose rows carry parameter-state coupling (coefficient-
+    dependent flux Neumann with parameterized diffusion) have nonzero
+    second-order row terms this wrapper cannot represent and are
+    rejected at construction.
 
     Parameters
     ----------
@@ -425,6 +441,34 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         bkd: Backend[Array],
     ) -> None:
         super().__init__(time_residual, physics, bkd)
+        # Detected here, raised on first HVP use: the factory narrows
+        # to this tier whenever the stepper allows, so forward/adjoint
+        # use with flux BCs must keep working.
+        self._has_coefficient_dependent_bc_rows = False
+        if hasattr(physics, "boundary_conditions"):
+            for bc in physics.boundary_conditions():
+                if not hasattr(bc, "normal_operator"):
+                    continue
+                normal_op = bc.normal_operator()
+                if hasattr(
+                    normal_op, "has_coefficient_dependence"
+                ) and normal_op.has_coefficient_dependence():
+                    self._has_coefficient_dependent_bc_rows = True
+                    break
+
+    def _zeroed_adjoint(self, adj_state: Array) -> Array:
+        """Adjoint with row_replaced entries zeroed for RAW contractions."""
+        if self._has_coefficient_dependent_bc_rows:
+            raise NotImplementedError(
+                "HVP with coefficient-dependent BC rows "
+                "(parameterized-flux Neumann) is unsupported: their "
+                "second-order row sensitivities are not representable "
+                "by this wrapper"
+            )
+        adj = self._bkd.copy(adj_state)
+        for idx in self._row_replaced:
+            adj[idx] = 0.0
+        return adj
 
     @property
     def _hvp_inner(self) -> HVPEnabledTimeSteppingResidualProtocol[Array]:
@@ -446,15 +490,10 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        """Compute (d^2R/dy_n^2)w contracted with adjoint, BC entries zeroed.
-
-        Second derivatives of replaced BC rows are zero for all BC types.
-        """
-        result = self._hvp_inner.state_state_hvp(ctx, y_curr, adj_state, wvec)
-        result = self._bkd.copy(result)
-        for idx in self._row_replaced:
-            result[idx] = 0.0
-        return result
+        """adj^T (d^2R/dy_n^2) w with the replaced-row adjoint zeroed."""
+        return self._hvp_inner.state_state_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), wvec
+        )
 
     def state_param_hvp(
         self,
@@ -463,15 +502,10 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        """Compute (d^2R/dy_n dp)v contracted with adjoint, BC entries zeroed.
-
-        Second derivatives of replaced BC rows are zero for all BC types.
-        """
-        result = self._hvp_inner.state_param_hvp(ctx, y_curr, adj_state, vvec)
-        result = self._bkd.copy(result)
-        for idx in self._row_replaced:
-            result[idx] = 0.0
-        return result
+        """adj^T (d^2R/dy_n dp) v with the replaced-row adjoint zeroed."""
+        return self._hvp_inner.state_param_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), vvec
+        )
 
     def param_state_hvp(
         self,
@@ -480,8 +514,10 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        """Compute (d^2R/dp dy_n)w contracted with adjoint."""
-        return self._hvp_inner.param_state_hvp(ctx, y_curr, adj_state, wvec)
+        """adj^T (d^2R/dp dy_n) w with the replaced-row adjoint zeroed."""
+        return self._hvp_inner.param_state_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), wvec
+        )
 
     def param_param_hvp(
         self,
@@ -490,8 +526,10 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        """Compute (d^2R/dp^2)v contracted with adjoint."""
-        return self._hvp_inner.param_param_hvp(ctx, y_curr, adj_state, vvec)
+        """adj^T (d^2R/dp^2) v with the replaced-row adjoint zeroed."""
+        return self._hvp_inner.param_param_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), vvec
+        )
 
     # -- Cross-step HVP methods --
 
@@ -502,9 +540,9 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        """Compute (d^2R_{n+1}/dy_n^2) w contracted with adjoint."""
+        """adj^T (d^2R_{n+1}/dy_n^2) w with the replaced-row adjoint zeroed."""
         return self._hvp_inner.prev_state_state_hvp(
-            next_ctx, y_curr_of_next, adj_state, wvec
+            next_ctx, y_curr_of_next, self._zeroed_adjoint(adj_state), wvec
         )
 
     def prev_state_param_hvp(
@@ -514,9 +552,9 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         vvec: Array,
     ) -> Array:
-        """Compute (d^2R_{n+1}/dy_n dp) v contracted with adjoint."""
+        """adj^T (d^2R_{n+1}/dy_n dp) v with the replaced-row adjoint zeroed."""
         return self._hvp_inner.prev_state_param_hvp(
-            next_ctx, y_curr_of_next, adj_state, vvec
+            next_ctx, y_curr_of_next, self._zeroed_adjoint(adj_state), vvec
         )
 
     def prev_param_state_hvp(
@@ -526,9 +564,9 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         wvec: Array,
     ) -> Array:
-        """Compute (d^2R_{n+1}/dp dy_n) w contracted with adjoint."""
+        """adj^T (d^2R_{n+1}/dp dy_n) w with the replaced-row adjoint zeroed."""
         return self._hvp_inner.prev_param_state_hvp(
-            next_ctx, y_curr_of_next, adj_state, wvec
+            next_ctx, y_curr_of_next, self._zeroed_adjoint(adj_state), wvec
         )
 
     def state_prev_state_hvp(
@@ -538,9 +576,9 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         wvec_prev: Array,
     ) -> Array:
-        """Compute adj^T * d^2R_n/(dy_n dy_{n-1}) * w_{n-1}."""
+        """adj^T (d^2R_n/dy_n dy_{n-1}) w_prev, replaced-row adjoint zeroed."""
         return self._hvp_inner.state_prev_state_hvp(
-            ctx, y_curr, adj_state, wvec_prev
+            ctx, y_curr, self._zeroed_adjoint(adj_state), wvec_prev
         )
 
     def prev_state_curr_state_hvp(
@@ -550,9 +588,12 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         adj_state: Array,
         wvec_curr_of_next: Array,
     ) -> Array:
-        """Compute adj^T * d^2R_{n+1}/(dy_n dy_{n+1}) * w_{n+1}."""
+        """adj^T (d^2R_{n+1}/dy_n dy_{n+1}) w, replaced-row adjoint zeroed."""
         return self._hvp_inner.prev_state_curr_state_hvp(
-            next_ctx, y_curr_of_next, adj_state, wvec_curr_of_next
+            next_ctx,
+            y_curr_of_next,
+            self._zeroed_adjoint(adj_state),
+            wvec_curr_of_next,
         )
 
 
