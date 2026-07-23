@@ -406,8 +406,14 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
 
     @staticmethod
     def solve_sparse(Amat: spmatrix, bvec: NDArray[Any]) -> NDArray[Any]:
-        """Solve A @ x = b where A is a scipy sparse matrix."""
+        """Solve A @ x = b where A is a scipy sparse matrix.
+
+        b may be a vector (n,) or a dense matrix (n, k); matrix
+        right-hand sides use a sparse LU (spsolve requires a sparse
+        b for matrix solves).
+        """
         from scipy.sparse import issparse as _issparse
+        from scipy.sparse.linalg import splu as _splu
 
         if not _issparse(Amat):
             raise TypeError(
@@ -416,6 +422,8 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
                 " Use solve() for dense matrices."
             )
         A_csc = csc_matrix(Amat) if Amat.format != "csc" else Amat
+        if bvec.ndim == 2:
+            return cast(NDArray[Any], _splu(A_csc).solve(bvec))
         return cast(NDArray[Any], spsolve(A_csc, bvec))
 
     @staticmethod

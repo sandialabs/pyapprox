@@ -12,7 +12,7 @@ from typing import Any, Union
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csc_matrix, issparse, spmatrix
-from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import splu, spsolve
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -38,18 +38,14 @@ def sparse_or_dense_solve(
     ndarray
         Solution vector. Shape: (n,).
 
-    Raises
-    ------
-    NotImplementedError
-        If A is sparse and b has more than one column.
+    Matrix right-hand sides (n, k) use a sparse LU (spsolve requires a
+    sparse b for matrix solves).
     """
     if isinstance(A, spmatrix):
         A_csc = csc_matrix(A) if A.format != "csc" else A
         if b.ndim > 1:
-            raise NotImplementedError(
-                "Sparse solve with multiple RHS columns is not supported. "
-                "Use scipy.sparse.linalg.splu for multi-column solves."
-            )
+            lu_result: NDArray[np.floating[Any]] = splu(A_csc).solve(b)
+            return lu_result
         result: NDArray[np.floating[Any]] = spsolve(A_csc, b)
         return result
     return np.linalg.solve(A, b)
@@ -72,17 +68,17 @@ def solve_maybe_sparse(
     A : sparse matrix or Array
         System matrix. Must be 2D with shape (n, n).
     b : Array
-        Right-hand side vector. Shape: (n,).
+        Right-hand side. Shape: (n,) or (n, k).
 
     Returns
     -------
     Array
-        Solution vector in backend format. Shape: (n,).
+        Solution in backend format. Same shape as b.
 
     Raises
     ------
     ValueError
-        If A is not 2D or b is not 1D, or dimensions are incompatible.
+        If A is not square.
     """
     if A.shape[0] != A.shape[1]:
         raise ValueError(f"A must be square, got shape {A.shape}")
