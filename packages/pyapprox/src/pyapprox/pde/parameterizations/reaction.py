@@ -1,9 +1,11 @@
 """ReactionParameterization: binds a FieldMap to reaction coefficient."""
 
-from typing import Callable, Generic, Protocol, runtime_checkable
+from typing import Callable, Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+    FieldMapWithHVPProtocol,
+    field_map_has_hvp,
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.fields import ConstantInTimeField
@@ -61,10 +63,31 @@ class ReactionParameterization(Generic[Array]):
         self._physics = physics
         self._field_map = field_map
         self._bkd = bkd
-        self._derivs: ParamDerivatives[Array] = ParamDerivatives.first_order(
-            self.param_jacobian,
-            self.initial_param_jacobian,
-        )
+        # Second order when the field map has a usable hvp; narrowed
+        # ONCE here so the HVP methods keep a typed reference. The
+        # reaction enters as r(x) * u (residual_reaction_sensitivity's
+        # "pointwise = state" contract), so the mixed tensor
+        # d^2R_j/du_i dr_k = delta_jk delta_ij is pointwise-diagonal
+        # and all contractions reduce to elementwise products.
+        self._hvp_field_map: Optional[FieldMapWithHVPProtocol[Array]] = None
+        if field_map_has_hvp(field_map) and isinstance(
+            field_map, FieldMapWithHVPProtocol
+        ):
+            self._hvp_field_map = field_map
+            self._derivs: ParamDerivatives[Array] = (
+                ParamDerivatives.second_order(
+                    self.param_jacobian,
+                    self.initial_param_jacobian,
+                    self._param_param_hvp,
+                    self._state_param_hvp,
+                    self._param_state_hvp,
+                )
+            )
+        else:
+            self._derivs = ParamDerivatives.first_order(
+                self.param_jacobian,
+                self.initial_param_jacobian,
+            )
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -109,3 +132,62 @@ class ReactionParameterization(Generic[Array]):
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         npts = self._physics.npts()
         return self._bkd.zeros((npts, self.nparams()))
+
+    def _require_hvp_field_map(self) -> FieldMapWithHVPProtocol[Array]:
+        field_map = self._hvp_field_map
+        if field_map is None:
+            raise RuntimeError(
+                "HVP methods are unavailable; check param_derivatives() "
+                "before calling"
+            )
+        return field_map
+
+    def _param_param_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/dp^2) v via the field map's curvature.
+
+        R is affine in the reaction field with dR/dr = diag(u), so the
+        field-space weights are u * adj. Shape: (nparams,).
+        """
+        weights = (
+            self._physics.residual_reaction_sensitivity(state, time)
+            * adj_state
+        )
+        return self._require_hvp_field_map().hvp(params_1d, weights, vvec)
+
+    def _state_param_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/du dp) v = adj * (d(r)/dp v), state-shaped.
+
+        Pointwise-diagonal mixed tensor (see class docstring comment).
+        Shape: (npts,).
+        """
+        delta_r = self._field_map.jacobian(params_1d) @ vvec
+        return adj_state * delta_r
+
+    def _param_state_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/dp du) w = fm_jac^T (adj * w), param-shaped.
+
+        Transpose contraction of ``_state_param_hvp``.
+        Shape: (nparams,).
+        """
+        return self._field_map.jacobian(params_1d).T @ (adj_state * wvec)

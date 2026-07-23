@@ -190,6 +190,93 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
             result = result + grad_delta_D[dim] * grad_u_dim
         return result
 
+    def residual_diffusion_sensitivity_adjoint(
+        self, state: Array, time: float, adj_state: Array
+    ) -> Array:
+        """Compute B(u)^T adj in diffusion-field space (RAW, no BCs).
+
+        With B(u) = dR/d(D_field) = diag(lap u) + sum_d diag(d_d u) D_d
+        (the operator ``residual_diffusion_sensitivity`` applies), the
+        transpose contraction is
+
+            B(u)^T adj = (lap u) * adj + sum_d D_d^T ((d_d u) * adj).
+
+        B is linear in the state, so the same formula with a direction
+        vector as ``state`` gives B(w)^T adj.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state (or direction vector). Shape: (npts,)
+        time : float
+            Current time (unused; kept for signature uniformity).
+        adj_state : Array
+            Adjoint state. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Field-space weights. Shape: (npts,)
+        """
+        result = (self._D2_matrix @ state) * adj_state
+        for dim in range(self._basis.ndim()):
+            grad_u_dim = self._D_matrices[dim] @ state
+            result = result + self._D_matrices[dim].T @ (
+                grad_u_dim * adj_state
+            )
+        return result
+
+    def residual_diffusion_mixed_contraction(
+        self, time: float, adj_state: Array, delta_D: Array
+    ) -> Array:
+        """Compute adj^T (d^2R/du dD) delta_D, state-shaped (RAW).
+
+        The residual's diffusion term is bilinear in (u, D), so
+
+            d/du [adj^T B(u) delta_D]
+              = D2^T (adj * delta_D) + sum_d D_d^T (adj * (d_d delta_D)).
+
+        This tensor is NOT symmetric in (residual, state) indices —
+        collocation differentiation matrices are non-symmetric — so
+        this contraction cannot be obtained from
+        ``residual_diffusion_sensitivity``.
+
+        Parameters
+        ----------
+        time : float
+            Current time (unused; kept for signature uniformity).
+        adj_state : Array
+            Adjoint state. Shape: (npts,)
+        delta_D : Array
+            Diffusion-field direction. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            State-shaped contraction. Shape: (npts,)
+        """
+        result = self._D2_matrix.T @ (adj_state * delta_D)
+        for dim in range(self._basis.ndim()):
+            result = result + self._D_matrices[dim].T @ (
+                adj_state * (self._D_matrices[dim] @ delta_D)
+            )
+        return result
+
+    def state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array, time: float
+    ) -> Array:
+        """Compute lambda^T (d^2R/du^2) w = 0 (residual linear in state).
+
+        THIS class's coefficients are state-independent fields
+        (``set_diffusion``/``set_reaction`` take ``Callable[[float],
+        Array]``), so its residual is linear in the state and the
+        contraction is exactly zero. State-dependent coefficients live
+        in separate collocation physics (e.g. shallow_ice,
+        shallow_shelf, burgers), which must implement their own
+        nonzero contraction.
+        """
+        return self._bkd.zeros((self.npts(),))
+
     def residual_reaction_sensitivity(self, state: Array, time: float) -> Array:
         """Compute d(residual)/d(r_field) pointwise = state.
 

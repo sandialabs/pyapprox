@@ -4,12 +4,16 @@ from typing import (
     Callable,
     Generic,
     List,
+    Optional,
     Protocol,
+    Tuple,
     runtime_checkable,
 )
 
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+    FieldMapWithHVPProtocol,
+    field_map_has_hvp,
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.fields import ConstantInTimeField
@@ -34,6 +38,22 @@ class _CollocationDiffusionPhysicsProtocol(Protocol, Generic[Array]):
         time: float,
         delta_D: Array,
         grad_delta_D: List[Array],
+    ) -> Array: ...
+
+
+@runtime_checkable
+class _CollocationDiffusionPhysicsWithHVPProtocol(
+    _CollocationDiffusionPhysicsProtocol[Array], Protocol
+):
+    """Physics additionally providing the adjoint-weighted diffusion
+    contractions needed for the second-order bundle."""
+
+    def residual_diffusion_sensitivity_adjoint(
+        self, state: Array, time: float, adj_state: Array
+    ) -> Array: ...
+
+    def residual_diffusion_mixed_contraction(
+        self, time: float, adj_state: Array, delta_D: Array
     ) -> Array: ...
 
 
@@ -78,11 +98,38 @@ class DiffusionParameterization(Generic[Array]):
         self._field_map = field_map
         self._D_matrices = derivative_matrices
         self._bkd = bkd
-        self._derivs: ParamDerivatives[Array] = ParamDerivatives.first_order(
-            self.param_jacobian,
-            self.initial_param_jacobian,
-            bc_flux_param_sensitivity=self.bc_flux_param_sensitivity,
-        )
+        # Second order when the field map has a usable hvp AND the
+        # physics provides the adjoint-weighted diffusion contractions;
+        # narrowed ONCE here so the HVP methods keep typed references.
+        self._hvp_field_map: Optional[FieldMapWithHVPProtocol[Array]] = None
+        self._hvp_physics: Optional[
+            _CollocationDiffusionPhysicsWithHVPProtocol[Array]
+        ] = None
+        if (
+            field_map_has_hvp(field_map)
+            and isinstance(field_map, FieldMapWithHVPProtocol)
+            and isinstance(
+                physics, _CollocationDiffusionPhysicsWithHVPProtocol
+            )
+        ):
+            self._hvp_field_map = field_map
+            self._hvp_physics = physics
+            self._derivs: ParamDerivatives[Array] = (
+                ParamDerivatives.second_order(
+                    self.param_jacobian,
+                    self.initial_param_jacobian,
+                    self._param_param_hvp,
+                    self._state_param_hvp,
+                    self._param_state_hvp,
+                    bc_flux_param_sensitivity=self.bc_flux_param_sensitivity,
+                )
+            )
+        else:
+            self._derivs = ParamDerivatives.first_order(
+                self.param_jacobian,
+                self.initial_param_jacobian,
+                bc_flux_param_sensitivity=self.bc_flux_param_sensitivity,
+            )
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -158,6 +205,83 @@ class DiffusionParameterization(Generic[Array]):
         """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
         npts = self._physics.npts()
         return self._bkd.zeros((npts, self.nparams()))
+
+    def _require_hvp_tier(
+        self,
+    ) -> Tuple[
+        FieldMapWithHVPProtocol[Array],
+        "_CollocationDiffusionPhysicsWithHVPProtocol[Array]",
+    ]:
+        field_map = self._hvp_field_map
+        physics = self._hvp_physics
+        if field_map is None or physics is None:
+            raise RuntimeError(
+                "HVP methods are unavailable; check param_derivatives() "
+                "before calling"
+            )
+        return field_map, physics
+
+    def _param_param_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/dp^2) v via the field map's curvature.
+
+        R is affine in the diffusion field, so all parameter curvature
+        is the field map's: the contraction is its adjoint-weighted HVP
+        with weights ``B(u)^T adj``. Shape: (nparams,).
+        """
+        field_map, physics = self._require_hvp_tier()
+        weights = physics.residual_diffusion_sensitivity_adjoint(
+            state, time, adj_state
+        )
+        return field_map.hvp(params_1d, weights, vvec)
+
+    def _state_param_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/du dp) v, state-shaped.
+
+        The chain rule through the (state-independent) field map turns
+        the parameter direction into the field direction
+        ``delta_D = d(D)/dp v``; the physics supplies the non-symmetric
+        mixed contraction. Shape: (npts,).
+        """
+        field_map, physics = self._require_hvp_tier()
+        delta_D = field_map.jacobian(params_1d) @ vvec
+        return physics.residual_diffusion_mixed_contraction(
+            time, adj_state, delta_D
+        )
+
+    def _param_state_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/dp du) w, param-shaped.
+
+        B is linear in the state, so the field-space weights are
+        ``B(w)^T adj`` (the sensitivity-adjoint evaluated at the state
+        direction), pulled back through the field-map Jacobian.
+        Shape: (nparams,).
+        """
+        field_map, physics = self._require_hvp_tier()
+        weights = physics.residual_diffusion_sensitivity_adjoint(
+            wvec, time, adj_state
+        )
+        return field_map.jacobian(params_1d).T @ weights
 
 
 def create_diffusion_parameterization(

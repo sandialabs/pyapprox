@@ -38,6 +38,8 @@ from pyapprox.pde.parameterizations.diffusion import (
 from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
+from tests._helpers.adjoint_checks import NoHVPQuadraticFieldMap
+
 
 class _ToyCurvaturePhysics:
     """Minimal PhysicsProtocol with genuine state curvature.
@@ -187,15 +189,16 @@ class TestCollocationAdapterFactoryTiers:
         phi0 = bkd.ones((npts,))
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
-        fm = BasisExpansion(bkd, 1.0, [phi0])
+        # Curvature without a declared hvp forces a first-order bundle
+        # (linear maps declare hvp = 0 exactly and select the HVP tier).
+        fm = NoHVPQuadraticFieldMap(bkd, bkd.full((npts,), 1.0), phi0[:, None])
         param = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         adapter = create_collocation_physics_ode_residual(physics, bkd, param)
         assert isinstance(
             adapter, CollocationPhysicsToODEResidualWithParamJacobianAdapter
         )
-        # not the HVP tier: bundle is first-order and physics has no
-        # state_state_hvp
+        # not the HVP tier: the bundle is first order
         assert not isinstance(adapter, CollocationPhysicsToODEResidualWithHVPAdapter)
 
         # Test that it works

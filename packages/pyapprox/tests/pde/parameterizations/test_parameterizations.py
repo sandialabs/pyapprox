@@ -18,6 +18,12 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
     AdjointOperatorWithJacobianAndHVP,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh1D,
+    create_uniform_mesh_1d,
+)
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
@@ -53,12 +59,7 @@ from pyapprox.pde.parameterizations.reaction import (
     ReactionParameterization,
 )
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh1D,
-    create_uniform_mesh_1d,
-)
+from tests._helpers.adjoint_checks import NoHVPQuadraticFieldMap
 
 
 def _create_diffusion_physics_and_basis(bkd, npts=20):
@@ -272,7 +273,9 @@ class TestParameterizations:
         assert derivs.param_jacobian is not None
         assert derivs.initial_param_jacobian is not None
         assert derivs.bc_flux_param_sensitivity is not None
-        assert derivs.param_param_hvp is None
+        # Linear BasisExpansion declares hvp = 0 exactly, so the
+        # bundle is second order.
+        assert derivs.param_param_hvp is not None
 
     def test_diffusion_init_type_error(self, bkd) -> None:
         """DiffusionParameterization raises TypeError for non-FieldMap."""
@@ -594,7 +597,7 @@ class TestParameterizations:
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
     def test_composite_bundle_all_differentiable(self, bkd) -> None:
-        """Composite of first-order parts exposes param_jacobian in bundle."""
+        """Composite of second-order parts exposes the full bundle."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -604,10 +607,11 @@ class TestParameterizations:
         derivs = comp.param_derivatives()
         assert derivs.param_jacobian is not None
         assert derivs.initial_param_jacobian is not None
-        # no part provides HVPs -> composite bundle has none
-        assert derivs.param_param_hvp is None
-        assert derivs.state_param_hvp is None
-        assert derivs.param_state_hvp is None
+        # linear map declares hvp = 0 exactly -> every part is second
+        # order and the composite keeps the full bundle
+        assert derivs.param_param_hvp is not None
+        assert derivs.state_param_hvp is not None
+        assert derivs.param_state_hvp is not None
 
     def test_composite_bundle_eval_only(self, bkd) -> None:
         """Composite with eval-only part declares no capability."""
@@ -617,7 +621,8 @@ class TestParameterizations:
         assert comp.param_derivatives().initial_param_jacobian is None
 
     def test_composite_append_removes_param_jacobian(self, bkd) -> None:
-        """Appending non-differentiable part rebuilds bundle without it."""
+        """Appending non-differentiable part rebuilds bundle without it,
+        warning about the capability fallback."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
@@ -627,8 +632,28 @@ class TestParameterizations:
         comp = CompositeParameterization([dp], bkd)
         assert comp.param_derivatives().param_jacobian is not None
 
-        comp.append(_EvalOnlyParam(physics))
+        with pytest.warns(
+            UserWarning, match="lowest common capability"
+        ):
+            comp.append(_EvalOnlyParam(physics))
         assert comp.param_derivatives().param_jacobian is None
+
+    def test_composite_mixed_tier_warns(self, bkd) -> None:
+        """Mixing second- and first-order parts warns about the HVP
+        fallback while keeping the shared first-order capability."""
+        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
+        npts = basis.npts()
+        fm = BasisExpansion(bkd, 1.0, [bkd.ones((npts,))])
+        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        no_hvp_fm = NoHVPQuadraticFieldMap(
+            bkd, bkd.full((npts,), 1.0), bkd.ones((npts,))[:, None]
+        )
+        fp = ForcingParameterization(physics, no_hvp_fm, bkd)
+        with pytest.warns(UserWarning, match="param_param_hvp"):
+            comp = CompositeParameterization([dp, fp], bkd)
+        derivs = comp.param_derivatives()
+        assert derivs.param_jacobian is not None
+        assert derivs.param_param_hvp is None
 
     def test_composite_unavailable_capability_raises(self, bkd) -> None:
         """The guarded private impl raises when capability is absent."""

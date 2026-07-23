@@ -51,3 +51,11 @@ class MeshKLEFieldMap(Generic[Array]):
         Constant for linear map -- returns cached W matrix.
         """
         return self._W
+
+    def hvp(self, params_1d: Array, adj_state: Array, vvec: Array) -> Array:
+        """Adjoint-weighted HVP: exactly zero (the map is linear).
+
+        Declared so consumers keep exact second-order capability
+        instead of degrading to first order. Shape: (nvars,).
+        """
+        return self._bkd.zeros((self.nvars(),))

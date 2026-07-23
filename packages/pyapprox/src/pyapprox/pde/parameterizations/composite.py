@@ -1,5 +1,6 @@
 """CompositeParameterization: chains multiple parameterizations."""
 
+import warnings
 from typing import Generic, List, Optional, Sequence, TypeVar
 
 from pyapprox.pde.parameterizations.derivatives import (
@@ -102,9 +103,46 @@ class CompositeParameterization(Generic[Array]):
             offset += part.nparams()
         self._total_nparams = offset
 
+    def _warn_mixed_capability(
+        self, part_derivs: List[ParamDerivatives[Array]]
+    ) -> None:
+        """Warn when a capability is dropped by the all-or-none rule.
+
+        Fires only on MIXED tiers (some parts have the field, some do
+        not) — the case where capability is silently discarded.
+        ``bc_flux_param_sensitivity`` is excluded: it is BC-specific,
+        not a tier, and legitimately heterogeneous across parts.
+        """
+        tier_fields = (
+            "param_jacobian",
+            "initial_param_jacobian",
+            "param_param_hvp",
+            "state_param_hvp",
+            "param_state_hvp",
+        )
+        for name in tier_fields:
+            fns = [getattr(d, name) for d in part_derivs]
+            if any(f is not None for f in fns) and any(
+                f is None for f in fns
+            ):
+                missing = [
+                    type(p).__name__
+                    for p, f in zip(self._parts, fns)
+                    if f is None
+                ]
+                warnings.warn(
+                    f"CompositeParameterization: '{name}' is missing on "
+                    f"parts {missing}; falling back to the lowest common "
+                    "capability — the composite bundle drops this field "
+                    "for ALL parts",
+                    UserWarning,
+                    stacklevel=4,
+                )
+
     def _build_derivatives(self) -> None:
         """Compose the bundle field-by-field from the parts' bundles."""
         part_derivs = [p.param_derivatives() for p in self._parts]
+        self._warn_mixed_capability(part_derivs)
         self._part_param_jacs: Optional[List[ParamJacobianFn[Array]]] = (
             _all_or_none([d.param_jacobian for d in part_derivs])
         )
