@@ -10,7 +10,10 @@ The analytical solution is available for verification.
 
 from typing import Generic, Optional
 
-from pyapprox.ode.mass_matrix import IdentityMassMatrix
+from pyapprox.ode.mass_matrix import (
+    IdentityMassMatrix,
+    MassMatrixProtocol,
+)
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
@@ -204,10 +207,10 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
     """
     Quadratic ODE residual for testing HVP computation.
 
-    Implements: f(y, t; p) = A·y + p[0]·y² + p[1]
+    Implements: M·dy/dt = f(y, t; p) = A·y + p[0]·y² + p[1]
 
     where the quadratic term provides non-zero second derivatives for
-    proper HVP testing.
+    proper HVP testing and M defaults to the identity.
 
     Parameters
     ----------
@@ -215,12 +218,17 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         Linear stability matrix. Shape: (nstates, nstates)
     bkd : Backend
         Backend for array operations.
+    mass_matrix : MassMatrixProtocol, optional
+        Mass matrix M. Defaults to the identity (a standard ODE);
+        pass a consistent or lumped mass to exercise the mass-scaled
+        stepper paths.
     """
 
     def __init__(
         self,
         Amat: Array,
         bkd: Backend[Array],
+        mass_matrix: Optional[MassMatrixProtocol[Array]] = None,
     ):
         validate_backend(bkd)
         self._Amat = Amat
@@ -229,7 +237,11 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         self._param: Optional[Array] = None
         self._nstates = Amat.shape[0]
         self._nparams = 2  # p[0] = quadratic coeff, p[1] = constant
-        self._mass = IdentityMassMatrix(self._nstates, bkd)
+        self._mass: MassMatrixProtocol[Array] = (
+            mass_matrix
+            if mass_matrix is not None
+            else IdentityMassMatrix(self._nstates, bkd)
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -297,7 +309,7 @@ class QuadraticODEResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
             raise RuntimeError("Must call set_param() first")
         return self._Amat + 2.0 * self._param[0] * self._bkd.diag(state)
 
-    def mass_matrix(self) -> IdentityMassMatrix[Array]:
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
         return self._mass
 
     def param_jacobian(self, state: Array) -> Array:

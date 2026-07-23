@@ -137,7 +137,11 @@ class ForwardEulerAdjoint(
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
-        return -final_dqdu
+        r"""Solve :math:`M^T \lambda_N = -dQ/dy_N` (explicit:
+        :math:`dR_N/dy_N = M`)."""
+        return self._adjoint_residual.mass_matrix().solve_transpose(
+            -final_dqdu
+        )
 
 
 # =========================================================================
