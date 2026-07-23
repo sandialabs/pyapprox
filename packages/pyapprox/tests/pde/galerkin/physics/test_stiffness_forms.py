@@ -13,12 +13,12 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-from skfem import BilinearForm, asm
-from skfem.helpers import dot, grad
-
+from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from skfem import BilinearForm, asm
+from skfem.helpers import dot, grad
 
 
 def _make_physics(
@@ -121,7 +121,9 @@ class TestLoadAndReactionForms:
             numpy_bkd,
             diffusivity=1.0,
             velocity=numpy_bkd.array([0.5, 1.0]),
-            reaction=(_quadratic_reaction, _quadratic_reaction_deriv),
+            reaction=CallableReaction(
+                _quadratic_reaction, _quadratic_reaction_deriv
+            ),
             forcing=_unit_forcing,
         )
 
@@ -241,10 +243,16 @@ class TestCachingUnchanged:
         physics.spatial_jacobian(zeros, 0.0)
         assert physics._stiffness_cached is first
 
-    def test_callable_coefficients_not_cached(self, numpy_bkd):
+    def test_callable_coefficients_cached_by_version(self, numpy_bkd):
+        """Immutable coordinate coefficients cache like constants now:
+        the cache is keyed on coefficient-function versions, and only a
+        set_dofs mutation (nodal fields) bumps a version."""
         physics = _make_physics(
             numpy_bkd, diffusivity=lambda x: 1.0 + 0.0 * x[0]
         )
         zeros = numpy_bkd.zeros((physics.nstates(),))
         physics.spatial_jacobian(zeros, 0.0)
-        assert physics._stiffness_cached is None
+        first = physics._stiffness_cached
+        assert first is not None
+        physics.spatial_jacobian(zeros, 0.0)
+        assert physics._stiffness_cached is first

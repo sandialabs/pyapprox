@@ -30,6 +30,19 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
+from pyapprox.pde.constitutive.coefficient_functions import (
+    ConstantDiffusion,
+    ConstantVelocity,
+    CoordinateDiffusion,
+    CoordinateVelocity,
+    DiffusionFunctionProtocol,
+    LinearReaction,
+    NodalFieldDiffusion,
+    ReactionFunctionProtocol,
+    ReactionFunctionWithSecondDerivativeProtocol,
+    StateDependentDiffusionProtocol,
+    VelocityFunctionProtocol,
+)
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -100,6 +113,48 @@ class _DiffusionReactionKernel:
             result = result - self._react_coeff * u * v
 
         return result
+
+
+class _DiffusivitySensitivityKernel:
+    """Mixed bilinear kernel for dF/d(diffusivity DOFs).
+
+    Trial function is the diffusivity basis function, test function the
+    state basis function; the state enters interpolated:
+    ``-grad(u_prev) . grad(v) * k``.
+    """
+
+    __name__ = "diffusivity_sensitivity"
+
+    def __call__(
+        self,
+        k: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        return np.asarray(-dot(w["u_prev"].grad, grad(v)) * k)
+
+
+class _ReactionHVPKernel:
+    """Linear kernel for the reaction state-state HVP contraction.
+
+    Assembles ``R''(u) * adj * wdir * v`` with all three fields
+    interpolated at the quadrature points (positive sign: the reaction
+    enters the residual as ``+(w, R(u))``).
+    """
+
+    __name__ = "reaction_hvp"
+
+    def __init__(self, reaction_deriv2: ReactionDerivFunc) -> None:
+        self._reaction_deriv2 = reaction_deriv2
+
+    def __call__(
+        self, v: "DiscreteField", w: "FormExtraParams"
+    ) -> np.ndarray:
+        x_np = np.asarray(w.x)
+        deriv2 = self._reaction_deriv2(x_np, np.asarray(w["u_prev"]))
+        return np.asarray(
+            deriv2 * np.asarray(w["adj_prev"]) * np.asarray(w["dir_prev"]) * v
+        )
 
 
 class _AdvectionKernel:
@@ -310,25 +365,27 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     ...     basis=basis, diffusivity=0.01, reaction=2.0, bkd=bkd
     ... )
     >>>
-    >>> # Nonlinear reaction R(u) = u^2
+    >>> # Nonlinear reaction R(u) = u^2 (typed reaction function object)
+    >>> from pyapprox.pde.constitutive.coefficient_functions import (
+    ...     CallableReaction,
+    ... )
     >>> def R(x, u): return u**2
     >>> def R_prime(x, u): return 2*u
     >>> physics = AdvectionDiffusionReaction(
-    ...     basis=basis, diffusivity=0.01, reaction=(R, R_prime), bkd=bkd
+    ...     basis=basis, diffusivity=0.01,
+    ...     reaction=CallableReaction(R, R_prime), bkd=bkd
     ... )
     """
 
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        diffusivity: Union[float, Callable[..., Any]],
+        diffusivity: Union[float, Callable[..., Any], DiffusionFunctionProtocol],
         bkd: Backend[Array],
-        velocity: Optional[Union[Array, Callable[..., Any]]] = None,
-        reaction: Optional[
-            Union[
-                float, Callable[..., Any], Tuple[Callable[..., Any], Callable[..., Any]]
-            ]
+        velocity: Optional[
+            Union[Array, Callable[..., Any], VelocityFunctionProtocol]
         ] = None,
+        reaction: Optional[Union[float, ReactionFunctionProtocol]] = None,
         forcing: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
         conservative: bool = False,
@@ -336,109 +393,117 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         super().__init__(basis, bkd, boundary_conditions)
         self._mass = ScalarMassAssembler(basis, bkd)
 
-        # Store coefficients
-        self._diffusivity = diffusivity
-        self._velocity = velocity
+        # Coerce coefficient inputs to function objects at the boundary;
+        # kernels and assemblies see only the function protocols.
+        self._diffusion_function = self._coerce_diffusion(diffusivity)
+        self._velocity_function = self._coerce_velocity(velocity)
+        self._reaction_function = self._coerce_reaction(reaction)
         self._forcing = forcing
         self._conservative = conservative
 
-        # Parse reaction term
-        self._reaction_func: Optional[ReactionFunc] = None
-        self._reaction_deriv: Optional[ReactionDerivFunc] = None
-        self._reaction_is_linear = False
-        self._reaction_coeff: Optional[float] = None
-
-        if reaction is not None:
-            if isinstance(reaction, (int, float)):
-                # Linear reaction: R(u) = coeff * u, R'(u) = coeff
-                self._reaction_coeff = float(reaction)
-                self._reaction_is_linear = True
-                self._reaction_func = lambda x, u: self._reaction_coeff * u
-                self._reaction_deriv = lambda x, u: np.full_like(
-                    u, self._reaction_coeff
-                )
-            elif isinstance(reaction, tuple):
-                # Tuple of (R, R')
-                self._reaction_func, self._reaction_deriv = reaction
-                self._reaction_is_linear = False
-            elif callable(reaction):
-                # Just the reaction function, no derivative provided
-                self._reaction_func = reaction
-                self._reaction_deriv = None
-                self._reaction_is_linear = False
-            else:
-                raise TypeError(
-                    f"reaction must be float, callable, or tuple of callables, "
-                    f"got {type(reaction)}"
-                )
-
-        # Cache assembled matrices for linear problems
+        # Version-keyed stiffness cache (see _assemble_stiffness)
         self._stiffness_cached: Optional[Array] = None
+        self._stiffness_versions: Optional[Tuple[int, int]] = None
         self._load_cached: Optional[Array] = None
+
+    @staticmethod
+    def _coerce_diffusion(
+        diffusivity: Union[float, Callable[..., Any], DiffusionFunctionProtocol],
+    ) -> DiffusionFunctionProtocol:
+        """Coerce legacy float/callable diffusivity to a function object."""
+        if isinstance(diffusivity, StateDependentDiffusionProtocol):
+            raise NotImplementedError(
+                "state-dependent diffusion kappa(x, u) requires Jacobian "
+                "assemblies that do not exist yet; supply a "
+                "state-independent DiffusionFunctionProtocol"
+            )
+        if isinstance(diffusivity, DiffusionFunctionProtocol):
+            return diffusivity
+        if callable(diffusivity):
+            return CoordinateDiffusion(diffusivity)
+        return ConstantDiffusion(float(diffusivity))
+
+    def _coerce_velocity(
+        self,
+        velocity: Optional[
+            Union[Array, Callable[..., Any], VelocityFunctionProtocol]
+        ],
+    ) -> Optional[VelocityFunctionProtocol]:
+        """Coerce legacy array/callable velocity to a function object."""
+        if velocity is None:
+            return None
+        if isinstance(velocity, VelocityFunctionProtocol):
+            return velocity
+        if callable(velocity):
+            return CoordinateVelocity(velocity)
+        return ConstantVelocity(self._bkd.to_numpy(velocity))
+
+    @staticmethod
+    def _coerce_reaction(
+        reaction: Optional[Union[float, ReactionFunctionProtocol]],
+    ) -> Optional[ReactionFunctionProtocol]:
+        """Coerce a legacy float reaction to LinearReaction."""
+        if reaction is None:
+            return None
+        if isinstance(reaction, ReactionFunctionProtocol):
+            return reaction
+        if isinstance(reaction, (int, float)):
+            return LinearReaction(float(reaction))
+        raise TypeError(
+            "reaction must be a float or a ReactionFunctionProtocol (see "
+            "pde.constitutive.coefficient_functions — the tuple form was "
+            f"replaced by CallableReaction), got {type(reaction).__name__}"
+        )
+
+    def diffusion_function(self) -> DiffusionFunctionProtocol:
+        """Return the diffusion model."""
+        return self._diffusion_function
+
+    def velocity_function(self) -> Optional[VelocityFunctionProtocol]:
+        """Return the velocity model, or None."""
+        return self._velocity_function
+
+    def reaction_function(self) -> Optional[ReactionFunctionProtocol]:
+        """Return the reaction model, or None."""
+        return self._reaction_function
 
     def is_linear(self) -> bool:
         """Return True if the problem is linear (linear or no reaction)."""
-        return self._reaction_func is None or self._reaction_is_linear
-
-    def _get_diffusivity(self, coords: np.ndarray) -> np.ndarray:
-        """Get diffusivity values at given coordinates."""
-        if callable(self._diffusivity):
-            return np.asarray(self._diffusivity(coords))
-        else:
-            return np.full(coords.shape[1], self._diffusivity)
-
-    def _get_velocity(self, coords: np.ndarray) -> np.ndarray:
-        """Get velocity values at given coordinates."""
-        if self._velocity is None:
-            return np.zeros_like(coords)
-        elif callable(self._velocity):
-            return np.asarray(self._velocity(coords))
-        else:
-            # Constant velocity - broadcast to all points
-            vel = self._bkd.to_numpy(self._velocity)
-            return np.broadcast_to(vel[:, np.newaxis], coords.shape)
-
-    def _get_forcing(self, coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-        """Get forcing values at given coordinates."""
-        if self._forcing is None:
-            return np.zeros(coords.shape[1])
-        else:
-            # Try calling with time first, fall back to without
-            try:
-                return np.asarray(self._forcing(coords, time))
-            except TypeError:
-                return np.asarray(self._forcing(coords))
+        return (
+            self._reaction_function is None
+            or self._reaction_function.is_linear()
+        )
 
     def _diffusion_reaction_form(self) -> "BilinearForm":
-        """Bilinear form for diffusion plus linear reaction."""
-        # Get constant coefficients or prepare for callable
-        diff_const = self._diffusivity if not callable(self._diffusivity) else None
+        """Bilinear form for diffusion plus linear reaction.
 
-        # For linear reaction, include in stiffness matrix
-        react_coeff = self._reaction_coeff if self._reaction_is_linear else None
-
-        # Capture callable diffusivity for use in the kernel
-        diff_callable = self._diffusivity if callable(self._diffusivity) else None
+        All diffusion functions are consumed uniformly through
+        ``values`` (constant-coefficient problems assemble once and hit
+        the stiffness cache, so no scalar fast path is warranted). A
+        LINEAR reaction structurally belongs in this bilinear form
+        (nonlinear reactions enter the load instead), which is what the
+        ``is_linear`` capability selects.
+        """
+        reaction = self._reaction_function
+        react_coeff = (
+            reaction.coeff()
+            if isinstance(reaction, LinearReaction)
+            else None
+        )
 
         return BilinearForm(
-            _DiffusionReactionKernel(diff_const, diff_callable, react_coeff)
+            _DiffusionReactionKernel(
+                None, self._diffusion_function.values, react_coeff
+            )
         )
 
     def _advection_form(self) -> Optional["BilinearForm"]:
         """Bilinear form for advection, or None when velocity is absent."""
-        if self._velocity is None:
+        velocity = self._velocity_function
+        if velocity is None:
             return None
-
-        vel_np = (
-            self._bkd.to_numpy(self._velocity)
-            if not callable(self._velocity)
-            else None
-        )
-
-        vel_callable = self._velocity if callable(self._velocity) else None
-
         return BilinearForm(
-            _AdvectionKernel(vel_np, vel_callable, self._conservative)
+            _AdvectionKernel(None, velocity.values, self._conservative)
         )
 
     def forcing_form(self, time: float) -> Optional["LinearForm"]:
@@ -455,9 +520,10 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         (nelems, nquad) array of state values at the quadrature points
         also works, enabling element-restricted assembly.
         """
-        if self._reaction_func is None or self._reaction_is_linear:
+        reaction = self._reaction_function
+        if reaction is None or reaction.is_linear():
             return None
-        return LinearForm(_ReactionKernel(self._reaction_func))
+        return LinearForm(_ReactionKernel(reaction.value))
 
     def reaction_jacobian_form(self) -> Optional["BilinearForm"]:
         """Bilinear form (w, R'(u)*du) for the reaction Jacobian, or None.
@@ -465,9 +531,10 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         Assemble with the interpolated state as a form parameter, as in
         :meth:`reaction_form`.
         """
-        if self._reaction_deriv is None or self._reaction_is_linear:
+        reaction = self._reaction_function
+        if reaction is None or reaction.is_linear():
             return None
-        return BilinearForm(_ReactionJacobianKernel(self._reaction_deriv))
+        return BilinearForm(_ReactionJacobianKernel(reaction.derivative))
 
     def stiffness_forms(self) -> List["BilinearForm"]:
         """Return the bilinear forms whose sum assembles the stiffness.
@@ -501,7 +568,20 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         the residual and Jacobian separately.
         """
         # Check cache for linear problems
-        if self._stiffness_cached is not None and self.is_linear():
+        # The stiffness (diffusion + advection + linear reaction) is
+        # state-independent; the cache is keyed on the coefficient
+        # function versions so field updates (set_dofs) invalidate it
+        # while Newton iterations and time steps reuse it.
+        versions = (
+            self._diffusion_function.version(),
+            self._velocity_function.version()
+            if self._velocity_function is not None
+            else 0,
+        )
+        if (
+            self._stiffness_cached is not None
+            and self._stiffness_versions == versions
+        ):
             return self._stiffness_cached
 
         skfem_basis = self._basis.skfem_basis()
@@ -512,13 +592,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         for form in forms[1:]:
             stiffness = stiffness + asm(form, skfem_basis)
 
-        # Cache if linear problem with constant coefficients
-        if (
-            self.is_linear()
-            and not callable(self._diffusivity)
-            and not callable(self._velocity)
-        ):
-            self._stiffness_cached = stiffness
+        self._stiffness_cached = stiffness
+        self._stiffness_versions = versions
 
         result: Array = stiffness
         return result
@@ -537,7 +612,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
         # Start with forcing contribution
         if self._forcing is None and (
-            self._reaction_func is None or self._reaction_is_linear
+            self._reaction_function is None
+            or self._reaction_function.is_linear()
         ):
             # No forcing and no nonlinear reaction - use cached zero vector
             if self._load_cached is not None:
@@ -634,9 +710,93 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         stiffness = self._assemble_stiffness(state, time)
         stiffness = self._apply_bc_to_stiffness(stiffness, time)
         jacobian = -stiffness
-        if not self._reaction_is_linear and self._reaction_deriv is not None:
+        if (
+            self._reaction_function is not None
+            and not self._reaction_function.is_linear()
+        ):
             jacobian = jacobian + self._assemble_reaction_jacobian(state, time)
         return jacobian
+
+    def residual_diffusivity_jacobian(self, state: Array) -> Array:
+        """Compute dF/d(diffusivity DOFs) at the given state.
+
+        Requires the diffusivity to be a ``NodalFieldDiffusion`` (the
+        differentiable representation). The mixed assembly is exact:
+        ``B(u)[j, k] = -int phi_k (grad u . grad phi_j) dx`` — the
+        minus sign because diffusion sits inside K and F = b - K u.
+        B is LINEAR in the state with zero constant part, and its state
+        derivative tensor is symmetric in (state, residual) indices —
+        the properties the parameterization's HVP contractions rely on.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Sensitivity matrix (scipy sparse).
+            Shape: (nstates, nfield_dofs)
+        """
+        diffusion = self._diffusion_function
+        if not isinstance(diffusion, NodalFieldDiffusion):
+            raise TypeError(
+                "residual_diffusivity_jacobian requires a "
+                "NodalFieldDiffusion diffusivity (nodal DOFs are the "
+                f"differentiable representation), got "
+                f"{type(diffusion).__name__}"
+            )
+        skfem_basis = self._basis.skfem_basis()
+        state_np = self._bkd.to_numpy(state)
+        sensitivity = asm(
+            BilinearForm(_DiffusivitySensitivityKernel()),
+            skfem_basis,
+            skfem_basis,
+            u_prev=skfem_basis.interpolate(state_np),
+        )
+        result: Array = sensitivity
+        return result
+
+    def state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array, time: float
+    ) -> Array:
+        """Compute lambda^T (d^2F/du^2) w of the RAW spatial residual.
+
+        Only the reaction is nonlinear in the state (diffusion and
+        advection are linear), so the contraction is
+        ``+int R''(u) adj w phi_i dx`` — positive because the reaction
+        enters the residual as ``+(w, R(u))`` — and exactly zero for
+        linear problems.
+
+        Raises
+        ------
+        TypeError
+            If the reaction is nonlinear but does not provide the
+            analytic second derivative (supply it via
+            ``CallableReaction(..., second_derivative_func=...)``).
+        """
+        reaction = self._reaction_function
+        if reaction is None or reaction.is_linear():
+            return self._bkd.full_like(state, 0.0)
+        if not isinstance(
+            reaction, ReactionFunctionWithSecondDerivativeProtocol
+        ):
+            raise TypeError(
+                "state_state_hvp with a nonlinear reaction requires the "
+                "analytic second derivative "
+                "(ReactionFunctionWithSecondDerivativeProtocol); supply "
+                "second_derivative_func on CallableReaction"
+            )
+        skfem_basis = self._basis.skfem_basis()
+        contraction = asm(
+            LinearForm(_ReactionHVPKernel(reaction.second_derivative)),
+            skfem_basis,
+            u_prev=skfem_basis.interpolate(self._bkd.to_numpy(state)),
+            adj_prev=skfem_basis.interpolate(self._bkd.to_numpy(adj_state)),
+            dir_prev=skfem_basis.interpolate(self._bkd.to_numpy(wvec)),
+        )
+        return self._bkd.asarray(np.asarray(contraction).astype(np.float64))
 
     def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a function.
@@ -655,16 +815,11 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         return self._basis.interpolate(func)
 
     def __repr__(self) -> str:
-        react_str = "None"
-        if self._reaction_is_linear:
-            react_str = f"linear({self._reaction_coeff})"
-        elif self._reaction_func is not None:
-            react_str = "nonlinear"
         return (
             f"AdvectionDiffusionReaction("
             f"nstates={self.nstates()}, "
-            f"diffusivity={self._diffusivity}, "
-            f"reaction={react_str})"
+            f"diffusivity={self._diffusion_function!r}, "
+            f"reaction={self._reaction_function!r})"
         )
 
 

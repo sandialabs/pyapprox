@@ -26,6 +26,7 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
@@ -52,7 +53,11 @@ def _parse_reaction(react_str):
     if react_str == "0*u":
         return None
     elif react_str == "u**2":
-        return (lambda x, u: u**2, lambda x, u: 2 * u)
+        return CallableReaction(
+            lambda x, u: u**2,
+            lambda x, u: 2 * u,
+            lambda x, u: np.full_like(u, 2.0),
+        )
     else:
         raise ValueError(f"Unknown react_str: {react_str}")
 
