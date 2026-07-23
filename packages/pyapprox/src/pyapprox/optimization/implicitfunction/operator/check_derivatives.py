@@ -411,7 +411,13 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._state_eq.nstates(),
             nvars=self._state_eq.nparams(),
-            fun=lambda param: self._state_eq.state_jacobian(state, param) @ adj_state,
+            # Transposed: state_param_hvp is d/dp of the adjoint solve's
+            # J^T lambda (lambda weights the residual index, as in every
+            # Lagrangian term). The untransposed J lambda agrees only
+            # when the mixed tensor is symmetric in (residual, state)
+            # indices — Dirichlet row replacement breaks that symmetry.
+            fun=lambda param: self._state_eq.state_jacobian(state, param).T
+            @ adj_state,
             jvp=lambda param, vec: self._state_eq.state_param_hvp(
                 state, param, adj_state, vec
             ),
