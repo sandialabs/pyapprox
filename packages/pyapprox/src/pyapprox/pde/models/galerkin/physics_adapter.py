@@ -143,7 +143,15 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         )
 
     def param_jacobian(self, state: Array) -> Array:
-        """Compute the parameter Jacobian dF/dp (raw, no Dirichlet).
+        """Compute the parameter Jacobian of the BC-NEUTRALIZED f.
+
+        The adapter's f carries analytic boundary velocities on
+        essential rows (parameter-independent), so those rows of the
+        bundle's RAW dF/dp are zeroed here — not left to the
+        BC-enforcing wrapper. Stage-based steppers (Heun) compose this
+        Jacobian through M^{-1} and stage Jacobians BEFORE the wrapper's
+        final row replacement, so raw essential rows would contaminate
+        interior rows of dR/dp.
 
         Parameters
         ----------
@@ -155,8 +163,10 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         Array
             Parameter Jacobian. Shape: (nstates, nparams)
         """
-        return self._param_jacobian_fn(
-            state, self._time, self._require_params()
+        return self._constraint_set.zero_rows(
+            self._param_jacobian_fn(
+                state, self._time, self._require_params()
+            )
         )
 
     def initial_param_jacobian(self) -> Array:
@@ -179,9 +189,22 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
     and ``state_state_hvp`` (from the physics) on top of the
     first-order tier. Selected by the factory when the bundle has all
     three HVPs and the physics satisfies
-    ``GalerkinPhysicsWithStateStateHVPProtocol``. All contractions are
-    RAW (no Dirichlet handling) — the BC-enforcing wrapper owns that.
+    ``GalerkinPhysicsWithStateStateHVPProtocol``.
+
+    Every contraction represents second derivatives of the
+    BC-NEUTRALIZED f (the same function ``__call__``/``jacobian``
+    expose): essential rows carry parameter-independent boundary
+    velocities, so their second derivatives vanish — the incoming
+    adjoint/weight vector is zeroed at essential entries before the
+    RAW bundle contraction. Stage-based steppers (Heun) build their
+    own weight vectors (e.g. M^{-T} J2^T lambda, nonzero at essential
+    entries) inside the stepper, where the BC-enforcing wrapper's
+    adjoint zeroing cannot reach.
     """
+
+    def _neutralized_weight(self, adj_state: Array) -> Array:
+        """Zero the contraction weight at essential entries."""
+        return self._constraint_set.zero_entries(adj_state)
 
     def __init__(
         self,
@@ -221,7 +244,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2F/dy^2) w. Shape: (nstates,)."""
         return self._hvp_physics.state_state_hvp(
-            state, adj_state, wvec, self._time
+            state, self._neutralized_weight(adj_state), wvec, self._time
         )
 
     def param_param_hvp(
@@ -229,7 +252,11 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2F/dp^2) v. Shape: (nparams,)."""
         return self._param_param_hvp_fn(
-            state, self._time, self._require_params(), adj_state, vvec
+            state,
+            self._time,
+            self._require_params(),
+            self._neutralized_weight(adj_state),
+            vvec,
         )
 
     def state_param_hvp(
@@ -237,7 +264,11 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2F/dy dp) v. Shape: (nstates,)."""
         return self._state_param_hvp_fn(
-            state, self._time, self._require_params(), adj_state, vvec
+            state,
+            self._time,
+            self._require_params(),
+            self._neutralized_weight(adj_state),
+            vvec,
         )
 
     def param_state_hvp(
@@ -245,7 +276,11 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2F/dp dy) w. Shape: (nparams,)."""
         return self._param_state_hvp_fn(
-            state, self._time, self._require_params(), adj_state, wvec
+            state,
+            self._time,
+            self._require_params(),
+            self._neutralized_weight(adj_state),
+            wvec,
         )
 
 

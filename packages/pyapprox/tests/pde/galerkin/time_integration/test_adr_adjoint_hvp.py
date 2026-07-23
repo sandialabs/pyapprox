@@ -57,7 +57,14 @@ from pyapprox.util.rootfinding.newton import NewtonSolver
 from tests._helpers.adjoint_checks import HVPOperatorFunction, NumpyArray
 
 _NPARAMS = 3
-_FINAL_TIME, _DELTAT = 0.4, 0.1
+# Explicit steppers need dt below the diffusion stability limit
+# (~2/lambda_max(M^-1 K) ~ 1.6e-3 for nx=10 P1 with kappa ~ 1).
+_METHOD_TIMES = {
+    "backward_euler": (0.4, 0.1),
+    "crank_nicolson": (0.4, 0.1),
+    "forward_euler": (2.5e-3, 5e-4),
+    "heun": (2.5e-3, 5e-4),
+}
 
 
 def _lognormal_kle_map(
@@ -118,13 +125,17 @@ def _build_pipeline(
     assert isinstance(wrapper, GalerkinBCEnforcingHVPResidual)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=20, atol=1e-12, rtol=0.0)
-    integrator = TimeIntegrator(0.0, _FINAL_TIME, _DELTAT, newton)
+    final_time, deltat = _METHOD_TIMES[method]
+    integrator = TimeIntegrator(0.0, final_time, deltat, newton)
     return integrator, adapter, physics
 
 
 class TestADRLogKLEAdjointHVP:
     @pytest.mark.parametrize("nonlinear_reaction", [False, True])
-    @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
+    @pytest.mark.parametrize(
+        "method",
+        ["backward_euler", "crank_nicolson", "forward_euler", "heun"],
+    )
     def test_endpoint_gradient_and_hvp_match_fd(
         self, numpy_bkd: NumpyBkd, method: str, nonlinear_reaction: bool
     ) -> None:
