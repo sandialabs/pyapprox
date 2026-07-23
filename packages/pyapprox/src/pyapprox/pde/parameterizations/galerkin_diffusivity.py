@@ -31,27 +31,10 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
     FieldMapWithHVPProtocol,
+    field_map_has_hvp,
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
-
-
-@runtime_checkable
-class _GuardedHVPFieldMapProtocol(
-    FieldMapWithHVPProtocol[Array], Protocol
-):
-    """Field map whose hvp availability is guarded (TransformedFieldMap
-    exposes ``hvp`` structurally but honors it only when constructed
-    with a second transform derivative)."""
-
-    def has_hvp(self) -> bool: ...
-
-
-def _field_map_has_hvp(field_map: FieldMapProtocol[Array]) -> bool:
-    """Whether the field map provides a USABLE adjoint-weighted HVP."""
-    if isinstance(field_map, _GuardedHVPFieldMapProtocol):
-        return field_map.has_hvp()
-    return isinstance(field_map, FieldMapWithHVPProtocol)
 
 
 @runtime_checkable
@@ -115,7 +98,7 @@ class AffineDiffusivityFieldParameterization(Generic[Array]):
         self._bkd = bkd
         # Narrowed once here so HVP methods keep the typed reference.
         self._hvp_field_map: Optional[FieldMapWithHVPProtocol[Array]] = None
-        if _field_map_has_hvp(field_map) and isinstance(
+        if field_map_has_hvp(field_map) and isinstance(
             field_map, FieldMapWithHVPProtocol
         ):
             self._hvp_field_map = field_map

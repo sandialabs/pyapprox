@@ -37,3 +37,19 @@ class FieldMapWithHVPProtocol(FieldMapProtocol[Array], Protocol):
         Shape: (nvars,).
         """
         ...
+
+
+@runtime_checkable
+class GuardedHVPFieldMapProtocol(FieldMapWithHVPProtocol[Array], Protocol):
+    """Field map whose hvp availability is guarded (TransformedFieldMap
+    exposes ``hvp`` structurally but honors it only when constructed
+    with a second transform derivative)."""
+
+    def has_hvp(self) -> bool: ...
+
+
+def field_map_has_hvp(field_map: FieldMapProtocol[Array]) -> bool:
+    """Whether the field map provides a USABLE adjoint-weighted HVP."""
+    if isinstance(field_map, GuardedHVPFieldMapProtocol):
+        return field_map.has_hvp()
+    return isinstance(field_map, FieldMapWithHVPProtocol)
