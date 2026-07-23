@@ -10,9 +10,13 @@ from typing import Generic, Optional, Tuple
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.protocols import (
+    TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.operator.time_adjoint_hvp import (
+    TimeAdjointOperatorWithHVP,
+)
 from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
@@ -109,6 +113,20 @@ class GalerkinModel(Generic[Array]):
             Gradient dQ/dp. Shape: (1, nparams)
         """
         return self.last_integrator().gradient(fwd_sols, times, param)
+
+    def hvp_operator(
+        self,
+        functional: TransientFunctionalWithJacobianAndHVPProtocol[Array],
+    ) -> TimeAdjointOperatorWithHVP[Array]:
+        """Build the second-order adjoint operator on the last solve.
+
+        The returned operator exposes ``jacobian`` and ``hvp``; the
+        underlying wrapper raises an actionable TypeError when the
+        stepper was created without HVP support.
+        """
+        return TimeAdjointOperatorWithHVP(
+            self.last_integrator(), functional
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""

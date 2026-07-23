@@ -499,6 +499,21 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         """
         return -(self._K_mu_per_material[material_idx] @ state)
 
+    def state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array, time: float
+    ) -> Array:
+        """Compute lambda^T (d^2F/du^2) w: exactly zero (linear physics).
+
+        The spatial residual F = b - K u is linear in the state, so all
+        state-state second derivatives vanish identically.
+
+        Returns
+        -------
+        Array
+            Zeros. Shape: ``(nstates,)``.
+        """
+        return self._bkd.full_like(state, 0.0)
+
     # -----------------------------------------------------------------
     # Parameter update methods
     # -----------------------------------------------------------------

@@ -98,6 +98,32 @@ def _lame_from_E_nu(E: float, nu: float) -> Tuple[float, float]:
     return lam, mu
 
 
+def _lame_hessians_E_nu(
+    E: float, nu: float
+) -> Tuple[
+    "np.ndarray[Tuple[int, int], np.dtype[np.float64]]",
+    "np.ndarray[Tuple[int, int], np.dtype[np.float64]]",
+]:
+    """Hessians of lambda(E, nu) and mu(E, nu) in the (E, nu) ordering.
+
+    Both maps are linear in E, so the (E, E) entries vanish and the
+    mixed entries equal the nu-derivatives of the E-slopes.
+    """
+    denom = (1.0 + nu) * (1.0 - 2.0 * nu)
+    d2lam_dEdnu = (1.0 + 2.0 * nu**2) / denom**2
+    d2lam_dnu2 = E * (
+        4.0 * nu / denom**2
+        + 2.0 * (1.0 + 2.0 * nu**2) * (1.0 + 4.0 * nu) / denom**3
+    )
+    d2mu_dEdnu = -1.0 / (2.0 * (1.0 + nu) ** 2)
+    d2mu_dnu2 = E / (1.0 + nu) ** 3
+    lam_hess = np.array(
+        [[0.0, d2lam_dEdnu], [d2lam_dEdnu, d2lam_dnu2]]
+    )
+    mu_hess = np.array([[0.0, d2mu_dEdnu], [d2mu_dEdnu, d2mu_dnu2]])
+    return lam_hess, mu_hess
+
+
 class GalerkinLameParameterization(Generic[Array]):
     """Maps [E1, nu1, E2, nu2, ...] to per-element Lame parameters.
 
@@ -145,9 +171,12 @@ class GalerkinLameParameterization(Generic[Array]):
         self._bkd = bkd
         if isinstance(physics, _GalerkinLameSensitivityPhysicsProtocol):
             self._derivs: ParamDerivatives[Array] = (
-                ParamDerivatives.first_order(
+                ParamDerivatives.second_order(
                     self._param_jacobian,
                     self.initial_param_jacobian,
+                    self._param_param_hvp,
+                    self._state_param_hvp,
+                    self._param_state_hvp,
                 )
             )
         else:
@@ -264,6 +293,105 @@ class GalerkinLameParameterization(Generic[Array]):
             cols.extend([col_E, col_nu])
 
         return self._bkd.stack(cols, axis=1)
+
+    def _param_param_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """Compute adj^T (d^2F/dp^2) v. Shape: ``(nparams,)``.
+
+        F depends on p = (E_i, nu_i) only through the per-material Lame
+        pair, and is LINEAR in (lam_i, mu_i), so the parameter Hessian
+        of F is the Lame-map Hessian weighted by the (state-dependent,
+        p-independent) residual sensitivities:
+
+        .. math::
+
+            adj^T \\partial^2 F/\\partial p_a \\partial p_b =
+            H^{\\lambda_i}_{ab} (adj^T S_{\\lambda_i}(u))
+            + H^{\\mu_i}_{ab} (adj^T S_{\\mu_i}(u))
+
+        with no cross-material coupling.
+        """
+        physics = self._require_sensitivity_physics()
+        params_np = self._bkd.to_numpy(params_1d)
+        vvec_np = self._bkd.to_numpy(vvec)
+        out = np.zeros(self.nparams())
+        for i in range(len(self._material_names)):
+            E = float(params_np[2 * i])
+            nu = float(params_np[2 * i + 1])
+            lam_hess, mu_hess = _lame_hessians_E_nu(E, nu)
+            lam_sens = physics.residual_lam_sensitivity(state, i)
+            mu_sens = physics.residual_mu_sensitivity(state, i)
+            adj_dot_lam = float(
+                self._bkd.to_numpy(self._bkd.dot(adj_state, lam_sens))
+            )
+            adj_dot_mu = float(
+                self._bkd.to_numpy(self._bkd.dot(adj_state, mu_sens))
+            )
+            block = lam_hess * adj_dot_lam + mu_hess * adj_dot_mu
+            out[2 * i : 2 * i + 2] = block @ vvec_np[2 * i : 2 * i + 2]
+        return self._bkd.asarray(out)
+
+    def _state_param_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """Compute adj^T (d^2F/dy dp) v. Shape: ``(nstates,)``.
+
+        dF/dp is LINEAR in the state with zero constant part (the
+        sensitivities are -dK/d(lame) u contractions), and each
+        dK/d(lame) is SYMMETRIC, so the mixed second derivative
+        contracted with adj is the parameter Jacobian evaluated at the
+        adjoint in place of the state:
+
+        .. math::
+
+            adj^T \\partial^2 F/\\partial y \\partial p \\, v
+            = (dF/dp)(u{=}adj) \\, v
+        """
+        return self._bkd.dot(
+            self._param_jacobian(adj_state, time, params_1d), vvec
+        )
+
+    def _param_state_hvp(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """Compute adj^T (d^2F/dp dy) w. Shape: ``(nparams,)``.
+
+        Transpose contraction of ``_state_param_hvp`` (same linearity +
+        symmetry argument): the parameter Jacobian evaluated at the
+        direction w, transposed onto the adjoint.
+        """
+        return self._bkd.dot(
+            self._param_jacobian(wvec, time, params_1d).T, adj_state
+        )
+
+    def _require_sensitivity_physics(
+        self,
+    ) -> "_GalerkinLameSensitivityPhysicsProtocol[Array]":
+        """Narrow the physics to the sensitivity protocol, or raise."""
+        if not isinstance(
+            self._physics, _GalerkinLameSensitivityPhysicsProtocol
+        ):
+            raise RuntimeError(
+                "parameter derivatives are unavailable; check "
+                "param_derivatives() before calling"
+            )
+        return self._physics
 
     def initial_param_jacobian(
         self,

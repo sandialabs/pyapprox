@@ -13,8 +13,10 @@ GalerkinBCEnforcingForwardResidual
     Wraps SensitivityStepperProtocol: forward solve + sensitivity.
 GalerkinBCEnforcingAdjointResidual
     Wraps AdjointEnabledTimeSteppingResidualProtocol: + adjoint methods.
+GalerkinBCEnforcingHVPResidual
+    Wraps HVPEnabledTimeSteppingResidualProtocol: + all HVP methods
+    (4 same-step + cross-step).
 
-The HVP tier follows in a later phase of the time-integration refactor.
 Use ``create_galerkin_bc_enforcing_residual()`` to create the widest
 wrapper the inner stepper supports.
 """
@@ -32,6 +34,7 @@ from pyapprox.ode.linear_operator import (
 from pyapprox.ode.protocols.ode_residual import ODEResidualProtocol
 from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
+    HVPEnabledTimeSteppingResidualProtocol,
     SensitivityStepperProtocol,
     TimeSteppingResidualProtocol,
 )
@@ -342,6 +345,179 @@ class GalerkinBCEnforcingAdjointResidual(
         return self._constraint_set.zero_rows(result)
 
 
+class GalerkinBCEnforcingHVPResidual(
+    GalerkinBCEnforcingAdjointResidual[Array], Generic[Array]
+):
+    """Extends the adjoint wrapper with all HVP methods.
+
+    Wraps an HVPEnabledTimeSteppingResidualProtocol. Constraint rows
+    are LINEAR in (y, p): their true second derivatives vanish, but the
+    inner stepper contracts the RAW second-derivative tensors, whose
+    constrained rows are generally nonzero. So EVERY contraction —
+    same-step, param-shaped, AND cross-step — receives the adjoint with
+    constrained entries zeroed. That is the ONLY correction: with
+    lambda_d = 0 the contraction equals the true wrapped tensor
+    sum_{j interior} lambda_j d2R_j c, so every method returns exact
+    wrapped values (entrywise FD-checkable), including the generally
+    NONZERO state-shaped entries at constrained indices d (interior
+    rows genuinely depend on boundary DOFs).
+
+    Those d-entries feed only the constrained rows of the second-order
+    adjoint recursion, whose solution component s_d is decoupled from
+    the HVP: the BC-enforced Jacobian has row d = e_d^T, so J^T has
+    column d = e_d and s_d appears in no interior equation; and every
+    consumer of s annihilates the d-entry (dR/dp rows zeroed,
+    cross-step B rows zeroed, initial_param_jacobian rows zeroed).
+    Correctness therefore rests on that invariant, not on masking
+    outputs.
+    """
+
+    def __init__(
+        self,
+        time_residual: TimeSteppingResidualProtocol[Array],
+        physics: GalerkinPhysicsProtocol[Array],
+        bkd: Backend[Array],
+    ) -> None:
+        super().__init__(time_residual, physics, bkd)
+        if not isinstance(
+            time_residual, HVPEnabledTimeSteppingResidualProtocol
+        ):
+            raise TypeError(
+                f"{type(self).__name__} requires an HVP-tier inner "
+                f"stepper, got {type(time_residual).__name__}"
+            )
+        self._hvp_inner: HVPEnabledTimeSteppingResidualProtocol[Array] = (
+            time_residual
+        )
+
+    def _zeroed_adjoint(self, adj_state: Array) -> Array:
+        """Adjoint with constrained entries zeroed for RAW contractions."""
+        return self._constraint_set.zero_entries(adj_state)
+
+    # -- Same-step HVP methods --
+
+    def state_state_hvp(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/dy_n^2) w with the constrained adjoint zeroed."""
+        return self._hvp_inner.state_state_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), wvec
+        )
+
+    def state_param_hvp(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/dy_n dp) v with the constrained adjoint zeroed."""
+        return self._hvp_inner.state_param_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), vvec
+        )
+
+    def param_state_hvp(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/dp dy_n) w with the constrained adjoint zeroed."""
+        return self._hvp_inner.param_state_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), wvec
+        )
+
+    def param_param_hvp(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """adj^T (d^2R/dp^2) v with the constrained adjoint zeroed."""
+        return self._hvp_inner.param_param_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), vvec
+        )
+
+    # -- Cross-step HVP methods --
+
+    def prev_state_state_hvp(
+        self,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """adj^T (d^2R_{n+1}/dy_n^2) w with the constrained adjoint zeroed."""
+        return self._hvp_inner.prev_state_state_hvp(
+            next_ctx, y_curr_of_next, self._zeroed_adjoint(adj_state), wvec
+        )
+
+    def prev_state_param_hvp(
+        self,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
+        adj_state: Array,
+        vvec: Array,
+    ) -> Array:
+        """adj^T (d^2R_{n+1}/dy_n dp) v with the constrained adjoint zeroed."""
+        return self._hvp_inner.prev_state_param_hvp(
+            next_ctx, y_curr_of_next, self._zeroed_adjoint(adj_state), vvec
+        )
+
+    def prev_param_state_hvp(
+        self,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
+        adj_state: Array,
+        wvec: Array,
+    ) -> Array:
+        """adj^T (d^2R_{n+1}/dp dy_n) w with the constrained adjoint zeroed."""
+        return self._hvp_inner.prev_param_state_hvp(
+            next_ctx, y_curr_of_next, self._zeroed_adjoint(adj_state), wvec
+        )
+
+    def state_prev_state_hvp(
+        self,
+        ctx: StepContext[Array],
+        y_curr: Array,
+        adj_state: Array,
+        wvec_prev: Array,
+    ) -> Array:
+        """adj^T (d^2R_n/dy_n dy_{n-1}) w_prev, constrained adjoint zeroed."""
+        return self._hvp_inner.state_prev_state_hvp(
+            ctx, y_curr, self._zeroed_adjoint(adj_state), wvec_prev
+        )
+
+    def prev_state_curr_state_hvp(
+        self,
+        next_ctx: StepContext[Array],
+        y_curr_of_next: Array,
+        adj_state: Array,
+        wvec_curr_of_next: Array,
+    ) -> Array:
+        """adj^T (d^2R_{n+1}/dy_n dy_{n+1}) w, constrained adjoint zeroed."""
+        return self._hvp_inner.prev_state_curr_state_hvp(
+            next_ctx,
+            y_curr_of_next,
+            self._zeroed_adjoint(adj_state),
+            wvec_curr_of_next,
+        )
+
+
+@overload
+def create_galerkin_bc_enforcing_residual(
+    inner: HVPEnabledTimeSteppingResidualProtocol[Array],
+    physics: GalerkinPhysicsProtocol[Array],
+    bkd: Backend[Array],
+) -> GalerkinBCEnforcingHVPResidual[Array]: ...
+
+
 @overload
 def create_galerkin_bc_enforcing_residual(
     inner: AdjointEnabledTimeSteppingResidualProtocol[Array],
@@ -365,9 +541,8 @@ def create_galerkin_bc_enforcing_residual(
 ) -> GalerkinBCEnforcingForwardResidual[Array]:
     """Create the widest BC-enforcing wrapper the inner stepper supports.
 
-    Narrows by protocol, most specific first (Adjoint -> Forward), like
-    collocation's ``create_bc_enforcing_residual``. The HVP tier is
-    added in a later phase of the time-integration refactor.
+    Narrows by protocol, most specific first (HVP -> Adjoint ->
+    Forward), like collocation's ``create_bc_enforcing_residual``.
 
     Parameters
     ----------
@@ -415,6 +590,8 @@ def create_galerkin_bc_enforcing_residual(
                     "whose difference quotient supplies the term "
                     "exactly."
                 )
+    if isinstance(inner, HVPEnabledTimeSteppingResidualProtocol):
+        return GalerkinBCEnforcingHVPResidual(inner, physics, bkd)
     if isinstance(inner, AdjointEnabledTimeSteppingResidualProtocol):
         return GalerkinBCEnforcingAdjointResidual(inner, physics, bkd)
     return GalerkinBCEnforcingForwardResidual(inner, physics, bkd)

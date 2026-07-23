@@ -30,6 +30,7 @@ from pyapprox.ode.protocols.type_guards import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class TimeAdjointOperatorWithHVP(Generic[Array]):
@@ -258,7 +259,10 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
                 drdy_nm1 @ w_sols[:, nn - 1 : nn]
                 + (drdp_n @ v_res)[:, None]
             )
-            w_sols[:, nn : nn + 1] = -self._bkd.solve(drdy_n, rhs)
+            # Sparse-aware: galerkin wrappers return sparse Jacobians.
+            w_sols[:, nn : nn + 1] = -solve_maybe_sparse(
+                self._bkd, drdy_n, self._bkd.flatten(self._bkd.asarray(rhs))
+            )[:, None]
 
         return w_sols
 
@@ -323,9 +327,11 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             - (self._bkd.flatten(qsp_hvp) + rsp_hvp)
         )
 
-        # Solve (dR/dy_N)^T · s_N = RHS
+        # Solve (dR/dy_N)^T · s_N = RHS (sparse-aware)
         drdy_N = self._time_residual.jacobian(fwd_sols[:, -1])
-        s_sols[:, -1:] = self._bkd.solve(drdy_N.T, self._bkd.reshape(rhs_N, (-1, 1)))
+        s_sols[:, -1:] = solve_maybe_sparse(
+            self._bkd, drdy_N.T, self._bkd.flatten(rhs_N)
+        )[:, None]
 
         # Backward sweep — unified loop
         for nn in range(ntimes - 2, 0, -1):

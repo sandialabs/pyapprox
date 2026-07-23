@@ -13,23 +13,23 @@ fixed-tier adapter class (never ``hasattr``):
   capability).
 - :class:`GalerkinPhysicsToODEResidualWithParamJacobianAdapter` — adds
   ``param_jacobian``/``initial_param_jacobian`` (first-order bundle).
-
-No HVP tier exists yet: the galerkin parameterization HVP
-implementations arrive in a later phase of the time-integration
-refactor, so the factory caps at the WithParamJacobian tier even for
-second-order bundles.
+- :class:`GalerkinPhysicsToODEResidualWithHVPAdapter` — adds the three
+  parameterization HVP contractions (second-order bundle) and
+  ``state_state_hvp`` (from the physics).
 """
 
 from typing import Optional, overload
 
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
+    GalerkinPhysicsWithStateStateHVPProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.pde.parameterizations.derivatives import (
     InitialParamJacobianFn,
+    ParamHVPFn,
     ParamJacobianFn,
 )
 from pyapprox.pde.parameterizations.protocol import (
@@ -170,6 +170,85 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         return self._initial_param_jacobian_fn(self._require_params())
 
 
+class GalerkinPhysicsToODEResidualWithHVPAdapter(
+    GalerkinPhysicsToODEResidualWithParamJacobianAdapter[Array]
+):
+    """Adapter with second-order parameter derivatives.
+
+    Adds the three parameterization HVP contractions (from the bundle)
+    and ``state_state_hvp`` (from the physics) on top of the
+    first-order tier. Selected by the factory when the bundle has all
+    three HVPs and the physics satisfies
+    ``GalerkinPhysicsWithStateStateHVPProtocol``. All contractions are
+    RAW (no Dirichlet handling) — the BC-enforcing wrapper owns that.
+    """
+
+    def __init__(
+        self,
+        physics: GalerkinPhysicsWithStateStateHVPProtocol[Array],
+        parameterization: ParameterizationProtocol[Array],
+    ) -> None:
+        if not isinstance(
+            physics, GalerkinPhysicsWithStateStateHVPProtocol
+        ):
+            raise TypeError(
+                f"{type(self).__name__} requires a physics with "
+                f"state_state_hvp, got {type(physics).__name__}"
+            )
+        super().__init__(physics, parameterization)
+        derivs = parameterization.param_derivatives()
+        param_param_hvp = derivs.param_param_hvp
+        state_param_hvp = derivs.state_param_hvp
+        param_state_hvp = derivs.param_state_hvp
+        if (
+            param_param_hvp is None
+            or state_param_hvp is None
+            or param_state_hvp is None
+        ):
+            raise TypeError(
+                f"{type(self).__name__} requires a parameterization "
+                "whose bundle has all three HVP contractions; use "
+                "create_galerkin_physics_ode_residual to select the "
+                "right tier"
+            )
+        self._hvp_physics = physics
+        self._param_param_hvp_fn: ParamHVPFn[Array] = param_param_hvp
+        self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
+        self._param_state_hvp_fn: ParamHVPFn[Array] = param_state_hvp
+
+    def state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array
+    ) -> Array:
+        """Compute lambda^T (d^2F/dy^2) w. Shape: (nstates,)."""
+        return self._hvp_physics.state_state_hvp(
+            state, adj_state, wvec, self._time
+        )
+
+    def param_param_hvp(
+        self, state: Array, adj_state: Array, vvec: Array
+    ) -> Array:
+        """Compute lambda^T (d^2F/dp^2) v. Shape: (nparams,)."""
+        return self._param_param_hvp_fn(
+            state, self._time, self._require_params(), adj_state, vvec
+        )
+
+    def state_param_hvp(
+        self, state: Array, adj_state: Array, vvec: Array
+    ) -> Array:
+        """Compute lambda^T (d^2F/dy dp) v. Shape: (nstates,)."""
+        return self._state_param_hvp_fn(
+            state, self._time, self._require_params(), adj_state, vvec
+        )
+
+    def param_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array
+    ) -> Array:
+        """Compute lambda^T (d^2F/dp dy) w. Shape: (nparams,)."""
+        return self._param_state_hvp_fn(
+            state, self._time, self._require_params(), adj_state, wvec
+        )
+
+
 @overload
 def create_galerkin_physics_ode_residual(
     physics: GalerkinPhysicsProtocol[Array],
@@ -191,11 +270,9 @@ def create_galerkin_physics_ode_residual(
     """Create the widest adapter tier the inputs support.
 
     Capability enters the stepper stack exactly here: the factory
-    None-checks the parameterization's ParamDerivatives bundle once,
-    then everything above sees unconditional fixed-tier methods. No
-    HVP tier exists yet (galerkin param-HVP implementations arrive in a
-    later phase of the time-integration refactor), so second-order
-    bundles also produce the WithParamJacobian tier.
+    None-checks the parameterization's ParamDerivatives bundle (and
+    isinstance-checks the physics for ``state_state_hvp``) once, then
+    everything above sees unconditional fixed-tier methods.
 
     Parameters
     ----------
@@ -221,6 +298,17 @@ def create_galerkin_physics_ode_residual(
         derivs.param_jacobian is not None
         and derivs.initial_param_jacobian is not None
     ):
+        if (
+            derivs.param_param_hvp is not None
+            and derivs.state_param_hvp is not None
+            and derivs.param_state_hvp is not None
+            and isinstance(
+                physics, GalerkinPhysicsWithStateStateHVPProtocol
+            )
+        ):
+            return GalerkinPhysicsToODEResidualWithHVPAdapter(
+                physics, parameterization
+            )
         return GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
             physics, parameterization
         )
