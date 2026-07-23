@@ -177,6 +177,32 @@ class VectorLagrangeBasis(Generic[Array]):
 
         return self._bkd.asarray(dof_values.astype(np.float64))
 
+    def evaluate(self, coeffs: Array, points: Array) -> Array:
+        """Evaluate each displacement component at given points.
+
+        De-interleaves the vector DOFs (component ``c`` lives at
+        indices ``c, c + ncomponents, ...`` — the inverse of
+        ``interpolate``) and delegates each component to the scalar
+        basis.
+
+        Parameters
+        ----------
+        coeffs : Array
+            Interleaved DOF coefficients. Shape: (ndofs,)
+        points : Array
+            Evaluation points. Shape: (ndim, npts)
+
+        Returns
+        -------
+        Array
+            Component values at points. Shape: (ncomponents, npts)
+        """
+        rows = [
+            self._scalar_basis.evaluate(coeffs[c :: self._ndim], points)
+            for c in range(self._ndim)
+        ]
+        return self._bkd.stack(rows, axis=0)
+
     def dof_coordinates(self) -> Array:
         """Return coordinates of DOF locations.
 

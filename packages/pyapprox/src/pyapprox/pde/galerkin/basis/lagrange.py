@@ -175,29 +175,13 @@ class LagrangeBasis(Generic[Array]):
         coeffs_np = self._bkd.to_numpy(coeffs)
         points_np = self._bkd.to_numpy(points)
 
-        # Use skfem's probes for evaluation
-        # This finds the elements containing each point and evaluates
+        # skfem's probes builds the exact interpolation operator at the
+        # points (element location + reference-coordinate basis
+        # evaluation), valid for any element degree.
+        probes = self._skfem_basis.probes(points_np)
+        values = probes @ coeffs_np
 
-        skfem_mesh = self._mesh.skfem_mesh()
-
-        # Find cells containing points
-        cells = skfem_mesh.element_finder()(
-            *[points_np[i, :] for i in range(points_np.shape[0])]
-        )
-
-        # Evaluate using basis interpolation
-        values = np.zeros(points_np.shape[1])
-        for i, cell in enumerate(cells):
-            if cell >= 0:
-                # Get local coordinates
-                # This is simplified - a full implementation would use
-                # skfem's InteriorBasis or probing functionality
-                dof_indices = self._skfem_basis.element_dofs[:, cell]
-                # Simple nodal interpolation for P1 elements
-                local_coeffs = coeffs_np[dof_indices]
-                values[i] = np.mean(local_coeffs)  # Simplified
-
-        return self._bkd.asarray(values.astype(np.float64))
+        return self._bkd.asarray(np.asarray(values).astype(np.float64))
 
     def dof_coordinates(self) -> Array:
         """Return coordinates of DOF locations.
