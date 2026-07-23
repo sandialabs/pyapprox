@@ -14,6 +14,7 @@ from pyapprox.optimization.implicitfunction.state_equations.protocols import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backends
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
@@ -218,7 +219,10 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
         Array
             Solution to the forward Hessian equation.
         """
-        return self._bkd.solve(drdy, drdp @ vvec)
+        # Sparse-aware: galerkin state equations return sparse Jacobians.
+        return solve_maybe_sparse(
+            self._bkd, drdy, self._bkd.flatten(drdp @ vvec)
+        )[:, None]
 
     def _lagrangian_state_state_hvp(
         self, fwd_state: Array, param: Array, adj_state: Array, wvec: Array
@@ -368,11 +372,13 @@ class AdjointOperatorWithJacobianAndHVP(Generic[Array]):
         Array
             Solution to the adjoint Hessian equation.
         """
-        return self._bkd.solve(
-            drdy.T,
-            self._lagrangian_state_state_hvp(fwd_state, param, adj_state, wvec)
-            - self._lagrangian_state_param_hvp(fwd_state, param, adj_state, vvec),
-        )
+        rhs = self._lagrangian_state_state_hvp(
+            fwd_state, param, adj_state, wvec
+        ) - self._lagrangian_state_param_hvp(fwd_state, param, adj_state, vvec)
+        # Sparse-aware: galerkin state equations return sparse Jacobians.
+        return solve_maybe_sparse(
+            self._bkd, drdy.T, self._bkd.flatten(rhs)
+        )[:, None]
 
     def _get_adjoint_state(self, init_fwd_state: Array, param: Array) -> Array:
         if (

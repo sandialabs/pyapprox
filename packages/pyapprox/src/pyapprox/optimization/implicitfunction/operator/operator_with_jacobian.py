@@ -11,6 +11,7 @@ from pyapprox.optimization.implicitfunction.state_equations.protocols import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backends
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class AdjointOperatorWithJacobian(Generic[Array]):
@@ -182,7 +183,10 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         """
         drdy = self._state_eq.state_jacobian(fwd_state, param)
         dqdy = self._functional.state_jacobian(fwd_state, param)
-        adj_state = self._bkd.solve(drdy.T, -dqdy.T)
+        # Sparse-aware: galerkin state equations return sparse Jacobians.
+        adj_state = solve_maybe_sparse(
+            self._bkd, drdy.T, self._bkd.flatten(-dqdy.T)
+        )[:, None]
         self._storage.set_adjoint_state(adj_state)
         self._storage.set_state_eq_state_jacobian(drdy)
         self._storage.set_qoi_state_jacobian(dqdy)
