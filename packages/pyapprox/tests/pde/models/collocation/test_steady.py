@@ -37,7 +37,7 @@ from pyapprox.pde.field_maps.basis_expansion import (
 )
 from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationAdapter,
+    CollocationStateEquationWithJacobianAdapter,
     SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.derivatives import (
@@ -92,13 +92,15 @@ def _create_parameterized_diffusion_problem(bkd, npts=20):
     return physics, param, init_state
 
 
-class TestCollocationStateEquationAdapter:
+class TestCollocationStateEquationWithJacobianAdapter:
     def test_solve_matches_collocation_model(self, bkd):
         """Adapter solve matches direct CollocationModel.solve_steady."""
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
+        adapter = CollocationStateEquationWithJacobianAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_1d = bkd.array([0.5, 0.1])
         param_2d = param_1d[:, None]
@@ -118,7 +120,9 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
+        adapter = CollocationStateEquationWithJacobianAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, -0.1])[:, None]
         init_state_2d = init_state_1d[:, None]
@@ -133,7 +137,9 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
+        adapter = CollocationStateEquationWithJacobianAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
         init_state_2d = init_state_1d[:, None]
@@ -159,7 +165,9 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
+        adapter = CollocationStateEquationWithJacobianAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
         init_state_2d = init_state_1d[:, None]
@@ -182,7 +190,9 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(model, bkd, parameterization=param)
+        adapter = CollocationStateEquationWithJacobianAdapter(
+            model, bkd, parameterization=param
+        )
 
         param_2d = bkd.array([0.3, 0.1])[:, None]
         sol = adapter.solve(init_state_1d[:, None], param_2d)
@@ -336,7 +346,9 @@ class TestSteadyForwardModel:
         functional = SubsetOfStatesAdjointFunctional(nstates, nparams, subset, bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        state_eq = CollocationStateEquationAdapter(model, bkd, parameterization=param)
+        state_eq = CollocationStateEquationWithJacobianAdapter(
+            model, bkd, parameterization=param
+        )
         adjoint_op = VectorAdjointOperatorWithJacobian(state_eq, functional)
 
         init_state_2d = init_state[:, None]
@@ -413,7 +425,8 @@ class TestSteadyForwardModel:
         assert result.shape[1] == 1
 
     def test_no_hvp_with_linear_param(self, bkd):
-        """Linear BasisExpansion has no HVP -> bundle hvp is None."""
+        """SteadyForwardModel's Derivatives are jacobian-only (it has
+        no HVP path), independent of the parameterization's tier."""
         physics, param, init_state = _create_parameterized_diffusion_problem(bkd)
         fwd = SteadyForwardModel(physics, bkd, init_state, parameterization=param)
         assert fwd.derivatives().hvp is None

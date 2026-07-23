@@ -1,6 +1,6 @@
 """Tests for param_jacobian with non-Dirichlet BCs (flux Neumann, Robin).
 
-These tests verify that the BC loop in CollocationStateEquationAdapter
+These tests verify that the BC loop in CollocationStateEquationWithJacobianAdapter
 correctly handles physical sensitivities for coefficient-dependent BCs.
 """
 
@@ -30,7 +30,7 @@ from pyapprox.pde.field_maps.basis_expansion import (
 )
 from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationAdapter,
+    CollocationStateEquationWithJacobianAdapter,
     SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.diffusion import (
@@ -207,7 +207,7 @@ class TestSteadyBCParamJacobian:
         physics, param, init_state = _create_flux_neumann_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(
+        adapter = CollocationStateEquationWithJacobianAdapter(
             model,
             bkd,
             parameterization=param,

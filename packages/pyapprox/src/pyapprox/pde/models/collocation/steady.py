@@ -1,7 +1,8 @@
 """Steady-state forward model for parameterized collocation PDEs.
 
-Provides CollocationStateEquationAdapter (wraps CollocationModel + parameterized
-physics as ParameterizedStateEquationWithJacobianProtocol) and SteadyForwardModel
+Provides CollocationStateEquationWithJacobianAdapter (wraps
+CollocationModel + parameterized physics as
+ParameterizedStateEquationWithJacobianProtocol) and SteadyForwardModel
 (satisfies FunctionProtocol with adjoint-based Jacobian computation).
 """
 
@@ -20,19 +21,23 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian impo
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
     VectorAdjointOperatorWithJacobian,
 )
+from pyapprox.pde.collocation.protocols.physics import (
+    PhysicsWithStateStateHVPProtocol,
+)
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
 from pyapprox.pde.models.collocation.factory import (
     create_collocation_model,
 )
+from pyapprox.pde.parameterizations.derivatives import ParamHVPFn
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class CollocationStateEquationAdapter(Generic[Array]):
+class CollocationStateEquationWithJacobianAdapter(Generic[Array]):
     """Adapts CollocationModel for use with AdjointOperatorWithJacobian.
 
     Wraps CollocationModel + parameterized physics as
@@ -253,6 +258,140 @@ class CollocationStateEquationAdapter(Generic[Array]):
         return {"dflux_n_dp": dflux_n_dp}
 
 
+class CollocationStateEquationWithHVPAdapter(
+    CollocationStateEquationWithJacobianAdapter[Array], Generic[Array]
+):
+    """Extends the steady adapter with the four HVP methods
+    (ParameterizedStateEquationWithJacobianAndHVPProtocol).
+
+    Collocation replaces ALL boundary rows (row_replaced superset of
+    essential), so every second-derivative contraction receives the
+    adjoint with ALL BC-row entries zeroed — the true-tensor
+    convention: replaced rows must be affine in (state, params) jointly
+    for their true second derivatives to vanish. That holds for
+    Dirichlet and parameter-independent Neumann/Robin rows; BCs whose
+    normal operator has coefficient dependence (parameterized-flux
+    Neumann) carry nonzero second-order row terms this adapter cannot
+    represent, so they are rejected at construction. State-shaped
+    outputs are NOT masked (their BC-row entries are genuine and feed
+    only the decoupled second-adjoint component).
+
+    Requires physics satisfying PhysicsWithStateStateHVPProtocol and a
+    parameterization with a second-order ParamDerivatives bundle.
+    """
+
+    def __init__(
+        self,
+        model: CollocationModel[Array],
+        bkd: Backend[Array],
+        parameterization: Optional[ParameterizationProtocol[Array]] = None,
+    ):
+        super().__init__(model, bkd, parameterization=parameterization)
+        if not isinstance(self._physics, PhysicsWithStateStateHVPProtocol):
+            raise TypeError(
+                "physics must satisfy PhysicsWithStateStateHVPProtocol "
+                f"for the HVP tier, got {type(self._physics).__name__}"
+            )
+        self._hvp_physics: PhysicsWithStateStateHVPProtocol[Array] = (
+            self._physics
+        )
+        derivs = self._parameterization.param_derivatives()
+        if (
+            derivs.param_param_hvp is None
+            or derivs.state_param_hvp is None
+            or derivs.param_state_hvp is None
+        ):
+            raise TypeError(
+                "parameterization must provide a second-order "
+                "ParamDerivatives bundle (all three parameter-facing "
+                "HVPs); this adapter is the HVP tier"
+            )
+        self._param_param_hvp_fn: ParamHVPFn[Array] = derivs.param_param_hvp
+        self._state_param_hvp_fn: ParamHVPFn[Array] = derivs.state_param_hvp
+        self._param_state_hvp_fn: ParamHVPFn[Array] = derivs.param_state_hvp
+        if hasattr(self._physics, "boundary_conditions"):
+            for bc in self._physics.boundary_conditions():
+                if not hasattr(bc, "normal_operator"):
+                    continue
+                normal_op = bc.normal_operator()
+                if hasattr(
+                    normal_op, "has_coefficient_dependence"
+                ) and normal_op.has_coefficient_dependence():
+                    raise NotImplementedError(
+                        "HVP with coefficient-dependent BC rows "
+                        "(parameterized-flux Neumann) is unsupported: "
+                        "their second-order row sensitivities are not "
+                        "representable by this adapter"
+                    )
+
+    def _zeroed_adjoint(self, adj_state: Array) -> Array:
+        """Adjoint column as 1D with ALL BC-row entries zeroed."""
+        adj = self._bkd.copy(adj_state[:, 0])
+        for idx in self._bc_indices:
+            adj[idx] = 0.0
+        return adj
+
+    def state_state_hvp(
+        self, state: Array, param: Array, adj_state: Array, wvec: Array
+    ) -> Array:
+        """adj^T (d^2R/du^2) w with the BC-row adjoint zeroed.
+
+        Shape: (nstates, 1).
+        """
+        self._set_param(param)
+        return self._hvp_physics.state_state_hvp(
+            state[:, 0], self._zeroed_adjoint(adj_state), wvec[:, 0], 0.0
+        )[:, None]
+
+    def param_param_hvp(
+        self, state: Array, param: Array, adj_state: Array, vvec: Array
+    ) -> Array:
+        """adj^T (d^2R/dp^2) v with the BC-row adjoint zeroed.
+
+        Shape: (nparams, 1).
+        """
+        self._set_param(param)
+        return self._param_param_hvp_fn(
+            state[:, 0],
+            0.0,
+            param[:, 0],
+            self._zeroed_adjoint(adj_state),
+            vvec[:, 0],
+        )[:, None]
+
+    def state_param_hvp(
+        self, state: Array, param: Array, adj_state: Array, vvec: Array
+    ) -> Array:
+        """adj^T (d^2R/du dp) v with the BC-row adjoint zeroed.
+
+        Shape: (nstates, 1).
+        """
+        self._set_param(param)
+        return self._state_param_hvp_fn(
+            state[:, 0],
+            0.0,
+            param[:, 0],
+            self._zeroed_adjoint(adj_state),
+            vvec[:, 0],
+        )[:, None]
+
+    def param_state_hvp(
+        self, state: Array, param: Array, adj_state: Array, wvec: Array
+    ) -> Array:
+        """adj^T (d^2R/dp du) w with the BC-row adjoint zeroed.
+
+        Shape: (nparams, 1).
+        """
+        self._set_param(param)
+        return self._param_state_hvp_fn(
+            state[:, 0],
+            0.0,
+            param[:, 0],
+            self._zeroed_adjoint(adj_state),
+            wvec[:, 0],
+        )[:, None]
+
+
 class SteadyForwardModel(Generic[Array]):
     """Steady-state parameterized PDE forward model.
 
@@ -298,7 +437,7 @@ class SteadyForwardModel(Generic[Array]):
         model = create_collocation_model(
             physics, bkd, parameterization=parameterization
         )
-        self._state_eq = CollocationStateEquationAdapter(
+        self._state_eq = CollocationStateEquationWithJacobianAdapter(
             model, bkd, parameterization=parameterization
         )
 
@@ -348,7 +487,7 @@ class SteadyForwardModel(Generic[Array]):
         """Return number of output quantities of interest."""
         return self._functional.nqoi()
 
-    def state_equation(self) -> CollocationStateEquationAdapter[Array]:
+    def state_equation(self) -> CollocationStateEquationWithJacobianAdapter[Array]:
         """Return the state equation adapter."""
         return self._state_eq
 
