@@ -77,7 +77,7 @@ def _lognormal_kle_map(
 
 
 def _build_pipeline(
-    bkd: NumpyBkd, method: str
+    bkd: NumpyBkd, method: str, final_time: float = _FINAL_TIME
 ) -> Tuple[
     TimeIntegrator[NumpyArray],
     Any,
@@ -115,17 +115,24 @@ def _build_pipeline(
     assert isinstance(wrapper, BCEnforcingHVPResidual)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=20, atol=1e-12, rtol=0.0)
-    integrator = TimeIntegrator(0.0, _FINAL_TIME, _DELTAT, newton)
+    integrator = TimeIntegrator(0.0, final_time, _DELTAT, newton)
     return integrator, adapter, physics
 
 
 class TestCollocationADRLogKLEAdjointHVP:
+    # final_time=0.35 with dt=0.1 forces a NON-UNIFORM last step: any
+    # backward-sweep method reading stale bound step state (last
+    # forward step's deltat/t) instead of its ctx argument fails at
+    # O(1) — uniform-dt autonomous problems cannot see this.
+    @pytest.mark.parametrize("final_time", [_FINAL_TIME, 0.35])
     @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
     def test_endpoint_gradient_and_hvp_match_fd(
-        self, numpy_bkd: NumpyBkd, method: str
+        self, numpy_bkd: NumpyBkd, method: str, final_time: float
     ) -> None:
         bkd = numpy_bkd
-        integrator, adapter, physics = _build_pipeline(bkd, method)
+        integrator, adapter, physics = _build_pipeline(
+            bkd, method, final_time
+        )
         npts = physics.npts()
         functional = EndpointFunctional(npts // 2, npts, _NPARAMS, bkd)
         operator = TimeAdjointOperatorWithHVP(integrator, functional)

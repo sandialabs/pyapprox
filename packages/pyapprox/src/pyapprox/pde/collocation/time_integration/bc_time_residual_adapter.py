@@ -335,7 +335,14 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         self.jacobian() calls physics.apply_boundary_conditions(), producing
         the correct BC-enforced forward Jacobian for ALL BC types and ALL
         solver types. Its transpose is the correct adjoint diagonal block.
+
+        Binds the given step context first: the forward ``jacobian``
+        reads bound state (deltat, t), which otherwise holds the LAST
+        forward step's values during the backward sweep — invisible
+        with uniform time steps and autonomous physics, wrong
+        otherwise.
         """
+        self.bind(ctx)
         return MatrixOperator(self.jacobian(y_curr).T, self._bkd)
 
     def adjoint_off_diag_jacobian(

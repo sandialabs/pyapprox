@@ -15,7 +15,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -87,7 +87,10 @@ def _lognormal_kle_map(
 
 
 def _build_pipeline(
-    bkd: NumpyBkd, method: str, nonlinear_reaction: bool
+    bkd: NumpyBkd,
+    method: str,
+    nonlinear_reaction: bool,
+    final_time: Optional[float] = None,
 ) -> Tuple[
     TimeIntegrator[NumpyArray],
     Any,
@@ -125,7 +128,9 @@ def _build_pipeline(
     assert isinstance(wrapper, GalerkinBCEnforcingHVPResidual)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=20, atol=1e-12, rtol=0.0)
-    final_time, deltat = _METHOD_TIMES[method]
+    default_final_time, deltat = _METHOD_TIMES[method]
+    if final_time is None:
+        final_time = default_final_time
     integrator = TimeIntegrator(0.0, final_time, deltat, newton)
     return integrator, adapter, physics
 
@@ -186,3 +191,44 @@ class TestADRLogKLEAdjointHVP:
             bkd.sum(h_other * bkd.flatten(direction)),
             rtol=1e-12,
         )
+
+    @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
+    def test_gradient_and_hvp_nonuniform_dt(
+        self, numpy_bkd: NumpyBkd, method: str
+    ) -> None:
+        """Non-uniform last step (T=0.35, dt=0.1): backward-sweep
+        methods must use their ctx argument, not stale bound step
+        state — invisible under uniform dt."""
+        bkd = numpy_bkd
+        integrator, adapter, physics = _build_pipeline(
+            bkd, method, nonlinear_reaction=True, final_time=0.35
+        )
+        nstates = physics.nstates()
+        constrained = set(
+            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+        )
+        state_idx = next(
+            ii for ii in range(nstates) if ii not in constrained
+        )
+        functional = EndpointFunctional(state_idx, nstates, _NPARAMS, bkd)
+        operator = TimeAdjointOperatorWithHVP(integrator, functional)
+
+        y0 = bkd.asarray(np.zeros(nstates))
+        fn = HVPOperatorFunction(operator, adapter, y0, bkd)
+        checker = DerivativeChecker(fn)
+
+        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
+        direction = bkd.asarray(np.array([[0.5], [0.7], [-0.6]]))
+        errors = checker.check_derivatives(
+            param, direction=direction, relative=True
+        )
+        # V-bottom + looser ratio: the min/max denominator is the
+        # eps=1e-13 roundoff blowup, which varies by configuration.
+        jac_min = float(bkd.to_numpy(bkd.min(errors[0])))
+        assert jac_min <= 1e-7
+        jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
+        assert jac_ratio <= 1e-5
+        hvp_min = float(bkd.to_numpy(bkd.min(errors[1])))
+        assert hvp_min <= 1e-6
+        hvp_ratio = float(bkd.to_numpy(checker.error_ratio(errors[1])))
+        assert hvp_ratio <= 1e-5
