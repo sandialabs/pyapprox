@@ -43,8 +43,8 @@ from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.models.galerkin.steady import (
     GalerkinStateEquationWithHVPAdapter,
 )
-from pyapprox.pde.parameterizations.galerkin_diffusivity import (
-    AffineDiffusivityFieldParameterization,
+from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+    AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -103,8 +103,8 @@ def _build_state_equation(
             DirichletBC(basis, "right", 0.0, bkd),
         ],
     )
-    param_obj = AffineDiffusivityFieldParameterization(
-        physics, _lognormal_kle_map(bkd, basis), bkd
+    param_obj = AdvectionDiffusionParameterization(
+        physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
     state_eq = GalerkinStateEquationWithHVPAdapter(physics, param_obj, bkd)
     return state_eq, physics
@@ -181,8 +181,8 @@ class TestSteadyADRLogKLEAdjointHVP:
             bkd.asarray(np.ones(coords.shape[0])),
             bkd.asarray(modes),
         )
-        param_obj = AffineDiffusivityFieldParameterization(
-            physics, no_hvp_map, bkd
+        param_obj = AdvectionDiffusionParameterization(
+            physics, diffusivity_map=no_hvp_map, bkd=bkd
         )
         with pytest.raises(TypeError, match="second-order"):
             GalerkinStateEquationWithHVPAdapter(physics, param_obj, bkd)

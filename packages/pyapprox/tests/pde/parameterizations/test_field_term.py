@@ -1,12 +1,10 @@
-"""Parity validation of the field-parameterization derivative engine.
+"""Validation of the field-parameterization derivative engine.
 
 The engine (_FieldParameterizationTerm with FromLinearity slots) wired
-to the galerkin ADR diffusivity assemblies must reproduce the
-hand-rolled AffineDiffusivityFieldParameterization — the most heavily
-validated parameterization in the repo (steady 14-check suites,
-transient BE/CN/FE/Heun DerivativeChecker tests) — entrywise at random
-states, and pass the same component-wise checker suite when swapped
-into the steady HVP adapter.
+to each galerkin ADR field assembly (diffusivity, forcing, reaction,
+velocity) must pass the component-wise 14-check FD suite through the
+steady HVP adapter, and the mixed assembly must satisfy the linearity
+identity A(\\delta) w == S(w) \\delta.
 """
 
 import pytest
@@ -51,9 +49,6 @@ from pyapprox.pde.parameterizations.field_term import (
     FromLinearity,
     Zero,
     _FieldParameterizationTerm,
-)
-from pyapprox.pde.parameterizations.galerkin_diffusivity import (
-    AffineDiffusivityFieldParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -153,60 +148,7 @@ class _TermParameterization:
         return self._term.param_derivatives()
 
 
-class TestFieldTermDiffusivityParity:
-    @pytest.mark.parametrize("nonlinear_reaction", [False, True])
-    def test_entrywise_parity_with_oracle(
-        self, numpy_bkd: NumpyBkd, nonlinear_reaction: bool
-    ) -> None:
-        """Engine bundle == hand-rolled oracle at random arguments."""
-        bkd = numpy_bkd
-        physics, field_map = _build_physics_and_map(bkd, nonlinear_reaction)
-        oracle = AffineDiffusivityFieldParameterization(
-            physics, field_map, bkd
-        )
-        term = _build_engine_term(bkd, physics, field_map)
-
-        nstates = physics.nstates()
-        rng = np.random.default_rng(7)
-        state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
-        adj = bkd.asarray(rng.normal(0.0, 1.0, nstates))
-        wvec = bkd.asarray(rng.normal(0.0, 1.0, nstates))
-        params = bkd.asarray(np.array([0.4, -0.3, 0.2]))
-        vvec = bkd.asarray(np.array([0.5, 0.7, -0.6]))
-
-        o_derivs = oracle.param_derivatives()
-        assert o_derivs.param_jacobian is not None
-        assert o_derivs.param_param_hvp is not None
-        assert o_derivs.state_param_hvp is not None
-        assert o_derivs.param_state_hvp is not None
-
-        oracle.apply(params)
-        bkd.assert_allclose(
-            term.param_jacobian(state, 0.0, params),
-            o_derivs.param_jacobian(state, 0.0, params),
-            rtol=1e-12,
-        )
-        bkd.assert_allclose(
-            term.param_param_hvp(state, 0.0, params, adj, vvec),
-            o_derivs.param_param_hvp(state, 0.0, params, adj, vvec),
-            rtol=1e-12,
-        )
-        bkd.assert_allclose(
-            term.state_param_hvp(state, 0.0, params, adj, vvec),
-            o_derivs.state_param_hvp(state, 0.0, params, adj, vvec),
-            rtol=1e-12,
-        )
-        bkd.assert_allclose(
-            term.param_state_hvp(state, 0.0, params, adj, wvec),
-            o_derivs.param_state_hvp(state, 0.0, params, adj, wvec),
-            rtol=1e-12,
-        )
-        bkd.assert_allclose(
-            term.initial_param_jacobian(params),
-            o_derivs.initial_param_jacobian(params),
-            rtol=1e-12,
-        )
-
+class TestFieldParameterizationTerm:
     def test_mixed_assembly_linearity_identity(
         self, numpy_bkd: NumpyBkd
     ) -> None:

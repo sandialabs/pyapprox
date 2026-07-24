@@ -1,8 +1,9 @@
 """Facade validation for AdvectionDiffusionParameterization.
 
-Single-term parity with the hand-rolled diffusivity oracle
-(supersession evidence), the all-four-field composite through the full
-14-check suite, and the eager construction-time raises.
+The all-four-field composite through the full 14-check suite and the
+eager construction-time raises. Single-term behavior is covered by the
+engine-wired term tests in test_field_term.py and the steady/transient
+adjoint suites, which construct single-map facades.
 """
 
 import pytest
@@ -43,9 +44,6 @@ from pyapprox.pde.models.galerkin.steady import (
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
-)
-from pyapprox.pde.parameterizations.galerkin_diffusivity import (
-    AffineDiffusivityFieldParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -97,62 +95,6 @@ def _build_full_physics(
 
 
 class TestAdvectionDiffusionParameterization:
-    def test_single_term_parity_with_oracle(
-        self, numpy_bkd: NumpyBkd
-    ) -> None:
-        """diffusivity_map-only facade == the hand-rolled oracle."""
-        bkd = numpy_bkd
-        physics, basis, _ = _build_full_physics(bkd)
-        coords = bkd.to_numpy(basis.dof_coordinates())[0]
-        field_map = _exp_kle_map(bkd, coords, 3, 0.4)
-        facade = AdvectionDiffusionParameterization(
-            physics, diffusivity_map=field_map, bkd=bkd
-        )
-        oracle = AffineDiffusivityFieldParameterization(
-            physics, field_map, bkd
-        )
-        assert facade.nparams() == oracle.nparams() == 3
-
-        f_derivs = facade.param_derivatives()
-        o_derivs = oracle.param_derivatives()
-        assert f_derivs.param_jacobian is not None
-        assert o_derivs.param_jacobian is not None
-        assert f_derivs.param_param_hvp is not None
-        assert o_derivs.param_param_hvp is not None
-        assert f_derivs.state_param_hvp is not None
-        assert o_derivs.state_param_hvp is not None
-        assert f_derivs.param_state_hvp is not None
-        assert o_derivs.param_state_hvp is not None
-
-        nstates = physics.nstates()
-        rng = np.random.default_rng(17)
-        state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
-        adj = bkd.asarray(rng.normal(0.0, 1.0, nstates))
-        wvec = bkd.asarray(rng.normal(0.0, 1.0, nstates))
-        params = bkd.asarray(np.array([0.4, -0.3, 0.2]))
-        vvec = bkd.asarray(np.array([0.5, 0.7, -0.6]))
-        facade.apply(params)
-        bkd.assert_allclose(
-            f_derivs.param_jacobian(state, 0.0, params),
-            o_derivs.param_jacobian(state, 0.0, params),
-            rtol=1e-12,
-        )
-        bkd.assert_allclose(
-            f_derivs.param_param_hvp(state, 0.0, params, adj, vvec),
-            o_derivs.param_param_hvp(state, 0.0, params, adj, vvec),
-            rtol=1e-12,
-        )
-        bkd.assert_allclose(
-            f_derivs.state_param_hvp(state, 0.0, params, adj, vvec),
-            o_derivs.state_param_hvp(state, 0.0, params, adj, vvec),
-            rtol=1e-12,
-        )
-        bkd.assert_allclose(
-            f_derivs.param_state_hvp(state, 0.0, params, adj, wvec),
-            o_derivs.param_state_hvp(state, 0.0, params, adj, wvec),
-            rtol=1e-12,
-        )
-
     def test_all_fields_pass_component_checker(
         self, numpy_bkd: NumpyBkd
     ) -> None:

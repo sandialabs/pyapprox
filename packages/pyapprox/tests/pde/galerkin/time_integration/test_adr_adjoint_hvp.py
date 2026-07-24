@@ -48,8 +48,8 @@ from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithHVPAdapter,
     create_galerkin_physics_ode_residual,
 )
-from pyapprox.pde.parameterizations.galerkin_diffusivity import (
-    AffineDiffusivityFieldParameterization,
+from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+    AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
@@ -118,8 +118,8 @@ def _build_pipeline(
             DirichletBC(basis, "right", 0.0, bkd),
         ],
     )
-    param = AffineDiffusivityFieldParameterization(
-        physics, _lognormal_kle_map(bkd, basis), bkd
+    param = AdvectionDiffusionParameterization(
+        physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
     adapter = create_galerkin_physics_ode_residual(physics, param)
     assert isinstance(adapter, GalerkinPhysicsToODEResidualWithHVPAdapter)
