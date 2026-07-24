@@ -32,13 +32,14 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldForcing,
     NodalFieldLinearReaction,
+    NodalFieldVelocity,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
     _ExpTransform,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
@@ -418,6 +419,90 @@ class TestFieldTermDiffusivityParity:
         tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
         # Noise-limited assembled/mixed checks (established calibration;
         # a genuine bug plateaus orders of magnitude higher).
+        tols[4] = 5e-6
+        tols[5] = 5e-6
+        tols[8] = 5e-6
+        tols[13] = 5e-6
+        checker.check_derivatives(init_state, param, tols)
+
+    def test_velocity_term_passes_component_checker(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A linear_field_state velocity term through the engine passes
+        the 14-check suite — the rectangular-S instance with the
+        NON-symmetric advection mixed tensor (the case FromLinearity's
+        required A assembly exists for)."""
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        vel_basis = VectorLagrangeBasis(mesh, degree=1)
+        nodal_velocity = NodalFieldVelocity(
+            vel_basis, np.zeros(vel_basis.ndofs())
+        )
+        physics = AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=NodalFieldDiffusion(basis),
+            bkd=bkd,
+            velocity=nodal_velocity,
+            forcing=lambda x: np.ones(x.shape[1]),
+            boundary_conditions=[
+                DirichletBC(basis, "left", 0.0, bkd),
+                DirichletBC(basis, "right", 0.0, bkd),
+            ],
+        )
+        nvel = vel_basis.ndofs()
+        coords = np.linspace(0.0, 1.0, nvel)
+        modes = np.stack(
+            [
+                0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1)
+                for k in range(_NPARAMS)
+            ],
+            axis=1,
+        )
+        kle = MeshKLEFieldMap(
+            bkd, bkd.asarray(np.zeros(nvel)), bkd.asarray(modes)
+        )
+        exp = _ExpTransform(bkd)
+        velocity_map = TransformedFieldMap(
+            kle, exp, exp, bkd, transform_deriv2=exp
+        )
+        term = _FieldParameterizationTerm.linear_field_state(
+            setter=lambda field: nodal_velocity.set_dofs(
+                bkd.to_numpy(field)
+            ),
+            field_jacobian=lambda state, time: (
+                physics.residual_velocity_jacobian(state)
+            ),
+            field_state_jacobian=lambda delta, state, time: (
+                physics.residual_velocity_state_jacobian(delta, state)
+            ),
+            field_map=velocity_map,
+            bkd=bkd,
+            nstates=physics.nstates(),
+            nfield_dofs=nvel,
+        )
+        param_obj = _TermParameterization(term, physics)
+        state_eq = GalerkinStateEquationWithHVPAdapter(
+            physics, param_obj, bkd
+        )
+        nstates = physics.nstates()
+        constrained = set(
+            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+        )
+        state_idx = next(
+            ii for ii in range(nstates) if ii not in constrained
+        )
+        weights = bkd.zeros((nstates, 1))
+        weights = bkd.copy(weights)
+        weights[state_idx] = 1.0
+        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
+
+        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
+        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
+        init_state = bkd.zeros((nstates, 1))
+        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
+        # Noise-limited assembled/mixed checks (established calibration).
         tols[4] = 5e-6
         tols[5] = 5e-6
         tols[8] = 5e-6

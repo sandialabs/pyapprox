@@ -26,8 +26,9 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldForcing,
     NodalFieldLinearReaction,
+    NodalFieldVelocity,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
@@ -46,6 +47,7 @@ def _build_physics(
             nx=4, ny=4, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
         )
     basis = LagrangeBasis(mesh, degree=1)
+    vel_basis = VectorLagrangeBasis(mesh, degree=1)
     ndofs = basis.ndofs()
     rng = np.random.default_rng(3)
     physics = AdvectionDiffusionReaction(
@@ -54,6 +56,9 @@ def _build_physics(
             basis, dofs=1.0 + 0.3 * rng.random(ndofs)
         ),
         bkd=bkd,
+        velocity=NodalFieldVelocity(
+            vel_basis, rng.normal(0.0, 0.4, vel_basis.ndofs())
+        ),
         reaction=NodalFieldLinearReaction(
             basis, dofs=rng.normal(0.0, 0.5, ndofs)
         ),
@@ -132,6 +137,69 @@ class TestADRFieldDerivatives:
         _check_field_jacobian(
             bkd, physics, physics.forcing_function(), analytic, state
         )
+
+    @pytest.mark.parametrize("ndim", [1, 2])
+    def test_velocity_jacobian_vs_fd(
+        self, numpy_bkd: NumpyBkd, ndim: int
+    ) -> None:
+        bkd = numpy_bkd
+        physics, basis = _build_physics(bkd, ndim)
+        rng = np.random.default_rng(12)
+        state = bkd.asarray(rng.normal(0.0, 0.5, physics.nstates()))
+        analytic = np.asarray(
+            physics.residual_velocity_jacobian(state).todense()
+        )
+        _check_field_jacobian(
+            bkd, physics, physics.velocity_function(), analytic, state
+        )
+
+    @pytest.mark.parametrize("ndim", [1, 2])
+    def test_velocity_state_jacobian_vs_fd(
+        self, numpy_bkd: NumpyBkd, ndim: int
+    ) -> None:
+        """A_a(delta) vs FD of u -> S_a(u) delta (DerivativeChecker)."""
+        bkd = numpy_bkd
+        physics, basis = _build_physics(bkd, ndim)
+        nstates = physics.nstates()
+        velocity = physics.velocity_function()
+        assert isinstance(velocity, NodalFieldVelocity)
+        nvel = velocity.ndofs()
+        rng = np.random.default_rng(13)
+        state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
+        delta = bkd.asarray(rng.normal(0.0, 1.0, nvel))
+        delta_np = bkd.to_numpy(delta)
+
+        def sdelta_of_state(samples: NumpyArray) -> NumpyArray:
+            results = []
+            for ii in range(samples.shape[1]):
+                results.append(
+                    np.asarray(
+                        physics.residual_velocity_jacobian(samples[:, ii])
+                        @ delta_np
+                    )
+                )
+            return bkd.asarray(np.stack(results, axis=1))
+
+        def jac_of_state(sample: NumpyArray) -> NumpyArray:
+            return bkd.asarray(
+                np.asarray(
+                    physics.residual_velocity_state_jacobian(
+                        delta, sample[:, 0]
+                    ).todense()
+                )
+            )
+
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=nstates,
+            nvars=nstates,
+            fun=sdelta_of_state,
+            jacobian=jac_of_state,
+            bkd=bkd,
+        )
+        checker = DerivativeChecker(wrapper)
+        errors = checker.check_derivatives(state[:, None], relative=True)[0]
+        ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
+        assert ratio <= 1e-6
 
     @pytest.mark.parametrize("ndim", [1, 2])
     def test_reaction_jacobian_vs_fd(

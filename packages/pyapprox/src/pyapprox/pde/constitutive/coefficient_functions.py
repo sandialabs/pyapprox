@@ -22,10 +22,20 @@ Representations
   actionably when handed one.
 """
 
-from typing import Any, Callable, Optional, Protocol, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Optional,
+    Protocol,
+    runtime_checkable,
+)
 
 import numpy as np
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from skfem import Basis
 
 _Quad = NDArray[np.floating[Any]]
 
@@ -370,6 +380,8 @@ class _VectorBasisEvaluatorProtocol(Protocol):
 
     def ndofs(self) -> int: ...
 
+    def skfem_basis(self) -> "Basis": ...
+
 
 class NodalFieldVelocity:
     """Velocity as interleaved DOFs of a vector FEM basis.
@@ -414,6 +426,14 @@ class NodalFieldVelocity:
     def dofs(self) -> _Quad:
         """Return the field DOFs. Shape: (ndofs,)."""
         return self._dofs
+
+    def ndofs(self) -> int:
+        """Return the number of field DOFs."""
+        return int(self._basis.ndofs())
+
+    def basis(self) -> _VectorBasisEvaluatorProtocol:
+        """Return the vector basis the DOFs live on."""
+        return self._basis
 
     def values(self, coords: _Quad) -> _Quad:
         coords_np = np.asarray(coords)

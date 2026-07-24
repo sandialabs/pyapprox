@@ -40,6 +40,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldForcing,
     NodalFieldLinearReaction,
+    NodalFieldVelocity,
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
     StateDependentDiffusionProtocol,
@@ -140,6 +141,31 @@ class _DiffusivitySensitivityKernel:
         w: "FormExtraParams",
     ) -> np.ndarray:
         return np.asarray(-dot(w["u_prev"].grad, grad(v)) * k)
+
+
+class _VelocitySensitivityKernel:
+    """Mixed bilinear kernel for dF/d(velocity DOFs).
+
+    Trial function is the VECTOR velocity basis function, test
+    function the scalar state basis function; the state gradient
+    enters interpolated: ``-dot(a, grad(u_prev)) * v``
+    (non-conservative advection enters the residual as
+    ``-(v, vel . grad u)``).
+    """
+
+    __name__ = "velocity_sensitivity"
+
+    def __call__(
+        self,
+        a: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        grad_u = w["u_prev"].grad
+        ndim = grad_u.shape[0]
+        return np.asarray(
+            -sum(a[dim] * grad_u[dim] for dim in range(ndim)) * v
+        )
 
 
 class _ReactionSensitivityKernel:
@@ -860,6 +886,104 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                 f"representation), got {type(self._forcing).__name__}"
             )
         return self.mass_matrix()
+
+    def residual_velocity_jacobian(self, state: Array) -> Array:
+        r"""Compute :math:`dF/d(\text{velocity DOFs})` at the given state.
+
+        The mixed rectangular assembly is exact:
+        :math:`S(u)[j, k] = -\int (\psi_k \cdot \nabla u) \, \phi_j`
+        with :math:`\psi_k` the VECTOR velocity basis functions
+        (columns follow the velocity basis DOF ordering) —
+        non-conservative advection enters the residual as
+        :math:`-(v, \text{vel} \cdot \nabla u)`. S is LINEAR in the
+        state with zero constant part. Requires the velocity to be a
+        ``NodalFieldVelocity``; the conservative form is a follow-up.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Sensitivity matrix (scipy sparse).
+            Shape: (nstates, nvel_dofs)
+        """
+        velocity = self._velocity_function
+        if not isinstance(velocity, NodalFieldVelocity):
+            raise TypeError(
+                "residual_velocity_jacobian requires a "
+                "NodalFieldVelocity velocity (nodal DOFs are the "
+                "differentiable representation), got "
+                f"{type(velocity).__name__}"
+            )
+        if self._conservative:
+            raise NotImplementedError(
+                "velocity sensitivities are implemented for the "
+                "non-conservative advection form only"
+            )
+        vel_skfem = velocity.basis().skfem_basis()
+        scalar_skfem = self._basis.skfem_basis()
+        state_np = self._bkd.to_numpy(state)
+        sensitivity = asm(
+            BilinearForm(_VelocitySensitivityKernel()),
+            vel_skfem,
+            scalar_skfem,
+            u_prev=scalar_skfem.interpolate(state_np),
+        )
+        result: Array = sensitivity
+        return result
+
+    def residual_velocity_state_jacobian(
+        self, delta_dofs: Array, state: Array
+    ) -> Array:
+        r"""Compute :math:`A(\delta a) = d/du \, [dF/d(a)\,\delta a]`.
+
+        The advection operator assembled with the GIVEN velocity
+        field: :math:`-\int (\delta a \cdot \nabla u) \, v`. The
+        non-conservative advection term is linear in both the velocity
+        and the state, so the result is state-independent; the
+        ``state`` argument is kept for the typed field-derivative
+        signature.
+
+        Parameters
+        ----------
+        delta_dofs : Array
+            Velocity-field direction (vector-basis DOFs).
+            Shape: (nvel_dofs,)
+        state : Array
+            Solution state (unused here). Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Mixed Jacobian (scipy sparse). Shape: (nstates, nstates)
+        """
+        velocity = self._velocity_function
+        if not isinstance(velocity, NodalFieldVelocity):
+            raise TypeError(
+                "residual_velocity_state_jacobian requires a "
+                "NodalFieldVelocity velocity, got "
+                f"{type(velocity).__name__}"
+            )
+        if self._conservative:
+            raise NotImplementedError(
+                "velocity sensitivities are implemented for the "
+                "non-conservative advection form only"
+            )
+        delta_velocity = NodalFieldVelocity(
+            velocity.basis(), self._bkd.to_numpy(delta_dofs)
+        )
+        scalar_skfem = self._basis.skfem_basis()
+        advection = asm(
+            BilinearForm(
+                _AdvectionKernel(None, delta_velocity.values, False)
+            ),
+            scalar_skfem,
+        )
+        result: Array = -advection
+        return result
 
     def residual_reaction_jacobian(self, state: Array) -> Array:
         r"""Compute :math:`dF/d(\text{reaction DOFs})` at the given state.
