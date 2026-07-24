@@ -134,6 +134,25 @@ class _DiffusivitySensitivityKernel:
         return np.asarray(-dot(w["u_prev"].grad, grad(v)) * k)
 
 
+class _DiffusivityMixedStateKernel:
+    """Bilinear kernel for the diffusivity mixed state Jacobian.
+
+    ``A(delta_g) = d/du [dF/d(diffusivity) delta_g]``: the
+    diffusion-only stiffness assembled with the GIVEN coefficient
+    field, ``-delta * dot(grad(u), grad(v))``.
+    """
+
+    __name__ = "diffusivity_mixed_state"
+
+    def __call__(
+        self,
+        u: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        return np.asarray(-w["delta_prev"] * dot(grad(u), grad(v)))
+
+
 class _ReactionHVPKernel:
     """Linear kernel for the reaction state-state HVP contraction.
 
@@ -756,6 +775,40 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             u_prev=skfem_basis.interpolate(state_np),
         )
         result: Array = sensitivity
+        return result
+
+    def residual_diffusivity_state_jacobian(
+        self, delta_dofs: Array, state: Array
+    ) -> Array:
+        r"""Compute :math:`A(\delta g) = d/du \, [dF/d(\kappa)\,\delta g]`.
+
+        The diffusion-only stiffness assembled with the GIVEN
+        coefficient field: :math:`-\int \delta g \, \nabla u \cdot
+        \nabla v`. The diffusion term is linear in both :math:`\kappa`
+        and the state, so the result is state-independent; the
+        ``state`` argument is kept for the typed field-derivative
+        signature (quasilinear physics need it).
+
+        Parameters
+        ----------
+        delta_dofs : Array
+            Diffusivity-field direction (nodal DOFs). Shape: (nstates,)
+        state : Array
+            Solution state (unused here). Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Mixed Jacobian (scipy sparse). Shape: (nstates, nstates)
+        """
+        skfem_basis = self._basis.skfem_basis()
+        delta_np = self._bkd.to_numpy(delta_dofs)
+        mixed = asm(
+            BilinearForm(_DiffusivityMixedStateKernel()),
+            skfem_basis,
+            delta_prev=skfem_basis.interpolate(delta_np),
+        )
+        result: Array = mixed
         return result
 
     def state_state_hvp(
