@@ -39,6 +39,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     LinearReaction,
     NodalFieldDiffusion,
     NodalFieldForcing,
+    NodalFieldLinearReaction,
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
     StateDependentDiffusionProtocol,
@@ -86,10 +87,14 @@ class _DiffusionReactionKernel:
             Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
         ],
         react_coeff: Optional[float],
+        react_callable: Optional[
+            Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
+        ] = None,
     ) -> None:
         self._diff_const = diff_const
         self._diff_callable = diff_callable
         self._react_coeff = react_coeff
+        self._react_callable = react_callable
 
     def __call__(
         self,
@@ -112,6 +117,8 @@ class _DiffusionReactionKernel:
         # (negative because it's moved to LHS of weak form)
         if self._react_coeff is not None:
             result = result - self._react_coeff * u * v
+        elif self._react_callable is not None:
+            result = result - self._react_callable(np.asarray(w.x)) * u * v
 
         return result
 
@@ -133,6 +140,45 @@ class _DiffusivitySensitivityKernel:
         w: "FormExtraParams",
     ) -> np.ndarray:
         return np.asarray(-dot(w["u_prev"].grad, grad(v)) * k)
+
+
+class _ReactionSensitivityKernel:
+    """Mixed bilinear kernel for dF/d(reaction DOFs).
+
+    Trial function is the reaction-coefficient basis function, test
+    function the state basis function; the state enters interpolated:
+    ``+u_prev * r * v`` (the linear reaction enters the residual as
+    ``+(v, r*u)``).
+    """
+
+    __name__ = "reaction_sensitivity"
+
+    def __call__(
+        self,
+        r: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        return np.asarray(w["u_prev"] * r * v)
+
+
+class _ReactionMixedStateKernel:
+    """Bilinear kernel for the reaction mixed state Jacobian.
+
+    ``A(delta_r) = d/du [dF/d(reaction) delta_r]``: the reaction mass
+    matrix with the GIVEN coefficient field,
+    ``+delta * u * v``.
+    """
+
+    __name__ = "reaction_mixed_state"
+
+    def __call__(
+        self,
+        u: "DiscreteField",
+        v: "DiscreteField",
+        w: "FormExtraParams",
+    ) -> np.ndarray:
+        return np.asarray(w["delta_prev"] * u * v)
 
 
 class _DiffusivityMixedStateKernel:
@@ -423,7 +469,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
         # Version-keyed stiffness cache (see _assemble_stiffness)
         self._stiffness_cached: Optional[Array] = None
-        self._stiffness_versions: Optional[Tuple[int, int]] = None
+        self._stiffness_versions: Optional[Tuple[int, int, int]] = None
         self._load_cached: Optional[Array] = None
 
     @staticmethod
@@ -514,10 +560,18 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             if isinstance(reaction, LinearReaction)
             else None
         )
+        react_callable = (
+            reaction.values
+            if isinstance(reaction, NodalFieldLinearReaction)
+            else None
+        )
 
         return BilinearForm(
             _DiffusionReactionKernel(
-                None, self._diffusion_function.values, react_coeff
+                None,
+                self._diffusion_function.values,
+                react_coeff,
+                react_callable,
             )
         )
 
@@ -600,6 +654,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             self._diffusion_function.version(),
             self._velocity_function.version()
             if self._velocity_function is not None
+            else 0,
+            self._reaction_function.version()
+            if isinstance(self._reaction_function, NodalFieldLinearReaction)
             else 0,
         )
         if (
@@ -803,6 +860,77 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                 f"representation), got {type(self._forcing).__name__}"
             )
         return self.mass_matrix()
+
+    def residual_reaction_jacobian(self, state: Array) -> Array:
+        r"""Compute :math:`dF/d(\text{reaction DOFs})` at the given state.
+
+        The mixed assembly is exact:
+        :math:`S(u)[j, k] = +\int \phi_k \, u \, \phi_j \, dx` — the
+        linear reaction enters the residual as :math:`+(v, r u)`. S is
+        LINEAR in the state with zero constant part and its
+        state-derivative tensor is the reaction mass structure.
+        Requires the reaction to be a ``NodalFieldLinearReaction``.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Sensitivity matrix (scipy sparse). Shape: (nstates, nstates)
+        """
+        if not isinstance(self._reaction_function, NodalFieldLinearReaction):
+            raise TypeError(
+                "residual_reaction_jacobian requires a "
+                "NodalFieldLinearReaction reaction (nodal DOFs are the "
+                "differentiable representation), got "
+                f"{type(self._reaction_function).__name__}"
+            )
+        skfem_basis = self._basis.skfem_basis()
+        state_np = self._bkd.to_numpy(state)
+        sensitivity = asm(
+            BilinearForm(_ReactionSensitivityKernel()),
+            skfem_basis,
+            skfem_basis,
+            u_prev=skfem_basis.interpolate(state_np),
+        )
+        result: Array = sensitivity
+        return result
+
+    def residual_reaction_state_jacobian(
+        self, delta_dofs: Array, state: Array
+    ) -> Array:
+        r"""Compute :math:`A(\delta r) = d/du \, [dF/d(r)\,\delta r]`.
+
+        The reaction mass matrix with the GIVEN coefficient field:
+        :math:`+\int \delta r \, u \, v`. The linear reaction term is
+        linear in both :math:`r` and the state, so the result is
+        state-independent; the ``state`` argument is kept for the
+        typed field-derivative signature.
+
+        Parameters
+        ----------
+        delta_dofs : Array
+            Reaction-field direction (nodal DOFs). Shape: (nstates,)
+        state : Array
+            Solution state (unused here). Shape: (nstates,)
+
+        Returns
+        -------
+        Array
+            Mixed Jacobian (scipy sparse). Shape: (nstates, nstates)
+        """
+        skfem_basis = self._basis.skfem_basis()
+        delta_np = self._bkd.to_numpy(delta_dofs)
+        mixed = asm(
+            BilinearForm(_ReactionMixedStateKernel()),
+            skfem_basis,
+            delta_prev=skfem_basis.interpolate(delta_np),
+        )
+        result: Array = mixed
+        return result
 
     def residual_diffusivity_state_jacobian(
         self, delta_dofs: Array, state: Array

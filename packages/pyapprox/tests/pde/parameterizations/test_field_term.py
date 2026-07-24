@@ -31,6 +31,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldDiffusion,
     NodalFieldForcing,
+    NodalFieldLinearReaction,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
@@ -337,6 +338,90 @@ class TestFieldTermDiffusivityParity:
         tols[4] = 5e-6
         tols[5] = 5e-6
         tols[8] = 5e-6
+        checker.check_derivatives(init_state, param, tols)
+
+    def test_reaction_term_passes_component_checker(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A linear_field_state reaction term (r(x)*u through an exp
+        map) through the engine passes the 14-check suite — the second
+        FromLinearity instance, with a non-self-adjoint... rather, a
+        mass-structured mixed tensor distinct from diffusivity's."""
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        nodal_reaction = NodalFieldLinearReaction(basis)
+        physics = AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=NodalFieldDiffusion(basis),
+            bkd=bkd,
+            reaction=nodal_reaction,
+            forcing=lambda x: np.ones(x.shape[1]),
+            boundary_conditions=[
+                DirichletBC(basis, "left", 0.0, bkd),
+                DirichletBC(basis, "right", 0.0, bkd),
+            ],
+        )
+        coords = bkd.to_numpy(basis.dof_coordinates())[0]
+        modes = np.stack(
+            [
+                0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1)
+                for k in range(_NPARAMS)
+            ],
+            axis=1,
+        )
+        kle = MeshKLEFieldMap(
+            bkd,
+            bkd.asarray(-1.0 * np.ones(coords.shape[0])),
+            bkd.asarray(modes),
+        )
+        exp = _ExpTransform(bkd)
+        # r = -exp(...) (damping) keeps the steady operator coercive.
+        reaction_map = TransformedFieldMap(
+            kle, exp, exp, bkd, transform_deriv2=exp
+        )
+        term = _FieldParameterizationTerm.linear_field_state(
+            setter=lambda field: nodal_reaction.set_dofs(
+                -bkd.to_numpy(field)
+            ),
+            field_jacobian=lambda state, time: (
+                -physics.residual_reaction_jacobian(state)
+            ),
+            field_state_jacobian=lambda delta, state, time: (
+                -physics.residual_reaction_state_jacobian(delta, state)
+            ),
+            field_map=reaction_map,
+            bkd=bkd,
+            nstates=physics.nstates(),
+            nfield_dofs=physics.nstates(),
+        )
+        param_obj = _TermParameterization(term, physics)
+        state_eq = GalerkinStateEquationWithHVPAdapter(
+            physics, param_obj, bkd
+        )
+        nstates = physics.nstates()
+        constrained = set(
+            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+        )
+        state_idx = next(
+            ii for ii in range(nstates) if ii not in constrained
+        )
+        weights = bkd.zeros((nstates, 1))
+        weights = bkd.copy(weights)
+        weights[state_idx] = 1.0
+        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
+
+        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
+        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
+        init_state = bkd.zeros((nstates, 1))
+        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
+        # Noise-limited assembled/mixed checks (established calibration;
+        # a genuine bug plateaus orders of magnitude higher).
+        tols[4] = 5e-6
+        tols[5] = 5e-6
+        tols[8] = 5e-6
+        tols[13] = 5e-6
         checker.check_derivatives(init_state, param, tols)
 
     def test_slot_validation(self, numpy_bkd: NumpyBkd) -> None:

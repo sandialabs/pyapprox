@@ -16,6 +16,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     LinearReaction,
     NodalFieldDiffusion,
     NodalFieldForcing,
+    NodalFieldLinearReaction,
     NodalFieldVelocity,
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
@@ -56,6 +57,7 @@ __all__ = [
     "CoordinateVelocity",
     "NodalFieldVelocity",
     "LinearReaction",
+    "NodalFieldLinearReaction",
     "CallableReaction",
     # Protocols
     "StressModelProtocol",

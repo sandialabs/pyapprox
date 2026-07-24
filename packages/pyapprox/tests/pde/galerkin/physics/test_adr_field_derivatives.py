@@ -25,6 +25,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldForcing,
+    NodalFieldLinearReaction,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
@@ -53,6 +54,9 @@ def _build_physics(
             basis, dofs=1.0 + 0.3 * rng.random(ndofs)
         ),
         bkd=bkd,
+        reaction=NodalFieldLinearReaction(
+            basis, dofs=rng.normal(0.0, 0.5, ndofs)
+        ),
         forcing=NodalFieldForcing(basis, dofs=rng.normal(0.0, 1.0, ndofs)),
         boundary_conditions=[DirichletBC(basis, "left", 0.0, bkd)],
     )
@@ -128,6 +132,66 @@ class TestADRFieldDerivatives:
         _check_field_jacobian(
             bkd, physics, physics.forcing_function(), analytic, state
         )
+
+    @pytest.mark.parametrize("ndim", [1, 2])
+    def test_reaction_jacobian_vs_fd(
+        self, numpy_bkd: NumpyBkd, ndim: int
+    ) -> None:
+        bkd = numpy_bkd
+        physics, basis = _build_physics(bkd, ndim)
+        rng = np.random.default_rng(7)
+        state = bkd.asarray(rng.normal(0.0, 0.5, physics.nstates()))
+        analytic = np.asarray(
+            physics.residual_reaction_jacobian(state).todense()
+        )
+        _check_field_jacobian(
+            bkd, physics, physics.reaction_function(), analytic, state
+        )
+
+    @pytest.mark.parametrize("ndim", [1, 2])
+    def test_reaction_state_jacobian_vs_fd(
+        self, numpy_bkd: NumpyBkd, ndim: int
+    ) -> None:
+        """A_r(delta) vs FD of u -> S_r(u) delta (DerivativeChecker)."""
+        bkd = numpy_bkd
+        physics, basis = _build_physics(bkd, ndim)
+        nstates = physics.nstates()
+        rng = np.random.default_rng(9)
+        state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
+        delta = bkd.asarray(rng.normal(0.0, 1.0, nstates))
+        delta_np = bkd.to_numpy(delta)
+
+        def sdelta_of_state(samples: NumpyArray) -> NumpyArray:
+            results = []
+            for ii in range(samples.shape[1]):
+                results.append(
+                    np.asarray(
+                        physics.residual_reaction_jacobian(samples[:, ii])
+                        @ delta_np
+                    )
+                )
+            return bkd.asarray(np.stack(results, axis=1))
+
+        def jac_of_state(sample: NumpyArray) -> NumpyArray:
+            return bkd.asarray(
+                np.asarray(
+                    physics.residual_reaction_state_jacobian(
+                        delta, sample[:, 0]
+                    ).todense()
+                )
+            )
+
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=nstates,
+            nvars=nstates,
+            fun=sdelta_of_state,
+            jacobian=jac_of_state,
+            bkd=bkd,
+        )
+        checker = DerivativeChecker(wrapper)
+        errors = checker.check_derivatives(state[:, None], relative=True)[0]
+        ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
+        assert ratio <= 1e-6
 
     @pytest.mark.parametrize("ndim", [1, 2])
     def test_diffusivity_state_jacobian_vs_fd(
