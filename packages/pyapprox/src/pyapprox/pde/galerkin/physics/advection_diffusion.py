@@ -38,6 +38,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     DiffusionFunctionProtocol,
     LinearReaction,
     NodalFieldDiffusion,
+    NodalFieldForcing,
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
     StateDependentDiffusionProtocol,
@@ -478,6 +479,10 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         """Return the diffusion model."""
         return self._diffusion_function
 
+    def forcing_function(self) -> Optional[Callable[..., Any]]:
+        """Return the forcing (callable or ``NodalFieldForcing``)."""
+        return self._forcing
+
     def velocity_function(self) -> Optional[VelocityFunctionProtocol]:
         """Return the velocity model, or None."""
         return self._velocity_function
@@ -776,6 +781,28 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         )
         result: Array = sensitivity
         return result
+
+    def residual_forcing_jacobian(self) -> Array:
+        r"""Compute :math:`dF/d(\text{forcing DOFs}) = +M`.
+
+        The forcing enters the load as :math:`(v, f_h)` with
+        :math:`f_h` the nodal interpolant, so the load is exactly
+        :math:`M f` and the sensitivity is the (cached) scalar mass
+        matrix — state-independent. Requires the forcing to be a
+        ``NodalFieldForcing`` (the differentiable representation).
+
+        Returns
+        -------
+        Array
+            Sensitivity matrix (scipy sparse). Shape: (nstates, nstates)
+        """
+        if not isinstance(self._forcing, NodalFieldForcing):
+            raise TypeError(
+                "residual_forcing_jacobian requires a NodalFieldForcing "
+                "forcing (nodal DOFs are the differentiable "
+                f"representation), got {type(self._forcing).__name__}"
+            )
+        return self.mass_matrix()
 
     def residual_diffusivity_state_jacobian(
         self, delta_dofs: Array, state: Array

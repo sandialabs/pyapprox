@@ -209,6 +209,70 @@ class NodalFieldDiffusion:
         return f"NodalFieldDiffusion(ndofs={self.ndofs()})"
 
 
+class NodalFieldForcing:
+    """Forcing as nodal DOFs on a finite element basis.
+
+    The differentiable representation: parameterizations update the
+    DOFs through ``set_dofs``. Callable with the physics forcing
+    contract (coordinates ``(ndim, npts)`` -> values ``(npts,)``), so
+    it plugs into existing forcing kwargs unchanged; the assembled
+    load is then exactly ``M @ dofs`` (the nodal interpolant
+    integrated against the test functions), making
+    ``residual_forcing_jacobian = M`` exact.
+
+    Parameters
+    ----------
+    basis : object
+        Basis with ``evaluate(coeffs, points)`` and ``ndofs()`` (e.g.
+        ``LagrangeBasis``).
+    dofs : ndarray, optional
+        Initial DOF values. Shape: (ndofs,). Defaults to zeros.
+    """
+
+    def __init__(
+        self,
+        basis: _BasisEvaluatorProtocol,
+        dofs: Optional[_Quad] = None,
+    ) -> None:
+        self._basis = basis
+        if dofs is None:
+            dofs = np.zeros(basis.ndofs())
+        self.set_dofs(dofs)
+
+    def set_dofs(self, dofs: _Quad) -> None:
+        """Set the field DOFs. Shape: (ndofs,)."""
+        dofs_np = np.asarray(dofs, dtype=np.float64)
+        if dofs_np.shape != (self._basis.ndofs(),):
+            raise ValueError(
+                f"dofs must have shape ({self._basis.ndofs()},), got "
+                f"{dofs_np.shape}"
+            )
+        self._dofs = dofs_np
+        self._version = getattr(self, "_version", 0) + 1
+
+    def version(self) -> int:
+        """Monotone counter; incremented by every set_dofs call."""
+        return self._version
+
+    def dofs(self) -> _Quad:
+        """Return the field DOFs. Shape: (ndofs,)."""
+        return self._dofs
+
+    def ndofs(self) -> int:
+        """Return the number of field DOFs."""
+        return int(self._basis.ndofs())
+
+    def __call__(self, coords: _Quad) -> _Quad:
+        """Evaluate the nodal interpolant at coordinates (ndim, npts)."""
+        coords_np = np.asarray(coords)
+        flat = coords_np.reshape(coords_np.shape[0], -1)
+        values = np.asarray(self._basis.evaluate(self._dofs, flat))
+        return values.reshape(coords_np.shape[1:])
+
+    def __repr__(self) -> str:
+        return f"NodalFieldForcing(ndofs={self.ndofs()})"
+
+
 # =====================================================================
 # Velocity functions
 # =====================================================================

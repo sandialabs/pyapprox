@@ -30,6 +30,7 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldDiffusion,
+    NodalFieldForcing,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
@@ -240,6 +241,82 @@ class TestFieldTermDiffusivityParity:
             physics, param_obj, bkd
         )
 
+        nstates = physics.nstates()
+        constrained = set(
+            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+        )
+        state_idx = next(
+            ii for ii in range(nstates) if ii not in constrained
+        )
+        weights = bkd.zeros((nstates, 1))
+        weights = bkd.copy(weights)
+        weights[state_idx] = 1.0
+        functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
+
+        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
+        param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
+        init_state = bkd.zeros((nstates, 1))
+        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
+        tols[4] = 5e-6
+        tols[5] = 5e-6
+        tols[8] = 5e-6
+        checker.check_derivatives(init_state, param, tols)
+
+    def test_forcing_term_passes_component_checker(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A state-independent (forcing) term through the engine passes
+        the 14-check suite — validating the Zero() slot paths (the
+        mixed and field-curvature contractions are certified zero and
+        the checker FDs confirm it)."""
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        nodal_forcing = NodalFieldForcing(basis)
+        physics = AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=NodalFieldDiffusion(basis),
+            bkd=bkd,
+            forcing=nodal_forcing,
+            boundary_conditions=[
+                DirichletBC(basis, "left", 0.0, bkd),
+                DirichletBC(basis, "right", 0.0, bkd),
+            ],
+        )
+        coords = bkd.to_numpy(basis.dof_coordinates())[0]
+        modes = np.stack(
+            [
+                0.6 * np.sin((k + 1) * np.pi * coords) / (k + 1)
+                for k in range(_NPARAMS)
+            ],
+            axis=1,
+        )
+        kle = MeshKLEFieldMap(
+            bkd,
+            bkd.asarray(np.ones(coords.shape[0])),
+            bkd.asarray(modes),
+        )
+        exp = _ExpTransform(bkd)
+        forcing_map = TransformedFieldMap(
+            kle, exp, exp, bkd, transform_deriv2=exp
+        )
+        term = _FieldParameterizationTerm.state_independent(
+            setter=lambda field: nodal_forcing.set_dofs(
+                bkd.to_numpy(field)
+            ),
+            field_jacobian=lambda state, time: (
+                physics.residual_forcing_jacobian()
+            ),
+            field_map=forcing_map,
+            bkd=bkd,
+            nstates=physics.nstates(),
+            nfield_dofs=physics.nstates(),
+        )
+        param_obj = _TermParameterization(term, physics)
+        state_eq = GalerkinStateEquationWithHVPAdapter(
+            physics, param_obj, bkd
+        )
         nstates = physics.nstates()
         constrained = set(
             int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
