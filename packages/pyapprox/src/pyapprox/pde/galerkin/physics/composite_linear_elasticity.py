@@ -446,58 +446,67 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         return dict(self._element_materials)
 
     # -----------------------------------------------------------------
-    # Sensitivity methods
+    # Typed Lame-derivative assemblies
     # -----------------------------------------------------------------
 
-    def residual_lam_sensitivity(
-        self,
-        state: Array,
-        material_idx: int,
-    ) -> Array:
-        """Sensitivity of spatial residual w.r.t. lambda for a material.
+    def residual_lame_jacobian(self, state: Array) -> Array:
+        """Jacobian of the spatial residual w.r.t. per-material Lame values.
 
-        Returns dF/d(lambda_i) evaluated at the current state, where
-        F = b - K*u. This equals ``-K_lam_i @ state``, where K_lam_i is
-        the unit-lambda stiffness contribution for material *material_idx*.
+        The residual :math:`F = b - K(\\lambda, \\mu) u` is linear in the
+        per-material values :math:`g = [\\lambda_1, \\mu_1, \\lambda_2,
+        \\mu_2, \\ldots]`, so column :math:`2i` is :math:`-K_{\\lambda_i} u`
+        and column :math:`2i+1` is :math:`-K_{\\mu_i} u` (the unit-value
+        stiffness contributions cached at construction).
 
         Parameters
         ----------
         state : Array
             Current displacement. Shape: ``(nstates,)``.
-        material_idx : int
-            Material index (0-based).
 
         Returns
         -------
         Array
-            Sensitivity vector. Shape: ``(nstates,)``.
+            Jacobian. Shape: ``(nstates, 2*nmaterials)``.
         """
-        return -(self._K_lam_per_material[material_idx] @ state)
+        cols = []
+        for i in range(self._nmaterials):
+            cols.append(-(self._K_lam_per_material[i] @ state))
+            cols.append(-(self._K_mu_per_material[i] @ state))
+        return self._bkd.stack(cols, axis=1)
 
-    def residual_mu_sensitivity(
-        self,
-        state: Array,
-        material_idx: int,
-    ) -> Array:
-        """Sensitivity of spatial residual w.r.t. mu for a material.
+    def residual_lame_state_jacobian(self, delta: Array, state: Array) -> Array:
+        """State Jacobian of the Lame-direction residual perturbation.
 
-        Returns dF/d(mu_i) evaluated at the current state, where
-        F = b - K*u. This equals ``-K_mu_i @ state``, where K_mu_i is
-        the unit-mu stiffness contribution for material *material_idx*.
+        Returns :math:`A(\\delta) = \\partial(S(u)\\delta)/\\partial u =
+        -\\sum_i (\\delta_{2i} K_{\\lambda_i} + \\delta_{2i+1} K_{\\mu_i})`
+        where :math:`S(u)` is ``residual_lame_jacobian``. The residual is
+        linear in the state, so the matrix is state-independent (the state
+        argument keeps the shared typed-assembly signature).
 
         Parameters
         ----------
+        delta : Array
+            Per-material Lame direction. Shape: ``(2*nmaterials,)``.
         state : Array
-            Current displacement. Shape: ``(nstates,)``.
-        material_idx : int
-            Material index (0-based).
+            Current displacement (unused). Shape: ``(nstates,)``.
 
         Returns
         -------
         Array
-            Sensitivity vector. Shape: ``(nstates,)``.
+            Sparse matrix. Shape: ``(nstates, nstates)``.
         """
-        return -(self._K_mu_per_material[material_idx] @ state)
+        delta_np = self._bkd.to_numpy(delta)
+        if delta_np.shape != (2 * self._nmaterials,):
+            raise ValueError(
+                f"delta must have shape ({2 * self._nmaterials},), got "
+                f"{delta_np.shape}"
+            )
+        out = -float(delta_np[0]) * self._K_lam_per_material[0]
+        out = out - float(delta_np[1]) * self._K_mu_per_material[0]
+        for i in range(1, self._nmaterials):
+            out = out - float(delta_np[2 * i]) * self._K_lam_per_material[i]
+            out = out - float(delta_np[2 * i + 1]) * self._K_mu_per_material[i]
+        return out
 
     def state_state_hvp(
         self, state: Array, adj_state: Array, wvec: Array, time: float
@@ -537,6 +546,34 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         self._lam_per_elem = np.asarray(lam_per_elem)
         self._mu_per_elem = np.asarray(mu_per_elem)
         self._stiffness_cached = None
+
+    def set_lame_material_values(self, values: np.ndarray) -> None:
+        """Set per-material Lame values ``[lam_1, mu_1, lam_2, mu_2, ...]``.
+
+        Expands the interleaved per-material values to per-element arrays
+        via the material-to-element mapping and delegates to
+        ``set_lame_parameters`` (invalidating the stiffness cache).
+
+        Parameters
+        ----------
+        values : np.ndarray
+            Interleaved per-material Lame values.
+            Shape: ``(2*nmaterials,)``.
+        """
+        values = np.asarray(values)
+        if values.shape != (2 * self._nmaterials,):
+            raise ValueError(
+                f"values must have shape ({2 * self._nmaterials},), got "
+                f"{values.shape}"
+            )
+        nelems = self._lam_per_elem.shape[0]
+        lam_per_elem = np.zeros(nelems)
+        mu_per_elem = np.zeros(nelems)
+        for i, name in enumerate(self._material_names):
+            elem_idx = self._element_materials[name]
+            lam_per_elem[elem_idx] = values[2 * i]
+            mu_per_elem[elem_idx] = values[2 * i + 1]
+        self.set_lame_parameters(lam_per_elem, mu_per_elem)
 
     def __repr__(self) -> str:
         materials_str = ", ".join(

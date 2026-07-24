@@ -11,10 +11,6 @@ from pyapprox.pde.parameterizations.diffusion import (
 from pyapprox.pde.parameterizations.forcing import (
     ForcingParameterization,
 )
-from pyapprox.pde.parameterizations.galerkin_lame import (
-    GalerkinLameParameterization,
-    create_galerkin_lame_parameterization,
-)
 from pyapprox.pde.parameterizations.hyperelastic_lame import (
     HyperelasticYoungsModulusParameterization,
     create_hyperelastic_youngs_modulus_parameterization,
@@ -42,6 +38,4 @@ __all__ = [
     "create_hyperelastic_youngs_modulus_parameterization",
     "YoungModulusParameterization",
     "create_youngs_modulus_parameterization",
-    "GalerkinLameParameterization",
-    "create_galerkin_lame_parameterization",
 ]

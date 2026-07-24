@@ -1,6 +1,9 @@
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
+from pyapprox.pde.field_maps.lame import (
+    ENuToLameFieldMap,
+)
 from pyapprox.pde.field_maps.mesh_kle_field_map import (
     MeshKLEFieldMap,
 )
@@ -17,6 +20,7 @@ from pyapprox.pde.field_maps.transformed import (
 __all__ = [
     "FieldMapProtocol",
     "BasisExpansion",
+    "ENuToLameFieldMap",
     "MeshKLEFieldMap",
     "TransformedFieldMap",
     "ScalarAmplitude",

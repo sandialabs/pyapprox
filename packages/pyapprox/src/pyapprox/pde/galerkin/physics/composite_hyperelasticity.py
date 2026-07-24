@@ -627,6 +627,34 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         self._lam_per_elem = np.asarray(lam_per_elem)
         self._mu_per_elem = np.asarray(mu_per_elem)
 
+    def set_lame_material_values(self, values: np.ndarray) -> None:
+        """Set per-material Lame values ``[lam_1, mu_1, lam_2, mu_2, ...]``.
+
+        Expands the interleaved per-material values to per-element arrays
+        via the material-to-element mapping and delegates to
+        ``set_lame_parameters``.
+
+        Parameters
+        ----------
+        values : np.ndarray
+            Interleaved per-material Lame values.
+            Shape: ``(2*nmaterials,)``.
+        """
+        values = np.asarray(values)
+        if values.shape != (2 * self._nmaterials,):
+            raise ValueError(
+                f"values must have shape ({2 * self._nmaterials},), got "
+                f"{values.shape}"
+            )
+        nelems = self._lam_per_elem.shape[0]
+        lam_per_elem = np.zeros(nelems)
+        mu_per_elem = np.zeros(nelems)
+        for i, name in enumerate(self._material_names):
+            elem_idx = self._element_materials[name]
+            lam_per_elem[elem_idx] = values[2 * i]
+            mu_per_elem[elem_idx] = values[2 * i + 1]
+        self.set_lame_parameters(lam_per_elem, mu_per_elem)
+
     # -----------------------------------------------------------------
     # Convenience properties for uniform-material access
     # -----------------------------------------------------------------

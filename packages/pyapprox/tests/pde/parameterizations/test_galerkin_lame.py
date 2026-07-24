@@ -1,4 +1,4 @@
-"""Tests for GalerkinLameParameterization."""
+"""Tests for the engine-backed galerkin Lame (E, nu) parameterization."""
 
 import pytest
 from pyapprox.util.optional_deps import package_available
@@ -13,9 +13,24 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
+from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
+    ImplicitFunctionDerivativeChecker,
+)
+from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
+    AdjointOperatorWithJacobianAndHVP,
+)
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
+)
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.models.galerkin.steady import (
+    GalerkinStateEquationWithHVPAdapter,
 )
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
@@ -25,10 +40,6 @@ from pyapprox.pde.parameterizations.protocol import (
 )
 from pyapprox.util.backends.protocols import Array
 from scipy.sparse import issparse
-
-from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-from pyapprox.pde.galerkin.mesh import StructuredMesh2D
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 
 
 def _to_dense(mat):
@@ -120,10 +131,10 @@ def _make_multi_material_physics(bkd, with_bcs=True):
     )
 
 
-class TestGalerkinLameParameterization:
+class TestGalerkinLameParameterizationFactory:
 
     def test_protocol_conformance(self, numpy_bkd) -> None:
-        """GalerkinLameParameterization satisfies ParameterizationProtocol."""
+        """The factory product satisfies ParameterizationProtocol."""
         physics = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         assert isinstance(param, ParameterizationProtocol)
@@ -253,10 +264,55 @@ class TestGalerkinLameParameterization:
         bkd = numpy_bkd
         physics = _make_physics(bkd)
         param = create_galerkin_lame_parameterization(physics, bkd)
+        initial_param_jacobian = (
+            param.param_derivatives().initial_param_jacobian
+        )
+        assert initial_param_jacobian is not None
         p = bkd.asarray(np.array([1.0, 0.3]))
-        ipj = param.initial_param_jacobian(p)
-        ipj_np = bkd.to_numpy(ipj)
+        ipj_np = bkd.to_numpy(initial_param_jacobian(p))
         np.testing.assert_array_equal(ipj_np, 0.0)
+
+    def test_all_derivative_components_match_fd(self, numpy_bkd) -> None:
+        """Steady 14-check component suite through the HVP adapter.
+
+        The (E, nu) -> Lame map curvature makes ``param_param_hvp``
+        genuinely nonzero; the mixed HVP blocks come from the engine's
+        FromLinearity slots over the typed Lame assemblies.
+        """
+        bkd = numpy_bkd
+        physics = _make_multi_material_physics(bkd, with_bcs=True)
+        param_obj = create_galerkin_lame_parameterization(physics, bkd)
+        state_eq = GalerkinStateEquationWithHVPAdapter(
+            physics, param_obj, bkd
+        )
+        nstates = physics.nstates()
+        constrained = set(
+            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+        )
+        state_idx = next(
+            ii for ii in range(nstates) if ii not in constrained
+        )
+        weights = bkd.zeros((nstates, 1))
+        weights = bkd.copy(weights)
+        weights[state_idx] = 1.0
+        functional = WeightedSumFunctional(weights, 4, bkd)
+
+        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        checker = ImplicitFunctionDerivativeChecker(adjoint_op)
+        param = bkd.asarray(np.array([[1.0], [0.3], [5.0], [0.2]]))
+        init_state = bkd.zeros((nstates, 1))
+        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
+        checker.check_derivatives(init_state, param, tols)
+
+        # FD-noise-immune symmetry identity <Hu, v> = <Hv, u>:
+        # breaks for contraction/orientation bugs.
+        vvec = bkd.asarray(np.array([[0.5], [0.7], [-0.6], [0.2]]))
+        uvec = bkd.asarray(np.array([[-0.2], [0.9], [0.3], [-0.4]]))
+        h_v = adjoint_op.hvp(init_state, param, vvec)
+        h_u = adjoint_op.hvp(init_state, param, uvec)
+        bkd.assert_allclose(
+            bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
+        )
 
     def test_adjoint_gradient_steady_integration(self, numpy_bkd) -> None:
         """Full steady-state solve + adjoint gradient through parameterization.

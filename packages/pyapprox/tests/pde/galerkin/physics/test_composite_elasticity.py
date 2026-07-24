@@ -8,21 +8,26 @@ if not package_available("skfem"):
 
 
 import numpy as np
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity,
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
 )
-from pyapprox.pde.parameterizations.galerkin_lame import (
-    create_galerkin_lame_parameterization,
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
 )
-from scipy.sparse import issparse
-
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
 )
+from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity,
+)
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.parameterizations.galerkin_lame import (
+    create_galerkin_lame_parameterization,
+)
+from scipy.sparse import issparse
 
 
 def _to_dense(mat, bkd):
@@ -556,142 +561,132 @@ class TestCompositeLinearElasticityBase:
         param = create_galerkin_lame_parameterization(physics, bkd)
         assert param.nparams() == 6
 
-    # ---- Sensitivity method tests ----
+    # ---- Typed Lame-assembly tests ----
 
-    def test_sensitivity_shape(self, numpy_bkd) -> None:
-        """residual_lam/mu_sensitivity return correct shapes."""
-        bkd = numpy_bkd
+    def _two_material_physics(self, bkd):
         mesh = StructuredMesh2D(
-            nx=5,
-            ny=5,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 1.0, 0.3, bkd)
-        n = physics.nstates()
-        rng = np.random.RandomState(42)
-        u = bkd.asarray(rng.randn(n))
-
-        lam_sens = physics.residual_lam_sensitivity(u, 0)
-        mu_sens = physics.residual_mu_sensitivity(u, 0)
-        assert lam_sens.shape == (n,)
-        assert mu_sens.shape == (n,)
-
-    def test_sensitivity_cross_validate_parameterization(self, numpy_bkd) -> None:
-        """Sensitivity methods reproduce parameterization columns via chain rule.
-
-        For material i with params (E, nu):
-          col_E  = dlam/dE * lam_sens(i) + dmu/dE * mu_sens(i)
-          col_nu = dlam/dnu * lam_sens(i) + dmu/dnu * mu_sens(i)
-        """
-        bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=5,
-            ny=5,
-            bounds=[[0.0, 1.0], [0.0, 1.0]],
-            bkd=bkd,
-        )
-        basis = VectorLagrangeBasis(mesh, degree=1)
-        physics = _uniform_material(basis, 2.0, 0.3, bkd)
-        param = create_galerkin_lame_parameterization(physics, bkd)
-
-        rng = np.random.RandomState(42)
-        u = bkd.asarray(rng.randn(physics.nstates()))
-        params_1d = bkd.asarray(np.array([2.0, 0.3]))
-
-        # Get param_jacobian via parameterization
-        pjac = bkd.to_numpy(param.param_derivatives().param_jacobian(u, 0.0, params_1d))
-
-        E, nu = 2.0, 0.3
-        denom = (1.0 + nu) * (1.0 - 2.0 * nu)
-
-        dLambda_dE = nu / denom
-        dMu_dE = 1.0 / (2.0 * (1.0 + nu))
-        dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom**2
-        dMu_dnu = -E / (2.0 * (1.0 + nu) ** 2)
-
-        lam_sens = bkd.to_numpy(physics.residual_lam_sensitivity(u, 0))
-        mu_sens = bkd.to_numpy(physics.residual_mu_sensitivity(u, 0))
-
-        col_E = dLambda_dE * lam_sens + dMu_dE * mu_sens
-        col_nu = dLambda_dnu * lam_sens + dMu_dnu * mu_sens
-
-        np.testing.assert_allclose(
-            pjac[:, 0],
-            col_E,
-            rtol=1e-12,
-            err_msg="Sensitivity cross-validation failed for E column",
-        )
-        np.testing.assert_allclose(
-            pjac[:, 1],
-            col_nu,
-            rtol=1e-12,
-            err_msg="Sensitivity cross-validation failed for nu column",
-        )
-
-    def test_sensitivity_multi_material(self, numpy_bkd) -> None:
-        """Cross-validate sensitivities for multi-material setup."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=10,
-            ny=5,
+            nx=6,
+            ny=3,
             bounds=[[0.0, 2.0], [0.0, 1.0]],
             bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         nelems = basis.skfem_basis().mesh.nelements
-
-        E_vals = [1.0, 5.0]
-        nu_vals = [0.3, 0.2]
-        left_elems = np.arange(nelems // 2)
-        right_elems = np.arange(nelems // 2, nelems)
-
-        physics = CompositeLinearElasticity(
+        return CompositeLinearElasticity(
             basis=basis,
             material_map={
-                "left": (E_vals[0], nu_vals[0]),
-                "right": (E_vals[1], nu_vals[1]),
+                "left": (1.0, 0.3),
+                "right": (5.0, 0.2),
             },
             element_materials={
-                "left": left_elems,
-                "right": right_elems,
+                "left": np.arange(nelems // 2),
+                "right": np.arange(nelems // 2, nelems),
             },
             bkd=bkd,
         )
-        param = create_galerkin_lame_parameterization(physics, bkd)
 
-        rng = np.random.RandomState(42)
-        u = bkd.asarray(rng.randn(physics.nstates()))
-        params_1d = bkd.asarray(
-            np.array([E_vals[0], nu_vals[0], E_vals[1], nu_vals[1]])
+    @staticmethod
+    def _material_lame_values(physics):
+        """Interleaved [lam_1, mu_1, ...] from the configured (E, nu)."""
+        values = []
+        for name in physics.material_names():
+            E, nu = physics.material_params(name)
+            values.append(E * nu / ((1.0 + nu) * (1.0 - 2.0 * nu)))
+            values.append(E / (2.0 * (1.0 + nu)))
+        return np.array(values)
+
+    def test_lame_jacobian_vs_fd(self, numpy_bkd) -> None:
+        """residual_lame_jacobian vs DerivativeChecker FD of the residual
+        as a function of the per-material Lame values."""
+        bkd = numpy_bkd
+        physics = self._two_material_physics(bkd)
+        nstates = physics.nstates()
+        nvals = 2 * physics.nmaterials()
+        base_values = self._material_lame_values(physics)
+        rng = np.random.default_rng(21)
+        state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
+
+        def residual_of_values(samples):
+            results = []
+            for ii in range(samples.shape[1]):
+                physics.set_lame_material_values(
+                    bkd.to_numpy(samples[:, ii])
+                )
+                results.append(
+                    bkd.to_numpy(physics.spatial_residual(state, 0.0)).copy()
+                )
+            physics.set_lame_material_values(base_values)
+            return bkd.asarray(np.stack(results, axis=1))
+
+        analytic = bkd.to_numpy(physics.residual_lame_jacobian(state))
+
+        def jac_of_values(sample):
+            return bkd.asarray(analytic)
+
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=nstates,
+            nvars=nvals,
+            fun=residual_of_values,
+            jacobian=jac_of_values,
+            bkd=bkd,
         )
-        pjac = bkd.to_numpy(param.param_derivatives().param_jacobian(u, 0.0, params_1d))
+        checker = DerivativeChecker(wrapper)
+        errors = checker.check_derivatives(
+            bkd.asarray(base_values)[:, None], relative=True
+        )[0]
+        ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
+        assert ratio <= 1e-6
 
-        for i, (E, nu) in enumerate(zip(E_vals, nu_vals)):
-            denom = (1.0 + nu) * (1.0 - 2.0 * nu)
-            dLambda_dE = nu / denom
-            dMu_dE = 1.0 / (2.0 * (1.0 + nu))
-            dLambda_dnu = E * (1.0 + 2.0 * nu**2) / denom**2
-            dMu_dnu = -E / (2.0 * (1.0 + nu) ** 2)
+    def test_lame_state_jacobian_identity(self, numpy_bkd) -> None:
+        """A(delta) w == S(w) delta — both contractions of the constant
+        mixed tensor agree."""
+        bkd = numpy_bkd
+        physics = self._two_material_physics(bkd)
+        nstates = physics.nstates()
+        nvals = 2 * physics.nmaterials()
+        rng = np.random.default_rng(23)
+        delta = bkd.asarray(rng.normal(0.0, 1.0, nvals))
+        wvec = bkd.asarray(rng.normal(0.0, 1.0, nstates))
+        lhs = physics.residual_lame_state_jacobian(delta, wvec) @ bkd.to_numpy(
+            wvec
+        )
+        rhs = physics.residual_lame_jacobian(wvec) @ bkd.to_numpy(delta)
+        bkd.assert_allclose(bkd.asarray(lhs), bkd.asarray(rhs), rtol=1e-12)
 
-            lam_sens = bkd.to_numpy(physics.residual_lam_sensitivity(u, i))
-            mu_sens = bkd.to_numpy(physics.residual_mu_sensitivity(u, i))
+    def test_set_lame_material_values_updates_stiffness(
+        self, numpy_bkd
+    ) -> None:
+        """The setter invalidates the stiffness cache and matches a direct
+        per-element set_lame_parameters expansion."""
+        bkd = numpy_bkd
+        physics = self._two_material_physics(bkd)
+        K1 = _to_dense(physics.stiffness_matrix(), bkd).copy()
+        new_values = np.array([0.9, 0.5, 2.5, 1.2])
+        physics.set_lame_material_values(new_values)
+        K2 = _to_dense(physics.stiffness_matrix(), bkd)
+        assert np.linalg.norm(K1 - K2) > 1e-6
 
-            col_E = dLambda_dE * lam_sens + dMu_dE * mu_sens
-            col_nu = dLambda_dnu * lam_sens + dMu_dnu * mu_sens
+        nelems = physics.basis().skfem_basis().mesh.nelements
+        lam_per_elem = np.zeros(nelems)
+        mu_per_elem = np.zeros(nelems)
+        for i, name in enumerate(physics.material_names()):
+            elem_idx = physics.element_materials()[name]
+            lam_per_elem[elem_idx] = new_values[2 * i]
+            mu_per_elem[elem_idx] = new_values[2 * i + 1]
+        physics.set_lame_parameters(lam_per_elem, mu_per_elem)
+        K3 = _to_dense(physics.stiffness_matrix(), bkd)
+        np.testing.assert_allclose(K2, K3, rtol=1e-14)
 
-            np.testing.assert_allclose(
-                pjac[:, 2 * i],
-                col_E,
-                rtol=1e-12,
-                err_msg=f"E column mismatch for material {i}",
-            )
-            np.testing.assert_allclose(
-                pjac[:, 2 * i + 1],
-                col_nu,
-                rtol=1e-12,
-                err_msg=f"nu column mismatch for material {i}",
+    def test_lame_value_shape_validation(self, numpy_bkd) -> None:
+        """Wrong-length values/delta raise."""
+        bkd = numpy_bkd
+        physics = self._two_material_physics(bkd)
+        with pytest.raises(ValueError, match="values must have shape"):
+            physics.set_lame_material_values(np.array([1.0, 0.5]))
+        state = bkd.asarray(np.zeros(physics.nstates()))
+        with pytest.raises(ValueError, match="delta must have shape"):
+            physics.residual_lame_state_jacobian(
+                bkd.asarray(np.array([1.0, 0.5])), state
             )
 
     # ---- Accessor method tests ----

@@ -2,7 +2,8 @@
 
 DerivativeChecker-validated dQ/dp and d^2Q/dp^2 v for Q = y_k(T)
 through adapter -> stepper -> BC-enforcing wrapper -> TimeIntegrator,
-with parameters entering via GalerkinLameParameterization. Backward
+with parameters entering via the engine-backed Lame
+parameterization. Backward
 Euler and Crank-Nicolson (CN exercises the off-diagonal adjoint
 coupling and the cross-step HVP zeroing that BE's zero cross-step
 blocks cannot).

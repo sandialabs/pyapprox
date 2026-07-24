@@ -1,8 +1,8 @@
 """Tests for LinearElasticity parameter sensitivity via parameterization.
 
-Tests parameter sensitivity through GalerkinLameParameterization, which
-maps (E, nu) to Lame parameters and computes chain-rule Jacobians via
-physics.residual_lam_sensitivity() and residual_mu_sensitivity().
+Tests parameter sensitivity through the engine-backed Lame
+parameterization, which maps (E, nu) to Lame parameters and computes
+chain-rule Jacobians via physics.residual_lame_jacobian().
 """
 
 
@@ -84,7 +84,7 @@ def _make_physics(
 
 class TestLinearElasticityAdjoint:
     """Test class for LinearElasticity parameter sensitivity
-    via GalerkinLameParameterization."""
+    via the engine-backed Lame parameterization."""
 
     def test_nparams(self, numpy_bkd) -> None:
         """Parameterization nparams() returns 2 (E, nu) for single material."""
