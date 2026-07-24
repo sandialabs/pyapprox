@@ -35,7 +35,7 @@ Second-derivative slots are REQUIRED and three-valued (``Zero()``,
 structure is stated explicitly at the construction site.
 """
 
-from typing import Callable, Generic, Optional, Union
+from typing import Callable, Generic, Optional, TypeVar, Union
 
 import numpy as np
 from scipy.sparse import spmatrix
@@ -83,8 +83,10 @@ _FieldStateSlot = Union[Zero, FromLinearity, FieldShapedHVPFn[Array]]
 _StateFieldSlot = Union[Zero, FromLinearity, StateShapedHVPFn[Array]]
 _FieldFieldSlot = Union[Zero, FieldShapedHVPFn[Array]]
 
+PhysicsT = TypeVar("PhysicsT")
 
-class _FieldParameterizationTerm(Generic[Array]):
+
+class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
     """One parameterized coefficient field's derivative calculus.
 
     Framework-internal: constructed by facades from the physics's bound
@@ -96,6 +98,11 @@ class _FieldParameterizationTerm(Generic[Array]):
     ----------
     setter : Callable[[Array], None]
         Sets the field DOFs on the physics (invalidating its caches).
+    physics : PhysicsT
+        The physics instance the bound assemblies come from. Stored
+        only for ``ParameterizationProtocol``'s ``physics()`` identity
+        accessor (consumers validate they drive the same instance);
+        the engine itself never dereferences it.
     field_jacobian : FieldJacobianFn
         :math:`S(u, t) = dR/d(\\text{field DOFs})`.
         Shape: (nstates, nfield).
@@ -135,6 +142,7 @@ class _FieldParameterizationTerm(Generic[Array]):
     def __init__(
         self,
         setter: Callable[[Array], None],
+        physics: PhysicsT,
         field_jacobian: FieldJacobianFn[Array],
         field_state_hvp: _FieldStateSlot[Array],
         state_field_hvp: _StateFieldSlot[Array],
@@ -185,6 +193,7 @@ class _FieldParameterizationTerm(Generic[Array]):
                 "field_jacobian alone without symmetry assumptions"
             )
         self._setter = setter
+        self._physics = physics
         self._field_jacobian = field_jacobian
         self._field_state_hvp = field_state_hvp
         self._state_field_hvp = state_field_hvp
@@ -221,6 +230,7 @@ class _FieldParameterizationTerm(Generic[Array]):
     @staticmethod
     def linear_field_state(
         setter: Callable[[Array], None],
+        physics: PhysicsT,
         field_jacobian: FieldJacobianFn[Array],
         field_state_jacobian: FieldStateJacobianFn[Array],
         field_map: FieldMapProtocol[Array],
@@ -228,11 +238,12 @@ class _FieldParameterizationTerm(Generic[Array]):
         nstates: int,
         nfield_dofs: int,
         require_positive: bool = False,
-    ) -> "_FieldParameterizationTerm[Array]":
+    ) -> "_FieldParameterizationTerm[Array, PhysicsT]":
         """Term linear in the field AND the state (e.g. kappa grad u,
         r*u): slots (FromLinearity, FromLinearity, Zero)."""
         return _FieldParameterizationTerm(
             setter,
+            physics,
             field_jacobian,
             FromLinearity(),
             FromLinearity(),
@@ -248,17 +259,19 @@ class _FieldParameterizationTerm(Generic[Array]):
     @staticmethod
     def state_independent(
         setter: Callable[[Array], None],
+        physics: PhysicsT,
         field_jacobian: FieldJacobianFn[Array],
         field_map: FieldMapProtocol[Array],
         bkd: Backend[Array],
         nstates: int,
         nfield_dofs: int,
         require_positive: bool = False,
-    ) -> "_FieldParameterizationTerm[Array]":
+    ) -> "_FieldParameterizationTerm[Array, PhysicsT]":
         """Term depending on the field only (e.g. forcing): slots
         (Zero, Zero, Zero)."""
         return _FieldParameterizationTerm(
             setter,
+            physics,
             field_jacobian,
             Zero(),
             Zero(),
@@ -275,6 +288,10 @@ class _FieldParameterizationTerm(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
+
+    def physics(self) -> PhysicsT:
+        """Return the bound physics instance (identity token only)."""
+        return self._physics
 
     def nparams(self) -> int:
         """Return the number of parameters."""

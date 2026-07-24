@@ -44,7 +44,6 @@ from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.models.galerkin.steady import (
     GalerkinStateEquationWithHVPAdapter,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.field_term import (
     FromLinearity,
     Zero,
@@ -105,11 +104,14 @@ def _build_engine_term(
     bkd: NumpyBkd,
     physics: AdvectionDiffusionReaction[NumpyArray],
     field_map: TransformedFieldMap[NumpyArray],
-) -> _FieldParameterizationTerm[NumpyArray]:
+) -> _FieldParameterizationTerm[
+    NumpyArray, AdvectionDiffusionReaction[NumpyArray]
+]:
     diffusion = physics.diffusion_function()
     assert isinstance(diffusion, NodalFieldDiffusion)
     return _FieldParameterizationTerm.linear_field_state(
         setter=lambda field: diffusion.set_dofs(bkd.to_numpy(field)),
+        physics=physics,
         field_jacobian=lambda state, time: (
             physics.residual_diffusivity_jacobian(state)
         ),
@@ -122,30 +124,6 @@ def _build_engine_term(
         nfield_dofs=physics.nstates(),
         require_positive=True,
     )
-
-
-class _TermParameterization:
-    """Minimal ParameterizationProtocol adapter over one engine term."""
-
-    def __init__(
-        self,
-        term: _FieldParameterizationTerm[NumpyArray],
-        physics: AdvectionDiffusionReaction[NumpyArray],
-    ) -> None:
-        self._term = term
-        self._physics = physics
-
-    def nparams(self) -> int:
-        return self._term.nparams()
-
-    def physics(self) -> AdvectionDiffusionReaction[NumpyArray]:
-        return self._physics
-
-    def apply(self, params_1d: NumpyArray) -> None:
-        self._term.apply(params_1d)
-
-    def param_derivatives(self) -> ParamDerivatives[NumpyArray]:
-        return self._term.param_derivatives()
 
 
 class TestFieldParameterizationTerm:
@@ -180,7 +158,7 @@ class TestFieldParameterizationTerm:
         bkd = numpy_bkd
         physics, field_map = _build_physics_and_map(bkd, nonlinear_reaction)
         term = _build_engine_term(bkd, physics, field_map)
-        param_obj = _TermParameterization(term, physics)
+        param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
             physics, param_obj, bkd
         )
@@ -249,6 +227,7 @@ class TestFieldParameterizationTerm:
             setter=lambda field: nodal_forcing.set_dofs(
                 bkd.to_numpy(field)
             ),
+            physics=physics,
             field_jacobian=lambda state, time: (
                 physics.residual_forcing_jacobian()
             ),
@@ -257,7 +236,7 @@ class TestFieldParameterizationTerm:
             nstates=physics.nstates(),
             nfield_dofs=physics.nstates(),
         )
-        param_obj = _TermParameterization(term, physics)
+        param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
             physics, param_obj, bkd
         )
@@ -327,6 +306,7 @@ class TestFieldParameterizationTerm:
             setter=lambda field: nodal_reaction.set_dofs(
                 -bkd.to_numpy(field)
             ),
+            physics=physics,
             field_jacobian=lambda state, time: (
                 -physics.residual_reaction_jacobian(state)
             ),
@@ -338,7 +318,7 @@ class TestFieldParameterizationTerm:
             nstates=physics.nstates(),
             nfield_dofs=physics.nstates(),
         )
-        param_obj = _TermParameterization(term, physics)
+        param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
             physics, param_obj, bkd
         )
@@ -412,6 +392,7 @@ class TestFieldParameterizationTerm:
             setter=lambda field: nodal_velocity.set_dofs(
                 bkd.to_numpy(field)
             ),
+            physics=physics,
             field_jacobian=lambda state, time: (
                 physics.residual_velocity_jacobian(state)
             ),
@@ -423,7 +404,7 @@ class TestFieldParameterizationTerm:
             nstates=physics.nstates(),
             nfield_dofs=nvel,
         )
-        param_obj = _TermParameterization(term, physics)
+        param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
             physics, param_obj, bkd
         )
@@ -461,6 +442,7 @@ class TestFieldParameterizationTerm:
         with pytest.raises(TypeError, match="field_state_jacobian"):
             _FieldParameterizationTerm(
                 setter=lambda f: diffusion.set_dofs(bkd.to_numpy(f)),
+                physics=physics,
                 field_jacobian=lambda s, t: (
                     physics.residual_diffusivity_jacobian(s)
                 ),
@@ -475,6 +457,7 @@ class TestFieldParameterizationTerm:
         with pytest.raises(TypeError, match="FromLinearity"):
             _FieldParameterizationTerm(
                 setter=lambda f: diffusion.set_dofs(bkd.to_numpy(f)),
+                physics=physics,
                 field_jacobian=lambda s, t: (
                     physics.residual_diffusivity_jacobian(s)
                 ),
@@ -507,6 +490,7 @@ class TestFieldParameterizationTerm:
         )
         bad_term = _FieldParameterizationTerm.linear_field_state(
             setter=lambda f: diffusion.set_dofs(bkd.to_numpy(f)),
+            physics=physics,
             field_jacobian=lambda s, t: (
                 physics.residual_diffusivity_jacobian(s)
             ),
@@ -530,6 +514,7 @@ class TestFieldParameterizationTerm:
         )
         wrong_term = _FieldParameterizationTerm.linear_field_state(
             setter=lambda f: diffusion.set_dofs(bkd.to_numpy(f)),
+            physics=physics,
             field_jacobian=lambda s, t: (
                 physics.residual_diffusivity_jacobian(s)
             ),

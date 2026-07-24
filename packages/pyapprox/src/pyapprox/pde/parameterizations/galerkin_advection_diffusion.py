@@ -29,29 +29,9 @@ from pyapprox.pde.parameterizations.field_term import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
-
-class _BoundTerm(Generic[Array]):
-    """One engine term bound to the shared physics (protocol shim)."""
-
-    def __init__(
-        self,
-        term: _FieldParameterizationTerm[Array],
-        physics: AdvectionDiffusionReaction[Array],
-    ) -> None:
-        self._term = term
-        self._physics = physics
-
-    def nparams(self) -> int:
-        return self._term.nparams()
-
-    def physics(self) -> AdvectionDiffusionReaction[Array]:
-        return self._physics
-
-    def apply(self, params_1d: Array) -> None:
-        self._term.apply(params_1d)
-
-    def param_derivatives(self) -> ParamDerivatives[Array]:
-        return self._term.param_derivatives()
+_ADRTerm = _FieldParameterizationTerm[
+    Array, AdvectionDiffusionReaction[Array]
+]
 
 
 def _require_field(
@@ -111,7 +91,7 @@ class AdvectionDiffusionParameterization(Generic[Array]):
         self._physics = physics
         self._bkd = bkd
 
-        terms: List[_BoundTerm[Array]] = []
+        terms: List[_ADRTerm[Array]] = []
         if diffusivity_map is not None:
             terms.append(self._diffusivity_term(diffusivity_map))
         if forcing_map is not None:
@@ -126,7 +106,7 @@ class AdvectionDiffusionParameterization(Generic[Array]):
                 "parameterize"
             )
         self._inner: Union[
-            _BoundTerm[Array], CompositeParameterization[Array]
+            _ADRTerm[Array], CompositeParameterization[Array]
         ]
         if len(terms) == 1:
             self._inner = terms[0]
@@ -139,7 +119,7 @@ class AdvectionDiffusionParameterization(Generic[Array]):
 
     def _diffusivity_term(
         self, field_map: FieldMapProtocol[Array]
-    ) -> _BoundTerm[Array]:
+    ) -> _ADRTerm[Array]:
         physics, bkd = self._physics, self._bkd
         diffusion = _require_field(
             physics.diffusion_function(),
@@ -147,8 +127,9 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             "diffusivity_map",
         )
         assert isinstance(diffusion, NodalFieldDiffusion)
-        term = _FieldParameterizationTerm.linear_field_state(
+        return _FieldParameterizationTerm.linear_field_state(
             setter=lambda field: diffusion.set_dofs(bkd.to_numpy(field)),
+            physics=physics,
             field_jacobian=lambda state, time: (
                 physics.residual_diffusivity_jacobian(state)
             ),
@@ -161,18 +142,18 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             nfield_dofs=diffusion.ndofs(),
             require_positive=True,
         )
-        return _BoundTerm(term, physics)
 
     def _forcing_term(
         self, field_map: FieldMapProtocol[Array]
-    ) -> _BoundTerm[Array]:
+    ) -> _ADRTerm[Array]:
         physics, bkd = self._physics, self._bkd
         forcing = _require_field(
             physics.forcing_function(), NodalFieldForcing, "forcing_map"
         )
         assert isinstance(forcing, NodalFieldForcing)
-        term = _FieldParameterizationTerm.state_independent(
+        return _FieldParameterizationTerm.state_independent(
             setter=lambda field: forcing.set_dofs(bkd.to_numpy(field)),
+            physics=physics,
             field_jacobian=lambda state, time: (
                 physics.residual_forcing_jacobian()
             ),
@@ -181,11 +162,10 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             nstates=physics.nstates(),
             nfield_dofs=forcing.ndofs(),
         )
-        return _BoundTerm(term, physics)
 
     def _reaction_term(
         self, field_map: FieldMapProtocol[Array]
-    ) -> _BoundTerm[Array]:
+    ) -> _ADRTerm[Array]:
         physics, bkd = self._physics, self._bkd
         reaction = _require_field(
             physics.reaction_function(),
@@ -193,8 +173,9 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             "reaction_map",
         )
         assert isinstance(reaction, NodalFieldLinearReaction)
-        term = _FieldParameterizationTerm.linear_field_state(
+        return _FieldParameterizationTerm.linear_field_state(
             setter=lambda field: reaction.set_dofs(bkd.to_numpy(field)),
+            physics=physics,
             field_jacobian=lambda state, time: (
                 physics.residual_reaction_jacobian(state)
             ),
@@ -206,11 +187,10 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             nstates=physics.nstates(),
             nfield_dofs=reaction.ndofs(),
         )
-        return _BoundTerm(term, physics)
 
     def _velocity_term(
         self, field_map: FieldMapProtocol[Array]
-    ) -> _BoundTerm[Array]:
+    ) -> _ADRTerm[Array]:
         physics, bkd = self._physics, self._bkd
         velocity = _require_field(
             physics.velocity_function(),
@@ -218,8 +198,9 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             "velocity_map",
         )
         assert isinstance(velocity, NodalFieldVelocity)
-        term = _FieldParameterizationTerm.linear_field_state(
+        return _FieldParameterizationTerm.linear_field_state(
             setter=lambda field: velocity.set_dofs(bkd.to_numpy(field)),
+            physics=physics,
             field_jacobian=lambda state, time: (
                 physics.residual_velocity_jacobian(state)
             ),
@@ -231,7 +212,6 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             nstates=physics.nstates(),
             nfield_dofs=velocity.ndofs(),
         )
-        return _BoundTerm(term, physics)
 
     # -- parameterization surface --
 
