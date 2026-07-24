@@ -13,7 +13,6 @@ from pyapprox.pde.boundary import (
     EssentialBCProtocol,
     WeakFormBCProtocol,
 )
-from pyapprox.pde.galerkin.protocols.boundary import RobinBCProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -194,53 +193,3 @@ class GalerkinBCMixin(Generic[Array]):
         """
         return self.constraint_set().zero_rows(pjac)
 
-    def apply_boundary_conditions(
-        self,
-        residual: Optional[Array],
-        jacobian: Optional[Array],
-        state: Array,
-        time: float = 0.0,
-    ) -> Tuple[Optional[Array], Optional[Array]]:
-        """Apply all boundary conditions in the correct order.
-
-        1. Robin BCs (modify interior of matrices)
-        2. Dirichlet BCs (replace rows)
-
-        Parameters
-        ----------
-        residual : Array or None
-            Residual vector. None to skip.
-        jacobian : Array or None
-            Jacobian matrix. None to skip.
-        state : Array
-            Current state.
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Tuple[Optional[Array], Optional[Array]]
-            Modified (residual, jacobian).
-        """
-        res = residual
-        jac = jacobian
-
-        # Robin BCs first (modify interior). Deliberately Robin-only,
-        # not all weak-form BCs: this legacy path predates
-        # NeumannBC.apply_to_residual and callers pass residuals whose
-        # load already contains the Neumann contribution.
-        for bc in self._boundary_conditions:
-            if isinstance(bc, RobinBCProtocol):
-                if res is not None:
-                    res = bc.apply_to_residual(res, state, time)
-                if jac is not None:
-                    jac = bc.apply_to_jacobian(jac, state, time)
-
-        # Essential constraints last (replace rows)
-        constraint_set = self.constraint_set()
-        if res is not None:
-            res = constraint_set.apply_to_residual(res, state, time)
-        if jac is not None:
-            jac = constraint_set.apply_to_jacobian(jac)
-
-        return res, jac

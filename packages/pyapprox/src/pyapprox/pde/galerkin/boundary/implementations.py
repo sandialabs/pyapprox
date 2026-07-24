@@ -775,10 +775,12 @@ class RobinBC(Generic[Array]):
 
 
 class BoundaryConditionSet(Generic[Array]):
-    """Collection of boundary conditions for a problem.
+    """Typed builder/container for a problem's boundary conditions.
 
-    Manages multiple boundary conditions and provides methods to apply
-    them collectively to residuals, Jacobians, and load vectors.
+    Collects BCs by type and exposes role accessors
+    (``weak_form_bcs``/``essential_bcs``) and ``all_conditions()`` for
+    passing to physics classes, which own all BC APPLICATION (via
+    their mixin and ``DirichletConstraintSet``).
 
     Parameters
     ----------
@@ -874,62 +876,6 @@ class BoundaryConditionSet(Generic[Array]):
             all_vals.append(self._bkd.to_numpy(bc.boundary_values(time)))
 
         return self._bkd.asarray(np.concatenate(all_vals).astype(np.float64))
-
-    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
-        """Apply all boundary conditions to residual."""
-        res = residual
-
-        # Apply Dirichlet BCs
-        for dirichlet_bc in self._dirichlet_bcs:
-            res = dirichlet_bc.apply_to_residual(res, state, time)
-
-        # Apply Robin BCs
-        for robin_bc in self._robin_bcs:
-            res = robin_bc.apply_to_residual(res, state, time)
-
-        return res
-
-    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
-        """Apply all boundary conditions to Jacobian."""
-        jac = jacobian
-
-        # Apply Robin BCs (they modify interior of Jacobian)
-        for robin_bc in self._robin_bcs:
-            jac = robin_bc.apply_to_jacobian(jac, state, time)
-
-        # Apply Dirichlet BCs (they replace rows)
-        for dirichlet_bc in self._dirichlet_bcs:
-            jac = dirichlet_bc.apply_to_jacobian(jac, state, time)
-
-        return jac
-
-    def apply_to_load(self, load: Array, time: float) -> Array:
-        """Apply all boundary conditions to load vector."""
-        # Apply Neumann BCs
-        for neumann_bc in self._neumann_bcs:
-            load = neumann_bc.apply_to_load(load, time)
-
-        # Apply Robin BCs
-        for robin_bc in self._robin_bcs:
-            load = robin_bc.apply_to_load(load, time)
-
-        return load
-
-    def apply_to_stiffness(self, stiffness: Array, time: float) -> Array:
-        """Apply all boundary conditions to stiffness matrix."""
-        # Apply Robin BCs (they add boundary mass terms)
-        for bc in self._robin_bcs:
-            stiffness = bc.apply_to_stiffness(stiffness, time)
-
-        return stiffness
-
-    def set_time(self, time: float) -> None:
-        """Set time for all time-dependent boundary conditions.
-
-        This is a no-op for the current implementation since we pass
-        time to each method. Provided for compatibility with legacy API.
-        """
-        pass
 
     def __repr__(self) -> str:
         return (

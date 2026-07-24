@@ -13,7 +13,6 @@ with mass matrices: M*du/dt = F(u,t) instead of du/dt = f(u,t).
 from typing import (
     Generic,
     List,
-    Optional,
     Protocol,
     Tuple,
     runtime_checkable,
@@ -179,34 +178,6 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def apply_boundary_conditions(
-        self,
-        residual: Optional[Array],
-        jacobian: Optional[Array],
-        state: Array,
-        time: float = 0.0,
-    ) -> Tuple[Optional[Array], Optional[Array]]:
-        """Apply boundary conditions to residual and Jacobian.
-
-        Applies in correct order: Robin first, then Dirichlet.
-
-        Parameters
-        ----------
-        residual : Array or None
-            Residual vector. Shape: (nstates,). None to skip.
-        jacobian : Array or None
-            Jacobian matrix. Shape: (nstates, nstates). None to skip.
-        state : Array
-            Current state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Tuple[Optional[Array], Optional[Array]]
-            Modified (residual, jacobian).
-        """
-        ...
 
 
 @runtime_checkable
