@@ -66,6 +66,43 @@ class TestEndpointFunctionalAutograd:
         assert checker.error_ratio(errors[0]) <= 2e-6
 
 
+class TestWeightedEndpointFunctionalAutograd:
+    """Autograd derivative checker tests for WeightedEndpointFunctional."""
+
+    def test_jacobian_wrt_sol(self, torch_bkd: TorchBkd) -> None:
+        from pyapprox.ode.functionals.weighted_endpoint import (
+            WeightedEndpointFunctional,
+        )
+
+        bkd = torch_bkd
+        nstates, ntimes, nparams = 3, 5, 2
+        weights = torch.randn(nstates, 1, dtype=torch.float64)
+        func = WeightedEndpointFunctional(weights, nparams, bkd)
+        param = torch.randn(nparams, 1, dtype=torch.float64)
+        nvars = nstates * ntimes
+
+        def eval_fn(sol_flat: torch.Tensor) -> torch.Tensor:
+            return func(sol_flat.reshape(nstates, ntimes), param)
+
+        def jac_fn(sol_flat: torch.Tensor) -> torch.Tensor:
+            return _autograd_jacobian(eval_fn, sol_flat, 1, nvars)
+
+        wrapped = FunctionWithJacobianFromCallable(
+            nqoi=1, nvars=nvars, fun=eval_fn, jacobian=jac_fn, bkd=bkd,
+        )
+        checker = DerivativeChecker(wrapped)
+        sample = torch.randn(nvars, 1, dtype=torch.float64)
+        errors = checker.check_derivatives(sample)
+        assert checker.error_ratio(errors[0]) <= 2e-6
+
+        # Autograd-vs-analytical: state_jacobian must describe __call__
+        # exactly (both are exact for a linear functional, no FD noise).
+        sol = sample.reshape(nstates, ntimes)
+        analytic = func.state_jacobian(sol, param).reshape(1, nvars)
+        autograd_jac = jac_fn(sample).reshape(1, nvars)
+        bkd.assert_allclose(autograd_jac, analytic, rtol=1e-14)
+
+
 class TestAllStatesEndpointFunctionalAutograd:
     """Autograd derivative checker tests for AllStatesEndpointFunctional."""
 

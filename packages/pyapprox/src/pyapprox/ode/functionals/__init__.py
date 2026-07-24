@@ -10,6 +10,9 @@ from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
 )
+from pyapprox.ode.functionals.weighted_endpoint import (
+    WeightedEndpointFunctional,
+)
 
 __all__ = [
     # Protocols
@@ -18,4 +21,5 @@ __all__ = [
     # Implementations
     "EndpointFunctional",
     "TransientMSEFunctional",
+    "WeightedEndpointFunctional",
 ]
