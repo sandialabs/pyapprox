@@ -1,6 +1,6 @@
 """Typed facade for parameterizing galerkin ADR coefficient fields.
 
-The sole user-facing API (D9.4): explicit typed kwargs state which
+The sole user-facing API: explicit typed kwargs state which
 coefficients are parameterized; each non-None field map constructs a
 ``_FieldParameterizationTerm`` wired to the physics's typed
 field-derivative assemblies with the correct derivative slots. All
@@ -25,6 +25,10 @@ from pyapprox.pde.parameterizations.composite import (
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.field_term import (
+    ConstantJacobianAdapter,
+    FieldStateJacobianAdapter,
+    StateJacobianAdapter,
+    ToNumpySetter,
     _FieldParameterizationTerm,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -128,13 +132,13 @@ class AdvectionDiffusionParameterization(Generic[Array]):
         )
         assert isinstance(diffusion, NodalFieldDiffusion)
         return _FieldParameterizationTerm.linear_field_state(
-            setter=lambda field: diffusion.set_dofs(bkd.to_numpy(field)),
+            setter=ToNumpySetter(diffusion.set_dofs, bkd),
             physics=physics,
-            field_jacobian=lambda state, time: (
-                physics.residual_diffusivity_jacobian(state)
+            field_jacobian=StateJacobianAdapter(
+                physics.residual_diffusivity_jacobian
             ),
-            field_state_jacobian=lambda delta, state, time: (
-                physics.residual_diffusivity_state_jacobian(delta, state)
+            field_state_jacobian=FieldStateJacobianAdapter(
+                physics.residual_diffusivity_state_jacobian
             ),
             field_map=field_map,
             bkd=bkd,
@@ -152,10 +156,10 @@ class AdvectionDiffusionParameterization(Generic[Array]):
         )
         assert isinstance(forcing, NodalFieldForcing)
         return _FieldParameterizationTerm.state_independent(
-            setter=lambda field: forcing.set_dofs(bkd.to_numpy(field)),
+            setter=ToNumpySetter(forcing.set_dofs, bkd),
             physics=physics,
-            field_jacobian=lambda state, time: (
-                physics.residual_forcing_jacobian()
+            field_jacobian=ConstantJacobianAdapter[Array](
+                physics.residual_forcing_jacobian
             ),
             field_map=field_map,
             bkd=bkd,
@@ -174,13 +178,13 @@ class AdvectionDiffusionParameterization(Generic[Array]):
         )
         assert isinstance(reaction, NodalFieldLinearReaction)
         return _FieldParameterizationTerm.linear_field_state(
-            setter=lambda field: reaction.set_dofs(bkd.to_numpy(field)),
+            setter=ToNumpySetter(reaction.set_dofs, bkd),
             physics=physics,
-            field_jacobian=lambda state, time: (
-                physics.residual_reaction_jacobian(state)
+            field_jacobian=StateJacobianAdapter(
+                physics.residual_reaction_jacobian
             ),
-            field_state_jacobian=lambda delta, state, time: (
-                physics.residual_reaction_state_jacobian(delta, state)
+            field_state_jacobian=FieldStateJacobianAdapter(
+                physics.residual_reaction_state_jacobian
             ),
             field_map=field_map,
             bkd=bkd,
@@ -199,13 +203,13 @@ class AdvectionDiffusionParameterization(Generic[Array]):
         )
         assert isinstance(velocity, NodalFieldVelocity)
         return _FieldParameterizationTerm.linear_field_state(
-            setter=lambda field: velocity.set_dofs(bkd.to_numpy(field)),
+            setter=ToNumpySetter(velocity.set_dofs, bkd),
             physics=physics,
-            field_jacobian=lambda state, time: (
-                physics.residual_velocity_jacobian(state)
+            field_jacobian=StateJacobianAdapter(
+                physics.residual_velocity_jacobian
             ),
-            field_state_jacobian=lambda delta, state, time: (
-                physics.residual_velocity_state_jacobian(delta, state)
+            field_state_jacobian=FieldStateJacobianAdapter(
+                physics.residual_velocity_state_jacobian
             ),
             field_map=field_map,
             bkd=bkd,

@@ -35,6 +35,23 @@ except ImportError:
     )
 
 
+class _ConstantBoundaryValue:
+    """Constant boundary value as a picklable callable.
+
+    Boundary conditions store their value functions; wrapping constants
+    in a lambda would make every BC (and everything holding one —
+    physics, parameterizations) unpicklable.
+    """
+
+    def __init__(self, value: float) -> None:
+        self._value = value
+
+    def __call__(
+        self, x: np.ndarray, t: Optional[float] = None
+    ) -> np.ndarray:
+        return np.full(x.shape[1], self._value)
+
+
 class DirichletBC(Generic[Array]):
     """Dirichlet boundary condition: u = g(x, t) on boundary.
 
@@ -99,17 +116,14 @@ class DirichletBC(Generic[Array]):
             self._value_time_derivative_func = value_time_derivative_func
         else:
             # Constant value
-            const = float(value_func)
-            self._value_func = lambda x, t=None: np.full(x.shape[1], const)
+            self._value_func = _ConstantBoundaryValue(float(value_func))
             if value_time_derivative_func is not None:
                 raise ValueError(
                     "value_time_derivative_func is only meaningful for "
                     "callable value_func; constant values get an exact "
                     "zero derivative automatically"
                 )
-            self._value_time_derivative_func = lambda x, t=None: np.zeros(
-                x.shape[1]
-            )
+            self._value_time_derivative_func = _ConstantBoundaryValue(0.0)
         # Capability is present only when the analytic derivative is
         # known (dynamic binding: runtime protocol checks see the
         # method only on instances that can honor it).
@@ -367,8 +381,7 @@ class NeumannBC(Generic[Array]):
         if callable(flux_func):
             self._flux_func = flux_func
         else:
-            const = float(flux_func)
-            self._flux_func = lambda x, t=None: np.full(x.shape[1], const)
+            self._flux_func = _ConstantBoundaryValue(float(flux_func))
 
         # Get boundary DOFs
         self._boundary_dofs = basis.get_dofs(boundary_name)
@@ -555,8 +568,7 @@ class RobinBC(Generic[Array]):
         if callable(value_func):
             self._value_func = value_func
         else:
-            const = float(value_func)
-            self._value_func = lambda x, t=None: np.full(x.shape[1], const)
+            self._value_func = _ConstantBoundaryValue(float(value_func))
 
         # Get boundary DOFs
         self._boundary_dofs = basis.get_dofs(boundary_name)

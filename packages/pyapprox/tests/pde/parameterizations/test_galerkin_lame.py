@@ -49,6 +49,14 @@ def _to_dense(mat):
     return np.asarray(mat)
 
 
+def _body_force(x, time):
+    """Module-level body force (local defs would break pickle tests)."""
+    f = np.zeros_like(x)
+    f[0, :] = 1.0
+    f[1, :] = -2.0
+    return f
+
+
 def _make_physics(bkd, E=1.0, nu=0.3, with_bcs=True):
     """Create a 2D uniform CompositeLinearElasticity."""
     mesh = StructuredMesh2D(
@@ -58,12 +66,6 @@ def _make_physics(bkd, E=1.0, nu=0.3, with_bcs=True):
         bkd=bkd,
     )
     basis = VectorLagrangeBasis(mesh, degree=1)
-
-    def body_force(x, time):
-        f = np.zeros_like(x)
-        f[0, :] = 1.0
-        f[1, :] = -2.0
-        return f
 
     if with_bcs:
         bc_list = [
@@ -79,7 +81,7 @@ def _make_physics(bkd, E=1.0, nu=0.3, with_bcs=True):
         basis=basis,
         youngs_modulus=E,
         poisson_ratio=nu,
-        body_force=body_force,
+        body_force=_body_force,
         boundary_conditions=bc_list,
         bkd=bkd,
     )
@@ -98,12 +100,6 @@ def _make_multi_material_physics(bkd, with_bcs=True):
 
     left_elems = np.arange(nelems // 2)
     right_elems = np.arange(nelems // 2, nelems)
-
-    def body_force(x, time):
-        f = np.zeros_like(x)
-        f[0, :] = 1.0
-        f[1, :] = -2.0
-        return f
 
     if with_bcs:
         bc_list = [
@@ -126,7 +122,7 @@ def _make_multi_material_physics(bkd, with_bcs=True):
             "right": right_elems,
         },
         bkd=bkd,
-        body_force=body_force,
+        body_force=_body_force,
         boundary_conditions=bc_list,
     )
 
@@ -271,6 +267,30 @@ class TestGalerkinLameParameterizationFactory:
         p = bkd.asarray(np.array([1.0, 0.3]))
         ipj_np = bkd.to_numpy(initial_param_jacobian(p))
         np.testing.assert_array_equal(ipj_np, 0.0)
+
+    def test_pickle_round_trip(self, numpy_bkd) -> None:
+        """The factory product (with its physics) survives pickling and
+        the clone produces identical derivatives."""
+        import pickle
+
+        bkd = numpy_bkd
+        physics = _make_multi_material_physics(bkd, with_bcs=True)
+        param_obj = create_galerkin_lame_parameterization(physics, bkd)
+        clone = pickle.loads(pickle.dumps(param_obj))
+        assert clone.nparams() == param_obj.nparams()
+
+        rng = np.random.RandomState(42)
+        u = bkd.asarray(rng.randn(physics.nstates()))
+        p0 = bkd.asarray(np.array([1.0, 0.3, 5.0, 0.2]))
+        param_obj.apply(p0)
+        clone.apply(p0)
+        orig_jac = param_obj.param_derivatives().param_jacobian
+        clone_jac = clone.param_derivatives().param_jacobian
+        assert orig_jac is not None
+        assert clone_jac is not None
+        bkd.assert_allclose(
+            orig_jac(u, 0.0, p0), clone_jac(u, 0.0, p0), rtol=1e-14
+        )
 
     def test_all_derivative_components_match_fd(self, numpy_bkd) -> None:
         """Steady 14-check component suite through the HVP adapter.

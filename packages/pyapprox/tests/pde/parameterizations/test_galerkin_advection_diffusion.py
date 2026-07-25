@@ -178,3 +178,46 @@ class TestAdvectionDiffusionParameterization:
         physics, _, _ = _build_full_physics(bkd)
         with pytest.raises(TypeError, match="at least one"):
             AdvectionDiffusionParameterization(physics, bkd=bkd)
+
+    def test_pickle_round_trip(self, numpy_bkd: NumpyBkd) -> None:
+        """The facade (with its physics, BCs, mesh, and field maps)
+        survives pickling, and the clone produces identical
+        derivatives — required for multiprocessing ensembles."""
+        import pickle
+
+        bkd = numpy_bkd
+        physics, basis, _ = _build_full_physics(bkd)
+        coords = bkd.to_numpy(basis.dof_coordinates())[0]
+        facade = AdvectionDiffusionParameterization(
+            physics,
+            diffusivity_map=_exp_kle_map(bkd, coords, 3, 0.4),
+            forcing_map=_exp_kle_map(bkd, coords, 2, 0.6),
+            bkd=bkd,
+        )
+        clone = pickle.loads(pickle.dumps(facade))
+        assert clone.nparams() == facade.nparams()
+
+        rng = np.random.default_rng(29)
+        nstates = physics.nstates()
+        state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
+        adj = bkd.asarray(rng.normal(0.0, 1.0, nstates))
+        params = bkd.asarray(rng.normal(0.0, 0.3, facade.nparams()))
+        vvec = bkd.asarray(rng.normal(0.0, 1.0, facade.nparams()))
+        facade.apply(params)
+        clone.apply(params)
+        f_derivs = facade.param_derivatives()
+        c_derivs = clone.param_derivatives()
+        assert f_derivs.param_jacobian is not None
+        assert c_derivs.param_jacobian is not None
+        bkd.assert_allclose(
+            f_derivs.param_jacobian(state, 0.0, params),
+            c_derivs.param_jacobian(state, 0.0, params),
+            rtol=1e-14,
+        )
+        assert f_derivs.param_param_hvp is not None
+        assert c_derivs.param_param_hvp is not None
+        bkd.assert_allclose(
+            f_derivs.param_param_hvp(state, 0.0, params, adj, vvec),
+            c_derivs.param_param_hvp(state, 0.0, params, adj, vvec),
+            rtol=1e-14,
+        )

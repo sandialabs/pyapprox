@@ -20,6 +20,9 @@ from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.field_term import (
+    FieldStateJacobianAdapter,
+    StateJacobianAdapter,
+    ToNumpySetter,
     _FieldParameterizationTerm,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -111,15 +114,13 @@ def create_galerkin_lame_parameterization(
             physics.nmaterials(), bkd
         )
         return _FieldParameterizationTerm.linear_field_state(
-            setter=lambda field: physics.set_lame_material_values(
-                bkd.to_numpy(field)
-            ),
+            setter=ToNumpySetter(physics.set_lame_material_values, bkd),
             physics=physics,
-            field_jacobian=lambda state, time: (
-                physics.residual_lame_jacobian(state)
+            field_jacobian=StateJacobianAdapter(
+                physics.residual_lame_jacobian
             ),
-            field_state_jacobian=lambda delta, state, time: (
-                physics.residual_lame_state_jacobian(delta, state)
+            field_state_jacobian=FieldStateJacobianAdapter(
+                physics.residual_lame_state_jacobian
             ),
             field_map=field_map,
             bkd=bkd,

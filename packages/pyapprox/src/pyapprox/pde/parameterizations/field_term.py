@@ -73,7 +73,7 @@ class FromLinearity:
 
 
 # Signatures use the pde 1D-array convention; ``time`` is threaded
-# everywhere (coefficients are constant in time today — D9.6).
+# everywhere (coefficients are constant in time today).
 FieldJacobianFn = Callable[[Array, float], Union[spmatrix, Array]]
 FieldStateJacobianFn = Callable[[Array, Array, float], Union[spmatrix, Array]]
 FieldShapedHVPFn = Callable[[Array, float, Array, Array], Array]
@@ -86,12 +86,89 @@ _FieldFieldSlot = Union[Zero, FieldShapedHVPFn[Array]]
 PhysicsT = TypeVar("PhysicsT")
 
 
+# Slot adapters: parameterizations must be picklable, so facades wire
+# physics methods through these module-level classes (a bound method
+# pickles by object-reference + name; a lambda does not).
+
+
+class ToNumpySetter(Generic[Array]):
+    """Picklable setter adapter: backend values -> numpy -> bound setter."""
+
+    def __init__(
+        self,
+        set_fn: Callable[[np.ndarray], None],
+        bkd: Backend[Array],
+    ) -> None:
+        self._set_fn = set_fn
+        self._bkd = bkd
+
+    def __call__(self, values: Array) -> None:
+        self._set_fn(np.asarray(self._bkd.to_numpy(values)))
+
+
+class StateJacobianAdapter(Generic[Array]):
+    """Adapts ``residual_<field>_jacobian(state)`` to ``(state, time)``."""
+
+    def __init__(
+        self, fn: Callable[[Array], Union[spmatrix, Array]]
+    ) -> None:
+        self._fn = fn
+
+    def __call__(
+        self, state: Array, time: float
+    ) -> Union[spmatrix, Array]:
+        return self._fn(state)
+
+
+class ConstantJacobianAdapter(Generic[Array]):
+    """Adapts a no-argument assembly (state-independent field jacobian,
+    e.g. ``residual_forcing_jacobian()``) to ``(state, time)``."""
+
+    def __init__(
+        self, fn: Callable[[], Union[spmatrix, Array]]
+    ) -> None:
+        self._fn = fn
+
+    def __call__(
+        self, state: Array, time: float
+    ) -> Union[spmatrix, Array]:
+        return self._fn()
+
+
+class FieldStateJacobianAdapter(Generic[Array]):
+    """Adapts ``residual_<field>_state_jacobian(delta, state)`` to
+    ``(delta, state, time)``."""
+
+    def __init__(
+        self, fn: Callable[[Array, Array], Union[spmatrix, Array]]
+    ) -> None:
+        self._fn = fn
+
+    def __call__(
+        self, delta: Array, state: Array, time: float
+    ) -> Union[spmatrix, Array]:
+        return self._fn(delta, state)
+
+
+class MixedHVPAdapter(Generic[Array]):
+    """Adapts a bound ``(state, adj, vec)`` mixed contraction to the
+    ``(state, time, adj, vec)`` slot signature."""
+
+    def __init__(self, fn: Callable[[Array, Array, Array], Array]) -> None:
+        self._fn = fn
+
+    def __call__(
+        self, state: Array, time: float, adj_state: Array, vec: Array
+    ) -> Array:
+        return self._fn(state, adj_state, vec)
+
+
 class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
     """One parameterized coefficient field's derivative calculus.
 
     Framework-internal: constructed by facades from the physics's bound
     typed field-derivative methods. Produces the RAW ``ParamDerivatives``
-    bundle (D9.7: the BC-enforcing wrapper/adapters own all Dirichlet
+    bundle (the BC-enforcing wrapper/adapters own all Dirichlet
     handling).
 
     Parameters
