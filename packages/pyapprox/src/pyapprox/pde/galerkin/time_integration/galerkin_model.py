@@ -47,6 +47,11 @@ class GalerkinModel(Generic[Array]):
         Physics object defining the PDE in weak form.
     bkd : Backend
         Computational backend.
+    adapter : GalerkinPhysicsToODEResidualAdapter, optional
+        ODE-residual adapter to drive the time integration. Omitted for
+        pure forward solves (the model builds the base adapter); the
+        models layer injects a parameterized tier here so
+        ``gradient``/``hvp_operator`` gain the dR/dp surface.
 
     Examples
     --------
@@ -63,11 +68,30 @@ class GalerkinModel(Generic[Array]):
         self,
         physics: GalerkinPhysicsProtocol[Array],
         bkd: Backend[Array],
+        adapter: Optional[GalerkinPhysicsToODEResidualAdapter[Array]] = None,
     ):
+        if adapter is not None:
+            if not isinstance(adapter, GalerkinPhysicsToODEResidualAdapter):
+                raise TypeError(
+                    "adapter must be a GalerkinPhysicsToODEResidualAdapter, "
+                    f"got {type(adapter).__name__}"
+                )
+            if adapter.physics() is not physics:
+                raise ValueError(
+                    "adapter wraps a different physics instance than the "
+                    "one passed to GalerkinModel"
+                )
         self._physics = physics
         self._bkd = bkd
-        self._adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        self._adapter_injected = adapter is not None
+        if adapter is None:
+            adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        self._adapter = adapter
         self._last_integrator: Optional[TimeIntegrator[Array]] = None
+
+    def adapter(self) -> GalerkinPhysicsToODEResidualAdapter[Array]:
+        """Return the ODE residual adapter."""
+        return self._adapter
 
     def last_integrator(self) -> TimeIntegrator[Array]:
         """Return the TimeIntegrator from the most recent transient solve."""
@@ -215,6 +239,12 @@ class GalerkinModel(Generic[Array]):
         # handles share this path; unknown string names error inside
         # create_stepper).
         if config.lumped_mass:
+            if self._adapter_injected:
+                raise ValueError(
+                    "config.lumped_mass=True would discard the injected "
+                    "adapter; construct the injected adapter with "
+                    "lumped_mass=True instead"
+                )
             adapter = GalerkinPhysicsToODEResidualAdapter(
                 self._physics, lumped_mass=True
             )

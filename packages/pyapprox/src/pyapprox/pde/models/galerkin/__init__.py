@@ -9,6 +9,9 @@ from pyapprox.pde.models.galerkin.physics_adapter import (
 from pyapprox.pde.models.galerkin.steady import (
     GalerkinStateEquationWithHVPAdapter,
 )
+from pyapprox.pde.models.galerkin.transient import (
+    GalerkinTransientForwardModel,
+)
 
 __all__ = [
     "GalerkinPhysicsToODEResidualWithSetParamAdapter",
@@ -16,4 +19,5 @@ __all__ = [
     "GalerkinPhysicsToODEResidualWithHVPAdapter",
     "create_galerkin_physics_ode_residual",
     "GalerkinStateEquationWithHVPAdapter",
+    "GalerkinTransientForwardModel",
 ]
