@@ -16,6 +16,12 @@ if not package_available("skfem"):
 from typing import Tuple
 
 import numpy as np
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.fromcallable.jacobian import (
+    FunctionWithJacobianFromCallable,
+)
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
@@ -46,6 +52,9 @@ from pyapprox.pde.models.galerkin.steady import (
 )
 from pyapprox.pde.parameterizations.field_term import (
     FromLinearity,
+    MixedHVPAdapter,
+    StateJacobianAdapter,
+    ToNumpySetter,
     Zero,
     _FieldParameterizationTerm,
 )
@@ -54,6 +63,29 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.adjoint_checks import NumpyArray
 
 _NPARAMS = 3
+
+
+class _QuadraticFieldToy:
+    """Analytic residual R_j(g) = c_j g_j^2 / 2: state-independent and
+    quadratic in the field, so the field-field curvature slot is a
+    genuine callable (no galerkin physics has one yet)."""
+
+    def __init__(self, cvec: np.ndarray) -> None:
+        self._c = np.asarray(cvec)
+        self._g = np.zeros_like(self._c)
+
+    def set_field(self, gvec: np.ndarray) -> None:
+        self._g = np.asarray(gvec)
+
+    def field_jacobian(self, state: NumpyArray) -> np.ndarray:
+        """S = dR/dg = diag(c * g)."""
+        return np.diag(self._c * self._g)
+
+    def field_field_hvp(
+        self, state: NumpyArray, adj: NumpyArray, delta: NumpyArray
+    ) -> np.ndarray:
+        """[lambda^T d^2R/dg^2](delta) = lambda * c * delta."""
+        return np.asarray(adj) * self._c * np.asarray(delta)
 
 
 def _build_physics_and_map(
@@ -431,6 +463,85 @@ class TestFieldParameterizationTerm:
         tols[8] = 5e-6
         tols[13] = 5e-6
         checker.check_derivatives(init_state, param, tols)
+
+    def test_field_field_hvp_slot_matches_fd(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """The field-field curvature slot's contribution to
+        param_param_hvp is FD-validated on an analytic quadratic-field
+        toy (the slot the galerkin physics never populate; the
+        collocation hyperelastic-lame migration is its physics
+        exemplar)."""
+        bkd = numpy_bkd
+        nfield = 5
+        rng = np.random.default_rng(37)
+        cvec = rng.normal(1.0, 0.3, nfield)
+        toy = _QuadraticFieldToy(cvec)
+        modes = rng.normal(0.0, 1.0, (nfield, _NPARAMS))
+        field_map = MeshKLEFieldMap(
+            bkd, bkd.asarray(np.zeros(nfield)), bkd.asarray(modes)
+        )
+        term = _FieldParameterizationTerm(
+            setter=ToNumpySetter(toy.set_field, bkd),
+            physics=toy,
+            field_jacobian=StateJacobianAdapter(toy.field_jacobian),
+            field_state_hvp=Zero(),
+            state_field_hvp=Zero(),
+            field_field_hvp=MixedHVPAdapter(toy.field_field_hvp),
+            field_map=field_map,
+            bkd=bkd,
+            nstates=nfield,
+            nfield_dofs=nfield,
+        )
+        state = bkd.zeros((nfield,))
+        adj = bkd.asarray(rng.normal(0.0, 1.0, nfield))
+        adj_np = bkd.to_numpy(adj)
+        params = bkd.asarray(np.array([0.4, -0.3, 0.2]))
+
+        # psi(p) = lambda^T R(G(p)) has gradient G'^T S^T lambda
+        # (via the engine's param_jacobian) and analytic Hessian
+        # H = W^T diag(lambda * c) W (linear map: G' = W, map hvp = 0,
+        # so ALL curvature flows through the field-field slot).
+        hess = modes.T @ np.diag(adj_np * cvec) @ modes
+
+        def grad_of_params(samples: NumpyArray) -> NumpyArray:
+            results = []
+            for ii in range(samples.shape[1]):
+                term.apply(samples[:, ii])
+                results.append(
+                    bkd.to_numpy(
+                        term.param_jacobian(state, 0.0, samples[:, ii])
+                    ).T
+                    @ adj_np
+                )
+            term.apply(params)
+            return bkd.asarray(np.stack(results, axis=1))
+
+        def hess_of_params(sample: NumpyArray) -> NumpyArray:
+            return bkd.asarray(hess)
+
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=_NPARAMS,
+            nvars=_NPARAMS,
+            fun=grad_of_params,
+            jacobian=hess_of_params,
+            bkd=bkd,
+        )
+        checker = DerivativeChecker(wrapper)
+        errors = checker.check_derivatives(
+            bkd.asarray(bkd.to_numpy(params).reshape(-1, 1)), relative=True
+        )[0]
+        ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
+        assert ratio <= 1e-6
+
+        # The engine's param_param_hvp must equal H @ v exactly.
+        term.apply(params)
+        vvec = bkd.asarray(np.array([0.5, 0.7, -0.6]))
+        bkd.assert_allclose(
+            term.param_param_hvp(state, 0.0, params, adj, vvec),
+            bkd.asarray(hess @ bkd.to_numpy(vvec)),
+            rtol=1e-13,
+        )
 
     def test_slot_validation(self, numpy_bkd: NumpyBkd) -> None:
         """FromLinearity on the state-shaped slot requires the mixed

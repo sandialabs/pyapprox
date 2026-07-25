@@ -27,6 +27,9 @@ if package_available("skfem"):
     from pyapprox.pde.galerkin.physics.hyperelasticity import (
         HyperelasticityPhysics,
     )
+    from pyapprox.pde.galerkin.physics.quasilinear_diffusion import (
+        QuasilinearDiffusion,
+    )
 
     # Backward-compatible alias
     LinearElasticity = CompositeLinearElasticity
@@ -46,6 +49,7 @@ if package_available("skfem"):
         "EulerBernoulliBeamAnalytical",
         "EulerBernoulliBeamFEM",
         "LinearElasticity",
+        "QuasilinearDiffusion",
         "StokesPhysics",
     ]
 else:
