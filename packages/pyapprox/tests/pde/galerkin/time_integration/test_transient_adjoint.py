@@ -44,6 +44,7 @@ from pyapprox.ode.functionals.weighted_endpoint import (
     WeightedEndpointFunctional,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
+    CallableReaction,
     NodalFieldDiffusion,
     NodalFieldForcing,
     NodalFieldVelocity,
@@ -101,9 +102,13 @@ def _time_config(method: str) -> TimeIntegrationConfig[NumpyArray]:
     )
 
 
-def _build_physics(bkd: NumpyBkd):
+def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False):
     """2D unit-square ADR: nodal diffusivity/forcing, constant (1, 0)
-    velocity, homogeneous Dirichlet."""
+    velocity, homogeneous Dirichlet. The optional CUBIC reaction is the
+    only state-nonlinear term, and unlike the component tiers'
+    quadratic variant its second derivative R'' = 6u is
+    state-dependent — per-step staleness in the second-adjoint RHS
+    would surface here and nowhere else."""
     mesh = StructuredMesh2D(
         nx=6, ny=6, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
     )
@@ -111,6 +116,15 @@ def _build_physics(bkd: NumpyBkd):
     vel_basis = VectorLagrangeBasis(mesh, degree=1)
     vel_dofs = np.zeros(vel_basis.ndofs())
     vel_dofs[0::2] = 1.0  # constant velocity (1, 0)
+    reaction = (
+        CallableReaction(
+            lambda x, u: u**3,
+            lambda x, u: 3.0 * u**2,
+            lambda x, u: 6.0 * u,
+        )
+        if cubic_reaction
+        else None
+    )
     physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=NodalFieldDiffusion(
@@ -118,6 +132,7 @@ def _build_physics(bkd: NumpyBkd):
         ),
         bkd=bkd,
         velocity=NodalFieldVelocity(vel_basis, vel_dofs),
+        reaction=reaction,
         forcing=NodalFieldForcing(basis, dofs=np.ones(basis.ndofs())),
         boundary_conditions=[
             DirichletBC(basis, name, 0.0, bkd)
@@ -169,11 +184,13 @@ def _velocity_map(bkd: NumpyBkd, vel_basis):
 
 
 def _build_parameterization(bkd: NumpyBkd, case: str):
-    physics, basis, vel_basis = _build_physics(bkd)
+    physics, basis, vel_basis = _build_physics(
+        bkd, cubic_reaction=case.startswith("cubic")
+    )
     maps = {}
-    if case in ("diffusivity", "composite"):
+    if case in ("diffusivity", "composite", "cubic-exp"):
         maps["diffusivity_map"] = _diffusivity_map(bkd, basis)
-    if case in ("forcing", "composite"):
+    if case in ("forcing", "composite", "cubic-linear"):
         maps["forcing_map"] = _forcing_map(bkd, basis)
     if case == "velocity":
         maps["velocity_map"] = _velocity_map(bkd, vel_basis)
@@ -305,7 +322,17 @@ class _TikhonovWeightedEndpoint(WeightedEndpointFunctional[NumpyArray]):
 
 class TestTransientAdjointWorkedExample:
     @pytest.mark.parametrize(
-        "case", ["diffusivity", "forcing", "velocity", "composite"]
+        "case",
+        [
+            # One-nonlinearity-at-a-time diagonal: each case activates
+            # exactly one second-order pathway (plus the composite).
+            "diffusivity",  # param_param via exp-map curvature
+            "forcing",  # fully linear: Hessian exactly zero
+            "velocity",  # linear map through the advection term
+            "composite",  # diffusivity+forcing block interactions
+            "cubic-linear",  # cubic reaction + linear map: state_state
+            "cubic-exp",  # cubic reaction + exp map: cross terms
+        ],
     )
     @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
     def test_gradient_and_hvp_match_fd(
@@ -316,7 +343,9 @@ class TestTransientAdjointWorkedExample:
         assert model.derivatives().hvp is not None
         # The forcing case is linear end to end (linear map, linearly
         # entering coefficient, linear QoI): Q(p) is affine and the
-        # exact Hessian is zero.
+        # exact Hessian is zero. The cubic-linear case shares the
+        # linear forcing map but its Hessian is NONZERO: the state
+        # enters Q through the cubic reaction.
         _check_gradient_and_hvp(
             bkd, model, expect_zero_hessian=(case == "forcing")
         )
