@@ -1,241 +1,37 @@
-"""YoungModulusParameterization: maps E field to Lame params for linear elasticity.
+"""Factory for parameterizing collocation elasticity by Young's modulus."""
 
-This class calls physics.residual_mu_sensitivity / residual_lamda_sensitivity,
-which are implemented by both LinearElasticityPhysics and HyperelasticityPhysics.
-Once HyperelasticityPhysics gains 2D sensitivity methods, this class can
-replace HyperelasticYoungsModulusParameterization as the universal E-to-Lame
-parameterization for all elasticity types.
-"""
-
-from typing import Generic, List, Protocol, Union, runtime_checkable
-
-from pyapprox.pde.field_maps.protocol import (
-    FieldMapProtocol,
+from pyapprox.pde.collocation.physics.linear_elasticity import (
+    LinearElasticityPhysics,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
-from pyapprox.pde.parameterizations.protocol import (
-    DerivativeMatrixBasisProtocol,
+from pyapprox.pde.field_maps.protocol import FieldMapProtocol
+from pyapprox.pde.parameterizations.collocation_elasticity import (
+    CollocationElasticityParameterization,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-@runtime_checkable
-class _CollocationElasticityPhysicsProtocol(Protocol, Generic[Array]):
-    """Physics members this parameterization calls (interim; the typed
-    facades of the parameterization redesign replace it)."""
-
-    def npts(self) -> int: ...
-
-    def nstates(self) -> int: ...
-
-    def set_mu(self, mu: Union[float, Array]) -> None: ...
-
-    def set_lamda(self, lamda: Union[float, Array]) -> None: ...
-
-    def residual_mu_sensitivity(
-        self, state: Array, time: float, delta_mu: Array
-    ) -> Array: ...
-
-    def residual_lamda_sensitivity(
-        self, state: Array, time: float, delta_lamda: Array
-    ) -> Array: ...
-
-
-class YoungModulusParameterization(Generic[Array]):
-    """Parameterization mapping Young's modulus E to Lame parameters.
-
-    Converts E to (mu, lambda) using fixed Poisson ratio nu:
-        mu = E / (2*(1+nu))
-        lambda = E*nu / ((1+nu)*(1-2*nu))
-
-    Works for 2D linear elasticity with vector state (2*npts DOFs).
-
-    The physics is bound at construction: one instance serves one
-    physics (ensembles construct one parameterization per physics).
-
-    Parameters
-    ----------
-    physics : _CollocationElasticityPhysicsProtocol
-        Elasticity physics with Lame setters and sensitivity members.
-    field_map : FieldMapProtocol
-        Maps parameter vector to Young's modulus field E(x).
-    derivative_matrices : List[Array]
-        First-derivative matrices, one per spatial dimension.
-    bkd : Backend
-        Computational backend.
-    poisson_ratio : float
-        Fixed Poisson ratio nu.
-    """
-
-    def __init__(
-        self,
-        physics: _CollocationElasticityPhysicsProtocol[Array],
-        field_map: FieldMapProtocol[Array],
-        derivative_matrices: List[Array],
-        bkd: Backend[Array],
-        poisson_ratio: float,
-    ) -> None:
-        if not isinstance(physics, _CollocationElasticityPhysicsProtocol):
-            raise TypeError(
-                f"physics must provide set_mu/set_lamda/"
-                f"residual_mu_sensitivity/residual_lamda_sensitivity/"
-                f"npts/nstates, got {type(physics).__name__}"
-            )
-        if not isinstance(field_map, FieldMapProtocol):
-            raise TypeError(
-                f"field_map must satisfy FieldMapProtocol, "
-                f"got {type(field_map).__name__}"
-            )
-        self._physics = physics
-        self._field_map = field_map
-        self._D_matrices = derivative_matrices
-        self._bkd = bkd
-        self._nu = poisson_ratio
-        self._dmu_dE = 1.0 / (2.0 * (1.0 + poisson_ratio))
-        self._dlam_dE = poisson_ratio / (
-            (1.0 + poisson_ratio) * (1.0 - 2.0 * poisson_ratio)
-        )
-        self._derivs: ParamDerivatives[Array] = ParamDerivatives.first_order(
-            self.param_jacobian,
-            self.initial_param_jacobian,
-            bc_flux_param_sensitivity=self.bc_flux_param_sensitivity,
-        )
-
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def physics(self) -> _CollocationElasticityPhysicsProtocol[Array]:
-        """Return the bound physics instance."""
-        return self._physics
-
-    def param_derivatives(self) -> ParamDerivatives[Array]:
-        return self._derivs
-
-    def nparams(self) -> int:
-        return self._field_map.nvars()
-
-    def apply(self, params_1d: Array) -> None:
-        """Apply parameterization: convert E field to Lame params on physics."""
-        E_field = self._field_map(params_1d)
-        min_val = self._bkd.to_float(self._bkd.min(E_field))
-        if min_val <= 0.0:
-            raise ValueError(
-                f"Young's modulus must be positive; found min {min_val:.2e}"
-            )
-        self._physics.set_mu(E_field * self._dmu_dE)
-        self._physics.set_lamda(E_field * self._dlam_dE)
-
-    def param_jacobian(
-        self,
-        state: Array,
-        time: float,
-        params_1d: Array,
-    ) -> Array:
-        """Compute dR/dp via chain rule. Shape: (2*npts, nparams).
-
-        dR/dp = (dR/dmu * dmu/dE + dR/dlam * dlam/dE) * dE/dp
-        """
-        fm_jac = self._field_map.jacobian(params_1d)  # (npts, nparams)
-        nparams = self.nparams()
-        nstates = self._physics.nstates()
-        result = self._bkd.zeros((nstates, nparams))
-        result = self._bkd.copy(result)
-        for j in range(nparams):
-            delta_E = fm_jac[:, j]
-            delta_mu = delta_E * self._dmu_dE
-            delta_lam = delta_E * self._dlam_dE
-            col = self._physics.residual_mu_sensitivity(
-                state, time, delta_mu
-            ) + self._physics.residual_lamda_sensitivity(
-                state, time, delta_lam
-            )
-            for k in range(nstates):
-                result[k, j] = col[k]
-        return result
-
-    def initial_param_jacobian(self, params_1d: Array) -> Array:
-        """Return d(initial_state)/d(params). Shape: (nstates, nparams)."""
-        return self._bkd.zeros((self._physics.nstates(), self.nparams()))
-
-    def bc_flux_param_sensitivity(
-        self,
-        state: Array,
-        time: float,
-        params_1d: Array,
-        bc_indices: Array,
-        normals: Array,
-    ) -> Array:
-        """Compute d(traction)/dp at boundary nodes.
-
-        Shape: (2*n_bc, nparams) for 2D vector physics (component-stacked).
-
-        Traction: t_i = sigma_ij * n_j
-        d(t_x)/dE = (2*exx*nx + 2*exy*ny)*dmu/dE + trace_e*nx*dlam/dE
-        d(t_y)/dE = (2*exy*nx + 2*eyy*ny)*dmu/dE + trace_e*ny*dlam/dE
-        """
-        bkd = self._bkd
-        fm_jac = self._field_map.jacobian(params_1d)  # (npts, nparams)
-        npts = self._physics.npts()
-
-        u = state[:npts]
-        v = state[npts:]
-        Dx = self._D_matrices[0]
-        Dy = self._D_matrices[1]
-
-        # Strain at boundary
-        ux = (Dx @ u)[bc_indices]
-        uy = (Dy @ u)[bc_indices]
-        vx = (Dx @ v)[bc_indices]
-        vy = (Dy @ v)[bc_indices]
-
-        exx = ux
-        exy = 0.5 * (uy + vx)
-        eyy = vy
-        trace_e = exx + eyy
-
-        nx = normals[:, 0]
-        ny = normals[:, 1]
-
-        # d(traction)/dE at boundary
-        dtx_dE = (
-            2.0 * exx * nx + 2.0 * exy * ny
-        ) * self._dmu_dE + trace_e * nx * self._dlam_dE
-        dty_dE = (
-            2.0 * exy * nx + 2.0 * eyy * ny
-        ) * self._dmu_dE + trace_e * ny * self._dlam_dE
-
-        # d(traction)/dp = d(traction)/dE * dE/dp
-        dE_dp_bc = fm_jac[bc_indices, :]  # (n_bc, nparams)
-        dtx_dp = dtx_dE[:, None] * dE_dp_bc  # (n_bc, nparams)
-        dty_dp = dty_dE[:, None] * dE_dp_bc  # (n_bc, nparams)
-
-        # Component-stacked: [tx_0,...,tx_n, ty_0,...,ty_n]
-        return bkd.concatenate([dtx_dp, dty_dp], axis=0)
-
-
 def create_youngs_modulus_parameterization(
-    physics: _CollocationElasticityPhysicsProtocol[Array],
+    physics: LinearElasticityPhysics[Array],
     bkd: Backend[Array],
-    basis: DerivativeMatrixBasisProtocol[Array],
     field_map: FieldMapProtocol[Array],
     poisson_ratio: float,
-) -> YoungModulusParameterization[Array]:
-    """Factory: create YoungModulusParameterization.
+) -> CollocationElasticityParameterization[Array]:
+    """Factory: parameterize E through the elasticity facade.
 
     Parameters
     ----------
-    physics : _CollocationElasticityPhysicsProtocol
-        Elasticity physics to bind.
+    physics : LinearElasticityPhysics
+        Collocation elasticity physics to bind.
     bkd : Backend
         Computational backend.
-    basis : DerivativeMatrixBasisProtocol
-        Collocation basis.
     field_map : FieldMapProtocol
-        Field map for Young's modulus.
+        Field map for the Young's modulus field E(x).
     poisson_ratio : float
-        Fixed Poisson ratio.
+        Fixed Poisson ratio, -1 < nu < 0.5.
     """
-    D_matrices = [basis.derivative_matrix(1, dim) for dim in range(basis.ndim())]
-    return YoungModulusParameterization(
-        physics, field_map, D_matrices, bkd, poisson_ratio
+    return CollocationElasticityParameterization(
+        physics,
+        youngs_modulus_map=field_map,
+        poisson_ratio=poisson_ratio,
+        bkd=bkd,
     )

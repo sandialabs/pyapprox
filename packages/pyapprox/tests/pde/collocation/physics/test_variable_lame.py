@@ -285,7 +285,7 @@ class TestVariableLame:
     # ------------------------------------------------------------------
 
     def test_residual_mu_sensitivity_fd(self, bkd):
-        """Finite-difference validation of residual_mu_sensitivity."""
+        """Finite-difference validation of the mu assembly's action."""
         physics, basis, _ = _setup_2d_physics(bkd, npts_1d=6)
         nodes = _get_nodes(basis, bkd)
         npts = basis.npts()
@@ -305,8 +305,8 @@ class TestVariableLame:
         np.random.seed(43)
         delta_mu = bkd.asarray(np.random.randn(npts) * 0.01)
 
-        # Analytical sensitivity
-        sens_analytical = physics.residual_mu_sensitivity(state, 0.0, delta_mu)
+        # Analytical sensitivity via the full-matrix assembly
+        sens_analytical = physics.residual_mu_jacobian(state) @ delta_mu
 
         # Finite difference
         eps = 1e-7
@@ -322,7 +322,7 @@ class TestVariableLame:
         bkd.assert_allclose(sens_analytical, sens_fd, atol=1e-5)
 
     def test_residual_lamda_sensitivity_fd(self, bkd):
-        """Finite-difference validation of residual_lamda_sensitivity."""
+        """Finite-difference validation of the lambda assembly's action."""
         physics, basis, _ = _setup_2d_physics(bkd, npts_1d=6)
         nodes = _get_nodes(basis, bkd)
         npts = basis.npts()
@@ -342,8 +342,8 @@ class TestVariableLame:
         np.random.seed(44)
         delta_lam = bkd.asarray(np.random.randn(npts) * 0.01)
 
-        # Analytical sensitivity
-        sens_analytical = physics.residual_lamda_sensitivity(state, 0.0, delta_lam)
+        # Analytical sensitivity via the full-matrix assembly
+        sens_analytical = physics.residual_lamda_jacobian(state) @ delta_lam
 
         # Finite difference
         eps = 1e-7

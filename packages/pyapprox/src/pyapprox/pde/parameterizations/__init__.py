@@ -1,6 +1,9 @@
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
 )
+from pyapprox.pde.parameterizations.collocation_elasticity import (
+    CollocationElasticityParameterization,
+)
 from pyapprox.pde.parameterizations.composite import (
     CompositeParameterization,
 )
@@ -15,7 +18,6 @@ from pyapprox.pde.parameterizations.hyperelastic_lame import (
     create_hyperelastic_youngs_modulus_parameterization,
 )
 from pyapprox.pde.parameterizations.lame import (
-    YoungModulusParameterization,
     create_youngs_modulus_parameterization,
 )
 from pyapprox.pde.parameterizations.protocol import (
@@ -30,6 +32,6 @@ __all__ = [
     "CompositeParameterization",
     "HyperelasticYoungsModulusParameterization",
     "create_hyperelastic_youngs_modulus_parameterization",
-    "YoungModulusParameterization",
+    "CollocationElasticityParameterization",
     "create_youngs_modulus_parameterization",
 ]

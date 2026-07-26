@@ -3,9 +3,7 @@
 Construction raises, slot validation, pickle round-trip, the
 mixed-composite bc-flux block assembly, and the transformed-domain
 (polar) FD checks for the parameter jacobian, the HVP identities, and
-the boundary-flux sensitivity. (The transition-scoped oracle-parity
-suite validated the facade against the deleted interim classes at
-rtol 1e-12 before their removal.)
+the boundary-flux sensitivity.
 """
 
 import math

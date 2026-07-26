@@ -291,7 +291,14 @@ class CompositeParameterization(Generic[Array]):
         """Block assembly of param-param HVP. Shape: (total_nparams,).
 
         The block-diagonal Hessian assumption is valid because parts
-        parameterize distinct additive residual terms.
+        parameterize distinct additive residual terms; only the
+        diagonal blocks are ever evaluated, so the cost is the sum of
+        the per-part HVP costs.
+
+        TODO: skip parts whose direction slice is entirely zero (their
+        diagonal block contributes nothing) — matters when a consumer
+        perturbs only one part's parameters, e.g. design-variable
+        subsets in OUU.
         """
         fns = self._part_param_param_hvps
         if fns is None:

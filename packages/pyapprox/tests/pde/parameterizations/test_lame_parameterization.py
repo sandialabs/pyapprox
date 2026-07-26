@@ -1,11 +1,11 @@
-"""Tests for YoungModulusParameterization for 2D linear elasticity.
+"""Tests for the collocation elasticity facade (Young's modulus).
 
 Verifies:
 1. isinstance check against ParameterizationProtocol
 2. apply sets mu and lambda correctly
 3. param_jacobian matches finite differences via DerivativeChecker
 4. initial_param_jacobian returns zeros
-5. Dynamic binding (with/without field_map.jacobian)
+5. Construction-time rejection of non-conforming field maps
 6. Dual backend support (NumPy and PyTorch)
 """
 
@@ -29,8 +29,10 @@ from pyapprox.pde.field_maps.basis_expansion import (
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
 )
+from pyapprox.pde.parameterizations.collocation_elasticity import (
+    CollocationElasticityParameterization,
+)
 from pyapprox.pde.parameterizations.lame import (
-    YoungModulusParameterization,
     create_youngs_modulus_parameterization,
 )
 from pyapprox.pde.parameterizations.protocol import (
@@ -64,21 +66,27 @@ def _create_elasticity_physics_and_basis(bkd, npts_1d=6):
 
 
 class TestLameParameterization:
-    """Tests for YoungModulusParameterization."""
+    """Tests for the factory-built elasticity facade."""
+
     def test_isinstance_protocol(self, bkd):
-        """YoungModulusParameterization satisfies ParameterizationProtocol."""
+        """The facade satisfies ParameterizationProtocol."""
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, 0.3)
+        param = create_youngs_modulus_parameterization(physics, bkd, fm, 0.3)
         assert isinstance(param, ParameterizationProtocol)
 
     def test_type_error_non_field_map(self, bkd):
         """TypeError when passing non-FieldMap object."""
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            YoungModulusParameterization(physics, "not_a_field_map", [], bkd, 0.3)
+            CollocationElasticityParameterization(
+                physics,
+                youngs_modulus_map="not_a_field_map",
+                poisson_ratio=0.3,
+                bkd=bkd,
+            )
 
     def test_apply_sets_lame_params(self, bkd):
         """apply() correctly converts E to mu and lambda."""
@@ -89,7 +97,7 @@ class TestLameParameterization:
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 2.0, [phi0])
         nu = 0.3
-        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, nu)
+        param = create_youngs_modulus_parameterization(physics, bkd, fm, nu)
 
         params = bkd.array([0.5])  # E = 2.5
         param.apply(params)
@@ -114,7 +122,7 @@ class TestLameParameterization:
         phi0 = bkd.ones((npts,))
         phi1 = nodes[0, :]  # x-coordinate
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, 0.3)
+        param = create_youngs_modulus_parameterization(physics, bkd, fm, 0.3)
         assert param.nparams() == 2
         assert param.nparams() == fm.nvars()
 
@@ -125,9 +133,11 @@ class TestLameParameterization:
         nstates = 2 * npts
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, 0.3)
+        param = create_youngs_modulus_parameterization(physics, bkd, fm, 0.3)
         params = bkd.array([0.5])
-        result = param.initial_param_jacobian(params)
+        initial_jac = param.param_derivatives().initial_param_jacobian
+        assert initial_jac is not None
+        result = initial_jac(params)
         expected = bkd.zeros((nstates, 1))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
@@ -136,7 +146,7 @@ class TestLameParameterization:
 
         A missing field-map jacobian would silently drop derivative
         capability from the whole parameterization chain, so the
-        protocol makes it required and the constructor fails loudly.
+        protocol makes it required and construction fails loudly.
         """
 
         class NoJacFieldMap:
@@ -152,15 +162,24 @@ class TestLameParameterization:
         assert not isinstance(fm, FieldMapProtocol)
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            YoungModulusParameterization(physics, fm, [], bkd, 0.3)
+            CollocationElasticityParameterization(
+                physics,
+                youngs_modulus_map=fm,
+                poisson_ratio=0.3,
+                bkd=bkd,
+            )
 
     def test_nonpositive_E_raises(self, bkd):
-        """apply() raises ValueError when E field is non-positive."""
+        """apply() raises ValueError when E field is non-positive.
+
+        The physics's Lame setters validate positivity, which for the
+        fixed-nu map is equivalent to positivity of E.
+        """
         physics, basis, nodes = _create_elasticity_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 0.5, [phi0])
-        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, 0.3)
+        param = create_youngs_modulus_parameterization(physics, bkd, fm, 0.3)
         # E = 0.5 + (-1.0)*ones = -0.5, non-positive
         params = bkd.array([-1.0])
         with pytest.raises(ValueError):
@@ -178,7 +197,7 @@ class TestLameParameterization:
         phi1 = bkd.cos(math.pi * x)
         fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
         nu = 0.3
-        param = create_youngs_modulus_parameterization(physics, bkd, basis, fm, nu)
+        param = create_youngs_modulus_parameterization(physics, bkd, fm, nu)
 
         # Non-trivial state
         y = nodes[1, :]
@@ -189,6 +208,8 @@ class TestLameParameterization:
             ]
         )
         time = 0.0
+        param_jac = param.param_derivatives().param_jacobian
+        assert param_jac is not None
 
         def residual_of_params(samples):
             results = []
@@ -202,7 +223,7 @@ class TestLameParameterization:
         def jac_of_params(sample):
             p = sample[:, 0]
             param.apply(p)
-            return param.param_jacobian(state, time, p)
+            return param_jac(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=nstates,

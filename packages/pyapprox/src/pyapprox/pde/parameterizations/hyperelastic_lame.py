@@ -2,7 +2,7 @@
 
 Supports 1D and 2D hyperelastic physics. In 1D, uses stress model
 sensitivities directly for efficiency. In 2D, delegates to the physics
-residual_mu/lamda_sensitivity methods (same as YoungModulusParameterization).
+residual_mu/lamda_sensitivity methods.
 """
 
 from typing import Generic, List, Protocol, Union, runtime_checkable

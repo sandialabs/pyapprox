@@ -307,84 +307,15 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         return jacobian
 
-    # ------------------------------------------------------------------
-    # Residual sensitivity to material parameters (2D)
-    # ------------------------------------------------------------------
-
-    def residual_mu_sensitivity(
-        self, state: Array, time: float, delta_mu: Array
+    def state_state_hvp(
+        self, state: Array, adj_state: Array, wvec: Array, time: float
     ) -> Array:
-        """Compute d(residual)/d(mu_field) * delta_mu.
+        """Compute lambda^T (d^2R/du^2) w = 0 (residual linear in state).
 
-        For linear elasticity sigma = lam*tr(eps)*I + 2*mu*eps,
-        d(sigma)/d(mu) = 2*eps, so:
-            d(res_u)/d(mu)*delta_mu = Dx@(delta_mu*2*exx) + Dy@(delta_mu*2*exy)
-            d(res_v)/d(mu)*delta_mu = Dx@(delta_mu*2*exy) + Dy@(delta_mu*2*eyy)
-
-        Parameters
-        ----------
-        state : Array
-            Displacement state [u, v]. Shape: (2*npts,)
-        time : float
-            Current time.
-        delta_mu : Array
-            Perturbation in mu field. Shape: (npts,)
-
-        Returns
-        -------
-        Array
-            Residual sensitivity. Shape: (2*npts,)
+        Linear elasticity's residual is linear in the displacement, so
+        the contraction is exactly zero.
         """
-        bkd = self._bkd
-        u, v = self._extract_components(state)
-
-        ux = self._Dx @ u
-        uy = self._Dy @ u
-        vx = self._Dx @ v
-        vy = self._Dy @ v
-
-        exx = ux
-        exy = 0.5 * (uy + vx)
-        eyy = vy
-
-        sens_u = self._Dx @ (delta_mu * 2.0 * exx) + self._Dy @ (delta_mu * 2.0 * exy)
-        sens_v = self._Dx @ (delta_mu * 2.0 * exy) + self._Dy @ (delta_mu * 2.0 * eyy)
-        return bkd.concatenate([sens_u, sens_v])
-
-    def residual_lamda_sensitivity(
-        self, state: Array, time: float, delta_lam: Array
-    ) -> Array:
-        """Compute d(residual)/d(lamda_field) * delta_lam.
-
-        For linear elasticity sigma = lam*tr(eps)*I + 2*mu*eps,
-        d(sigma)/d(lam) = tr(eps)*I, so:
-            d(res_u)/d(lam)*delta_lam = Dx@(delta_lam * trace_e)
-            d(res_v)/d(lam)*delta_lam = Dy@(delta_lam * trace_e)
-
-        Parameters
-        ----------
-        state : Array
-            Displacement state [u, v]. Shape: (2*npts,)
-        time : float
-            Current time.
-        delta_lam : Array
-            Perturbation in lambda field. Shape: (npts,)
-
-        Returns
-        -------
-        Array
-            Residual sensitivity. Shape: (2*npts,)
-        """
-        bkd = self._bkd
-        u, v = self._extract_components(state)
-
-        ux = self._Dx @ u
-        vy = self._Dy @ v
-        trace_e = ux + vy
-
-        sens_u = self._Dx @ (delta_lam * trace_e)
-        sens_v = self._Dy @ (delta_lam * trace_e)
-        return bkd.concatenate([sens_u, sens_v])
+        return self._bkd.zeros((self.nstates(),))
 
     # -- full-matrix field-derivative assemblies (engine slots)
 

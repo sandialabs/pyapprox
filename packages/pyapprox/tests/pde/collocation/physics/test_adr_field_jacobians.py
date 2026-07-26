@@ -3,9 +3,7 @@
 DerivativeChecker finite differences are the ground truth, the
 bilinearity identity cross-validates the diffusion and mixed
 assemblies exactly, and the bc-flux direct-formula test pins the row
-convention from the public derivative matrices. (Transition-scoped
-parity tests validated the assemblies against the deleted
-delta-contracted physics methods at rtol 1e-12 before their removal.)
+convention from the public derivative matrices.
 """
 
 from typing import Callable

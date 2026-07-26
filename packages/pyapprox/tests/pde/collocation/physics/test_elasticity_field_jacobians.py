@@ -1,11 +1,9 @@
 """Tests for the linear-elasticity full-matrix field-derivative assemblies.
 
-TestAssemblyParityWithSensitivities is transition-scoped: it references
-the delta-contracted residual_mu/lamda_sensitivity oracles and the
-YoungModulusParameterization bc-flux convention, and is deleted with
-them once the elasticity facade lands. Everything else is permanent:
-DerivativeChecker finite differences, exact bilinearity identities, and
-the boundary-traction direct formula.
+DerivativeChecker finite differences are the ground truth, the
+bilinearity identities cross-validate the field and mixed assemblies
+exactly, and the boundary-traction direct-formula test pins the
+component-stacked row convention from the public derivative matrices.
 """
 
 from typing import Callable
@@ -19,10 +17,6 @@ from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh2D
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
-)
-from pyapprox.pde.field_maps.lame import FixedPoissonRatioLameMap
-from pyapprox.pde.parameterizations.lame import (
-    create_youngs_modulus_parameterization,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -77,66 +71,6 @@ class _VectorFunctionWrapper:
 
     def derivatives(self) -> Derivatives[Array]:
         return Derivatives.first_order(jacobian=self.jacobian)
-
-
-class TestAssemblyParityWithSensitivities:
-    """Transition-scoped: oracles deleted with the elasticity facade."""
-
-    def _setup(self, bkd):
-        npts = _NPTS_1D**2
-        mu_field = _random(bkd, (npts,), 1.0, 2.0)
-        lam_field = _random(bkd, (npts,), 1.5, 2.5)
-        basis, physics = _make_physics(bkd, mu_field, lam_field)
-        state = _random(bkd, (2 * npts,))
-        return basis, physics, state, npts
-
-    def test_mu_jacobian_parity(self, bkd):
-        _, physics, state, npts = self._setup(bkd)
-        smat = physics.residual_mu_jacobian(state)
-        for _ in range(3):
-            delta = _random(bkd, (npts,))
-            expected = physics.residual_mu_sensitivity(state, 0.0, delta)
-            bkd.assert_allclose(smat @ delta, expected, rtol=1e-12)
-
-    def test_lamda_jacobian_parity(self, bkd):
-        _, physics, state, npts = self._setup(bkd)
-        smat = physics.residual_lamda_jacobian(state)
-        for _ in range(3):
-            delta = _random(bkd, (npts,))
-            expected = physics.residual_lamda_sensitivity(
-                state, 0.0, delta
-            )
-            bkd.assert_allclose(smat @ delta, expected, rtol=1e-12)
-
-    def test_boundary_traction_parity_with_bc_flux(self, bkd):
-        """B @ G'(p) reproduces YoungModulusParameterization's
-        component-stacked dtraction/dp convention through the stacked
-        FixedPoissonRatioLameMap jacobian."""
-        basis, physics, state, npts = self._setup(bkd)
-        from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
-
-        nodes_x = bkd.to_numpy(basis.mesh().points())[0]
-        phi0 = bkd.ones((npts,))
-        phi1 = bkd.asarray(nodes_x)
-        e_map = BasisExpansion(bkd, 5.0, [phi0, phi1])
-        oracle = create_youngs_modulus_parameterization(
-            physics, bkd, basis, e_map, _NU
-        )
-        params = bkd.asarray(np.array([0.4, -0.2]))
-        bc_indices = bkd.array([0, 3, 7], dtype=int)
-        raw = np.random.uniform(-1.0, 1.0, (3, 2))
-        raw /= np.linalg.norm(raw, axis=1)[:, None]
-        normals = bkd.asarray(raw)
-        expected = oracle.bc_flux_param_sensitivity(
-            state, 0.0, params, bc_indices, normals
-        )
-        stacked_map = FixedPoissonRatioLameMap(e_map, _NU, npts, bkd)
-        bmat = physics.boundary_traction_lame_jacobian(
-            state, 0.0, bc_indices, normals
-        )
-        bkd.assert_allclose(
-            bmat @ stacked_map.jacobian(params), expected, rtol=1e-12
-        )
 
 
 class TestAssemblies:
