@@ -3,6 +3,7 @@ from pyapprox.pde.field_maps.basis_expansion import (
 )
 from pyapprox.pde.field_maps.lame import (
     ENuToLameFieldMap,
+    FixedPoissonRatioLameMap,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import (
     MeshKLEFieldMap,
@@ -21,6 +22,7 @@ __all__ = [
     "FieldMapProtocol",
     "BasisExpansion",
     "ENuToLameFieldMap",
+    "FixedPoissonRatioLameMap",
     "MeshKLEFieldMap",
     "TransformedFieldMap",
     "ScalarAmplitude",

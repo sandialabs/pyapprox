@@ -1,9 +1,14 @@
 """ENuToLameFieldMap: per-material (E, nu) to interleaved Lame values."""
 
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 import numpy as np
 
+from pyapprox.pde.field_maps.protocol import (
+    FieldMapProtocol,
+    FieldMapWithHVPProtocol,
+    field_map_has_hvp,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -188,3 +193,115 @@ class ENuToLameFieldMap(Generic[Array]):
                     f"-1 < nu < 0.5, got {nu}"
                 )
         return params_np
+
+
+class FixedPoissonRatioLameMap(Generic[Array]):
+    """Stacked Lame fields ``[mu; lambda]`` from a Young's-modulus map.
+
+    With fixed Poisson ratio :math:`\\nu`, the Lame fields are linear
+    in :math:`E`:
+
+    .. math::
+
+        G(p) = \\begin{bmatrix} c_\\mu E(p) \\\\
+        c_\\lambda E(p) \\end{bmatrix},
+        \\quad c_\\mu = \\frac{1}{2(1+\\nu)},
+        \\quad c_\\lambda = \\frac{\\nu}{(1+\\nu)(1-2\\nu)}.
+
+    The Jacobian block-stacks the inner map's Jacobian; the
+    adjoint-weighted HVP delegates to the inner map with the combined
+    weights :math:`c_\\mu \\lambda_{\\text{adj},\\mu} + c_\\lambda
+    \\lambda_{\\text{adj},\\lambda}`, so this map usably satisfies
+    ``FieldMapWithHVPProtocol`` exactly when the inner map does
+    (``has_hvp`` guards it).
+
+    Parameters
+    ----------
+    inner_map : FieldMapProtocol
+        Map from parameters to the Young's modulus field E(x).
+    poisson_ratio : float
+        Fixed Poisson ratio, -1 < nu < 0.5.
+    npts : int
+        Expected E-field length (the stacked output has 2*npts DOFs).
+    bkd : Backend
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        inner_map: FieldMapProtocol[Array],
+        poisson_ratio: float,
+        npts: int,
+        bkd: Backend[Array],
+    ) -> None:
+        if not isinstance(inner_map, FieldMapProtocol):
+            raise TypeError(
+                "inner_map must satisfy FieldMapProtocol, got "
+                f"{type(inner_map).__name__}"
+            )
+        if not -1.0 < poisson_ratio < 0.5:
+            raise ValueError(
+                "Poisson ratio must satisfy -1 < nu < 0.5, got "
+                f"{poisson_ratio}"
+            )
+        self._inner = inner_map
+        self._nu = poisson_ratio
+        self._npts = npts
+        self._bkd = bkd
+        c_lam, c_mu = _lame_from_E_nu(1.0, poisson_ratio)
+        self._c_mu = c_mu
+        self._c_lam = c_lam
+        # Recorded here (not isinstance-narrowed at the call site):
+        # narrowing a Generic runtime protocol degrades its Array
+        # parameter to Any under mypy.
+        self._hvp_inner: Optional[FieldMapWithHVPProtocol[Array]] = None
+        if isinstance(inner_map, FieldMapWithHVPProtocol):
+            self._hvp_inner = inner_map
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def nvars(self) -> int:
+        """Return the number of parameters (the inner map's)."""
+        return self._inner.nvars()
+
+    def __call__(self, params_1d: Array) -> Array:
+        """Evaluate the stacked Lame fields. Shape: (2*npts,)."""
+        e_field = self._inner(params_1d)
+        if e_field.shape[0] != self._npts:
+            raise ValueError(
+                f"inner map produced {e_field.shape[0]} E DOFs but this "
+                f"map expects {self._npts}"
+            )
+        return self._bkd.concatenate(
+            [self._c_mu * e_field, self._c_lam * e_field]
+        )
+
+    def jacobian(self, params_1d: Array) -> Array:
+        """Block-stacked Jacobian. Shape: (2*npts, nvars)."""
+        inner_jac = self._inner.jacobian(params_1d)
+        return self._bkd.concatenate(
+            [self._c_mu * inner_jac, self._c_lam * inner_jac], axis=0
+        )
+
+    def hvp(self, params_1d: Array, adj_state: Array, vvec: Array) -> Array:
+        """Adjoint-weighted HVP via the inner map with combined weights.
+
+        Shape: (nvars,).
+        """
+        inner = self._hvp_inner
+        if inner is None or not self.has_hvp():
+            raise RuntimeError(
+                "hvp is unavailable: the inner map does not provide a "
+                "usable adjoint-weighted HVP"
+            )
+        weights = (
+            self._c_mu * adj_state[: self._npts]
+            + self._c_lam * adj_state[self._npts :]
+        )
+        return inner.hvp(params_1d, weights, vvec)
+
+    def has_hvp(self) -> bool:
+        """Whether the inner map provides a usable HVP."""
+        return field_map_has_hvp(self._inner)

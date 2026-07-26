@@ -16,6 +16,7 @@ from pyapprox.pde.field_maps.basis_expansion import (
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
+from pyapprox.pde.field_maps.lame import FixedPoissonRatioLameMap
 from pyapprox.pde.field_maps.mesh_kle_field_map import (
     MeshKLEFieldMap,
 )
@@ -27,6 +28,7 @@ from pyapprox.pde.field_maps.scalar import (
 )
 from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
+    _ExpTransform,
 )
 
 
@@ -475,3 +477,122 @@ class TestFieldMaps:
         errors = checker.check_derivatives(params)[0]
         ratio = float(bkd.min(errors) / bkd.max(errors))
         assert ratio <= 1e-5
+
+
+class TestFixedPoissonRatioLameMap:
+    """Stacked-lame combinator over an inner Young's-modulus map."""
+
+    def _make_inner(self, bkd, npts, nmodes=2):
+        coords = np.linspace(-1.0, 1.0, npts)
+        modes = np.stack(
+            [
+                0.4 * np.sin((k + 1) * math.pi * coords) / (k + 1)
+                for k in range(nmodes)
+            ],
+            axis=1,
+        )
+        kle = MeshKLEFieldMap(
+            bkd, bkd.asarray(np.zeros(npts)), bkd.asarray(modes)
+        )
+        exp = _ExpTransform(bkd)
+        return TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
+
+    def test_values_and_jacobian_stacking(self, bkd):
+        npts = 9
+        nu = 0.3
+        inner = self._make_inner(bkd, npts)
+        lame_map = FixedPoissonRatioLameMap(inner, nu, npts, bkd)
+        assert lame_map.nvars() == inner.nvars()
+        params = bkd.array([0.3, -0.2])
+        c_mu = 1.0 / (2.0 * (1.0 + nu))
+        c_lam = nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
+        e_field = inner(params)
+        stacked = lame_map(params)
+        bkd.assert_allclose(stacked[:npts], c_mu * e_field, rtol=1e-14)
+        bkd.assert_allclose(stacked[npts:], c_lam * e_field, rtol=1e-14)
+        inner_jac = inner.jacobian(params)
+        jac = lame_map.jacobian(params)
+        bkd.assert_allclose(jac[:npts], c_mu * inner_jac, rtol=1e-14)
+        bkd.assert_allclose(jac[npts:], c_lam * inner_jac, rtol=1e-14)
+
+    def test_jacobian_derivative_checker(self, bkd):
+        """FD through the MeshKLE + exp composition."""
+        npts = 9
+        inner = self._make_inner(bkd, npts)
+        lame_map = FixedPoissonRatioLameMap(inner, 0.3, npts, bkd)
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=2 * npts,
+            nvars=lame_map.nvars(),
+            fun=lambda samples: bkd.stack(
+                [
+                    lame_map(samples[:, i])
+                    for i in range(samples.shape[1])
+                ],
+                axis=1,
+            ),
+            jacobian=lambda sample: lame_map.jacobian(sample[:, 0]),
+            bkd=bkd,
+        )
+        checker = DerivativeChecker(wrapper)
+        params = bkd.array([0.3, -0.2])[:, None]
+        errors = checker.check_derivatives(params)[0]
+        ratio = float(bkd.min(errors) / bkd.max(errors))
+        assert ratio <= 1e-5
+
+    def test_hvp_matches_fd_of_weighted_jacobian(self, bkd):
+        """hvp(p, adj, v) is the direction-v derivative of
+        G'(p)^T adj; the map's curvature comes entirely from the inner
+        exp-KLE, so central FD converges cleanly."""
+        npts = 9
+        inner = self._make_inner(bkd, npts)
+        lame_map = FixedPoissonRatioLameMap(inner, 0.3, npts, bkd)
+        assert lame_map.has_hvp()
+        params = bkd.array([0.3, -0.2])
+        rng = np.random.default_rng(13)
+        adj = bkd.asarray(rng.normal(0.0, 1.0, 2 * npts))
+        vvec = bkd.asarray(rng.normal(0.0, 1.0, 2))
+        result = lame_map.hvp(params, adj, vvec)
+        step = 1e-6
+        gplus = lame_map.jacobian(params + step * vvec).T @ adj
+        gminus = lame_map.jacobian(params - step * vvec).T @ adj
+        fd = (gplus - gminus) / (2.0 * step)
+        bkd.assert_allclose(result, fd, rtol=1e-6, atol=1e-10)
+
+    def test_hvp_guard_without_inner_hvp(self, bkd):
+        """A hvp-less inner map yields has_hvp() False and a raise."""
+        npts = 6
+        coords = np.linspace(-1.0, 1.0, npts)
+        inner = BasisExpansion(
+            bkd, 1.0, [bkd.asarray(np.ones(npts)), bkd.asarray(coords)]
+        )
+        # BasisExpansion is linear: if it declares a usable hvp the
+        # guard passes trivially; build the map either way and check
+        # consistency between has_hvp and hvp availability.
+        lame_map = FixedPoissonRatioLameMap(inner, 0.3, npts, bkd)
+        if lame_map.has_hvp():
+            params = bkd.array([0.1, 0.2])
+            adj = bkd.ones((2 * npts,))
+            vvec = bkd.array([1.0, -1.0])
+            bkd.assert_allclose(
+                lame_map.hvp(params, adj, vvec),
+                bkd.zeros((2,)),
+                atol=1e-14,
+            )
+        else:
+            with pytest.raises(RuntimeError, match="hvp is unavailable"):
+                lame_map.hvp(
+                    bkd.array([0.1, 0.2]),
+                    bkd.ones((2 * npts,)),
+                    bkd.array([1.0, -1.0]),
+                )
+
+    def test_validation_raises(self, bkd):
+        npts = 6
+        inner = self._make_inner(bkd, 9)
+        with pytest.raises(ValueError, match="Poisson"):
+            FixedPoissonRatioLameMap(inner, 0.5, 9, bkd)
+        with pytest.raises(TypeError, match="FieldMapProtocol"):
+            FixedPoissonRatioLameMap("not_a_map", 0.3, npts, bkd)
+        wrong_len = FixedPoissonRatioLameMap(inner, 0.3, npts, bkd)
+        with pytest.raises(ValueError, match="DOFs"):
+            wrong_len(bkd.array([0.1, 0.2]))

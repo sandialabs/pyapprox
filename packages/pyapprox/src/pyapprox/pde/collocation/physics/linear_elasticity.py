@@ -67,7 +67,10 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         npts = basis.npts()
 
-        # Store Lamé parameters
+        # Store Lamé parameters (the scalar mirrors are None for
+        # per-point fields)
+        self._lambda_value: Optional[float]
+        self._mu_value: Optional[float]
         if isinstance(lamda, (int, float)):
             self._lambda_array = bkd.full((npts,), float(lamda))
             self._lambda_value = float(lamda)
@@ -283,13 +286,13 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             # Variable Lamé parameters: use Dx @ diag(coeff) @ Dx form
             # which automatically handles the product rule
             # d/dx(coeff * du/dx) = coeff * d²u/dx² + dcoeff/dx * du/dx
-            lam = self._lambda_array
-            mu = self._mu_array
+            lam_arr = self._lambda_array
+            mu_arr = self._mu_array
             Dx, Dy = self._Dx, self._Dy
 
-            diag_lam_2mu = bkd.diag(lam + 2.0 * mu)
-            diag_lam = bkd.diag(lam)
-            diag_mu = bkd.diag(mu)
+            diag_lam_2mu = bkd.diag(lam_arr + 2.0 * mu_arr)
+            diag_lam = bkd.diag(lam_arr)
+            diag_mu = bkd.diag(mu_arr)
 
             J_uu = Dx @ diag_lam_2mu @ Dx + Dy @ diag_mu @ Dy
             J_uv = Dx @ diag_lam @ Dy + Dy @ diag_mu @ Dx
@@ -382,6 +385,227 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         sens_u = self._Dx @ (delta_lam * trace_e)
         sens_v = self._Dy @ (delta_lam * trace_e)
         return bkd.concatenate([sens_u, sens_v])
+
+    # -- full-matrix field-derivative assemblies (engine slots)
+
+    def _strains(self, state: Array) -> Tuple[Array, Array, Array]:
+        """Strain fields (exx, exy, eyy) at all mesh points."""
+        u, v = self._extract_components(state)
+        exx = self._Dx @ u
+        exy = 0.5 * ((self._Dy @ u) + (self._Dx @ v))
+        eyy = self._Dy @ v
+        return exx, exy, eyy
+
+    def residual_mu_jacobian(self, state: Array) -> Array:
+        """Assemble :math:`S_\\mu(u) = \\partial R/\\partial
+        \\mu_{\\text{field}}`.
+
+        With :math:`\\partial\\sigma/\\partial\\mu = 2\\varepsilon`,
+
+        .. math::
+
+            S_\\mu = \\begin{bmatrix}
+            D_x \\mathrm{diag}(2\\varepsilon_{xx})
+            + D_y \\mathrm{diag}(2\\varepsilon_{xy}) \\\\
+            D_x \\mathrm{diag}(2\\varepsilon_{xy})
+            + D_y \\mathrm{diag}(2\\varepsilon_{yy})
+            \\end{bmatrix}
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state [u, v]. Shape: (2*npts,)
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (2*npts, npts)
+        """
+        bkd = self._bkd
+        exx, exy, eyy = self._strains(state)
+        top = self._Dx @ bkd.diag(2.0 * exx) + self._Dy @ bkd.diag(
+            2.0 * exy
+        )
+        bottom = self._Dx @ bkd.diag(2.0 * exy) + self._Dy @ bkd.diag(
+            2.0 * eyy
+        )
+        return bkd.concatenate([top, bottom], axis=0)
+
+    def residual_lamda_jacobian(self, state: Array) -> Array:
+        """Assemble :math:`S_\\lambda(u) = \\partial R/\\partial
+        \\lambda_{\\text{field}}`.
+
+        With :math:`\\partial\\sigma/\\partial\\lambda =
+        \\mathrm{tr}(\\varepsilon) I`,
+
+        .. math::
+
+            S_\\lambda = \\begin{bmatrix}
+            D_x \\mathrm{diag}(\\mathrm{tr}\\,\\varepsilon) \\\\
+            D_y \\mathrm{diag}(\\mathrm{tr}\\,\\varepsilon)
+            \\end{bmatrix}
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state [u, v]. Shape: (2*npts,)
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (2*npts, npts)
+        """
+        bkd = self._bkd
+        exx, _, eyy = self._strains(state)
+        diag_trace = bkd.diag(exx + eyy)
+        return bkd.concatenate(
+            [self._Dx @ diag_trace, self._Dy @ diag_trace], axis=0
+        )
+
+    def residual_mu_state_jacobian(
+        self, delta: Array, state: Array
+    ) -> Array:
+        """Assemble the mixed operator :math:`A_\\mu(\\delta) =
+        \\partial/\\partial(u,v)\\,[S_\\mu(u,v)\\,\\delta]`.
+
+        The stress is bilinear in :math:`(\\varepsilon, \\mu)`, so the
+        assembly is state-independent with blocks (:math:`\\delta` the
+        diagonal of the field direction):
+
+        .. math::
+
+            A_\\mu = \\begin{bmatrix}
+            D_x 2\\delta D_x + D_y \\delta D_y & D_y \\delta D_x \\\\
+            D_x \\delta D_y & D_x \\delta D_x + D_y 2\\delta D_y
+            \\end{bmatrix}
+
+        Parameters
+        ----------
+        delta : Array
+            Mu-field direction. Shape: (npts,)
+        state : Array
+            Displacement state (unused; kept for the engine's
+            mixed-assembly signature).
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (2*npts, 2*npts)
+        """
+        bkd = self._bkd
+        Dx, Dy = self._Dx, self._Dy
+        diag_d = bkd.diag(delta)
+        diag_2d = bkd.diag(2.0 * delta)
+        a_uu = Dx @ diag_2d @ Dx + Dy @ diag_d @ Dy
+        a_uv = Dy @ diag_d @ Dx
+        a_vu = Dx @ diag_d @ Dy
+        a_vv = Dx @ diag_d @ Dx + Dy @ diag_2d @ Dy
+        top = bkd.concatenate([a_uu, a_uv], axis=1)
+        bottom = bkd.concatenate([a_vu, a_vv], axis=1)
+        return bkd.concatenate([top, bottom], axis=0)
+
+    def residual_lamda_state_jacobian(
+        self, delta: Array, state: Array
+    ) -> Array:
+        """Assemble the mixed operator :math:`A_\\lambda(\\delta) =
+        \\partial/\\partial(u,v)\\,[S_\\lambda(u,v)\\,\\delta]`.
+
+        .. math::
+
+            A_\\lambda = \\begin{bmatrix}
+            D_x \\delta D_x & D_x \\delta D_y \\\\
+            D_y \\delta D_x & D_y \\delta D_y
+            \\end{bmatrix}
+
+        Parameters
+        ----------
+        delta : Array
+            Lambda-field direction. Shape: (npts,)
+        state : Array
+            Displacement state (unused; kept for the engine's
+            mixed-assembly signature).
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (2*npts, 2*npts)
+        """
+        bkd = self._bkd
+        Dx, Dy = self._Dx, self._Dy
+        diag_d = bkd.diag(delta)
+        top = bkd.concatenate(
+            [Dx @ diag_d @ Dx, Dx @ diag_d @ Dy], axis=1
+        )
+        bottom = bkd.concatenate(
+            [Dy @ diag_d @ Dx, Dy @ diag_d @ Dy], axis=1
+        )
+        return bkd.concatenate([top, bottom], axis=0)
+
+    def boundary_traction_lame_jacobian(
+        self,
+        state: Array,
+        time: float,
+        bc_indices: Array,
+        normals: Array,
+    ) -> Array:
+        """Assemble :math:`\\partial t/\\partial [\\mu; \\lambda]` at
+        boundary points, component-stacked.
+
+        The traction :math:`t = \\sigma n` at mesh point :math:`i`
+        depends on the Lame fields only through their local values:
+
+        .. math::
+
+            \\partial t_x/\\partial\\mu_i
+            = 2\\varepsilon_{xx} n_x + 2\\varepsilon_{xy} n_y,
+            \\quad
+            \\partial t_x/\\partial\\lambda_i
+            = \\mathrm{tr}(\\varepsilon)\\, n_x
+
+        (similarly for :math:`t_y`), so each row carries two nonzeros:
+        one in the mu block, one in the lambda block. Right-multiplying
+        by a stacked-lame field-map Jacobian reproduces the
+        component-stacked ``bc_flux_param_sensitivity`` convention
+        ``[t_x rows; t_y rows]``.
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state [u, v]. Shape: (2*npts,)
+        time : float
+            Current time (unused; kept for signature uniformity).
+        bc_indices : Array
+            Mesh point indices (0..npts-1) on the boundary.
+            Shape: (n_bc,)
+        normals : Array
+            Outward unit normals. Shape: (n_bc, 2)
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (2*n_bc, 2*npts)
+        """
+        bkd = self._bkd
+        npts = self.npts()
+        nbnd = bc_indices.shape[0]
+        exx, exy, eyy = self._strains(state)
+        exx_b = exx[bc_indices]
+        exy_b = exy[bc_indices]
+        eyy_b = eyy[bc_indices]
+        trace_b = exx_b + eyy_b
+        nx = normals[:, 0]
+        ny = normals[:, 1]
+
+        result = bkd.copy(bkd.zeros((2 * nbnd, 2 * npts)))
+        for i in range(nbnd):
+            idx = bkd.to_int(bc_indices[i])
+            result[i, idx] = 2.0 * exx_b[i] * nx[i] + 2.0 * exy_b[i] * ny[i]
+            result[i, npts + idx] = trace_b[i] * nx[i]
+            result[nbnd + i, idx] = (
+                2.0 * exy_b[i] * nx[i] + 2.0 * eyy_b[i] * ny[i]
+            )
+            result[nbnd + i, npts + idx] = trace_b[i] * ny[i]
+        return result
 
     def compute_interface_flux(
         self, state: Array, boundary_indices: Array, normal: Array
