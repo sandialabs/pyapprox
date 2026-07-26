@@ -294,6 +294,169 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         """
         return state
 
+    # -- full-matrix field-derivative assemblies (engine slots)
+
+    def residual_diffusion_jacobian(self, state: Array) -> Array:
+        """Assemble :math:`S(u) = \\partial R/\\partial D_{\\text{field}}`.
+
+        .. math::
+
+            S(u) = \\mathrm{diag}(D_2 u)
+            + \\sum_d \\mathrm{diag}(D_d u) D_d
+
+        Applied to a field direction this reproduces
+        ``residual_diffusion_sensitivity``; its transpose contraction
+        reproduces ``residual_diffusion_sensitivity_adjoint``.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (npts, npts)
+        """
+        bkd = self._bkd
+        result = bkd.diag(self._D2_matrix @ state)
+        for dim in range(self._basis.ndim()):
+            result = result + bkd.diag(
+                self._D_matrices[dim] @ state
+            ) @ self._D_matrices[dim]
+        return result
+
+    def residual_diffusion_state_jacobian(
+        self, delta: Array, state: Array
+    ) -> Array:
+        """Assemble the mixed operator
+        :math:`A(\\delta) = \\partial/\\partial u \\,[S(u) \\delta]`.
+
+        .. math::
+
+            A(\\delta) = \\mathrm{diag}(\\delta) D_2
+            + \\sum_d \\mathrm{diag}(D_d \\delta) D_d
+
+        The diffusion term is bilinear in :math:`(u, D)`, so
+        :math:`A(\\delta) w = S(w) \\delta`; its transpose contraction
+        reproduces ``residual_diffusion_mixed_contraction``. The
+        assembly is NOT symmetric (collocation differentiation
+        matrices are non-symmetric).
+
+        Parameters
+        ----------
+        delta : Array
+            Diffusion-field direction. Shape: (npts,)
+        state : Array
+            Solution state (unused: the operator is state-independent;
+            kept for the engine's mixed-assembly signature).
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (npts, npts)
+        """
+        bkd = self._bkd
+        result = bkd.diag(delta) @ self._D2_matrix
+        for dim in range(self._basis.ndim()):
+            result = result + bkd.diag(
+                self._D_matrices[dim] @ delta
+            ) @ self._D_matrices[dim]
+        return result
+
+    def residual_reaction_jacobian(self, state: Array) -> Array:
+        """Assemble :math:`\\partial R/\\partial r_{\\text{field}}
+        = \\mathrm{diag}(u)`.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (npts, npts)
+        """
+        return self._bkd.diag(state)
+
+    def residual_reaction_state_jacobian(
+        self, delta: Array, state: Array
+    ) -> Array:
+        """Assemble :math:`\\partial/\\partial u\\,[\\mathrm{diag}(u)
+        \\delta] = \\mathrm{diag}(\\delta)`.
+
+        Parameters
+        ----------
+        delta : Array
+            Reaction-field direction. Shape: (npts,)
+        state : Array
+            Solution state (unused; kept for the engine's
+            mixed-assembly signature).
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (npts, npts)
+        """
+        return self._bkd.diag(delta)
+
+    def residual_forcing_jacobian(self) -> Array:
+        """Assemble :math:`\\partial R/\\partial f_{\\text{field}} = I`.
+
+        Returns
+        -------
+        Array
+            Identity. Shape: (npts, npts)
+        """
+        return self._bkd.eye(self.npts())
+
+    def boundary_flux_diffusion_jacobian(
+        self,
+        state: Array,
+        time: float,
+        bc_indices: Array,
+        normals: Array,
+    ) -> Array:
+        """Assemble :math:`\\partial(\\text{flux} \\cdot n)/\\partial
+        D_{\\text{field}}` at boundary points.
+
+        The diffusive normal flux :math:`(\\text{flux} \\cdot n)_i =
+        -D_i (\\nabla u \\cdot n)_i` depends on the field only through
+        its value at boundary point :math:`i`, so row :math:`i` has the
+        single nonzero :math:`-(\\nabla u \\cdot n)_i` at column
+        ``bc_indices[i]``. Right-multiplying by a field-map Jacobian
+        reproduces the ``bc_flux_param_sensitivity`` row convention.
+
+        Parameters
+        ----------
+        state : Array
+            Solution state. Shape: (npts,)
+        time : float
+            Current time (unused; kept for signature uniformity).
+        bc_indices : Array
+            Boundary point indices. Shape: (n_bc,)
+        normals : Array
+            Outward unit normals. Shape: (n_bc, ndim)
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (n_bc, npts)
+        """
+        bkd = self._bkd
+        nbnd = bc_indices.shape[0]
+        grad_u_dot_n = bkd.zeros((nbnd,))
+        for dim in range(self._basis.ndim()):
+            grad_u_dim = self._D_matrices[dim] @ state
+            grad_u_dot_n = (
+                grad_u_dot_n + grad_u_dim[bc_indices] * normals[:, dim]
+            )
+        result = bkd.copy(bkd.zeros((nbnd, self.npts())))
+        for i in range(nbnd):
+            result[i, bkd.to_int(bc_indices[i])] = -grad_u_dot_n[i]
+        return result
+
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual f(u, t).
 
