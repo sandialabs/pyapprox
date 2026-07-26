@@ -639,3 +639,135 @@ class TestFieldParameterizationTerm:
         )
         with pytest.raises(ValueError, match="DOFs"):
             wrong_term.apply(bkd.asarray(np.array([0.1])))
+
+
+class _DenseLinearFieldToy:
+    """Dense-assembly toy physics :math:`R(u) = \\mathrm{diag}(g) A u`.
+
+    Linear in the field and the state, so the engine's
+    linear_field_state tier applies with :math:`S(u) =
+    \\mathrm{diag}(A u)` and mixed assembly :math:`A(\\delta, u) =
+    \\mathrm{diag}(\\delta) A`. Assemblies are DENSE backend arrays,
+    exercising the engine's backend-space matmul branch (the galerkin
+    physics only ever return scipy sparse).
+    """
+
+    def __init__(self, amat, bkd):
+        self._amat = amat
+        self._bkd = bkd
+        self._g = bkd.zeros((amat.shape[0],))
+
+    def nstates(self):
+        return self._amat.shape[0]
+
+    def set_field(self, gvec):
+        self._g = gvec
+
+    def field_jacobian(self, state, time):
+        return self._bkd.diag(self._amat @ state)
+
+    def field_state_jacobian(self, delta, state, time):
+        return self._bkd.diag(delta) @ self._amat
+
+
+class _LinearFieldMapToy:
+    """G(p) = Phi p: linear map with exactly zero curvature."""
+
+    def __init__(self, phi, bkd):
+        self._phi = phi
+        self._bkd = bkd
+
+    def nvars(self):
+        return self._phi.shape[1]
+
+    def __call__(self, params_1d):
+        return self._phi @ params_1d
+
+    def jacobian(self, params_1d):
+        return self._phi
+
+    def hvp(self, params_1d, adj_state, vvec):
+        return self._bkd.zeros((self.nvars(),))
+
+
+class TestDenseBackendAssemblies:
+    """Dense backend-array assemblies stay in backend space.
+
+    The galerkin suites cover the sparse branch; these tests drive the
+    dense branch on both backends and assert output type and dtype
+    match the inputs — a silent numpy round trip produces correct
+    numbers with hidden device/dtype conversions, which the value
+    checks alone cannot catch.
+    """
+
+    def _build(self, bkd):
+        npts = 6
+        amat = bkd.asarray(np.random.normal(0.0, 1.0, (npts, npts)))
+        phi = bkd.asarray(np.random.normal(0.0, 1.0, (npts, _NPARAMS)))
+        physics = _DenseLinearFieldToy(amat, bkd)
+        field_map = _LinearFieldMapToy(phi, bkd)
+        term = _FieldParameterizationTerm.linear_field_state(
+            setter=physics.set_field,
+            physics=physics,
+            field_jacobian=physics.field_jacobian,
+            field_state_jacobian=physics.field_state_jacobian,
+            field_map=field_map,
+            bkd=bkd,
+            nstates=npts,
+            nfield_dofs=npts,
+        )
+        state = bkd.asarray(np.random.normal(0.0, 1.0, (npts,)))
+        adj = bkd.asarray(np.random.normal(0.0, 1.0, (npts,)))
+        params = bkd.asarray(np.random.normal(0.0, 1.0, (_NPARAMS,)))
+        return term, amat, phi, state, adj, params
+
+    def test_bundle_is_second_order(self, bkd):
+        term = self._build(bkd)[0]
+        derivs = term.param_derivatives()
+        assert derivs.param_jacobian is not None
+        assert derivs.param_param_hvp is not None
+        assert derivs.state_param_hvp is not None
+        assert derivs.param_state_hvp is not None
+
+    def test_param_jacobian_dense_backend(self, bkd):
+        term, amat, phi, state, _, params = self._build(bkd)
+        out = term.param_jacobian(state, 0.0, params)
+        assert isinstance(out, type(state))
+        assert out.dtype == state.dtype
+        expected = bkd.diag(amat @ state) @ phi
+        bkd.assert_allclose(out, expected, rtol=1e-12)
+
+    def test_hvps_dense_backend(self, bkd):
+        term, amat, phi, state, adj, params = self._build(bkd)
+        vvec = bkd.asarray(np.random.normal(0.0, 1.0, (_NPARAMS,)))
+        wvec = bkd.asarray(np.random.normal(0.0, 1.0, (state.shape[0],)))
+
+        # Linear term through a linear map: exactly zero curvature.
+        out_pp = term.param_param_hvp(state, 0.0, params, adj, vvec)
+        assert isinstance(out_pp, type(state))
+        assert out_pp.dtype == state.dtype
+        bkd.assert_allclose(out_pp, bkd.zeros((_NPARAMS,)), atol=1e-15)
+
+        delta = phi @ vvec
+        out_sp = term.state_param_hvp(state, 0.0, params, adj, vvec)
+        assert isinstance(out_sp, type(state))
+        assert out_sp.dtype == state.dtype
+        expected_sp = (bkd.diag(delta) @ amat).T @ adj
+        bkd.assert_allclose(out_sp, expected_sp, rtol=1e-12)
+
+        out_ps = term.param_state_hvp(state, 0.0, params, adj, wvec)
+        assert isinstance(out_ps, type(state))
+        assert out_ps.dtype == state.dtype
+        expected_ps = phi.T @ (bkd.diag(amat @ wvec) @ adj)
+        bkd.assert_allclose(out_ps, expected_ps, rtol=1e-12)
+
+    def test_param_jacobian_preserves_autograd(self, torch_bkd):
+        """A numpy detour raises on a grad-requiring tensor; the dense
+        branch must keep the computation graph intact."""
+        import torch
+
+        term = self._build(torch_bkd)[0]
+        params = torch_bkd.asarray(np.random.normal(0.0, 1.0, (_NPARAMS,)))
+        state = torch.randn(6, dtype=torch.float64, requires_grad=True)
+        out = term.param_jacobian(state, 0.0, params)
+        assert out.grad_fn is not None

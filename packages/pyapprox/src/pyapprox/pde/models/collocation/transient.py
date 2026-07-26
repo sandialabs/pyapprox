@@ -12,13 +12,16 @@ from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
+from pyapprox.ode.functionals.protocols import (
+    TransientFunctionalWithJacobianAndHVPProtocol,
+    TransientFunctionalWithJacobianProtocol,
+)
+from pyapprox.ode.operator.forward_sensitivity import (
+    solve_final_forward_sensitivity,
+)
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
-from pyapprox.ode.protocols.time_stepping import (
-    AdjointEnabledTimeSteppingResidualProtocol,
-)
-from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
@@ -64,7 +67,9 @@ class TransientForwardModel(Generic[Array]):
         bkd: Backend[Array],
         init_state: Array,
         time_config: TimeIntegrationConfig[Array],
-        functional: Any = None,
+        functional: Optional[
+            TransientFunctionalWithJacobianProtocol[Array]
+        ] = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
@@ -85,7 +90,20 @@ class TransientForwardModel(Generic[Array]):
             functional = AllStatesEndpointFunctional(
                 physics.nstates(), self._nparams, bkd
             )
-        self._functional = functional
+        self._functional: TransientFunctionalWithJacobianProtocol[Array] = (
+            functional
+        )
+        # Recorded here (not isinstance-narrowed at the call site): the
+        # scalar-QoI adjoint path needs the HVP-tier functional, and
+        # narrowing a Generic runtime protocol degrades its Array
+        # parameter to Any under mypy.
+        self._adjoint_functional: Optional[
+            TransientFunctionalWithJacobianAndHVPProtocol[Array]
+        ] = None
+        if isinstance(
+            functional, TransientFunctionalWithJacobianAndHVPProtocol
+        ):
+            self._adjoint_functional = functional
 
         # Capability: the adjoint/sensitivity jacobian needs a parameter
         # jacobian from the parameterization's bundle
@@ -220,9 +238,16 @@ class TransientForwardModel(Generic[Array]):
         # TODO: _forward_solve computes the trajectory, then
         # TimeAdjointOperatorWithHVP.jacobian redoes the forward solve
         # internally. Refactor to pass the precomputed trajectory.
+        functional = self._adjoint_functional
+        if functional is None:
+            raise TypeError(
+                "the scalar-QoI adjoint jacobian requires a functional "
+                "satisfying TransientFunctionalWithJacobianAndHVPProtocol, "
+                f"got {type(self._functional).__name__}"
+            )
         model, fwd_sols, times = self._forward_solve(sample)
         integrator = model.last_integrator()
-        adjoint_op = TimeAdjointOperatorWithHVP(integrator, self._functional)
+        adjoint_op = TimeAdjointOperatorWithHVP(integrator, functional)
         return adjoint_op.jacobian(self._init_state, sample)
 
     def _jacobian_sensitivity(self, sample: Array) -> Array:
@@ -248,68 +273,11 @@ class TransientForwardModel(Generic[Array]):
         integrator = model.last_integrator()
         time_residual = integrator.time_residual()
 
-        W_T = self._solve_full_forward_sensitivity(fwd_sols, times, time_residual)
+        W_T = solve_final_forward_sensitivity(
+            time_residual, fwd_sols, times, self._bkd
+        )
         # W_T shape: (nstates, nparams)
         return W_T
-
-    def _solve_full_forward_sensitivity(
-        self,
-        fwd_sols: Array,
-        times: Array,
-        time_residual: AdjointEnabledTimeSteppingResidualProtocol[Array],
-    ) -> Array:
-        """Solve tangent linear model for full sensitivity matrix.
-
-        Computes W_n = dy_n/dp at each time step via:
-            W_n = -(dR_n/dy_n)^{-1} @ [dR_n/dy_{n-1} @ W_{n-1} + dR_n/dp]
-
-        Only returns W at the final time.
-
-        Parameters
-        ----------
-        fwd_sols : Array
-            Forward solutions. Shape: (nstates, ntimes).
-        times : Array
-            Time points. Shape: (ntimes,).
-        time_residual : AdjointEnabledTimeSteppingResidualProtocol
-            Time stepping residual at the adjoint tier.
-
-        Returns
-        -------
-        Array
-            Sensitivity matrix at final time. Shape: (nstates, nparams).
-        """
-        bkd = self._bkd
-        ntimes = fwd_sols.shape[1]
-
-        deltat_0 = float(times[1] - times[0])
-        ctx_0 = StepContext(
-            t_prev=float(times[0]),
-            deltat=deltat_0,
-            y_prev=fwd_sols[:, 0],
-        )
-        time_residual.bind(ctx_0)
-        W_prev = time_residual.initial_param_jacobian()
-
-        for nn in range(1, ntimes):
-            deltat_n = float(times[nn] - times[nn - 1])
-            ctx_nn = StepContext(
-                t_prev=float(times[nn - 1]),
-                deltat=deltat_n,
-                y_prev=fwd_sols[:, nn - 1],
-            )
-            time_residual.bind(ctx_nn)
-
-            drdy_n = time_residual.jacobian(fwd_sols[:, nn])
-            drdy_nm1 = time_residual.sensitivity_off_diag_jacobian(
-                ctx_nn, fwd_sols[:, nn]
-            )
-            drdp_n = time_residual.param_jacobian(ctx_nn, fwd_sols[:, nn])
-
-            rhs = bkd.dot(drdy_nm1, W_prev) + drdp_n
-            W_prev = -bkd.solve(drdy_n, rhs)
-
-        return W_prev
 
     def __repr__(self) -> str:
         return (

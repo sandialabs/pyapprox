@@ -397,25 +397,39 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
 
     # -- derivative calculus (exists exactly once, here)
 
-    def _field_jacobian_np(self, params_1d: Array) -> np.ndarray:
-        """d(field)/d(params) as numpy. Shape: (nfield, nparams)."""
-        return np.asarray(
-            self._bkd.to_numpy(self._field_map.jacobian(params_1d))
-        )
-
     def _field_direction(self, params_1d: Array, vvec: Array) -> Array:
         """delta_g = G'(p) v. Shape: (nfield,)."""
-        return self._bkd.asarray(
-            self._field_jacobian_np(params_1d) @ self._bkd.to_numpy(vvec)
-        )
+        return self._field_map.jacobian(params_1d) @ vvec
+
+    def _assembly_apply(
+        self,
+        mat: Union[spmatrix, Array],
+        operand: Array,
+        transpose: bool = False,
+    ) -> Array:
+        """``mat @ operand`` (or ``mat.T @ operand``) respecting spaces.
+
+        The chain rule is backend-generic; numpy is a property of the
+        sparse operand, not of the engine. Scipy sparse assemblies can
+        only multiply numpy operands, so that branch crosses to numpy
+        and ingests the (inherently dense) product back — the engine's
+        only torch-to-numpy seam; the sparse matrix itself is never
+        densified. Dense assemblies stay in backend space end-to-end:
+        no silent device/dtype round trip, autograd preserved.
+        """
+        if transpose:
+            mat = mat.T
+        if isinstance(mat, spmatrix):
+            return self._bkd.asarray(mat @ self._bkd.to_numpy(operand))
+        return mat @ operand
 
     def param_jacobian(
         self, state: Array, time: float, params_1d: Array
     ) -> Array:
         """dR/dp = S(u) @ G'(p). Shape: (nstates, nparams)."""
-        return self._bkd.asarray(
-            self._field_jacobian(state, time)
-            @ self._field_jacobian_np(params_1d)
+        return self._assembly_apply(
+            self._field_jacobian(state, time),
+            self._field_map.jacobian(params_1d),
         )
 
     def initial_param_jacobian(self, params_1d: Array) -> Array:
@@ -435,17 +449,15 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         Shape: (nparams,).
         """
         field_map = self._require_hvp_field_map()
-        weights = self._bkd.asarray(
-            self._field_jacobian(state, time).T
-            @ self._bkd.to_numpy(adj_state)
+        weights = self._assembly_apply(
+            self._field_jacobian(state, time), adj_state, transpose=True
         )
         out = field_map.hvp(params_1d, weights, vvec)
         ff = self._field_field_hvp
         if not isinstance(ff, Zero):
             delta = self._field_direction(params_1d, vvec)
-            out = out + self._bkd.asarray(
-                self._field_jacobian_np(params_1d).T
-                @ self._bkd.to_numpy(ff(state, time, adj_state, delta))
+            out = out + self._field_map.jacobian(params_1d).T @ ff(
+                state, time, adj_state, delta
             )
         return out
 
@@ -467,8 +479,8 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         delta = self._field_direction(params_1d, vvec)
         if isinstance(slot, FromLinearity):
             mixed = self._require_field_state_jacobian()
-            return self._bkd.asarray(
-                mixed(delta, state, time).T @ self._bkd.to_numpy(adj_state)
+            return self._assembly_apply(
+                mixed(delta, state, time), adj_state, transpose=True
             )
         return slot(state, time, adj_state, delta)
 
@@ -490,16 +502,12 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         if isinstance(slot, Zero):
             return self._bkd.zeros((self.nparams(),))
         if isinstance(slot, FromLinearity):
-            weights = self._field_jacobian(
-                wvec, time
-            ).T @ self._bkd.to_numpy(adj_state)
-        else:
-            weights = self._bkd.to_numpy(
-                slot(state, time, adj_state, wvec)
+            weights = self._assembly_apply(
+                self._field_jacobian(wvec, time), adj_state, transpose=True
             )
-        result: Array = self._bkd.asarray(
-            self._field_jacobian_np(params_1d).T @ np.asarray(weights)
-        )
+        else:
+            weights = slot(state, time, adj_state, wvec)
+        result: Array = self._field_map.jacobian(params_1d).T @ weights
         return result
 
     def _require_hvp_field_map(self) -> FieldMapWithHVPProtocol[Array]:
