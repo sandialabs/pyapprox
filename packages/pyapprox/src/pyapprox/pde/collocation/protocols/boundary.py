@@ -4,9 +4,29 @@ Defines interfaces for boundary conditions that modify PDE residuals
 and Jacobians.
 """
 
-from typing import Generic, List, Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Generic, List, Optional, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@dataclass(frozen=True)
+class BCPhysicalSensitivities(Generic[Array]):
+    """Physical sensitivities of boundary-condition rows w.r.t. parameters.
+
+    Carries the coefficient-dependent normal-term sensitivity a BC needs
+    to correct its parameter-Jacobian rows (e.g. flux Neumann/Robin with
+    parameterized diffusivity).
+
+    Attributes
+    ----------
+    dflux_n_dp : Array
+        Sensitivity of the normal operator's output to parameters,
+        :math:`\\partial (\\mathrm{flux} \\cdot n) / \\partial p`.
+        Shape: (nboundary_pts, nparams)
+    """
+
+    dflux_n_dp: Array
 
 
 @runtime_checkable
@@ -115,7 +135,7 @@ class BoundaryConditionWithParamJacobianProtocol(Protocol, Generic[Array]):
         param_jacobian: Array,
         state: Array,
         time: float,
-        physical_sensitivities: object = None,
+        physical_sensitivities: Optional[BCPhysicalSensitivities[Array]] = None,
     ) -> Array:
         """Apply boundary condition to parameter Jacobian.
 
@@ -127,6 +147,9 @@ class BoundaryConditionWithParamJacobianProtocol(Protocol, Generic[Array]):
             Current solution. Shape: (nstates,)
         time : float
             Current time.
+        physical_sensitivities : BCPhysicalSensitivities, optional
+            Coefficient-dependent normal-term sensitivities; None when the
+            BC rows do not depend on parameters.
 
         Returns
         -------
@@ -253,6 +276,46 @@ class NormalOperatorProtocol(Protocol, Generic[Array]):
         Array
             Jacobian rows at boundary points. Shape: (nboundary_pts, npts)
         """
+        ...
+
+    def normals(self) -> Array:
+        """Return outward unit normals at boundary points.
+
+        Returns
+        -------
+        Array
+            Normal vectors. Shape: (nboundary_pts, ndim)
+        """
+        ...
+
+    def has_coefficient_dependence(self) -> bool:
+        """Return True if the normal term depends on a parameterized
+        physics coefficient (e.g. flux :math:`-D \\nabla u \\cdot n` with
+        parameterized :math:`D`).
+
+        Coefficient-dependent operators require BCPhysicalSensitivities
+        corrections in parameter Jacobians and are rejected by the
+        HVP-tier adapters (their second-order row sensitivities are not
+        representable there).
+        """
+        ...
+
+
+@runtime_checkable
+class BoundaryConditionWithNormalOperatorProtocol(Protocol, Generic[Array]):
+    """Protocol for boundary conditions built on a normal operator.
+
+    Satisfied by BCs (Robin, flux/traction Neumann) whose boundary rows
+    apply a NormalOperatorProtocol to the state. Consumers use it to
+    detect coefficient-dependent BC rows and to gather the geometric
+    data (indices, normals) needed to build BCPhysicalSensitivities.
+    """
+
+    def bkd(self) -> Backend[Array]: ...
+    def boundary_indices(self) -> Array: ...
+
+    def normal_operator(self) -> NormalOperatorProtocol[Array]:
+        """Return the normal operator applied by this BC's rows."""
         ...
 
 

@@ -177,6 +177,10 @@ class BasisProtocol(Protocol, Generic[Array]):
         """Return the number of spatial dimensions."""
         ...
 
+    def npts(self) -> int:
+        """Return the total number of collocation points."""
+        ...
+
     def mesh(self) -> MeshProtocol[Array]:
         """Return the associated mesh."""
         ...

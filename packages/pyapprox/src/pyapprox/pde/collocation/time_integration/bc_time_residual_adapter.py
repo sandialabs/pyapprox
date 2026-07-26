@@ -38,8 +38,11 @@ from pyapprox.ode.protocols.time_stepping import (
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.pde.collocation.protocols.boundary import (
+    BCPhysicalSensitivities,
     BoundaryConditionProtocol,
+    BoundaryConditionWithNormalOperatorProtocol,
     BoundaryConditionWithParamJacobianProtocol,
+    NormalOperatorProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -302,8 +305,8 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         bc: BoundaryConditionProtocol[Array],
         state_1d: Array,
         time: float,
-    ) -> object:
-        """Build physical sensitivities dict for one BC's param_jacobian.
+    ) -> Optional[BCPhysicalSensitivities[Array]]:
+        """Build physical sensitivities for one BC's param_jacobian.
 
         Delegates d(flux·n)/dp computation to the ODE residual adapter via
         bc_flux_param_sensitivity. Only applies to BCs whose normal operator
@@ -312,20 +315,19 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         native = self._adjoint_inner.native_residual
         if not isinstance(native, _BCFluxParamSensitivityProtocol):
             return None
-        if not hasattr(bc, "normal_operator"):
-            return None
-        normal_op = getattr(bc, "normal_operator")()
-        if not (
-            hasattr(normal_op, "has_coefficient_dependence")
-            and normal_op.has_coefficient_dependence()
+        if not isinstance(
+            bc, BoundaryConditionWithNormalOperatorProtocol
         ):
+            return None
+        normal_op: NormalOperatorProtocol[Array] = bc.normal_operator()
+        if not normal_op.has_coefficient_dependence():
             return None
         bc_idx = bc.boundary_indices()
         normals = normal_op.normals()
         dflux_n_dp = native.bc_flux_param_sensitivity(state_1d, time, bc_idx, normals)
         if dflux_n_dp is None:
             return None
-        return {"dflux_n_dp": dflux_n_dp}
+        return BCPhysicalSensitivities(dflux_n_dp=dflux_n_dp)
 
     def adjoint_diag_jacobian(
         self, ctx: StepContext[Array], y_curr: Array
@@ -452,16 +454,14 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         # to this tier whenever the stepper allows, so forward/adjoint
         # use with flux BCs must keep working.
         self._has_coefficient_dependent_bc_rows = False
-        if hasattr(physics, "boundary_conditions"):
-            for bc in physics.boundary_conditions():
-                if not hasattr(bc, "normal_operator"):
-                    continue
-                normal_op = bc.normal_operator()
-                if hasattr(
-                    normal_op, "has_coefficient_dependence"
-                ) and normal_op.has_coefficient_dependence():
-                    self._has_coefficient_dependent_bc_rows = True
-                    break
+        for bc in physics.boundary_conditions():
+            if not isinstance(
+                bc, BoundaryConditionWithNormalOperatorProtocol
+            ):
+                continue
+            if bc.normal_operator().has_coefficient_dependence():
+                self._has_coefficient_dependent_bc_rows = True
+                break
 
     def _zeroed_adjoint(self, adj_state: Array) -> Array:
         """Adjoint with row_replaced entries zeroed for RAW contractions."""

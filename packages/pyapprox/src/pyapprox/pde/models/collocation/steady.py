@@ -6,7 +6,7 @@ ParameterizedStateEquationWithJacobianProtocol) and SteadyForwardModel
 (satisfies FunctionProtocol with adjoint-based Jacobian computation).
 """
 
-from typing import Any, Generic, Optional, Union
+from typing import Generic, Optional, Union
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
@@ -21,7 +21,15 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian impo
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
     VectorAdjointOperatorWithJacobian,
 )
+from pyapprox.pde.collocation.protocols.boundary import (
+    BCPhysicalSensitivities,
+    BoundaryConditionProtocol,
+    BoundaryConditionWithNormalOperatorProtocol,
+    BoundaryConditionWithParamJacobianProtocol,
+    NormalOperatorProtocol,
+)
 from pyapprox.pde.collocation.protocols.physics import (
+    PhysicsProtocol,
     PhysicsWithStateStateHVPProtocol,
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
@@ -74,7 +82,13 @@ class CollocationStateEquationWithJacobianAdapter(Generic[Array]):
             )
         self._model = model
         self._bkd = bkd
-        self._physics = model.physics()
+        physics = model.physics()
+        if not isinstance(physics, PhysicsProtocol):
+            raise TypeError(
+                f"model physics must satisfy PhysicsProtocol, "
+                f"got {type(physics).__name__}"
+            )
+        self._physics: PhysicsProtocol[Array] = physics
         self._adapter = model.adapter()
         self._parameterization: ParameterizationProtocol[Array] = (
             parameterization
@@ -84,11 +98,10 @@ class CollocationStateEquationWithJacobianAdapter(Generic[Array]):
     def _collect_bc_indices(self) -> list[int]:
         """Collect all boundary DOF indices from physics BCs."""
         indices = []
-        if hasattr(self._physics, "boundary_conditions"):
-            for bc in self._physics.boundary_conditions():
-                bc_idx = bc.boundary_indices()
-                for ii in range(bc_idx.shape[0]):
-                    indices.append(self._bkd.to_int(bc_idx[ii]))
+        for bc in self._physics.boundary_conditions():
+            bc_idx = bc.boundary_indices()
+            for ii in range(bc_idx.shape[0]):
+                indices.append(self._bkd.to_int(bc_idx[ii]))
         return indices
 
     def _zero_bc_rows(self, matrix: Array) -> Array:
@@ -217,23 +230,34 @@ class CollocationStateEquationWithJacobianAdapter(Generic[Array]):
         pjac = param_jac_fn(state_1d, 0.0, param[:, 0])
 
         # Apply BC corrections (replaces _zero_bc_rows)
-        if hasattr(self._physics, "boundary_conditions"):
-            for bc in self._physics.boundary_conditions():
-                phys_sens = self._build_bc_physical_sensitivities(
-                    bc, state_1d, param[:, 0], 0.0
+        for bc in self._physics.boundary_conditions():
+            if not isinstance(
+                bc, BoundaryConditionWithParamJacobianProtocol
+            ):
+                raise TypeError(
+                    f"BC {type(bc).__name__} must satisfy "
+                    f"BoundaryConditionWithParamJacobianProtocol "
+                    f"for parameter sensitivity"
                 )
-                pjac = bc.apply_to_param_jacobian(
-                    pjac,
-                    state_1d,
-                    0.0,
-                    physical_sensitivities=phys_sens,
-                )
+            phys_sens = self._build_bc_physical_sensitivities(
+                bc, state_1d, param[:, 0], 0.0
+            )
+            pjac = bc.apply_to_param_jacobian(
+                pjac,
+                state_1d,
+                0.0,
+                physical_sensitivities=phys_sens,
+            )
         return pjac
 
     def _build_bc_physical_sensitivities(
-        self, bc: object, state_1d: Array, params_1d: Array, time: float
-    ) -> object:
-        """Build physical sensitivities dict for one BC's param_jacobian.
+        self,
+        bc: BoundaryConditionProtocol[Array],
+        state_1d: Array,
+        params_1d: Array,
+        time: float,
+    ) -> Optional[BCPhysicalSensitivities[Array]]:
+        """Build physical sensitivities for one BC's param_jacobian.
 
         Delegates d(flux·n)/dp computation to the parameterization via
         bc_flux_param_sensitivity. Only applies to BCs whose normal operator
@@ -244,18 +268,17 @@ class CollocationStateEquationWithJacobianAdapter(Generic[Array]):
         )
         if bc_flux_fn is None:
             return None
-        if not hasattr(bc, "normal_operator"):
-            return None
-        normal_op = bc.normal_operator()
-        if not (
-            hasattr(normal_op, "has_coefficient_dependence")
-            and normal_op.has_coefficient_dependence()
+        if not isinstance(
+            bc, BoundaryConditionWithNormalOperatorProtocol
         ):
+            return None
+        normal_op: NormalOperatorProtocol[Array] = bc.normal_operator()
+        if not normal_op.has_coefficient_dependence():
             return None
         bc_idx = bc.boundary_indices()
         normals = normal_op.normals()
         dflux_n_dp = bc_flux_fn(state_1d, time, params_1d, bc_idx, normals)
-        return {"dflux_n_dp": dflux_n_dp}
+        return BCPhysicalSensitivities(dflux_n_dp=dflux_n_dp)
 
 
 class CollocationStateEquationWithHVPAdapter(
@@ -309,20 +332,18 @@ class CollocationStateEquationWithHVPAdapter(
         self._param_param_hvp_fn: ParamHVPFn[Array] = derivs.param_param_hvp
         self._state_param_hvp_fn: ParamHVPFn[Array] = derivs.state_param_hvp
         self._param_state_hvp_fn: ParamHVPFn[Array] = derivs.param_state_hvp
-        if hasattr(self._physics, "boundary_conditions"):
-            for bc in self._physics.boundary_conditions():
-                if not hasattr(bc, "normal_operator"):
-                    continue
-                normal_op = bc.normal_operator()
-                if hasattr(
-                    normal_op, "has_coefficient_dependence"
-                ) and normal_op.has_coefficient_dependence():
-                    raise NotImplementedError(
-                        "HVP with coefficient-dependent BC rows "
-                        "(parameterized-flux Neumann) is unsupported: "
-                        "their second-order row sensitivities are not "
-                        "representable by this adapter"
-                    )
+        for bc in self._physics.boundary_conditions():
+            if not isinstance(
+                bc, BoundaryConditionWithNormalOperatorProtocol
+            ):
+                continue
+            if bc.normal_operator().has_coefficient_dependence():
+                raise NotImplementedError(
+                    "HVP with coefficient-dependent BC rows "
+                    "(parameterized-flux Neumann) is unsupported: "
+                    "their second-order row sensitivities are not "
+                    "representable by this adapter"
+                )
 
     def _zeroed_adjoint(self, adj_state: Array) -> Array:
         """Adjoint column as 1D with ALL BC-row entries zeroed."""
@@ -401,9 +422,9 @@ class SteadyForwardModel(Generic[Array]):
 
     Parameters
     ----------
-    physics : object
-        Collocation physics (must satisfy PhysicsProtocol). Parameter
-        handling comes from the required ``parameterization``.
+    physics : PhysicsProtocol
+        Collocation physics. Parameter handling comes from the required
+        ``parameterization``.
     bkd : Backend
         Computational backend.
     init_state : Array
@@ -415,7 +436,7 @@ class SteadyForwardModel(Generic[Array]):
 
     def __init__(
         self,
-        physics: Any,
+        physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
         init_state: Array,
         functional: Optional[ParameterizedFunctionalWithJacobianProtocol[Array]] = None,
@@ -425,6 +446,11 @@ class SteadyForwardModel(Generic[Array]):
             raise TypeError(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
+            )
+        if not isinstance(physics, PhysicsProtocol):
+            raise TypeError(
+                f"physics must satisfy PhysicsProtocol, "
+                f"got {type(physics).__name__}"
             )
         self._bkd = bkd
         self._physics = physics

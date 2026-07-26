@@ -13,6 +13,9 @@ manufactured solutions.
 
 from typing import Callable, Generic, Optional, Union
 
+from pyapprox.pde.collocation.protocols.boundary import (
+    BCPhysicalSensitivities,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -176,7 +179,9 @@ class NeumannBC(Generic[Array]):
         param_jacobian: Array,
         state: Array,
         time: float,
-        physical_sensitivities: object = None,
+        physical_sensitivities: Optional[
+            BCPhysicalSensitivities[Array]
+        ] = None,
     ) -> Array:
         """Apply Neumann BC to parameter Jacobian.
 

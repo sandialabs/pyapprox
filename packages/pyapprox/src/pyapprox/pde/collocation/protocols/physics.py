@@ -9,9 +9,13 @@ separate ParameterizationProtocol layer via its ParamDerivatives bundle,
 not embedded in physics.
 """
 
-from typing import Generic, Protocol, Tuple, runtime_checkable
+from typing import Generic, List, Protocol, Tuple, runtime_checkable
 
+from pyapprox.pde.boundary import BCDofClassification
 from pyapprox.pde.collocation.protocols.basis import BasisProtocol
+from pyapprox.pde.collocation.protocols.boundary import (
+    BoundaryConditionProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -79,8 +83,23 @@ class PhysicsProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def boundary_conditions(self) -> List[BoundaryConditionProtocol[Array]]:
+        """Return list of boundary conditions."""
+        ...
+
+    def bc_dof_classification(self) -> BCDofClassification:
+        """Classify boundary DOFs for adjoint operations.
+
+        Returns
+        -------
+        BCDofClassification
+            Classification with essential and row_replaced index lists
+            (essential is a subset of row_replaced).
+        """
+        ...
+
     def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array
+        self, residual: Array, jacobian: Array, state: Array, time: float
     ) -> Tuple[Array, Array]:
         """Apply boundary conditions to residual and Jacobian.
 
@@ -94,6 +113,8 @@ class PhysicsProtocol(Protocol, Generic[Array]):
             Jacobian matrix. Shape: (nstates, nstates)
         state : Array
             Current state. Shape: (nstates,)
+        time : float
+            Current time.
 
         Returns
         -------

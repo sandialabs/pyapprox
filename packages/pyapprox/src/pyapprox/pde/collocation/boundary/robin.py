@@ -15,7 +15,7 @@ Factory functions:
 - homogeneous_robin_bc: backward-compatible API
 """
 
-from typing import Callable, Generic, List, Union
+from typing import Callable, Generic, List, Optional, Union
 
 from pyapprox.pde.collocation.boundary.normal_operators import (
     FluxNormalOperator,
@@ -24,6 +24,7 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
     _LegacyNormalOperator,
 )
 from pyapprox.pde.collocation.protocols.boundary import (
+    BCPhysicalSensitivities,
     FluxProviderProtocol,
     NormalOperatorProtocol,
 )
@@ -195,7 +196,7 @@ class RobinBC(Generic[Array]):
         normal_jac = self._normal_operator.jacobian(state)
 
         for i in range(self._nboundary_pts):
-            row_idx = idx[i]
+            row_idx = self._bkd.to_int(idx[i])
             for j in range(nstates):
                 jac_val = self._beta[i] * normal_jac[i, j]
                 if j == row_idx:
@@ -212,12 +213,14 @@ class RobinBC(Generic[Array]):
         param_jacobian: Array,
         state: Array,
         time: float,
-        physical_sensitivities: object = None,
+        physical_sensitivities: Optional[
+            BCPhysicalSensitivities[Array]
+        ] = None,
     ) -> Array:
         """Apply Robin BC to parameter Jacobian.
 
-        If physical_sensitivities provides "dflux_n_dp", applies the
-        unified BC sensitivity formula for any physics type (diffusion,
+        If physical_sensitivities is provided, applies the unified BC
+        sensitivity formula for any physics type (diffusion,
         hyperelastic, etc.).
 
         Parameters
@@ -228,9 +231,9 @@ class RobinBC(Generic[Array]):
             Current solution. Shape: (nstates,)
         time : float
             Current time.
-        physical_sensitivities : dict, optional
-            Dict with key "dflux_n_dp" of shape (nbnd, nparams) —
-            sensitivity of the normal operator's output to parameters.
+        physical_sensitivities : BCPhysicalSensitivities, optional
+            Carries dflux_n_dp of shape (nbnd, nparams) — sensitivity
+            of the normal operator's output to parameters.
 
         Returns
         -------
@@ -240,12 +243,10 @@ class RobinBC(Generic[Array]):
         idx = self._boundary_indices
         param_jacobian = self._bkd.copy(param_jacobian)
 
-        dflux_n_dp = None
         if physical_sensitivities is not None:
-            dflux_n_dp = physical_sensitivities.get("dflux_n_dp")
-
-        if dflux_n_dp is not None:
-            param_jacobian[idx, :] = self._beta[:, None] * dflux_n_dp
+            param_jacobian[idx, :] = (
+                self._beta[:, None] * physical_sensitivities.dflux_n_dp
+            )
         else:
             param_jacobian[idx, :] = 0.0
 

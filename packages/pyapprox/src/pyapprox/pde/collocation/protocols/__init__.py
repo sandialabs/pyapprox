@@ -19,7 +19,9 @@ from pyapprox.pde.collocation.protocols.basis import (
     TensorProductBasisProtocol,
 )
 from pyapprox.pde.collocation.protocols.boundary import (
+    BCPhysicalSensitivities,
     BoundaryConditionProtocol,
+    BoundaryConditionWithNormalOperatorProtocol,
     BoundaryConditionWithParamJacobianProtocol,
     DirichletBCProtocol,
     FluxProviderProtocol,
@@ -68,7 +70,9 @@ __all__ = [
     "PreconditionerProtocol",
     "PreconditionerWithSetupProtocol",
     # Boundary conditions
+    "BCPhysicalSensitivities",
     "BoundaryConditionProtocol",
+    "BoundaryConditionWithNormalOperatorProtocol",
     "BoundaryConditionWithParamJacobianProtocol",
     "DirichletBCProtocol",
     "RobinBCProtocol",

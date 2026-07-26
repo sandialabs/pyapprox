@@ -117,9 +117,14 @@ class AbstractPhysics(ABC, Generic[Array]):
         ...
 
     def apply_boundary_conditions(
-        self, residual: Array, jacobian: Array, state: Array, time: float = 0.0
+        self, residual: Array, jacobian: Array, state: Array, time: float
     ) -> Tuple[Array, Array]:
         """Apply boundary conditions to residual and Jacobian.
+
+        The ``time`` argument is required (no default): time-dependent
+        boundary values evaluated at a silently-defaulted :math:`t = 0`
+        would be wrong in every transient step yet invisible for
+        constant BCs. Steady callers pass ``0.0`` explicitly.
 
         Parameters
         ----------

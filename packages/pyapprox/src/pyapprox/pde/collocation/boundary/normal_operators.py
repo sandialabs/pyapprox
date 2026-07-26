@@ -240,6 +240,7 @@ class TractionNormalOperator(Generic[Array]):
     ):
         self._bkd = bkd
         self._mesh_boundary_indices = mesh_boundary_indices
+        self._normals = normals
         self._npts = npts
         self._component = component
         nboundary = mesh_boundary_indices.shape[0]
@@ -279,6 +280,10 @@ class TractionNormalOperator(Generic[Array]):
                 jac[i, npts:] = nx_i * mu * Dx[idx, :] + ny_i * lam_2mu * Dy[idx, :]
 
         self._jacobian = jac
+
+    def normals(self) -> Array:
+        """Return outward unit normals. Shape: (nboundary, 2)."""
+        return self._normals
 
     def has_coefficient_dependence(self) -> bool:
         """Return False: traction uses fixed material constants."""
@@ -343,6 +348,16 @@ class _LegacyNormalOperator(Generic[Array]):
         self._bkd = bkd
         self._derivative_matrix = derivative_matrix
         self._normal_sign = normal_sign
+
+    def normals(self) -> Array:
+        """Return outward normals implied by the scalar normal sign.
+
+        The legacy API carries only a 1D normal sign, so the normals are
+        the sign replicated per boundary point. Shape: (nboundary_pts, 1).
+        """
+        return self._bkd.full(
+            (self._derivative_matrix.shape[0], 1), self._normal_sign
+        )
 
     def has_coefficient_dependence(self) -> bool:
         """Return False: legacy operator does not track coefficient dependence."""

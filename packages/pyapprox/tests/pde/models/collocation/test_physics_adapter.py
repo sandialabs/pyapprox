@@ -12,6 +12,7 @@ from pyapprox.ode.operator.check_derivatives import (
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
+from pyapprox.pde.boundary import BCDofClassification
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.pde.collocation.physics import (
@@ -75,6 +76,12 @@ class _ToyCurvaturePhysics:
 
     def jacobian(self, state, time):
         return self._bkd.diag(-2.0 * (1.0 + time) * self._c * state)
+
+    def boundary_conditions(self):
+        return []
+
+    def bc_dof_classification(self):
+        return BCDofClassification([], [])
 
     def apply_boundary_conditions(self, residual, jacobian, state, time):
         return residual, jacobian

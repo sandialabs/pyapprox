@@ -3,8 +3,11 @@
 Enforces u = g(x, t) on the boundary.
 """
 
-from typing import Callable, Generic, Union
+from typing import Callable, Generic, Optional, Union
 
+from pyapprox.pde.collocation.protocols.boundary import (
+    BCPhysicalSensitivities,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -147,7 +150,9 @@ class DirichletBC(Generic[Array]):
         param_jacobian: Array,
         state: Array,
         time: float,
-        physical_sensitivities: object = None,
+        physical_sensitivities: Optional[
+            BCPhysicalSensitivities[Array]
+        ] = None,
     ) -> Array:
         """Apply Dirichlet BC to parameter Jacobian.
 

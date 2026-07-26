@@ -10,8 +10,11 @@ interior equations. Two boundary equations are needed to close the system:
 The derivative matrix D for the periodic direction must be supplied.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
+from pyapprox.pde.collocation.protocols.boundary import (
+    BCPhysicalSensitivities,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -154,7 +157,9 @@ class PeriodicBC(Generic[Array]):
         param_jacobian: Array,
         state: Array,
         time: float,
-        physical_sensitivities: object = None,
+        physical_sensitivities: Optional[
+            BCPhysicalSensitivities[Array]
+        ] = None,
     ) -> Array:
         """Apply periodic BC to parameter Jacobian.
 
