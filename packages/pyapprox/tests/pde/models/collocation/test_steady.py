@@ -506,3 +506,156 @@ class TestSteadyForwardModel:
         assert isinstance(fwd, FunctionProtocol)
         # eval-only parameterization: the bundle declares no capability
         assert fwd.derivatives().jacobian is None
+
+
+class TestSteadyForwardModelTiers:
+    """Construction-time derivative-tier selection."""
+
+    def _scalar_functional(self, bkd, npts, nparams):
+        from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+            WeightedSumFunctional,
+        )
+
+        weights = bkd.copy(bkd.zeros((npts, 1)))
+        weights[npts // 2] = 1.0
+        return WeightedSumFunctional(weights, nparams, bkd)
+
+    def _scalar_model(self, bkd, npts=16):
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd, npts)
+        )
+        functional = self._scalar_functional(bkd, npts, param.nparams())
+        fwd = SteadyForwardModel(
+            physics,
+            bkd,
+            init_state,
+            functional=functional,
+            parameterization=param,
+        )
+        return fwd, param
+
+    def test_hvp_tier_selected_for_scalar_qoi(self, bkd):
+        """Second-order bundle + hvp physics + Dirichlet-only BCs +
+        scalar QoI exposes Derivatives.second_order."""
+        fwd, _ = self._scalar_model(bkd)
+        derivs = fwd.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.hvp is not None
+
+    def test_jacobian_and_hvp_derivative_checker(self, numpy_bkd):
+        """DerivativeChecker validates the model's jacobian and hvp,
+        plus the FD-noise-immune symmetry identity at 1e-12."""
+        bkd = numpy_bkd
+        fwd, _ = self._scalar_model(bkd)
+        derivs = fwd.derivatives()
+        assert derivs.hvp is not None
+        sample = bkd.asarray(np.array([[0.3], [-0.2]]))
+
+        checker = DerivativeChecker(fwd)
+        errors = checker.check_derivatives(sample, verbosity=0)
+        assert checker.error_ratio(errors[0]) <= 1e-6
+        # Measured V-shape (decays to 1.4e-7 then roundoff climbs):
+        # the scalar-QoI HVP FD floor sits above the jacobian's,
+        # nudging the clean ratio marginally past 1e-6 — noise, not a
+        # plateau.
+        assert bkd.to_float(bkd.min(errors[1])) <= 1e-6
+        assert checker.error_ratio(errors[1]) <= 5e-6
+
+        vvec = bkd.asarray(np.array([[0.7], [0.4]]))
+        uvec = bkd.asarray(np.array([[-0.5], [0.9]]))
+        h_v = derivs.hvp(sample, vvec)
+        h_u = derivs.hvp(sample, uvec)
+        bkd.assert_allclose(
+            bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
+        )
+
+    def test_vector_qoi_stays_first_order(self, bkd):
+        """The default all-states functional keeps the Jacobian tier
+        (no warning: the downgrade is functional-driven)."""
+        physics, param, init_state = (
+            _create_parameterized_diffusion_problem(bkd)
+        )
+        fwd = SteadyForwardModel(
+            physics, bkd, init_state, parameterization=param
+        )
+        derivs = fwd.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.hvp is None
+
+    def test_flux_bc_downgrades_with_warning(self, bkd):
+        """A coefficient-dependent flux BC row forces the Jacobian
+        tier with a UserWarning."""
+        import pytest
+        from pyapprox.pde.collocation.boundary.robin import (
+            flux_neumann_bc,
+        )
+
+        npts = 16
+        mesh = TransformedMesh1D(npts, bkd)
+        basis = ChebyshevBasis1D(mesh, bkd)
+        mesh_obj = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+        nodes = basis.nodes()
+
+        def forcing(t):
+            return (math.pi**2) * bkd.sin(math.pi * nodes)
+
+        physics = AdvectionDiffusionReaction(
+            basis, bkd, diffusion=2.0, forcing=forcing
+        )
+        physics.set_boundary_conditions(
+            [
+                zero_dirichlet_bc(bkd, mesh_obj.boundary_indices(0)),
+                flux_neumann_bc(
+                    bkd,
+                    mesh_obj.boundary_indices(1),
+                    bkd.asarray(np.array([[1.0]])),
+                    physics,
+                    values=0.0,
+                ),
+            ]
+        )
+        fm = BasisExpansion(
+            bkd, 2.0, [bkd.ones((npts,)), nodes]
+        )
+        param = create_diffusion_parameterization(physics, bkd, fm)
+        functional = self._scalar_functional(bkd, npts, param.nparams())
+        with pytest.warns(UserWarning, match="downgraded"):
+            fwd = SteadyForwardModel(
+                physics,
+                bkd,
+                bkd.zeros((npts,)),
+                functional=functional,
+                parameterization=param,
+            )
+        derivs = fwd.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.hvp is None
+
+    def test_inexact_wrapper_smoke(self, numpy_bkd):
+        """The modernized model stays FunctionProtocol-consumable by
+        the OUU InexactWrapper."""
+        bkd = numpy_bkd
+        from pyapprox.optimization.minimize.inexact.fixed import (
+            FixedSampleStrategy,
+        )
+        from pyapprox.optimization.minimize.inexact.wrapper import (
+            InexactWrapper,
+        )
+        from pyapprox.risk import SampleAverageMean
+
+        fwd, param = self._scalar_model(bkd)
+        quad_samples = bkd.asarray(np.array([[-0.2, 0.0, 0.2]]))
+        quad_weights = bkd.asarray(
+            np.array([1.0 / 4, 1.0 / 2, 1.0 / 4])
+        )
+        wrapper = InexactWrapper(
+            model=fwd,
+            stat=SampleAverageMean(bkd),
+            strategy=FixedSampleStrategy(quad_samples, quad_weights, bkd),
+            design_indices=[1],
+            bkd=bkd,
+        )
+        design_sample = bkd.asarray(np.array([[0.1]]))
+        value = wrapper(design_sample)
+        assert value.shape[0] == 1
+        assert math.isfinite(bkd.to_float(value[0, 0]))
