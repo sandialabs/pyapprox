@@ -332,7 +332,9 @@ class TestParameterizations:
         def jac_of_params(sample):
             p = sample[:, 0]
             dp.apply(p)
-            return dp.param_jacobian(state, time, p)
+            param_jac = dp.param_derivatives().param_jacobian
+            assert param_jac is not None
+            return param_jac(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -385,7 +387,9 @@ class TestParameterizations:
 
         autograd_jac = torch.autograd.functional.jacobian(torch_residual, params)
         dp.apply(params)
-        analytical_jac = dp.param_jacobian(state, time, params)
+        param_jac = dp.param_derivatives().param_jacobian
+        assert param_jac is not None
+        analytical_jac = param_jac(state, time, params)
         bkd.assert_allclose(analytical_jac, autograd_jac, atol=1e-12)
 
     def test_diffusion_initial_param_jacobian_zeros(self, bkd) -> None:
@@ -396,7 +400,9 @@ class TestParameterizations:
         fm = BasisExpansion(bkd, 1.0, [phi0])
         dp = create_diffusion_parameterization(physics, bkd, basis, fm)
         params = bkd.array([0.5])
-        result = dp.initial_param_jacobian(params)
+        initial_jac = dp.param_derivatives().initial_param_jacobian
+        assert initial_jac is not None
+        result = initial_jac(params)
         expected = bkd.zeros((npts, 1))
         bkd.assert_allclose(result, expected, rtol=1e-12)
 

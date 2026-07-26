@@ -269,7 +269,9 @@ class TestDiffusionParameterization:
         u = bkd.sin(math.pi * nodes)
 
         # Analytical parameter Jacobian
-        param_jac = dp.param_jacobian(u, 0.0, param)
+        param_jac_fn = dp.param_derivatives().param_jacobian
+        assert param_jac_fn is not None
+        param_jac = param_jac_fn(u, 0.0, param)
 
         # Verify via finite differences
         eps = 1e-7
@@ -324,7 +326,9 @@ class TestDiffusionParameterization:
         dp = create_diffusion_parameterization(physics, bkd, basis, fm)
 
         param = bkd.array([0.5])
-        ic_jac = dp.initial_param_jacobian(param)
+        initial_jac_fn = dp.param_derivatives().initial_param_jacobian
+        assert initial_jac_fn is not None
+        ic_jac = initial_jac_fn(param)
 
         expected = bkd.zeros((npts, 1))
         bkd.assert_allclose(ic_jac, expected, atol=1e-14)

@@ -20,7 +20,7 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.parameterizations.diffusion import (
-    create_diffusion_parameterization,
+    DiffusionParameterization,
 )
 from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 from pyapprox.util.backends.protocols import Array, Backend
@@ -274,17 +274,23 @@ class TestBoundaryFluxAssembly:
     def test_row_convention_parity_with_bc_flux_param_sensitivity(
         self, bkd
     ):
-        """B @ G'(p) reproduces the consumer's dflux_n_dp convention."""
+        """B @ G'(p) reproduces the dflux_n_dp convention of the
+        retained interim DiffusionParameterization (the oracle; the
+        factory now routes through the facade, which would make a
+        factory-based comparison circular)."""
         basis, physics, _, state, bc_indices, normals = self._setup(bkd)
         npts = basis.npts()
         nmodes = 3
         modes = bkd.asarray(np.random.uniform(-0.4, 0.4, (npts, nmodes)))
         field_map = MeshKLEFieldMap(bkd, bkd.full((npts,), 2.0), modes)
-        param = create_diffusion_parameterization(
-            physics, bkd, basis, field_map
+        d_matrices = [
+            basis.derivative_matrix(1, dim) for dim in range(basis.ndim())
+        ]
+        oracle = DiffusionParameterization(
+            physics, field_map, d_matrices, bkd
         )
         params = _random(bkd, (nmodes,))
-        expected = param.bc_flux_param_sensitivity(
+        expected = oracle.bc_flux_param_sensitivity(
             state, 0.0, params, bc_indices, normals
         )
         bmat = physics.boundary_flux_diffusion_jacobian(

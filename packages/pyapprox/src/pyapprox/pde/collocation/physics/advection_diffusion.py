@@ -82,6 +82,7 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         self._diffusion_func: Optional[Callable[[float], Array]] = None
 
         # Store velocity field
+        self._velocity: Optional[List[Array]]
         if velocity is not None:
             if len(velocity) != ndim:
                 raise ValueError(

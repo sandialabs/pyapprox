@@ -163,10 +163,14 @@ class TensorProductBasisProtocol(Protocol, Generic[Array]):
 
 @runtime_checkable
 class BasisProtocol(Protocol, Generic[Array]):
-    """Protocol for collocation basis.
+    """Protocol for collocation basis as consumed by the physics layer.
 
-    A basis provides derivative matrices for computing spatial derivatives
-    on a collocation mesh.
+    A basis provides derivative matrices for computing spatial
+    derivatives on a collocation mesh. Deliberately minimal: it
+    declares exactly the members physics consumes, so any
+    tensor-product basis satisfies it structurally. Mesh access and
+    quadrature belong to the concrete classes and
+    ``BasisWithQuadratureProtocol``.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -179,10 +183,6 @@ class BasisProtocol(Protocol, Generic[Array]):
 
     def npts(self) -> int:
         """Return the total number of collocation points."""
-        ...
-
-    def mesh(self) -> MeshProtocol[Array]:
-        """Return the associated mesh."""
         ...
 
     def derivative_matrix(self, order: int, dim: int) -> Array:
@@ -200,23 +200,6 @@ class BasisProtocol(Protocol, Generic[Array]):
         Array
             Derivative matrix of shape (npts, npts).
             Multiplying by solution values gives derivative values.
-        """
-        ...
-
-    def interpolate(self, values: Array, new_points: Array) -> Array:
-        """Interpolate values to new points.
-
-        Parameters
-        ----------
-        values : Array
-            Values at mesh points. Shape: (npts,) or (ncomponents, npts)
-        new_points : Array
-            Points to interpolate to. Shape: (ndim, new_npts)
-
-        Returns
-        -------
-        Array
-            Interpolated values. Shape matches input.
         """
         ...
 

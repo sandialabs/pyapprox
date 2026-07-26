@@ -158,10 +158,17 @@ class CompositeParameterization(Generic[Array]):
         self._part_param_state_hvps: Optional[List[ParamHVPFn[Array]]] = (
             _all_or_none([d.param_state_hvp for d in part_derivs])
         )
-        self._part_bc_flux_fns: Optional[
-            List[BCFluxParamSensitivityFn[Array]]
-        ] = _all_or_none(
-            [d.bc_flux_param_sensitivity for d in part_derivs]
+        # BC-specific field, NOT a capability tier: part-level None
+        # means the part's coefficient does not enter the flux (its
+        # block-columns are exactly zero), so the composite keeps the
+        # field when ANY part has it. All-or-none here would silently
+        # zero the flux-dependent columns of mixed composites (e.g.
+        # diffusion + reaction under a flux BC).
+        self._part_bc_flux_fns: List[
+            Optional[BCFluxParamSensitivityFn[Array]]
+        ] = [d.bc_flux_param_sensitivity for d in part_derivs]
+        self._has_bc_flux = any(
+            fn is not None for fn in self._part_bc_flux_fns
         )
         self._derivs: ParamDerivatives[Array] = ParamDerivatives(
             param_jacobian=(
@@ -191,7 +198,7 @@ class CompositeParameterization(Generic[Array]):
             ),
             bc_flux_param_sensitivity=(
                 self._bc_flux_param_sensitivity
-                if self._part_bc_flux_fns is not None
+                if self._has_bc_flux
                 else None
             ),
         )
@@ -375,9 +382,13 @@ class CompositeParameterization(Generic[Array]):
         bc_indices: Array,
         normals: Array,
     ) -> Array:
-        """Block-column assembly of BC flux param sensitivity."""
-        fns = self._part_bc_flux_fns
-        if fns is None:
+        """Block-column assembly of BC flux param sensitivity.
+
+        Parts without the field contribute exactly-zero blocks (their
+        coefficient does not enter the flux); their columns are left
+        untouched.
+        """
+        if not self._has_bc_flux:
             raise RuntimeError(
                 "bc_flux_param_sensitivity is unavailable; check "
                 "param_derivatives() before calling"
@@ -385,7 +396,9 @@ class CompositeParameterization(Generic[Array]):
         nbnd = bc_indices.shape[0]
         result = self._bkd.zeros((nbnd, self._total_nparams))
         result = self._bkd.copy(result)
-        for ii, fn in enumerate(fns):
+        for ii, fn in enumerate(self._part_bc_flux_fns):
+            if fn is None:
+                continue
             offset = self._offsets[ii]
             np_i = self._parts[ii].nparams()
             sub_params = params_1d[offset : offset + np_i]

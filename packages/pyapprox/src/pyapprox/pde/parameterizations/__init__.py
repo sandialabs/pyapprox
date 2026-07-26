@@ -1,3 +1,6 @@
+from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
+    CollocationAdvectionDiffusionParameterization,
+)
 from pyapprox.pde.parameterizations.composite import (
     CompositeParameterization,
 )
@@ -29,6 +32,7 @@ from pyapprox.pde.parameterizations.reaction import (
 __all__ = [
     "ParamDerivatives",
     "ParameterizationProtocol",
+    "CollocationAdvectionDiffusionParameterization",
     "DiffusionParameterization",
     "create_diffusion_parameterization",
     "ForcingParameterization",

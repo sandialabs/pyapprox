@@ -78,6 +78,12 @@ FieldJacobianFn = Callable[[Array, float], Union[spmatrix, Array]]
 FieldStateJacobianFn = Callable[[Array, Array, float], Union[spmatrix, Array]]
 FieldShapedHVPFn = Callable[[Array, float, Array, Array], Array]
 StateShapedHVPFn = Callable[[Array, float, Array, Array], Array]
+# (state, time, bc_indices, normals) -> (n_bc, nfield): the boundary
+# rows' normal-flux derivative w.r.t. the coefficient field (only BCs
+# whose normal operator has coefficient dependence supply one).
+BCFluxFieldJacobianFn = Callable[
+    [Array, float, Array, Array], Union[spmatrix, Array]
+]
 
 _FieldStateSlot = Union[Zero, FromLinearity, FieldShapedHVPFn[Array]]
 _StateFieldSlot = Union[Zero, FromLinearity, StateShapedHVPFn[Array]]
@@ -214,6 +220,13 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
     require_positive : bool, default False
         If True, ``apply`` raises when the mapped field is not strictly
         positive everywhere.
+    bc_flux_field_jacobian : BCFluxFieldJacobianFn, optional
+        :math:`B(u, t) = \\partial(\\text{flux} \\cdot n)/\\partial g`
+        at boundary points, ``(state, time, bc_indices, normals) ->
+        (n_bc, nfield)``. When set, the bundle carries
+        ``bc_flux_param_sensitivity`` (the chain rule through the
+        field map). Only coefficient-dependent flux BCs need it;
+        galerkin facades never set it (natural BCs are weak there).
     """
 
     def __init__(
@@ -230,6 +243,9 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         nfield_dofs: int,
         field_state_jacobian: Optional[FieldStateJacobianFn[Array]] = None,
         require_positive: bool = False,
+        bc_flux_field_jacobian: Optional[
+            BCFluxFieldJacobianFn[Array]
+        ] = None,
     ) -> None:
         if not isinstance(field_map, FieldMapProtocol):
             raise TypeError(
@@ -269,6 +285,14 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
                 "— the state-shaped contraction cannot be derived from "
                 "field_jacobian alone without symmetry assumptions"
             )
+        if bc_flux_field_jacobian is not None and not callable(
+            bc_flux_field_jacobian
+        ):
+            raise TypeError(
+                "bc_flux_field_jacobian must be a callable "
+                "(state, time, bc_indices, normals) -> (n_bc, nfield) "
+                f"or None, got {type(bc_flux_field_jacobian).__name__}"
+            )
         self._setter = setter
         self._physics = physics
         self._field_jacobian = field_jacobian
@@ -281,7 +305,13 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         self._nfield_dofs = nfield_dofs
         self._field_state_jacobian = field_state_jacobian
         self._require_positive = require_positive
+        self._bc_flux_field_jacobian = bc_flux_field_jacobian
 
+        bc_flux_fn = (
+            self.bc_flux_param_sensitivity
+            if bc_flux_field_jacobian is not None
+            else None
+        )
         self._hvp_field_map: Optional[FieldMapWithHVPProtocol[Array]] = None
         if field_map_has_hvp(field_map) and isinstance(
             field_map, FieldMapWithHVPProtocol
@@ -294,12 +324,14 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
                     self.param_param_hvp,
                     self.state_param_hvp,
                     self.param_state_hvp,
+                    bc_flux_param_sensitivity=bc_flux_fn,
                 )
             )
         else:
             self._derivs = ParamDerivatives.first_order(
                 self.param_jacobian,
                 self.initial_param_jacobian,
+                bc_flux_param_sensitivity=bc_flux_fn,
             )
 
     # -- named constructors (sugar over the one class, never subclasses)
@@ -315,6 +347,9 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         nstates: int,
         nfield_dofs: int,
         require_positive: bool = False,
+        bc_flux_field_jacobian: Optional[
+            BCFluxFieldJacobianFn[Array]
+        ] = None,
     ) -> "_FieldParameterizationTerm[Array, PhysicsT]":
         """Term linear in the field AND the state (e.g. kappa grad u,
         r*u): slots (FromLinearity, FromLinearity, Zero)."""
@@ -331,6 +366,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             nfield_dofs,
             field_state_jacobian=field_state_jacobian,
             require_positive=require_positive,
+            bc_flux_field_jacobian=bc_flux_field_jacobian,
         )
 
     @staticmethod
@@ -435,6 +471,31 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
     def initial_param_jacobian(self, params_1d: Array) -> Array:
         """d(u_0)/dp = 0 (coefficient fields do not set the IC)."""
         return self._bkd.zeros((self._nstates, self.nparams()))
+
+    def bc_flux_param_sensitivity(
+        self,
+        state: Array,
+        time: float,
+        params_1d: Array,
+        bc_indices: Array,
+        normals: Array,
+    ) -> Array:
+        """d(flux·n)/dp = B(u, t) @ G'(p). Shape: (n_bc, nparams).
+
+        Signature pinned to the ``bc_flux_param_sensitivity`` bundle
+        field consumed by the BC time-residual wrapper and the steady
+        adapter (they supply ``bc_indices``/``normals`` at call time).
+        """
+        fn = self._bc_flux_field_jacobian
+        if fn is None:
+            raise RuntimeError(
+                "bc_flux_param_sensitivity is unavailable; check "
+                "param_derivatives() before calling"
+            )
+        return self._assembly_apply(
+            fn(state, time, bc_indices, normals),
+            self._field_map.jacobian(params_1d),
+        )
 
     def param_param_hvp(
         self,

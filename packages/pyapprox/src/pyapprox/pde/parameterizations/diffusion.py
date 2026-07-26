@@ -10,10 +10,16 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.pde.collocation.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
+)
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
     FieldMapWithHVPProtocol,
     field_map_has_hvp,
+)
+from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
+    CollocationAdvectionDiffusionParameterization,
 )
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.fields import ConstantInTimeField
@@ -285,23 +291,30 @@ class DiffusionParameterization(Generic[Array]):
 
 
 def create_diffusion_parameterization(
-    physics: _CollocationDiffusionPhysicsProtocol[Array],
+    physics: AdvectionDiffusionReaction[Array],
     bkd: Backend[Array],
     basis: DerivativeMatrixBasisProtocol[Array],
     field_map: FieldMapProtocol[Array],
-) -> DiffusionParameterization[Array]:
-    """Factory: create DiffusionParameterization extracting D matrices from basis.
+) -> CollocationAdvectionDiffusionParameterization[Array]:
+    """Factory: parameterize the diffusion field through the ADR facade.
+
+    Delegates to ``CollocationAdvectionDiffusionParameterization``
+    (the shared-engine facade). The signature is kept verbatim for
+    existing consumers: ``basis`` is retained but unused — the engine
+    reads the full-matrix assemblies off the physics, which owns its
+    derivative matrices.
 
     Parameters
     ----------
-    physics : _CollocationDiffusionPhysicsProtocol
+    physics : AdvectionDiffusionReaction
         Collocation physics to bind.
     bkd : Backend
         Computational backend.
     basis : DerivativeMatrixBasisProtocol
-        Collocation basis.
+        Unused (retained for signature compatibility).
     field_map : FieldMapProtocol
         Field map for diffusion.
     """
-    D_matrices = [basis.derivative_matrix(1, dim) for dim in range(basis.ndim())]
-    return DiffusionParameterization(physics, field_map, D_matrices, bkd)
+    return CollocationAdvectionDiffusionParameterization(
+        physics, diffusion_map=field_map, bkd=bkd
+    )
