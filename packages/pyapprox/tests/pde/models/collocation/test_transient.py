@@ -73,7 +73,7 @@ def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
     physics.set_boundary_conditions([bc_left, bc_right])
 
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
 
     init_state = bkd.sin(math.pi * nodes)
 
@@ -333,7 +333,7 @@ def _create_robin_transient_problem(bkd, npts=15):
     physics.set_boundary_conditions([bc_left, bc_right])
 
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
 
     init_state = bkd.sin(math.pi * nodes)
 
@@ -394,7 +394,7 @@ def _create_mixed_bc_transient_problem(bkd, npts=15):
     physics.set_boundary_conditions([bc_left, bc_right])
 
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
 
     init_state = bkd.sin(math.pi * nodes)
 

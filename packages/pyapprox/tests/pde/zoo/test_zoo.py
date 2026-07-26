@@ -142,7 +142,7 @@ class TestSteadyDiffusionZoo:
                 zero_dirichlet_bc(bkd, right_idx),
             ]
         )
-        param = create_diffusion_parameterization(physics, bkd, basis, field_map)
+        param = create_diffusion_parameterization(physics, bkd, field_map)
         init_state = bkd.zeros((npts,))
         fwd_manual = SteadyForwardModel(
             physics, bkd, init_state, parameterization=param
@@ -254,7 +254,7 @@ class TestTransientDiffusionZoo:
 
 
 class TestDiffusionPositivityValidation:
-    """Tests for strict positivity validation in DiffusionParameterization."""
+    """Tests for strict positivity validation of the diffusion field."""
     def _make_param_and_physics(self, bkd, npts) :
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.mesh import TransformedMesh1D
@@ -273,7 +273,7 @@ class TestDiffusionPositivityValidation:
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         # Single basis function = ones, so field = base + p[0]*ones
         fm = BasisExpansion(bkd, 0.0, [bkd.ones((npts,))])
-        param = create_diffusion_parameterization(physics, bkd, basis, fm)
+        param = create_diffusion_parameterization(physics, bkd, fm)
         return param, physics
 
     def test_nonpositive_diffusion_raises(self, bkd):

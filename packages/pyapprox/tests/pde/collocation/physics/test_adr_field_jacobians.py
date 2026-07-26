@@ -1,9 +1,11 @@
 """Tests for the ADR full-matrix field-derivative assemblies.
 
-The assemblies must reproduce the delta-contracted sensitivity methods
-(parity oracles), validate against DerivativeChecker finite
-differences, and honor the bc-flux row convention consumed by
-``bc_flux_param_sensitivity``.
+DerivativeChecker finite differences are the ground truth, the
+bilinearity identity cross-validates the diffusion and mixed
+assemblies exactly, and the bc-flux direct-formula test pins the row
+convention from the public derivative matrices. (Transition-scoped
+parity tests validated the assemblies against the deleted
+delta-contracted physics methods at rtol 1e-12 before their removal.)
 """
 
 from typing import Callable
@@ -19,9 +21,6 @@ from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
-from pyapprox.pde.parameterizations.diffusion import (
-    DiffusionParameterization,
-)
 from pyapprox.pde.parameterizations.fields import ConstantInTimeField
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -85,46 +84,6 @@ class TestDiffusionAssemblies:
         state = _random(bkd, (npts,))
         return basis, physics, diffusion, state
 
-    def test_jacobian_parity_with_sensitivity(self, bkd):
-        basis, physics, _, state = self._setup(bkd)
-        npts = basis.npts()
-        smat = physics.residual_diffusion_jacobian(state)
-        for _ in range(3):
-            delta = _random(bkd, (npts,))
-            grad_delta = [
-                basis.derivative_matrix(1, dim) @ delta
-                for dim in range(basis.ndim())
-            ]
-            expected = physics.residual_diffusion_sensitivity(
-                state, 0.0, delta, grad_delta
-            )
-            bkd.assert_allclose(smat @ delta, expected, rtol=1e-12)
-
-    def test_jacobian_transpose_parity_with_adjoint(self, bkd):
-        basis, physics, _, state = self._setup(bkd)
-        npts = basis.npts()
-        smat = physics.residual_diffusion_jacobian(state)
-        for _ in range(3):
-            adj = _random(bkd, (npts,))
-            expected = physics.residual_diffusion_sensitivity_adjoint(
-                state, 0.0, adj
-            )
-            bkd.assert_allclose(smat.T @ adj, expected, rtol=1e-12)
-
-    def test_state_jacobian_transpose_parity_with_mixed_contraction(
-        self, bkd
-    ):
-        basis, physics, _, state = self._setup(bkd)
-        npts = basis.npts()
-        for _ in range(3):
-            delta = _random(bkd, (npts,))
-            adj = _random(bkd, (npts,))
-            amat = physics.residual_diffusion_state_jacobian(delta, state)
-            expected = physics.residual_diffusion_mixed_contraction(
-                0.0, adj, delta
-            )
-            bkd.assert_allclose(amat.T @ adj, expected, rtol=1e-12)
-
     def test_bilinearity_identity(self, bkd):
         """A(delta) w == S(w) delta: the diffusion term is bilinear."""
         basis, physics, _, state = self._setup(bkd)
@@ -181,15 +140,12 @@ class TestReactionForcingAssemblies:
         state = _random(bkd, (npts,))
         return basis, physics, reaction, state
 
-    def test_reaction_jacobian_parity_with_sensitivity(self, bkd):
+    def test_reaction_jacobian_is_diag_state(self, bkd):
         basis, physics, _, state = self._setup(bkd)
         npts = basis.npts()
         smat = physics.residual_reaction_jacobian(state)
         delta = _random(bkd, (npts,))
-        expected = (
-            physics.residual_reaction_sensitivity(state, 0.0) * delta
-        )
-        bkd.assert_allclose(smat @ delta, expected, rtol=1e-12)
+        bkd.assert_allclose(smat @ delta, state * delta, rtol=1e-12)
 
     def test_reaction_state_jacobian(self, bkd):
         basis, physics, _, state = self._setup(bkd)
@@ -271,28 +227,24 @@ class TestBoundaryFluxAssembly:
         expected = -grad_u_dot_n * delta[bc_indices]
         bkd.assert_allclose(bmat @ delta, expected, rtol=1e-12)
 
-    def test_row_convention_parity_with_bc_flux_param_sensitivity(
-        self, bkd
-    ):
-        """B @ G'(p) reproduces the dflux_n_dp convention of the
-        retained interim DiffusionParameterization (the oracle; the
-        factory now routes through the facade, which would make a
-        factory-based comparison circular)."""
+    def test_row_convention_through_field_map(self, bkd):
+        """B @ G'(p) matches -(grad u . n)_i * dD_dp[bc_i, :] — the
+        dflux_n_dp row convention, recomputed here from the public
+        derivative matrices and the field-map jacobian."""
         basis, physics, _, state, bc_indices, normals = self._setup(bkd)
         npts = basis.npts()
         nmodes = 3
         modes = bkd.asarray(np.random.uniform(-0.4, 0.4, (npts, nmodes)))
         field_map = MeshKLEFieldMap(bkd, bkd.full((npts,), 2.0), modes)
-        d_matrices = [
-            basis.derivative_matrix(1, dim) for dim in range(basis.ndim())
-        ]
-        oracle = DiffusionParameterization(
-            physics, field_map, d_matrices, bkd
-        )
         params = _random(bkd, (nmodes,))
-        expected = oracle.bc_flux_param_sensitivity(
-            state, 0.0, params, bc_indices, normals
-        )
+        grad_u_dot_n = bkd.zeros((3,))
+        for dim in range(basis.ndim()):
+            grad_u = basis.derivative_matrix(1, dim) @ state
+            grad_u_dot_n = (
+                grad_u_dot_n + grad_u[bc_indices] * normals[:, dim]
+            )
+        dd_dp = field_map.jacobian(params)
+        expected = -grad_u_dot_n[:, None] * dd_dp[bc_indices]
         bmat = physics.boundary_flux_diffusion_jacobian(
             state, 0.0, bc_indices, normals
         )

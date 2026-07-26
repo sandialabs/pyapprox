@@ -1,12 +1,11 @@
 """Facade validation for CollocationAdvectionDiffusionParameterization.
 
-TestFacadeParityWithOracles is transition-scoped: it references the
-retained interim classes (DiffusionParameterization etc.) and is
-deleted together with them once the migration completes. Everything
-else is permanent: construction raises, slot validation, pickle
-round-trip, the oracle-free mixed-composite bc-flux block check, and
-the transformed-domain (polar) FD checks for the parameter jacobian,
-the HVP identities, and the boundary-flux sensitivity.
+Construction raises, slot validation, pickle round-trip, the
+mixed-composite bc-flux block assembly, and the transformed-domain
+(polar) FD checks for the parameter jacobian, the HVP identities, and
+the boundary-flux sensitivity. (The transition-scoped oracle-parity
+suite validated the facade against the deleted interim classes at
+rtol 1e-12 before their removal.)
 """
 
 import math
@@ -33,19 +32,11 @@ from pyapprox.pde.field_maps.transformed import (
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
 )
-from pyapprox.pde.parameterizations.composite import (
-    CompositeParameterization,
-)
-from pyapprox.pde.parameterizations.diffusion import (
-    DiffusionParameterization,
-)
 from pyapprox.pde.parameterizations.field_term import (
     FieldStateJacobianAdapter,
     StateJacobianAdapter,
     _FieldParameterizationTerm,
 )
-from pyapprox.pde.parameterizations.forcing import ForcingParameterization
-from pyapprox.pde.parameterizations.reaction import ReactionParameterization
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -127,171 +118,7 @@ class _ParamFunctionWrapper:
         return Derivatives.first_order(jacobian=self.jacobian)
 
 
-class TestFacadeParityWithOracles:
-    """New facade == retained interim classes at rtol 1e-12."""
-
-    def test_diffusion_parity(self, bkd):
-        basis, physics, coords = _build_1d(bkd)
-        npts = basis.npts()
-        field_map = _exp_kle_map(bkd, coords, _NMODES, 0.4)
-        d_matrices = [
-            basis.derivative_matrix(1, dim) for dim in range(basis.ndim())
-        ]
-        oracle = DiffusionParameterization(
-            physics, field_map, d_matrices, bkd
-        )
-        facade = CollocationAdvectionDiffusionParameterization(
-            physics, diffusion_map=field_map, bkd=bkd
-        )
-        state, adj, params, vvec, wvec = _rng_arrays(bkd, npts, _NMODES)
-
-        # apply parity via the residual (same physics instance)
-        oracle.apply(params)
-        res_oracle = physics.residual(state, 0.0)
-        facade.apply(params)
-        res_facade = physics.residual(state, 0.0)
-        bkd.assert_allclose(res_facade, res_oracle, rtol=1e-14)
-
-        od = oracle.param_derivatives()
-        nd = facade.param_derivatives()
-        assert od.param_jacobian is not None
-        assert nd.param_jacobian is not None
-        bkd.assert_allclose(
-            nd.param_jacobian(state, 0.0, params),
-            od.param_jacobian(state, 0.0, params),
-            rtol=1e-12,
-        )
-        for name in ("param_param_hvp", "state_param_hvp", "param_state_hvp"):
-            ofn = getattr(od, name)
-            nfn = getattr(nd, name)
-            assert ofn is not None
-            assert nfn is not None
-            direction = wvec if name == "param_state_hvp" else vvec
-            bkd.assert_allclose(
-                nfn(state, 0.0, params, adj, direction),
-                ofn(state, 0.0, params, adj, direction),
-                rtol=1e-12,
-            )
-
-        bc_indices = bkd.array([0, npts - 1], dtype=int)
-        normals = bkd.asarray(np.array([[-1.0], [1.0]]))
-        assert od.bc_flux_param_sensitivity is not None
-        assert nd.bc_flux_param_sensitivity is not None
-        bkd.assert_allclose(
-            nd.bc_flux_param_sensitivity(
-                state, 0.0, params, bc_indices, normals
-            ),
-            od.bc_flux_param_sensitivity(
-                state, 0.0, params, bc_indices, normals
-            ),
-            rtol=1e-12,
-        )
-
-    def test_reaction_parity(self, bkd):
-        basis, physics, coords = _build_1d(bkd)
-        npts = basis.npts()
-        field_map = _exp_kle_map(bkd, coords, _NMODES, 0.3)
-        oracle = ReactionParameterization(physics, field_map, bkd)
-        facade = CollocationAdvectionDiffusionParameterization(
-            physics, reaction_map=field_map, bkd=bkd
-        )
-        state, adj, params, vvec, wvec = _rng_arrays(bkd, npts, _NMODES)
-        od = oracle.param_derivatives()
-        nd = facade.param_derivatives()
-        assert od.param_jacobian is not None
-        assert nd.param_jacobian is not None
-        bkd.assert_allclose(
-            nd.param_jacobian(state, 0.0, params),
-            od.param_jacobian(state, 0.0, params),
-            rtol=1e-12,
-        )
-        for name in ("param_param_hvp", "state_param_hvp", "param_state_hvp"):
-            ofn = getattr(od, name)
-            nfn = getattr(nd, name)
-            assert ofn is not None
-            assert nfn is not None
-            direction = wvec if name == "param_state_hvp" else vvec
-            bkd.assert_allclose(
-                nfn(state, 0.0, params, adj, direction),
-                ofn(state, 0.0, params, adj, direction),
-                rtol=1e-12,
-            )
-
-    def test_forcing_parity(self, bkd):
-        basis, physics, coords = _build_1d(bkd)
-        npts = basis.npts()
-        field_map = _exp_kle_map(bkd, coords, _NMODES, 0.5)
-        oracle = ForcingParameterization(physics, field_map, bkd)
-        facade = CollocationAdvectionDiffusionParameterization(
-            physics, forcing_map=field_map, bkd=bkd
-        )
-        state, adj, params, vvec, wvec = _rng_arrays(bkd, npts, _NMODES)
-        od = oracle.param_derivatives()
-        nd = facade.param_derivatives()
-        assert od.param_jacobian is not None
-        assert nd.param_jacobian is not None
-        bkd.assert_allclose(
-            nd.param_jacobian(state, 0.0, params),
-            od.param_jacobian(state, 0.0, params),
-            rtol=1e-12,
-        )
-        for name in ("param_param_hvp", "state_param_hvp", "param_state_hvp"):
-            ofn = getattr(od, name)
-            nfn = getattr(nd, name)
-            assert ofn is not None
-            assert nfn is not None
-            direction = wvec if name == "param_state_hvp" else vvec
-            bkd.assert_allclose(
-                nfn(state, 0.0, params, adj, direction),
-                ofn(state, 0.0, params, adj, direction),
-                rtol=1e-12,
-            )
-
-    def test_capability_strictly_widens(self, numpy_bkd: NumpyBkd) -> None:
-        """Every bundle field the oracle composite provides, the facade
-        provides — and both carry bc_flux_param_sensitivity in the
-        mixed diffusion+reaction composite (the composite's per-part
-        zero-block bc-flux assembly applies to old and new parts
-        alike)."""
-        bkd = numpy_bkd
-        basis, physics, coords = _build_1d(bkd)
-        diff_map = _exp_kle_map(bkd, coords, _NMODES, 0.4)
-        react_map = _exp_kle_map(bkd, coords, 2, 0.3)
-        d_matrices = [
-            basis.derivative_matrix(1, dim) for dim in range(basis.ndim())
-        ]
-        oracle_composite = CompositeParameterization(
-            [
-                DiffusionParameterization(
-                    physics, diff_map, d_matrices, bkd
-                ),
-                ReactionParameterization(physics, react_map, bkd),
-            ],
-            bkd,
-        )
-        facade = CollocationAdvectionDiffusionParameterization(
-            physics,
-            diffusion_map=diff_map,
-            reaction_map=react_map,
-            bkd=bkd,
-        )
-        od = oracle_composite.param_derivatives()
-        nd = facade.param_derivatives()
-        for name in (
-            "param_jacobian",
-            "initial_param_jacobian",
-            "param_param_hvp",
-            "state_param_hvp",
-            "param_state_hvp",
-            "bc_flux_param_sensitivity",
-        ):
-            if getattr(od, name) is not None:
-                assert getattr(nd, name) is not None, name
-        # The mixed composite keeps the diffusion BC-flux sensitivity
-        # (reaction contributes exactly-zero columns) instead of
-        # dropping the field under all-or-none.
-        assert nd.bc_flux_param_sensitivity is not None
-
+class TestMixedCompositeBCFlux:
     def test_mixed_composite_bc_flux_blocks(self, bkd):
         """Diffusion block equals B @ G'; reaction columns are zero."""
         basis, physics, coords = _build_1d(bkd)

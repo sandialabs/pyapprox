@@ -199,7 +199,7 @@ class TestCollocationAdapterFactoryTiers:
         # Curvature without a declared hvp forces a first-order bundle
         # (linear maps declare hvp = 0 exactly and select the HVP tier).
         fm = NoHVPQuadraticFieldMap(bkd, bkd.full((npts,), 1.0), phi0[:, None])
-        param = create_diffusion_parameterization(physics, bkd, basis, fm)
+        param = create_diffusion_parameterization(physics, bkd, fm)
 
         adapter = create_collocation_physics_ode_residual(physics, bkd, param)
         assert isinstance(
@@ -312,7 +312,7 @@ class TestCollocationAdapterFactoryTiers:
         basis = ChebyshevBasis1D(mesh, bkd)
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
         fm = BasisExpansion(bkd, 1.0, [bkd.ones((npts,))])
-        param = create_diffusion_parameterization(physics, bkd, basis, fm)
+        param = create_diffusion_parameterization(physics, bkd, fm)
 
         adapter = create_collocation_physics_ode_residual(physics, bkd, param)
         assert isinstance(

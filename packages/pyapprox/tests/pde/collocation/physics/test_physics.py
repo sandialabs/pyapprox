@@ -236,12 +236,11 @@ class TestAdvectionDiffusionReaction:
         bkd.assert_allclose(jacobian[-1, :], bkd.eye(npts)[-1, :], atol=1e-14)
 
 
-class TestDiffusionParameterization:
-    """Test parameterized diffusion via DiffusionParameterization.
+class TestDiffusionParameterizationFactory:
+    """Test parameterized diffusion via create_diffusion_parameterization.
 
     Validates param_jacobian, nparams, and initial_param_jacobian using
-    BasisExpansion + DiffusionParameterization (replaces the former
-    TestAdvectionDiffusionReactionWithParam tests).
+    BasisExpansion through the ADR facade the factory constructs.
     """
 
     def test_param_jacobian(self, bkd):
@@ -259,7 +258,7 @@ class TestDiffusionParameterization:
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
 
         # Set parameters
         param = bkd.array([0.5, 0.2])
@@ -308,7 +307,7 @@ class TestDiffusionParameterization:
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1, phi2])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
 
         assert dp.nparams() == 3
 
@@ -323,7 +322,7 @@ class TestDiffusionParameterization:
         physics = AdvectionDiffusionReaction(basis, bkd, diffusion=1.0)
 
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
 
         param = bkd.array([0.5])
         initial_jac_fn = dp.param_derivatives().initial_param_jacobian

@@ -115,7 +115,7 @@ def create_linear_elastic_bar_1d(
 
     physics.set_boundary_conditions([bc_left, bc_right])
 
-    param = create_diffusion_parameterization(physics, bkd, basis, field_map)
+    param = create_diffusion_parameterization(physics, bkd, field_map)
 
     init_state = bkd.zeros((npts,))
     return SteadyForwardModel(

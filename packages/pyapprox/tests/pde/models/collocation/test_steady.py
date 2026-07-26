@@ -87,7 +87,7 @@ def _create_parameterized_diffusion_problem(bkd, npts=20):
     physics.set_boundary_conditions([bc_left, bc_right])
 
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
     init_state = bkd.zeros((npts,))
     return physics, param, init_state
 

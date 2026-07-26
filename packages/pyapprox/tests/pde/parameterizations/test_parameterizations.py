@@ -39,6 +39,9 @@ from pyapprox.pde.field_maps.scalar import (
 from pyapprox.pde.models.collocation.steady import (
     SteadyForwardModel,
 )
+from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
+    CollocationAdvectionDiffusionParameterization,
+)
 from pyapprox.pde.parameterizations.composite import (
     CompositeParameterization,
 )
@@ -46,17 +49,10 @@ from pyapprox.pde.parameterizations.derivatives import (
     ParamDerivatives,
 )
 from pyapprox.pde.parameterizations.diffusion import (
-    DiffusionParameterization,
     create_diffusion_parameterization,
-)
-from pyapprox.pde.parameterizations.forcing import (
-    ForcingParameterization,
 )
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
-)
-from pyapprox.pde.parameterizations.reaction import (
-    ReactionParameterization,
 )
 
 from tests._helpers.adjoint_checks import NoHVPQuadraticFieldMap
@@ -262,12 +258,12 @@ class _ToyCompositeStateEquation:
 
 class TestParameterizations:
     def test_diffusion_isinstance(self, bkd) -> None:
-        """DiffusionParameterization satisfies ParameterizationProtocol."""
+        """The factory-built facade satisfies ParameterizationProtocol."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
         assert isinstance(dp, ParameterizationProtocol)
         derivs = dp.param_derivatives()
         assert derivs.param_jacobian is not None
@@ -278,19 +274,21 @@ class TestParameterizations:
         assert derivs.param_param_hvp is not None
 
     def test_diffusion_init_type_error(self, bkd) -> None:
-        """DiffusionParameterization raises TypeError for non-FieldMap."""
+        """The diffusion facade raises TypeError for non-FieldMap."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            DiffusionParameterization(physics, "not_a_field_map", [], bkd)
+            CollocationAdvectionDiffusionParameterization(
+                physics, diffusion_map="not_a_field_map", bkd=bkd
+            )
 
     def test_diffusion_apply_sets_field(self, bkd) -> None:
-        """DiffusionParameterization.apply sets diffusion on physics."""
+        """The facade apply sets the diffusion field on the physics."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         phi1 = nodes
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
 
         params = bkd.array([0.5, -0.3])
         dp.apply(params)
@@ -301,7 +299,7 @@ class TestParameterizations:
         bkd.assert_allclose(actual_diff, expected_diff, rtol=1e-12)
 
     def test_diffusion_param_jacobian_fd(self, bkd) -> None:
-        """DiffusionParameterization.param_jacobian matches FD."""
+        """The facade param_jacobian matches FD."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         num_kle_terms = 2
@@ -314,7 +312,7 @@ class TestParameterizations:
             num_kle_terms=num_kle_terms,
             sigma=0.3,
         )
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
 
         # Get a non-trivial state by solving with some parameters
         state = bkd.sin(math.pi * nodes)
@@ -350,7 +348,7 @@ class TestParameterizations:
         assert ratio <= 1e-5
 
     def test_diffusion_param_jacobian_autograd(self, torch_bkd) -> None:
-        """Torch autograd matches DiffusionParameterization.param_jacobian."""
+        """Torch autograd matches the facade param_jacobian."""
         import torch
 
         bkd = torch_bkd
@@ -373,7 +371,7 @@ class TestParameterizations:
         phi0 = bkd.ones((npts,))
         phi1 = nodes
         fm = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
 
         # Use a state that's non-zero everywhere to avoid near-zero issues
         state = bkd.cos(0.5 * math.pi * nodes) + 1.0
@@ -393,12 +391,12 @@ class TestParameterizations:
         bkd.assert_allclose(analytical_jac, autograd_jac, atol=1e-12)
 
     def test_diffusion_initial_param_jacobian_zeros(self, bkd) -> None:
-        """DiffusionParameterization.initial_param_jacobian returns zeros."""
+        """The facade initial_param_jacobian returns zeros."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
         params = bkd.array([0.5])
         initial_jac = dp.param_derivatives().initial_param_jacobian
         assert initial_jac is not None
@@ -407,12 +405,14 @@ class TestParameterizations:
         bkd.assert_allclose(result, expected, rtol=1e-12)
 
     def test_forcing_apply_and_jacobian(self, bkd) -> None:
-        """ForcingParameterization.apply and param_jacobian work correctly."""
+        """The forcing facade's apply and param_jacobian work correctly."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         base_forcing = bkd.sin(math.pi * nodes)
         fm = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(physics, fm, bkd)
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics, forcing_map=fm, bkd=bkd
+        )
 
         assert isinstance(fp, ParameterizationProtocol)
         assert fp.nparams() == 1
@@ -434,7 +434,9 @@ class TestParameterizations:
         def jac_of_params(sample):
             p = sample[:, 0]
             fp.apply(p)
-            return fp.param_jacobian(state, time, p)
+            param_jac = fp.param_derivatives().param_jacobian
+            assert param_jac is not None
+            return param_jac(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -450,12 +452,14 @@ class TestParameterizations:
         assert ratio <= 1e-5
 
     def test_reaction_apply_and_jacobian(self, bkd) -> None:
-        """ReactionParameterization.apply and param_jacobian work correctly."""
+        """The reaction facade's apply and param_jacobian work correctly."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 0.0, [phi0])
-        rp = ReactionParameterization(physics, fm, bkd)
+        rp = CollocationAdvectionDiffusionParameterization(
+            physics, reaction_map=fm, bkd=bkd
+        )
 
         assert isinstance(rp, ParameterizationProtocol)
         assert rp.nparams() == 1
@@ -477,7 +481,9 @@ class TestParameterizations:
         def jac_of_params(sample):
             p = sample[:, 0]
             rp.apply(p)
-            return rp.param_jacobian(state, time, p)
+            param_jac = rp.param_derivatives().param_jacobian
+            assert param_jac is not None
+            return param_jac(state, time, p)
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=npts,
@@ -498,11 +504,13 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm_d = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, fm_d)
 
         base_forcing = bkd.sin(math.pi * nodes)
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(physics, fm_f, bkd)
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics, forcing_map=fm_f, bkd=bkd
+        )
 
         comp = CompositeParameterization([dp, fp], bkd)
         assert isinstance(comp, ParameterizationProtocol)
@@ -519,11 +527,13 @@ class TestParameterizations:
         phi0 = bkd.ones((npts,))
         phi1 = nodes
         fm_d = BasisExpansion(bkd, 1.0, [phi0, phi1])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, fm_d)
 
         base_forcing = bkd.sin(math.pi * nodes)
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(physics, fm_f, bkd)
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics, forcing_map=fm_f, bkd=bkd
+        )
 
         comp = CompositeParameterization([dp, fp], bkd)
         assert comp.nparams() == 3
@@ -542,11 +552,13 @@ class TestParameterizations:
             num_kle_terms=num_kle_terms,
             sigma=0.3,
         )
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, fm_d)
 
         base_forcing = bkd.sin(math.pi * nodes)
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(physics, fm_f, bkd)
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics, forcing_map=fm_f, bkd=bkd
+        )
 
         comp = CompositeParameterization([dp, fp], bkd)
         state = bkd.sin(math.pi * nodes)
@@ -588,11 +600,13 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm_d = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, fm_d)
 
         base_forcing = bkd.ones((npts,))
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(physics, fm_f, bkd)
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics, forcing_map=fm_f, bkd=bkd
+        )
 
         comp = CompositeParameterization([dp, fp], bkd)
         params = bkd.array([0.5, 1.0])
@@ -608,7 +622,7 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
         comp = CompositeParameterization([dp], bkd)
         derivs = comp.param_derivatives()
         assert derivs.param_jacobian is not None
@@ -633,7 +647,7 @@ class TestParameterizations:
         npts = basis.npts()
         phi0 = bkd.ones((npts,))
         fm = BasisExpansion(bkd, 1.0, [phi0])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
 
         comp = CompositeParameterization([dp], bkd)
         assert comp.param_derivatives().param_jacobian is not None
@@ -650,11 +664,13 @@ class TestParameterizations:
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         npts = basis.npts()
         fm = BasisExpansion(bkd, 1.0, [bkd.ones((npts,))])
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm)
+        dp = create_diffusion_parameterization(physics, bkd, fm)
         no_hvp_fm = NoHVPQuadraticFieldMap(
             bkd, bkd.full((npts,), 1.0), bkd.ones((npts,))[:, None]
         )
-        fp = ForcingParameterization(physics, no_hvp_fm, bkd)
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics, forcing_map=no_hvp_fm, bkd=bkd
+        )
         with pytest.warns(UserWarning, match="param_param_hvp"):
             comp = CompositeParameterization([dp, fp], bkd)
         derivs = comp.param_derivatives()
@@ -793,16 +809,20 @@ class TestParameterizations:
             comp.append("not_a_param")
 
     def test_forcing_init_type_error(self, bkd) -> None:
-        """ForcingParameterization raises TypeError for non-FieldMap."""
+        """The forcing facade raises TypeError for non-FieldMap."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            ForcingParameterization(physics, "not_a_field_map", bkd)
+            CollocationAdvectionDiffusionParameterization(
+                physics, forcing_map="not_a_field_map", bkd=bkd
+            )
 
     def test_reaction_init_type_error(self, bkd) -> None:
-        """ReactionParameterization raises TypeError for non-FieldMap."""
+        """The reaction facade raises TypeError for non-FieldMap."""
         physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
         with pytest.raises(TypeError):
-            ReactionParameterization(physics, "not_a_field_map", bkd)
+            CollocationAdvectionDiffusionParameterization(
+                physics, reaction_map="not_a_field_map", bkd=bkd
+            )
 
 
 class TestCompositeWithSteadyForwardModel:
@@ -820,11 +840,13 @@ class TestCompositeWithSteadyForwardModel:
             num_kle_terms=num_kle_terms,
             sigma=0.3,
         )
-        dp = create_diffusion_parameterization(physics, bkd, basis, fm_d)
+        dp = create_diffusion_parameterization(physics, bkd, fm_d)
 
         base_forcing = bkd.sin(math.pi * nodes)
         fm_f = ScalarAmplitude(bkd, base_forcing)
-        fp = ForcingParameterization(physics, fm_f, bkd)
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics, forcing_map=fm_f, bkd=bkd
+        )
 
         comp = CompositeParameterization([dp, fp], bkd)
         init_state = bkd.zeros((npts,))

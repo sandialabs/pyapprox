@@ -112,7 +112,7 @@ def create_steady_diffusion_1d(
     physics.set_boundary_conditions(bcs)
 
     fm = _build_field_map(bkd, diffusion_base, basis_funs, field_map)
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
 
     init_state = bkd.zeros((npts,))
     return SteadyForwardModel(
@@ -195,7 +195,7 @@ def create_transient_diffusion_1d(
     physics.set_boundary_conditions(bcs)
 
     fm = _build_field_map(bkd, diffusion_base, basis_funs, field_map)
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
 
     init_state = init_state_func(nodes)
     return TransientForwardModel(

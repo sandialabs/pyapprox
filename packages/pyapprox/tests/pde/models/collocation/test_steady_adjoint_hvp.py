@@ -44,14 +44,15 @@ from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
     CollocationStateEquationWithHVPAdapter,
 )
+from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
+    CollocationAdvectionDiffusionParameterization,
+)
 from pyapprox.pde.parameterizations.composite import (
     CompositeParameterization,
 )
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
-from pyapprox.pde.parameterizations.forcing import ForcingParameterization
-from pyapprox.pde.parameterizations.reaction import ReactionParameterization
 from pyapprox.util.backends.numpy import NumpyBkd
 
 from tests._helpers.adjoint_checks import (
@@ -117,7 +118,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         physics, basis, nodes = _build_problem(bkd)
         field_map = _lognormal_kle_map(bkd, nodes)
         param_obj = create_diffusion_parameterization(
-            physics, bkd, basis, field_map
+            physics, bkd, field_map
         )
         model = create_collocation_model(
             physics, bkd, parameterization=param_obj
@@ -165,13 +166,17 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         physics, basis, nodes = _build_problem(bkd)
         npts = physics.npts()
         dp = create_diffusion_parameterization(
-            physics, bkd, basis, _lognormal_kle_map(bkd, nodes)
+            physics, bkd, _lognormal_kle_map(bkd, nodes)
         )
-        fp = ForcingParameterization(
-            physics, ScalarAmplitude(bkd, bkd.sin(np.pi * nodes)), bkd
+        fp = CollocationAdvectionDiffusionParameterization(
+            physics,
+            forcing_map=ScalarAmplitude(bkd, bkd.sin(np.pi * nodes)),
+            bkd=bkd,
         )
-        rp = ReactionParameterization(
-            physics, BasisExpansion(bkd, -0.5, [bkd.ones((npts,))]), bkd
+        rp = CollocationAdvectionDiffusionParameterization(
+            physics,
+            reaction_map=BasisExpansion(bkd, -0.5, [bkd.ones((npts,))]),
+            bkd=bkd,
         )
         comp = CompositeParameterization([dp, fp, rp], bkd)
         nparams = comp.nparams()
@@ -224,7 +229,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
             bkd, bkd.full((10,), 2.0), modes
         )
         param_obj = create_diffusion_parameterization(
-            physics, bkd, basis, no_hvp_map
+            physics, bkd, no_hvp_map
         )
         model = create_collocation_model(
             physics, bkd, parameterization=param_obj

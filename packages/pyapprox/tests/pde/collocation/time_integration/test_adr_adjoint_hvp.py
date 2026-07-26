@@ -1,7 +1,7 @@
 """Transient adjoint gradient + HVP for collocation ADR with log-KLE.
 
 DerivativeChecker-validated dQ/dp and d^2Q/dp^2 v through the full
-collocation stack (DiffusionParameterization -> HVP-tier ODE adapter ->
+collocation stack (ADR facade -> HVP-tier ODE adapter ->
 stepper -> BCEnforcingHVPResidual -> TimeAdjointOperatorWithHVP) with
 parameters the coefficients of a lognormal KLE of the diffusion field.
 The exp map makes every parameter-facing HVP nonzero, and Dirichlet row
@@ -102,7 +102,7 @@ def _build_pipeline(
         ]
     )
     param_obj = create_diffusion_parameterization(
-        physics, bkd, basis, _lognormal_kle_map(bkd, nodes)
+        physics, bkd, _lognormal_kle_map(bkd, nodes)
     )
     adapter = create_collocation_physics_ode_residual(
         physics, bkd, param_obj

@@ -73,7 +73,7 @@ def _create_flux_neumann_problem(bkd, npts=20):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
 
     init_state = bkd.zeros((npts,))
     return physics, param, init_state
@@ -135,7 +135,7 @@ def _create_gradient_robin_problem(bkd, npts=20):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
 
     init_state = bkd.zeros((npts,))
     return physics, param, init_state
@@ -171,7 +171,7 @@ def _create_all_dirichlet_problem(bkd, npts=20):
     phi0 = bkd.ones((npts,))
     phi1 = nodes
     fm = BasisExpansion(bkd, 2.0, [phi0, phi1])
-    param = create_diffusion_parameterization(physics, bkd, basis, fm)
+    param = create_diffusion_parameterization(physics, bkd, fm)
 
     init_state = bkd.zeros((npts,))
     return physics, param, init_state
