@@ -21,6 +21,13 @@ from .conjugate_gaussian import (
 from .lognormal_avar_objective import (
     LogNormalDataMeanQoIAVaRStdDevObjective,
 )
+from .lognormal_avar_saa_objective import (
+    LogNormalDataMeanQoIAVaRStdDevSAAObjective,
+)
+from .outer_data import (
+    MarginalOuterData,
+    ReparameterizedOuterData,
+)
 
 __all__ = [
     "ConjugateGaussianOEDPredictionUtilityBase",
@@ -35,4 +42,7 @@ __all__ = [
     "ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev",
     "ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev",
     "LogNormalDataMeanQoIAVaRStdDevObjective",
+    "LogNormalDataMeanQoIAVaRStdDevSAAObjective",
+    "MarginalOuterData",
+    "ReparameterizedOuterData",
 ]
