@@ -18,6 +18,11 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh2D,
+)
+from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.field_maps.basis_expansion import (
     BasisExpansion,
 )
@@ -31,12 +36,6 @@ from pyapprox.pde.parameterizations.lame import (
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh2D,
-)
-from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 
 
 def _create_elasticity_physics_and_basis(bkd, npts_1d=6):

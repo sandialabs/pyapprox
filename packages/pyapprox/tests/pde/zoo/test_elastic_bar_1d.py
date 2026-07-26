@@ -7,15 +7,14 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.interface.functions.protocols import (
+    FunctionProtocol,
+)
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
 )
 from pyapprox.pde.zoo.elastic_bar_1d import (
     create_linear_elastic_bar_1d,
-)
-
-from pyapprox.interface.functions.protocols import (
-    FunctionProtocol,
 )
 
 
@@ -45,13 +44,6 @@ class TestElasticBar1D:
         length = 2.0
         E_val = 3.0
 
-        from pyapprox.pde.manufactured import (
-            ManufacturedAdvectionDiffusionReaction,
-        )
-        from pyapprox.pde.collocation.physics.advection_diffusion import (
-            AdvectionDiffusionReaction,
-        )
-
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.boundary import (
             flux_neumann_bc,
@@ -61,8 +53,14 @@ class TestElasticBar1D:
             AffineTransform1D,
             TransformedMesh1D,
         )
+        from pyapprox.pde.collocation.physics.advection_diffusion import (
+            AdvectionDiffusionReaction,
+        )
         from pyapprox.pde.collocation.time_integration import (
             CollocationModel,
+        )
+        from pyapprox.pde.manufactured import (
+            ManufacturedAdvectionDiffusionReaction,
         )
 
         # Manufactured solution: u(x) = x*(2-x), vanishes at x=0
@@ -123,13 +121,6 @@ class TestElasticBar1D:
         length = 1.0
         E_val = 2.0
 
-        from pyapprox.pde.manufactured import (
-            ManufacturedAdvectionDiffusionReaction,
-        )
-        from pyapprox.pde.collocation.physics.advection_diffusion import (
-            AdvectionDiffusionReaction,
-        )
-
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.boundary import (
             flux_neumann_bc,
@@ -138,6 +129,12 @@ class TestElasticBar1D:
         from pyapprox.pde.collocation.mesh import (
             AffineTransform1D,
             TransformedMesh1D,
+        )
+        from pyapprox.pde.collocation.physics.advection_diffusion import (
+            AdvectionDiffusionReaction,
+        )
+        from pyapprox.pde.manufactured import (
+            ManufacturedAdvectionDiffusionReaction,
         )
 
         man_sol = ManufacturedAdvectionDiffusionReaction(
@@ -206,10 +203,6 @@ class TestElasticBar1D:
         f_val = 2.0
         T_val = 3.0
 
-        from pyapprox.pde.collocation.physics.advection_diffusion import (
-            AdvectionDiffusionReaction,
-        )
-
         from pyapprox.pde.collocation.basis import ChebyshevBasis1D
         from pyapprox.pde.collocation.boundary import (
             flux_neumann_bc,
@@ -218,6 +211,9 @@ class TestElasticBar1D:
         from pyapprox.pde.collocation.mesh import (
             AffineTransform1D,
             TransformedMesh1D,
+        )
+        from pyapprox.pde.collocation.physics.advection_diffusion import (
+            AdvectionDiffusionReaction,
         )
         from pyapprox.pde.collocation.time_integration import (
             CollocationModel,

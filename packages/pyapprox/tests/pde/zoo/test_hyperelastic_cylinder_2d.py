@@ -19,6 +19,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
 from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
     hyperelastic_traction_neumann_bc,
@@ -26,14 +27,20 @@ from pyapprox.pde.collocation.boundary.hyperelastic_traction import (
 from pyapprox.pde.collocation.functionals.elasticity_2d import (
     OuterWallRadialDisplacementFunctional,
 )
-from pyapprox.pde.manufactured.hyperelasticity import (
-    ManufacturedHyperelasticityEquations,
-)
+from pyapprox.pde.collocation.mesh import TransformedMesh2D
+from pyapprox.pde.collocation.mesh.transforms import PolarTransform
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
 )
+from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.pde.constitutive import (
+    NeoHookeanStress,
+)
 from pyapprox.pde.field_maps.kle_factory import (
     create_lognormal_kle_field_map,
+)
+from pyapprox.pde.manufactured.hyperelasticity import (
+    ManufacturedHyperelasticityEquations,
 )
 from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
     create_hyperelastic_pressurized_cylinder_2d,
@@ -42,13 +49,6 @@ from pyapprox.pde.zoo.pressurized_cylinder_2d import (
     create_linear_pressurized_cylinder_2d,
 )
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import TransformedMesh2D
-from pyapprox.pde.collocation.mesh.transforms import PolarTransform
-from pyapprox.pde.constitutive import (
-    NeoHookeanStress,
-)
-from pyapprox.pde.collocation.time_integration import CollocationModel
 from tests._helpers.markers import slow_test
 
 # ======================================================================
