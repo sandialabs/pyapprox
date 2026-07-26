@@ -493,6 +493,11 @@ class TestConjugateMCExactStandalone:
 
         For each data realization y, compute Std(W_j|y) for all j,
         apply exact AVaR to the Q-element vector, then average over data.
+        The MC reference computes the discrete AVaR via the variational
+        (Rockafellar-Uryasev) definition so it shares no tail-selection
+        code with the analytical formula, and alpha is chosen so the
+        tail mass npred*(1-alpha) is fractional -- a whole-atom (ceil)
+        tail rule is only accidentally exact at integer tail masses.
         """
         np.random.seed(42)
         nvars = 2  # degree-1 basis
@@ -512,8 +517,16 @@ class TestConjugateMCExactStandalone:
         x_vals = np.linspace(-1.5, 1.5, npred)
         qoi_mat = bkd.asarray(np.column_stack([np.ones(npred), x_vals]))
 
-        alpha = 0.5
-        m = int(np.ceil(npred * (1 - alpha)))
+        alpha = 0.37  # fractional tail mass: npred*(1-alpha) = 2.52
+
+        def discrete_avar(vals):
+            # variational definition; optimum is attained at an atom
+            p = 1.0 / npred
+            return min(
+                t + p * np.maximum(np.asarray(vals) - t, 0.0).sum()
+                / (1.0 - alpha)
+                for t in vals
+            )
 
         # MC estimate
         avar_samples = []
@@ -548,9 +561,7 @@ class TestConjugateMCExactStandalone:
                 stdevs_j.append(np.sqrt(ln_var))
 
             # Exact AVaR of the Q-element discrete distribution
-            sorted_stdevs = sorted(stdevs_j)
-            avar_val = np.mean(sorted_stdevs[-m:])
-            avar_samples.append(avar_val)
+            avar_samples.append(discrete_avar(stdevs_j))
 
         mc_expected = np.mean(avar_samples)
 

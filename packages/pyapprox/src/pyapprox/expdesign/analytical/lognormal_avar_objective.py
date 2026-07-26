@@ -7,9 +7,11 @@ gradients through the entire formula.
 """
 
 import itertools
-import math
 from typing import Generic, List, Optional
 
+from pyapprox.interface.functions.autograd import autograd_derivatives
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -79,7 +81,16 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
         noise_variances: Array,
         alpha: float,
         bkd: Backend[Array],
+        qoi_quad_weights: Optional[Array] = None,
     ) -> None:
+        if alpha > 0 and qoi_mat.shape[1] != 2:
+            raise ValueError(
+                "for alpha > 0 the scalar-threshold piecewise-Gaussian "
+                "formula requires a degree-1 basis [1, x] (2 columns); "
+                f"got {qoi_mat.shape[1]}. Use "
+                "LogNormalDataMeanQoIAVaRStdDevSAAObjective for higher "
+                "degrees."
+            )
         self._obs_mat = obs_mat
         self._prior_mean = prior_mean
         self._prior_cov = prior_cov
@@ -90,7 +101,34 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
         self._bkd = bkd
         self._nobs = obs_mat.shape[0]
         self._npred = qoi_mat.shape[0]
-        self._m = math.ceil(self._npred * (1 - alpha))
+        if qoi_quad_weights is None:
+            qoi_quad_weights = bkd.ones((self._npred,)) / self._npred
+        qoi_quad_weights = bkd.reshape(qoi_quad_weights, (-1,))
+        self._qoi_quad_weights = qoi_quad_weights / bkd.sum(qoi_quad_weights)
+
+    def _avar_tail_weights(self, ranked: List[int]) -> List[tuple]:
+        """Tail atoms and masses for AVaR of a weighted discrete distribution.
+
+        Walk the descending-sorted atoms accumulating quadrature mass until
+        the tail mass 1 - alpha is reached; the boundary atom contributes
+        only the remainder. The weights are constants w.r.t. the design
+        weights, so plain floats do not break the autograd graph.
+        """
+        target = 1.0 - self._alpha
+        p_vals = self._bkd.to_numpy(self._qoi_quad_weights)
+        tail: List[tuple] = []
+        cum = 0.0
+        for j in ranked:
+            p_j = float(p_vals[j])
+            if cum + p_j < target - 1e-15:
+                tail.append((j, p_j))
+                cum += p_j
+            else:
+                remainder = target - cum
+                if remainder > 0.0:
+                    tail.append((j, remainder))
+                break
+        return tail
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -108,7 +146,6 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
         """
         bkd = self._bkd
         npred = self._npred
-        m = self._m
         w = bkd.reshape(design_weights, (self._nobs,))
 
         # Build noise precision from weights
@@ -158,12 +195,15 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
             x_vals_np.append(float(bkd.to_numpy(self._qoi_mat[j, 1])))
             log_K_np.append(float(bkd.to_numpy(bkd.log(K_j)).flat[0]))
 
-        # alpha=0: all terms contribute, integral telescopes to 1
+        # alpha=0: quad-weighted mean, integral telescopes to 1
         if self._alpha == 0.0:
+            p_vals = bkd.to_numpy(self._qoi_quad_weights)
             total = bkd.zeros((1,))
             for j in range(npred):
-                total = total + bkd.reshape(base_arr[j], (1,))
-            return bkd.reshape(total / m, (1, 1))
+                total = total + float(p_vals[j]) * bkd.reshape(
+                    base_arr[j], (1,)
+                )
+            return bkd.reshape(total, (1, 1))
 
         # Crossing thresholds (computed in numpy for sorting)
         thresholds = _compute_crossing_thresholds(x_vals_np, log_K_np)
@@ -211,9 +251,9 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
             ranked = sorted(
                 range(npred), key=lambda j: log_D_at_rep[j], reverse=True
             )
-            tail_indices = ranked[:m]
+            tail_weighted = self._avar_tail_weights(ranked)
 
-            for j in tail_indices:
+            for j, tail_weight in tail_weighted:
                 base_j = bkd.reshape(base_arr[j], (1,))
                 shift_j = shift_arr[j]
 
@@ -228,9 +268,9 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
                     arg_lo = (t_lo - nu_1) / std_mu1 - shift_j
                     phi_lo = bkd.ndtr(bkd.reshape(arg_lo, (1,)))
 
-                total = total + base_j * (phi_hi - phi_lo)
+                total = total + tail_weight * base_j * (phi_hi - phi_lo)
 
-        return bkd.reshape(total / m, (1, 1))
+        return bkd.reshape(total / (1.0 - self._alpha), (1, 1))
 
     def evaluate(self, design_weights: Array) -> Array:
         """Alias for __call__."""
@@ -240,27 +280,23 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
         """Return utility as a float (for diagnostics)."""
         return float(self._bkd.to_numpy(self(design_weights)).flat[0])
 
-    def jacobian(self, design_weights: Array) -> Array:
-        """Jacobian via finite differences (numpy) or autograd (torch).
+    def derivatives(self) -> Derivatives[Array]:
+        """Derivatives bundle: autograd when the backend supports it.
 
-        Parameters
-        ----------
-        design_weights : Array
-            Shape: (nobs, 1)
+        Framework-policy automatic fallback (see
+        ``pyapprox.interface.functions.autograd``): no analytic jacobian
+        is implemented, so backend autograd when available, else an
+        empty bundle (optimizers then use their own finite differences
+        on the value).
 
-        Returns
-        -------
-        Array
-            Shape: (1, nobs)
+        The ordering thresholds and tail-atom identities are detached
+        constants in the graph; the utility is continuous across
+        ordering crossings (swapping atoms have equal deviations there),
+        so the boundary-motion terms cancel and the envelope gradient of
+        the piecewise integral is exact.
         """
         bkd = self._bkd
-        nobs = self._nobs
-        eps = 1e-7
-        f0 = self(design_weights)
-        jac_cols = []
-        for i in range(nobs):
-            one_hot = bkd.reshape(bkd.eye(nobs)[i], (nobs, 1))
-            w_plus = design_weights + eps * one_hot
-            f_plus = self(w_plus)
-            jac_cols.append((f_plus[0, 0] - f0[0, 0]) / eps)
-        return bkd.reshape(bkd.stack(jac_cols), (1, nobs))
+        if isinstance(bkd, AutodiffBackend):
+            return autograd_derivatives(self, bkd)
+        empty: Derivatives[Array] = Derivatives.none()
+        return empty

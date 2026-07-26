@@ -545,14 +545,52 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
         qoi_mat: Array,
         alpha: float,
         bkd: Backend[Array],
+        qoi_quad_weights: Optional[Array] = None,
     ) -> None:
+        if alpha > 0 and qoi_mat.shape[1] != 2:
+            raise ValueError(
+                "for alpha > 0 the scalar-threshold piecewise-Gaussian "
+                "formula requires a degree-1 basis [1, x] (2 columns); "
+                f"got {qoi_mat.shape[1]}. Use "
+                "LogNormalDataMeanQoIAVaRStdDevSAAObjective for higher "
+                "degrees."
+            )
         self._alpha = alpha
+        if qoi_quad_weights is None:
+            npred = qoi_mat.shape[0]
+            qoi_quad_weights = bkd.ones((npred,)) / npred
+        qoi_quad_weights = bkd.reshape(qoi_quad_weights, (-1,))
+        self._qoi_quad_weights = qoi_quad_weights / bkd.sum(qoi_quad_weights)
         super().__init__(prior_mean, prior_cov, qoi_mat, bkd)
+
+    def _avar_tail_weights(self, ranked: List[int]) -> List[tuple]:
+        """Tail atoms and masses for AVaR of a weighted discrete distribution.
+
+        Walk the descending-sorted atoms accumulating quadrature mass until
+        the tail mass 1 - alpha is reached; the boundary atom contributes
+        only the remainder. Rounding the tail up to whole atoms instead is
+        exact only when the tail mass is a whole number of atoms and makes
+        the value a step function of alpha.
+        """
+        target = 1.0 - self._alpha
+        p_vals = self._bkd.to_numpy(self._qoi_quad_weights)
+        tail: List[tuple] = []
+        cum = 0.0
+        for j in ranked:
+            p_j = float(p_vals[j])
+            if cum + p_j < target - 1e-15:
+                tail.append((j, p_j))
+                cum += p_j
+            else:
+                remainder = target - cum
+                if remainder > 0.0:
+                    tail.append((j, remainder))
+                break
+        return tail
 
     def _compute_utility(self) -> float:
         bkd = self._bkd
         npred = self._qoi_mat.shape[0]
-        m = math.ceil(npred * (1 - self._alpha))
 
         Cmat = self._Cmat
         nu_vec = self._nu_vec
@@ -589,14 +627,15 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
             K_vals.append(K_j)
             log_K_vals.append(math.log(K_j))
 
-        # alpha=0 special case: all terms, no ordering needed
+        # alpha=0 special case: quad-weighted mean, no ordering needed
         if self._alpha == 0.0:
+            p_vals = bkd.to_numpy(self._qoi_quad_weights)
             total = 0.0
             for j in range(npred):
-                total += K_vals[j] * math.exp(
+                total += float(p_vals[j]) * K_vals[j] * math.exp(
                     nu_j_vals[j] + sigma_tau_j_sq_vals[j] / 2
                 )
-            return total / m
+            return total
 
         # Distribution of mu_1^*: marginal from (mu_0^*, mu_1^*) ~ N(nu, C)
         c_11 = float(bkd.to_numpy(Cmat[1, 1]))
@@ -662,9 +701,10 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
             log_D_at_rep = [
                 log_K_vals[j] + x_vals[j] * rep for j in range(npred)
             ]
-            # Sort descending by log_D -> top-m are AVaR tail
+            # Sort descending by log_D; tail atoms and masses from the
+            # cumulative quadrature-weight rule
             ranked = sorted(range(npred), key=lambda j: log_D_at_rep[j], reverse=True)
-            tail_indices = ranked[:m]
+            tail_weighted = self._avar_tail_weights(ranked)
 
             # Integrate each tail component's contribution over this interval
             # E[K_j * exp(tau_j) * 1(mu_1^* in [t_lo, t_hi])]
@@ -705,7 +745,7 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
 
             c_01 = float(bkd.to_numpy(Cmat[0, 1]))
 
-            for j in tail_indices:
+            for j, tail_weight in tail_weighted:
                 cov_j1 = c_01 + x_vals[j] * c_11
                 base = K_vals[j] * math.exp(
                     nu_j_vals[j] + sigma_tau_j_sq_vals[j] / 2
@@ -721,9 +761,9 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
                 else:
                     phi_hi = float(stats.norm.cdf((t_hi - nu_1) / std_mu1 - shift))
 
-                total += base * (phi_hi - phi_lo)
+                total += tail_weight * base * (phi_hi - phi_lo)
 
-        return total / m
+        return total / (1.0 - self._alpha)
 
 
 class ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev(
