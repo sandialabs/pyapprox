@@ -16,6 +16,7 @@ from pyapprox.expdesign.deviation.base import DeviationMeasure
 from pyapprox.expdesign.evidence import Evidence
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.risk.base import SampleStatistic
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -222,6 +223,10 @@ class PredictionOEDObjective(Generic[Array]):
         objective = self._noise_stat(risk_values.T, outer_weights)
 
         return objective
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Derivative bundle declaring the analytic jacobian."""
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, design_weights: Array) -> Array:
         """

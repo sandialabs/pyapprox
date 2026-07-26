@@ -17,6 +17,7 @@ from pyapprox.expdesign.likelihood import (
     ParallelGaussianOEDInnerLoopLikelihood,
 )
 from pyapprox.interface.parallel import ParallelConfig
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -168,6 +169,10 @@ class ParallelKLOEDObjective(Generic[Array]):
         eig = self._bkd.sum(self._outer_quad_weights * diff[0])
 
         return self._bkd.reshape(-eig, (1, 1))
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Derivative bundle declaring the analytic jacobian."""
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, design_weights: Array) -> Array:
         """

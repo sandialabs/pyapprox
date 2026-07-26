@@ -19,6 +19,10 @@ from pyapprox.expdesign.solver import (
     RelaxedOEDConfig,
     solve_kl_oed,
 )
+from pyapprox.optimization.minimize.multistart import MultiStartOptimizer
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
 
 
 class TestRelaxedKLOEDSolver:
@@ -90,19 +94,48 @@ class TestRelaxedKLOEDSolver:
         assert weights.shape == (self._nobs, 1)
         assert np.isfinite(eig)
 
+    def test_nondefault_optimizer(self, bkd):
+        """A configured unbound optimizer passed in is used to solve."""
+        optimizer = ScipyTrustConstrOptimizer(verbosity=0, maxiter=40)
+        solver = RelaxedKLOEDSolver(self._objective, optimizer=optimizer)
+        weights, eig = solver.solve()
+
+        assert weights.shape == (self._nobs, 1)
+        assert np.isfinite(eig)
+        bkd.assert_allclose(
+            bkd.sum(weights).reshape(-1),
+            bkd.asarray([1.0]),
+            rtol=1e-4,
+        )
+        # The template optimizer is cloned per solve, never bound itself
+        assert not optimizer.is_bound()
+
     @pytest.mark.slow_on("NumpyBkd")
-    def test_solve_multistart(self, bkd):
-        """Test multi-start solver EIG >= single-start EIG."""
+    def test_multistart_optimizer(self, bkd):
+        """Multistart via an injected MultiStartOptimizer: EIG >= the
+        single-start EIG, weights on the simplex."""
+
+        def simplex_sampler(rng, objective):
+            raw = rng.exponential(size=(objective.nvars(),))
+            sample = raw / raw.sum()
+            b = objective.bkd()
+            return b.reshape(b.asarray(sample), (-1, 1))
+
         config = RelaxedOEDConfig(verbosity=0, maxiter=50)
         solver = RelaxedKLOEDSolver(self._objective, config)
-
-        # Single start as reference
         weights_single, eig_single = solver.solve()
 
-        # Multi-start should find >= the single-start EIG
-        weights_ms, eig_ms = solver.solve_multistart(n_starts=3, seed=42)
+        multistart = MultiStartOptimizer(
+            ScipyTrustConstrOptimizer(verbosity=0, maxiter=50),
+            nstarts=3,
+            start_sampler=simplex_sampler,
+            seed=42,
+        )
+        solver_ms = RelaxedKLOEDSolver(
+            self._objective, optimizer=multistart
+        )
+        weights_ms, eig_ms = solver_ms.solve()
 
-        # Weights must sum to 1
         bkd.assert_allclose(
             bkd.sum(weights_ms).reshape(-1),
             bkd.asarray([1.0]),

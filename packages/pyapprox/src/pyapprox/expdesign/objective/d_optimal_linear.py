@@ -18,6 +18,7 @@ https://doi.org/10.1137/17M115712X
 
 from typing import Generic
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -153,6 +154,10 @@ class DOptimalLinearModelObjective(Generic[Array]):
     def evaluate(self, weights: Array) -> Array:
         """Alias for __call__."""
         return self.__call__(weights)
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Derivative bundle declaring the analytic jacobian."""
+        return Derivatives.first_order(jacobian=self.jacobian)
 
     def jacobian(self, weights: Array) -> Array:
         """

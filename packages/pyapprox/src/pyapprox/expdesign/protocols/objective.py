@@ -10,6 +10,7 @@ This is the KL divergence between posterior and prior, averaged over data.
 
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -18,8 +19,11 @@ class OEDObjectiveProtocol(Protocol, Generic[Array]):
     """
     Protocol for OED objective functions.
 
-    Function-shaped with an analytic jacobian (see interface/functions).
-    The objective takes design weights and returns a scalar value.
+    Function-shaped with a Derivatives bundle (see interface/functions).
+    The objective takes design weights and returns a scalar value. The
+    objective owns its derivative capability, declared via
+    ``derivatives()``; an empty bundle is valid and leaves optimizers to
+    their own finite differences on the value.
 
     For minimization, returns negative EIG.
 
@@ -33,8 +37,8 @@ class OEDObjectiveProtocol(Protocol, Generic[Array]):
         Number of quantities of interest (= 1 for scalar objective).
     __call__(design_weights)
         Evaluate objective at design weights.
-    jacobian(design_weights)
-        Jacobian of objective w.r.t. design weights.
+    derivatives()
+        Derivative bundle for the objective.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -79,19 +83,14 @@ class OEDObjectiveProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def jacobian(self, design_weights: Array) -> Array:
+    def derivatives(self) -> Derivatives[Array]:
         """
-        Jacobian of objective w.r.t. design weights.
-
-        Parameters
-        ----------
-        design_weights : Array
-            Design weights. Shape: (nobs, 1)
+        Derivative bundle for the objective.
 
         Returns
         -------
-        Array
-            Jacobian. Shape: (1, nobs)
+        Derivatives[Array]
+            The objective's derivative capability. May be empty.
         """
         ...
 
@@ -127,8 +126,8 @@ class KLOEDObjectiveProtocol(Protocol, Generic[Array]):
         """Evaluate objective. Shape: (nobs, 1) -> (1, 1)"""
         ...
 
-    def jacobian(self, design_weights: Array) -> Array:
-        """Jacobian of objective. Shape: (nobs, 1) -> (1, nobs)"""
+    def derivatives(self) -> Derivatives[Array]:
+        """Derivative bundle for the objective. May be empty."""
         ...
 
     def ninner(self) -> int:

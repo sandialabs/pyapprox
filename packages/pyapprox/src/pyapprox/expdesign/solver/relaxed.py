@@ -8,11 +8,11 @@ with a sum-to-one constraint, using trust-region constrained optimization.
 from dataclasses import dataclass
 from typing import Generic, Optional, Tuple
 
-import numpy as np
-
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.expdesign.protocols.objective import OEDObjectiveProtocol
-from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
+)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
@@ -44,80 +44,6 @@ class RelaxedOEDConfig:
     xtol: Optional[float] = None
 
 
-class OEDObjectiveWrapper(Generic[Array]):
-    """Wrapper adapting an OED objective for optimization.
-
-    The optimizer expects:
-    - __call__(x) where x is (nvars, nsamples)
-    - jacobian(x) where x is (nvars, 1)
-
-    OED objectives use design_weights of shape (nobs, 1).
-    This wrapper ensures shape compatibility.
-    """
-
-    def __init__(
-        self, objective: OEDObjectiveProtocol[Array], bkd: Backend[Array]
-    ) -> None:
-        self._objective = objective
-        self._bkd = bkd
-        # OEDObjectiveProtocol requires an analytic jacobian.
-        self._derivs: Derivatives[Array] = Derivatives.first_order(
-            jacobian=self.jacobian
-        )
-
-    def derivatives(self) -> Derivatives[Array]:
-        """Return the derivative bundle."""
-        return self._derivs
-
-    def bkd(self) -> Backend[Array]:
-        """Get the backend."""
-        return self._bkd
-
-    def nvars(self) -> int:
-        """Number of variables (= nobs)."""
-        return self._objective.nvars()
-
-    def nqoi(self) -> int:
-        """Number of outputs (= 1)."""
-        return 1
-
-    def __call__(self, samples: Array) -> Array:
-        """Evaluate objective at samples.
-
-        Parameters
-        ----------
-        samples : Array
-            Design weights. Shape: (nobs, nsamples)
-
-        Returns
-        -------
-        Array
-            Objective values. Shape: (1, nsamples)
-        """
-        nsamples = samples.shape[1]
-        results = []
-        for j in range(nsamples):
-            weights = samples[:, j : j + 1]  # (nobs, 1)
-            val = self._objective(weights)  # (1, 1)
-            results.append(val[0, 0])
-        return self._bkd.reshape(self._bkd.asarray(results), (1, nsamples))
-
-    def jacobian(self, sample: Array) -> Array:
-        """Compute Jacobian at a single sample.
-
-        Parameters
-        ----------
-        sample : Array
-            Design weights. Shape: (nobs, 1)
-
-        Returns
-        -------
-        Array
-            Jacobian. Shape: (1, nobs)
-        """
-        return self._objective.jacobian(sample)
-
-
 class RelaxedOEDSolver(Generic[Array]):
     """Relaxed (continuous) solver for any OED objective.
 
@@ -131,17 +57,24 @@ class RelaxedOEDSolver(Generic[Array]):
     objective : OEDObjectiveProtocol[Array]
         Any OED objective function satisfying the protocol.
     config : RelaxedOEDConfig, optional
-        Solver configuration. Uses defaults if None.
+        Solver configuration for the default optimizer. Uses defaults
+        if None. Ignored when ``optimizer`` is provided.
+    optimizer : BindableOptimizerProtocol, optional
+        Configured unbound optimizer (e.g. ``ScipyTrustConstrOptimizer``).
+        Cloned during ``solve()`` to avoid shared state. If None, a
+        ``ScipyTrustConstrOptimizer`` is built from ``config``.
     """
 
     def __init__(
         self,
         objective: OEDObjectiveProtocol[Array],
         config: Optional[RelaxedOEDConfig] = None,
+        optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
     ) -> None:
         self._objective = objective
         self._bkd = objective.bkd()
         self._config = config or RelaxedOEDConfig()
+        self._optimizer = optimizer
         self._nobs = objective.nvars()
 
     def bkd(self) -> Backend[Array]:
@@ -199,23 +132,20 @@ class RelaxedOEDSolver(Generic[Array]):
         if init_weights is None:
             init_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
 
-        # Create wrapped objective
-        wrapped_objective = OEDObjectiveWrapper(self._objective, self._bkd)
-
         # Create bounds and constraint
         bounds = self._create_bounds()
         sum_constraint = self._create_sum_constraint()
 
-        # Create optimizer
-        optimizer = ScipyTrustConstrOptimizer(
-            wrapped_objective,
-            bounds,
-            constraints=[sum_constraint],
-            verbosity=self._config.verbosity,
-            maxiter=self._config.maxiter,
-            gtol=self._config.gtol,
-            xtol=self._config.xtol,
-        )
+        if self._optimizer is not None:
+            optimizer = self._optimizer.copy()
+        else:
+            optimizer = ScipyTrustConstrOptimizer(
+                verbosity=self._config.verbosity,
+                maxiter=self._config.maxiter,
+                gtol=self._config.gtol,
+                xtol=self._config.xtol,
+            )
+        optimizer.bind(self._objective, bounds, [sum_constraint])
 
         # Run optimization
         result = optimizer.minimize(init_weights)
@@ -229,56 +159,6 @@ class RelaxedOEDSolver(Generic[Array]):
         )
 
         return optimal_weights, optimal_value
-
-    def solve_multistart(
-        self,
-        n_starts: int = 5,
-        seed: Optional[int] = None,
-    ) -> Tuple[Array, float]:
-        """Solve with multiple random starting points.
-
-        Parameters
-        ----------
-        n_starts : int
-            Number of random starting points.
-        seed : int, optional
-            Random seed for reproducibility.
-
-        Returns
-        -------
-        optimal_weights : Array
-            Best design weights found. Shape: (nobs, 1)
-        optimal_value : float
-            Best objective value found.
-        """
-        rng = np.random.default_rng(seed)
-
-        best_weights = None
-        best_value = np.inf
-
-        for _ in range(n_starts):
-            # Generate random initial weights on simplex
-            raw = rng.exponential(size=(self._nobs,))
-            init_np = raw / raw.sum()
-            init_weights = self._bkd.reshape(
-                self._bkd.asarray(init_np), (self._nobs, 1)
-            )
-
-            try:
-                weights, value = self.solve(init_weights)
-                if value < best_value:
-                    best_value = value
-                    best_weights = weights
-            except Exception:
-                # Skip failed optimizations
-                continue
-
-        if best_weights is None:
-            # Fallback to uniform if all failed
-            best_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
-            best_value = float(self._bkd.to_numpy(self._objective(best_weights))[0, 0])
-
-        return best_weights, best_value
 
 
 class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
@@ -297,15 +177,19 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
     objective : KLOEDObjective[Array]
         The KL-OED objective function.
     config : RelaxedOEDConfig, optional
-        Solver configuration. Uses defaults if None.
+        Solver configuration for the default optimizer. Uses defaults
+        if None. Ignored when ``optimizer`` is provided.
+    optimizer : BindableOptimizerProtocol, optional
+        Configured unbound optimizer, cloned during ``solve()``.
     """
 
     def __init__(
         self,
         objective: KLOEDObjective[Array],
         config: Optional[RelaxedOEDConfig] = None,
+        optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
     ) -> None:
-        super().__init__(objective, config)
+        super().__init__(objective, config, optimizer)
         self._kl_objective = objective
 
     def solve(self, init_weights: Optional[Array] = None) -> Tuple[Array, float]:
@@ -330,53 +214,3 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
         optimal_eig = self._kl_objective.expected_information_gain(optimal_weights)
 
         return optimal_weights, optimal_eig
-
-    def solve_multistart(
-        self,
-        n_starts: int = 5,
-        seed: Optional[int] = None,
-    ) -> Tuple[Array, float]:
-        """Solve with multiple random starting points.
-
-        Parameters
-        ----------
-        n_starts : int
-            Number of random starting points.
-        seed : int, optional
-            Random seed for reproducibility.
-
-        Returns
-        -------
-        optimal_weights : Array
-            Best design weights found. Shape: (nobs, 1)
-        optimal_eig : float
-            Best expected information gain found.
-        """
-        rng = np.random.default_rng(seed)
-
-        best_weights = None
-        best_eig = -np.inf
-
-        for _ in range(n_starts):
-            # Generate random initial weights on simplex
-            raw = rng.exponential(size=(self._nobs,))
-            init_np = raw / raw.sum()
-            init_weights = self._bkd.reshape(
-                self._bkd.asarray(init_np), (self._nobs, 1)
-            )
-
-            try:
-                weights, eig = self.solve(init_weights)
-                if eig > best_eig:
-                    best_eig = eig
-                    best_weights = weights
-            except Exception:
-                # Skip failed optimizations
-                continue
-
-        if best_weights is None:
-            # Fallback to uniform if all failed
-            best_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
-            best_eig = self._kl_objective.expected_information_gain(best_weights)
-
-        return best_weights, best_eig
