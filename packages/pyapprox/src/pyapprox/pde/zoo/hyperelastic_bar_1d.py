@@ -128,7 +128,6 @@ def create_hyperelastic_bar_1d(
     param = create_hyperelastic_youngs_modulus_parameterization(
         physics,
         bkd,
-        basis,
         field_map,
         poisson_ratio,
     )

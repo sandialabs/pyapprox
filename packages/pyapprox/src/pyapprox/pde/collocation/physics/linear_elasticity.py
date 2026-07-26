@@ -480,10 +480,13 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         normals: Array,
     ) -> Array:
         """Assemble :math:`\\partial t/\\partial [\\mu; \\lambda]` at
-        boundary points, component-stacked.
+        the boundary rows of one traction BC.
 
-        The traction :math:`t = \\sigma n` at mesh point :math:`i`
-        depends on the Lame fields only through their local values:
+        Consumer convention (the BC supplies its own row indices and
+        normals): ``bc_indices`` are the BC's replaced STATE rows —
+        one traction component per BC (``mesh_idx + comp * npts``).
+        The traction at mesh point :math:`i` depends on the Lame
+        fields only through their local values:
 
         .. math::
 
@@ -493,11 +496,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             \\partial t_x/\\partial\\lambda_i
             = \\mathrm{tr}(\\varepsilon)\\, n_x
 
-        (similarly for :math:`t_y`), so each row carries two nonzeros:
-        one in the mu block, one in the lambda block. Right-multiplying
-        by a stacked-lame field-map Jacobian reproduces the
-        component-stacked ``bc_flux_param_sensitivity`` convention
-        ``[t_x rows; t_y rows]``.
+        (similarly for :math:`t_y`), so each row pairs one nonzero in
+        the mu block with one in the lambda block.
 
         Parameters
         ----------
@@ -506,36 +506,40 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         time : float
             Current time (unused; kept for signature uniformity).
         bc_indices : Array
-            Mesh point indices (0..npts-1) on the boundary.
-            Shape: (n_bc,)
+            Replaced state-row indices of the BC. Shape: (n_bc,)
         normals : Array
             Outward unit normals. Shape: (n_bc, 2)
 
         Returns
         -------
         Array
-            Assembly. Shape: (2*n_bc, 2*npts)
+            Assembly over the stacked [mu; lambda] field.
+            Shape: (n_bc, 2*npts)
         """
         bkd = self._bkd
         npts = self.npts()
         nbnd = bc_indices.shape[0]
+        comp = bkd.to_int(bc_indices[0]) // npts
+        mesh_idx = bc_indices - comp * npts
         exx, exy, eyy = self._strains(state)
-        exx_b = exx[bc_indices]
-        exy_b = exy[bc_indices]
-        eyy_b = eyy[bc_indices]
+        exx_b = exx[mesh_idx]
+        exy_b = exy[mesh_idx]
+        eyy_b = eyy[mesh_idx]
         trace_b = exx_b + eyy_b
         nx = normals[:, 0]
         ny = normals[:, 1]
+        if comp == 0:
+            dt_dmu = 2.0 * exx_b * nx + 2.0 * exy_b * ny
+            dt_dlam = trace_b * nx
+        else:
+            dt_dmu = 2.0 * exy_b * nx + 2.0 * eyy_b * ny
+            dt_dlam = trace_b * ny
 
-        result = bkd.copy(bkd.zeros((2 * nbnd, 2 * npts)))
+        result = bkd.copy(bkd.zeros((nbnd, 2 * npts)))
         for i in range(nbnd):
-            idx = bkd.to_int(bc_indices[i])
-            result[i, idx] = 2.0 * exx_b[i] * nx[i] + 2.0 * exy_b[i] * ny[i]
-            result[i, npts + idx] = trace_b[i] * nx[i]
-            result[nbnd + i, idx] = (
-                2.0 * exy_b[i] * nx[i] + 2.0 * eyy_b[i] * ny[i]
-            )
-            result[nbnd + i, npts + idx] = trace_b[i] * ny[i]
+            idx = bkd.to_int(mesh_idx[i])
+            result[i, idx] = dt_dmu[i]
+            result[i, npts + idx] = dt_dlam[i]
         return result
 
     def compute_interface_flux(

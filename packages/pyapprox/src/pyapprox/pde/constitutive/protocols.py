@@ -199,9 +199,9 @@ class StressModelWithSensitivityProtocol(Protocol, Generic[Array]):
     meaningful for models whose material parameters are the Lame
     parameters, so the setters are part of the same capability.
 
-    Required by HyperelasticityPhysics (which updates material fields
-    via the setters and exposes residual sensitivities) and by
-    HyperelasticYoungsModulusParameterization.
+    Required by HyperelasticityPhysics, which updates material fields
+    via the setters and builds its field-derivative assemblies from
+    the stress sensitivities.
 
     Implementations should also satisfy StressModelProtocol.
     """

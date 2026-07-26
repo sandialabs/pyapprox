@@ -1,7 +1,7 @@
 """Tests for HyperelasticityPhysics 2D extensions.
 
 Verifies via DerivativeChecker:
-1. residual_mu_sensitivity / residual_lamda_sensitivity in 2D
+1. residual_mu_jacobian / residual_lamda_jacobian assemblies in 2D
 2. compute_flux matches residual structure
 3. compute_flux_jacobian in 2D
 """
@@ -74,7 +74,7 @@ class _ResidualOfMu(Generic[Array]):
     """Wraps residual(state; mu) as function of mu for DerivativeChecker.
 
     Input: mu (npts,1). Output: residual (nstates,1).
-    Jacobian via residual_mu_sensitivity applied column-by-column.
+    Jacobian: the residual_mu_jacobian assembly.
     """
 
     def __init__(self, physics, state, mu_base, bkd, time=0.0):
@@ -113,23 +113,8 @@ class _ResidualOfMu(Generic[Array]):
     def jacobian(self, sample):
         if sample.ndim == 2:
             sample = sample[:, 0]
-        bkd = self._bkd
         self._physics.set_mu(sample)
-        npts = self.nvars()
-        nstates = self.nqoi()
-        jac = bkd.zeros((nstates, npts))
-        jac = bkd.copy(jac)
-        for j in range(npts):
-            delta = bkd.zeros((npts,))
-            delta = bkd.copy(delta)
-            delta[j] = 1.0
-            col = self._physics.residual_mu_sensitivity(
-                self._state,
-                self._time,
-                delta,
-            )
-            for k in range(nstates):
-                jac[k, j] = col[k]
+        jac = self._physics.residual_mu_jacobian(self._state)
         self._physics.set_mu(self._mu_base)
         return jac
 
@@ -173,23 +158,8 @@ class _ResidualOfLamda(Generic[Array]):
     def jacobian(self, sample):
         if sample.ndim == 2:
             sample = sample[:, 0]
-        bkd = self._bkd
         self._physics.set_lamda(sample)
-        npts = self.nvars()
-        nstates = self.nqoi()
-        jac = bkd.zeros((nstates, npts))
-        jac = bkd.copy(jac)
-        for j in range(npts):
-            delta = bkd.zeros((npts,))
-            delta = bkd.copy(delta)
-            delta[j] = 1.0
-            col = self._physics.residual_lamda_sensitivity(
-                self._state,
-                self._time,
-                delta,
-            )
-            for k in range(nstates):
-                jac[k, j] = col[k]
+        jac = self._physics.residual_lamda_jacobian(self._state)
         self._physics.set_lamda(self._lam_base)
         return jac
 
@@ -239,8 +209,8 @@ class _FluxComponentOfState(Generic[Array]):
 
 class TestHyperelasticSensitivity2D:
     """Test 2D residual sensitivities and flux for HyperelasticityPhysics."""
-    def test_residual_mu_sensitivity_2d(self, bkd):
-        """DerivativeChecker validates dR/dmu in 2D."""
+    def test_residual_mu_jacobian_2d(self, bkd):
+        """DerivativeChecker validates the mu assembly in 2D."""
         lamda, mu = 2.0, 1.5
         physics, basis = _setup_2d_hyperelastic(
             bkd,
@@ -266,8 +236,8 @@ class TestHyperelasticSensitivity2D:
         errors = checker.check_derivatives(sample, verbosity=0)
         assert float(checker.error_ratio(errors[0])) <= 1e-6
 
-    def test_residual_lamda_sensitivity_2d(self, bkd):
-        """DerivativeChecker validates dR/dlam in 2D."""
+    def test_residual_lamda_jacobian_2d(self, bkd):
+        """DerivativeChecker validates the lambda assembly in 2D."""
         lamda, mu = 2.0, 1.5
         physics, basis = _setup_2d_hyperelastic(
             bkd,

@@ -172,23 +172,21 @@ class TestAssemblies:
     def test_boundary_traction_direct_formula(self, bkd):
         """Each traction row has exactly two nonzeros — the local
         strain contractions — recomputed here from the public
-        derivative matrices."""
+        derivative matrices. One traction component per BC: rows are
+        selected by the BC's replaced state indices."""
         basis, physics, state, npts, _, _ = self._setup(bkd)
-        bc_indices = bkd.array([0, 3, 7], dtype=int)
+        mesh_idx = bkd.array([0, 3, 7], dtype=int)
         raw = np.random.uniform(-1.0, 1.0, (3, 2))
         raw /= np.linalg.norm(raw, axis=1)[:, None]
         normals = bkd.asarray(raw)
-        bmat = physics.boundary_traction_lame_jacobian(
-            state, 0.0, bc_indices, normals
-        )
 
         u = state[:npts]
         v = state[npts:]
         dx = basis.derivative_matrix(1, 0)
         dy = basis.derivative_matrix(1, 1)
-        exx = (dx @ u)[bc_indices]
-        exy = (0.5 * ((dy @ u) + (dx @ v)))[bc_indices]
-        eyy = (dy @ v)[bc_indices]
+        exx = (dx @ u)[mesh_idx]
+        exy = (0.5 * ((dy @ u) + (dx @ v)))[mesh_idx]
+        eyy = (dy @ v)[mesh_idx]
         trace = exx + eyy
         nx = normals[:, 0]
         ny = normals[:, 1]
@@ -196,12 +194,19 @@ class TestAssemblies:
         delta_mu = _random(bkd, (npts,))
         delta_lam = _random(bkd, (npts,))
         stacked = bkd.concatenate([delta_mu, delta_lam])
-        result = bmat @ stacked
+
+        bmat_x = physics.boundary_traction_lame_jacobian(
+            state, 0.0, mesh_idx, normals
+        )
         expected_tx = (2.0 * exx * nx + 2.0 * exy * ny) * delta_mu[
-            bc_indices
-        ] + trace * nx * delta_lam[bc_indices]
+            mesh_idx
+        ] + trace * nx * delta_lam[mesh_idx]
+        bkd.assert_allclose(bmat_x @ stacked, expected_tx, rtol=1e-12)
+
+        bmat_y = physics.boundary_traction_lame_jacobian(
+            state, 0.0, mesh_idx + npts, normals
+        )
         expected_ty = (2.0 * exy * nx + 2.0 * eyy * ny) * delta_mu[
-            bc_indices
-        ] + trace * ny * delta_lam[bc_indices]
-        bkd.assert_allclose(result[:3], expected_tx, rtol=1e-12)
-        bkd.assert_allclose(result[3:], expected_ty, rtol=1e-12)
+            mesh_idx
+        ] + trace * ny * delta_lam[mesh_idx]
+        bkd.assert_allclose(bmat_y @ stacked, expected_ty, rtol=1e-12)

@@ -215,7 +215,6 @@ def create_hyperelastic_pressurized_cylinder_2d(
     param = create_hyperelastic_youngs_modulus_parameterization(
         physics,
         bkd,
-        basis,
         field_map,
         poisson_ratio,
     )

@@ -234,91 +234,173 @@ class HyperelasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     # Residual sensitivity to material parameters
     # ------------------------------------------------------------------
 
-    def residual_mu_sensitivity(
-        self, state: Array, time: float, delta_mu: Array
-    ) -> Array:
-        """Compute d(residual)/d(mu_field) * delta_mu.
+    # -- full-matrix field-derivative assemblies (engine slots)
+
+    def residual_mu_jacobian(self, state: Array) -> Array:
+        """Assemble :math:`S_\\mu(u) = \\partial R/\\partial
+        \\mu_{\\text{field}}` from the stress model's mu sensitivity.
+
+        State-nonlinear (the PK1 sensitivity depends on the
+        deformation gradient), so no linearity identities apply — the
+        parameterization tier stays first order until stress-model
+        tangent assemblies (:math:`\\partial^2 P/\\partial F
+        \\partial \\mu`) provide the mixed contractions.
 
         Parameters
         ----------
         state : Array
-            Displacement field. Shape: (nstates,).
-        time : float
-            Current time.
-        delta_mu : Array
-            Perturbation in mu field. Shape: (npts,).
+            Displacement state. Shape: (nstates,)
 
         Returns
         -------
         Array
-            Residual sensitivity. Shape: (nstates,).
+            Assembly. Shape: (nstates, npts)
         """
         bkd = self._bkd
         if self._ndim == 1:
             Dx = self._D[0]
             F = 1.0 + Dx @ state
             dP_dmu = self._stress_model.stress_sensitivity_mu_1d(F, bkd)
-            return Dx @ (dP_dmu * delta_mu)
-        elif self._ndim == 2:
+            return Dx @ bkd.diag(dP_dmu)
+        if self._ndim == 2:
             Dx, Dy = self._D
             u, v = self._extract_components(state)
             F11 = 1.0 + Dx @ u
             F12 = Dy @ u
             F21 = Dx @ v
             F22 = 1.0 + Dy @ v
-            dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_mu_2d(
-                F11, F12, F21, F22, bkd
+            dP11, dP12, dP21, dP22 = (
+                self._stress_model.stress_sensitivity_mu_2d(
+                    F11, F12, F21, F22, bkd
+                )
             )
-            sens_u = Dx @ (dP11 * delta_mu) + Dy @ (dP12 * delta_mu)
-            sens_v = Dx @ (dP21 * delta_mu) + Dy @ (dP22 * delta_mu)
-            return bkd.concatenate([sens_u, sens_v])
-        else:
-            raise NotImplementedError(
-                "residual_mu_sensitivity only implemented for 1D and 2D"
-            )
+            top = Dx @ bkd.diag(dP11) + Dy @ bkd.diag(dP12)
+            bottom = Dx @ bkd.diag(dP21) + Dy @ bkd.diag(dP22)
+            return bkd.concatenate([top, bottom], axis=0)
+        raise NotImplementedError(
+            "residual_mu_jacobian only implemented for 1D and 2D"
+        )
 
-    def residual_lamda_sensitivity(
-        self, state: Array, time: float, delta_lam: Array
-    ) -> Array:
-        """Compute d(residual)/d(lamda_field) * delta_lam.
+    def residual_lamda_jacobian(self, state: Array) -> Array:
+        """Assemble :math:`S_\\lambda(u) = \\partial R/\\partial
+        \\lambda_{\\text{field}}` from the stress model's lambda
+        sensitivity.
 
         Parameters
         ----------
         state : Array
-            Displacement field. Shape: (nstates,).
-        time : float
-            Current time.
-        delta_lam : Array
-            Perturbation in lambda field. Shape: (npts,).
+            Displacement state. Shape: (nstates,)
 
         Returns
         -------
         Array
-            Residual sensitivity. Shape: (nstates,).
+            Assembly. Shape: (nstates, npts)
         """
         bkd = self._bkd
         if self._ndim == 1:
             Dx = self._D[0]
             F = 1.0 + Dx @ state
-            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(F, bkd)
-            return Dx @ (dP_dlam * delta_lam)
-        elif self._ndim == 2:
+            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(
+                F, bkd
+            )
+            return Dx @ bkd.diag(dP_dlam)
+        if self._ndim == 2:
             Dx, Dy = self._D
             u, v = self._extract_components(state)
             F11 = 1.0 + Dx @ u
             F12 = Dy @ u
             F21 = Dx @ v
             F22 = 1.0 + Dy @ v
-            dP11, dP12, dP21, dP22 = self._stress_model.stress_sensitivity_lamda_2d(
+            dP11, dP12, dP21, dP22 = (
+                self._stress_model.stress_sensitivity_lamda_2d(
+                    F11, F12, F21, F22, bkd
+                )
+            )
+            top = Dx @ bkd.diag(dP11) + Dy @ bkd.diag(dP12)
+            bottom = Dx @ bkd.diag(dP21) + Dy @ bkd.diag(dP22)
+            return bkd.concatenate([top, bottom], axis=0)
+        raise NotImplementedError(
+            "residual_lamda_jacobian only implemented for 1D and 2D"
+        )
+
+    def boundary_traction_lame_jacobian(
+        self,
+        state: Array,
+        time: float,
+        bc_indices: Array,
+        normals: Array,
+    ) -> Array:
+        """Assemble :math:`\\partial(P n)/\\partial [\\mu; \\lambda]`
+        at the boundary rows of one traction BC.
+
+        Consumer convention (the BC supplies its own row indices and
+        normals): ``bc_indices`` are the BC's replaced STATE rows —
+        one traction component per BC in 2D (``mesh_idx + comp *
+        npts``) — and each returned row pairs one nonzero in the mu
+        block with one in the lambda block at that row's mesh column.
+
+        Parameters
+        ----------
+        state : Array
+            Displacement state. Shape: (nstates,)
+        time : float
+            Current time (unused; kept for signature uniformity).
+        bc_indices : Array
+            Replaced state-row indices of the BC. Shape: (n_bc,)
+        normals : Array
+            Outward unit normals. Shape: (n_bc, ndim)
+
+        Returns
+        -------
+        Array
+            Assembly over the stacked [mu; lambda] field.
+            Shape: (n_bc, 2*npts)
+        """
+        bkd = self._bkd
+        npts = self.npts()
+        nbnd = bc_indices.shape[0]
+        result = bkd.copy(bkd.zeros((nbnd, 2 * npts)))
+        if self._ndim == 1:
+            Dx = self._D[0]
+            F = 1.0 + Dx @ state
+            dP_dmu = self._stress_model.stress_sensitivity_mu_1d(F, bkd)
+            dP_dlam = self._stress_model.stress_sensitivity_lamda_1d(
+                F, bkd
+            )
+            for i in range(nbnd):
+                idx = bkd.to_int(bc_indices[i])
+                result[i, idx] = normals[i, 0] * dP_dmu[idx]
+                result[i, npts + idx] = normals[i, 0] * dP_dlam[idx]
+            return result
+        if self._ndim == 2:
+            comp = bkd.to_int(bc_indices[0]) // npts
+            mesh_idx = bc_indices - comp * npts
+            Dx, Dy = self._D
+            u, v = self._extract_components(state)
+            F11 = (1.0 + Dx @ u)[mesh_idx]
+            F12 = (Dy @ u)[mesh_idx]
+            F21 = (Dx @ v)[mesh_idx]
+            F22 = (1.0 + Dy @ v)[mesh_idx]
+            dP_mu = self._stress_model.stress_sensitivity_mu_2d(
                 F11, F12, F21, F22, bkd
             )
-            sens_u = Dx @ (dP11 * delta_lam) + Dy @ (dP12 * delta_lam)
-            sens_v = Dx @ (dP21 * delta_lam) + Dy @ (dP22 * delta_lam)
-            return bkd.concatenate([sens_u, sens_v])
-        else:
-            raise NotImplementedError(
-                "residual_lamda_sensitivity only implemented for 1D and 2D"
+            dP_lam = self._stress_model.stress_sensitivity_lamda_2d(
+                F11, F12, F21, F22, bkd
             )
+            i1 = 2 * comp
+            i2 = 2 * comp + 1
+            dt_dmu = dP_mu[i1] * normals[:, 0] + dP_mu[i2] * normals[:, 1]
+            dt_dlam = (
+                dP_lam[i1] * normals[:, 0] + dP_lam[i2] * normals[:, 1]
+            )
+            for i in range(nbnd):
+                idx = bkd.to_int(mesh_idx[i])
+                result[i, idx] = dt_dmu[i]
+                result[i, npts + idx] = dt_dlam[i]
+            return result
+        raise NotImplementedError(
+            "boundary_traction_lame_jacobian only implemented for 1D and 2D"
+        )
 
     # ------------------------------------------------------------------
     # Residual computation
