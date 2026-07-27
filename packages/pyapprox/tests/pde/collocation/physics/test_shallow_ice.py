@@ -2,12 +2,17 @@
 
 
 import numpy as np
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+import pytest
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
+    TransformedMesh2D,
     create_uniform_mesh_1d,
 )
 from pyapprox.pde.collocation.physics.shallow_ice import (
@@ -24,6 +29,7 @@ from pyapprox.pde.manufactured.shallow_ice import (
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 from tests._helpers.physics_test_utils import (
+    PhysicsDerivativeWrapper,
     PhysicsNewtonResidual,
     PhysicsTestBase,
 )
@@ -50,7 +56,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         # Positive ice thickness (physically meaningful)
         state = 100.0 + 50.0 * (1.0 - nodes**2)
 
-        self.check_jacobian(bkd, physics, state, time=0.0)
+        # Exact Jacobian: limited only by the checker's FD noise
+        # (measured sweep bottom ~1.8e-7)
+        self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
 
     def test_jacobian_sloped_bed(self, bkd):
         """Test Jacobian with sloped bed topography."""
@@ -70,7 +78,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         # Positive ice thickness
         state = 150.0 + 30.0 * (1.0 - nodes**2)
 
-        self.check_jacobian(bkd, physics, state, time=0.0)
+        # Exact Jacobian: limited only by the checker's FD noise
+        # (measured sweep bottom ~8e-8)
+        self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
 
     def test_residual_at_manufactured_solution(self, bkd):
         """Verify residual is near zero at manufactured solution.
@@ -125,8 +135,8 @@ class TestShallowIcePhysics(PhysicsTestBase):
         if exact_solution.ndim == 2:
             exact_solution = exact_solution[:, 0]
 
-        # Check residual is near zero at manufactured solution
-        self.check_residual_zero(bkd, physics, exact_solution, atol=1e-6)
+        # Spectral-truncation-limited (measured norm ~2.3e-7 at npts=20)
+        self.check_residual_zero(bkd, physics, exact_solution, atol=5e-7)
 
     def test_solve_steady_from_small_perturbation(self, bkd):
         """Verify Newton converges from small perturbation.
@@ -200,7 +210,9 @@ class TestShallowIcePhysics(PhysicsTestBase):
         solver.set_options(maxiters=50, atol=1e-10, rtol=1e-10)
         solution = solver.solve(initial_guess)
 
-        bkd.assert_allclose(solution, exact_solution, atol=1e-6)
+        # Newton-tolerance-limited (atol/rtol 1e-10; measured solution
+        # error ~7.5e-13 with the exact Jacobian)
+        bkd.assert_allclose(solution, exact_solution, atol=1e-11)
 
     def test_factory_function(self, bkd):
         """Test create_shallow_ice factory function."""
@@ -295,14 +307,141 @@ class TestShallowIcePhysics(PhysicsTestBase):
 
         bkd.assert_allclose(solutions[:, -1], exact_final, atol=atol)
 
+    @staticmethod
+    def _make_shallow_ice(bkd, ndim, bed_type, friction, glen_exponent):
+        """Build normalized (A=1, rho=1) shallow-ice physics on a
+        1D or 2D Chebyshev basis with flat or varying bed."""
+        if ndim == 1:
+            mesh = TransformedMesh1D(10, bkd)
+            basis = ChebyshevBasis1D(mesh, bkd)
+            coords = [basis.nodes()]
+        else:
+            mesh = TransformedMesh2D(5, 5, bkd)
+            basis = ChebyshevBasis2D(mesh, bkd)
+            pts = mesh.points()
+            coords = [pts[0], pts[1]]
+        npts = basis.npts()
+        # O(1) bed keeps residual magnitudes moderate so the
+        # DerivativeChecker FD sweep bottoms out cleanly
+        if bed_type == "flat":
+            bed = bkd.zeros((npts,))
+        else:
+            bed = 0.5 * coords[0]
+            if ndim == 2:
+                bed = bed + 0.25 * coords[1] ** 2
+        physics = ShallowIcePhysics(
+            basis,
+            bkd,
+            bed=bed,
+            friction=friction,
+            A=1.0,
+            rho=1.0,
+            glen_exponent=glen_exponent,
+        )
+        return physics, npts
+
+    @pytest.mark.parametrize("glen_exponent", [3.0, 4.0])
+    @pytest.mark.parametrize("ndim", [1, 2])
+    @pytest.mark.parametrize("bed_type", ["flat", "varying"])
+    @pytest.mark.parametrize("friction", [float("inf"), 1.0])
+    def test_jacobian_parametrized(
+        self, bkd, glen_exponent, ndim, bed_type, friction
+    ):
+        """Exact Jacobian vs DerivativeChecker across n, dimension,
+        bed topography, and sliding regimes.
+
+        friction=inf makes friction_frac exactly zero (no sliding
+        term); H > 0 is required for the fractional powers H^(n+1).
+        """
+        physics, npts = self._make_shallow_ice(
+            bkd, ndim, bed_type, friction, glen_exponent
+        )
+        wrapper = PhysicsDerivativeWrapper(physics, time=0.0)
+        checker = DerivativeChecker(wrapper)
+        for _ in range(3):
+            state = bkd.asarray(
+                2.0 + 0.5 * np.random.uniform(-1.0, 1.0, (npts,))
+            )
+            errors = checker.check_derivatives(state[:, None], verbosity=0)
+            # The FD sweep is V-shaped (truncation decay then roundoff
+            # climb) bottoming near 9e-8; a wrong Jacobian plateaus
+            # instead. Assert the measured bottom plus a calibrated
+            # ratio (marginal cases reach ~1.3e-6).
+            assert float(bkd.min(errors[0])) <= 1e-6
+            assert checker.error_ratio(errors[0]) <= 5e-6
+
+    def test_jacobian_forcing_independent(self, bkd):
+        """dR/dH must be identical with and without forcing (additive,
+        state-independent term)."""
+        physics_plain, npts = self._make_shallow_ice(
+            bkd, 2, "varying", 1.0, 3.0
+        )
+        forcing_vals = bkd.asarray(np.random.uniform(-1.0, 1.0, (npts,)))
+
+        def forcing_fn(t):
+            return forcing_vals
+
+        physics_forced, _ = self._make_shallow_ice(bkd, 2, "varying", 1.0, 3.0)
+        physics_forced._forcing_func = forcing_fn
+        state = bkd.asarray(2.0 + 0.5 * np.random.uniform(-1.0, 1.0, (npts,)))
+        jac_plain = physics_plain.jacobian(state, 0.0)
+        jac_forced = physics_forced.jacobian(state, 0.0)
+        bkd.assert_allclose(jac_forced, jac_plain, rtol=1e-12)
+
+        wrapper = PhysicsDerivativeWrapper(physics_forced, time=0.0)
+        checker = DerivativeChecker(wrapper)
+        errors = checker.check_derivatives(state[:, None], verbosity=0)
+        assert checker.error_ratio(errors[0]) <= 1e-6
+
+    def test_diffusion_derivatives_n3_identity(self, bkd):
+        """Exact n=3 collapse pinning the eps-regularization convention.
+
+        For n=3: kappa_G = gamma*H^5 exactly (G^0 = 1, no eps
+        dependence) and kappa_H = 5*gamma*H^4*(grad_s_sq+eps) +
+        2*friction_frac*H.
+        """
+        friction = 2.0
+        physics, npts = self._make_shallow_ice(bkd, 1, "varying", friction, 3.0)
+        state = bkd.asarray(2.0 + 0.5 * np.random.uniform(-1.0, 1.0, (npts,)))
+        _, grad_s_sq = physics._compute_surface_gradient(state)
+        kappa_h, kappa_g = physics._compute_diffusion_derivatives(
+            state, grad_s_sq
+        )
+
+        gravity = 9.81
+        gamma = 2.0 * 1.0 * (1.0 * gravity) ** 3 / 5.0
+        friction_frac = 1.0 * gravity / friction
+        eps = 1e-12
+        bkd.assert_allclose(kappa_g, gamma * state**5, rtol=1e-12)
+        bkd.assert_allclose(
+            kappa_h,
+            5.0 * gamma * state**4 * (grad_s_sq + eps)
+            + 2.0 * friction_frac * state,
+            rtol=1e-12,
+        )
+
+    def test_jacobian_nonsymmetric_sloped_bed(self, bkd):
+        """Guard against accidental symmetrization: the exact SIA
+        Jacobian is nonsymmetric on a sloped bed."""
+        physics, npts = self._make_shallow_ice(bkd, 1, "varying", 1.0, 3.0)
+        state = bkd.asarray(2.0 + 0.5 * np.random.uniform(-1.0, 1.0, (npts,)))
+        jac = physics.jacobian(state, 0.0)
+        asym_norm = float(bkd.norm(jac - jac.T))
+        assert asym_norm > 1e-8 * float(bkd.norm(jac))
+
     def test_transient_manufactured_backward_euler(self, bkd):
-        """Test transient shallow ice with backward Euler."""
-        self._run_transient_shallow_ice(bkd, "backward_euler", atol=0.1)
+        """Test transient shallow ice with backward Euler.
+
+        Time-discretization-limited (measured final error ~7.8e-8 at
+        deltat=0.01 on both backends).
+        """
+        self._run_transient_shallow_ice(bkd, "backward_euler", atol=1e-6)
 
     def test_transient_manufactured_crank_nicolson(self, bkd):
         """Test transient shallow ice with Crank-Nicolson.
 
         Uses polynomial-in-space and quadratic-in-time manufactured solution.
-        CN integrates quadratic-in-time exactly, so only spatial error remains.
+        CN integrates quadratic-in-time exactly, so only roundoff remains
+        (measured final error ~1.3e-13).
         """
-        self._run_transient_shallow_ice(bkd, "crank_nicolson", atol=1e-8)
+        self._run_transient_shallow_ice(bkd, "crank_nicolson", atol=1e-11)

@@ -18,7 +18,7 @@ where:
     C = friction coefficient
 """
 
-from typing import Any, Callable, Optional, Union
+from typing import Callable, Optional, Union
 
 from pyapprox.pde.collocation.physics.base import AbstractScalarPhysics
 from pyapprox.pde.collocation.protocols.basis import (
@@ -55,6 +55,8 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
     eps : float
         Small regularization parameter to avoid division by zero
         in gradient norm. Default: 1e-12
+    glen_exponent : float
+        Glen's flow law exponent n. Default: 3.0
 
     Examples
     --------
@@ -77,6 +79,7 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         rho: float,
         forcing: Optional[Callable[[float], Array]] = None,
         eps: float = 1e-12,
+        glen_exponent: float = 3.0,
     ):
         super().__init__(basis, bkd)
 
@@ -84,14 +87,17 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         self._A = A
         self._rho = rho
         self._g = 9.81  # Gravitational acceleration
-        self._n = 3  # Glen's flow law exponent
+        self._n = float(glen_exponent)  # Glen's flow law exponent
         self._eps = eps
 
         npts = basis.npts()
         ndim = basis.ndim()
 
-        # Compute gamma = 2*A*(rho*g)^n / (n+2)
-        self._gamma = 2 * self._A * (self._rho * self._g) ** self._n / (self._n + 2)
+        # Compute gamma = 2*A*(rho*g)^n / (n+2). The annotation is
+        # required: float ** float is typed Any in typeshed.
+        self._gamma: float = (
+            2 * self._A * (self._rho * self._g) ** self._n / (self._n + 2)
+        )
 
         # Store friction coefficient
         if isinstance(friction, (int, float)):
@@ -116,7 +122,9 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
             return self._forcing_func(time)
         return self._forcing_func
 
-    def _compute_surface_gradient(self, state: Array) -> tuple[Any, ...]:
+    def _compute_surface_gradient(
+        self, state: Array
+    ) -> tuple[list[Array], Array]:
         """Compute surface gradient components.
 
         Parameters
@@ -139,7 +147,9 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         grad_s = [self._D_matrices[dim] @ surface for dim in range(ndim)]
 
         # |grad(s)|^2
-        grad_s_sq = sum(gs**2 for gs in grad_s)
+        grad_s_sq = grad_s[0] ** 2
+        for gs in grad_s[1:]:
+            grad_s_sq = grad_s_sq + gs**2
 
         return grad_s, grad_s_sq
 
@@ -174,6 +184,53 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         sliding = self._friction_frac * state**2
 
         return deformation + sliding
+
+    def _compute_diffusion_derivatives(
+        self, state: Array, grad_s_sq: Array
+    ) -> tuple[Array, Array]:
+        """Compute partial derivatives of the diffusion coefficient.
+
+        With :math:`G = |\\nabla s|^2 + \\epsilon` (the same regularized
+        quantity used by ``_compute_diffusion``) and
+
+        .. math:: D = \\gamma H^{n+2} G^{(n-1)/2} + \\phi H^2,
+
+        the partial derivatives are
+
+        .. math::
+
+            \\kappa_H = \\partial D/\\partial H
+                = \\gamma (n+2) H^{n+1} G^{(n-1)/2} + 2 \\phi H,
+
+            \\kappa_G = \\partial D/\\partial G
+                = \\gamma \\tfrac{n-1}{2} H^{n+2} G^{(n-3)/2}.
+
+        For n=3 these collapse to
+        :math:`\\kappa_H = 5 \\gamma H^4 G + 2 \\phi H` and
+        :math:`\\kappa_G = \\gamma H^5` (no eps dependence).
+
+        Parameters
+        ----------
+        state : Array
+            Ice thickness H. Shape: (npts,)
+        grad_s_sq : Array
+            Squared magnitude of surface gradient. Shape: (npts,)
+
+        Returns
+        -------
+        tuple
+            (kappa_h, kappa_g), each shape (npts,).
+        """
+        n = self._n
+        reg = grad_s_sq + self._eps
+        kappa_h = (
+            self._gamma * (n + 2) * state ** (n + 1) * reg ** ((n - 1) / 2)
+            + 2.0 * self._friction_frac * state
+        )
+        kappa_g = (
+            self._gamma * ((n - 1) / 2) * state ** (n + 2) * reg ** ((n - 3) / 2)
+        )
+        return kappa_h, kappa_g
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual f(u, t).
@@ -212,10 +269,22 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         return residual
 
     def jacobian(self, state: Array, time: float) -> Array:
-        """Compute state Jacobian df/dH.
+        """Compute exact state Jacobian dR/dH of the SIA residual.
 
-        This is computed via automatic differentiation-style chain rule
-        or finite differences if exact derivatives are too complex.
+        With :math:`R = \\sum_d D_d (\\kappa \\odot g_d) + f`,
+        :math:`g_d = D_d (H + b)` and :math:`G = |\\nabla s|^2 + \\epsilon`,
+        the chain rule gives, per dimension d:
+
+        .. math::
+
+            D_d \\left[ \\mathrm{diag}(\\kappa_H g_d)
+            + \\mathrm{diag}(\\kappa) D_d
+            + \\mathrm{diag}(2 \\kappa_G g_d)
+              \\sum_e \\mathrm{diag}(g_e) D_e \\right]
+
+        where :math:`\\kappa_H, \\kappa_G` come from
+        ``_compute_diffusion_derivatives``. The forcing is
+        state-independent. The result is nonsymmetric.
 
         Parameters
         ----------
@@ -231,42 +300,27 @@ class ShallowIcePhysics(AbstractScalarPhysics[Array]):
         """
         bkd = self._bkd
         npts = self.npts()
-        self._basis.ndim()
+        ndim = self._basis.ndim()
 
-        # Compute surface gradient
         grad_s, grad_s_sq = self._compute_surface_gradient(state)
+        kappa = self._compute_diffusion(state, grad_s_sq)
+        kappa_h, kappa_g = self._compute_diffusion_derivatives(state, grad_s_sq)
 
-        # Compute diffusion and its derivatives
-        self._compute_diffusion(state, grad_s_sq)
+        # grad_dot_mat @ delta = grad(s) . grad(delta); shared across d
+        grad_dot_mat = bkd.zeros((npts, npts))
+        for dim in range(ndim):
+            grad_dot_mat = (
+                grad_dot_mat + bkd.diag(grad_s[dim]) @ self._D_matrices[dim]
+            )
 
-        # Initialize Jacobian
         jacobian = bkd.zeros((npts, npts))
-
-        # The residual is: div(D*grad(s)) + f
-        # where D depends on H and |grad(s)|, and s = H + bed
-
-        # grad(s) = grad(H) + grad(bed), but grad(bed) is constant
-        # d[grad(s)]/dH = D1 (each component)
-
-        # dD/dH has two parts:
-        # 1. Through H directly: d/dH[gamma*H^(n+2)*...] = (n+2)*gamma*H^(n+1)*...
-        # 2. Through |grad(s)|: dD/d(|grad(s)|^2) * d(|grad(s)|^2)/dH
-
-        # For simplicity, we compute Jacobian numerically via finite differences
-        # This avoids complex chain rule for the highly nonlinear diffusion
-
-        eps = 1e-7
-        for j in range(npts):
-            state_plus = bkd.copy(state)
-            state_plus[j] = state_plus[j] + eps
-            state_minus = bkd.copy(state)
-            state_minus[j] = state_minus[j] - eps
-
-            res_plus = self.residual(state_plus, time)
-            res_minus = self.residual(state_minus, time)
-
-            for i in range(npts):
-                jacobian[i, j] = (res_plus[i] - res_minus[i]) / (2 * eps)
+        for dim in range(ndim):
+            inner = (
+                bkd.diag(kappa_h * grad_s[dim])
+                + bkd.diag(kappa) @ self._D_matrices[dim]
+                + bkd.diag(2.0 * kappa_g * grad_s[dim]) @ grad_dot_mat
+            )
+            jacobian = jacobian + self._D_matrices[dim] @ inner
 
         return jacobian
 
@@ -280,6 +334,7 @@ def create_shallow_ice(
     rho: float = 917.0,
     forcing: Optional[Callable[[float], Array]] = None,
     eps: float = 1e-12,
+    glen_exponent: float = 3.0,
 ) -> ShallowIcePhysics[Array]:
     """Create Shallow Ice Approximation physics.
 
@@ -301,6 +356,8 @@ def create_shallow_ice(
         Source term.
     eps : float
         Regularization parameter.
+    glen_exponent : float
+        Glen's flow law exponent n (default: 3.0).
 
     Returns
     -------
@@ -316,4 +373,5 @@ def create_shallow_ice(
         rho=rho,
         forcing=forcing,
         eps=eps,
+        glen_exponent=glen_exponent,
     )
