@@ -46,6 +46,11 @@ import numpy as np
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
+from pyapprox.pde.zoo.obstructed_flow import (
+    build_obstructed_mesh,
+    extract_velocity_callable,
+    solve_obstructed_stokes,
+)
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal
@@ -54,13 +59,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox_benchmarks.problems.oed.advection_diffusion._kle import (
     _create_subdomain_kle_forcing,
-)
-from pyapprox_benchmarks.problems.oed.advection_diffusion._mesh import (
-    _build_obstructed_mesh,
-)
-from pyapprox_benchmarks.problems.oed.advection_diffusion._stokes import (
-    _extract_velocity_callable,
-    _solve_stokes,
 )
 from pyapprox_benchmarks.problems.oed.prediction_problem import (
     PredictionOEDProblem,
@@ -235,11 +233,11 @@ class AdvectionDiffusionOEDProblem(
         # ADR mesh is built with the KLE subdomain boundaries
         # inserted as grid lines so no element straddles the
         # subdomain edge.
-        self._stokes_mesh = _build_obstructed_mesh(bkd, self._nstokes_refine)
-        self._adr_mesh = _build_obstructed_mesh(
+        self._stokes_mesh = build_obstructed_mesh(bkd, self._nstokes_refine)
+        self._adr_mesh = build_obstructed_mesh(
             bkd,
             self._nadvec_diff_refine,
-            kle_subdomain=self._kle_subdomain,
+            subdomain=self._kle_subdomain,
         )
 
         from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
@@ -349,7 +347,7 @@ class AdvectionDiffusionOEDProblem(
         to :meth:`_solve_adr_transient` instead of re-solving Stokes
         for every sample.
         """
-        return _solve_stokes(
+        return solve_obstructed_stokes(
             self._stokes_mesh,
             self._bkd,
             reynolds_num,
@@ -381,7 +379,7 @@ class AdvectionDiffusionOEDProblem(
         bkd = self._bkd
         sol, stokes, vel_basis, pres_basis = stokes_result
 
-        vel_callable = _extract_velocity_callable(
+        vel_callable = extract_velocity_callable(
             sol, stokes, vel_basis, pres_basis, self._adr_basis, bkd,
             probes_cache=self._adr_probes_cache,
         )

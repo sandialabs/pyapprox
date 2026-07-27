@@ -13,6 +13,10 @@ if not package_available("skfem"):
 import pickle
 
 import numpy as np
+from pyapprox.pde.zoo.obstructed_flow import (
+    build_obstructed_mesh,
+    solve_obstructed_stokes,
+)
 from pyapprox_benchmarks.expdesign.advection_diffusion import (
     FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper,
     build_fixed_velocity_obstructed_advection_diffusion_oed_problem,
@@ -21,12 +25,6 @@ from pyapprox_benchmarks.expdesign.advection_diffusion import (
 from pyapprox_benchmarks.problems.oed.advection_diffusion import (
     AdvectionDiffusionOEDProblem,
     FixedVelocityAdvectionDiffusionOEDProblem,
-)
-from pyapprox_benchmarks.problems.oed.advection_diffusion._mesh import (
-    _build_obstructed_mesh,
-)
-from pyapprox_benchmarks.problems.oed.advection_diffusion._stokes import (
-    _solve_stokes,
 )
 
 from tests._helpers.markers import slow_test
@@ -131,8 +129,8 @@ class TestAdvectionDiffusionOEDProblemWrapper:
         components.
         """
         bkd = numpy_bkd
-        mesh = _build_obstructed_mesh(bkd, nrefine=1)
-        sol, stokes, vel_basis, pres_basis = _solve_stokes(
+        mesh = build_obstructed_mesh(bkd, nrefine=1)
+        sol, stokes, vel_basis, pres_basis = solve_obstructed_stokes(
             mesh, bkd, reynolds_num=10.0, vel_shape_params=[2.0, 2.0],
         )
         vel_ndofs = stokes.vel_ndofs()
