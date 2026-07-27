@@ -21,7 +21,6 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
     FluxNormalOperator,
     GradientNormalOperator,
     TractionNormalOperator,
-    _LegacyNormalOperator,
 )
 from pyapprox.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
@@ -65,7 +64,6 @@ class TestNormalOperatorConformance:
             GradientNormalOperator,
             FluxNormalOperator,
             TractionNormalOperator,
-            _LegacyNormalOperator,
             HyperelasticTractionNormalOperator,
         ],
     )
@@ -85,15 +83,6 @@ class TestNormalOperatorConformance:
         assert isinstance(normal_op, NormalOperatorProtocol)
         assert not normal_op.has_coefficient_dependence()
         bkd.assert_allclose(normal_op.normals(), bkd.array([[-1.0]]))
-
-    def test_legacy_operator_normals(self, bkd):
-        basis = _make_1d_basis(8, bkd)
-        deriv_rows = basis.derivative_matrix()[:2, :]
-        normal_op = _LegacyNormalOperator(bkd, deriv_rows, -1.0)
-        assert isinstance(normal_op, NormalOperatorProtocol)
-        # Legacy operator carries only a scalar sign: normals are the
-        # sign replicated per boundary point with ndim = 1.
-        bkd.assert_allclose(normal_op.normals(), bkd.full((2, 1), -1.0))
 
     def test_traction_operator_normals(self, bkd):
         basis = _make_1d_basis(4, bkd)

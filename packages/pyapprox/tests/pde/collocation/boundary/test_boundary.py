@@ -2,19 +2,15 @@
 
 
 import numpy as np
-from pyapprox.pde.collocation.boundary.normal_operators import (
-    _LegacyNormalOperator,
-)
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     DirichletBC,
+    GradientNormalOperator,
     PeriodicBC,
     RobinBC,
     constant_dirichlet_bc,
     gradient_neumann_bc,
     gradient_robin_bc,
-    homogeneous_robin_bc,
     zero_dirichlet_bc,
     zero_neumann_bc,
 )
@@ -161,10 +157,11 @@ class TestRobinBC:
 
         left_idx = mesh.boundary_indices(0)
         D = basis.derivative_matrix()
-        D_bndry = bkd.reshape(D[0, :], (1, npts))
 
         # Robin with alpha=1, beta=0, g=2: should be u = 2
-        normal_op = _LegacyNormalOperator(bkd, D_bndry, -1.0)
+        normal_op = GradientNormalOperator(
+            bkd, left_idx, bkd.asarray([[-1.0]]), [D]
+        )
         robin_bc = RobinBC(bkd, left_idx, normal_op, 1.0, 0.0, 2.0)
         dirichlet_bc = constant_dirichlet_bc(bkd, left_idx, 2.0)
 
@@ -194,17 +191,18 @@ class TestRobinBC:
 
         left_idx = mesh.boundary_indices(0)
         D = basis.derivative_matrix()
-        D_bndry = bkd.reshape(D[0, :], (1, npts))
 
-        # Robin: u + du/dn = 0
-        bc = homogeneous_robin_bc(bkd, left_idx, D_bndry, -1.0, 1.0, 1.0)
+        # Robin: u + du/dn = 0 with outward normal [-1]
+        bc = gradient_robin_bc(
+            bkd, left_idx, bkd.asarray([[-1.0]]), [D], 1.0, 1.0, 0.0
+        )
 
         state = bkd.ones((npts,))
         residual = bkd.zeros((npts,))
         residual = bc.apply_to_residual(residual, state, 0.0)
 
         # res = 1 * u[0] + 1 * (-1 * (D @ u)[0]) - 0
-        flux = -1.0 * float((D_bndry @ state)[0])
+        flux = -1.0 * float((D @ state)[0])
         expected = 1.0 * state[0] + 1.0 * flux
         assert abs(float(residual[0]) - expected) < 10**(-10)
 

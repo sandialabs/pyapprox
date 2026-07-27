@@ -28,7 +28,6 @@ from pyapprox.pde.collocation.boundary.robin import (
     flux_robin_bc,
     gradient_neumann_bc,
     gradient_robin_bc,
-    homogeneous_robin_bc,
     traction_neumann_bc,
     traction_robin_bc,
 )
@@ -43,7 +42,6 @@ __all__ = [
     "zero_neumann_bc",
     # Robin
     "RobinBC",
-    "homogeneous_robin_bc",
     # Normal operators
     "GradientNormalOperator",
     "FluxNormalOperator",

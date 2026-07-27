@@ -2,24 +2,22 @@
 
 
 import numpy as np
+from pyapprox.pde.collocation.basis import (
+    ChebyshevBasis1D,
+    ChebyshevBasis2D,
+)
 from pyapprox.pde.collocation.boundary.normal_operators import (
     FluxNormalOperator,
     GradientNormalOperator,
     TractionNormalOperator,
-    _LegacyNormalOperator,
-)
-from pyapprox.pde.collocation.physics.advection_diffusion import (
-    AdvectionDiffusionReaction,
-)
-
-from pyapprox.pde.collocation.basis import (
-    ChebyshevBasis1D,
-    ChebyshevBasis2D,
 )
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh1D,
     TransformedMesh2D,
     create_uniform_mesh_1d,
+)
+from pyapprox.pde.collocation.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
 )
 
 
@@ -209,31 +207,6 @@ class TestFluxNormalOperator:
             f1 = flux_op(state_pert)
             fd_col = (f1 - f0) / eps
             bkd.assert_allclose(bkd.reshape(jac[:, j], fd_col.shape), fd_col, atol=1e-5)
-
-
-class TestLegacyNormalOperator:
-    """Base test class for _LegacyNormalOperator."""
-
-    def test_matches_old_behavior(self, bkd):
-        """Test legacy operator matches old NeumannBC computation."""
-        npts = 5
-        mesh = TransformedMesh1D(npts, bkd)
-        basis = ChebyshevBasis1D(mesh, bkd)
-
-        D = basis.derivative_matrix()
-        D_bndry = bkd.reshape(D[0, :], (1, npts))
-        normal_sign = -1.0
-
-        legacy_op = _LegacyNormalOperator(bkd, D_bndry, normal_sign)
-
-        state = bkd.ones((npts,))
-        result = legacy_op(state)
-        expected = normal_sign * (D_bndry @ state)
-        bkd.assert_allclose(result, expected, atol=1e-14)
-
-        jac = legacy_op.jacobian(state)
-        expected_jac = normal_sign * D_bndry
-        bkd.assert_allclose(jac, expected_jac, atol=1e-14)
 
 
 class TestTractionNormalOperator:

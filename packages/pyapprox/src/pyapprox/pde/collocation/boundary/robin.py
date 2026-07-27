@@ -12,7 +12,6 @@ Factory functions:
 - flux_robin_bc: N(u) = flux(u) . n (total conservative flux)
 - gradient_neumann_bc: grad(u) . n = g
 - flux_neumann_bc: flux(u) . n = g
-- homogeneous_robin_bc: backward-compatible API
 """
 
 from typing import Callable, Generic, List, Optional, Union
@@ -21,7 +20,6 @@ from pyapprox.pde.collocation.boundary.normal_operators import (
     FluxNormalOperator,
     GradientNormalOperator,
     TractionNormalOperator,
-    _LegacyNormalOperator,
 )
 from pyapprox.pde.collocation.protocols.boundary import (
     BCPhysicalSensitivities,
@@ -388,42 +386,6 @@ def flux_neumann_bc(
     return flux_robin_bc(
         bkd, boundary_indices, normals, flux_provider, 0.0, 1.0, values
     )
-
-
-def homogeneous_robin_bc(
-    bkd: Backend[Array],
-    boundary_indices: Array,
-    derivative_matrix: Array,
-    normal_sign: float,
-    alpha: Union[float, Array],
-    beta: Union[float, Array],
-) -> RobinBC[Array]:
-    """Create a homogeneous Robin BC using legacy (derivative_matrix, normal_sign) API.
-
-    Enforces alpha * u + beta * (normal_sign * D @ u) = 0.
-
-    Parameters
-    ----------
-    bkd : Backend
-        Computational backend.
-    boundary_indices : Array
-        Indices of mesh points on this boundary.
-    derivative_matrix : Array
-        Boundary-extracted derivative matrix rows. Shape: (nboundary_pts, npts)
-    normal_sign : float
-        Sign of outward normal (+1 or -1).
-    alpha : float or Array
-        Coefficient for u term.
-    beta : float or Array
-        Coefficient for du/dn term.
-
-    Returns
-    -------
-    RobinBC
-        Homogeneous Robin boundary condition.
-    """
-    normal_op = _LegacyNormalOperator(bkd, derivative_matrix, normal_sign)
-    return RobinBC(bkd, boundary_indices, normal_op, alpha, beta, 0.0)
 
 
 def traction_robin_bc(
