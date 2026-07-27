@@ -219,35 +219,3 @@ class RobinBCProtocol(Protocol, Generic[Array]):
             Modified load vector.
         """
         ...
-
-
-@runtime_checkable
-class BoundaryConditionWithParamJacobianProtocol(Protocol, Generic[Array]):
-    """Dirichlet BC additionally correcting parameter Jacobians.
-
-    Deliberately narrow interim protocol: the whole call site disappears
-    when the BC-enforcing time-residual wrapper takes over Dirichlet
-    parameter handling in a later phase of the time-integration
-    refactor.
-    """
-
-    def apply_to_param_jacobian(
-        self, param_jacobian: Array, state: Array, time: float
-    ) -> Array:
-        """Apply Dirichlet row replacement to a parameter Jacobian.
-
-        Parameters
-        ----------
-        param_jacobian : Array
-            Parameter Jacobian dR/dp. Shape: (nstates, nparams)
-        state : Array
-            Current state. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Parameter Jacobian with Dirichlet rows zeroed.
-        """
-        ...
