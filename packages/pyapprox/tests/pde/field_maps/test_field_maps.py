@@ -94,6 +94,40 @@ class TestFieldMaps:
         j2 = fm.jacobian(params)
         assert j1 is j2
 
+    def test_basis_expansion_array_base(self, bkd) -> None:
+        """An array base is an affine nodal offset: field = base(x) +
+        sum_i p_i phi_i(x), with jacobian and hvp unaffected."""
+        npts = 5
+        base_np = np.array([1.0, -2.0, 0.5, 3.0, 0.0])
+        phi0 = bkd.ones((npts,))
+        phi1 = bkd.array([0.0, 0.25, 0.5, 0.75, 1.0])
+        fm = BasisExpansion(bkd, bkd.asarray(base_np), [phi0, phi1])
+        params = bkd.array([0.5, -1.0])
+        expected = base_np + 0.5 * np.ones(npts) - 1.0 * np.array(
+            [0.0, 0.25, 0.5, 0.75, 1.0]
+        )
+        bkd.assert_allclose(fm(params), bkd.asarray(expected), rtol=1e-12)
+        bkd.assert_allclose(fm.base_field(), bkd.asarray(base_np), rtol=1e-14)
+        # The offset never enters the derivatives of the linear map.
+        scalar_fm = BasisExpansion(bkd, 0.0, [phi0, phi1])
+        bkd.assert_allclose(
+            fm.jacobian(params), scalar_fm.jacobian(params), rtol=1e-14
+        )
+        adj = bkd.ones((npts,))
+        vvec = bkd.ones((2,))
+        bkd.assert_allclose(
+            fm.hvp(params, adj, vvec), bkd.zeros((2,)), rtol=1e-14
+        )
+
+    def test_basis_expansion_array_base_shape_validation(self, bkd) -> None:
+        """A base field not matching the basis nodes fails loudly."""
+        npts = 5
+        phi0 = bkd.ones((npts,))
+        with pytest.raises(ValueError, match="base_value"):
+            BasisExpansion(bkd, bkd.ones((npts + 1,)), [phi0])
+        with pytest.raises(ValueError, match="base_value"):
+            BasisExpansion(bkd, bkd.ones((npts, 1)), [phi0])
+
     def test_scalar_amplitude_call(self, bkd) -> None:
         """ScalarAmplitude returns p[0] * base_field."""
         base = bkd.array([1.0, 2.0, 3.0])
