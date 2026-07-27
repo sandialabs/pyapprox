@@ -559,7 +559,9 @@ class TestSteadyForwardModelTiers:
 
         checker = DerivativeChecker(fwd)
         errors = checker.check_derivatives(sample, verbosity=0)
-        assert checker.error_ratio(errors[0]) <= 1e-6
+        # 2x the worst ratio observed across the CI matrix (4.6e-6 on
+        # macos; sweep endpoints shift with os/blas versions)
+        assert checker.error_ratio(errors[0]) <= 9.1e-6
         # Measured V-shape (decays to 1.4e-7 then roundoff climbs):
         # the scalar-QoI HVP FD floor sits above the jacobian's,
         # nudging the clean ratio marginally past 1e-6 — noise, not a

@@ -218,8 +218,11 @@ class TestStokesAdjointGradient:
         # error ratio near 1e-6 (the V-bottom depth is
         # direction-dependent); assert the V-bottom (a genuine bug
         # plateaus at >= 1e-2 here) and a looser ratio.
+        # 2x the worst V-bottom observed across the CI matrix (8.3e-6
+        # on ubuntu 3.13; the DAE gradient's FD floor is
+        # os/blas/dependency-version dependent)
         err_min = float(bkd.to_numpy(bkd.min(errors)))
-        assert err_min <= 1e-6
+        assert err_min <= 1.7e-5
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-5
 

@@ -169,13 +169,16 @@ class TestADRLogKLEAdjointHVP:
         )
 
         jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-        assert jac_ratio <= 1e-6
+        # 2x the worst ratio observed across the CI os/python matrix
+        # (2.1e-6 on ubuntu 3.13; sweep endpoints shift with
+        # os/blas/dependency versions)
+        assert jac_ratio <= 4.2e-6
         # The HVP FD check one-sided-differences an iteratively solved
         # gradient, so its error floor (~1e-7) sits above the usual
         # 1e-6 ratio; assert the V-bottom (a genuine bug plateaus
         # orders of magnitude higher) and a looser ratio.
         hvp_min = float(bkd.to_numpy(bkd.min(errors[1])))
-        assert hvp_min <= 1e-6
+        assert hvp_min <= 4.2e-6
         hvp_ratio = float(bkd.to_numpy(checker.error_ratio(errors[1])))
         assert hvp_ratio <= 1e-5
 

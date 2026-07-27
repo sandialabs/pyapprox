@@ -52,6 +52,16 @@ section is renamed to the version number when a release is tagged (see
   solves.
 - `pyapprox-benchmarks` now ships a `py.typed` marker so downstream mypy
   checks its types instead of resolving imports as `Any`.
+- Parameterized PDE forward models with adjoint gradients and
+  Hessian-vector products across both the Galerkin and collocation
+  solvers: physics expose typed coefficient-sensitivity assemblies,
+  parameterizations share one chain-rule engine (composites reject
+  overlapping coefficients), and steady/transient models select their
+  derivative capability at construction. Third-party solver contract in
+  `docs/conventions/pde_solver_extension.md`.
+- 3D collocation linear elasticity at full parity with 2D, including
+  Lamé-field sensitivities, boundary tractions, and domain-decomposition
+  interface fluxes.
 
 ### Changed
 

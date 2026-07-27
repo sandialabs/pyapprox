@@ -130,7 +130,9 @@ class TestQuasilinearDiffusivityParameterization:
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
         init_state = bkd.zeros((nstates, 1))
-        tols = bkd.copy(checker.get_derivative_tolerances(1e-6))
+        # 2.1e-6 base is 2x the worst base-component ratio observed
+        # across the CI matrix (1.03e-6 on ubuntu 3.13)
+        tols = bkd.copy(checker.get_derivative_tolerances(2.1e-6))
         # The four state-equation HVP blocks (5-8) are noise-limited
         # here (measured ratios 1.0e-6..1.8e-6, V-shaped sweeps); each
         # is tightly FD-validated at the physics tier and cross-checked

@@ -107,8 +107,11 @@ class _FakeExplicitStepper:
     def is_multistage(self) -> bool:
         return False
 
-    @property
     def native_residual(self) -> ODEResidualProtocol[Any]:
+        # A method (as the protocol declares), NOT a property: python
+        # 3.11's runtime_checkable isinstance uses hasattr, which
+        # invokes properties, so a raising property breaks the
+        # adapter's protocol check on 3.11 (3.12+ uses getattr_static)
         raise NotImplementedError
 
     def is_explicit(self) -> bool:
