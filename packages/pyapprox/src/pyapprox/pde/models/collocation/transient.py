@@ -1,17 +1,26 @@
 """Transient forward model for parameterized collocation PDEs.
 
-Provides TransientForwardModel which satisfies FunctionProtocol with
-adjoint-based Jacobian (scalar QoI) or forward sensitivity Jacobian
-(vector QoI).
+``TransientForwardModel`` maps PDE parameters to quantities of
+interest extracted from the transient solution. It satisfies
+``FunctionProtocol``: the Jacobian comes from the adjoint method
+(scalar QoI, reusing the already-computed trajectory) or, for the
+all-states QoI, whichever of the shared tangent-linear sweep and the
+row-wise adjoint costs fewer sweeps; scalar QoIs additionally expose
+a Hessian-vector product through the second-order adjoint when the
+parameterization's bundle supports it.
+
+The whole pipeline (parameterized adapter tier, model) is constructed
+once; per evaluation only the parameter values are rebound.
 """
 
-from typing import Any, Generic, Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
@@ -22,54 +31,73 @@ from pyapprox.ode.operator.forward_sensitivity import (
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
+from pyapprox.pde.collocation.protocols.boundary import (
+    DirichletBCProtocol,
+)
+from pyapprox.pde.collocation.protocols.physics import (
+    PhysicsProtocol,
+)
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
 )
-from pyapprox.pde.models.collocation.factory import (
-    create_collocation_model,
-)
 from pyapprox.pde.models.collocation.physics_adapter import (
+    CollocationPhysicsToODEResidualWithHVPAdapter,
     CollocationPhysicsToODEResidualWithSetParamAdapter,
+    create_collocation_physics_ode_residual,
 )
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
+_TransientFunctional = Union[
+    TransientFunctionalWithJacobianProtocol[Array],
+    TransientFunctionalWithJacobianAndHVPProtocol[Array],
+]
 
-class TransientForwardModel(Generic[Array]):
-    """Transient parameterized PDE forward model.
 
-    Maps PDE parameters to quantities of interest extracted from the
-    transient solution. Satisfies FunctionProtocol with Jacobian
-    computation via the adjoint method (scalar QoI) or forward
-    sensitivities (vector QoI).
+class TransientForwardModel(CollocationModel[Array]):
+    """Transient parameterized collocation PDE forward model.
+
+    Satisfies ``FunctionProtocol``: ``__call__`` maps parameter samples
+    to QoI values; ``derivatives()`` carries the adjoint Jacobian and,
+    for scalar QoIs with a second-order parameterization bundle, the
+    second-order-adjoint HVP. Capability is decided once at
+    construction from the parameterization's ``ParamDerivatives``
+    bundle, the functional's protocol tier, and the adapter tier —
+    never by ``hasattr``.
+
+    Extends :class:`CollocationModel`, so the plain ``solve_steady`` /
+    ``solve_transient`` surface remains available.
 
     Parameters
     ----------
-    physics : object
-        Collocation physics (must satisfy PhysicsProtocol). Parameter
-        handling comes from the required ``parameterization``.
+    physics : PhysicsProtocol
+        Collocation physics.
     bkd : Backend
         Computational backend.
     init_state : Array
-        Initial condition for the transient solve. Shape: (nstates,).
+        Initial condition. Shape: (nstates,). Essential (Dirichlet)
+        values are injected once at construction so the trajectory,
+        the adjoint machinery, and the HVP operator's internal forward
+        solve all see the same constrained state.
     time_config : TimeIntegrationConfig
         Time integration configuration.
-    functional : TransientFunctionalWithJacobianAndHVPProtocol, optional
-        QoI functional. If None, uses AllStatesEndpointFunctional
-        (nqoi = nstates, returns full solution at final time).
+    functional : transient functional, optional
+        QoI functional. Defaults to ``AllStatesEndpointFunctional``
+        (nqoi = nstates: the full final-time state).
+    parameterization : ParameterizationProtocol
+        Maps parameter vectors to physics coefficients; must be bound
+        to the same physics instance.
     """
 
     def __init__(
         self,
-        physics: Any,
+        physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
         init_state: Array,
         time_config: TimeIntegrationConfig[Array],
-        functional: Optional[
-            TransientFunctionalWithJacobianProtocol[Array]
-        ] = None,
+        functional: Optional[_TransientFunctional[Array]] = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
@@ -77,66 +105,119 @@ class TransientForwardModel(Generic[Array]):
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
-        self._bkd = bkd
-        self._physics = physics
-        self._init_state = init_state
-        self._time_config = time_config
-        self._parameterization: ParameterizationProtocol[Array] = (
-            parameterization
+        if not isinstance(physics, PhysicsProtocol):
+            raise TypeError(
+                f"physics must satisfy PhysicsProtocol, "
+                f"got {type(physics).__name__}"
+            )
+        if parameterization.physics() is not physics:
+            raise ValueError(
+                "parameterization is bound to a different physics "
+                "instance than the one passed to the model"
+            )
+        adapter = create_collocation_physics_ode_residual(
+            physics, bkd, parameterization
         )
+        super().__init__(physics, bkd, adapter=adapter)
+        self._parameterization = parameterization
+        self._init_state = self._inject_essential_values(
+            physics, bkd, init_state, time_config.init_time
+        )
+        self._time_config = time_config
         self._nparams = parameterization.nparams()
 
         if functional is None:
             functional = AllStatesEndpointFunctional(
                 physics.nstates(), self._nparams, bkd
             )
-        self._functional: TransientFunctionalWithJacobianProtocol[Array] = (
-            functional
-        )
-        # Recorded here (not isinstance-narrowed at the call site): the
-        # scalar-QoI adjoint path needs the HVP-tier functional, and
-        # narrowing a Generic runtime protocol degrades its Array
-        # parameter to Any under mypy.
-        self._adjoint_functional: Optional[
+        if not isinstance(
+            functional, TransientFunctionalWithJacobianProtocol
+        ):
+            raise TypeError(
+                "functional must satisfy "
+                "TransientFunctionalWithJacobianProtocol, got "
+                f"{type(functional).__name__}"
+            )
+        self._functional: _TransientFunctional[Array] = functional
+
+        bundle = parameterization.param_derivatives()
+        self._hvp_functional: Optional[
             TransientFunctionalWithJacobianAndHVPProtocol[Array]
         ] = None
-        if isinstance(
-            functional, TransientFunctionalWithJacobianAndHVPProtocol
+        if bundle.param_jacobian is None:
+            self._derivs: Derivatives[Array] = Derivatives.none()
+        elif (
+            self._functional.nqoi() == 1
+            and isinstance(
+                self._functional,
+                TransientFunctionalWithJacobianAndHVPProtocol,
+            )
+            and isinstance(
+                self.adapter(),
+                CollocationPhysicsToODEResidualWithHVPAdapter,
+            )
         ):
-            self._adjoint_functional = functional
-
-        # Capability: the adjoint/sensitivity jacobian needs a parameter
-        # jacobian from the parameterization's bundle
-        self._has_param_jac = (
-            parameterization.param_derivatives().param_jacobian is not None
-        )
-        if self._has_param_jac:
-            self._derivs: Derivatives[Array] = Derivatives.first_order(
-                jacobian=self._jacobian_dispatch
+            self._hvp_functional = self._functional
+            self._derivs = Derivatives.second_order(
+                jacobian=self._jacobian, hvp=self._hvp
             )
         else:
-            self._derivs = Derivatives.none()
+            self._derivs = Derivatives.first_order(
+                jacobian=self._jacobian
+            )
+
+    @staticmethod
+    def _inject_essential_values(
+        physics: PhysicsProtocol[Array],
+        bkd: Backend[Array],
+        init_state: Array,
+        init_time: float,
+    ) -> Array:
+        """Set essential (Dirichlet) values on the initial condition.
+
+        A raw initial condition that violates the essential values
+        feeds every derivative path a state the forward solve never
+        produces; injecting once here keeps them consistent.
+        """
+        injected = bkd.copy(init_state)
+        for bc in physics.boundary_conditions():
+            if not bc.is_essential():
+                continue
+            if not isinstance(bc, DirichletBCProtocol):
+                continue
+            bc_idx = bc.boundary_indices()
+            values = bc.boundary_values(init_time)
+            for ii in range(bc_idx.shape[0]):
+                injected[bkd.to_int(bc_idx[ii])] = values[ii]
+        return injected
 
     def derivatives(self) -> Derivatives[Array]:
-        """Return the derivative bundle (jacobian w.r.t. parameters)."""
+        """Return the derivative bundle (w.r.t. parameters)."""
         return self._derivs
 
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        return self._bkd
-
     def nvars(self) -> int:
-        """Return number of input variables (parameters)."""
+        """Return the number of input variables (parameters)."""
         return self._nparams
 
     def nqoi(self) -> int:
-        """Return number of output quantities of interest."""
+        """Return the number of output quantities of interest."""
         return self._functional.nqoi()
 
-    def _forward_solve(
-        self, param_2d: Array
-    ) -> Tuple[CollocationModel[Array], Array, Array]:
-        """Set parameter, solve transient problem.
+    def _param_adapter(
+        self,
+    ) -> CollocationPhysicsToODEResidualWithSetParamAdapter[Array]:
+        adapter = self.adapter()
+        if not isinstance(
+            adapter, CollocationPhysicsToODEResidualWithSetParamAdapter
+        ):
+            raise TypeError(
+                "derivative evaluation requires a parameterized adapter "
+                f"tier; got {type(adapter).__name__}"
+            )
+        return adapter
+
+    def _forward_solve(self, param_2d: Array) -> Tuple[Array, Array]:
+        """Rebind parameters and solve the transient problem.
 
         Parameters
         ----------
@@ -145,34 +226,18 @@ class TransientForwardModel(Generic[Array]):
 
         Returns
         -------
-        model : CollocationModel
-            The collocation model (stores last integrator).
         solutions : Array
-            Solution trajectory. Shape: (nstates, ntimes).
+            Trajectory. Shape: (nstates, ntimes).
         times : Array
             Time points. Shape: (ntimes,).
         """
-        self._parameterization.apply(param_2d[:, 0])
-        model = create_collocation_model(
-            self._physics,
-            self._bkd,
-            parameterization=self._parameterization,
-        )
-        # Store params on adapter so param_jacobian can access them
-        adapter = model.adapter()
-        if not isinstance(
-            adapter, CollocationPhysicsToODEResidualWithSetParamAdapter
-        ):
-            raise TypeError(
-                "create_collocation_model with a parameterization must "
-                f"produce a parameterized adapter; got {type(adapter).__name__}"
-            )
-        adapter.set_param(param_2d[:, 0])
-        solutions, times = model.solve_transient(self._init_state, self._time_config)
-        return model, solutions, times
+        param_1d = param_2d[:, 0]
+        self._parameterization.apply(param_1d)
+        self._param_adapter().set_param(param_1d)
+        return self.solve_transient(self._init_state, self._time_config)
 
     def __call__(self, samples: Array) -> Array:
-        """Evaluate forward model for multiple parameter samples.
+        """Evaluate the QoI for parameter samples.
 
         Parameters
         ----------
@@ -186,12 +251,11 @@ class TransientForwardModel(Generic[Array]):
         """
         bkd = self._bkd
         nsamples = samples.shape[1]
-        nqoi = self.nqoi()
-        result = bkd.zeros((nqoi, nsamples))
+        result = bkd.zeros((self.nqoi(), nsamples))
         result = bkd.copy(result)
         for ii in range(nsamples):
             param_2d = samples[:, ii : ii + 1]
-            _, fwd_sols, times = self._forward_solve(param_2d)
+            fwd_sols, _ = self._forward_solve(param_2d)
             qoi = self._functional(fwd_sols, param_2d)
             if qoi.ndim == 2:
                 result[:, ii : ii + 1] = qoi
@@ -199,85 +263,60 @@ class TransientForwardModel(Generic[Array]):
                 result[:, ii] = qoi
         return result
 
-    def _jacobian_dispatch(self, sample: Array) -> Array:
-        """Compute Jacobian of QoI w.r.t. parameters.
+    def _jacobian(self, sample: Array) -> Array:
+        """Compute dQ/dp for one sample. Shape: (nqoi, nvars).
 
-        For scalar QoI (nqoi == 1), uses the adjoint method via
-        TimeAdjointOperatorWithHVP.
-
-        For vector QoI (nqoi > 1), uses forward sensitivities to compute
-        the full dy(T)/dp matrix.
-
-        Parameters
-        ----------
-        sample : Array
-            Single parameter sample. Shape: (nvars, 1).
-
-        Returns
-        -------
-        Array
-            Jacobian matrix. Shape: (nqoi, nvars).
+        Scalar QoI: adjoint sweep over the just-computed trajectory.
+        All-states QoI: a costed choice — the tangent-linear sweep
+        costs one linear solve per parameter, the row-wise adjoint one
+        backward sweep per QoI, so the smaller of
+        ``(nparams, nqoi)`` decides (a KLE-sized ``nparams`` must not
+        silently pay the O(nparams) factor). Other vector QoIs are
+        not supported.
         """
+        fwd_sols, times = self._forward_solve(sample)
+        integrator = self.last_integrator()
         if self._functional.nqoi() == 1:
-            return self._jacobian_adjoint(sample)
-        return self._jacobian_sensitivity(sample)
-
-    def _jacobian_adjoint(self, sample: Array) -> Array:
-        """Compute Jacobian via adjoint method (scalar QoI only).
-
-        Parameters
-        ----------
-        sample : Array
-            Parameter sample. Shape: (nvars, 1).
-
-        Returns
-        -------
-        Array
-            Jacobian. Shape: (1, nvars).
-        """
-        # TODO: _forward_solve computes the trajectory, then
-        # TimeAdjointOperatorWithHVP.jacobian redoes the forward solve
-        # internally. Refactor to pass the precomputed trajectory.
-        functional = self._adjoint_functional
-        if functional is None:
-            raise TypeError(
-                "the scalar-QoI adjoint jacobian requires a functional "
-                "satisfying TransientFunctionalWithJacobianAndHVPProtocol, "
-                f"got {type(self._functional).__name__}"
+            integrator.set_functional(self._functional)
+            return integrator.gradient(fwd_sols, times, sample)
+        if not isinstance(self._functional, AllStatesEndpointFunctional):
+            raise NotImplementedError(
+                "vector-QoI jacobians are only implemented for "
+                "AllStatesEndpointFunctional (dQ/dy(T) = I); got "
+                f"{type(self._functional).__name__}"
             )
-        model, fwd_sols, times = self._forward_solve(sample)
-        integrator = model.last_integrator()
-        adjoint_op = TimeAdjointOperatorWithHVP(integrator, functional)
-        return adjoint_op.jacobian(self._init_state, sample)
+        nqoi = self._functional.nqoi()
+        if self._nparams <= nqoi:
+            return solve_final_forward_sensitivity(
+                integrator.time_residual(), fwd_sols, times, self._bkd
+            )
+        bkd = self._bkd
+        result = bkd.copy(bkd.zeros((nqoi, self._nparams)))
+        for k in range(nqoi):
+            integrator.set_functional(
+                EndpointFunctional(k, nqoi, self._nparams, bkd)
+            )
+            row = integrator.gradient(fwd_sols, times, sample)
+            result[k, :] = row[0, :]
+        return result
 
-    def _jacobian_sensitivity(self, sample: Array) -> Array:
-        """Compute Jacobian via forward sensitivities (vector QoI).
+    def _hvp(self, sample: Array, vvec: Array) -> Array:
+        """Compute (d^2Q/dp^2) v via the second-order adjoint.
 
-        Solves the tangent linear model for the full sensitivity matrix
-        W = dy/dp, then applies the functional Jacobian:
-            dQ/dp = dQ/dy(T) @ dy(T)/dp + dQ/dp_direct
-
-        For AllStatesEndpointFunctional, dQ/dy(T) = I, so dQ/dp = W_T.
-
-        Parameters
-        ----------
-        sample : Array
-            Parameter sample. Shape: (nvars, 1).
-
-        Returns
-        -------
-        Array
-            Jacobian. Shape: (nqoi, nvars).
+        Shape: (nvars, 1). The operator runs its own forward solve for
+        the given parameters (a fresh operator per call: its
+        trajectory storage would be invalidated by the parameter
+        rebinding).
         """
-        model, fwd_sols, times = self._forward_solve(sample)
-        integrator = model.last_integrator()
-        time_residual = integrator.time_residual()
-
-        W_T = solve_final_forward_sensitivity(
-            time_residual, fwd_sols, times, self._bkd
+        if self._hvp_functional is None:
+            raise RuntimeError(
+                "hvp is unavailable; check derivatives() before calling"
+            )
+        self._forward_solve(sample)
+        operator = TimeAdjointOperatorWithHVP(
+            self.last_integrator(), self._hvp_functional
         )
-        # W_T shape: (nstates, nparams)
-        return W_T
+        return operator.hvp(self._init_state, sample, vvec)
 
     def __repr__(self) -> str:
         return (

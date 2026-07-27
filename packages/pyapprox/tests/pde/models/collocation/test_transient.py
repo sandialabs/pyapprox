@@ -114,7 +114,11 @@ class TestTransientForwardModel:
         qoi = forward_model(samples)
 
         # Default functional returns all states at final time
-        bkd.assert_allclose(qoi[:, 0], solutions[:, -1], rtol=1e-10)
+        # atol covers the exactly-zero Dirichlet endpoints, whose
+        # roundoff-level representations differ between the two paths.
+        bkd.assert_allclose(
+            qoi[:, 0], solutions[:, -1], rtol=1e-10, atol=1e-14
+        )
 
     def test_call_multiple_samples(self, bkd):
         """__call__ handles multiple parameter samples correctly."""
@@ -580,3 +584,266 @@ class TestTransientMixedBC:
         bkd.assert_allclose(
             jac_vector[state_idx : state_idx + 1, :], jac_scalar, rtol=1e-8
         )
+
+
+class TestTransientForwardModelTiers:
+    """Construction-time capability and the build-once/rebind pipeline."""
+
+    def _scalar_model(self, bkd, npts=15, dirichlet_value=0.0):
+        (
+            physics,
+            param,
+            init_state,
+            time_config,
+        ) = _create_parameterized_transient_diffusion_problem(bkd, npts)
+        if dirichlet_value != 0.0:
+            from pyapprox.pde.collocation.boundary import (
+                constant_dirichlet_bc,
+            )
+
+            mesh_obj = create_uniform_mesh_1d(npts, (-1.0, 1.0), bkd)
+            physics.set_boundary_conditions(
+                [
+                    constant_dirichlet_bc(
+                        bkd, mesh_obj.boundary_indices(0), dirichlet_value
+                    ),
+                    zero_dirichlet_bc(bkd, mesh_obj.boundary_indices(1)),
+                ]
+            )
+        functional = EndpointFunctional(
+            npts // 2, npts, param.nparams(), bkd
+        )
+        fwd = TransientForwardModel(
+            physics,
+            bkd,
+            init_state,
+            time_config,
+            functional=functional,
+            parameterization=param,
+        )
+        return fwd, param
+
+    def test_second_order_tier_for_scalar_qoi(self, bkd):
+        """Second-order bundle + HVP adapter + scalar HVP functional
+        exposes Derivatives.second_order."""
+        fwd, _ = self._scalar_model(bkd)
+        derivs = fwd.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.hvp is not None
+
+    def test_jacobian_and_hvp_derivative_checker(self, numpy_bkd):
+        """DerivativeChecker validates the model's jacobian and hvp
+        with the transient V-bottom convention, plus the exact
+        symmetry identity at 1e-12."""
+        bkd = numpy_bkd
+        fwd, _ = self._scalar_model(bkd)
+        sample = bkd.asarray(np.array([[0.3], [-0.2]]))
+
+        checker = DerivativeChecker(fwd)
+        errors = checker.check_derivatives(sample, verbosity=0)
+        # Measured V-bottom 1.15e-7 (trajectory-FD floor of the
+        # backward-Euler chain); ratio stays 5 orders below a plateau.
+        assert bkd.to_float(bkd.min(errors[0])) <= 5e-7
+        assert checker.error_ratio(errors[0]) <= 1e-5
+        # Measured V-bottom 1.7e-6: the second-order adjoint through
+        # the trajectory chain has a higher FD floor than the scalar
+        # jacobian; the decay spans six decades (no plateau).
+        assert bkd.to_float(bkd.min(errors[1])) <= 5e-6
+        assert checker.error_ratio(errors[1]) <= 1e-5
+
+        derivs = fwd.derivatives()
+        assert derivs.hvp is not None
+        vvec = bkd.asarray(np.array([[0.7], [0.4]]))
+        uvec = bkd.asarray(np.array([[-0.5], [0.9]]))
+        h_v = derivs.hvp(sample, vvec)
+        h_u = derivs.hvp(sample, uvec)
+        bkd.assert_allclose(
+            bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
+        )
+
+    def test_bc_active_ic_hvp_derivative_checker(self, numpy_bkd):
+        """A raw initial condition violating a NONZERO Dirichlet value
+        must not corrupt the derivative paths: essential values are
+        injected once at construction."""
+        bkd = numpy_bkd
+        fwd, _ = self._scalar_model(bkd, dirichlet_value=0.5)
+        # The raw IC sin(pi x) is 0 at the left boundary, not 0.5.
+        sample = bkd.asarray(np.array([[0.3], [-0.2]]))
+        checker = DerivativeChecker(fwd)
+        errors = checker.check_derivatives(sample, verbosity=0)
+        # Measured V-bottom 1.15e-7 (trajectory-FD floor of the
+        # backward-Euler chain); ratio stays 5 orders below a plateau.
+        assert bkd.to_float(bkd.min(errors[0])) <= 5e-7
+        assert checker.error_ratio(errors[0]) <= 1e-5
+        # Measured V-bottom 1.7e-6: the second-order adjoint through
+        # the trajectory chain has a higher FD floor than the scalar
+        # jacobian; the decay spans six decades (no plateau).
+        assert bkd.to_float(bkd.min(errors[1])) <= 5e-6
+        assert checker.error_ratio(errors[1]) <= 1e-5
+
+    def test_vector_rowwise_adjoint_matches_tlm(self, numpy_bkd):
+        """When nparams > nqoi the all-states jacobian dispatches to
+        the row-wise adjoint; it must equal the tangent-linear result
+        computed directly."""
+        bkd = numpy_bkd
+        from pyapprox.ode.operator.forward_sensitivity import (
+            solve_final_forward_sensitivity,
+        )
+
+        npts = 8
+        (
+            physics,
+            _,
+            init_state,
+            time_config,
+        ) = _create_parameterized_transient_diffusion_problem(bkd, npts)
+        nodes = ChebyshevBasis1D(TransformedMesh1D(npts, bkd), bkd).nodes()
+        modes = [bkd.ones((npts,))] + [
+            bkd.cos(k * math.pi * nodes) * 0.1 for k in range(1, 10)
+        ]
+        fm = BasisExpansion(bkd, 2.0, modes)
+        param = create_diffusion_parameterization(physics, bkd, fm)
+        assert param.nparams() > npts
+        fwd = TransientForwardModel(
+            physics,
+            bkd,
+            init_state,
+            time_config,
+            parameterization=param,
+        )
+        rng = np.random.default_rng(61)
+        sample = bkd.asarray(rng.normal(0.0, 0.05, (param.nparams(), 1)))
+        jac_rowwise = fwd.derivatives().jacobian(sample)
+
+        fwd_sols, times = fwd._forward_solve(sample)
+        w_final = solve_final_forward_sensitivity(
+            fwd.last_integrator().time_residual(), fwd_sols, times, bkd
+        )
+        bkd.assert_allclose(jac_rowwise, w_final, rtol=1e-9, atol=1e-12)
+
+    def test_adapter_identity_stable_across_samples(self, bkd):
+        """The pipeline is built once; evaluations rebind parameters
+        without reconstructing the adapter."""
+        fwd, _ = self._scalar_model(bkd)
+        adapter_before = fwd.adapter()
+        samples = bkd.asarray(
+            np.array([[0.3, -0.1, 0.2], [-0.2, 0.15, 0.05]])
+        )
+        fwd(samples)
+        assert fwd.adapter() is adapter_before
+
+    def test_inexact_wrapper_smoke(self, numpy_bkd):
+        """The modernized model stays FunctionProtocol-consumable by
+        the OUU InexactWrapper."""
+        bkd = numpy_bkd
+        from pyapprox.optimization.minimize.inexact.fixed import (
+            FixedSampleStrategy,
+        )
+        from pyapprox.optimization.minimize.inexact.wrapper import (
+            InexactWrapper,
+        )
+        from pyapprox.risk import SampleAverageMean
+
+        fwd, _ = self._scalar_model(bkd)
+        quad_samples = bkd.asarray(np.array([[-0.2, 0.0, 0.2]]))
+        quad_weights = bkd.asarray(np.array([1.0 / 4, 1.0 / 2, 1.0 / 4]))
+        wrapper = InexactWrapper(
+            model=fwd,
+            stat=SampleAverageMean(bkd),
+            strategy=FixedSampleStrategy(quad_samples, quad_weights, bkd),
+            design_indices=[1],
+            bkd=bkd,
+        )
+        design_sample = bkd.asarray(np.array([[0.1]]))
+        value = wrapper(design_sample)
+        assert value.shape[0] == 1
+        assert math.isfinite(bkd.to_float(value[0, 0]))
+
+
+class TestTransientPolarTripleAgreement:
+    """Transformed-domain check: adjoint == TLM == FD on a polar mesh."""
+
+    def test_adjoint_tlm_fd_agree(self, numpy_bkd):
+        bkd = numpy_bkd
+        from pyapprox.ode.functionals.all_states_endpoint import (
+            AllStatesEndpointFunctional,
+        )
+        from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+        from pyapprox.pde.collocation.mesh import TransformedMesh2D
+        from pyapprox.pde.collocation.mesh.transforms import PolarTransform
+
+        npts_1d = 6
+        transform = PolarTransform(
+            (1.0, 2.0), (-math.pi / 2, math.pi / 2), bkd
+        )
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd, transform)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        npts = basis.npts()
+        physics = AdvectionDiffusionReaction(basis, bkd, diffusion=2.0)
+        bcs = []
+        for bndry in range(4):
+            bcs.append(
+                zero_dirichlet_bc(bkd, mesh.boundary_indices(bndry))
+            )
+        physics.set_boundary_conditions(bcs)
+
+        pts = bkd.to_numpy(mesh.points())
+        modes = [
+            bkd.ones((npts,)),
+            bkd.asarray(0.3 * np.sin(pts[0] + pts[1])),
+        ]
+        fm = BasisExpansion(bkd, 2.0, modes)
+        param = create_diffusion_parameterization(physics, bkd, fm)
+
+        interior = npts // 2 + npts_1d // 2
+        time_config = TimeIntegrationConfig(
+            method="backward_euler",
+            init_time=0.0,
+            final_time=0.05,
+            deltat=0.0125,
+            newton_tol=1e-11,
+            newton_maxiter=20,
+            lumped_mass=False,
+            verbosity=0,
+        )
+        init_state = bkd.asarray(
+            np.sin(math.pi * (pts[0] ** 2 + pts[1] ** 2) / 4.0)
+        )
+        scalar = TransientForwardModel(
+            physics,
+            bkd,
+            init_state,
+            time_config,
+            functional=EndpointFunctional(interior, npts, 2, bkd),
+            parameterization=param,
+        )
+        sample = bkd.asarray(np.array([[0.2], [-0.1]]))
+
+        # (a) adjoint
+        jac_adjoint = scalar.derivatives().jacobian(sample)
+
+        # (b) tangent-linear: the all-states model dispatches to the
+        # TLM (nparams = 2 <= nqoi); extract the same QoI row.
+        vector = TransientForwardModel(
+            physics,
+            bkd,
+            init_state,
+            time_config,
+            functional=AllStatesEndpointFunctional(npts, 2, bkd),
+            parameterization=param,
+        )
+        jac_tlm = vector.derivatives().jacobian(sample)
+        bkd.assert_allclose(
+            jac_adjoint,
+            jac_tlm[interior : interior + 1, :],
+            rtol=1e-9,
+            atol=1e-13,
+        )
+
+        # (c) finite differences
+        checker = DerivativeChecker(scalar)
+        errors = checker.check_derivatives(sample, verbosity=0)
+        # Measured V-bottom 1.15e-7 (trajectory-FD floor of the
+        # backward-Euler chain); ratio stays 5 orders below a plateau.
+        assert bkd.to_float(bkd.min(errors[0])) <= 5e-7
+        assert checker.error_ratio(errors[0]) <= 1e-5
