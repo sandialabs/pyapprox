@@ -1,16 +1,16 @@
 """Linear elasticity physics for spectral collocation.
 
-Implements the 2D linear elasticity equations:
+Implements the linear elasticity equations in 2D and 3D:
     -div(σ) + f = 0
 
 where:
     σ = λ*tr(ε)*I + 2μ*ε  (stress tensor)
     ε_ij = 0.5*(∂u_i/∂x_j + ∂u_j/∂x_i)  (strain tensor)
-    u = (u, v) is the displacement field
+    u = (u, v) or (u, v, w) is the displacement field
     λ, μ are Lamé parameters
 """
 
-from typing import Callable, Generic, Optional, Tuple, Union
+from typing import Callable, Generic, List, Optional, Tuple, Union
 
 from pyapprox.pde.collocation.physics.base import AbstractVectorPhysics
 from pyapprox.pde.collocation.protocols.basis import (
@@ -20,7 +20,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
-    """2D Linear elasticity physics.
+    """Linear elasticity physics in 2D or 3D.
 
     Implements the equilibrium equation:
         -div(σ) + f = 0
@@ -34,12 +34,15 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     The residual is formulated as:
         residual = div(σ) + f
 
-    So that residual = 0 at equilibrium.
+    So that residual = 0 at equilibrium. The state stacks one
+    displacement component per spatial dimension, each of length npts.
 
     Parameters
     ----------
     basis : TensorProductBasisProtocol
-        2D collocation basis (provides nodes, derivative matrices).
+        2D or 3D collocation basis (provides nodes, derivative
+        matrices). The number of displacement components equals
+        ``basis.ndim()``.
     bkd : Backend
         Computational backend.
     lamda : float or Array
@@ -47,24 +50,28 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
     mu : float or Array
         Shear modulus μ. If Array, shape: (npts,).
     forcing : Callable[[float], Array] or Array, optional
-        Forcing term. If callable, takes time and returns (2*npts,) array
-        with [f_x, f_y] components stacked.
-        If Array, shape: (2*npts,). Default: None (no forcing)
+        Forcing term. If callable, takes time and returns
+        (ndim*npts,) array with the force components stacked.
+        If Array, shape: (ndim*npts,). Default: None (no forcing)
     """
 
     def __init__(
         self,
         basis: TensorProductBasisProtocol[Array],
         bkd: Backend[Array],
-        lamda: float,
-        mu: float,
+        lamda: Union[float, Array],
+        mu: Union[float, Array],
         forcing: Optional[Callable[[float], Array]] = None,
     ):
-        if basis.ndim() != 2:
-            raise ValueError("LinearElasticityPhysics requires 2D basis")
+        ndim = basis.ndim()
+        if ndim not in (2, 3):
+            raise ValueError(
+                "LinearElasticityPhysics requires a 2D or 3D basis"
+            )
 
-        super().__init__(basis, bkd, ncomponents=2)
+        super().__init__(basis, bkd, ncomponents=ndim)
 
+        self._ndim = ndim
         npts = basis.npts()
 
         # Store Lamé parameters (the scalar mirrors are None for
@@ -88,14 +95,18 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         # Store forcing function
         self._forcing_func = forcing
 
-        # Precompute derivative matrices
-        self._Dx = basis.derivative_matrix(1, 0)  # d/dx
-        self._Dy = basis.derivative_matrix(1, 1)  # d/dy
-        self._Dxx = basis.derivative_matrix(2, 0)  # d²/dx²
-        self._Dyy = basis.derivative_matrix(2, 1)  # d²/dy²
-        # Mixed derivatives: Dx@Dy != Dy@Dx on curvilinear domains
-        self._DxDy = self._Dx @ self._Dy  # Dx applied after Dy
-        self._DyDx = self._Dy @ self._Dx  # Dy applied after Dx
+        # Precompute first-derivative matrices per dimension
+        self._D: List[Array] = [
+            basis.derivative_matrix(1, dim) for dim in range(ndim)
+        ]
+        if ndim == 2:
+            self._Dx = self._D[0]  # d/dx
+            self._Dy = self._D[1]  # d/dy
+            self._Dxx = basis.derivative_matrix(2, 0)  # d²/dx²
+            self._Dyy = basis.derivative_matrix(2, 1)  # d²/dy²
+            # Mixed derivatives: Dx@Dy != Dy@Dx on curvilinear domains
+            self._DxDy = self._Dx @ self._Dy  # Dx applied after Dy
+            self._DyDx = self._Dy @ self._Dx  # Dy applied after Dx
 
     # ------------------------------------------------------------------
     # Material property setters
@@ -150,25 +161,26 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
             return self._forcing_func(time)
         return self._forcing_func
 
-    def _extract_components(self, state: Array) -> Tuple[Array, Array]:
-        """Extract u and v components from state vector.
+    def _extract_components(self, state: Array) -> Tuple[Array, ...]:
+        """Extract displacement components from state vector.
 
-        State is ordered as [u_0, u_1, ..., u_{n-1}, v_0, v_1, ..., v_{n-1}]
+        State is component-major: [u_0, ..., u_{n-1}, v_0, ..., v_{n-1}]
+        in 2D, with a trailing w block in 3D.
 
         Parameters
         ----------
         state : Array
-            Full state vector. Shape: (2*npts,)
+            Full state vector. Shape: (ndim*npts,)
 
         Returns
         -------
-        Tuple[Array, Array]
-            u and v components, each shape (npts,)
+        Tuple[Array, ...]
+            One component per spatial dimension, each shape (npts,)
         """
         npts = self.npts()
-        u = state[:npts]
-        v = state[npts:]
-        return u, v
+        return tuple(
+            state[i * npts : (i + 1) * npts] for i in range(self._ndim)
+        )
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual f(u, t).
@@ -187,8 +199,10 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Returns
         -------
         Array
-            Residual [res_u, res_v]. Shape: (2*npts,)
+            Residual with one block per component. Shape: (ndim*npts,)
         """
+        if self._ndim == 3:
+            return self._residual_3d(state, time)
         bkd = self._bkd
         npts = self.npts()
 
@@ -230,6 +244,48 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         return bkd.concatenate([res_u, res_v])
 
+    def _strains_3d(self, state: Array) -> List[List[Array]]:
+        """Symmetric strain tensor fields eps[i][j] at all mesh points.
+
+        Returns the full 3x3 nested list with eps[i][j] == eps[j][i],
+        each entry shape (npts,).
+        """
+        comps = self._extract_components(state)
+        grads = [
+            [self._D[j] @ comps[i] for j in range(3)] for i in range(3)
+        ]
+        return [
+            [
+                grads[i][j]
+                if i == j
+                else 0.5 * (grads[i][j] + grads[j][i])
+                for j in range(3)
+            ]
+            for i in range(3)
+        ]
+
+    def _residual_3d(self, state: Array, time: float) -> Array:
+        """3D residual div(σ) + f with σ = λ*tr(ε)*I + 2μ*ε."""
+        bkd = self._bkd
+        npts = self.npts()
+        eps = self._strains_3d(state)
+        trace_e = eps[0][0] + eps[1][1] + eps[2][2]
+        lam = self._lambda_array
+        two_mu = 2.0 * self._mu_array
+        forcing = self._get_forcing(time)
+        residuals = []
+        for i in range(3):
+            div_sigma_i = bkd.zeros((npts,))
+            for j in range(3):
+                sigma_ij = two_mu * eps[i][j]
+                if i == j:
+                    sigma_ij = sigma_ij + lam * trace_e
+                div_sigma_i = div_sigma_i + self._D[j] @ sigma_ij
+            residuals.append(
+                div_sigma_i + forcing[i * npts : (i + 1) * npts]
+            )
+        return bkd.concatenate(residuals)
+
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute state Jacobian df/d(u,v).
 
@@ -256,8 +312,10 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Returns
         -------
         Array
-            Jacobian matrix. Shape: (2*npts, 2*npts)
+            Jacobian matrix. Shape: (ndim*npts, ndim*npts)
         """
+        if self._ndim == 3:
+            return self._jacobian_3d(state, time)
         bkd = self._bkd
         self.npts()
 
@@ -307,6 +365,43 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 
         return jacobian
 
+    def _jacobian_3d(self, state: Array, time: float) -> Array:
+        """3D block Jacobian in variable-Lamé D@diag@D form.
+
+        Derived from R_i = sum_j D_j @ sigma_ij (divergence operator
+        always the LEFT factor, so the ordering is correct on
+        curvilinear meshes where D_i@D_j != D_j@D_i):
+
+            J[i][i] = D_i diag(λ+2μ) D_i + sum_{k≠i} D_k diag(μ) D_k
+            J[i][j] = D_i diag(λ) D_j + D_j diag(μ) D_i   (i ≠ j)
+
+        The Lamé arrays are always populated (scalars are expanded at
+        construction), so one form serves constant and field Lamé.
+        """
+        bkd = self._bkd
+        diag_lam = bkd.diag(self._lambda_array)
+        diag_mu = bkd.diag(self._mu_array)
+        diag_lam_2mu = bkd.diag(self._lambda_array + 2.0 * self._mu_array)
+        rows = []
+        for i in range(3):
+            blocks = []
+            for j in range(3):
+                if i == j:
+                    block = self._D[i] @ diag_lam_2mu @ self._D[i]
+                    for k in range(3):
+                        if k != i:
+                            block = (
+                                block + self._D[k] @ diag_mu @ self._D[k]
+                            )
+                else:
+                    block = (
+                        self._D[i] @ diag_lam @ self._D[j]
+                        + self._D[j] @ diag_mu @ self._D[i]
+                    )
+                blocks.append(block)
+            rows.append(bkd.concatenate(blocks, axis=1))
+        return bkd.concatenate(rows, axis=0)
+
     def state_state_hvp(
         self, state: Array, adj_state: Array, wvec: Array, time: float
     ) -> Array:
@@ -350,9 +445,18 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Returns
         -------
         Array
-            Assembly. Shape: (2*npts, npts)
+            Assembly. Shape: (ndim*npts, npts)
         """
         bkd = self._bkd
+        if self._ndim == 3:
+            eps = self._strains_3d(state)
+            row_blocks = []
+            for i in range(3):
+                block = self._D[0] @ bkd.diag(2.0 * eps[i][0])
+                for j in range(1, 3):
+                    block = block + self._D[j] @ bkd.diag(2.0 * eps[i][j])
+                row_blocks.append(block)
+            return bkd.concatenate(row_blocks, axis=0)
         exx, exy, eyy = self._strains(state)
         top = self._Dx @ bkd.diag(2.0 * exx) + self._Dy @ bkd.diag(
             2.0 * exy
@@ -384,9 +488,15 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Returns
         -------
         Array
-            Assembly. Shape: (2*npts, npts)
+            Assembly. Shape: (ndim*npts, npts)
         """
         bkd = self._bkd
+        if self._ndim == 3:
+            eps = self._strains_3d(state)
+            diag_trace = bkd.diag(eps[0][0] + eps[1][1] + eps[2][2])
+            return bkd.concatenate(
+                [self._D[i] @ diag_trace for i in range(3)], axis=0
+            )
         exx, _, eyy = self._strains(state)
         diag_trace = bkd.diag(exx + eyy)
         return bkd.concatenate(
@@ -421,9 +531,29 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Returns
         -------
         Array
-            Assembly. Shape: (2*npts, 2*npts)
+            Assembly. Shape: (ndim*npts, ndim*npts)
         """
         bkd = self._bkd
+        if self._ndim == 3:
+            diag_d = bkd.diag(delta)
+            diag_2d = bkd.diag(2.0 * delta)
+            rows = []
+            for i in range(3):
+                blocks = []
+                for j in range(3):
+                    if i == j:
+                        block = self._D[i] @ diag_2d @ self._D[i]
+                        for k in range(3):
+                            if k != i:
+                                block = (
+                                    block
+                                    + self._D[k] @ diag_d @ self._D[k]
+                                )
+                    else:
+                        block = self._D[j] @ diag_d @ self._D[i]
+                    blocks.append(block)
+                rows.append(bkd.concatenate(blocks, axis=1))
+            return bkd.concatenate(rows, axis=0)
         Dx, Dy = self._Dx, self._Dy
         diag_d = bkd.diag(delta)
         diag_2d = bkd.diag(2.0 * delta)
@@ -459,9 +589,22 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Returns
         -------
         Array
-            Assembly. Shape: (2*npts, 2*npts)
+            Assembly. Shape: (ndim*npts, ndim*npts)
         """
         bkd = self._bkd
+        if self._ndim == 3:
+            diag_d = bkd.diag(delta)
+            rows = [
+                bkd.concatenate(
+                    [
+                        self._D[i] @ diag_d @ self._D[j]
+                        for j in range(3)
+                    ],
+                    axis=1,
+                )
+                for i in range(3)
+            ]
+            return bkd.concatenate(rows, axis=0)
         Dx, Dy = self._Dx, self._Dy
         diag_d = bkd.diag(delta)
         top = bkd.concatenate(
@@ -502,13 +645,13 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Parameters
         ----------
         state : Array
-            Displacement state [u, v]. Shape: (2*npts,)
+            Displacement state. Shape: (ndim*npts,)
         time : float
             Current time (unused; kept for signature uniformity).
         bc_indices : Array
             Replaced state-row indices of the BC. Shape: (n_bc,)
         normals : Array
-            Outward unit normals. Shape: (n_bc, 2)
+            Outward unit normals. Shape: (n_bc, ndim)
 
         Returns
         -------
@@ -521,6 +664,21 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         nbnd = bc_indices.shape[0]
         comp = bkd.to_int(bc_indices[0]) // npts
         mesh_idx = bc_indices - comp * npts
+        if self._ndim == 3:
+            eps = self._strains_3d(state)
+            trace_b = (eps[0][0] + eps[1][1] + eps[2][2])[mesh_idx]
+            dt_dmu = 2.0 * eps[comp][0][mesh_idx] * normals[:, 0]
+            for j in range(1, 3):
+                dt_dmu = (
+                    dt_dmu + 2.0 * eps[comp][j][mesh_idx] * normals[:, j]
+                )
+            dt_dlam = trace_b * normals[:, comp]
+            result = bkd.copy(bkd.zeros((nbnd, 2 * npts)))
+            for i in range(nbnd):
+                idx = bkd.to_int(mesh_idx[i])
+                result[i, idx] = dt_dmu[i]
+                result[i, npts + idx] = dt_dlam[i]
+            return result
         exx, exy, eyy = self._strains(state)
         exx_b = exx[mesh_idx]
         exy_b = exy[mesh_idx]
@@ -554,20 +712,39 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
         Parameters
         ----------
         state : Array
-            Solution state [u, v]. Shape: (2*npts,)
+            Solution state. Shape: (ndim*npts,)
         boundary_indices : Array
             Mesh indices at interface. Shape: (nboundary,)
         normal : Array
-            Outward unit normal. Shape: (2,)
+            Outward unit normal. Shape: (ndim,)
 
         Returns
         -------
         Array
-            Traction [t_x, t_y] at boundary points.
-            Shape: (2*nboundary,) with component-stacked ordering.
+            Traction components at boundary points.
+            Shape: (ndim*nboundary,) with component-stacked ordering.
         """
         bkd = self._bkd
-        boundary_indices.shape[0]
+        if self._ndim == 3:
+            eps = self._strains_3d(state)
+            trace_b = (eps[0][0] + eps[1][1] + eps[2][2])[
+                boundary_indices
+            ]
+            lam_b = self._lambda_array[boundary_indices]
+            mu_b = self._mu_array[boundary_indices]
+            tractions = []
+            for i in range(3):
+                t_i = (
+                    lam_b * trace_b
+                    + 2.0 * mu_b * eps[i][i][boundary_indices]
+                ) * bkd.to_float(normal[i])
+                for j in range(3):
+                    if j != i:
+                        t_i = t_i + (
+                            2.0 * mu_b * eps[i][j][boundary_indices]
+                        ) * bkd.to_float(normal[j])
+                tractions.append(t_i)
+            return bkd.concatenate(tractions)
 
         u, v = self._extract_components(state)
 
@@ -602,8 +779,8 @@ class LinearElasticityPhysics(AbstractVectorPhysics[Array], Generic[Array]):
 def create_linear_elasticity(
     basis: TensorProductBasisProtocol[Array],
     bkd: Backend[Array],
-    lamda: float,
-    mu: float,
+    lamda: Union[float, Array],
+    mu: Union[float, Array],
     forcing: Optional[Callable[[float], Array]] = None,
 ) -> LinearElasticityPhysics[Array]:
     """Create linear elasticity physics.
@@ -611,12 +788,12 @@ def create_linear_elasticity(
     Parameters
     ----------
     basis : TensorProductBasisProtocol
-        2D collocation basis.
+        2D or 3D collocation basis.
     bkd : Backend
         Computational backend.
-    lamda : float
+    lamda : float or Array
         Lamé's first parameter λ.
-    mu : float
+    mu : float or Array
         Shear modulus μ.
     forcing : Callable or Array, optional
         Source term.

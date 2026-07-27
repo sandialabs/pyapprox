@@ -16,18 +16,18 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.manufactured import (
-    ManufacturedLinearElasticityEquations,
-)
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D, ChebyshevBasis3D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
     TransformedMesh2D,
+    TransformedMesh3D,
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import LinearElasticityPhysics
 from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.pde.manufactured import (
+    ManufacturedLinearElasticityEquations,
+)
 
 
 class PhysicsDerivativeWrapper:
@@ -538,3 +538,131 @@ class TestManufacturedLinearElasticity3DSympy:
                 mu_str="1.0",
                 bkd=bkd,
             )
+
+
+class TestManufacturedLinearElasticity3D:
+    """3D collocation physics against manufactured solutions."""
+
+    _POLY_SOLS = [
+        "(1 - x**2)*(1 - y**2)*(1 - z**2)",
+        "(1 - x**2)*(1 - y**2)*(1 - z**2)*x",
+        "(1 - x**2)*(1 - y**2)*(1 - z**2)*y",
+    ]
+
+    @staticmethod
+    def _setup(bkd, npts_1d, sol_strs, lamda=1.0, mu=1.0):
+        """Build 3D physics with manufactured forcing and zero
+        Dirichlet BCs on all six faces for every component."""
+        mesh = TransformedMesh3D(npts_1d, npts_1d, npts_1d, bkd)
+        basis = ChebyshevBasis3D(mesh, bkd)
+        nodes = mesh.points()
+        npts = basis.npts()
+
+        man_sol = ManufacturedLinearElasticityEquations(
+            sol_strs=sol_strs,
+            nvars=3,
+            lambda_str=str(lamda),
+            mu_str=str(mu),
+            bkd=bkd,
+            oned=True,
+        )
+        u_exact = man_sol.functions["solution"](nodes)  # (npts, 3)
+        forcing = man_sol.functions["forcing"](nodes)
+        u_exact_flat = bkd.concatenate(
+            [u_exact[:, i] for i in range(3)]
+        )
+        forcing_flat = bkd.concatenate(
+            [forcing[:, i] for i in range(3)]
+        )
+
+        physics = LinearElasticityPhysics(
+            basis, bkd, lamda=lamda, mu=mu,
+            forcing=lambda t: forcing_flat,
+        )
+        bcs = []
+        boundary_state_rows = set()
+        for face in range(6):
+            face_idx = mesh.boundary_indices(face)
+            for comp in range(3):
+                comp_idx = bkd.asarray(
+                    [idx + comp * npts for idx in face_idx]
+                )
+                bcs.append(zero_dirichlet_bc(bkd, comp_idx))
+                for idx in face_idx:
+                    boundary_state_rows.add(
+                        int(bkd.to_int(idx)) + comp * npts
+                    )
+        physics.set_boundary_conditions(bcs)
+        return physics, u_exact_flat, npts, boundary_state_rows
+
+    def test_residual_at_exact_solution_3d(self, bkd):
+        """Interior residual vanishes for polynomial solutions that the
+        Chebyshev basis represents exactly.
+
+        The solutions are degree 3 per dimension so npts_1d=5
+        (degree 4) is exact; larger meshes only inflate the cost of
+        the per-DOF Dirichlet row replacement, which is slow on torch.
+        """
+        physics, u_exact, npts, bnd_rows = self._setup(
+            bkd, 5, self._POLY_SOLS, lamda=2.5, mu=0.5
+        )
+        residual = physics.residual(u_exact, 0.0)
+        jacobian = physics.jacobian(u_exact, 0.0)
+        residual_bc, _ = physics.apply_boundary_conditions(
+            residual, jacobian, u_exact, 0.0
+        )
+        interior = [
+            i for i in range(3 * npts) if i not in bnd_rows
+        ]
+        interior_residual = bkd.asarray(
+            [residual_bc[i] for i in interior]
+        )
+        bkd.assert_allclose(
+            interior_residual,
+            bkd.zeros(interior_residual.shape),
+            atol=1e-9,
+        )
+
+    def test_numerical_solve_3d(self, bkd):
+        """Steady solve reproduces the exact polynomial solution
+        (degree 3 per dimension, exact at npts_1d=5)."""
+        physics, u_exact, npts, _ = self._setup(
+            bkd, 5, self._POLY_SOLS
+        )
+        model = CollocationModel(physics, bkd)
+        u_numerical = model.solve_steady(
+            bkd.zeros((3 * npts,)), tol=1e-10, maxiter=50
+        )
+        bkd.assert_allclose(u_numerical, u_exact, atol=1e-7)
+
+    @pytest.mark.slow_on("TorchBkd")
+    def test_spectral_convergence_3d(self, bkd):
+        """Trigonometric solution: error decays spectrally with the
+        per-dimension degree.
+
+        Measured curve: 3.5e-1 (npts_1d=4), 4.7e-2 (6), 1.2e-3 (8) —
+        the first step is preasymptotic (ratio 0.13), the second is
+        deep in the spectral regime (0.027). Torch-only slow: the
+        per-DOF Dirichlet row replacement in the BC infrastructure
+        dominates the npts_1d=8 solve on torch (~50s vs ~2s numpy).
+        """
+        sol_strs = [
+            "sin(pi*x)*sin(pi*y)*sin(pi*z)",
+            "sin(pi*x)*sin(pi*y)*sin(pi*z)",
+            "sin(pi*x)*sin(pi*y)*sin(pi*z)",
+        ]
+        errors = []
+        for npts_1d in (4, 6, 8):
+            physics, u_exact, npts, _ = self._setup(
+                bkd, npts_1d, sol_strs
+            )
+            model = CollocationModel(physics, bkd)
+            u_numerical = model.solve_steady(
+                bkd.zeros((3 * npts,)), tol=1e-10, maxiter=50
+            )
+            errors.append(
+                float(bkd.max(bkd.abs(u_numerical - u_exact)))
+            )
+        assert errors[1] < 0.2 * errors[0]
+        assert errors[2] < 0.1 * errors[1]
+        assert errors[-1] < 5e-3

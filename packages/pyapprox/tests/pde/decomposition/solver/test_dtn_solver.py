@@ -15,12 +15,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.collocation.physics.advection_diffusion import (
-    create_steady_diffusion,
-)
-from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -31,9 +25,13 @@ from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
 )
 from pyapprox.pde.collocation.mesh import (
+    AffineTransform3D,
     TransformedMesh1D,
     TransformedMesh2D,
     TransformedMesh3D,
+)
+from pyapprox.pde.collocation.physics.advection_diffusion import (
+    create_steady_diffusion,
 )
 from pyapprox.pde.decomposition.interface import (
     Interface,
@@ -48,6 +46,8 @@ from pyapprox.pde.decomposition.solver import (
     DtNSolver,
 )
 from pyapprox.pde.decomposition.subdomain import SubdomainWrapper
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class DtNResidualDerivativeWrapper(Generic[Array]):
@@ -1495,6 +1495,44 @@ class TestVectorPhysicsFlux:
         for i in range(npts, 2 * npts):
             assert abs(float(flux[i]) - 0.0) < 10**(-10)
 
+    def test_linear_elasticity_flux_3d(self, bkd):
+        """Test compute_interface_flux for 3D linear elasticity.
+
+        u(x,y,z) = x, v = w = 0 with lamda = mu = 1 gives constant
+        stress sigma_xx = lamda + 2*mu = 3, sigma_yy = sigma_zz =
+        lamda = 1, zero shear. Traction on the x-normal face is
+        (3, 0, 0).
+        """
+        bkd = self.bkd
+        npts_1d = 5
+
+        from pyapprox.pde.collocation.physics.linear_elasticity import (
+            LinearElasticityPhysics,
+        )
+
+        mesh = TransformedMesh3D(npts_1d, npts_1d, npts_1d, bkd)
+        basis = ChebyshevBasis3D(mesh, bkd)
+        physics = LinearElasticityPhysics(basis, bkd, 1.0, 1.0)
+        npts_total = basis.npts()
+
+        pts = mesh.points()
+        state = bkd.concatenate(
+            [pts[0], bkd.zeros((npts_total,)), bkd.zeros((npts_total,))]
+        )
+
+        boundary_indices = mesh.boundary_indices(1)
+        normal = mesh.boundary_normals(1)[0]
+        flux = physics.compute_interface_flux(
+            state, boundary_indices, normal
+        )
+
+        nb = boundary_indices.shape[0]
+        assert flux.shape[0] == 3 * nb
+        bkd.assert_allclose(flux[:nb], bkd.full((nb,), 3.0), atol=1e-8)
+        bkd.assert_allclose(
+            flux[nb:], bkd.zeros((2 * nb,)), atol=1e-8
+        )
+
 
 class TestVectorInterfaceComponents:
     """Test interface classes with ncomponents parameter."""
@@ -1571,3 +1609,135 @@ class TestVectorInterfaceComponents:
         # Second npts values should be ~1
         for i in range(npts, 2 * npts):
             assert abs(float(values[i]) - 1.0) < 10**(-10)
+
+
+class TestDtNSolver3DElasticity:
+    """3D two-subdomain vector DtN solve with linear elasticity.
+
+    Problem: equilibrium on [-1, 1] x [-1, 1]^2 split at x = 0 into
+    two boxes via AffineTransform3D. Exact solution u = x_phys,
+    v = w = 0 with lamda = mu = 1: constant stress (sigma_xx = 3),
+    zero forcing, and traction continuous across the interface, so
+    the exact interface displacement is (0, 0, 0) at every interface
+    point.
+    """
+
+    def setup_method(self):
+        self.bkd = NumpyBkd()
+
+    def _make_subdomain(self, npts_1d, bounds_x, interface, interface_face):
+        """Build one elasticity subdomain wrapper.
+
+        External Dirichlet BCs impose u = x_phys, v = w = 0 per
+        component on the five non-interface faces.
+        """
+        bkd = self.bkd
+        transform = AffineTransform3D(
+            (bounds_x[0], bounds_x[1], -1.0, 1.0, -1.0, 1.0), bkd
+        )
+        mesh = TransformedMesh3D(npts_1d, npts_1d, npts_1d, bkd, transform)
+        basis = ChebyshevBasis3D(mesh, bkd)
+        npts = basis.npts()
+
+        from pyapprox.pde.collocation.physics.linear_elasticity import (
+            LinearElasticityPhysics,
+        )
+
+        physics = LinearElasticityPhysics(basis, bkd, 1.0, 1.0)
+        pts = mesh.points()
+
+        external_bcs = []
+        for face in range(6):
+            if face == interface_face:
+                continue
+            face_idx = mesh.boundary_indices(face)
+            u_vals = pts[0][face_idx]
+            nb = face_idx.shape[0]
+            for comp, vals in (
+                (0, u_vals),
+                (1, bkd.zeros((nb,))),
+                (2, bkd.zeros((nb,))),
+            ):
+                comp_idx = bkd.asarray(
+                    [idx + comp * npts for idx in face_idx]
+                )
+                external_bcs.append(DirichletBC(bkd, comp_idx, vals))
+
+        subdomain_id = 0 if interface_face == 1 else 1
+        wrapper = SubdomainWrapper(
+            bkd,
+            subdomain_id=subdomain_id,
+            physics=physics,
+            interfaces={0: interface},
+            external_bcs=external_bcs,
+        )
+        wrapper.set_interface_boundary_indices(
+            0, mesh.boundary_indices(interface_face)
+        )
+        return wrapper, basis
+
+    def _create_problem(self, npts_1d=4):
+        bkd = self.bkd
+        interface_basis = LegendreInterfaceBasis2D(
+            bkd,
+            degree_y=npts_1d - 1,
+            degree_z=npts_1d - 1,
+            physical_bounds_y=(-1.0, 1.0),
+            physical_bounds_z=(-1.0, 1.0),
+        )
+        interface = Interface2D(
+            bkd,
+            interface_id=0,
+            subdomain_ids=(0, 1),
+            basis=interface_basis,
+            normal_direction=0,
+            ncomponents=3,
+        )
+
+        # Left box [-1, 0]: interface on its x=+max face (id 1);
+        # right box [0, 1]: interface on its x=-min face (id 0)
+        wrapper0, basis0 = self._make_subdomain(
+            npts_1d, (-1.0, 0.0), interface, interface_face=1
+        )
+        wrapper1, _ = self._make_subdomain(
+            npts_1d, (0.0, 1.0), interface, interface_face=0
+        )
+
+        nodes_y = basis0.nodes_y()
+        nodes_z = basis0.nodes_z()
+        interface.set_subdomain_boundary_points_2d(0, nodes_y, nodes_z)
+        interface.set_subdomain_boundary_points_2d(1, nodes_y, nodes_z)
+
+        interface_dof_offsets = bkd.asarray(
+            [0, interface.total_ndofs()]
+        )
+        residual = DtNResidual(
+            bkd,
+            interfaces={0: interface},
+            subdomain_solvers={0: wrapper0, 1: wrapper1},
+            interface_dof_offsets=interface_dof_offsets,
+        )
+        solver = DtNSolver(
+            bkd, residual, max_iters=30, tol=1e-10, verbose=False
+        )
+        return residual, solver, interface
+
+    def test_residual_zero_at_exact_interface(self, bkd):
+        """DtN residual vanishes at the exact zero interface
+        displacement: tractions from both sides cancel."""
+        bkd = self.bkd
+        residual, _, interface = self._create_problem()
+        interface_dofs = bkd.zeros((interface.total_ndofs(),))
+        res = residual(interface_dofs)
+        assert float(bkd.norm(res)) < 1e-5
+
+    def test_solver_converges(self, bkd):
+        """DtN solve converges to the zero interface displacement."""
+        bkd = self.bkd
+        _, solver, interface = self._create_problem()
+        initial_guess = bkd.zeros((interface.total_ndofs(),)) + 0.1
+        result = solver.solve(initial_guess)
+        assert result.converged
+        computed = interface.evaluate(result.interface_dofs)
+        max_error = float(bkd.max(bkd.abs(computed)))
+        assert max_error < 1e-5
