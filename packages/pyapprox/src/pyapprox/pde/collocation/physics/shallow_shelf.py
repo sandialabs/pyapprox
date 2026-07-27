@@ -107,8 +107,9 @@ class ShallowShelfVelocityPhysics(AbstractVectorPhysics[Array]):
         self._surf_grad_x = self._Dx @ surface
         self._surf_grad_y = self._Dy @ surface
 
-        # Constant in viscosity: 0.5 * A^(-1/n)
-        self._visc_const = 0.5 * self._A ** (-1.0 / self._n)
+        # Constant in viscosity: 0.5 * A^(-1/n). The annotation is
+        # required: float ** float is typed Any in typeshed.
+        self._visc_const: float = 0.5 * self._A ** (-1.0 / self._n)
 
     def set_depth(self, depth: Array) -> None:
         """Update ice thickness.
@@ -159,6 +160,31 @@ class ShallowShelfVelocityPhysics(AbstractVectorPhysics[Array]):
         """
         strain_rate = self._effective_strain_rate(ux, uy, vx, vy)
         return self._visc_const * strain_rate ** ((1.0 - self._n) / self._n)
+
+    def _viscosity_derivatives(
+        self, ux: Array, uy: Array, vx: Array, vy: Array
+    ) -> tuple[Array, Array]:
+        """Compute the viscosity and its derivative w.r.t. the
+        regularized squared strain rate.
+
+        With :math:`Q + \\epsilon` the regularized squared effective
+        strain rate (the same quantity ``_effective_strain_rate``
+        squares) and :math:`p = (1-n)/(2n)`:
+
+        .. math::
+
+            \\mu = c (Q+\\epsilon)^p, \\qquad
+            \\mu_Q = d\\mu/dQ = p\\,\\mu/(Q+\\epsilon).
+
+        Returns (mu, mu_q), each shape (npts,).
+        """
+        strain_sq = (
+            ux**2 + vy**2 + ux * vy + 0.25 * (uy + vx) ** 2 + self._eps
+        )
+        power = (1.0 - self._n) / (2.0 * self._n)
+        mu = self._visc_const * strain_sq**power
+        mu_q = power * mu / strain_sq
+        return mu, mu_q
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute spatial residual.
@@ -212,30 +238,132 @@ class ShallowShelfVelocityPhysics(AbstractVectorPhysics[Array]):
         return self._combine_state(res_u, res_v)
 
     def jacobian(self, state: Array, time: float) -> Array:
-        """Compute Jacobian via finite differences.
+        """Compute the exact state Jacobian of the SSA momentum residual.
 
-        The analytical Jacobian is complex due to the nonlinear viscosity,
-        so we use finite differences for robustness.
+        With membrane coefficients :math:`a_{xx} = 2u_x + v_y`,
+        :math:`a_{yy} = u_x + 2v_y`, :math:`a_{xy} = (u_y + v_x)/2`
+        the stresses are :math:`\\tau_{ab} = 2\\mu H a_{ab}` and the
+        Jacobian splits into frozen-viscosity blocks (built from
+        :math:`c = 2\\mu H`) plus the viscosity-variation term
+
+        .. math:: L\\,G, \\quad
+            G_u = \\mathrm{diag}(a_{xx}) D_x
+                + \\mathrm{diag}(a_{xy}) D_y
+
+        (the row map of :math:`dQ/du`; note
+        :math:`\\partial Q/\\partial u_x = a_{xx}` etc., so the same
+        coefficient vectors appear on both sides), with
+        :math:`L_u = D_x \\mathrm{diag}(2 H \\mu_Q a_{xx})
+        + D_y \\mathrm{diag}(2 H \\mu_Q a_{xy})` and similarly for
+        :math:`v`. Driving stress and forcing are velocity
+        independent; friction contributes diagonals. The result is
+        nonsymmetric.
+
+        Parameters
+        ----------
+        state : Array
+            Velocity state [u, v]. Shape: (2*npts,)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        Array
+            Jacobian matrix. Shape: (2*npts, 2*npts)
         """
         bkd = self._bkd
-        nstates = self.nstates()
+        u, v = self._split_state(state)
+        Dx, Dy = self._Dx, self._Dy
 
-        jacobian = bkd.zeros((nstates, nstates))
+        ux = Dx @ u
+        uy = Dy @ u
+        vx = Dx @ v
+        vy = Dy @ v
+        a_xx = 2.0 * ux + vy
+        a_yy = ux + 2.0 * vy
+        a_xy = 0.5 * (uy + vx)
+        mu, mu_q = self._viscosity_derivatives(ux, uy, vx, vy)
+        coef = 2.0 * mu * self._depth
+        h2 = 2.0 * self._depth * mu_q
 
-        eps = 1e-7
-        for j in range(nstates):
-            state_plus = bkd.copy(state)
-            state_plus[j] = state_plus[j] + eps
-            state_minus = bkd.copy(state)
-            state_minus[j] = state_minus[j] - eps
+        diag_coef = bkd.diag(coef)
+        diag_2coef = bkd.diag(2.0 * coef)
+        diag_half_coef = bkd.diag(0.5 * coef)
+        diag_friction = bkd.diag(self._friction)
 
-            res_plus = self.residual(state_plus, time)
-            res_minus = self.residual(state_minus, time)
+        # Frozen-viscosity blocks of tau = 2*mu*H*a
+        j_uu = (
+            Dx @ diag_2coef @ Dx + Dy @ diag_half_coef @ Dy - diag_friction
+        )
+        j_uv = Dx @ diag_coef @ Dy + Dy @ diag_half_coef @ Dx
+        j_vu = Dy @ diag_coef @ Dx + Dx @ diag_half_coef @ Dy
+        j_vv = (
+            Dy @ diag_2coef @ Dy + Dx @ diag_half_coef @ Dx - diag_friction
+        )
 
-            for i in range(nstates):
-                jacobian[i, j] = (res_plus[i] - res_minus[i]) / (2 * eps)
+        # Viscosity variation: dmu = mu_Q * dQ
+        g_u = bkd.diag(a_xx) @ Dx + bkd.diag(a_xy) @ Dy
+        g_v = bkd.diag(a_xy) @ Dx + bkd.diag(a_yy) @ Dy
+        l_u = Dx @ bkd.diag(h2 * a_xx) + Dy @ bkd.diag(h2 * a_xy)
+        l_v = Dx @ bkd.diag(h2 * a_xy) + Dy @ bkd.diag(h2 * a_yy)
 
-        return jacobian
+        top = bkd.concatenate(
+            [j_uu + l_u @ g_u, j_uv + l_u @ g_v], axis=1
+        )
+        bottom = bkd.concatenate(
+            [j_vu + l_v @ g_u, j_vv + l_v @ g_v], axis=1
+        )
+        return bkd.concatenate([top, bottom], axis=0)
+
+    def residual_depth_jacobian(self, state: Array, time: float) -> Array:
+        """Compute d(R_vel)/dH holding the velocities fixed.
+
+        The stress coefficient :math:`2\\mu H` is linear in H (the
+        viscosity depends only on velocity gradients), and the driving
+        stress :math:`H \\rho g \\nabla(H+b)` contributes the product
+        rule :math:`\\rho g (\\mathrm{diag}(\\nabla s)
+        + \\mathrm{diag}(H) D)`. Uses the current depth and surface
+        gradient (as updated by ``set_depth``).
+
+        Parameters
+        ----------
+        state : Array
+            Velocity state [u, v]. Shape: (2*npts,)
+        time : float
+            Current time (unused; kept for signature uniformity).
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (2*npts, npts)
+        """
+        bkd = self._bkd
+        u, v = self._split_state(state)
+        Dx, Dy = self._Dx, self._Dy
+
+        ux = Dx @ u
+        uy = Dy @ u
+        vx = Dx @ v
+        vy = Dy @ v
+        a_xx = 2.0 * ux + vy
+        a_yy = ux + 2.0 * vy
+        a_xy = 0.5 * (uy + vx)
+        mu, _ = self._viscosity_derivatives(ux, uy, vx, vy)
+        two_mu = 2.0 * mu
+        rg = self._rho * self._g
+        diag_depth = bkd.diag(self._depth)
+
+        top = (
+            Dx @ bkd.diag(two_mu * a_xx)
+            + Dy @ bkd.diag(two_mu * a_xy)
+            - rg * (bkd.diag(self._surf_grad_x) + diag_depth @ Dx)
+        )
+        bottom = (
+            Dx @ bkd.diag(two_mu * a_xy)
+            + Dy @ bkd.diag(two_mu * a_yy)
+            - rg * (bkd.diag(self._surf_grad_y) + diag_depth @ Dy)
+        )
+        return bkd.concatenate([top, bottom], axis=0)
 
 
 class ShallowShelfDepthPhysics(AbstractPhysics[Array]):
@@ -335,6 +463,30 @@ class ShallowShelfDepthPhysics(AbstractPhysics[Array]):
             jacobian = jacobian - self._D1_matrices[dim] @ bkd.diag(vel_component)
 
         return jacobian
+
+    def residual_velocity_jacobian(self, state: Array) -> Array:
+        """Compute d(R_H)/d[vel] holding the depth fixed.
+
+        With :math:`R_H = -\\sum_d D_d (H\\, \\mathrm{vel}_d) + f`,
+        block d is :math:`-D_d\\,\\mathrm{diag}(H)`.
+
+        Parameters
+        ----------
+        state : Array
+            Ice thickness H. Shape: (npts,)
+
+        Returns
+        -------
+        Array
+            Assembly. Shape: (npts, ndim*npts)
+        """
+        bkd = self._bkd
+        ndim = self._basis.ndim()
+        blocks = [
+            -(self._D1_matrices[dim] @ bkd.diag(state))
+            for dim in range(ndim)
+        ]
+        return bkd.concatenate(blocks, axis=1)
 
 
 class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
@@ -454,30 +606,46 @@ class ShallowShelfDepthVelocityPhysics(AbstractVectorPhysics[Array]):
         return self._bkd.hstack([depth_res, vel_res])
 
     def jacobian(self, state: Array, time: float) -> Array:
-        """Compute full coupled Jacobian via finite differences.
+        """Compute the exact coupled Jacobian from subphysics blocks.
 
-        The Jacobian is a 3x3 block matrix with cross-coupling terms
-        (depth depends on velocity through div(H*vel), velocity depends
-        on depth through surface gradient and stress).
+        The block structure (depth couples to velocity through
+        div(H*vel), velocity to depth through the surface gradient and
+        the 2*mu*H stress coefficient) is
+
+        .. math::
+
+            \\begin{bmatrix}
+            \\partial R_H/\\partial H &
+            \\partial R_H/\\partial \\mathrm{vel} \\\\
+            \\partial R_{\\mathrm{vel}}/\\partial H &
+            \\partial R_{\\mathrm{vel}}/\\partial \\mathrm{vel}
+            \\end{bmatrix}
+
+        with every block assembled analytically by the depth and
+        velocity physics after the cross dependencies are updated.
         """
         bkd = self._bkd
-        nstates = self.nstates()
-        eps = 1e-7
+        H, u, v = self._split_state(state)
+        self._update_cross_dependencies(H, u, v)
+        vel_state = bkd.hstack([u, v])
 
-        jacobian = bkd.zeros((nstates, nstates))
-
-        for j in range(nstates):
-            state_plus = bkd.copy(state)
-            state_plus[j] = state_plus[j] + eps
-            state_minus = bkd.copy(state)
-            state_minus[j] = state_minus[j] - eps
-
-            res_plus = self.residual(state_plus, time)
-            res_minus = self.residual(state_minus, time)
-
-            jacobian[:, j] = (res_plus - res_minus) / (2 * eps)
-
-        return jacobian
+        top = bkd.concatenate(
+            [
+                self._depth_physics.jacobian(H, time),
+                self._depth_physics.residual_velocity_jacobian(H),
+            ],
+            axis=1,
+        )
+        bottom = bkd.concatenate(
+            [
+                self._velocity_physics.residual_depth_jacobian(
+                    vel_state, time
+                ),
+                self._velocity_physics.jacobian(vel_state, time),
+            ],
+            axis=1,
+        )
+        return bkd.concatenate([top, bottom], axis=0)
 
     def mass_matrix(self) -> Array:
         """Return mass matrix [[I, 0], [0, 0]].

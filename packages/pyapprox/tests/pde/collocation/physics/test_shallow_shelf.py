@@ -1,7 +1,13 @@
 """Tests for Shallow Shelf Approximation physics implementations."""
 
+from typing import Callable
+
 import numpy as np
 import pytest
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import constant_dirichlet_bc
 from pyapprox.pde.collocation.boundary.dirichlet import DirichletBC
@@ -24,11 +30,48 @@ from pyapprox.pde.manufactured.shallow_shelf import (
     ManufacturedShallowShelfVelocityAndDepthEquations,
     ManufacturedShallowShelfVelocityEquations,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 from tests._helpers.markers import slow_test
 from tests._helpers.physics_test_utils import (
     PhysicsTestBase,
 )
+
+
+class _VectorFunctionWrapper:
+    """Adapts a 1D-array function and its assembly for DerivativeChecker."""
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        nvars: int,
+        nqoi: int,
+        fun: Callable[[Array], Array],
+        jac: Callable[[Array], Array],
+    ) -> None:
+        self._bkd = bkd
+        self._nvars = nvars
+        self._nqoi = nqoi
+        self._fun = fun
+        self._jac = jac
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def nqoi(self) -> int:
+        return self._nqoi
+
+    def __call__(self, sample: Array) -> Array:
+        return self._fun(sample[:, 0])[:, None]
+
+    def jacobian(self, sample: Array) -> Array:
+        return self._jac(sample[:, 0])
+
+    def derivatives(self) -> Derivatives[Array]:
+        return Derivatives.first_order(jacobian=self.jacobian)
 
 
 class TestShallowShelfVelocityPhysics(PhysicsTestBase):
@@ -54,7 +97,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         np.random.seed(42)
         state = bkd.array(0.1 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(bkd, physics, state, time=0.0)
+        # Exact Jacobian: limited only by the checker's FD noise
+        # (measured sweep bottom ~3e-8)
+        self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
 
     def test_jacobian_sloped_bed(self, bkd):
         """Test Jacobian with sloped bed topography."""
@@ -77,7 +122,9 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         np.random.seed(123)
         state = bkd.array(0.05 * np.random.randn(physics.nstates()))
 
-        self.check_jacobian(bkd, physics, state, time=0.0)
+        # Exact Jacobian: limited only by the checker's FD noise
+        # (measured sweep bottom ~1e-7)
+        self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
 
     def test_ncomponents(self, bkd):
         """Test number of components."""
@@ -153,6 +200,67 @@ class TestShallowShelfVelocityPhysics(PhysicsTestBase):
         state = bkd.zeros((physics.nstates(),))
         residual = physics.residual(state, time=0.0)
         assert residual.shape[0] == physics.nstates()
+
+    def test_jacobian_zero_friction(self, bkd):
+        """Exact Jacobian with the sliding term switched off."""
+        npts_1d = 5
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        npts = basis.npts()
+
+        physics = ShallowShelfVelocityPhysics(
+            basis,
+            bkd,
+            depth=bkd.full((npts,), 800.0),
+            bed=bkd.zeros((npts,)),
+            friction=0.0,
+            A=1e-16,
+            rho=917.0,
+        )
+        np.random.seed(7)
+        state = bkd.array(0.1 * np.random.randn(physics.nstates()))
+        self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
+
+    def test_residual_depth_jacobian_derivative_checker(self, bkd):
+        """d(R_vel)/dH matches finite differences (velocities fixed;
+        set_depth recomputes the surface gradient from H + bed)."""
+        npts_1d = 5
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        npts = basis.npts()
+
+        nodes_x_1d = bkd.array(
+            np.cos(np.pi * np.arange(npts_1d) / (npts_1d - 1))
+        )
+        bed = 10.0 * bkd.array(np.tile(nodes_x_1d, npts_1d))
+        physics = ShallowShelfVelocityPhysics(
+            basis,
+            bkd,
+            depth=bkd.full((npts,), 800.0),
+            bed=bed,
+            friction=1.0,
+            A=1.0,
+            rho=1.0,
+        )
+        np.random.seed(11)
+        vel_state = bkd.array(0.1 * np.random.randn(2 * npts))
+        depth0 = bkd.asarray(
+            800.0 + 50.0 * np.random.uniform(-1.0, 1.0, (npts,))
+        )
+
+        def fun(depth):
+            physics.set_depth(depth)
+            return physics.residual(vel_state, 0.0)
+
+        def jac(depth):
+            physics.set_depth(depth)
+            return physics.residual_depth_jacobian(vel_state, 0.0)
+
+        checker = DerivativeChecker(
+            _VectorFunctionWrapper(bkd, npts, 2 * npts, fun, jac)
+        )
+        errors = checker.check_derivatives(depth0[:, None], verbosity=0)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
     @slow_test
     def test_residual_at_manufactured_solution(self, bkd):
@@ -293,6 +401,44 @@ class TestShallowShelfDepthPhysics(PhysicsTestBase):
         state = bkd.array(np.maximum(np.asarray(state), 100.0))  # Ensure positive
 
         self.check_jacobian(bkd, physics, state, time=0.0)
+
+    def test_residual_velocity_jacobian(self, bkd):
+        """d(R_H)/d[vel] is exact: the residual is linear in the
+        velocities, so the assembly reproduces residual differences
+        exactly and passes the DerivativeChecker."""
+        npts_1d = 5
+        mesh = TransformedMesh2D(npts_1d, npts_1d, bkd)
+        basis = ChebyshevBasis2D(mesh, bkd)
+        npts = basis.npts()
+
+        physics = ShallowShelfDepthPhysics(basis, bkd)
+        np.random.seed(3)
+        depth = bkd.asarray(
+            500.0 + 50.0 * np.random.uniform(-1.0, 1.0, (npts,))
+        )
+        vel0 = bkd.array(0.1 * np.random.randn(2 * npts))
+
+        def fun(vel):
+            physics.set_velocities(vel)
+            return physics.residual(depth, 0.0)
+
+        def jac(vel):
+            physics.set_velocities(vel)
+            return physics.residual_velocity_jacobian(depth)
+
+        # Exact linearity identity
+        jmat = jac(vel0)
+        bkd.assert_allclose(
+            jmat @ vel0,
+            fun(vel0) - fun(bkd.zeros((2 * npts,))),
+            rtol=1e-12,
+        )
+
+        checker = DerivativeChecker(
+            _VectorFunctionWrapper(bkd, 2 * npts, npts, fun, jac)
+        )
+        errors = checker.check_derivatives(vel0[:, None], verbosity=0)
+        assert checker.error_ratio(errors[0]) <= 1e-6
 
     def test_residual_uniform_depth_and_velocity(self, bkd):
         """Test residual is zero for uniform depth and divergence-free velocity."""
@@ -629,7 +775,45 @@ class TestShallowShelfDepthVelocityPhysics(PhysicsTestBase):
         v = 0.1 * np.random.randn(npts)
         state = bkd.array(np.concatenate([H, u, v]))
 
-        self.check_jacobian(bkd, physics, state, time=0.0)
+        # Exact coupled Jacobian: limited only by the checker's FD
+        # noise (measured sweep bottom ~8e-8)
+        self.check_jacobian(bkd, physics, state, time=0.0, atol=1e-6)
+
+    def test_jacobian_block_extraction(self, bkd):
+        """The coupled Jacobian's sub-blocks equal the subphysics
+        assemblies evaluated at the same (cross-updated) state."""
+        bkd, mesh, basis, npts, physics = self._create_coupled_physics(bkd)
+        np.random.seed(42)
+        H = bkd.asarray(1.0 + 0.1 * np.random.randn(npts))
+        u = bkd.asarray(0.1 * np.random.randn(npts))
+        v = bkd.asarray(0.1 * np.random.randn(npts))
+        state = bkd.hstack([H, u, v])
+
+        jac = physics.jacobian(state, 0.0)
+        vel_state = bkd.hstack([u, v])
+        depth_physics = physics._depth_physics
+        velocity_physics = physics._velocity_physics
+
+        bkd.assert_allclose(
+            jac[:npts, :npts],
+            depth_physics.jacobian(H, 0.0),
+            rtol=1e-12,
+        )
+        bkd.assert_allclose(
+            jac[:npts, npts:],
+            depth_physics.residual_velocity_jacobian(H),
+            rtol=1e-12,
+        )
+        bkd.assert_allclose(
+            jac[npts:, :npts],
+            velocity_physics.residual_depth_jacobian(vel_state, 0.0),
+            rtol=1e-12,
+        )
+        bkd.assert_allclose(
+            jac[npts:, npts:],
+            velocity_physics.jacobian(vel_state, 0.0),
+            rtol=1e-12,
+        )
 
     def test_requires_2d_basis(self, bkd):
         """Test that 1D basis raises error."""

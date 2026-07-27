@@ -1,4 +1,4 @@
 # CI ratchet baselines. Rule: any commit that improves a metric lowers
 # its baseline here in the same commit. Read by .github/workflows/lint.yml
-mypy_src=487
+mypy_src=486
 mypy_benchmarks=479
