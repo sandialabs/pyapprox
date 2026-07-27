@@ -20,20 +20,19 @@ if not package_available("skfem"):
 from typing import Callable, Dict, List, Tuple
 
 import numpy as np
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.manufactured import (
+    GalerkinManufacturedSolutionAdapter,
+)
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.pde.galerkin.physics import Helmholtz
+from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.manufactured import (
     ManufacturedAdvectionDiffusionReaction,
     ManufacturedHelmholtz,
 )
-from pyapprox.pde.galerkin.manufactured import (
-    GalerkinManufacturedSolutionAdapter,
-)
 from pyapprox.util.backends.protocols import Backend
 from scipy.sparse import issparse
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
-from pyapprox.pde.galerkin.physics import Helmholtz
-from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 
 
 def _create_screened_poisson_manufactured(

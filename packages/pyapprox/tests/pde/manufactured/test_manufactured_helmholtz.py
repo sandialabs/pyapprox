@@ -26,11 +26,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.manufactured import (
-    ManufacturedHelmholtz,
-)
-from pyapprox.util.backends.protocols import Array
-
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -45,6 +40,10 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
 )
 from pyapprox.pde.collocation.physics import HelmholtzPhysics
+from pyapprox.pde.manufactured import (
+    ManufacturedHelmholtz,
+)
+from pyapprox.util.backends.protocols import Array
 
 
 class PhysicsDerivativeWrapper(Generic[Array]):

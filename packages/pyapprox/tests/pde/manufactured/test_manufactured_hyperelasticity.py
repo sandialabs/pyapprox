@@ -16,14 +16,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.manufactured.hyperelasticity import (
-    ManufacturedHyperelasticityEquations,
-)
-from pyapprox.pde.collocation.physics.hyperelasticity import (
-    HyperelasticityPhysics,
-)
-from pyapprox.util.backends.protocols import Array
-
 from pyapprox.pde.collocation.basis import (
     ChebyshevBasis1D,
     ChebyshevBasis2D,
@@ -41,10 +33,18 @@ from pyapprox.pde.collocation.mesh import (
     create_uniform_mesh_2d,
     create_uniform_mesh_3d,
 )
+from pyapprox.pde.collocation.physics.hyperelasticity import (
+    HyperelasticityPhysics,
+)
+from pyapprox.pde.collocation.time_integration import CollocationModel
 from pyapprox.pde.constitutive import (
     NeoHookeanStress,
 )
-from pyapprox.pde.collocation.time_integration import CollocationModel
+from pyapprox.pde.manufactured.hyperelasticity import (
+    ManufacturedHyperelasticityEquations,
+)
+from pyapprox.util.backends.protocols import Array
+
 from tests._helpers.markers import slow_test
 
 

@@ -29,17 +29,17 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.pde.collocation.basis import ChebyshevBasis2D
+from pyapprox.pde.collocation.mesh import (
+    TransformedMesh2D,
+)
+from pyapprox.pde.collocation.physics import ShallowShelfVelocityPhysics
 from pyapprox.pde.manufactured import (
     ManufacturedShallowShelfVelocityEquations,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 
-from pyapprox.pde.collocation.basis import ChebyshevBasis2D
-from pyapprox.pde.collocation.mesh import (
-    TransformedMesh2D,
-)
-from pyapprox.pde.collocation.physics import ShallowShelfVelocityPhysics
 from tests._helpers.markers import slow_test
 
 

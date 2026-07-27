@@ -14,10 +14,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.pde.manufactured import (
-    ManufacturedTwoSpeciesReactionDiffusion,
-)
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
@@ -28,6 +24,9 @@ from pyapprox.pde.collocation.physics import (
     FitzHughNagumoReaction,
     LinearReaction,
     TwoSpeciesReactionDiffusionPhysics,
+)
+from pyapprox.pde.manufactured import (
+    ManufacturedTwoSpeciesReactionDiffusion,
 )
 
 
