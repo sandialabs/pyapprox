@@ -3,39 +3,37 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, Tuple
+from typing import TYPE_CHECKING, Generic
 
+from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
 class QuadratureMixin(ABC, Generic[Array]):
-    """Mixin providing quadrature_samples_weights.
+    """Mixin providing trajectory_quadrature.
 
-    Subclasses override quadrature_samples_weights to return the
-    quadrature rule matching their time discretization.
+    Subclasses override trajectory_quadrature to return the rule
+    object matching their time discretization (typically one of the
+    constructors in :mod:`pyapprox.ode.time_quadrature`).
     """
 
     if TYPE_CHECKING:
         _bkd: Backend[Array]
 
     @abstractmethod
-    def quadrature_samples_weights(
+    def trajectory_quadrature(
         self, times: Array
-    ) -> Tuple[Array, Array]:
-        """Compute quadrature rule consistent with time discretization.
+    ) -> TrajectoryQuadratureProtocol[Array]:
+        """Return the scheme-implied quadrature over a stored trajectory.
 
         Parameters
         ----------
         times : Array
-            Time nodes. Shape: (ntimes,)
+            Time nodes of the solve. Shape: (ntimes,)
 
         Returns
         -------
-        quadx : Array
-            Quadrature sample points. Shape depends on rule:
-            (ntimes-1,) for constant rules, (ntimes,) for linear.
-        quadw : Array
-            Quadrature weights. Shape: (ntimes-1,) for constant
-            rules, (ntimes,) for linear (trapezoidal).
+        TrajectoryQuadratureProtocol
+            The rule mapped onto stored trajectory columns.
         """
         ...

@@ -40,6 +40,10 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
+from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
+    TimeIntegratedWeightedL2Functional,
+)
 from pyapprox.ode.functionals.weighted_endpoint import (
     WeightedEndpointFunctional,
 )
@@ -432,6 +436,77 @@ class TestTransientAdjointWorkedExample:
         assert jac_ratio <= 2e-5
         hvp_min = float(bkd.to_numpy(bkd.min(errors[1])))
         assert hvp_min <= 1e-6
+
+    @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
+    def test_time_integrated_qoi_gradient_and_hvp(
+        self, numpy_bkd: NumpyBkd, method: str
+    ) -> None:
+        """THE pattern for time-integrated QoIs: the functional takes
+        NO quadrature weights — the model injects its scheme's rule
+        (stepper.trajectory_quadrature over the actual solve times)
+        after every forward solve. dQ/dy is nonzero at every stored
+        step (per-step adjoint RHS accumulation, which endpoint QoIs
+        never exercise), the quadratic QoI supplies state_state
+        curvature, and the Tikhonov cost supplies the direct parameter
+        pathways."""
+        bkd = numpy_bkd
+        physics, param_obj = _build_parameterization(bkd, "forcing")
+        mass = physics.mass_matrix()
+        mass_np = (
+            mass.toarray() if hasattr(mass, "toarray") else np.asarray(mass)
+        )
+        functional = TikhonovAugmentedFunctional(
+            TimeIntegratedWeightedL2Functional(
+                bkd.asarray(mass_np), param_obj.nparams(), bkd
+            ),
+            0.7,
+            bkd,
+        )
+        model = GalerkinTransientForwardModel(
+            physics,
+            param_obj,
+            _gaussian_bump_ic(bkd, physics),
+            _time_config(method),
+            bkd,
+            functional=functional,
+        )
+        _check_gradient_and_hvp(bkd, model)
+
+    def test_model_injects_scheme_consistent_quadrature(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """The injected rule is the SCHEME's: backward Euler must
+        yield right-rectangle nodal weights (zero at t0), not the
+        trapezoid a hand-roller would reach for."""
+        bkd = numpy_bkd
+        physics, param_obj = _build_parameterization(bkd, "forcing")
+        mass = physics.mass_matrix()
+        mass_np = (
+            mass.toarray() if hasattr(mass, "toarray") else np.asarray(mass)
+        )
+        inner = TimeIntegratedWeightedL2Functional(
+            bkd.asarray(mass_np), param_obj.nparams(), bkd
+        )
+        model = GalerkinTransientForwardModel(
+            physics,
+            param_obj,
+            _gaussian_bump_ic(bkd, physics),
+            _time_config("backward_euler"),
+            bkd,
+            functional=inner,
+        )
+        model(bkd.zeros((model.nvars(), 1)))
+        config = _time_config("backward_euler")
+        nsteps = round(
+            (config.final_time - config.init_time) / config.deltat
+        )
+        expected = np.full(nsteps + 1, config.deltat)
+        expected[0] = 0.0
+        bkd.assert_allclose(
+            inner.time_quadrature().nodal_weights(),
+            bkd.asarray(expected),
+            rtol=1e-12,
+        )
 
     def test_quasilinear_gradient_and_hvp(
         self, numpy_bkd: NumpyBkd

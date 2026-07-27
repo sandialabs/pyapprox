@@ -24,6 +24,10 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.ode.time_quadrature import (
+    TrajectoryQuadratureProtocol,
+    left_rectangle_quadrature,
+)
 from pyapprox.util.backends.protocols import Array
 
 # =========================================================================
@@ -89,9 +93,11 @@ class ForwardEulerStepper(
 
     # -- QuadratureMixin --
 
-    def quadrature_samples_weights(self, times: Array) -> tuple[Array, Array]:
-        """Left-constant quadrature (left endpoints, interval widths)."""
-        return times[:-1], self._bkd.diff(times)
+    def trajectory_quadrature(
+        self, times: Array
+    ) -> TrajectoryQuadratureProtocol[Array]:
+        """Left-rectangle rule — the quadrature forward Euler implies."""
+        return left_rectangle_quadrature(times, self._bkd)
 
 
 # =========================================================================

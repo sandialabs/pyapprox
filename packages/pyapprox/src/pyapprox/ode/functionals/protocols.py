@@ -13,6 +13,7 @@ time-dependent problems where:
 
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -96,6 +97,33 @@ class TransientFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
         -------
         Array
             Parameter Jacobian. Shape: (nqoi, nparams)
+        """
+        ...
+
+
+@runtime_checkable
+class TimeQuadratureAwareFunctionalProtocol(Protocol, Generic[Array]):
+    """
+    Protocol for functionals integrating over the time trajectory.
+
+    Such functionals must use the quadrature implied by the
+    time-integration scheme (each stepper reports its rule as a
+    ``TrajectoryQuadratureProtocol``), or their quadrature order will
+    not match the scheme's convergence order. The component that owns
+    the scheme — e.g. ``GalerkinTransientForwardModel`` after each
+    forward solve — injects the rule; users never construct weights.
+    """
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """
+        Inject the scheme-implied trajectory quadrature.
+
+        Parameters
+        ----------
+        quadrature : TrajectoryQuadratureProtocol
+            The rule of the stepper that produced the trajectory.
         """
         ...
 

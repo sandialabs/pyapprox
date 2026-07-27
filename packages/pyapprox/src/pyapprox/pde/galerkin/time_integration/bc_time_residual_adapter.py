@@ -21,7 +21,7 @@ Use ``create_galerkin_bc_enforcing_residual()`` to create the widest
 wrapper the inner stepper supports.
 """
 
-from typing import Generic, List, Optional, Tuple, Union, overload
+from typing import Generic, List, Optional, Union, overload
 
 import numpy as np
 from scipy.sparse import issparse, spmatrix
@@ -40,6 +40,7 @@ from pyapprox.ode.protocols.time_stepping import (
     TimeSteppingResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -377,11 +378,11 @@ class GalerkinBCEnforcingAdjointResidual(
             return self._bkd.asarray(matrix @ self._bkd.to_numpy(vec))
         return self._bkd.dot(matrix, vec)
 
-    def quadrature_samples_weights(
+    def trajectory_quadrature(
         self, times: Array
-    ) -> Tuple[Array, Array]:
-        """Quadrature rule consistent with the time discretization."""
-        return self._adjoint_inner.quadrature_samples_weights(times)
+    ) -> TrajectoryQuadratureProtocol[Array]:
+        """Return the inner scheme's trajectory quadrature."""
+        return self._adjoint_inner.trajectory_quadrature(times)
 
     def initial_param_jacobian(self) -> Array:
         """d(initial_state)/dp with constrained rows zeroed."""

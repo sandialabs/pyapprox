@@ -36,6 +36,10 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.ode.time_quadrature import (
+    TrajectoryQuadratureProtocol,
+    midpoint_quadrature,
+)
 from pyapprox.util.backends.protocols import Array
 
 # =========================================================================
@@ -116,9 +120,16 @@ class ImplicitMidpointStepper(
 
     # -- QuadratureMixin --
 
-    def quadrature_samples_weights(self, times: Array) -> tuple[Array, Array]:
-        """Midpoint quadrature (interval midpoints, interval widths)."""
-        return (times[:-1] + times[1:]) / 2, self._bkd.diff(times)
+    def trajectory_quadrature(
+        self, times: Array
+    ) -> TrajectoryQuadratureProtocol[Array]:
+        """Midpoint rule — samples the states the scheme steps through.
+
+        Not time-diagonal: time-integrated functionals get exact
+        values and gradients, but per-step HVPs are unavailable until
+        the block-tridiagonal adjoint extension lands.
+        """
+        return midpoint_quadrature(times, self._bkd)
 
 
 # =========================================================================

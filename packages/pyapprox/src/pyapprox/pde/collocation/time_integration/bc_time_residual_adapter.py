@@ -21,7 +21,6 @@ from typing import (
     Generic,
     Optional,
     Protocol,
-    Tuple,
     overload,
     runtime_checkable,
 )
@@ -36,6 +35,7 @@ from pyapprox.ode.protocols.time_stepping import (
     SensitivityStepperProtocol,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.pde.collocation.protocols.boundary import (
     BCPhysicalSensitivities,
     BoundaryConditionProtocol,
@@ -395,9 +395,11 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         drduT_offdiag = self.adjoint_off_diag_jacobian(ctx, y_curr)
         return self._bkd.solve(mass, -drduT_offdiag @ asol_1 - dqdu_0)
 
-    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
-        """Compute quadrature rule consistent with time discretization."""
-        return self._adjoint_inner.quadrature_samples_weights(times)
+    def trajectory_quadrature(
+        self, times: Array
+    ) -> TrajectoryQuadratureProtocol[Array]:
+        """Return the inner scheme's trajectory quadrature."""
+        return self._adjoint_inner.trajectory_quadrature(times)
 
     def initial_param_jacobian(self) -> Array:
         """Compute initial condition param Jacobian with BC rows zeroed."""

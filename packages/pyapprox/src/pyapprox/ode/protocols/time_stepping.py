@@ -20,13 +20,14 @@ HVPEnabledTimeSteppingResidualProtocol
     Adds 4 same-step + 3 cross-step HVP methods.
 """
 
-from typing import Generic, Protocol, Tuple, runtime_checkable
+from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.ode.linear_operator import LinearOperatorProtocol
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -125,6 +126,28 @@ class TimeSteppingResidualProtocol(Protocol, Generic[Array]):
         Stage-based steppers solve intermediate mass systems whose
         constrained rows need boundary velocities. One-step schemes
         return False.
+        """
+        ...
+
+    def trajectory_quadrature(
+        self, times: Array
+    ) -> TrajectoryQuadratureProtocol[Array]:
+        """
+        Return the scheme-implied quadrature over a stored trajectory.
+
+        Intrinsic to the scheme (like ``is_explicit``): time-integrated
+        functionals must use this rule so their quadrature order
+        matches the scheme's convergence order.
+
+        Parameters
+        ----------
+        times : Array
+            Time points. Shape: (ntimes,)
+
+        Returns
+        -------
+        TrajectoryQuadratureProtocol
+            The rule mapped onto stored trajectory columns.
         """
         ...
 
@@ -341,9 +364,14 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]:
+    def trajectory_quadrature(
+        self, times: Array
+    ) -> TrajectoryQuadratureProtocol[Array]:
         """
-        Compute quadrature rule consistent with time discretization.
+        Return the scheme-implied quadrature over a stored trajectory.
+
+        Time-integrated functionals must use this rule so their
+        quadrature order matches the scheme's convergence order.
 
         Parameters
         ----------
@@ -352,10 +380,8 @@ class AdjointEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
         Returns
         -------
-        quadx : Array
-            Quadrature sample points. Shape: (nquad,)
-        quadw : Array
-            Quadrature weights. Shape: (nquad,)
+        TrajectoryQuadratureProtocol
+            The rule mapped onto stored trajectory columns.
         """
         ...
 
@@ -431,7 +457,9 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
         dqdu_0: Array,
     ) -> Array: ...
 
-    def quadrature_samples_weights(self, times: Array) -> Tuple[Array, Array]: ...
+    def trajectory_quadrature(
+        self, times: Array
+    ) -> TrajectoryQuadratureProtocol[Array]: ...
 
     def zero_adjoint_rhs(self, dqdu: Array) -> Array: ...
 

@@ -28,6 +28,10 @@ from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.ode.time_quadrature import (
+    TrajectoryQuadratureProtocol,
+    trapezoidal_quadrature,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -144,15 +148,11 @@ class HeunStepper(
 
     # -- QuadratureMixin --
 
-    def quadrature_samples_weights(self, times: Array) -> tuple[Array, Array]:
-        """Trapezoidal quadrature (nodes, trapezoidal weights)."""
-        weights = self._bkd.zeros(times.shape)
-        for ii in range(times.shape[0]):
-            if ii > 0:
-                weights[ii] = weights[ii] + 0.5 * (times[ii] - times[ii - 1])
-            if ii < times.shape[0] - 1:
-                weights[ii] = weights[ii] + 0.5 * (times[ii + 1] - times[ii])
-        return times, weights
+    def trajectory_quadrature(
+        self, times: Array
+    ) -> TrajectoryQuadratureProtocol[Array]:
+        """Trapezoidal rule — Heun is the explicit trapezoid scheme."""
+        return trapezoidal_quadrature(times, self._bkd)
 
 
 # =========================================================================

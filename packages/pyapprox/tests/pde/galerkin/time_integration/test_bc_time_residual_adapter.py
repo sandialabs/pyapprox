@@ -16,6 +16,7 @@ from pyapprox.ode.protocols.time_stepping import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.stepper_table import create_stepper
+from pyapprox.ode.time_quadrature import left_rectangle_quadrature
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
@@ -106,6 +107,10 @@ class _FakeExplicitStepper:
 
     def is_multistage(self) -> bool:
         return False
+
+    def trajectory_quadrature(self, times: Any) -> Any:
+        # Explicit one-step fake: left-rectangle is its honest rule.
+        return left_rectangle_quadrature(times, self._bkd)
 
     def native_residual(self) -> ODEResidualProtocol[Any]:
         # A method (as the protocol declares), NOT a property: python

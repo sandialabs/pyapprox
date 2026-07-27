@@ -14,14 +14,13 @@ if not package_available("skfem"):
 import numpy as np
 from pyapprox.ode.implicit_steppers import BackwardEulerHVP
 from pyapprox.ode.step_context import StepContext
-from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
-
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
 )
+from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class TestPhysicsAdapterBase:
