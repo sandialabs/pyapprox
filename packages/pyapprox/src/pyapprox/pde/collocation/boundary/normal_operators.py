@@ -56,14 +56,11 @@ class GradientNormalOperator(Generic[Array]):
         # normal_deriv_matrix[i, :] = sum_d normals[i, d] * D_d[idx[i], :]
         npts = derivative_matrices[0].shape[0]
         normal_deriv_matrix = bkd.zeros((self._nboundary_pts, npts))
-        normal_deriv_matrix = bkd.copy(normal_deriv_matrix)
-        for i in range(self._nboundary_pts):
-            idx = bkd.to_int(boundary_indices[i])
-            for d in range(self._ndim):
-                normal_deriv_matrix[i, :] = (
-                    normal_deriv_matrix[i, :]
-                    + normals[i, d] * derivative_matrices[d][idx, :]
-                )
+        for d in range(self._ndim):
+            normal_deriv_matrix = normal_deriv_matrix + (
+                normals[:, d : d + 1]
+                * derivative_matrices[d][boundary_indices, :]
+            )
         self._normal_deriv_matrix = normal_deriv_matrix
 
     def normals(self) -> Array:
@@ -185,10 +182,12 @@ class FluxNormalOperator(Generic[Array]):
         flux_jac_components = self._flux_provider.compute_flux_jacobian(state)
         npts = flux_jac_components[0].shape[0]
         result = bkd.zeros((self._nboundary_pts, npts))
+        # Vectorized row gather (per-row python loops are slow on torch)
         for d, jac_d in enumerate(flux_jac_components):
-            for i in range(self._nboundary_pts):
-                idx = self._bkd.to_int(self._boundary_indices[i])
-                result[i, :] = result[i, :] + self._normals[i, d] * jac_d[idx, :]
+            result = result + (
+                self._normals[:, d : d + 1]
+                * jac_d[self._boundary_indices, :]
+            )
         return result
 
 
@@ -243,7 +242,6 @@ class TractionNormalOperator(Generic[Array]):
         self._normals = normals
         self._npts = npts
         self._component = component
-        nboundary = mesh_boundary_indices.shape[0]
 
         Dx = derivative_matrices[0]
         Dy = derivative_matrices[1]
@@ -260,26 +258,20 @@ class TractionNormalOperator(Generic[Array]):
         # For component 1 (t_y):
         #   d(t_y)/d(u) = nx*μ*Dy[idx,:] + ny*λ*Dx[idx,:]
         #   d(t_y)/d(v) = nx*μ*Dx[idx,:] + ny*(λ+2μ)*Dy[idx,:]
-        jac = bkd.zeros((nboundary, 2 * npts))
-        jac = bkd.copy(jac)
+        nx = normals[:, 0:1]
+        ny = normals[:, 1:2]
+        dx_rows = Dx[mesh_boundary_indices, :]
+        dy_rows = Dy[mesh_boundary_indices, :]
+        if component == 0:
+            # d(t_x)/d(u), d(t_x)/d(v)
+            jac_u = nx * lam_2mu * dx_rows + ny * mu * dy_rows
+            jac_v = nx * lam * dy_rows + ny * mu * dx_rows
+        else:
+            # d(t_y)/d(u), d(t_y)/d(v)
+            jac_u = nx * mu * dy_rows + ny * lam * dx_rows
+            jac_v = nx * mu * dx_rows + ny * lam_2mu * dy_rows
 
-        for i in range(nboundary):
-            idx = bkd.to_int(mesh_boundary_indices[i])
-            nx_i = bkd.to_float(normals[i, 0])
-            ny_i = bkd.to_float(normals[i, 1])
-
-            if component == 0:
-                # d(t_x)/d(u)
-                jac[i, :npts] = nx_i * lam_2mu * Dx[idx, :] + ny_i * mu * Dy[idx, :]
-                # d(t_x)/d(v)
-                jac[i, npts:] = nx_i * lam * Dy[idx, :] + ny_i * mu * Dx[idx, :]
-            else:
-                # d(t_y)/d(u)
-                jac[i, :npts] = nx_i * mu * Dy[idx, :] + ny_i * lam * Dx[idx, :]
-                # d(t_y)/d(v)
-                jac[i, npts:] = nx_i * mu * Dx[idx, :] + ny_i * lam_2mu * Dy[idx, :]
-
-        self._jacobian = jac
+        self._jacobian = bkd.concatenate([jac_u, jac_v], axis=1)
 
     def normals(self) -> Array:
         """Return outward unit normals. Shape: (nboundary, 2)."""

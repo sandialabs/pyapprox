@@ -161,11 +161,9 @@ class RobinBC(Generic[Array]):
         # Compute normal term: N(u) at boundary points
         normal_term = self._normal_operator(state)
 
-        for i in range(self._nboundary_pts):
-            u_bndry = state[idx[i]]
-            residual[idx[i]] = (
-                self._alpha[i] * u_bndry + self._beta[i] * normal_term[i] - g[i]
-            )
+        residual[idx] = (
+            self._alpha * state[idx] + self._beta * normal_term - g
+        )
         return residual
 
     def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
@@ -190,18 +188,14 @@ class RobinBC(Generic[Array]):
         """
         idx = self._boundary_indices
         jacobian = self._bkd.copy(jacobian)
-        nstates = jacobian.shape[0]
 
         # Get Jacobian of the normal operator
         normal_jac = self._normal_operator.jacobian(state)
 
-        for i in range(self._nboundary_pts):
-            row_idx = self._bkd.to_int(idx[i])
-            for j in range(nstates):
-                jac_val = self._beta[i] * normal_jac[i, j]
-                if j == row_idx:
-                    jac_val = jac_val + self._alpha[i]
-                jacobian[row_idx, j] = jac_val
+        # Vectorized row replacement (per-element writes are slow on
+        # torch): rows are beta*N_jacobian plus alpha on the diagonal
+        jacobian[idx, :] = self._beta[:, None] * normal_jac
+        jacobian[idx, idx] = jacobian[idx, idx] + self._alpha
         return jacobian
 
     def normal_operator(self) -> NormalOperatorProtocol[Array]:

@@ -141,8 +141,7 @@ class NeumannBC(Generic[Array]):
         # Compute du/dn = normal_sign * D @ u
         flux = self._normal_sign * (self._derivative_matrix @ state)
 
-        for i in range(self._nboundary_pts):
-            residual[idx[i]] = flux[i] - g[i]
+        residual[idx] = flux - g
         return residual
 
     def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
@@ -166,12 +165,9 @@ class NeumannBC(Generic[Array]):
         """
         idx = self._boundary_indices
         jacobian = self._bkd.copy(jacobian)
-        nstates = jacobian.shape[0]
-
-        for i in range(self._nboundary_pts):
-            # Set row to normal_sign * derivative matrix row
-            for j in range(nstates):
-                jacobian[idx[i], j] = self._normal_sign * self._derivative_matrix[i, j]
+        # Vectorized row replacement (per-element writes are slow on
+        # torch): rows become normal_sign * derivative matrix rows
+        jacobian[idx, :] = self._normal_sign * self._derivative_matrix
         return jacobian
 
     def apply_to_param_jacobian(
@@ -203,10 +199,7 @@ class NeumannBC(Generic[Array]):
         """
         idx = self._boundary_indices
         param_jacobian = self._bkd.copy(param_jacobian)
-        nparams = param_jacobian.shape[1]
-        for i in range(self._nboundary_pts):
-            for j in range(nparams):
-                param_jacobian[idx[i], j] = 0.0
+        param_jacobian[idx, :] = 0.0
         return param_jacobian
 
 

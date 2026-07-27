@@ -105,13 +105,10 @@ class PeriodicBC(Generic[Array]):
         D = self._D
         residual = self._bkd.copy(residual)
 
-        for i in range(self._nboundary_pts):
-            # Value matching at primary boundary
-            residual[idx1[i]] = state[idx1[i]] - state[idx2[i]]
-            # Derivative matching at partner boundary
-            du_primary = self._bkd.dot(D[idx1[i], :], state)
-            du_partner = self._bkd.dot(D[idx2[i], :], state)
-            residual[idx2[i]] = du_primary - du_partner
+        # Value matching at primary boundary
+        residual[idx1] = state[idx1] - state[idx2]
+        # Derivative matching at partner boundary
+        residual[idx2] = (D[idx1, :] - D[idx2, :]) @ state
         return residual
 
     def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
@@ -138,18 +135,15 @@ class PeriodicBC(Generic[Array]):
         idx2 = self._partner_indices
         D = self._D
         jacobian = self._bkd.copy(jacobian)
-        nstates = jacobian.shape[0]
 
-        for i in range(self._nboundary_pts):
-            # Value matching row (primary boundary)
-            for j in range(nstates):
-                jacobian[idx1[i], j] = 0.0
-            jacobian[idx1[i], idx1[i]] = 1.0
-            jacobian[idx1[i], idx2[i]] = -1.0
+        # Vectorized row replacement (per-element writes are slow on
+        # torch). Value matching rows (primary boundary):
+        jacobian[idx1, :] = 0.0
+        jacobian[idx1, idx1] = 1.0
+        jacobian[idx1, idx2] = -1.0
 
-            # Derivative matching row (partner boundary)
-            for j in range(nstates):
-                jacobian[idx2[i], j] = D[idx1[i], j] - D[idx2[i], j]
+        # Derivative matching rows (partner boundary)
+        jacobian[idx2, :] = D[idx1, :] - D[idx2, :]
         return jacobian
 
     def apply_to_param_jacobian(
@@ -183,9 +177,6 @@ class PeriodicBC(Generic[Array]):
         idx1 = self._boundary_indices
         idx2 = self._partner_indices
         param_jacobian = self._bkd.copy(param_jacobian)
-        nparams = param_jacobian.shape[1]
-        for i in range(self._nboundary_pts):
-            for j in range(nparams):
-                param_jacobian[idx1[i], j] = 0.0
-                param_jacobian[idx2[i], j] = 0.0
+        param_jacobian[idx1, :] = 0.0
+        param_jacobian[idx2, :] = 0.0
         return param_jacobian

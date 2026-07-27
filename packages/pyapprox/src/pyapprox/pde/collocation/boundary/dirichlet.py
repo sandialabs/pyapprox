@@ -111,8 +111,7 @@ class DirichletBC(Generic[Array]):
         idx = self._boundary_indices
         g = self.boundary_values(time)
         residual = self._bkd.copy(residual)
-        for i in range(self._nboundary_pts):
-            residual[idx[i]] = state[idx[i]] - g[i]
+        residual[idx] = state[idx] - g
         return residual
 
     def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
@@ -136,13 +135,11 @@ class DirichletBC(Generic[Array]):
         """
         idx = self._boundary_indices
         jacobian = self._bkd.copy(jacobian)
-        nstates = jacobian.shape[0]
-        for i in range(self._nboundary_pts):
-            # Zero out row
-            for j in range(nstates):
-                jacobian[idx[i], j] = 0.0
-            # Set diagonal to 1
-            jacobian[idx[i], idx[i]] = 1.0
+        # Vectorized row replacement: per-element python loops issue
+        # one dispatch per scalar write, which is prohibitively slow
+        # on torch (microseconds per write vs nanoseconds on numpy)
+        jacobian[idx, :] = 0.0
+        jacobian[idx, idx] = 1.0
         return jacobian
 
     def apply_to_param_jacobian(
@@ -175,10 +172,7 @@ class DirichletBC(Generic[Array]):
         """
         idx = self._boundary_indices
         param_jacobian = self._bkd.copy(param_jacobian)
-        nparams = param_jacobian.shape[1]
-        for i in range(self._nboundary_pts):
-            for j in range(nparams):
-                param_jacobian[idx[i], j] = 0.0
+        param_jacobian[idx, :] = 0.0
         return param_jacobian
 
 
