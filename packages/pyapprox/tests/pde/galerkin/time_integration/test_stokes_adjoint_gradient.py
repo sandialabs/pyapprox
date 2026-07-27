@@ -80,6 +80,9 @@ class _ViscosityForcingParameterization:
     def physics(self) -> StokesPhysics[NumpyArray]:
         return self._physics
 
+    def owned_coefficients(self):
+        return ("mock_coef",)
+
     def param_derivatives(self) -> ParamDerivatives[NumpyArray]:
         return self._derivs
 

@@ -124,6 +124,9 @@ class _ToyCurvatureParameterization:
     def apply(self, params_1d):
         self._physics.set_coefficient(self._cfield(params_1d))
 
+    def owned_coefficients(self):
+        return ("mock_coef",)
+
     def param_derivatives(self):
         return ParamDerivatives.second_order(
             self._param_jacobian,
@@ -255,6 +258,9 @@ class TestCollocationAdapterFactoryTiers:
             def apply(self, params_1d):
                 field = bkd.full((npts,), 1.0) + params_1d[0]
                 self._physics.set_diffusion(ConstantInTimeField(field))
+
+            def owned_coefficients(self):
+                return ("mock_coef",)
 
             def param_derivatives(self):
                 return ParamDerivatives.none()

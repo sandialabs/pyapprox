@@ -186,6 +186,7 @@ class TestFacadeConstruction:
                 bkd=bkd,
                 nstates=physics.nstates(),
                 nfield_dofs=physics.npts(),
+                owned_coefficients=("diffusion",),
                 bc_flux_field_jacobian=42,  # type: ignore[arg-type]
             )
 

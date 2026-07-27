@@ -17,7 +17,7 @@ flux BCs (flux Neumann/Robin with parameterized :math:`D`) get their
 parameter-Jacobian rows corrected.
 """
 
-from typing import Callable, Generic, List, Optional, Union
+from typing import Callable, Generic, List, Optional, Tuple, Union
 
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
@@ -136,6 +136,7 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=physics.npts(),
+            owned_coefficients=("diffusion",),
             require_positive=True,
             bc_flux_field_jacobian=physics.boundary_flux_diffusion_jacobian,
         )
@@ -157,6 +158,7 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=physics.npts(),
+            owned_coefficients=("reaction",),
         )
 
     def _forcing_term(
@@ -173,6 +175,7 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=physics.npts(),
+            owned_coefficients=("forcing",),
         )
 
     # -- parameterization surface --
@@ -188,6 +191,10 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
     def physics(self) -> AdvectionDiffusionReaction[Array]:
         """Return the bound physics instance."""
         return self._physics
+
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        """Identifiers of the parameterized coefficient fields."""
+        return self._inner.owned_coefficients()
 
     def apply(self, params_1d: Array) -> None:
         """Map parameters onto all parameterized coefficient fields."""

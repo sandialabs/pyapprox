@@ -16,7 +16,7 @@ raising slots are removed and the engine's second-order tier applies
 unchanged.
 """
 
-from typing import Generic
+from typing import Generic, Tuple
 
 from pyapprox.pde.collocation.physics.hyperelasticity import (
     HyperelasticityPhysics,
@@ -135,6 +135,7 @@ class CollocationHyperelasticityParameterization(Generic[Array]):
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=2 * npts,
+            owned_coefficients=("mu", "lamda"),
             bc_flux_field_jacobian=(
                 physics.boundary_traction_lame_jacobian
             ),
@@ -153,6 +154,10 @@ class CollocationHyperelasticityParameterization(Generic[Array]):
     def physics(self) -> HyperelasticityPhysics[Array]:
         """Return the bound physics instance."""
         return self._physics
+
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        """Identifiers of the parameterized coefficient fields."""
+        return self._inner.owned_coefficients()
 
     def apply(self, params_1d: Array) -> None:
         """Map parameters onto the stacked Lame coefficient fields."""

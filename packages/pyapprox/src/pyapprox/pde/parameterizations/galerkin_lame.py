@@ -9,7 +9,7 @@ yielding the full second-order derivative bundle.
 it gets an apply-only parameterization with an empty bundle.
 """
 
-from typing import Generic, Union
+from typing import Generic, Tuple, Union
 
 from pyapprox.pde.field_maps.lame import ENuToLameFieldMap
 from pyapprox.pde.galerkin.physics.composite_hyperelasticity import (
@@ -72,6 +72,10 @@ class LameApplyOnlyParameterization(Generic[Array]):
         """Return the number of parameters (2 per material)."""
         return self._field_map.nvars()
 
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        """Identifiers of the parameterized coefficient fields."""
+        return ("mu", "lamda")
+
     def apply(self, params_1d: Array) -> None:
         """Map (E, nu) parameters onto the per-material Lame values."""
         self._physics.set_lame_material_values(
@@ -126,6 +130,7 @@ def create_galerkin_lame_parameterization(
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=2 * physics.nmaterials(),
+            owned_coefficients=("mu", "lamda"),
         )
     if isinstance(physics, CompositeHyperelasticityPhysics):
         return LameApplyOnlyParameterization(

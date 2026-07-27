@@ -87,8 +87,12 @@ def _create_diffusion_physics_and_basis(bkd, npts=20):
 class _EvalOnlyParam:
     """Parameterization with no derivative capability."""
 
-    def __init__(self, physics):
+    def __init__(self, physics, name="eval_only"):
         self._physics = physics
+        self._name = name
+
+    def owned_coefficients(self):
+        return (self._name,)
 
     def nparams(self) -> int:
         return 1
@@ -117,12 +121,13 @@ class _MockSecondOrderParam:
     - lam^T d2R/dpdy w     = scale * sum(p) * (lam . w) * ones(np)
     """
 
-    def __init__(self, physics, bkd, nparams, nstates, scale):
+    def __init__(self, physics, bkd, nparams, nstates, scale, name):
         self._physics = physics
         self._bkd = bkd
         self._np = nparams
         self._nstates = nstates
         self._scale = scale
+        self._name = name
         self._derivs = ParamDerivatives.second_order(
             self._param_jacobian,
             self._initial_param_jacobian,
@@ -136,6 +141,9 @@ class _MockSecondOrderParam:
 
     def physics(self):
         return self._physics
+
+    def owned_coefficients(self):
+        return (self._name,)
 
     def apply(self, params_1d):
         pass
@@ -640,6 +648,33 @@ class TestParameterizations:
         assert comp.param_derivatives().param_jacobian is None
         assert comp.param_derivatives().initial_param_jacobian is None
 
+    def test_composite_rejects_overlapping_coefficients(self, bkd) -> None:
+        """Two parts writing the same coefficient are rejected: apply
+        would be last-writer-wins while both still report nonzero
+        derivative blocks."""
+        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
+        p1 = _MockSecondOrderParam(physics, bkd, 2, 5, 2.0, "coef_a")
+        p2 = _MockSecondOrderParam(physics, bkd, 3, 5, -1.5, "coef_a")
+        with pytest.raises(ValueError, match="both parameterize"):
+            CompositeParameterization([p1, p2], bkd)
+
+        comp = CompositeParameterization([p1], bkd)
+        with pytest.raises(ValueError, match="both parameterize"):
+            comp.append(p2)
+
+    def test_composite_owned_coefficients_union(self, bkd) -> None:
+        """The composite reports the union of its parts' identifiers;
+        the multi-map facade builds a disjoint composite."""
+        physics, basis, nodes = _create_diffusion_physics_and_basis(bkd)
+        npts = basis.npts()
+        facade = CollocationAdvectionDiffusionParameterization(
+            physics,
+            diffusion_map=BasisExpansion(bkd, 2.0, [bkd.ones((npts,))]),
+            reaction_map=BasisExpansion(bkd, 0.0, [bkd.ones((npts,))]),
+            bkd=bkd,
+        )
+        assert facade.owned_coefficients() == ("diffusion", "reaction")
+
     def test_composite_append_removes_param_jacobian(self, bkd) -> None:
         """Appending non-differentiable part rebuilds bundle without it,
         warning about the capability fallback."""
@@ -655,7 +690,7 @@ class TestParameterizations:
         with pytest.warns(
             UserWarning, match="lowest common capability"
         ):
-            comp.append(_EvalOnlyParam(physics))
+            comp.append(_EvalOnlyParam(physics, name="eval_only_2"))
         assert comp.param_derivatives().param_jacobian is None
 
     def test_composite_mixed_tier_warns(self, bkd) -> None:
@@ -689,8 +724,8 @@ class TestParameterizations:
     def test_composite_second_order_bundle(self, bkd) -> None:
         """Composite of second-order parts exposes all three HVPs."""
         physics = object()
-        p1 = _MockSecondOrderParam(physics, bkd, 2, 5, 2.0)
-        p2 = _MockSecondOrderParam(physics, bkd, 3, 5, -1.5)
+        p1 = _MockSecondOrderParam(physics, bkd, 2, 5, 2.0, "coef_a")
+        p2 = _MockSecondOrderParam(physics, bkd, 3, 5, -1.5, "coef_b")
         comp = CompositeParameterization([p1, p2], bkd)
         derivs = comp.param_derivatives()
         assert derivs.param_param_hvp is not None
@@ -706,8 +741,8 @@ class TestParameterizations:
         nstates = 5
         s1, s2 = 2.0, -1.5
         physics = object()
-        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1)
-        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2)
+        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1, "coef_a")
+        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2, "coef_b")
         comp = CompositeParameterization([p1, p2], bkd)
         fn = comp.param_derivatives().state_param_hvp
         assert fn is not None
@@ -730,8 +765,8 @@ class TestParameterizations:
         nstates = 5
         s1, s2 = 2.0, -1.5
         physics = object()
-        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1)
-        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2)
+        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1, "coef_a")
+        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2, "coef_b")
         comp = CompositeParameterization([p1, p2], bkd)
         derivs = comp.param_derivatives()
         assert derivs.param_param_hvp is not None
@@ -780,8 +815,8 @@ class TestParameterizations:
         nstates = 5
         s1, s2 = 2.0, -1.5
         physics = object()
-        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1)
-        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2)
+        p1 = _MockSecondOrderParam(physics, bkd, 2, nstates, s1, "coef_a")
+        p2 = _MockSecondOrderParam(physics, bkd, 3, nstates, s2, "coef_b")
         comp = CompositeParameterization([p1, p2], bkd)
 
         def kappa(p_1d):

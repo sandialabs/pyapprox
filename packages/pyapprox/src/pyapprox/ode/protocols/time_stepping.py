@@ -3,7 +3,10 @@ Protocols for time stepping residuals.
 
 These protocols define the interface for time discretization schemes
 (Forward Euler, Backward Euler, Crank-Nicolson, etc.) at different
-capability levels.
+capability levels. A solver module that implements the adjoint tier
+gets the shared TimeIntegrator, tangent-linear sweep, and
+second-order-adjoint operators for free — the contract is documented
+in ``docs/conventions/pde_solver_extension.md``.
 
 Protocol Hierarchy
 ------------------

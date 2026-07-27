@@ -55,6 +55,9 @@ class TestGalerkinAdapterFactoryTiers:
             def apply(self, params_1d):
                 pass
 
+            def owned_coefficients(self):
+                return ("mock_coef",)
+
             def param_derivatives(self):
                 return ParamDerivatives.none()
 
@@ -90,6 +93,9 @@ class TestGalerkinAdapterFactoryTiers:
             def apply(self, params_1d):
                 pass
 
+            def owned_coefficients(self):
+                return ("mock_coef",)
+
             def param_derivatives(self):
                 return ParamDerivatives.first_order(_jac, _init_jac)
 
@@ -120,6 +126,9 @@ class TestGalerkinAdapterFactoryTiers:
 
             def apply(self, params_1d):
                 pass
+
+            def owned_coefficients(self):
+                return ("mock_coef",)
 
             def param_derivatives(self):
                 return ParamDerivatives.none()

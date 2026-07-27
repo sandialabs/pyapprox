@@ -8,7 +8,7 @@ derivative arithmetic lives in the engine — this module is
 construction wiring only.
 """
 
-from typing import Generic, List, Optional, Union
+from typing import Generic, List, Optional, Tuple, Union
 
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -144,6 +144,7 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=diffusion.ndofs(),
+            owned_coefficients=("diffusivity",),
             require_positive=True,
         )
 
@@ -165,6 +166,7 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=forcing.ndofs(),
+            owned_coefficients=("forcing",),
         )
 
     def _reaction_term(
@@ -190,6 +192,7 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=reaction.ndofs(),
+            owned_coefficients=("reaction",),
         )
 
     def _velocity_term(
@@ -215,6 +218,7 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=velocity.ndofs(),
+            owned_coefficients=("velocity",),
         )
 
     # -- parameterization surface --
@@ -230,6 +234,10 @@ class AdvectionDiffusionParameterization(Generic[Array]):
     def physics(self) -> AdvectionDiffusionReaction[Array]:
         """Return the bound physics instance."""
         return self._physics
+
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        """Identifiers of the parameterized coefficient fields."""
+        return self._inner.owned_coefficients()
 
     def apply(self, params_1d: Array) -> None:
         """Map parameters onto all parameterized coefficient fields."""

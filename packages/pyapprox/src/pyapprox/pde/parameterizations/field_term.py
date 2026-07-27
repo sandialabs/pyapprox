@@ -6,7 +6,8 @@ rule through the field map, the linearity identities, and the map
 curvature. Physics classes expose typed field-derivative assemblies
 (``residual_<field>_jacobian`` etc. — weak-form self-knowledge, no
 parameter concepts); per-physics facades wire those bound methods into
-terms; users never see this module.
+terms; users never see this module. Third-party facades follow the
+contract in ``docs/conventions/pde_solver_extension.md``.
 
 Vocabulary: with residual term :math:`R(u, g)` for field DOFs ``g`` and
 field map :math:`g = G(p)`,
@@ -35,7 +36,7 @@ Second-derivative slots are REQUIRED and three-valued (``Zero()``,
 structure is stated explicitly at the construction site.
 """
 
-from typing import Callable, Generic, Optional, TypeVar, Union
+from typing import Callable, Generic, Optional, Tuple, TypeVar, Union
 
 import numpy as np
 from scipy.sparse import spmatrix
@@ -214,6 +215,9 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
     nfield_dofs : int
         Expected field length; ``apply`` validates against it. Differs
         from ``nstates`` for blocked fields (e.g. velocity).
+    owned_coefficients : Tuple[str, ...]
+        Identifiers of the coefficient fields the setter writes;
+        ``CompositeParameterization`` rejects overlapping parts.
     field_state_jacobian : FieldStateJacobianFn, optional
         :math:`A(\\delta g, u, t)`. Required when ``state_field_hvp``
         is ``FromLinearity()``.
@@ -241,12 +245,19 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         bkd: Backend[Array],
         nstates: int,
         nfield_dofs: int,
+        owned_coefficients: Tuple[str, ...],
         field_state_jacobian: Optional[FieldStateJacobianFn[Array]] = None,
         require_positive: bool = False,
         bc_flux_field_jacobian: Optional[
             BCFluxFieldJacobianFn[Array]
         ] = None,
     ) -> None:
+        if not owned_coefficients:
+            raise ValueError(
+                "owned_coefficients must name at least one coefficient "
+                "field (CompositeParameterization uses the names to "
+                "reject overlapping parts)"
+            )
         if not isinstance(field_map, FieldMapProtocol):
             raise TypeError(
                 "field_map must satisfy FieldMapProtocol, got "
@@ -303,6 +314,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         self._bkd = bkd
         self._nstates = nstates
         self._nfield_dofs = nfield_dofs
+        self._owned_coefficients = tuple(owned_coefficients)
         self._field_state_jacobian = field_state_jacobian
         self._require_positive = require_positive
         self._bc_flux_field_jacobian = bc_flux_field_jacobian
@@ -346,6 +358,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         bkd: Backend[Array],
         nstates: int,
         nfield_dofs: int,
+        owned_coefficients: Tuple[str, ...],
         require_positive: bool = False,
         bc_flux_field_jacobian: Optional[
             BCFluxFieldJacobianFn[Array]
@@ -364,6 +377,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             bkd,
             nstates,
             nfield_dofs,
+            owned_coefficients,
             field_state_jacobian=field_state_jacobian,
             require_positive=require_positive,
             bc_flux_field_jacobian=bc_flux_field_jacobian,
@@ -378,6 +392,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         bkd: Backend[Array],
         nstates: int,
         nfield_dofs: int,
+        owned_coefficients: Tuple[str, ...],
         require_positive: bool = False,
     ) -> "_FieldParameterizationTerm[Array, PhysicsT]":
         """Term depending on the field only (e.g. forcing): slots
@@ -393,6 +408,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             bkd,
             nstates,
             nfield_dofs,
+            owned_coefficients,
             require_positive=require_positive,
         )
 
@@ -409,6 +425,10 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
     def nparams(self) -> int:
         """Return the number of parameters."""
         return self._field_map.nvars()
+
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        """Identifiers of the coefficient fields ``apply`` writes."""
+        return self._owned_coefficients
 
     def param_derivatives(self) -> ParamDerivatives[Array]:
         """Return the derivative capability bundle."""

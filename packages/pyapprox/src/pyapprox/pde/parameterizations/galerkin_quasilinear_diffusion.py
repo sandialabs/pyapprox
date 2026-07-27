@@ -69,5 +69,6 @@ def create_quasilinear_diffusivity_parameterization(
         bkd=bkd,
         nstates=physics.nstates(),
         nfield_dofs=diffusion.ndofs(),
+        owned_coefficients=("diffusivity",),
         require_positive=True,
     )

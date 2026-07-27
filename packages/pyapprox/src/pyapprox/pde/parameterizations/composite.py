@@ -1,7 +1,7 @@
 """CompositeParameterization: chains multiple parameterizations."""
 
 import warnings
-from typing import Generic, List, Optional, Sequence, TypeVar
+from typing import Generic, List, Optional, Sequence, Tuple, TypeVar
 
 from pyapprox.pde.parameterizations.derivatives import (
     BCFluxParamSensitivityFn,
@@ -54,10 +54,41 @@ class CompositeParameterization(Generic[Array]):
     ) -> None:
         for part in parts:
             self._validate_part(part, parts[0])
+        self._validate_disjoint_coefficients(parts)
         self._parts: List[ParameterizationProtocol[Array]] = list(parts)
         self._bkd = bkd
         self._recompute_offsets()
         self._build_derivatives()
+
+    @staticmethod
+    def _validate_disjoint_coefficients(
+        parts: List[ParameterizationProtocol[Array]],
+    ) -> None:
+        """Reject parts writing the same coefficient field.
+
+        Two parts targeting one coefficient would be last-writer-wins
+        in ``apply`` while both still report nonzero derivative
+        blocks — silently wrong numbers, so this fails loudly.
+        """
+        seen: dict[str, str] = {}
+        for part in parts:
+            for name in part.owned_coefficients():
+                if name in seen:
+                    raise ValueError(
+                        f"parts {seen[name]} and {type(part).__name__} "
+                        f"both parameterize coefficient '{name}'; "
+                        "composite parts must own disjoint coefficient "
+                        "fields (parameter-coupled coefficients belong "
+                        "inside ONE term's field map)"
+                    )
+                seen[name] = type(part).__name__
+
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        """Union of the parts' coefficient identifiers."""
+        names: List[str] = []
+        for part in self._parts:
+            names.extend(part.owned_coefficients())
+        return tuple(names)
 
     @staticmethod
     def _validate_part(
@@ -218,6 +249,7 @@ class CompositeParameterization(Generic[Array]):
         self._validate_part(
             part, self._parts[0] if self._parts else part
         )
+        self._validate_disjoint_coefficients(self._parts + [part])
         self._parts.append(part)
         self._recompute_offsets()
         self._build_derivatives()

@@ -1,6 +1,25 @@
 """Base physics class for spectral collocation methods.
 
 Provides common functionality for PDE physics implementations.
+
+Parameterizing a coefficient field (the required pattern — several
+collocation physics here are not yet parameterized, and new
+parameterizations must NOT hand-roll chain rules or per-column loops):
+
+1. Add typed full-matrix assemblies to the physics:
+   ``residual_<coef>_jacobian(state)`` (:math:`S(u) = \\partial
+   R/\\partial g`) and, for terms linear in the state,
+   ``residual_<coef>_state_jacobian(delta, state)``; plus a boundary
+   normal-flux assembly ``(state, time, bc_indices, normals)`` ONLY if
+   the coefficient enters flux/traction BC rows.
+2. Wire a typed facade through ``_FieldParameterizationTerm``'s named
+   constructors — every chain rule and HVP comes from the engine;
+   capability is decided at construction, never by ``hasattr``.
+   Exemplar: ``CollocationAdvectionDiffusionParameterization``.
+3. Validate with DerivativeChecker FD sweeps plus the exact
+   identities (bilinearity, HVP symmetry), and a pickle round-trip.
+
+The full contract: ``docs/conventions/pde_solver_extension.md``.
 """
 
 from abc import ABC, abstractmethod

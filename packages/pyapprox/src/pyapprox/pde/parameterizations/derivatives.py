@@ -5,7 +5,7 @@ The pde parameterization family's optional derivatives are
 bound at producer construction — they cannot be curried into the
 optimizer :class:`~pyapprox.interface.functions.derivatives.
 Derivatives` bundle (state/time vary per call), so per the
-family-bundle rule in ``docs/OPTIONAL_METHODS_CONVENTION.md`` the family
+family-bundle rule in ``docs/conventions/optional_methods.md`` the family
 gets its own frozen bundle, exposed through the
 ``param_derivatives()`` accessor on ``ParameterizationProtocol``.
 

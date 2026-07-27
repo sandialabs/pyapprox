@@ -16,7 +16,7 @@ whenever the field map has a usable HVP, which the stacked map
 delegates to the E-map.
 """
 
-from typing import Callable, Generic, Union
+from typing import Callable, Generic, Tuple, Union
 
 from pyapprox.pde.collocation.physics.linear_elasticity import (
     LinearElasticityPhysics,
@@ -151,6 +151,7 @@ class CollocationElasticityParameterization(Generic[Array]):
                 bkd=bkd,
                 nstates=physics.nstates(),
                 nfield_dofs=2 * npts,
+                owned_coefficients=("mu", "lamda"),
                 bc_flux_field_jacobian=(
                     physics.boundary_traction_lame_jacobian
                 ),
@@ -170,6 +171,10 @@ class CollocationElasticityParameterization(Generic[Array]):
     def physics(self) -> LinearElasticityPhysics[Array]:
         """Return the bound physics instance."""
         return self._physics
+
+    def owned_coefficients(self) -> Tuple[str, ...]:
+        """Identifiers of the parameterized coefficient fields."""
+        return self._inner.owned_coefficients()
 
     def apply(self, params_1d: Array) -> None:
         """Map parameters onto the stacked Lame coefficient fields."""

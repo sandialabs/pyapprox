@@ -1,4 +1,9 @@
-"""Parameterized models for the spectral collocation solver."""
+"""Parameterized models for the spectral collocation solver.
+
+New coefficient parameterizations follow the facade-over-engine
+pattern documented in ``pde/collocation/physics/base.py`` and
+``docs/conventions/pde_solver_extension.md``.
+"""
 
 from pyapprox.pde.models.collocation.factory import (
     create_collocation_model,

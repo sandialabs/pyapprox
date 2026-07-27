@@ -154,6 +154,7 @@ def _build_engine_term(
         bkd=bkd,
         nstates=physics.nstates(),
         nfield_dofs=physics.nstates(),
+        owned_coefficients=("field",),
         require_positive=True,
     )
 
@@ -267,6 +268,7 @@ class TestFieldParameterizationTerm:
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=physics.nstates(),
+            owned_coefficients=("field",),
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
@@ -349,6 +351,7 @@ class TestFieldParameterizationTerm:
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=physics.nstates(),
+            owned_coefficients=("field",),
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
@@ -435,6 +438,7 @@ class TestFieldParameterizationTerm:
             bkd=bkd,
             nstates=physics.nstates(),
             nfield_dofs=nvel,
+            owned_coefficients=("field",),
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
@@ -492,6 +496,7 @@ class TestFieldParameterizationTerm:
             bkd=bkd,
             nstates=nfield,
             nfield_dofs=nfield,
+            owned_coefficients=("field",),
         )
         state = bkd.zeros((nfield,))
         adj = bkd.asarray(rng.normal(0.0, 1.0, nfield))
@@ -564,6 +569,7 @@ class TestFieldParameterizationTerm:
                 bkd=bkd,
                 nstates=physics.nstates(),
                 nfield_dofs=physics.nstates(),
+                owned_coefficients=("field",),
             )
         with pytest.raises(TypeError, match="FromLinearity"):
             _FieldParameterizationTerm(
@@ -579,6 +585,7 @@ class TestFieldParameterizationTerm:
                 bkd=bkd,
                 nstates=physics.nstates(),
                 nfield_dofs=physics.nstates(),
+                owned_coefficients=("field",),
             )
 
     def test_apply_positivity_and_length(self, numpy_bkd: NumpyBkd) -> None:
@@ -612,6 +619,7 @@ class TestFieldParameterizationTerm:
             bkd=bkd,
             nstates=nstates,
             nfield_dofs=nstates,
+            owned_coefficients=("field",),
             require_positive=True,
         )
         with pytest.raises(ValueError, match="positive"):
@@ -636,6 +644,7 @@ class TestFieldParameterizationTerm:
             bkd=bkd,
             nstates=nstates,
             nfield_dofs=nstates,
+            owned_coefficients=("field",),
         )
         with pytest.raises(ValueError, match="DOFs"):
             wrong_term.apply(bkd.asarray(np.array([0.1])))
@@ -715,6 +724,7 @@ class TestDenseBackendAssemblies:
             bkd=bkd,
             nstates=npts,
             nfield_dofs=npts,
+            owned_coefficients=("field",),
         )
         state = bkd.asarray(np.random.normal(0.0, 1.0, (npts,)))
         adj = bkd.asarray(np.random.normal(0.0, 1.0, (npts,)))

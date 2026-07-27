@@ -410,6 +410,9 @@ class TestSteadyForwardModel:
                 )
                 self._physics.set_diffusion(ConstantInTimeField(field))
 
+            def owned_coefficients(self):
+                return ("mock_coef",)
+
             def param_derivatives(self):
                 return ParamDerivatives.none()
 
@@ -495,6 +498,9 @@ class TestSteadyForwardModel:
             def apply(self, params_1d):
                 field = bkd.full((npts,), 1.0) + params_1d[0] * bkd.ones((npts,))
                 self._physics.set_diffusion(ConstantInTimeField(field))
+
+            def owned_coefficients(self):
+                return ("mock_coef",)
 
             def param_derivatives(self):
                 return ParamDerivatives.none()

@@ -245,7 +245,7 @@ class CollocationStateEquationWithJacobianAdapter(Generic[Array]):
             )
         pjac = param_jac_fn(state_1d, 0.0, param[:, 0])
 
-        # Apply BC corrections (replaces _zero_bc_rows)
+        # Apply each BC's parameter-Jacobian row correction
         for bc in self._physics.boundary_conditions():
             if not isinstance(
                 bc, BoundaryConditionWithParamJacobianProtocol
