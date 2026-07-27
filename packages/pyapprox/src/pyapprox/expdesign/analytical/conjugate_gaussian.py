@@ -12,7 +12,7 @@ prediction OED with linear Gaussian models and conjugate priors.
 import itertools
 import math
 from abc import ABC, abstractmethod
-from typing import Generic, List, Optional
+from typing import Generic, List, Optional, Tuple
 
 from scipy import stats
 
@@ -168,15 +168,26 @@ class ConjugateGaussianOEDPredictionUtilityBase(ABC, Generic[Array]):
         """Compute the utility value."""
         raise NotImplementedError
 
+    def _require_posterior(self) -> DenseGaussianConjugatePosterior[Array]:
+        """Return the posterior built by
+        ``_compute_expected_posterior_stats``."""
+        if self._posterior is None:
+            raise RuntimeError(
+                "posterior not initialized; "
+                "_compute_expected_posterior_stats must run first"
+            )
+        return self._posterior
+
     def _compute(self) -> None:
         """Compute expected posterior stats and utility."""
         self._compute_expected_posterior_stats()
 
         # Posterior pushforward
+        posterior = self._require_posterior()
         self._post_pushforward = GaussianPushforward(
             self._qoi_mat,
-            self._posterior.posterior_mean(),
-            self._posterior.posterior_covariance(),
+            posterior.posterior_mean(),
+            posterior.posterior_covariance(),
             self._bkd,
         )
 
@@ -563,7 +574,9 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
         self._qoi_quad_weights = qoi_quad_weights / bkd.sum(qoi_quad_weights)
         super().__init__(prior_mean, prior_cov, qoi_mat, bkd)
 
-    def _avar_tail_weights(self, ranked: List[int]) -> List[tuple]:
+    def _avar_tail_weights(
+        self, ranked: List[int]
+    ) -> List[Tuple[int, float]]:
         """Tail atoms and masses for AVaR of a weighted discrete distribution.
 
         Walk the descending-sorted atoms accumulating quadrature mass until
@@ -574,7 +587,7 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev(
         """
         target = 1.0 - self._alpha
         p_vals = self._bkd.to_numpy(self._qoi_quad_weights)
-        tail: List[tuple] = []
+        tail: List[Tuple[int, float]] = []
         cum = 0.0
         for j in ranked:
             p_j = float(p_vals[j])

@@ -26,13 +26,15 @@ from pyapprox.util.backends.protocols import Array
 # Draws one starting point. Receives the rng and the bound objective
 # (for backend and nvars); returns shape (nvars, 1).
 StartSampler = Callable[
-    [np.random.Generator, ObjectiveProtocol], "Array"
+    [np.random.Generator, ObjectiveProtocol[Array]], Array
 ]
 
 
 def _uniform_in_bounds_sampler(
-    rng: np.random.Generator, objective: ObjectiveProtocol, bounds: "Array"
-) -> "Array":
+    rng: np.random.Generator,
+    objective: ObjectiveProtocol[Array],
+    bounds: Array,
+) -> Array:
     bkd = objective.bkd()
     bounds_np = bkd.to_numpy(bounds)
     lb, ub = bounds_np[:, 0], bounds_np[:, 1]
@@ -71,7 +73,7 @@ class MultiStartOptimizer(Generic[Array]):
         self,
         optimizer: BindableOptimizerProtocol[Array],
         nstarts: int,
-        start_sampler: Optional[StartSampler] = None,
+        start_sampler: Optional[StartSampler[Array]] = None,
         seed: Optional[int] = None,
     ) -> None:
         if nstarts < 1:

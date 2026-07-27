@@ -23,8 +23,12 @@ class FunctionProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def __call__(self, samples: Array) -> Array:
+    def __call__(self, samples: Array, /) -> Array:
         """
         Evaluate the function with the given samples.
+
+        The parameter is positional-only: the name is not part of the
+        contract, so domain protocols may rename it (design_weights,
+        params_1d, ...) and remain structural subtypes.
         """
         ...

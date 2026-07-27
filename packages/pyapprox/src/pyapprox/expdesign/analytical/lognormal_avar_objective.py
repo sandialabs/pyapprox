@@ -7,7 +7,7 @@ gradients through the entire formula.
 """
 
 import itertools
-from typing import Generic, List, Optional
+from typing import Generic, List, Optional, Tuple
 
 from pyapprox.interface.functions.autograd import autograd_derivatives
 from pyapprox.interface.functions.derivatives import Derivatives
@@ -106,7 +106,9 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
         qoi_quad_weights = bkd.reshape(qoi_quad_weights, (-1,))
         self._qoi_quad_weights = qoi_quad_weights / bkd.sum(qoi_quad_weights)
 
-    def _avar_tail_weights(self, ranked: List[int]) -> List[tuple]:
+    def _avar_tail_weights(
+        self, ranked: List[int]
+    ) -> List[Tuple[int, float]]:
         """Tail atoms and masses for AVaR of a weighted discrete distribution.
 
         Walk the descending-sorted atoms accumulating quadrature mass until
@@ -116,7 +118,7 @@ class LogNormalDataMeanQoIAVaRStdDevObjective(Generic[Array]):
         """
         target = 1.0 - self._alpha
         p_vals = self._bkd.to_numpy(self._qoi_quad_weights)
-        tail: List[tuple] = []
+        tail: List[Tuple[int, float]] = []
         cum = 0.0
         for j in ranked:
             p_j = float(p_vals[j])

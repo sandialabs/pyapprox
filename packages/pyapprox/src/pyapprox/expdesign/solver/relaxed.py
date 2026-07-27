@@ -10,11 +10,11 @@ from typing import Generic, Optional, Tuple
 
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.expdesign.protocols.objective import OEDObjectiveProtocol
-from pyapprox.optimization.minimize.protocols import (
-    BindableOptimizerProtocol,
-)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
+)
+from pyapprox.optimization.minimize.protocols import (
+    BindableOptimizerProtocol,
 )
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
@@ -136,10 +136,13 @@ class RelaxedOEDSolver(Generic[Array]):
         bounds = self._create_bounds()
         sum_constraint = self._create_sum_constraint()
 
+        optimizer: BindableOptimizerProtocol[Array]
         if self._optimizer is not None:
             optimizer = self._optimizer.copy()
         else:
-            optimizer = ScipyTrustConstrOptimizer(
+            # Explicit type application: the constructor takes no
+            # Array-typed arguments, so inference cannot bind Array
+            optimizer = ScipyTrustConstrOptimizer[Array](
                 verbosity=self._config.verbosity,
                 maxiter=self._config.maxiter,
                 gtol=self._config.gtol,

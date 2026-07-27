@@ -16,8 +16,8 @@ from pyapprox.expdesign.evidence import LogEvidence
 from pyapprox.expdesign.likelihood import (
     ParallelGaussianOEDInnerLoopLikelihood,
 )
-from pyapprox.interface.parallel import ParallelConfig
 from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.parallel import ParallelConfig
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -144,6 +144,15 @@ class ParallelKLOEDObjective(Generic[Array]):
             self._inner_loglike, self._inner_quad_weights, self._bkd
         )
 
+    def _require_log_evidence(self) -> LogEvidence[Array]:
+        """Return the log evidence built by ``_update_observations``."""
+        if self._log_evidence is None:
+            raise RuntimeError(
+                "log evidence not initialized; _update_observations "
+                "must run first"
+            )
+        return self._log_evidence
+
     def __call__(self, design_weights: Array) -> Array:
         """
         Evaluate the KL-OED objective (parallel).
@@ -163,7 +172,7 @@ class ParallelKLOEDObjective(Generic[Array]):
         self._update_observations(design_weights)
 
         log_like_true = self._outer_loglike(design_weights)
-        log_evidence = self._log_evidence(design_weights)
+        log_evidence = self._require_log_evidence()(design_weights)
 
         diff = log_like_true - log_evidence
         eig = self._bkd.sum(self._outer_quad_weights * diff[0])
@@ -191,7 +200,9 @@ class ParallelKLOEDObjective(Generic[Array]):
         self._update_observations(design_weights)
 
         jac_log_like_true = self._outer_loglike.jacobian(design_weights)
-        jac_log_evidence = self._log_evidence.jacobian(design_weights)
+        jac_log_evidence = self._require_log_evidence().jacobian(
+            design_weights
+        )
 
         jac_diff = jac_log_like_true - jac_log_evidence
 

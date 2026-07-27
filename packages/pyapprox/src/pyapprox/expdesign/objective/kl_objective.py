@@ -185,6 +185,15 @@ class KLOEDObjective(Generic[Array]):
             self._inner_loglike, self._inner_quad_weights, self._bkd
         )
 
+    def _require_log_evidence(self) -> LogEvidence[Array]:
+        """Return the log evidence built by ``_update_observations``."""
+        if self._log_evidence is None:
+            raise RuntimeError(
+                "log evidence not initialized; _update_observations "
+                "must run first"
+            )
+        return self._log_evidence
+
     def __call__(self, design_weights: Array) -> Array:
         """
         Evaluate the KL-OED objective.
@@ -209,7 +218,7 @@ class KLOEDObjective(Generic[Array]):
 
         # log p(obs | design) = log(evidence) for each outer sample
         # Shape: (1, nouter)
-        log_evidence = self._log_evidence(design_weights)
+        log_evidence = self._require_log_evidence()(design_weights)
 
         # EIG = E_outer[log_like_true - log_evidence]
         # Use quadrature weights for expectation
@@ -242,7 +251,9 @@ class KLOEDObjective(Generic[Array]):
         # Jacobians of log_like_true and log_evidence
         # Shape: (nouter, nobs)
         jac_log_like_true = self._outer_loglike.jacobian(design_weights)
-        jac_log_evidence = self._log_evidence.jacobian(design_weights)
+        jac_log_evidence = self._require_log_evidence().jacobian(
+            design_weights
+        )
 
         # d/dw EIG = E_outer[d/dw (log_like_true - log_evidence)]
         jac_diff = jac_log_like_true - jac_log_evidence  # (nouter, nobs)
