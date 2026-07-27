@@ -5,9 +5,9 @@ Unconstrained optimization uses FunctionOverDomainProblem instead.
 
 from typing import Generic, Sequence, TypeVar
 
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.util.backends.protocols import Array
 
-from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox_benchmarks.protocols import ConstraintProtocol, DomainProtocol
 
 F = TypeVar("F", bound=FunctionProtocol)  # type: ignore[type-arg]
