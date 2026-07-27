@@ -2,6 +2,15 @@
 
 Provides a high-level interface for solving time-dependent PDEs using
 spectral collocation with various time integration methods.
+
+BC ownership (deliberate split): STEADY solves apply boundary
+conditions through the physics's public ``apply_boundary_conditions``
+surface — the steady state-equation adapters call it directly.
+TRANSIENT solves route every step through the BC-enforcing
+time-residual wrapper (``create_bc_enforcing_residual``), which also
+owns the adjoint/sensitivity/HVP row-and-column corrections derived
+from ``bc_dof_classification``. The physics is the single source of
+BC truth in both paths; only the enforcement point differs.
 """
 
 from typing import Generic, Optional, Tuple
@@ -9,6 +18,9 @@ from typing import Generic, Optional, Tuple
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.implicit_steppers.integrator import (
     TimeIntegrator,
+)
+from pyapprox.ode.protocols.time_stepping import (
+    SensitivityStepperProtocol,
 )
 from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.collocation.protocols import PhysicsProtocol
@@ -87,7 +99,7 @@ class CollocationModel(Generic[Array]):
             adapter = CollocationPhysicsToODEResidualAdapter(physics, bkd)
         self._adapter = adapter
         self._mass_matrix = physics.mass_matrix()
-        self._last_integrator = None
+        self._last_integrator: Optional[TimeIntegrator[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -276,10 +288,25 @@ class CollocationModel(Generic[Array]):
         Raises
         ------
         ValueError
-            If config.method is not a recognized time integration method.
+            If config.method is not a recognized time integration
+            method, or if ``config.lumped_mass`` is True (the
+            collocation mass matrix is the identity; lumping is a
+            finite-element concept with no collocation counterpart).
         """
+        if config.lumped_mass:
+            raise ValueError(
+                "lumped_mass=True is not supported for collocation: "
+                "the collocation mass matrix is the identity, so "
+                "lumping has no effect to request"
+            )
         # Build pipeline: adapter → stepper → BC residual → Newton → integrator
         stepper = create_stepper(config.method, self._adapter)
+        if not isinstance(stepper, SensitivityStepperProtocol):
+            raise TypeError(
+                "the constructed stepper must satisfy at least "
+                "SensitivityStepperProtocol for BC enforcement, got "
+                f"{type(stepper).__name__}"
+            )
         bc_residual = create_bc_enforcing_residual(stepper, self._physics, self._bkd)
         newton = NewtonSolver(bc_residual)
         newton.set_options(

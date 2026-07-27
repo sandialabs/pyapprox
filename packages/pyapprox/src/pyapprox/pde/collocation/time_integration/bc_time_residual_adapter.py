@@ -36,7 +36,6 @@ from pyapprox.ode.protocols.time_stepping import (
     SensitivityStepperProtocol,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.pde.collocation.protocols.boundary import (
     BCPhysicalSensitivities,
     BoundaryConditionProtocol,
@@ -44,6 +43,7 @@ from pyapprox.pde.collocation.protocols.boundary import (
     BoundaryConditionWithParamJacobianProtocol,
     NormalOperatorProtocol,
 )
+from pyapprox.pde.collocation.protocols.physics import PhysicsProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -82,7 +82,7 @@ class BCEnforcingForwardResidual(Generic[Array]):
     ----------
     time_residual : SensitivityStepperProtocol
         The underlying time stepping residual.
-    physics : AbstractPhysics
+    physics : PhysicsProtocol
         Collocation physics with boundary conditions.
     bkd : Backend
         Computational backend.
@@ -91,7 +91,7 @@ class BCEnforcingForwardResidual(Generic[Array]):
     def __init__(
         self,
         time_residual: SensitivityStepperProtocol[Array],
-        physics: AbstractPhysics[Array],
+        physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
     ) -> None:
         self._inner = time_residual
@@ -247,7 +247,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
     ----------
     time_residual : AdjointEnabledTimeSteppingResidualProtocol
         The underlying time stepping residual with adjoint support.
-    physics : AbstractPhysics
+    physics : PhysicsProtocol
         Collocation physics with boundary conditions.
     bkd : Backend
         Computational backend.
@@ -256,7 +256,7 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
     def __init__(
         self,
         time_residual: AdjointEnabledTimeSteppingResidualProtocol[Array],
-        physics: AbstractPhysics[Array],
+        physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
     ) -> None:
         super().__init__(time_residual, physics, bkd)
@@ -437,7 +437,7 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
     ----------
     time_residual : HVPEnabledTimeSteppingResidualProtocol
         The underlying time stepping residual with HVP support.
-    physics : AbstractPhysics
+    physics : PhysicsProtocol
         Collocation physics with boundary conditions.
     bkd : Backend
         Computational backend.
@@ -446,7 +446,7 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
     def __init__(
         self,
         time_residual: HVPEnabledTimeSteppingResidualProtocol[Array],
-        physics: AbstractPhysics[Array],
+        physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
     ) -> None:
         super().__init__(time_residual, physics, bkd)
@@ -612,7 +612,7 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
 @overload
 def create_bc_enforcing_residual(
     inner: HVPEnabledTimeSteppingResidualProtocol[Array],
-    physics: AbstractPhysics[Array],
+    physics: PhysicsProtocol[Array],
     bkd: Backend[Array],
 ) -> BCEnforcingHVPResidual[Array]: ...
 
@@ -620,7 +620,7 @@ def create_bc_enforcing_residual(
 @overload
 def create_bc_enforcing_residual(
     inner: AdjointEnabledTimeSteppingResidualProtocol[Array],
-    physics: AbstractPhysics[Array],
+    physics: PhysicsProtocol[Array],
     bkd: Backend[Array],
 ) -> BCEnforcingAdjointResidual[Array]: ...
 
@@ -628,14 +628,14 @@ def create_bc_enforcing_residual(
 @overload
 def create_bc_enforcing_residual(
     inner: SensitivityStepperProtocol[Array],
-    physics: AbstractPhysics[Array],
+    physics: PhysicsProtocol[Array],
     bkd: Backend[Array],
 ) -> BCEnforcingForwardResidual[Array]: ...
 
 
 def create_bc_enforcing_residual(
     inner: SensitivityStepperProtocol[Array],
-    physics: AbstractPhysics[Array],
+    physics: PhysicsProtocol[Array],
     bkd: Backend[Array],
 ) -> BCEnforcingForwardResidual[Array]:
     """Create a BC-enforcing wrapper at the appropriate protocol level.
@@ -647,7 +647,7 @@ def create_bc_enforcing_residual(
     ----------
     inner : SensitivityStepperProtocol
         The time stepping residual to wrap.
-    physics : AbstractPhysics
+    physics : PhysicsProtocol
         Collocation physics with boundary conditions.
     bkd : Backend
         Computational backend.

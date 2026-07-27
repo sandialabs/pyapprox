@@ -4,6 +4,7 @@ The parameterized adapter tiers and their factory live in
 ``pyapprox.pde.models.collocation``.
 """
 
+from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
     BCEnforcingAdjointResidual,
     BCEnforcingForwardResidual,
@@ -12,7 +13,6 @@ from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
 )
 from pyapprox.pde.collocation.time_integration.collocation_model import (
     CollocationModel,
-    TimeIntegrationConfig,
 )
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
     CollocationPhysicsToODEResidualAdapter,

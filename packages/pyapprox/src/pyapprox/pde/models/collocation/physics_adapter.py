@@ -1,5 +1,12 @@
 """Parameterized adapter tiers bridging Physics to ODEResidualProtocol.
 
+Factory-signature delta vs galerkin (deliberate, do not churn):
+:func:`create_collocation_physics_ode_residual` threads ``bkd``
+explicitly — the collocation adapters build backend arrays (mass
+matrix, zero blocks) themselves — whereas the galerkin factory reads
+the backend off its physics. Both factories select capability the
+same way.
+
 Capability is decided ONCE at construction by
 :func:`create_collocation_physics_ode_residual`, which None-checks the
 parameterization's :class:`ParamDerivatives` bundle to select a

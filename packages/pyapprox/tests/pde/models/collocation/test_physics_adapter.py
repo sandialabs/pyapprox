@@ -89,6 +89,9 @@ class _ToyCurvaturePhysics:
     def mass_matrix(self):
         return self._bkd.eye(self.nstates())
 
+    def apply_bc_to_mass(self, mass):
+        return mass
+
     def apply_mass_matrix(self, vec):
         return vec
 

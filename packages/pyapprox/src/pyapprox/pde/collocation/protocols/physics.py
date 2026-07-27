@@ -136,6 +136,22 @@ class PhysicsProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def apply_bc_to_mass(self, mass: Array) -> Array:
+        """Apply BC enforcement to the mass matrix for the adjoint at
+        the initial time (identity rows/columns at essential DOFs).
+
+        Parameters
+        ----------
+        mass : Array
+            The mass matrix. Shape: (nstates, nstates)
+
+        Returns
+        -------
+        Array
+            Modified mass matrix.
+        """
+        ...
+
     def apply_mass_matrix(self, vec: Array) -> Array:
         """Apply mass matrix to a vector.
 

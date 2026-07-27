@@ -721,6 +721,36 @@ class TestTransientForwardModelTiers:
         )
         bkd.assert_allclose(jac_rowwise, w_final, rtol=1e-9, atol=1e-12)
 
+    def test_lumped_mass_rejected(self, bkd):
+        """Collocation mass is the identity: lumping is rejected."""
+        import pytest
+
+        (
+            physics,
+            param,
+            init_state,
+            _,
+        ) = _create_parameterized_transient_diffusion_problem(bkd)
+        lumped_config = TimeIntegrationConfig(
+            method="backward_euler",
+            init_time=0.0,
+            final_time=0.1,
+            deltat=0.02,
+            newton_tol=1e-10,
+            newton_maxiter=20,
+            lumped_mass=True,
+            verbosity=0,
+        )
+        fwd = TransientForwardModel(
+            physics,
+            bkd,
+            init_state,
+            lumped_config,
+            parameterization=param,
+        )
+        with pytest.raises(ValueError, match="lumped_mass"):
+            fwd(bkd.asarray(np.array([[0.3], [0.1]])))
+
     def test_adapter_identity_stable_across_samples(self, bkd):
         """The pipeline is built once; evaluations rebind parameters
         without reconstructing the adapter."""
