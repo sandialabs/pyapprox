@@ -6,9 +6,19 @@ Covers: pde_control_usage.qmd
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.colors import LinearSegmentedColormap, PowerNorm
 from matplotlib.tri import Triangulation
 
 from ._style import COLORS
+
+# Concentration colormap following the pyapprox site convention:
+# neon blue glow on a black background, zero = black.
+NEON_CMAP = LinearSegmentedColormap.from_list(
+    "pyapprox_neon",
+    ["#000000", "#001a4d", "#0057d9", "#00b3ff", "#7df9ff", "#e8ffff"],
+)
+# Positivity alarm: anything below the zero level renders magenta.
+NEON_CMAP.set_under("#ff00ff")
 
 # Obstruction blocks of the obstructed-flow substrate (drawn as filled
 # rectangles on every domain plot).
@@ -19,17 +29,24 @@ _BLOCKS = [
 ]
 
 
-def _draw_domain(ax, problem, extraction_rates=None):
+def _draw_domain(ax, problem, extraction_rates=None, dark=False):
     """Blocks, zone outline, release marker, extraction-device markers.
 
-    Devices are drawn sized by their (nonnegative) extraction rate;
-    without rates, uniform small markers show the layout only.
+    Without rates, devices are drawn as HOLLOW layout markers (where
+    devices sit, none active). With rates, devices are filled circles
+    sized proportionally to their rate with NO minimum size — a device
+    at zero rate disappears, so marker area honestly reflects effort.
+    ``dark`` switches marker/outline colors for black-background
+    concentration panels.
     """
+    accent = "white" if dark else COLORS["primary"]
+    active_color = "#ff9f1c" if dark else COLORS["secondary"]
+    star_color = "white" if dark else COLORS["purple"]
     for (x0, y0), width, height in _BLOCKS:
         ax.add_patch(
             plt.Rectangle(
-                (x0, y0), width, height, facecolor="0.75",
-                edgecolor="0.4", zorder=3,
+                (x0, y0), width, height, facecolor="0.55",
+                edgecolor="0.3", zorder=3,
             )
         )
     outline = problem.zone_weight().outline_vertices()
@@ -38,23 +55,24 @@ def _draw_domain(ax, problem, extraction_rates=None):
         lw=1.8, zorder=4,
     )
     ax.plot(
-        *problem.release_center(), marker="*", color=COLORS["purple"],
+        *problem.release_center(), marker="*", color=star_color,
         markersize=14, zorder=5,
     )
     centers = problem.actuator_centers()
     if extraction_rates is None:
         ax.plot(
-            centers[0], centers[1], "o", color=COLORS["primary"],
-            markersize=5, zorder=5,
+            centers[0], centers[1], "o", markerfacecolor="none",
+            markeredgecolor=accent, markersize=6, linestyle="none",
+            zorder=5,
         )
     else:
-        sizes = 4.0 + 16.0 * np.abs(extraction_rates) / max(
+        sizes = 18.0 * np.abs(extraction_rates) / max(
             np.abs(extraction_rates).max(), 1e-12
         )
         for kk in range(centers.shape[1]):
             ax.plot(
                 centers[0, kk], centers[1, kk], "o",
-                color=COLORS["primary"], markersize=sizes[kk], zorder=5,
+                color=active_color, markersize=sizes[kk], zorder=5,
             )
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -165,13 +183,19 @@ def save_control_gif(
     path,
     fps=8,
     max_frames=40,
+    color_bound=None,
+    cmap=NEON_CMAP,
+    nlevels=41,
+    gamma=1.0,
 ):
     """pde_control_usage.qmd -> the bookend GIF
 
     Side-by-side concentration evolution, "No control" vs "Optimized
     control", fixed colorbar across panels and frames; zone outlined
-    on both; extraction-device markers sized by their rate p_k on the
-    right panel. Writes ``path`` (.gif) plus first/last static PNGs.
+    on both. The LEFT panel shows the device layout as hollow markers
+    (installed, inactive); the RIGHT panel draws devices sized by
+    their extraction rate with no minimum size. Writes ``path``
+    (.gif) plus first/last static PNGs.
 
     Returns the (first_png, last_png) paths.
     """
@@ -183,16 +207,29 @@ def save_control_gif(
         np.linspace(0, ntimes - 1, min(max_frames, ntimes)).astype(int)
     )
     tri = _triangulation(problem, bkd)
-    # Diverging map centered at zero, one colorbar fixed across panels
-    # and frames: proportional extraction preserves positivity, so the
-    # field should never enter the negative (blue) half — the colormap
-    # doubles as a visual positivity check (constant-rate sinks would
-    # paint blue overshoot regions).
-    bound = max(
-        abs(sols_unc.max()), abs(sols_ctl.max()),
-        abs(sols_unc.min()), abs(sols_ctl.min()),
+    # Concentration is nonnegative (proportional extraction preserves
+    # the maximum principle), so the scale runs from zero = black; any
+    # negative value saturates into the colormap's under-color — a
+    # visual positivity alarm. ``color_bound`` caps the scale (values
+    # beyond it saturate, shown by the colorbar arrow) — for e.g.
+    # pulse releases whose brief injection spike would otherwise
+    # compress the traveling puff into invisibility. Any matplotlib
+    # colormap can be swapped in via ``cmap``. ``gamma`` < 1 applies a
+    # power-law color scale (``PowerNorm``): a linear scale spends
+    # nearly the whole colormap on the bright source region, leaving
+    # dilute late-time tracer in the bottom band or two; gamma
+    # brightens low concentrations while the single fixed colorbar
+    # stays honest (tick VALUES are real, only their spacing bends).
+    # Levels are gamma-spaced too, so each contour band spans an equal
+    # color increment (band resolution concentrates where gamma puts
+    # the color resolution).
+    if color_bound is None:
+        color_bound = max(sols_unc.max(), sols_ctl.max())
+    levels = color_bound * np.linspace(0.0, 1.0, nlevels) ** (1.0 / gamma)
+    norm = (
+        None if gamma == 1.0
+        else PowerNorm(gamma, vmin=0.0, vmax=color_bound)
     )
-    levels = np.linspace(-bound, bound, 41)
 
     fig, axes = plt.subplots(1, 2, figsize=(9.8, 4.4))
 
@@ -204,10 +241,10 @@ def save_control_gif(
         ):
             ax.clear()
             contours = ax.tricontourf(
-                tri, sols[:, index], levels=levels, cmap="RdBu_r",
-                extend="both",
+                tri, sols[:, index], levels=levels, cmap=cmap,
+                extend="both", norm=norm,
             )
-            _draw_domain(ax, problem, extraction_rates=amps)
+            _draw_domain(ax, problem, extraction_rates=amps, dark=True)
             ax.set_title(title)
             ax.set_xticks([])
             ax.set_yticks([])
