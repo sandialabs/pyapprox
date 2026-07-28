@@ -216,13 +216,16 @@ class TransientForwardModel(CollocationModel[Array]):
             )
         return adapter
 
-    def _forward_solve(self, param_2d: Array) -> Tuple[Array, Array]:
+    def forward_solve(self, sample: Array) -> Tuple[Array, Array]:
         """Rebind parameters and solve the transient problem.
+
+        Returns the trajectory the QoI functional sees — for plotting
+        and post-processing; ``__call__`` remains the QoI path.
 
         Parameters
         ----------
-        param_2d : Array
-            Parameter vector. Shape: (nparams, 1).
+        sample : Array
+            Parameter vector. Shape: (nvars, 1).
 
         Returns
         -------
@@ -231,7 +234,11 @@ class TransientForwardModel(CollocationModel[Array]):
         times : Array
             Time points. Shape: (ntimes,).
         """
-        param_1d = param_2d[:, 0]
+        if sample.ndim != 2 or sample.shape[1] != 1:
+            raise ValueError(
+                f"sample must have shape (nvars, 1), got {sample.shape}"
+            )
+        param_1d = sample[:, 0]
         self._parameterization.apply(param_1d)
         self._param_adapter().set_param(param_1d)
         return self.solve_transient(self._init_state, self._time_config)
@@ -255,7 +262,7 @@ class TransientForwardModel(CollocationModel[Array]):
         result = bkd.copy(result)
         for ii in range(nsamples):
             param_2d = samples[:, ii : ii + 1]
-            fwd_sols, _ = self._forward_solve(param_2d)
+            fwd_sols, _ = self.forward_solve(param_2d)
             qoi = self._functional(fwd_sols, param_2d)
             if qoi.ndim == 2:
                 result[:, ii : ii + 1] = qoi
@@ -274,7 +281,7 @@ class TransientForwardModel(CollocationModel[Array]):
         silently pay the O(nparams) factor). Other vector QoIs are
         not supported.
         """
-        fwd_sols, times = self._forward_solve(sample)
+        fwd_sols, times = self.forward_solve(sample)
         integrator = self.last_integrator()
         if self._functional.nqoi() == 1:
             integrator.set_functional(self._functional)
@@ -312,7 +319,7 @@ class TransientForwardModel(CollocationModel[Array]):
             raise RuntimeError(
                 "hvp is unavailable; check derivatives() before calling"
             )
-        self._forward_solve(sample)
+        self.forward_solve(sample)
         operator = TimeAdjointOperatorWithHVP(
             self.last_integrator(), self._hvp_functional
         )

@@ -715,7 +715,7 @@ class TestTransientForwardModelTiers:
         sample = bkd.asarray(rng.normal(0.0, 0.05, (param.nparams(), 1)))
         jac_rowwise = fwd.derivatives().jacobian(sample)
 
-        fwd_sols, times = fwd._forward_solve(sample)
+        fwd_sols, times = fwd.forward_solve(sample)
         w_final = solve_final_forward_sensitivity(
             fwd.last_integrator().time_residual(), fwd_sols, times, bkd
         )
