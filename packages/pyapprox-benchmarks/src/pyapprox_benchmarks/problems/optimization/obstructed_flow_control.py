@@ -77,14 +77,25 @@ class ObstructedFlowControlProblem(Generic[Array]):
     vel_shape_params : tuple of 2 floats
         Parabolic-inlet shape parameters ``(a, b)``.
     diffusivity : float
-        Constant transport diffusivity.
+        Constant transport diffusivity. The default gives an
+        advection-dominated plume (domain Peclet ~8-27 at the realized
+        speeds) with cell Peclet ~0.5 on the default meshes, so
+        unstabilized Galerkin remains oscillation-free; coarser meshes
+        (e.g. one refinement) need a larger value to keep the cell
+        Peclet below one.
     final_time : float
-        Transport horizon T.
+        Transport horizon T. The default matches the release-to-zone
+        transit time of the frozen flow (path speeds ~0.05); much
+        shorter horizons never deliver the plume to the zone.
     deltat : float
         Time step.
     alpha : float
         Actuation cost coefficient (exchange rate between zone
-        contamination and pumping effort).
+        contamination and pumping effort). The default fully prices
+        out the source-sink cancellation direction (smaller alpha lets
+        the optimizer pair positive sources with overshooting sinks to
+        cancel negative concentration) yielding an all-sink optimum
+        with a ~20x contamination reduction.
     release_center, release_width, release_amplitude : floats
         Fixed Gaussian release upstream of the blocks.
     actuator_centers : dict, optional
@@ -109,9 +120,9 @@ class ObstructedFlowControlProblem(Generic[Array]):
         ntransport_refine: int = 2,
         reynolds_num: float = 20.0,
         vel_shape_params: Tuple[float, float] = (2.5, 2.5),
-        diffusivity: float = 0.05,
-        final_time: float = 1.5,
-        deltat: float = 0.05,
+        diffusivity: float = 0.01,
+        final_time: float = 20.0,
+        deltat: float = 0.5,
         alpha: float = 1e-3,
         release_center: Tuple[float, float] = (0.15, 0.4),
         release_width: float = 0.05,
@@ -340,6 +351,10 @@ class ObstructedFlowControlProblem(Generic[Array]):
         return self._bkd.asarray(
             np.tile([-bound, bound], (self.ncontrols(), 1))
         )
+
+    def release_center(self) -> Tuple[float, float]:
+        """Return the fixed release center (for plotting)."""
+        return self._release_center
 
     def actuator_labels(self) -> Tuple[str, ...]:
         """Return the actuator labels in parameter order."""

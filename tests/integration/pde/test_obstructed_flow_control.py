@@ -22,6 +22,10 @@ if not package_available("skfem"):
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.optimization.minimize.scipy.lbfgsb import LBFGSBOptimizer
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.problems.optimization import (
     ObstructedFlowControlProblem,
@@ -29,15 +33,37 @@ from pyapprox_benchmarks.problems.optimization import (
 
 from tests._helpers.markers import slow_test
 
+# Actuators sitting on the plume's feed paths; the two others
+# (outflow_lower, downstream_of_zone) are deliberate low-leverage
+# placements whose amplitudes should stay comparatively small.
+_FEED_PATH_LABELS = frozenset(
+    {
+        "below_B_gap",
+        "above_B",
+        "corridor_mid",
+        "gap_AC",
+        "corridor_upper",
+        "zone_inlet_left",
+    }
+)
 
-def _make_problem(bkd: NumpyBkd) -> ObstructedFlowControlProblem:
-    """Reduced-resolution configuration for CI runtimes."""
+
+def _make_problem(
+    bkd: NumpyBkd, final_time: float = 1.0, deltat: float = 0.1
+) -> ObstructedFlowControlProblem:
+    """Reduced-resolution configuration for CI runtimes.
+
+    The coarser transport mesh needs a larger diffusivity than the
+    production default to keep the cell Peclet below one (unstabilized
+    Galerkin oscillates beyond it).
+    """
     return ObstructedFlowControlProblem(
         bkd,
         nstokes_refine=1,
         ntransport_refine=1,
-        final_time=1.0,
-        deltat=0.1,
+        diffusivity=0.02,
+        final_time=final_time,
+        deltat=deltat,
     )
 
 
@@ -97,13 +123,80 @@ class TestObstructedFlowControlAcceptance:
     ) -> None:
         """The uncontrolled plume contaminates the zone: J(0) > 0, and
         the release actually reaches the zone (contamination term, not
-        just numerical dust)."""
+        just numerical dust). Horizon matched to the release-to-zone
+        transit time so this measures plume arrival."""
         bkd = numpy_bkd
-        problem = _make_problem(bkd)
+        problem = _make_problem(bkd, final_time=20.0, deltat=1.0)
         value = float(
             bkd.to_numpy(
                 problem.model()(bkd.zeros((problem.ncontrols(), 1)))
             )[0, 0]
         )
         print(f"J(0) = {value:.3e}")
-        assert value > 1e-8
+        assert value > 1e-2
+
+    @slow_test
+    def test_optimization_learns_interception(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """The optimizer-in-the-loop check: both optimizers drive J
+        down by orders of magnitude, agree with each other, and the
+        learned strategy places its dominant SINKS on the plume's feed
+        paths rather than at the low-leverage placements. Horizon set
+        to the release-to-zone transit time so the uncontrolled plume
+        genuinely contaminates the zone."""
+        bkd = numpy_bkd
+        problem = _make_problem(bkd, final_time=20.0, deltat=1.0)
+        model = problem.model()
+        controls0 = bkd.zeros((problem.ncontrols(), 1))
+        j0 = float(bkd.to_numpy(model(controls0))[0, 0])
+
+        lbfgs = LBFGSBOptimizer(verbosity=0, maxiter=100)
+        lbfgs.bind(model, problem.bounds())
+        p_lbfgs = lbfgs.minimize(controls0).optima()
+        j_lbfgs = float(bkd.to_numpy(model(p_lbfgs))[0, 0])
+
+        newton = ScipyTrustConstrOptimizer(
+            verbosity=0, maxiter=30, gtol=1e-8
+        )
+        newton.bind(model, problem.bounds())
+        p_newton = newton.minimize(controls0).optima()
+        j_newton = float(bkd.to_numpy(model(p_newton))[0, 0])
+
+        print(
+            f"J(0)={j0:.3e}  J*(L-BFGS-B)={j_lbfgs:.3e}  "
+            f"J*(trust-constr)={j_newton:.3e}"
+        )
+        amplitudes = bkd.to_numpy(p_lbfgs)[:, 0]
+        labels = problem.actuator_labels()
+        for label, val in zip(labels, amplitudes):
+            print(f"  {label:>20s}: {val:+.3f}")
+
+        # Provisional sanity bounds; hardened to 2x observed CI drift
+        # in the follow-up that finalizes the acceptance assertions.
+        assert j_lbfgs < 0.05 * j0
+        assert j_newton < 0.05 * j0
+        # Both optimizers minimize the same strictly convex quadratic.
+        assert abs(j_lbfgs - j_newton) <= 0.2 * max(j_lbfgs, j_newton)
+        # Learned strategy: dominant actuator is a SINK on a feed path,
+        # and the low-leverage placements carry comparatively little
+        # amplitude (guards against the optimizer parking effort where
+        # the physics barely sees it).
+        dominant = int(np.argmax(np.abs(amplitudes)))
+        assert labels[dominant] in _FEED_PATH_LABELS
+        assert amplitudes[dominant] < 0.0
+        feed_mass = sum(
+            abs(val)
+            for label, val in zip(labels, amplitudes)
+            if label in _FEED_PATH_LABELS
+        )
+        off_path_mass = sum(
+            abs(val)
+            for label, val in zip(labels, amplitudes)
+            if label not in _FEED_PATH_LABELS
+        )
+        print(
+            f"feed-path |p| mass {feed_mass:.3f}, "
+            f"off-path {off_path_mass:.3f}"
+        )
+        assert off_path_mass < 0.5 * feed_mass

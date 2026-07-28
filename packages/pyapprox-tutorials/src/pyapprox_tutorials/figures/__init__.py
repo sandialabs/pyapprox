@@ -58,6 +58,12 @@ from ._boed import (  # noqa: F401
     plot_pushforward_shrinkage,
     plot_utility_as_average,
 )
+from ._control import (  # noqa: F401
+    plot_amplitudes,
+    plot_convergence,
+    plot_frozen_flow,
+    save_control_gif,
+)
 from ._cv_acv import (  # noqa: F401
     plot_acv_ceiling,
     plot_acv_two_model_verification,
@@ -71,11 +77,6 @@ from ._cv_acv import (  # noqa: F401
     plot_unknown_mean_problem,
     plot_variance_reduction_vs_rho,
     plot_variance_verification,
-)
-from ._group_acv import (  # noqa: F401
-    plot_gacv_convergence,
-    plot_group_structures,
-    plot_multistat_reduction,
 )
 from ._design import (  # noqa: F401
     plot_beam_setup,
@@ -137,6 +138,11 @@ from ._gp import (  # noqa: F401
     plot_sample_designs,
     plot_sobol_distribution,
     plot_uncertainty_map,
+)
+from ._group_acv import (  # noqa: F401
+    plot_gacv_convergence,
+    plot_group_structures,
+    plot_multistat_reduction,
 )
 from ._hierarchy import (  # noqa: F401
     plot_level_variances,
@@ -265,11 +271,6 @@ from ._sensitivity import (  # noqa: F401
     plot_sobol_indices,
     plot_variance_decomposition,
 )
-from ._supn import (  # noqa: F401
-    plot_supn_2d_comparison,
-    plot_supn_fit_1d,
-    plot_supn_heatmap,
-)
 from ._sparse_grids import (  # noqa: F401
     plot_2d_tp,
     plot_config_vars,
@@ -287,6 +288,11 @@ from ._sparse_grids import (  # noqa: F401
     plot_sg_vs_pce,
     plot_smolyak_merge,
     plot_two_bases,
+)
+from ._supn import (  # noqa: F401
+    plot_supn_2d_comparison,
+    plot_supn_fit_1d,
+    plot_supn_heatmap,
 )
 from ._vi import (  # noqa: F401
     plot_amortization_concept,
