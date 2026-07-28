@@ -2,7 +2,7 @@
 
 Exercises the composed adjoint stack end to end on
 ``ObstructedFlowControlProblem``: frozen Navier-Stokes flow, transient
-advection-diffusion with an affine actuator forcing map, a
+advection-diffusion with a bilinear extraction-rate reaction map, a
 time-integrated zone QoI with Tikhonov actuation cost, and the
 transient adjoint gradient + second-order-adjoint HVP consumed through
 the public ``ObjectiveProtocol`` surface. An optimizer iterating on
@@ -12,12 +12,20 @@ Run with printed FD sweeps:
     PYAPPROX_RUN_SLOW=1 pytest tests/integration/pde/test_obstructed_flow_control.py -s
 """
 
+from typing import TYPE_CHECKING, Tuple
+
 import numpy as np
 import pytest
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
+
+if TYPE_CHECKING:
+    from pyapprox.pde.models.galerkin.transient import (
+        GalerkinTransientForwardModel,
+    )
+    from skfem.assembly.form.form import FormExtraParams
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -31,6 +39,7 @@ from pyapprox_benchmarks.problems.optimization import (
     ObstructedFlowControlProblem,
 )
 
+from tests._helpers.adjoint_checks import NumpyArray
 from tests._helpers.markers import slow_test
 
 # Extraction devices sitting on the plume's feed paths; the two others
@@ -67,7 +76,13 @@ def _make_problem(
     )
 
 
-def _mass_ledger(problem, model, controls, bkd, diffusivity):
+def _mass_ledger(
+    problem: ObstructedFlowControlProblem[NumpyArray],
+    model: "GalerkinTransientForwardModel[NumpyArray]",
+    controls: NumpyArray,
+    bkd: NumpyBkd,
+    diffusivity: float,
+) -> Tuple[float, float, float, float, float]:
     """Discrete mass bookkeeping of a controlled trajectory.
 
     Returns (mass_change, released, extracted, outflowed, residual):
@@ -108,25 +123,28 @@ def _mass_ledger(problem, model, controls, bkd, diffusivity):
     )
     velocity = problem.velocity()
 
-    @Functional
-    def integrate(w):
-        return w["uh"]
+    def _integrate(w: "FormExtraParams") -> np.ndarray:
+        return np.asarray(w["uh"])
 
-    @Functional
-    def integrate_weighted(w):
-        return w["rh"] * w["uh"]
+    def _integrate_weighted(w: "FormExtraParams") -> np.ndarray:
+        return np.asarray(w["rh"] * w["uh"])
 
-    @Functional
-    def advective_loss(w):
+    def _advective_loss(w: "FormExtraParams") -> np.ndarray:
         vel = velocity(np.asarray(w.x))
-        return vel[0] * w["uh"].grad[0] + vel[1] * w["uh"].grad[1]
+        return np.asarray(
+            vel[0] * w["uh"].grad[0] + vel[1] * w["uh"].grad[1]
+        )
 
-    @Functional
-    def inlet_exchange(w):
+    def _inlet_exchange(w: "FormExtraParams") -> np.ndarray:
         # Danckwerts coefficient alpha(y) = |v.n| = v_x on the left
         # boundary (n = (-1, 0)); no gradients involved.
         vel = velocity(np.asarray(w.x))
-        return vel[0] * w["uh"]
+        return np.asarray(vel[0] * w["uh"])
+
+    integrate = Functional(_integrate)
+    integrate_weighted = Functional(_integrate_weighted)
+    advective_loss = Functional(_advective_loss)
+    inlet_exchange = Functional(_inlet_exchange)
 
     release_rate = asm(
         integrate,
@@ -198,10 +216,13 @@ class TestObstructedFlowControlAcceptance:
                 f"[{label}] gradient V-ratio {jac_ratio:.2e}, "
                 f"HVP V-bottom {hvp_min:.2e}"
             )
-            # Provisional sanity bounds; hardened to 2x observed CI
-            # drift once the optimization stage lands.
-            assert jac_ratio <= 1e-3
-            assert hvp_min <= 1e-3
+            # Calibration: worst observed locally is 2.1e-7 (gradient)
+            # and 6.4e-12 (HVP); the CI matrix has drifted FD ratios up
+            # to ~10x looser than local (see the calibrated FD unit
+            # tolerances), and the bound doubles that. A broken adjoint
+            # term produces O(1e-2)-O(1) ratios, far past these.
+            assert jac_ratio <= 5e-6
+            assert hvp_min <= 5e-10
 
         sample = bkd.asarray(rng.normal(0.0, 1.0, (model.nvars(), 1)))
         other = bkd.asarray(rng.normal(0.0, 1.0, (model.nvars(), 1)))
@@ -231,7 +252,9 @@ class TestObstructedFlowControlAcceptance:
             )[0, 0]
         )
         print(f"J(0) = {value:.3e}")
-        assert value > 1e-2
+        # Observed 1.11 at this configuration; half of it separates a
+        # delivered plume from quadrature dust by orders of magnitude.
+        assert value > 0.5
 
     @slow_test
     def test_mass_balance(self, numpy_bkd: NumpyBkd) -> None:
@@ -319,13 +342,15 @@ class TestObstructedFlowControlAcceptance:
             0.5 * np.ones((problem.ncontrols(), 1))
         )
 
-        lbfgs = LBFGSBOptimizer(verbosity=0, maxiter=100)
+        lbfgs: LBFGSBOptimizer[NumpyArray] = LBFGSBOptimizer(
+            verbosity=0, maxiter=100
+        )
         lbfgs.bind(model, problem.bounds())
         p_lbfgs = lbfgs.minimize(interior_start).optima()
         j_lbfgs = float(bkd.to_numpy(model(p_lbfgs))[0, 0])
 
-        newton = ScipyTrustConstrOptimizer(
-            verbosity=0, maxiter=50, gtol=1e-8
+        newton: ScipyTrustConstrOptimizer[NumpyArray] = (
+            ScipyTrustConstrOptimizer(verbosity=0, maxiter=50, gtol=1e-8)
         )
         newton.bind(model, problem.bounds())
         p_newton = newton.minimize(interior_start).optima()
@@ -353,12 +378,15 @@ class TestObstructedFlowControlAcceptance:
         assert min_u0 >= -1e-10
         assert min_u_ctl >= -1e-10
 
-        # Provisional sanity bounds; hardened to 2x observed CI drift
-        # in the follow-up that finalizes the acceptance assertions.
-        assert j_lbfgs < 0.3 * j0
-        assert j_newton < 0.3 * j0
-        # Both optimizers minimize the same convex objective.
-        assert abs(j_lbfgs - j_newton) <= 0.2 * max(j_lbfgs, j_newton)
+        # Observed J*/J(0) = 0.040 for both optimizers; 0.1 is 2.5x
+        # headroom and still demands the order-of-magnitude reduction
+        # the docstring promises.
+        assert j_lbfgs < 0.1 * j0
+        assert j_newton < 0.1 * j0
+        # Both optimizers minimize the same objective and agree to four
+        # digits locally; 5% catches one of them stalling (e.g. the
+        # interior-point pathology of starting on a bound).
+        assert abs(j_lbfgs - j_newton) <= 0.05 * max(j_lbfgs, j_newton)
         # Learned strategy: rates are nonnegative, the dominant
         # extraction sits on a feed path, and the low-leverage
         # placements carry comparatively little rate (guards against
@@ -382,4 +410,7 @@ class TestObstructedFlowControlAcceptance:
             f"feed-path rate mass {feed_mass:.3f}, "
             f"off-path {off_path_mass:.3f}"
         )
-        assert off_path_mass < 0.5 * feed_mass
+        # Observed ratio 0.13; 0.3 is >2x headroom while still failing
+        # if the optimizer parks comparable effort at the low-leverage
+        # placements (the failure this guards against).
+        assert off_path_mass < 0.3 * feed_mass
