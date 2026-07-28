@@ -13,7 +13,10 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
+from pyapprox.pde.constitutive.coefficient_functions import (
+    CallableReaction,
+    NodalFieldForcing,
+)
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
@@ -256,3 +259,49 @@ class TestCachingUnchanged:
         assert first is not None
         physics.spatial_jacobian(zeros, 0.0)
         assert physics._stiffness_cached is first
+
+    def test_nodal_forcing_load_cached_and_invalidated(self, numpy_bkd):
+        """The forcing load is version-cached like the stiffness:
+        repeated evaluations reuse it across times, and a set_dofs
+        rebind produces the NEW load (a stale cache here would be a
+        silently wrong physics)."""
+        basis_size_probe = _make_physics(numpy_bkd, diffusivity=1.0)
+        ndofs = basis_size_probe.nstates()
+        forcing = NodalFieldForcing(
+            basis_size_probe.basis(), dofs=np.ones(ndofs)
+        )
+        physics = _make_physics(
+            numpy_bkd, diffusivity=1.0, forcing=forcing
+        )
+        zeros = numpy_bkd.zeros((physics.nstates(),))
+        load_first = physics.spatial_residual(zeros, 0.0)
+        assert physics._forcing_load_cached is not None
+        cached = physics._forcing_load_cached
+        # Reused across a DIFFERENT time (the field is time-invariant).
+        numpy_bkd.assert_allclose(
+            physics.spatial_residual(zeros, 1.0), load_first, rtol=1e-14
+        )
+        assert physics._forcing_load_cached is cached
+        # Rebind invalidates: doubled dofs double the load.
+        forcing.set_dofs(2.0 * np.ones(ndofs))
+        load_rebound = physics.spatial_residual(zeros, 0.0)
+        assert physics._forcing_load_cached is not cached
+        numpy_bkd.assert_allclose(
+            load_rebound, 2.0 * load_first, rtol=1e-12
+        )
+
+    def test_time_dependent_callable_forcing_not_cached(self, numpy_bkd):
+        """Callable forcings may depend on time: every evaluation
+        assembles fresh, and different times give different loads."""
+
+        def forcing(x, time=0.0):
+            return (1.0 + time) * np.ones(x.shape[1])
+
+        physics = _make_physics(
+            numpy_bkd, diffusivity=1.0, forcing=forcing
+        )
+        zeros = numpy_bkd.zeros((physics.nstates(),))
+        load_t0 = physics.spatial_residual(zeros, 0.0)
+        load_t1 = physics.spatial_residual(zeros, 1.0)
+        assert physics._forcing_load_cached is None
+        numpy_bkd.assert_allclose(load_t1, 2.0 * load_t0, rtol=1e-12)

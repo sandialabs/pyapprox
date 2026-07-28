@@ -493,10 +493,17 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         self._forcing = forcing
         self._conservative = conservative
 
-        # Version-keyed stiffness cache (see _assemble_stiffness)
+        # Version-keyed assembly caches: coefficient objects carry a
+        # version() bumped on mutation (set_dofs), and each cached
+        # assembly product stores the versions it was built from —
+        # rebinds invalidate, Newton iterations and time steps reuse.
+        # The same pattern serves the stiffness (below) and the
+        # time-invariant forcing load (_assemble_forcing_load).
         self._stiffness_cached: Optional[Array] = None
         self._stiffness_versions: Optional[Tuple[int, int, int]] = None
         self._load_cached: Optional[Array] = None
+        self._forcing_load_cached: Optional[np.ndarray] = None
+        self._forcing_load_version: Optional[int] = None
 
     @staticmethod
     def _coerce_diffusion(
@@ -732,9 +739,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         load_np = np.zeros(self.nstates())
 
         # Forcing contribution: (w, f)
-        forcing = self.forcing_form(time)
-        if forcing is not None:
-            load_np += asm(forcing, skfem_basis)
+        forcing_load = self._assemble_forcing_load(time)
+        if forcing_load is not None:
+            load_np += forcing_load
 
         # Nonlinear reaction contribution: (w, R(u))
         reaction = self.reaction_form()
@@ -744,6 +751,33 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             load_np += asm(reaction, skfem_basis, u_prev=state_interp)
 
         return self._bkd.asarray(load_np.astype(np.float64))
+
+    def _assemble_forcing_load(self, time: float) -> Optional[np.ndarray]:
+        """Assemble the forcing contribution (w, f) to the load.
+
+        A ``NodalFieldForcing`` is time-invariant and version-carrying,
+        so its assembled load is cached keyed on the coefficient
+        version — rebinds (set_dofs) invalidate, while Newton
+        iterations and time steps reuse it. Callable forcings may
+        depend on time and are assembled fresh every call.
+        """
+        forcing_form = self.forcing_form(time)
+        if forcing_form is None:
+            return None
+        if not isinstance(self._forcing, NodalFieldForcing):
+            return np.asarray(asm(forcing_form, self._basis.skfem_basis()))
+        version = self._forcing.version()
+        if (
+            self._forcing_load_cached is not None
+            and self._forcing_load_version == version
+        ):
+            return self._forcing_load_cached
+        forcing_load = np.asarray(
+            asm(forcing_form, self._basis.skfem_basis())
+        )
+        self._forcing_load_cached = forcing_load
+        self._forcing_load_version = version
+        return forcing_load
 
     def _assemble_reaction_jacobian(self, state: Array, time: float) -> Array:
         """Assemble Jacobian contribution from nonlinear reaction.
