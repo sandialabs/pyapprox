@@ -4,7 +4,9 @@ Defines interfaces for boundary conditions that modify PDE residuals
 and Jacobians in the finite element context.
 """
 
-from typing import Generic, Protocol, runtime_checkable
+from typing import Callable, Generic, Protocol, Union, runtime_checkable
+
+import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -168,8 +170,9 @@ class RobinBCProtocol(Protocol, Generic[Array]):
         self, jacobian: Array, state: Array, time: float
     ) -> Array: ...
 
-    def alpha(self) -> float:
-        """Return coefficient for u term."""
+    def alpha(self) -> Union[float, Callable[[np.ndarray], np.ndarray]]:
+        """Return the coefficient for the u term (constant or a
+        spatially varying callable evaluated at boundary points)."""
         ...
 
     def boundary_values(self, time: float) -> Array:

@@ -5,7 +5,7 @@ Bridges the existing manufactured solution infrastructure in
 Galerkin boundary conditions and physics implementations.
 """
 
-from typing import Any, Callable, Dict, Generic, List, Optional, Tuple
+from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -259,6 +259,16 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             Natural BC = D * grad(u) · n - v * u · n
             (includes the advective boundary term from IBP of div(v*u))
 
+        TODO: the conservative weak assembly drops the IBP advective
+        boundary term (this adapter compensates by prescribing the
+        combined quantity), so a DO-NOTHING boundary under the
+        conservative form enforces zero TOTAL flux
+        (D*grad(u)·n - (v·n)u = 0), not zero diffusive flux — a free
+        outflow modeled that way traps contaminant. Implement the
+        advective outflow facet term and extend conservative
+        manufactured coverage beyond 1D/steady/prescribed-BC before
+        using the conservative form with free outflows.
+
         Parameters
         ----------
         boundary_index : int
@@ -412,16 +422,29 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         )
 
     def _create_robin_bc(
-        self, boundary_name: str, boundary_index: int, alpha: float = 1.0
+        self,
+        boundary_name: str,
+        boundary_index: int,
+        alpha: Union[
+            float, Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
+        ] = 1.0,
     ) -> RobinBC[Array]:
         """Create a Robin BC from the manufactured solution.
 
         Robin BC weak form: natural_bc = g - alpha*u
-        So g = alpha * u + natural_bc
+        So g = alpha(x) * u + natural_bc
         where natural_bc is D*grad(u)·n for non-conservative, or
-        D*grad(u)·n - v*u·n for conservative advection.
+        D*grad(u)·n - v*u·n for conservative advection. A callable
+        alpha is evaluated pointwise at the boundary coordinates.
         """
         sol_func = self._functions["solution"]
+
+        def alpha_values(
+            x: NDArray[np.floating[Any]],
+        ) -> Union[float, NDArray[np.floating[Any]]]:
+            if callable(alpha):
+                return np.asarray(alpha(x))
+            return alpha
 
         if self._time_dependent:
 
@@ -433,7 +456,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
                 nat_bc = self._compute_natural_bc_value(boundary_index, x, t)
-                ret: NDArray[np.floating[Any]] = alpha * u_vals + nat_bc
+                ret: NDArray[np.floating[Any]] = (
+                    alpha_values(x) * u_vals + nat_bc
+                )
                 return ret
         else:
 
@@ -445,7 +470,9 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
                     u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
                 nat_bc = self._compute_natural_bc_value(boundary_index, x)
-                ret: NDArray[np.floating[Any]] = alpha * u_vals + nat_bc
+                ret: NDArray[np.floating[Any]] = (
+                    alpha_values(x) * u_vals + nat_bc
+                )
                 return ret
 
         return RobinBC(
@@ -457,7 +484,11 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         )
 
     def create_boundary_conditions(
-        self, bc_types: List[str], robin_alpha: float = 1.0
+        self,
+        bc_types: List[str],
+        robin_alpha: Union[
+            float, Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
+        ] = 1.0,
     ) -> BoundaryConditionSet[Array]:
         """Create boundary condition set from type specification.
 
@@ -469,9 +500,10 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
             Valid types:
             - "D": Dirichlet (u = g)
             - "N": Neumann (flux . n = g)
-            - "R": Robin (alpha * u - flux . n = g)
-        robin_alpha : float, default=1.0
-            Coefficient for Robin BCs.
+            - "R": Robin (alpha(x) * u - flux . n = g)
+        robin_alpha : float or Callable, default=1.0
+            Coefficient for Robin BCs: constant, or ``alpha(x)``
+            evaluated at boundary coordinates ``(ndim, npts)``.
 
         Returns
         -------

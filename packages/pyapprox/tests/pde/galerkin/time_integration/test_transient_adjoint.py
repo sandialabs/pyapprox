@@ -55,7 +55,10 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
-from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.boundary.implementations import (
+    DirichletBC,
+    RobinBC,
+)
 from pyapprox.pde.galerkin.kle_factory import (
     create_spde_lognormal_kle_field_map,
 )
@@ -106,13 +109,19 @@ def _time_config(method: str) -> TimeIntegrationConfig[NumpyArray]:
     )
 
 
-def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False):
+def _build_physics(
+    bkd: NumpyBkd, cubic_reaction: bool = False, robin: bool = False
+):
     """2D unit-square ADR: nodal diffusivity/forcing, constant (1, 0)
     velocity, homogeneous Dirichlet. The optional CUBIC reaction is the
     only state-nonlinear term, and unlike the component tiers'
     quadratic variant its second derivative R'' = 6u is
     state-dependent — per-step staleness in the second-adjoint RHS
-    would surface here and nowhere else."""
+    would surface here and nowhere else. With ``robin`` the left/right
+    Dirichlet conditions become Robin conditions (varying-coefficient
+    alpha(y) on the left, constant on the right): the adjoint then must
+    handle a mixed essential/natural set where the Robin boundary term
+    enters the transposed operator rather than the row machinery."""
     mesh = StructuredMesh2D(
         nx=6, ny=6, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
     )
@@ -129,6 +138,18 @@ def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False):
         if cubic_reaction
         else None
     )
+    if robin:
+        boundary_conditions = [
+            RobinBC(basis, "left", lambda x: 0.5 + x[1], 0.0, bkd),
+            RobinBC(basis, "right", 0.3, 0.0, bkd),
+            DirichletBC(basis, "bottom", 0.0, bkd),
+            DirichletBC(basis, "top", 0.0, bkd),
+        ]
+    else:
+        boundary_conditions = [
+            DirichletBC(basis, name, 0.0, bkd)
+            for name in ("left", "right", "bottom", "top")
+        ]
     physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=NodalFieldDiffusion(
@@ -138,10 +159,7 @@ def _build_physics(bkd: NumpyBkd, cubic_reaction: bool = False):
         velocity=NodalFieldVelocity(vel_basis, vel_dofs),
         reaction=reaction,
         forcing=NodalFieldForcing(basis, dofs=np.ones(basis.ndofs())),
-        boundary_conditions=[
-            DirichletBC(basis, name, 0.0, bkd)
-            for name in ("left", "right", "bottom", "top")
-        ],
+        boundary_conditions=boundary_conditions,
     )
     return physics, basis, vel_basis
 
@@ -187,9 +205,9 @@ def _velocity_map(bkd: NumpyBkd, vel_basis):
     return MeshKLEFieldMap(bkd, bkd.asarray(mean), bkd.asarray(modes))
 
 
-def _build_parameterization(bkd: NumpyBkd, case: str):
+def _build_parameterization(bkd: NumpyBkd, case: str, robin: bool = False):
     physics, basis, vel_basis = _build_physics(
-        bkd, cubic_reaction=case.startswith("cubic")
+        bkd, cubic_reaction=case.startswith("cubic"), robin=robin
     )
     maps = {}
     if case in ("diffusivity", "composite", "cubic-exp"):
@@ -506,6 +524,41 @@ class TestTransientAdjointWorkedExample:
             inner.time_quadrature().nodal_weights(),
             bkd.asarray(expected),
             rtol=1e-12,
+        )
+
+    @pytest.mark.parametrize("case", ["forcing", "diffusivity"])
+    @pytest.mark.parametrize("method", ["backward_euler", "crank_nicolson"])
+    def test_robin_bc_gradient_and_hvp(
+        self, numpy_bkd: NumpyBkd, method: str, case: str
+    ) -> None:
+        """Gradient + HVP with ROBIN boundary conditions, including a
+        varying-coefficient alpha(y): the Robin boundary term enters
+        the transposed operator (no row replacement), so the adjoint
+        must reproduce it automatically alongside the remaining
+        essential rows. First adjoint coverage of galerkin Robin BCs —
+        needed before an inflow can become the Danckwerts condition."""
+        bkd = numpy_bkd
+        physics, param_obj = _build_parameterization(
+            bkd, case, robin=True
+        )
+        functional = WeightedEndpointFunctional(
+            _subdomain_average_weights(bkd, physics),
+            param_obj.nparams(),
+            bkd,
+        )
+        model = GalerkinTransientForwardModel(
+            physics,
+            param_obj,
+            _gaussian_bump_ic(bkd, physics),
+            _time_config(method),
+            bkd,
+            functional=functional,
+        )
+        assert model.derivatives().hvp is not None
+        # Linear forcing map + linear QoI: exactly zero Hessian, as in
+        # the Dirichlet variant of this configuration.
+        _check_gradient_and_hvp(
+            bkd, model, expect_zero_hessian=(case == "forcing")
         )
 
     def test_quasilinear_gradient_and_hvp(

@@ -289,6 +289,17 @@ class TestFluxNeumannSolve:
         flux = -D*du/dx + v*u = -2x + 2x^2
         At x=-1: flux = 2 + 2 = 4, flux.n = 4*(-1) = -4
         At x=+1: u = 1 (Dirichlet)
+
+        TODO: the collocation conservative tests here use CONSTANT
+        velocities, which are divergence-free — the u*div(v) term that
+        distinguishes the conservative from the non-conservative form
+        is never exercised (the galerkin 1D conservative cases use
+        v = (1+x)/10 and do exercise it). Add a non-divergence-free
+        velocity case, and a free-outflow case: prescribing zero
+        DIFFUSIVE flux at an outflow under the conservative form is
+        the correct free-outflow condition, but prescribing zero TOTAL
+        flux there traps contaminant — the tests should pin down which
+        condition each BC type imposes.
         """
         npts = 10
         tmesh = TransformedMesh1D(npts, bkd)

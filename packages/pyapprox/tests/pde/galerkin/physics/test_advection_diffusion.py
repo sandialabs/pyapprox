@@ -14,12 +14,10 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import numpy as np
-from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import issparse
-
+from numpy.typing import NDArray
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
@@ -28,6 +26,8 @@ from pyapprox.pde.galerkin.mesh import (
 )
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.util.backends.numpy import NumpyBkd
+from scipy.sparse import issparse
 
 
 class TestLinearADRBase:
@@ -965,6 +965,15 @@ class TestParametrizedADR1DConservative:
     div(v*u). The manufactured solution is created with conservative=True to
     match the PDE. The adapter uses only the diffusive flux for BCs because
     the Galerkin weak form drops the advective boundary term from IBP.
+
+    TODO: that dropped IBP term means a DO-NOTHING boundary under the
+    conservative form enforces zero TOTAL flux, not zero diffusive
+    flux — a free outflow modeled that way traps contaminant. These
+    tests never exercise a do-nothing boundary (all BC data is
+    prescribed), and coverage is 1D/steady only: implement the
+    advective outflow facet term and add 2D/transient/free-outflow
+    conservative cases before relying on the conservative form in
+    channel problems.
     """
 
     @pytest.mark.parametrize(
@@ -1143,4 +1152,60 @@ class TestParametrizedADR2DExact:
             rel_error = np.linalg.norm(u_num - u_exact)
 
         # P2 elements should exactly reproduce quadratic solutions
+        assert rel_error < 1e-8
+
+    def test_exact_reproduction_varying_robin_alpha(
+        self, numpy_bkd
+    ) -> None:
+        """Robin BCs with a SPATIALLY VARYING coefficient alpha(x)
+        reproduce a quadratic solution exactly. alpha varies ALONG the
+        left and right boundaries (alpha = 1 + y + x, nonconstant on
+        vertical edges), the layout the Danckwerts inflow condition
+        needs; the manufactured Robin data g = alpha(x) u + D grad(u).n
+        comes from the adapter."""
+        bkd = numpy_bkd
+        bounds = [0.0, 1.0, 0.0, 1.0]
+        mesh = StructuredMesh2D(
+            nx=5,
+            ny=5,
+            bounds=[(bounds[0], bounds[1]), (bounds[2], bounds[3])],
+            bkd=bkd,
+        )
+        basis = LagrangeBasis(mesh, degree=2)
+        diffusivity = 4.0
+        functions, _ = create_adr_manufactured_test(
+            bounds=bounds,
+            sol_str="x*y + x + 2*y",
+            diff_str=f"{diffusivity}+1e-16*x+1e-16*y",
+            react_str="0*u",
+            vel_strs=["1e-16*x", "1e-16*y"],
+            bkd=bkd,
+        )
+
+        def alpha(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
+            return np.asarray(1.0 + x[1] + x[0])
+
+        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, bkd)
+        bc_set = adapter.create_boundary_conditions(
+            ["R", "R", "D", "D"], robin_alpha=alpha
+        )
+        physics = LinearAdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=diffusivity,
+            velocity=None,
+            reaction=0.0,
+            forcing=adapter.forcing_for_galerkin(),
+            boundary_conditions=bc_set.all_conditions(),
+            bkd=bkd,
+        )
+        result = SteadyStateSolver(physics, tol=1e-12).solve_linear()
+
+        dof_coords = bkd.to_numpy(basis.dof_coordinates())
+        u_num = bkd.to_numpy(result.solution)
+        u_exact = adapter.solution_function()(dof_coords)
+        if u_exact.ndim > 1:
+            u_exact = (
+                u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
+            )
+        rel_error = np.linalg.norm(u_num - u_exact) / np.linalg.norm(u_exact)
         assert rel_error < 1e-8

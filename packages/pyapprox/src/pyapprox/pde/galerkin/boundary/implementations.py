@@ -525,17 +525,22 @@ class NeumannBC(Generic[Array]):
 
 
 class RobinBC(Generic[Array]):
-    """Robin boundary condition: alpha * u + beta * (flux . n) = g(x, t).
+    """Robin boundary condition: alpha(x) * u + beta * (flux . n) = g(x, t).
 
     This is a mixed boundary condition that combines Dirichlet and Neumann.
     Special cases:
     - alpha=1, beta=0: Dirichlet BC
     - alpha=0, beta=1: Neumann BC
 
-    In weak form for diffusion: -D * du/dn = alpha * u - g
+    In weak form for diffusion: -D * du/dn = alpha(x) * u - g
     Contributes:
-    - To stiffness matrix: alpha * integral_{Gamma} u * phi ds
+    - To stiffness matrix: integral_{Gamma} alpha(x) * u * phi ds
     - To load vector: integral_{Gamma} g * phi ds
+
+    A spatially varying coefficient supports conditions whose strength
+    follows a profile along the boundary — e.g. the Danckwerts inflow
+    condition kappa*grad(u).n = (v.n)(u - u_in), whose alpha is the
+    boundary-normal velocity.
 
     Parameters
     ----------
@@ -543,8 +548,11 @@ class RobinBC(Generic[Array]):
         Finite element basis.
     boundary_name : str
         Name of the boundary.
-    alpha : float
-        Coefficient for u term.
+    alpha : float or Callable
+        Coefficient for the u term: a constant, or ``alpha(x)`` taking
+        coordinates of shape ``(ndim, npts)`` and returning ``(npts,)``
+        values at boundary quadrature points (time-independent; time
+        dependence belongs to ``value_func``).
     value_func : Callable or float
         Function g(x, t) returning Robin values, or constant value.
     bkd : Backend[Array]
@@ -555,12 +563,14 @@ class RobinBC(Generic[Array]):
         self,
         basis: GalerkinBasisProtocol[Array],
         boundary_name: str,
-        alpha: float,
+        alpha: Union[float, Callable[[np.ndarray], np.ndarray]],
         value_func: Union[Callable[..., Any], float],
         bkd: Backend[Array],
     ):
         self._basis = basis
         self._boundary_name = boundary_name
+        if not callable(alpha):
+            alpha = float(alpha)
         self._alpha = alpha
         self._bkd = bkd
 
@@ -588,9 +598,27 @@ class RobinBC(Generic[Array]):
         """Return indices of DOFs on this boundary."""
         return self._boundary_dofs
 
-    def alpha(self) -> float:
-        """Return coefficient for u term."""
+    def alpha(self) -> Union[float, Callable[[np.ndarray], np.ndarray]]:
+        """Return the coefficient for the u term (constant or callable)."""
         return self._alpha
+
+    def _alpha_at_quadrature(
+        self, w: "FormExtraParams"
+    ) -> Union[float, np.ndarray]:
+        """Evaluate alpha at the form's boundary quadrature points.
+
+        Constants pass through (broadcasting handles them); callables
+        are evaluated on the flattened coordinates and reshaped to the
+        skfem ``(nelem, nquad)`` layout.
+        """
+        if not callable(self._alpha):
+            return self._alpha
+        x_np = np.asarray(w.x)
+        if x_np.ndim == 3:
+            ndim, nelem, nquad = x_np.shape
+            vals = np.asarray(self._alpha(x_np.reshape(ndim, -1)))
+            return vals.reshape(nelem, nquad)
+        return np.asarray(self._alpha(x_np))
 
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Robin boundary values g at given time."""
@@ -634,7 +662,7 @@ class RobinBC(Generic[Array]):
             Modified stiffness matrix (same type as input).
         """
         bndry_basis = self._get_boundary_basis()
-        alpha = self._alpha
+        alpha_at_quadrature = self._alpha_at_quadrature
         ncomps = getattr(self._basis, "ncomponents", lambda: 1)()
 
         if ncomps > 1:
@@ -644,7 +672,10 @@ class RobinBC(Generic[Array]):
                 v: "DiscreteField",
                 w: "FormExtraParams",
             ) -> np.ndarray:
-                return np.asarray(alpha * sum(u[i] * v[i] for i in range(ncomps)))
+                return np.asarray(
+                    alpha_at_quadrature(w)
+                    * sum(u[i] * v[i] for i in range(ncomps))
+                )
         else:
 
             def robin_bilinear(
@@ -652,7 +683,7 @@ class RobinBC(Generic[Array]):
                 v: "DiscreteField",
                 w: "FormExtraParams",
             ) -> np.ndarray:
-                return np.asarray(alpha * u * v)
+                return np.asarray(alpha_at_quadrature(w) * u * v)
 
         contribution_sparse = asm(BilinearForm(robin_bilinear), bndry_basis)
 
@@ -736,13 +767,13 @@ class RobinBC(Generic[Array]):
         res_np = self._bkd.to_numpy(residual).copy()
         state_np = self._bkd.to_numpy(state)
         bndry_basis = self._get_boundary_basis()
-        alpha = self._alpha
+        alpha_at_quadrature = self._alpha_at_quadrature
         value_func = self._value_func
         current_time = time
 
         # Add alpha * u * phi contribution to residual
         def robin_residual_u(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            return np.asarray(alpha * w.u_prev * v)
+            return np.asarray(alpha_at_quadrature(w) * w.u_prev * v)
 
         # Need to interpolate state onto boundary
         state_interp = bndry_basis.interpolate(state_np)
@@ -779,9 +810,12 @@ class RobinBC(Generic[Array]):
         return self.apply_to_stiffness(jacobian, time)
 
     def __repr__(self) -> str:
+        alpha_repr = (
+            "callable" if callable(self._alpha) else repr(self._alpha)
+        )
         return (
             f"RobinBC(boundary='{self._boundary_name}', "
-            f"alpha={self._alpha}, "
+            f"alpha={alpha_repr}, "
             f"ndofs={len(self._bkd.to_numpy(self._boundary_dofs))})"
         )
 
