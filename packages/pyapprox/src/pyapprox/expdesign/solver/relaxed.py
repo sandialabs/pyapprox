@@ -36,12 +36,22 @@ class RelaxedOEDConfig:
         Gradient tolerance. None uses SciPy default.
     xtol : float, optional
         Step tolerance. None uses SciPy default.
+    weight_floor : float
+        Lower bound on every design weight. MC OED objectives divide
+        by the weights (effective noise variance ``sigma^2 / w_i``),
+        so the objective is singular at ``w_i = 0``; a positive floor
+        enforces iterates stay in the domain of definition instead of
+        relying on the optimizer keeping strictly interior iterates.
+        The optimum shifts by at most ``nobs * weight_floor`` in
+        probability mass (value change well below MC noise at the
+        default). Set to 0.0 to recover the closed simplex.
     """
 
     verbosity: int = 0
     maxiter: Optional[int] = None
     gtol: Optional[float] = None
     xtol: Optional[float] = None
+    weight_floor: float = 1e-6
 
 
 class RelaxedOEDSolver(Generic[Array]):
@@ -50,7 +60,7 @@ class RelaxedOEDSolver(Generic[Array]):
     Solves the continuous relaxation of the OED problem:
         min objective(w)
         s.t. sum(w) = 1
-             0 <= w_i <= 1
+             weight_floor <= w_i <= 1
 
     Parameters
     ----------
@@ -92,9 +102,10 @@ class RelaxedOEDSolver(Generic[Array]):
         -------
         Array
             Bounds array. Shape: (nobs, 2)
-            Each row is [lower, upper] = [0, 1]
+            Each row is [lower, upper] = [weight_floor, 1]
         """
         bounds = self._bkd.zeros((self._nobs, 2))
+        bounds[:, 0] = self._config.weight_floor
         bounds[:, 1] = 1.0  # Upper bound
         return bounds
 
@@ -173,7 +184,7 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
     Solves the continuous relaxation of the OED problem:
         min -EIG(w)
         s.t. sum(w) = 1
-             0 <= w_i <= 1
+             weight_floor <= w_i <= 1
 
     Parameters
     ----------

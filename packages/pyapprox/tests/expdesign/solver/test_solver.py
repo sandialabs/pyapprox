@@ -10,7 +10,6 @@ Tests cover:
 
 import numpy as np
 import pytest
-
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.expdesign.solver import (
@@ -78,9 +77,20 @@ class TestRelaxedKLOEDSolver:
         solver = RelaxedKLOEDSolver(self._objective, config)
         weights, _ = solver.solve()
 
-        weights_np = bkd.to_numpy(weights)
-        assert np.all(weights_np >= -1e-6)
-        assert np.all(weights_np <= 1 + 1e-6)
+        assert bkd.all_bool(weights >= -1e-6)
+        assert bkd.all_bool(weights <= 1 + 1e-6)
+
+    def test_weight_floor_enforced(self, bkd):
+        """Inactive weights sit at the floor, not below it."""
+        floor = 1e-4
+        config = RelaxedOEDConfig(
+            verbosity=0, maxiter=50, weight_floor=floor,
+        )
+        solver = RelaxedKLOEDSolver(self._objective, config)
+        weights, _ = solver.solve()
+
+        # trust-constr satisfies bounds to within its own tolerance.
+        assert bkd.all_bool(weights >= floor * (1 - 1e-6))
 
     def test_custom_initial_weights(self, bkd):
         """Test solver with custom initial weights."""
