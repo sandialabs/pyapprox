@@ -1,18 +1,20 @@
-"""Steering a plume: distributed-forcing control of obstructed transport.
+"""Steering a plume: extraction-rate control of obstructed transport.
 
 A fixed Gaussian release near the inlet feeds a contaminant plume that
 a frozen Navier-Stokes flow advects through the gaps of three staggered
 blocks toward a protected zone above the uppermost block. K Gaussian
-actuators (amplitudes may be negative: sinks) add controllable forcing;
-the objective trades time-integrated zone contamination against a
-quadratic actuation cost:
+extraction devices remove contaminant at rate
+:math:`r(x)\\,u = \\sum_k p_k q_k(x)\\, u` with nonnegative rates
+``p >= 0`` — removal proportional to the local concentration preserves
+the maximum principle (a constant-rate sink keeps withdrawing once
+u ~ 0 and manufactures negative mass). The objective trades
+time-integrated zone contamination against a quadratic actuation cost:
 
     J(p) = int_0^T int w(x) u(x, t; p)^2 dx dt + (alpha/2) ||p||^2.
 
-The transport is linear in the state and affine in ``p``, so J is a
-strictly convex quadratic; the interest is that gradients and
-Hessian-vector products come from one adjoint sweep each, at a cost
-independent of K.
+The extraction term is bilinear in (p, u): control authority saturates
+where the plume is thin, dR/dp is state-dependent, and genuine mixed
+state-parameter curvature enters the Hessian-vector products.
 """
 
 from __future__ import annotations
@@ -29,10 +31,10 @@ if TYPE_CHECKING:
 import numpy as np
 from pyapprox.util.backends.protocols import Array, Backend
 
-# Actuator layout: label -> center. Bumps sit in the gap channels and
-# along the flow path (see build docstring); two deliberately
-# low-leverage placements (inside the zone's feed path vs downstream of
-# the zone) make the learned strategy legible.
+# Extraction-device layout: label -> center. Footprints sit in the gap
+# channels and along the flow path; two deliberately low-leverage
+# placements (off the feed path / downstream of the zone) make the
+# learned strategy legible.
 _DEFAULT_ACTUATORS: Dict[str, Tuple[float, float]] = {
     "below_B_gap": (0.357, 0.125),
     "above_B": (0.357, 0.60),
@@ -49,6 +51,25 @@ _DEFAULT_ACTUATORS: Dict[str, Tuple[float, float]] = {
 # at every refinement level.
 _ZONE_XLIM = (4.0 / 7.0, 5.0 / 7.0)
 _ZONE_YLIM = (0.75, 1.0)
+
+
+class _InletNormalSpeed:
+    """Inlet normal speed |v.n|(y) for the Danckwerts coefficient.
+
+    A picklable class (stored BC callables must pickle) evaluating the
+    x-component of the parabolic inlet profile, which equals the
+    inflow speed on the left boundary where n = (-1, 0).
+    """
+
+    def __init__(self, a: float, b: float) -> None:
+        self._a = float(a)
+        self._b = float(b)
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        y = x[1]
+        return np.asarray(
+            y ** (self._a - 1.0) * (1.0 - y) ** (self._b - 1.0)
+        )
 
 
 class ObstructedFlowControlProblem(Generic[Array]):
@@ -91,23 +112,28 @@ class ObstructedFlowControlProblem(Generic[Array]):
         Time step.
     alpha : float
         Actuation cost coefficient (exchange rate between zone
-        contamination and pumping effort). The default fully prices
-        out the source-sink cancellation direction (smaller alpha lets
-        the optimizer pair positive sources with overshooting sinks to
-        cancel negative concentration) yielding an all-sink optimum
-        with a ~20x contamination reduction.
+        contamination and extraction effort).
     release_center, release_width, release_amplitude : floats
         Fixed Gaussian release upstream of the blocks.
     actuator_centers : dict, optional
-        ``label -> (x, y)`` actuator layout; defaults to gap-channel
-        placements.
+        ``label -> (x, y)`` extraction-device layout; defaults to
+        gap-channel placements.
     actuator_width : float
-        Gaussian actuator width.
+        Gaussian extraction-footprint width.
     control_bound : float
-        Symmetric amplitude bound ``|p_k| <= control_bound``.
+        Extraction-rate bounds ``0 <= p_k <= control_bound``: removal
+        only, preserving the maximum principle.
     zone_weight : ZoneWeightProtocol, optional
         Spatial weighting of the protected zone. Defaults to the
         element-aligned rectangle above the uppermost block.
+    inlet_bc : str
+        ``"danckwerts"`` (default): the total-flux inflow condition
+        kappa*grad(u).n = (v.n) u, a Robin BC whose coefficient is the
+        parabolic inlet speed — mass enters and leaves the inlet only
+        with the flow, closing the mass ledger. ``"dirichlet"``: u = 0,
+        simpler but an absorbing wall — a release placed diffusively
+        close to the inlet loses roughly half its mass upstream
+        through it.
     time_integrator : str
         ``"crank_nicolson"`` (default) or ``"backward_euler"``.
     """
@@ -131,6 +157,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         actuator_width: float = 0.05,
         control_bound: float = 10.0,
         zone_weight: Optional["ZoneWeightProtocol[Array]"] = None,
+        inlet_bc: str = "danckwerts",
         time_integrator: str = "crank_nicolson",
     ) -> None:
         from pyapprox.util.backends.numpy import NumpyBkd
@@ -150,6 +177,12 @@ class ObstructedFlowControlProblem(Generic[Array]):
                 f"time_integrator must be 'backward_euler' or "
                 f"'crank_nicolson', got {time_integrator!r}"
             )
+        if inlet_bc not in ("danckwerts", "dirichlet"):
+            raise ValueError(
+                f"inlet_bc must be 'danckwerts' or 'dirichlet', got "
+                f"{inlet_bc!r}"
+            )
+        self._inlet_bc = inlet_bc
         if actuator_centers is None:
             actuator_centers = dict(_DEFAULT_ACTUATORS)
         self._actuator_labels = tuple(actuator_centers)
@@ -192,6 +225,22 @@ class ObstructedFlowControlProblem(Generic[Array]):
             )
         )
 
+    def _actuator_fields_nodal(self) -> np.ndarray:
+        """Evaluate every unit actuator bump at the nodal coordinates.
+
+        Returns
+        -------
+        np.ndarray
+            One field per device. Shape: (ncontrols, ndofs).
+        """
+        squared_dist = (
+            (self._dof_coords[:, None, :] - self._actuator_centers[:, :, None])
+            ** 2
+        ).sum(axis=0)
+        return np.asarray(
+            np.exp(-squared_dist / (2.0 * self._actuator_width**2))
+        )
+
     def _build_model(
         self,
         nstokes_refine: int,
@@ -214,11 +263,13 @@ class ObstructedFlowControlProblem(Generic[Array]):
         from pyapprox.pde.constitutive.coefficient_functions import (
             NodalFieldDiffusion,
             NodalFieldForcing,
+            NodalFieldLinearReaction,
         )
         from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
         from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
+            RobinBC,
         )
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
@@ -258,22 +309,19 @@ class ObstructedFlowControlProblem(Generic[Array]):
         release_nodal = self._release_amplitude * self._gaussian_nodal(
             coords, self._release_center, self._release_width
         )
-        actuator_fields = [
-            bkd.asarray(
-                self._gaussian_nodal(
-                    coords,
-                    (
-                        float(self._actuator_centers[0, kk]),
-                        float(self._actuator_centers[1, kk]),
-                    ),
-                    self._actuator_width,
-                )
-            )
-            for kk in range(self.ncontrols())
-        ]
-        # Affine control map: forcing dofs = release + sum_k p_k q_k.
-        forcing_map = BasisExpansion(
-            bkd, bkd.asarray(release_nodal), actuator_fields
+        self._release_nodal = release_nodal
+        self._dof_coords = coords
+        # The physics' linear reaction enters as du/dt = ... + r*u, so
+        # a nonnegative extraction RATE p_k maps to r = -sum_k p_k q_k:
+        # the map's basis fields carry the sign.
+        actuator_fields = self._actuator_fields_nodal()
+        extraction_map = BasisExpansion(
+            bkd,
+            0.0,
+            [
+                bkd.asarray(-actuator_fields[kk])
+                for kk in range(self.ncontrols())
+            ],
         )
 
         physics = AdvectionDiffusionReaction(
@@ -285,12 +333,36 @@ class ObstructedFlowControlProblem(Generic[Array]):
             bkd=bkd,
             velocity=self._velocity,
             forcing=NodalFieldForcing(self._basis, dofs=release_nodal),
+            reaction=NodalFieldLinearReaction(
+                self._basis, dofs=np.zeros(self._basis.ndofs())
+            ),
+            # Transport BCs at the inflow: Danckwerts total-flux
+            # kappa*grad(u).n = (v.n)(u - u_in) with u_in = 0, mapped
+            # to the Robin convention -D du/dn = alpha u - g as
+            # alpha(y) = |v.n|(y) (the parabolic inlet speed), g = 0 —
+            # mass exchanges with the inlet only advectively, closing
+            # the ledger (measured: the Dirichlet variant loses ~half
+            # the release by upstream diffusion into u = 0). Everything
+            # else is natural by omission: with the NON-conservative
+            # advection form this is exactly du/dn = 0 — free advective
+            # outflow on the right, no-flux walls elsewhere (v.n = 0
+            # there). Outflow must be neither Dirichlet (artificial
+            # boundary layer reflecting the plume) nor zero-total-flux
+            # (traps all contaminant).
             boundary_conditions=[
-                DirichletBC(self._basis, "left", 0.0, bkd)
+                RobinBC(
+                    self._basis,
+                    "left",
+                    _InletNormalSpeed(*vel_shape_params),
+                    0.0,
+                    bkd,
+                )
+                if self._inlet_bc == "danckwerts"
+                else DirichletBC(self._basis, "left", 0.0, bkd)
             ],
         )
         parameterization = AdvectionDiffusionParameterization(
-            physics, forcing_map=forcing_map, bkd=bkd
+            physics, reaction_map=extraction_map, bkd=bkd
         )
 
         if zone_weight is None:
@@ -346,15 +418,45 @@ class ObstructedFlowControlProblem(Generic[Array]):
         return self._model
 
     def bounds(self) -> Array:
-        """Return amplitude bounds. Shape: ``(ncontrols, 2)``."""
-        bound = self._control_bound
+        """Return extraction-rate bounds. Shape: ``(ncontrols, 2)``.
+
+        The lower bound 0 is structural: extraction removes only, so
+        the maximum principle is preserved, and low-leverage devices
+        pin at zero rather than drifting signed.
+        """
         return self._bkd.asarray(
-            np.tile([-bound, bound], (self.ncontrols(), 1))
+            np.tile([0.0, self._control_bound], (self.ncontrols(), 1))
         )
+
+    def inlet_bc(self) -> str:
+        """Return the inflow condition ('danckwerts' or 'dirichlet')."""
+        return self._inlet_bc
 
     def release_center(self) -> Tuple[float, float]:
         """Return the fixed release center (for plotting)."""
         return self._release_center
+
+    def release_field(self) -> np.ndarray:
+        """Return the nodal release rate field s(x). Shape: (ndofs,)."""
+        return self._release_nodal
+
+    def extraction_field(self, controls: np.ndarray) -> np.ndarray:
+        """Return the nodal extraction rate field sum_k p_k q_k(x).
+
+        Parameters
+        ----------
+        controls : np.ndarray
+            Extraction rates. Shape: (ncontrols,).
+
+        Returns
+        -------
+        np.ndarray
+            Nonnegative rate field. Shape: (ndofs,).
+        """
+        return np.asarray(
+            np.asarray(controls, dtype=float)
+            @ self._actuator_fields_nodal()
+        )
 
     def actuator_labels(self) -> Tuple[str, ...]:
         """Return the actuator labels in parameter order."""

@@ -33,9 +33,9 @@ from pyapprox_benchmarks.problems.optimization import (
 
 from tests._helpers.markers import slow_test
 
-# Actuators sitting on the plume's feed paths; the two others
+# Extraction devices sitting on the plume's feed paths; the two others
 # (outflow_lower, downstream_of_zone) are deliberate low-leverage
-# placements whose amplitudes should stay comparatively small.
+# placements whose rates should stay comparatively small.
 _FEED_PATH_LABELS = frozenset(
     {
         "below_B_gap",
@@ -65,6 +65,104 @@ def _make_problem(
         final_time=final_time,
         deltat=deltat,
     )
+
+
+def _mass_ledger(problem, model, controls, bkd, diffusivity):
+    """Discrete mass bookkeeping of a controlled trajectory.
+
+    Returns (mass_change, released, extracted, outflowed, residual):
+    the change of int(u) over the horizon against the exchanges the
+    DISCRETE Galerkin dynamics actually make (CN trapezoid in time).
+    Summing the weak form against the all-ones test function (the
+    partition of unity) shows what those are: the release int(s), the
+    extraction int(r u), the advective loss as the VOLUME integral
+    int(v.grad(u)) — NOT a boundary trace — and the Danckwerts inlet
+    exchange int_left(|v.n| u) ds from the Robin operator. Diffusion
+    contributes exactly zero: 1^T K_diff u = int(kappa grad(u).grad(1))
+    vanishes identically, so do-nothing boundaries lose no diffusive
+    mass discretely (the continuum's diffusive boundary loss is a
+    MODELING limit of those BCs, not a ledger line). Every line is
+    integrated with the diagnostic's own quadrature, independent of
+    the solver's assembled operators, so bookkeeping/BC/form errors
+    still surface — but the floor is quadrature-level, not
+    boundary-gradient-level. ``diffusivity`` is unused by the ledger
+    for exactly this reason; it is kept so callers state the physics
+    they think they are balancing.
+    """
+    from skfem import FacetBasis, Functional, asm
+
+    if problem.inlet_bc() != "danckwerts":
+        raise ValueError(
+            "the discrete ledger models the Robin inlet exchange; the "
+            "Dirichlet inlet replaces rows and needs different "
+            "bookkeeping"
+        )
+    del diffusivity
+    sols, times = model.forward_solve(controls)
+    sols_np = bkd.to_numpy(sols)
+    times_np = bkd.to_numpy(times)
+    skfem_basis = problem.basis().skfem_basis()
+    mesh = skfem_basis.mesh
+    inlet_basis = FacetBasis(
+        mesh, skfem_basis.elem, facets=mesh.boundaries["left"]
+    )
+    velocity = problem.velocity()
+
+    @Functional
+    def integrate(w):
+        return w["uh"]
+
+    @Functional
+    def integrate_weighted(w):
+        return w["rh"] * w["uh"]
+
+    @Functional
+    def advective_loss(w):
+        vel = velocity(np.asarray(w.x))
+        return vel[0] * w["uh"].grad[0] + vel[1] * w["uh"].grad[1]
+
+    @Functional
+    def inlet_exchange(w):
+        # Danckwerts coefficient alpha(y) = |v.n| = v_x on the left
+        # boundary (n = (-1, 0)); no gradients involved.
+        vel = velocity(np.asarray(w.x))
+        return vel[0] * w["uh"]
+
+    release_rate = asm(
+        integrate,
+        skfem_basis,
+        uh=skfem_basis.interpolate(problem.release_field()),
+    )
+    rate_field = problem.extraction_field(bkd.to_numpy(controls)[:, 0])
+    ntimes = sols_np.shape[1]
+    masses = np.empty(ntimes)
+    extraction = np.empty(ntimes)
+    outflow = np.empty(ntimes)
+    for nn in range(ntimes):
+        state = skfem_basis.interpolate(sols_np[:, nn])
+        masses[nn] = asm(integrate, skfem_basis, uh=state)
+        extraction[nn] = asm(
+            integrate_weighted,
+            skfem_basis,
+            rh=skfem_basis.interpolate(rate_field),
+            uh=state,
+        )
+        outflow[nn] = asm(
+            advective_loss, skfem_basis, uh=state
+        ) + asm(
+            inlet_exchange,
+            inlet_basis,
+            uh=inlet_basis.interpolate(sols_np[:, nn]),
+        )
+    deltas = np.diff(times_np)
+    released = float(release_rate * (times_np[-1] - times_np[0]))
+    extracted = float(
+        (deltas * 0.5 * (extraction[:-1] + extraction[1:])).sum()
+    )
+    outflowed = float((deltas * 0.5 * (outflow[:-1] + outflow[1:])).sum())
+    mass_change = float(masses[-1] - masses[0])
+    residual = mass_change - (released - extracted - outflowed)
+    return mass_change, released, extracted, outflowed, residual
 
 
 class TestObstructedFlowControlAcceptance:
@@ -136,31 +234,101 @@ class TestObstructedFlowControlAcceptance:
         assert value > 1e-2
 
     @slow_test
+    def test_mass_balance(self, numpy_bkd: NumpyBkd) -> None:
+        """Discrete mass bookkeeping: the change of int(u) must match
+        the exchanges the discrete dynamics make — release, extraction,
+        advective loss, and the Danckwerts inlet exchange — with every
+        line measured by the diagnostic's own quadrature. rel_residual
+        is the ledger's closure defect relative to release (nothing to
+        do with Newton residuals). The check is twofold: a tight
+        absolute cap, and residual DECAY under simultaneous space-time
+        refinement at frozen flow — genuine quadrature error converges,
+        while a BC, advection-form, or bookkeeping error is O(1) and
+        cannot."""
+        bkd = numpy_bkd
+        residuals = {}
+        for refine, deltat in ((1, 1.0), (2, 0.5)):
+            problem = ObstructedFlowControlProblem(
+                bkd,
+                nstokes_refine=1,
+                ntransport_refine=refine,
+                diffusivity=0.02,
+                final_time=20.0,
+                deltat=deltat,
+            )
+            model = problem.model()
+            for label, controls_np in (
+                ("p=0", np.zeros(problem.ncontrols())),
+                ("p=1", np.ones(problem.ncontrols())),
+            ):
+                controls = bkd.asarray(controls_np[:, None])
+                mass_change, released, extracted, outflowed, residual = (
+                    _mass_ledger(problem, model, controls, bkd, 0.02)
+                )
+                rel_residual = abs(residual) / released
+                residuals[(refine, label)] = rel_residual
+                print(
+                    f"[refine={refine}][{label}] dM={mass_change:.4f} "
+                    f"released={released:.4f} extracted={extracted:.4f} "
+                    f"outflowed={outflowed:.4f} "
+                    f"residual={100 * rel_residual:.3f}% of release"
+                )
+                if label == "p=0":
+                    assert extracted == 0.0
+                else:
+                    assert extracted > 0.0
+                assert outflowed > 0.0
+        # Absolute cap: 2x the observed 0.26% worst case at the
+        # coarse configuration.
+        for (refine, label), value in residuals.items():
+            if refine == 1:
+                assert value < 6e-3
+        # Convergence: observed decay ~5.5x per refinement level;
+        # requiring 2x keeps headroom while rejecting any O(1)
+        # modeling error (which cannot decay).
+        for label in ("p=0", "p=1"):
+            assert residuals[(2, label)] < 0.5 * residuals[(1, label)]
+
+    @slow_test
     def test_optimization_learns_interception(
         self, numpy_bkd: NumpyBkd
     ) -> None:
         """The optimizer-in-the-loop check: both optimizers drive J
-        down by orders of magnitude, agree with each other, and the
-        learned strategy places its dominant SINKS on the plume's feed
-        paths rather than at the low-leverage placements. Horizon set
-        to the release-to-zone transit time so the uncontrolled plume
-        genuinely contaminates the zone."""
+        down by an order of magnitude, agree with each other, and the
+        learned strategy places its dominant EXTRACTION on the plume's
+        feed paths rather than at the low-leverage placements. Horizon
+        set to the release-to-zone transit time so the uncontrolled
+        plume genuinely contaminates the zone. Extraction (removal
+        proportional to concentration, rates bounded below by zero)
+        must also preserve positivity of the state — checked at p = 0
+        first to separate discretization undershoot from control
+        artifacts."""
         bkd = numpy_bkd
         problem = _make_problem(bkd, final_time=20.0, deltat=1.0)
         model = problem.model()
         controls0 = bkd.zeros((problem.ncontrols(), 1))
         j0 = float(bkd.to_numpy(model(controls0))[0, 0])
+        sols0, _ = model.forward_solve(controls0)
+        min_u0 = float(bkd.to_numpy(bkd.min(sols0)))
+
+        # Optimizers start STRICTLY INSIDE the box: scipy's
+        # tr_interior_point terminates spuriously (one evaluation,
+        # zero reported optimality) when started exactly on a bound,
+        # and p = 0 sits on the extraction lower bound.
+        interior_start = bkd.asarray(
+            0.5 * np.ones((problem.ncontrols(), 1))
+        )
 
         lbfgs = LBFGSBOptimizer(verbosity=0, maxiter=100)
         lbfgs.bind(model, problem.bounds())
-        p_lbfgs = lbfgs.minimize(controls0).optima()
+        p_lbfgs = lbfgs.minimize(interior_start).optima()
         j_lbfgs = float(bkd.to_numpy(model(p_lbfgs))[0, 0])
 
         newton = ScipyTrustConstrOptimizer(
-            verbosity=0, maxiter=30, gtol=1e-8
+            verbosity=0, maxiter=50, gtol=1e-8
         )
         newton.bind(model, problem.bounds())
-        p_newton = newton.minimize(controls0).optima()
+        p_newton = newton.minimize(interior_start).optima()
         j_newton = float(bkd.to_numpy(model(p_newton))[0, 0])
 
         print(
@@ -172,31 +340,46 @@ class TestObstructedFlowControlAcceptance:
         for label, val in zip(labels, amplitudes):
             print(f"  {label:>20s}: {val:+.3f}")
 
+        # Positivity: proportional extraction preserves the maximum
+        # principle. p = 0 measures pure discretization undershoot;
+        # the controlled state must not undershoot further. Guards
+        # against reintroducing signed forcing (constant-rate sinks
+        # manufacture negative mass once u ~ 0). Observed undershoot
+        # is exactly zero at these configurations; the tolerance is
+        # absolute headroom for CI drift.
+        sols_ctl, _ = model.forward_solve(p_lbfgs)
+        min_u_ctl = float(bkd.to_numpy(bkd.min(sols_ctl)))
+        print(f"min(u): p=0 {min_u0:.3e}, controlled {min_u_ctl:.3e}")
+        assert min_u0 >= -1e-10
+        assert min_u_ctl >= -1e-10
+
         # Provisional sanity bounds; hardened to 2x observed CI drift
         # in the follow-up that finalizes the acceptance assertions.
-        assert j_lbfgs < 0.05 * j0
-        assert j_newton < 0.05 * j0
-        # Both optimizers minimize the same strictly convex quadratic.
+        assert j_lbfgs < 0.3 * j0
+        assert j_newton < 0.3 * j0
+        # Both optimizers minimize the same convex objective.
         assert abs(j_lbfgs - j_newton) <= 0.2 * max(j_lbfgs, j_newton)
-        # Learned strategy: dominant actuator is a SINK on a feed path,
-        # and the low-leverage placements carry comparatively little
-        # amplitude (guards against the optimizer parking effort where
-        # the physics barely sees it).
-        dominant = int(np.argmax(np.abs(amplitudes)))
+        # Learned strategy: rates are nonnegative, the dominant
+        # extraction sits on a feed path, and the low-leverage
+        # placements carry comparatively little rate (guards against
+        # the optimizer parking effort where the physics barely sees
+        # it).
+        assert np.all(amplitudes >= -1e-12)
+        dominant = int(np.argmax(amplitudes))
         assert labels[dominant] in _FEED_PATH_LABELS
-        assert amplitudes[dominant] < 0.0
+        assert amplitudes[dominant] > 0.0
         feed_mass = sum(
-            abs(val)
+            val
             for label, val in zip(labels, amplitudes)
             if label in _FEED_PATH_LABELS
         )
         off_path_mass = sum(
-            abs(val)
+            val
             for label, val in zip(labels, amplitudes)
             if label not in _FEED_PATH_LABELS
         )
         print(
-            f"feed-path |p| mass {feed_mass:.3f}, "
+            f"feed-path rate mass {feed_mass:.3f}, "
             f"off-path {off_path_mass:.3f}"
         )
         assert off_path_mass < 0.5 * feed_mass

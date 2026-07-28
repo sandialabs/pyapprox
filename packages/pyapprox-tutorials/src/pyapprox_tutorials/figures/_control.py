@@ -19,8 +19,12 @@ _BLOCKS = [
 ]
 
 
-def _draw_domain(ax, problem, sink_amplitudes=None):
-    """Blocks, zone outline, release marker, actuator markers."""
+def _draw_domain(ax, problem, extraction_rates=None):
+    """Blocks, zone outline, release marker, extraction-device markers.
+
+    Devices are drawn sized by their (nonnegative) extraction rate;
+    without rates, uniform small markers show the layout only.
+    """
     for (x0, y0), width, height in _BLOCKS:
         ax.add_patch(
             plt.Rectangle(
@@ -38,24 +42,19 @@ def _draw_domain(ax, problem, sink_amplitudes=None):
         markersize=14, zorder=5,
     )
     centers = problem.actuator_centers()
-    if sink_amplitudes is None:
+    if extraction_rates is None:
         ax.plot(
             centers[0], centers[1], "o", color=COLORS["primary"],
             markersize=5, zorder=5,
         )
     else:
-        sizes = 4.0 + 16.0 * np.abs(sink_amplitudes) / max(
-            np.abs(sink_amplitudes).max(), 1e-12
+        sizes = 4.0 + 16.0 * np.abs(extraction_rates) / max(
+            np.abs(extraction_rates).max(), 1e-12
         )
         for kk in range(centers.shape[1]):
-            color = (
-                COLORS["primary"]
-                if sink_amplitudes[kk] < 0
-                else COLORS["secondary"]
-            )
             ax.plot(
-                centers[0, kk], centers[1, kk], "o", color=color,
-                markersize=sizes[kk], zorder=5,
+                centers[0, kk], centers[1, kk], "o",
+                color=COLORS["primary"], markersize=sizes[kk], zorder=5,
             )
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -114,25 +113,21 @@ def plot_frozen_flow(problem, bkd, ax, density=1.4):
 def plot_amplitudes(problem, amplitudes, ax_bar, ax_domain):
     """pde_control_usage.qmd -> fig-amplitudes
 
-    Optimized amplitudes as a bar chart in domain-order beneath a mini
-    domain sketch aligning bars to actuator positions.
+    Optimized extraction rates as a bar chart in domain-order beneath
+    a mini domain sketch aligning bars to device positions.
     """
     centers = problem.actuator_centers()
     labels = problem.actuator_labels()
     order = np.argsort(centers[0])
-    colors = [
-        COLORS["primary"] if amplitudes[ii] < 0 else COLORS["secondary"]
-        for ii in order
-    ]
     positions = np.arange(order.shape[0])
-    ax_bar.bar(positions, amplitudes[order], color=colors)
+    ax_bar.bar(positions, amplitudes[order], color=COLORS["primary"])
     ax_bar.axhline(0.0, color="0.3", lw=0.8)
     ax_bar.set_xticks(positions)
     ax_bar.set_xticklabels(
         [labels[ii].replace("_", "\n") for ii in order], fontsize=7
     )
     ax_bar.set_ylabel(r"$p_k$")
-    _draw_domain(ax_domain, problem, sink_amplitudes=amplitudes)
+    _draw_domain(ax_domain, problem, extraction_rates=amplitudes)
     for rank, ii in enumerate(order):
         ax_domain.annotate(
             str(rank),
@@ -175,7 +170,7 @@ def save_control_gif(
 
     Side-by-side concentration evolution, "No control" vs "Optimized
     control", fixed colorbar across panels and frames; zone outlined
-    on both; sink markers sized by |p_k| and colored by sign on the
+    on both; extraction-device markers sized by their rate p_k on the
     right panel. Writes ``path`` (.gif) plus first/last static PNGs.
 
     Returns the (first_png, last_png) paths.
@@ -188,10 +183,11 @@ def save_control_gif(
         np.linspace(0, ntimes - 1, min(max_frames, ntimes)).astype(int)
     )
     tri = _triangulation(problem, bkd)
-    # Concentration is SIGNED (sinks can overshoot below zero and the
-    # u^2 objective penalizes both signs), so use a diverging map
-    # centered at zero with one colorbar fixed across panels and
-    # frames.
+    # Diverging map centered at zero, one colorbar fixed across panels
+    # and frames: proportional extraction preserves positivity, so the
+    # field should never enter the negative (blue) half — the colormap
+    # doubles as a visual positivity check (constant-rate sinks would
+    # paint blue overshoot regions).
     bound = max(
         abs(sols_unc.max()), abs(sols_ctl.max()),
         abs(sols_unc.min()), abs(sols_ctl.min()),
@@ -211,7 +207,7 @@ def save_control_gif(
                 tri, sols[:, index], levels=levels, cmap="RdBu_r",
                 extend="both",
             )
-            _draw_domain(ax, problem, sink_amplitudes=amps)
+            _draw_domain(ax, problem, extraction_rates=amps)
             ax.set_title(title)
             ax.set_xticks([])
             ax.set_yticks([])
