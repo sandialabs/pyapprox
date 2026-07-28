@@ -100,6 +100,33 @@ class TestGammaMarginal:
         expected = self._bkd.asarray([self._scipy_dist.cdf([0.5, 1.0, 2.0, 3.0])])
         assert self._bkd.allclose(cdf_vals, expected, rtol=1e-10)
 
+    def test_cdf_nonpositive_is_zero(self) -> None:
+        """Test CDF is 0 outside the support, as scipy gives."""
+        samples = self._bkd.asarray([[-5.0, -1.0, -1e-3, 0.0]])
+        cdf_vals = self._dist.cdf(samples)
+        expected = self._bkd.asarray([self._scipy_dist.cdf([-5.0, -1.0, -1e-3, 0.0])])
+        assert self._bkd.allclose(cdf_vals, expected, atol=1e-12)
+
+    def test_cdf_nonpositive_is_zero_shape_less_than_one(self) -> None:
+        """Test CDF outside the support for shape < 1, where the integrand is
+        singular at the origin."""
+        shape = 0.5
+        dist = GammaMarginal(
+            shape, self._scale, self._bkd, quadrature_rule=self._quad_rule
+        )
+        scipy_dist = stats.gamma(shape, scale=self._scale)
+        samples = self._bkd.asarray([[-2.0, -0.25, 0.0]])
+        cdf_vals = dist.cdf(samples)
+        expected = self._bkd.asarray([scipy_dist.cdf([-2.0, -0.25, 0.0])])
+        assert self._bkd.allclose(cdf_vals, expected, atol=1e-12)
+
+    def test_cdf_monotonic_across_origin(self) -> None:
+        """Test CDF does not decrease over a grid spanning the origin."""
+        grid = [-2.0, -0.5, 0.0, 0.5, 2.0]
+        cdf_vals = self._dist.cdf(self._bkd.asarray([grid]))
+        diffs = self._bkd.to_numpy(cdf_vals)[0]
+        assert (diffs[1:] - diffs[:-1] >= -1e-9).all()
+
     def test_invcdf_matches_scipy(self) -> None:
         """Test invcdf matches scipy ppf."""
         probs = self._bkd.asarray([[0.1, 0.5, 0.9]])
