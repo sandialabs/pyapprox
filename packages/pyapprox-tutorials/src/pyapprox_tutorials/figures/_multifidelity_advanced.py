@@ -242,13 +242,13 @@ def plot_mlblue_ceiling(ax):
 
     Variance relative to MC as LF samples grow: MLMC, MFMC, MLBLUE.
     """
-    from pyapprox_benchmarks.statest import (
-        PolynomialEnsembleBenchmark,
-    )
     from pyapprox.statest.acv import MFMCEstimator, MLMCEstimator
     from pyapprox.statest.groupacv import MLBLUEEstimator
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.statest import (
+        PolynomialEnsembleBenchmark,
+    )
 
     bkd = NumpyBkd()
     benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
@@ -515,9 +515,6 @@ def plot_pacv_enumeration(ax):
 
     Predicted variance for all valid GMF recursion indices at budget P=100.
     """
-    from pyapprox_benchmarks.statest import (
-        PolynomialEnsembleBenchmark,
-    )
     from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
     from pyapprox.statest.acv.allocation import (
         ACVAllocator,
@@ -530,6 +527,9 @@ def plot_pacv_enumeration(ax):
     from pyapprox.statest.mc_estimator import MCEstimator
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.statest import (
+        PolynomialEnsembleBenchmark,
+    )
 
     bkd = NumpyBkd()
     np.random.seed(1)
@@ -607,13 +607,13 @@ def plot_pacv_ceiling(ax):
 
     Variance vs cost ceiling plot: MLMC, MFMC, ACVMF, best GMF.
     """
-    from pyapprox_benchmarks.statest import (
-        PolynomialEnsembleBenchmark,
-    )
     from pyapprox.statest.acv import GMFEstimator, MFMCEstimator, MLMCEstimator
     from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.statest import (
+        PolynomialEnsembleBenchmark,
+    )
 
     bkd = NumpyBkd()
     benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=5)
@@ -761,12 +761,12 @@ def plot_moacv_vs_soacv(ax):
 
     Estimator variance for QoI 0 vs target cost: MOACV vs SOACV vs MC.
     """
-    from pyapprox_benchmarks.statest import (
-        MultiOutputEnsembleBenchmark,
-    )
     from pyapprox.statest.acv.search import ACVSearch
     from pyapprox.statest.statistics import MultiOutputMean
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.statest import (
+        MultiOutputEnsembleBenchmark,
+    )
 
     bkd = NumpyBkd()
     np.random.seed(1)
@@ -879,12 +879,12 @@ def plot_bad_model(ax):
 
     Three-model vs best two-model ACVMF variance across rho_01 values.
     """
-    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
     from pyapprox.statest.acv.allocation import default_allocator_factory
     from pyapprox.statest.acv.base import FittedACVEstimator
     from pyapprox.statest.allocation import MCAllocator
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
     bkd = NumpyBkd()
     np.random.seed(42)
@@ -966,9 +966,8 @@ def plot_correlation_heatmaps(axes, fig):
     Correlation matrices for two configurations of the tunable benchmark.
     """
     from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
     bkd = NumpyBkd()
     nmodels = 3
@@ -1006,12 +1005,12 @@ def plot_ensemble_nmodels(ax):
 
     Best 1-LF vs 2-LF ACVMF variance ratio across rho_01 values.
     """
-    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
     from pyapprox.statest import GMFEstimator, MCEstimator, MultiOutputMean
     from pyapprox.statest.acv.allocation import default_allocator_factory
     from pyapprox.statest.acv.base import FittedACVEstimator
     from pyapprox.statest.allocation import MCAllocator
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
     bkd = NumpyBkd()
     P = 100.0
@@ -1087,12 +1086,12 @@ def plot_pilot_tradeoff(axes):
 
     MSE vs pilot size with/without pilot cost deduction.
     """
-    from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
     from pyapprox.statest import MCEstimator, MFMCEstimator, MultiOutputMean
     from pyapprox.statest.acv.allocation import default_allocator_factory
     from pyapprox.statest.acv.base import FittedACVEstimator
     from pyapprox.statest.allocation import MCAllocator
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
 
     bkd = NumpyBkd()
     np.random.seed(1)

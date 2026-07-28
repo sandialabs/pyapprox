@@ -5,7 +5,6 @@ Covers: svgp_concept.qmd (and later: dgp_concept.qmd, dgp_quadrature_analysis.qm
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # svgp_concept.qmd — Convention A (echo:false)
 # ---------------------------------------------------------------------------

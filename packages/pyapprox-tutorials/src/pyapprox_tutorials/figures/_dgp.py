@@ -16,10 +16,7 @@ fresh fit only happens when the .qmd is edited.
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import numpy as np
-
 
 # ---------------------------------------------------------------------------
 # Backend / dependency check
@@ -89,12 +86,6 @@ def _fit_single_layer_gp(X_train_np, y_train_np):
     from pyapprox.surrogates.gaussianprocess.deep.builders import (
         build_single_fidelity_dgp,
     )
-    from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
-        TensorProductGHRule,
-    )
-    from pyapprox.surrogates.gaussianprocess.deep.propagator import (
-        LayerPropagator,
-    )
     from pyapprox.surrogates.gaussianprocess.fitters.deep_gp_fitter import (
         DGPMaximumLikelihoodFitter,
     )
@@ -155,11 +146,11 @@ def _fit_two_layer_dgp(X_train_np, y_train_np):
     from pyapprox.surrogates.gaussianprocess.deep.builders import (
         build_single_fidelity_dgp,
     )
-    from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
-        TensorProductGHRule,
-    )
     from pyapprox.surrogates.gaussianprocess.deep.propagator import (
         LayerPropagator,
+    )
+    from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
+        TensorProductGHRule,
     )
     from pyapprox.surrogates.gaussianprocess.fitters.deep_gp_fitter import (
         DGPMaximumLikelihoodFitter,
@@ -543,15 +534,15 @@ def plot_predictive_density(axes):
     weighted nodes which is the wrong tool for an empirical density
     plot.
     """
-    from ._style import apply_style
-    from scipy.stats import norm as _norm
-
     from pyapprox.surrogates.gaussianprocess.deep.propagator import (
         LayerPropagator,
     )
     from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
         MonteCarloRule,
     )
+    from scipy.stats import norm as _norm
+
+    from ._style import apply_style
 
     X_train, y_train, _, _ = _step_function_dataset()
     fitted, bkd = _fit_two_layer_dgp(X_train, y_train)

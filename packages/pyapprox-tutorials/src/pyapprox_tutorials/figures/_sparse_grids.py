@@ -124,7 +124,6 @@ def plot_mf_animation(fig, ax_idx, ax_fn, snapshots, f1_exact, z_plot_arr):
     import matplotlib.animation as animation
     from IPython.display import HTML
     from matplotlib.patches import Patch
-
     from pyapprox.surrogates.affine.indices import plot_index_sets
 
     def _mf_color(idx):
@@ -215,7 +214,6 @@ def plot_cost_weighted_animation(
     import matplotlib.animation as animation
     from IPython.display import HTML
     from matplotlib.patches import Patch
-
     from pyapprox.surrogates.affine.indices import plot_index_sets
 
     def _mf_color(idx):
@@ -282,7 +280,6 @@ def plot_mf_indices_2d(ax, sel_2d_np):
     Selected multi-indices for 2D physical + 1 config variable (3D voxels).
     """
     from matplotlib.patches import Patch
-
     from pyapprox.surrogates.affine.indices import (
         format_index_axes,
         plot_indices_3d,

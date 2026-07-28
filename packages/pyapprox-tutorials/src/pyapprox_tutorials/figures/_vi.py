@@ -982,7 +982,6 @@ def plot_vi_2d(bkd, tip_model_2d, noise_lik_2d, prior_2d,
     Exact 2D posterior vs diagonal and full-covariance Gaussian VI.
     """
     from matplotlib.patches import Ellipse
-
     from pyapprox.inverse.posterior.log_unnormalized import (
         LogUnNormalizedPosterior,
     )

@@ -16,12 +16,9 @@ module's dependency surface to numpy + scipy + matplotlib.
 
 from __future__ import annotations
 
-from typing import Iterable
-
 import matplotlib.patches as patches
 import numpy as np
 from scipy.integrate import solve_ivp
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -616,8 +613,8 @@ class _SimpleODEResidual:
     """
 
     def __init__(self, f_fn, jac_fn, nstates):
-        from pyapprox.util.backends.numpy import NumpyBkd
         from pyapprox.ode.mass_matrix import IdentityMassMatrix
+        from pyapprox.util.backends.numpy import NumpyBkd
         self._f = f_fn
         self._jac = jac_fn
         self._bkd = NumpyBkd()
@@ -693,6 +690,7 @@ def plot_integrator_energy_comparison(ax_sho, ax_pendulum):
     from pyapprox.ode.implicit_steppers.implicit_midpoint import (
         ImplicitMidpointStepper,
     )
+
     from ._style import COLORS, apply_style
 
     steppers = [BackwardEulerStepper, CrankNicolsonStepper,
@@ -792,12 +790,10 @@ def plot_four_cell_matrix(axes):
     from pyapprox.ode.implicit_steppers.backward_euler import (
         BackwardEulerStepper,
     )
-    from pyapprox.ode.implicit_steppers.crank_nicolson import (
-        CrankNicolsonStepper,
-    )
     from pyapprox.ode.implicit_steppers.implicit_midpoint import (
         ImplicitMidpointStepper,
     )
+
     from ._style import COLORS, apply_style
 
     # Common SHO setup

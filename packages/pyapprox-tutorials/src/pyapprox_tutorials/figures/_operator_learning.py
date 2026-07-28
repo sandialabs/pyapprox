@@ -15,11 +15,10 @@ are used by tutorials to generate training data inline.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Optional
 
 import matplotlib.patches as patches
 import numpy as np
-
 from pyapprox.pde.galerkin import (
     AdvectionDiffusionReaction,
     LagrangeBasis,
@@ -30,7 +29,6 @@ from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.surrogates.kernels import SquaredExponentialKernel
 from pyapprox.surrogates.kle import MeshKLE
 from pyapprox.util.backends.numpy import NumpyBkd
-
 
 # ---------------------------------------------------------------------------
 # Shared utilities (1D elliptic operator and Gaussian random fields)

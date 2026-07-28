@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Sequence, Tuple
 import numpy as np
 import numpy.typing as npt
 from matplotlib.axes import Axes
-
 from pyapprox.util.backends.protocols import Array, Backend
 
 NDArrayFloat = npt.NDArray[np.floating[Any]]
@@ -161,10 +160,10 @@ def plot_eig_vs_nobs(ax: Axes) -> None:
 
     EIG vs number of observations for a linear Gaussian model.
     """
+    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox_benchmarks.expdesign.linear_gaussian import (
         build_linear_gaussian_kl_benchmark,
     )
-    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     np.random.seed(0)
@@ -648,10 +647,10 @@ def plot_points_comparison(axes: Sequence[Axes]) -> None:
 
     200 samples in 2-D: standard MC vs randomly-shifted Halton RQMC.
     """
-    from pyapprox.util.sampling.halton import HaltonSampler
     from pyapprox.probability.joint import IndependentJoint
     from pyapprox.probability.univariate import GaussianMarginal
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox.util.sampling.halton import HaltonSampler
 
     bkd = NumpyBkd()
 
@@ -1246,7 +1245,6 @@ def plot_advec_diff_velocity(
     Velocity magnitude (filled) with quiver overlay for one
     parameter realization.
     """
-    import matplotlib.pyplot as plt
     from skfem.visuals.matplotlib import plot as skfemplot
 
     skfemplot(scalar_vel_skfem_basis, vel_magnitude, ax=ax, shading="gouraud")
@@ -1277,7 +1275,6 @@ def plot_advec_diff_concentration(
 
     Final-time concentration field for one parameter realization.
     """
-    import matplotlib.pyplot as plt
     from skfem.visuals.matplotlib import plot as skfemplot
 
     skfemplot(adr_skfem_basis, concentration, ax=ax, shading="gouraud")

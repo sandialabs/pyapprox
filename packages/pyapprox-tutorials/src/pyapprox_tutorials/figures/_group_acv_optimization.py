@@ -18,7 +18,6 @@ from __future__ import annotations
 from typing import List, Optional, Tuple
 
 import numpy as np
-
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.statest.groupacv import (
     GroupACVAllocationOptimizer,
@@ -37,7 +36,6 @@ from pyapprox_benchmarks.statest import (
     MultiOutputEnsembleBenchmark,
     PolynomialEnsembleBenchmark,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared configuration

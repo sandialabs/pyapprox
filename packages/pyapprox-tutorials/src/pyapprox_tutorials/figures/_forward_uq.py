@@ -73,12 +73,11 @@ def plot_linear_propagation(ax_in, ax_mid, ax_out):
 
     Linear propagation: Gaussian in → Gaussian out.
     """
-    from scipy.stats import norm
-
     from pyapprox.pde.galerkin.physics.euler_bernoulli import (
         EulerBernoulliBeamFEM,
     )
     from pyapprox.util.backends.numpy import NumpyBkd
+    from scipy.stats import norm
 
     from ._style import apply_style
 
@@ -529,7 +528,6 @@ def plot_beam_deflections(benchmark, bkd, ax1, ax2, cbar_fig=None):
     import matplotlib.pyplot as plt
     from matplotlib.collections import LineCollection
     from matplotlib.colors import Normalize
-
     from pyapprox.pde.field_maps.kle_factory import (
         create_lognormal_kle_field_map,
     )
@@ -615,7 +613,6 @@ def plot_samples_and_surface(model, samples, qoi_values, bkd, ax1, ax2,
     Samples in input space and response surface with samples overlaid.
     """
     from matplotlib.patches import FancyArrowPatch
-
     from pyapprox.interface.functions.plot.plot2d_rectangular import (
         Plotter2DRectangularDomain,
     )

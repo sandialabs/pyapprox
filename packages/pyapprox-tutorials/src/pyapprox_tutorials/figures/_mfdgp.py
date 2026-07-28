@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import numpy as np
 from pyapprox.surrogates.kernels.base import Kernel
-
 from pyapprox.util.hyperparameter import HyperParameterList
 
 try:
@@ -104,11 +103,11 @@ def _fit_baseline():
     if "baseline" in _FIT_CACHE:
         return _FIT_CACHE["baseline"]
 
-    from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
-        GPMaximumLikelihoodFitter,
-    )
     from pyapprox.surrogates.gaussianprocess.exact import (
         ExactGaussianProcess,
+    )
+    from pyapprox.surrogates.gaussianprocess.fitters.maximum_likelihood_fitter import (
+        GPMaximumLikelihoodFitter,
     )
     from pyapprox.util.backends.torch import TorchBkd
 
@@ -145,12 +144,11 @@ def _fit_ar1():
     from pyapprox.surrogates.gaussianprocess.multioutput import (
         MultiOutputGP,
     )
-    from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
-    from pyapprox.util.backends.torch import TorchBkd
-
     from pyapprox.surrogates.kernels.multioutput import (
         DAGMultiOutputKernel,
     )
+    from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
+    from pyapprox.util.backends.torch import TorchBkd
 
     bkd = TorchBkd()
 

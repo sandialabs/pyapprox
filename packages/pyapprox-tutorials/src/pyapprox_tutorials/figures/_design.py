@@ -67,9 +67,8 @@ def _plot_deformed(ax, basis, coordx, coordy, conn, ext_edges, sol,
     """Plot deformed mesh colored by von Mises stress."""
     from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.colors import Normalize
-    from skfem.models.elasticity import lame_parameters
-
     from pyapprox.pde.galerkin.postprocessing import von_mises_stress
+    from skfem.models.elasticity import lame_parameters
 
     ux_loc, uy_loc = sol[0::2], sol[1::2]
     tip_val = sol[tip_dof]
@@ -114,12 +113,12 @@ def _plot_deformed(ax, basis, coordx, coordy, conn, ext_edges, sol,
 
 def _setup_beam_mesh(mesh_path):
     """Set up beam mesh, basis, connectivity, and exterior edges."""
-    from pyapprox_benchmarks.pde.cantilever_beam import (
-        _find_tip_dof,
-    )
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox_benchmarks.pde.cantilever_beam import (
+        _find_tip_dof,
+    )
 
     bkd = NumpyBkd()
     L, H = 100.0, 30.0
@@ -667,9 +666,6 @@ def plot_reference_solution(fig, ax):
     """
     from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.colors import Normalize
-    from skfem.models.elasticity import lame_parameters
-
-    from pyapprox_benchmarks.pde.cantilever_beam import MESH_PATHS
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
@@ -677,6 +673,8 @@ def plot_reference_solution(fig, ax):
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.postprocessing import von_mises_stress
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+    from pyapprox_benchmarks.pde.cantilever_beam import MESH_PATHS
+    from skfem.models.elasticity import lame_parameters
 
     info = _setup_beam_mesh(MESH_PATHS[2])
     bkd = info["bkd"]
@@ -775,13 +773,13 @@ def plot_uncertainty_sources(kind, fig, axes):
     fig : matplotlib Figure
     axes : pair of Axes
     """
+    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
+    from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox_benchmarks.pde.cantilever_beam import (
         MESH_PATHS,
         _find_tip_dof,
     )
-    from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
-    from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
-    from pyapprox.util.backends.numpy import NumpyBkd
 
     bkd = NumpyBkd()
     L, H, q0 = 100.0, 30.0, 10.0

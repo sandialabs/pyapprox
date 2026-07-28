@@ -111,12 +111,11 @@ def plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip):
     NLML contour as a function of the first two length scales.
     """
     import matplotlib.pyplot as plt
-    from pyapprox.surrogates.kernels.matern import Matern52Kernel
-
     from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
     from pyapprox.surrogates.gaussianprocess.fitters import (
         GPFixedHyperparameterFitter,
     )
+    from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
     n_grid = 25
     ell_vals = np.logspace(-1, 1, n_grid)
@@ -289,14 +288,13 @@ def plot_gp_convergence_n(
 
     Relative L2 error vs training set size for Matern 5/2 and SE kernels.
     """
-    from pyapprox.surrogates.kernels.matern import (
-        Matern52Kernel,
-        SquaredExponentialKernel,
-    )
-
     from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
     from pyapprox.surrogates.gaussianprocess.fitters import (
         GPMaximumLikelihoodFitter,
+    )
+    from pyapprox.surrogates.kernels.matern import (
+        Matern52Kernel,
+        SquaredExponentialKernel,
     )
 
 
