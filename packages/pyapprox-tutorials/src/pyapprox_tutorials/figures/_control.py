@@ -6,19 +6,10 @@ Covers: pde_control_usage.qmd
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
-from matplotlib.colors import LinearSegmentedColormap, PowerNorm
+from matplotlib.colors import PowerNorm
 from matplotlib.tri import Triangulation
 
-from ._style import COLORS
-
-# Concentration colormap following the pyapprox site convention:
-# neon blue glow on a black background, zero = black.
-NEON_CMAP = LinearSegmentedColormap.from_list(
-    "pyapprox_neon",
-    ["#000000", "#001a4d", "#0057d9", "#00b3ff", "#7df9ff", "#e8ffff"],
-)
-# Positivity alarm: anything below the zero level renders magenta.
-NEON_CMAP.set_under("#ff00ff")
+from ._style import COLORS, NEON_CMAP
 
 # Obstruction blocks of the obstructed-flow substrate (drawn as filled
 # rectangles on every domain plot).

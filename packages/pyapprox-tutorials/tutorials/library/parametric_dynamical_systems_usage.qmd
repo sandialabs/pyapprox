@@ -320,7 +320,9 @@ The flat initial-state vector for $k$ trajectories has length
 $k \cdot n_\text{dynamic}$, with the per-trajectory components interleaved
 $[\text{traj}_0\, x_1, \text{traj}_0\, x_2, \text{traj}_1\, x_1, \ldots]$.
 A single `solve()` call then integrates all $k$ trajectories simultaneously
-through a block-diagonal Newton system.
+through a block-diagonal Newton system. The assembly is the pipeline of
+[Time Stepping for ODEs](ode_timestepping_usage.qmd), with the batched
+residual standing in for a single-trajectory one.
 
 ```{python}
 init_flat = bkd.array([1.0, 0.0] * k)

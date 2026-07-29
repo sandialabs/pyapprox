@@ -1,0 +1,399 @@
+---
+title: "Time Stepping for ODEs"
+subtitle: "PyApprox Tutorial Library"
+description: "Assembling a time integrator from a residual, a stepper, and a Newton solver, and choosing a scheme by accuracy and stability."
+tutorial_type: usage
+topic: dynamical_systems
+difficulty: beginner
+estimated_time: 12
+prerequisites: []
+tags:
+  - ode
+  - time-stepping
+  - newton
+  - stability
+  - convergence
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Assemble a time integrator from its four parts --- residual, stepper,
+  Newton solver, integrator --- and swap the scheme by changing one class
+- Measure the observed order of accuracy of a scheme against an exact solution
+- Explain why an explicit scheme has a step-size limit and an implicit one does
+  not, using the amplification factor and the region of absolute stability
+- Read a stepper's name to know which derivative capabilities it carries
+
+
+## The Four Parts
+
+PyApprox separates time integration into four objects, each with one job:
+
+| Object | Responsibility |
+|---|---|
+| **ODE residual** | the right-hand side $f(\vc{y}, t)$, and its linearization if the scheme is implicit |
+| **Stepper** | turns $f$ into one step's algebraic equation |
+| **Newton solver** | solves that equation when it is nonlinear |
+| **Integrator** | runs the loop and collects the trajectory |
+
+The split is what lets the scheme change without touching the physics: the
+residual knows nothing about time stepping, and the stepper knows nothing
+about the particular ODE.
+
+Note what is *not* in that list. Nothing here mentions parameters. A residual
+describes one fixed differential equation; making its coefficients depend on a
+parameter vector is a separate concern, handled by a parameterization layer
+that writes coefficients into the residual before the solve. This tutorial
+integrates a single fixed ODE and never needs one.
+
+
+## Writing a Residual
+
+A residual describes the differential equation and nothing else. We use a
+constant-coefficient linear system, both because it is the smallest thing
+that exercises the whole interface and because its exact solution is known ---
+which the convergence study below requires:
+
+$$
+\dot{\vc{y}} = \mt{A} \vc{y}, \qquad \vc{y}(t) = e^{\mt{A}t} \vc{y}_0 .
+$$ {#eq-linear-ode}
+
+```{python}
+import numpy as np
+from scipy.linalg import expm
+
+from pyapprox.ode.mass_matrix import IdentityMassMatrix
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox_tutorials.figures._timestepping import linear_reference
+
+# The same matrix and initial condition the figures below use, so the
+# study and the plots describe one problem rather than two.
+MATRIX, INITIAL, exact_solution = linear_reference()
+
+
+class LinearResidual(DefaultNewtonJacobianMixin):
+    """dy/dt = A y, written against the ODE residual protocol."""
+
+    def __init__(self, matrix, bkd):
+        self._matrix = matrix
+        self._bkd = bkd
+        self._mass = IdentityMassMatrix(matrix.shape[0], bkd)
+
+    def bkd(self):
+        return self._bkd                      # which array library to use
+
+    def __call__(self, state):
+        return self._matrix @ state           # f(y, t)
+
+    def set_time(self, time):
+        pass                                  # autonomous: f has no t
+
+    def jacobian(self, state):
+        return self._matrix                   # df/dy
+
+    def mass_matrix(self):
+        return self._mass                     # M in M dy/dt = f
+
+
+bkd = NumpyBkd()
+residual = LinearResidual(MATRIX, bkd)
+print("f(y0) =", residual(INITIAL))
+```
+
+Those five methods are the entire contract, and each states one fact about
+the equation. `set_time` exists because a residual may depend on time
+explicitly; this one does not, so it ignores the value. `mass_matrix` returns
+the identity here, and the closing section says when it would not.
+
+Notice what the residual does *not* do: it never mentions a step size, a
+scheme, or the operator a Newton iteration inverts. An implicit step solves
+$(\mt{M} - c\, \partial f/\partial \vc{y})\, \delta = r$, where $c$ depends on
+the scheme --- $\Delta t$ for backward Euler, $\Delta t / 2$ for
+Crank-Nicolson. Assembling that operator is time-stepping work, not physics,
+so `DefaultNewtonJacobianMixin` does it, building it from `mass_matrix()` and
+`jacobian()`. A residual with exploitable structure --- block-diagonal, or a
+sparse factorization from a finite element discretization --- overrides the
+assembly for performance, but never has to.
+
+An explicit scheme needs neither the mixin nor `jacobian`: it evaluates $f$
+and moves on. Implicit schemes require both, and the requirement is checked
+lazily --- building the stepper succeeds, and the error arrives at the first
+solve.
+
+```{python}
+from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerStepper
+from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonStepper
+from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.util.rootfinding.newton import NewtonSolver
+
+integrator = TimeIntegrator(
+    0.0, 2.0, 0.05, NewtonSolver(BackwardEulerStepper(residual)),
+)
+solutions, times = integrator.solve(INITIAL)
+print("trajectory:", solutions.shape)
+```
+
+```{python}
+#| echo: false
+#| label: fig-trajectories
+#| fig-cap: "The three components of the linear system over time, integrated with backward Euler. Every mode decays, since all three eigenvalues are negative. Notice that the plot depends on nothing but the trajectory --- the scheme that produced it leaves no trace."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._timestepping import plot_trajectories
+
+fig, ax = plt.subplots(figsize=(7.0, 4.0))
+plot_trajectories(
+    bkd.to_numpy(times), bkd.to_numpy(solutions), ax,
+    labels=[f"$y_{i + 1}$" for i in range(solutions.shape[0])],
+)
+plt.tight_layout()
+plt.show()
+```
+
+Swapping the scheme means naming a different stepper class. Nothing else in
+the assembly changes:
+
+```{python}
+integrator_cn = TimeIntegrator(
+    0.0, 2.0, 0.05, NewtonSolver(CrankNicolsonStepper(residual)),
+)
+solutions_cn, _ = integrator_cn.solve(INITIAL)
+print("backward Euler:", bkd.to_numpy(solutions[:, -1]))
+print("Crank-Nicolson:", bkd.to_numpy(solutions_cn[:, -1]))
+print("exact         :", expm(MATRIX * 2.0) @ INITIAL)
+```
+
+Crank-Nicolson is closer. The next section measures how much closer, and how
+that gap shrinks with the step size.
+
+
+## Measuring the Order of Accuracy
+
+A scheme is $p$-th order if halving the step reduces the error by $2^p$.
+Measuring $p$ requires the exact solution: comparing against a finer run of
+the *same* scheme cannot detect a scheme converging to the wrong answer.
+@eq-linear-ode supplies one through the matrix exponential.
+
+```{python}
+from pyapprox_tutorials.figures._timestepping import linear_eigenvalues
+
+print("symmetric:", np.allclose(MATRIX, MATRIX.T))
+print("eigenvalues:", linear_eigenvalues())
+```
+
+The matrix is symmetric, so its eigenvalues are real, and all three are
+negative: every mode of the exact solution decays. The most negative
+eigenvalue is the fastest-decaying mode, and it will turn out to set the step
+size an explicit scheme can take.
+
+```{python}
+#| echo: false
+#| label: fig-dt-convergence
+#| fig-cap: "Error at the final time against step size, log-log, measured against the matrix-exponential solution. Each dashed line is a pure power law of the corresponding order, drawn in the same color as the curve it describes and offset below it for legibility --- a curve parallel to its reference has that order. Notice that the measured slopes reproduce the theoretical ones: backward Euler is first order, Crank-Nicolson and Heun second, so halving the step buys twice the accuracy for the first and four times for the others."
+
+import matplotlib.pyplot as plt
+from pyapprox.ode.explicit_steppers.heun import HeunStepper
+from pyapprox_tutorials.figures._timestepping import (
+    measure_temporal_order,
+    plot_temporal_convergence,
+)
+
+deltats = [0.2, 0.1, 0.05, 0.025, 0.0125]
+order_results = measure_temporal_order(
+    {
+        "backward Euler": BackwardEulerStepper,
+        "Crank-Nicolson": CrankNicolsonStepper,
+        "Heun": HeunStepper,
+    },
+    deltats,
+)
+
+fig, ax = plt.subplots(figsize=(6.6, 4.4))
+plot_temporal_convergence(deltats, order_results, ax)
+plt.tight_layout()
+plt.show()
+```
+
+The measured slopes are what a convergence study reports: not the order the
+textbook claims, but the order the implementation achieves. A scheme whose
+measured slope falls short of its theoretical one has a bug, and this is how
+it is found.
+
+
+## Stability: Why Explicit Schemes Have a Step-Size Limit
+
+Accuracy is not the only constraint. Along an eigenvector of $\mt{A}$ the
+system decouples into the scalar problem $\dot{y} = \lambda y$, and every
+scheme advances it by multiplying by an **amplification factor** $R(z)$ with
+$z = \Delta t\, \lambda$:
+
+$$
+\text{forward Euler } R = 1 + z, \quad
+\text{backward Euler } R = \frac{1}{1 - z}, \quad
+\text{Crank-Nicolson } R = \frac{1 + z/2}{1 - z/2} .
+$$ {#eq-amplification}
+
+The step is bounded when $|R(z)| \le 1$ for *every* eigenvalue. The set of
+$z$ where that holds is the scheme's **region of absolute stability**.
+
+```{python}
+#| echo: false
+#| label: fig-stability-regions
+#| fig-cap: "Regions of absolute stability (shaded, $|R(z)| \\le 1$) in the complex plane, with this system's scaled eigenvalues $\\Delta t\\,\\lambda$ overlaid for a small and a large step. Marker shape distinguishes the three eigenvalues; filled means the mode is damped, hollow means it grows. Notice that forward Euler's region is a bounded disc, so a large enough step pushes the fastest mode out of it, while the implicit regions contain the entire left half-plane and no step size can escape them."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._timestepping import plot_stability_regions
+
+fig, axes = plt.subplots(1, 3, figsize=(13.0, 4.4))
+plot_stability_regions(axes)
+plt.tight_layout()
+plt.show()
+```
+
+For a real negative eigenvalue, forward Euler's condition $|1 + \Delta t
+\lambda| \le 1$ rearranges to $\Delta t \le 2/|\lambda|$, and the
+fastest-decaying mode is the binding one. Backward Euler and Crank-Nicolson
+contain the whole left half-plane --- they are *A-stable* --- so a decaying
+system stays bounded at any step size.
+
+```{python}
+#| echo: false
+#| label: fig-stability
+#| fig-cap: "Largest state magnitude reached during the run, against step size, over a fixed time interval. The dashed vertical line is the predicted limit $2/|\\lambda|_{\\max}$ and the dotted horizontal line is the largest value the exact solution ever takes. Notice that forward Euler tracks the exact scale until the predicted limit and departs from it immediately after, while backward Euler sits on that scale throughout. The unstable branch is not monotone because growth over a fixed interval is $|1 + \\Delta t \\lambda|^{T/\\Delta t}$: a larger step amplifies more per step but takes fewer steps."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._timestepping import (
+    measure_stability,
+    plot_stability,
+    stability_threshold,
+)
+
+stability_deltats = [0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9, 1.2, 1.6, 2.0]
+stability_results = measure_stability(stability_deltats)
+
+fig, ax = plt.subplots(figsize=(6.6, 4.4))
+plot_stability(stability_deltats, stability_results, ax)
+plt.tight_layout()
+plt.show()
+```
+
+The experiment and the theory agree: the departure happens at the step size
+the region predicts. This is the trade the two families make. An implicit
+step costs a linear solve --- and a Newton iteration when $f$ is nonlinear ---
+but buys freedom from the step-size limit. On a *stiff* problem, where the
+fastest mode decays far quicker than the solution one cares about, that
+freedom is the difference between thousands of steps and dozens.
+
+::: {.callout-note collapse="true"}
+## Verification summary
+
+```{python}
+#| echo: false
+threshold = stability_threshold()
+for name, (_, rate) in order_results.items():
+    print(f"{name:16s} measured order {rate:.2f}")
+print(f"forward Euler step-size limit 2/|lambda|max = {threshold:.3f}")
+stable = [dt for dt in stability_deltats if dt < threshold]
+unstable = [dt for dt in stability_deltats if dt > threshold]
+peaks = stability_results["forward Euler"]
+below = max(peaks[stability_deltats.index(dt)] for dt in stable)
+above = max(peaks[stability_deltats.index(dt)] for dt in unstable)
+print(f"forward Euler peak below the limit: {below:.2f}")
+print(f"forward Euler peak above the limit: {above:.2f}")
+assert all(abs(rate - 1.0) < 0.15 for name, (_, rate) in order_results.items()
+           if name == "backward Euler")
+assert all(abs(rate - 2.0) < 0.25 for name, (_, rate) in order_results.items()
+           if name != "backward Euler")
+assert above > 3 * below, "forward Euler did not destabilize past the limit"
+assert np.allclose(stability_results["backward Euler"], below, rtol=1e-6)
+```
+
+Measured orders match theory to within the tolerance a five-point fit
+supports, and forward Euler's growth appears on the predicted side of the
+step-size limit while backward Euler's peak is unchanged across the sweep.
+:::
+
+
+## Reading a Stepper's Name
+
+Each scheme ships in three tiers, distinguished by suffix:
+
+| Suffix | Provides | Use when |
+|---|---|---|
+| `Stepper` | the forward solve | you only need the trajectory |
+| `Adjoint` | + gradients of a functional | you are optimizing or calibrating |
+| `HVP` | + Hessian-vector products | you want Newton-type optimization |
+
+`BackwardEulerStepper`, `BackwardEulerAdjoint`, and `BackwardEulerHVP` all
+run the same scheme and produce the same trajectory; the richer tiers add
+derivative machinery. This tutorial uses the base tier throughout because
+nothing here differentiates anything.
+
+Implicit schemes need a Newton solve per step, and explicit ones do not.
+The steppers report which case they are in, so the integrator does not need
+to know the scheme:
+
+```{python}
+from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerStepper
+
+for stepper_class in (ForwardEulerStepper, BackwardEulerStepper,
+                      CrankNicolsonStepper):
+    stepper = stepper_class(residual)
+    kind = "one step" if stepper.is_one_step_solvable() else "Newton"
+    print(f"{stepper_class.__name__:26s} {kind}")
+```
+
+An explicit step is *one-step solvable*: the update is an explicit formula,
+so the Newton solver recognizes it and skips the iteration. The same
+integrator therefore drives both families without special-casing.
+
+
+## A Note on Mass Matrices
+
+The steppers above solve $\dot{\vc{y}} = f$, but the general form they
+implement is
+
+$$
+\mt{M} \dot{\vc{y}} = f(\vc{y}, t),
+$$ {#eq-mass-matrix}
+
+with a **mass matrix** $\mt{M}$. For an ODE $\mt{M}$ is the identity and
+disappears. It becomes essential when the equations come from a spatial
+discretization of a PDE: the finite element method produces a non-diagonal
+$\mt{M}$, which is why even an explicit step needs a linear solve there.
+
+
+## Key Takeaways
+
+- A time integrator is four separable objects; changing the scheme means
+  naming a different stepper class.
+- Measure the order of accuracy against an exact solution, so that the study
+  can detect a scheme converging to the wrong answer.
+- Explicit schemes have a bounded stability region and therefore a step-size
+  limit set by the fastest-decaying mode; A-stable implicit schemes do not.
+- The suffix on a stepper class says which derivatives it carries, not which
+  scheme it runs.
+
+
+## Next Steps
+
+- [The Adjoint Method](adjoint_concept.qmd) derives the gradient of an
+  objective constrained by an equation solve --- the first-order machinery the
+  `Adjoint` tier implements.
+- *Adjoints for Time-Dependent Problems* (forthcoming) applies that machinery
+  to the trajectory produced here, treating every step as one block of a
+  single large state equation.

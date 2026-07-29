@@ -20,6 +20,12 @@ import matplotlib.patches as patches
 import numpy as np
 from scipy.integrate import solve_ivp
 
+from ._timestepping import (
+    SimpleODEResidual,
+    integrate_ode,
+    make_sho_residual,
+)
+
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -153,7 +159,6 @@ def plot_snapshot_extraction(ax_traj, ax_arrows):
     # legible. Sub-sample from a more finely integrated reference.
     times_fine, sol_fine = _vdp_trajectory([2.0, 0.0], (0, 10), 401, mu)
     sub = np.linspace(20, 380, 30, dtype=int)
-    times = times_fine[sub]
     states = sol_fine[:, sub]
 
     # ----- Left panel: trajectory with observation dots --------------
@@ -176,11 +181,11 @@ def plot_snapshot_extraction(ax_traj, ax_arrows):
     ax_traj.set_aspect("equal", adjustable="box")
 
     # ----- Right panel: arrows from finite-difference derivatives ----
-    # Central difference (need neighbours on both sides for each sub index)
+    # Central difference (need neighbors on both sides for each sub index)
     sub_inner = sub[1:-1]
     states_inner = sol_fine[:, sub_inner]
     dt_fine = times_fine[1] - times_fine[0]
-    # Use neighbouring sub indices for central difference.
+    # Use neighboring sub indices for central difference.
     # Compute using sub[k]-1 and sub[k]+1 in fine grid index space.
     plus = sol_fine[:, sub[1:-1] + 1]
     minus = sol_fine[:, sub[1:-1] - 1]
@@ -524,7 +529,7 @@ def plot_parametrization_architecture(ax):
     """hamiltonian_systems_concept.qmd -> fig-parametrization-architecture.
 
     Two side-by-side block-diagram architectures: a generic-RHS
-    parametrisation on the left, a Hamiltonian parametrisation on the
+    parameterization on the left, a Hamiltonian parameterization on the
     right. The fitter+loss block is shared (drawn below both).
     """
     from ._style import COLORS
@@ -573,7 +578,7 @@ def plot_parametrization_architecture(ax):
 
     # ----- Right: Hamiltonian architecture ----------------------------
     ax.text(
-        10.7, 5.4, "Hamiltonian (parametrisation A)",
+        10.7, 5.4, "Hamiltonian (parameterization A)",
         ha="center", fontsize=11, fontweight="bold",
     )
     box(7.4, 3.2, 1.5, 1.0, r"$\mathbf{x}$", "#EAF3FB")
@@ -600,184 +605,26 @@ def plot_parametrization_architecture(ax):
     # Bottom annotation: shared fitter
     ax.text(
         7.0, 0.15,
-        "Fitter and loss are identical in both — only the parametrisation between basis and RHS changes.",
+        "Fitter and loss are identical in both — only the parameterization "
+        "between basis and RHS changes.",
         ha="center", fontsize=9.5, style="italic", color=COLORS["gray"],
     )
 
 
-class _SimpleODEResidual:
-    """Minimal ODE residual for use with PyApprox implicit steppers.
-
-    Wraps f(y) and J(y) callables for autonomous systems without
-    parameters. Satisfies ImplicitODEResidualProtocol.
-    """
-
-    def __init__(self, f_fn, jac_fn, nstates):
-        from pyapprox.ode.mass_matrix import IdentityMassMatrix
-        from pyapprox.util.backends.numpy import NumpyBkd
-        self._f = f_fn
-        self._jac = jac_fn
-        self._bkd = NumpyBkd()
-        self._mass = IdentityMassMatrix(nstates, self._bkd)
-
-    def bkd(self):
-        return self._bkd
-
-    def __call__(self, state):
-        return self._f(state)
-
-    def set_time(self, time):
-        pass
-
-    def jacobian(self, state):
-        return self._jac(state)
-
-    def mass_matrix(self):
-        return self._mass
-
-    def newton_jacobian(self, state, coefficient):
-        from pyapprox.ode.linear_operator import MatrixOperator
-        matrix = self._mass.as_matrix() - coefficient * self._jac(state)
-        return MatrixOperator(matrix, self._bkd)
-
-
 def _integrate_ode(stepper_class, residual, ic, dt, n_steps):
-    """Integrate an ODE using a PyApprox TimeIntegrator."""
-    from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
-    from pyapprox.util.rootfinding.newton import NewtonSolver
+    """Integrate and return the first two state components plus times.
 
-    stepper = stepper_class(residual)
-    solver = NewtonSolver(stepper)
-    solver.set_options(atol=1e-12, rtol=1e-12)
-    integrator = TimeIntegrator(0.0, n_steps * dt, dt, solver)
-
-    init_state = np.array(ic, dtype=float)
-    states, times = integrator.solve(init_state)
-    return states[0], states[1], times
-
-
-def _make_sho_residual(omega):
-    A = np.array([[0.0, 1.0], [-omega ** 2, 0.0]])
-    return _SimpleODEResidual(
-        f_fn=lambda y: A @ y,
-        jac_fn=lambda y: A,
-        nstates=2,
-    )
-
-
-def _make_pendulum_residual():
-    return _SimpleODEResidual(
-        f_fn=lambda y: np.array([y[1], -np.sin(y[0])]),
-        jac_fn=lambda y: np.array([[0.0, 1.0], [-np.cos(y[0]), 0.0]]),
-        nstates=2,
-    )
-
-
-def plot_integrator_energy_comparison(ax_sho, ax_pendulum):
-    """hamiltonian_systems_concept.qmd -> fig-integrator-comparison.
-
-    Left: SHO. H = 0.5*(p^2 + omega^2*q^2). BE decays; CN preserves;
-    IM preserves (coincides with CN on linear problems).
-    Right: Pendulum. H = 0.5*p^2 - cos(q). BE decays; CN drifts
-    secularly; IM preserves.
+    Thin wrapper over :func:`integrate_ode` for the phase-space figures
+    below, which all plot one two-dimensional system.
     """
-    from pyapprox.ode.implicit_steppers.backward_euler import (
-        BackwardEulerStepper,
-    )
-    from pyapprox.ode.implicit_steppers.crank_nicolson import (
-        CrankNicolsonStepper,
-    )
-    from pyapprox.ode.implicit_steppers.implicit_midpoint import (
-        ImplicitMidpointStepper,
-    )
-
-    from ._style import COLORS, apply_style
-
-    steppers = [BackwardEulerStepper, CrankNicolsonStepper,
-                ImplicitMidpointStepper]
-
-    styles = [
-        ("backward Euler", COLORS["reference"], "-", 2.0),
-        ("Crank-Nicolson", COLORS["primary"], "--", 1.8),
-        ("implicit midpoint", COLORS["accent"], "-.", 1.8),
-    ]
-
-    # ----- Left panel: SHO, 30 periods ---------------------------------
-    omega = 1.0
-    T = 30 * 2 * np.pi
-    dt = 0.05
-    n_steps = int(np.ceil(T / dt))
-
-    ic = (1.0, 0.0)
-    H0_sho = 0.5 * (ic[1] ** 2 + omega ** 2 * ic[0] ** 2)
-
-    sho_res = _make_sho_residual(omega)
-    results_sho = {}
-    for cls in steppers:
-        q, p, t = _integrate_ode(cls, sho_res, ic, dt, n_steps)
-        results_sho[cls] = (q, p, t)
-
-    for cls, (label, color, ls, lw) in zip(steppers, styles):
-        q, p, t = results_sho[cls]
-        H = 0.5 * (p ** 2 + omega ** 2 * q ** 2) - H0_sho
-        ax_sho.plot(t, H, color=color, lw=lw, ls=ls, label=label)
-
-    ax_sho.set_xlabel(r"$t$", fontsize=11)
-    ax_sho.set_ylabel(r"$\mathcal{H}(t) - \mathcal{H}(0)$", fontsize=11)
-    ax_sho.set_title(
-        "SHO  (linear, quadratic $\\mathcal{H}$)", fontsize=11,
-    )
-    ax_sho.legend(fontsize=9, loc="lower left")
-    apply_style(ax_sho)
-
-    # ----- Right panel: pendulum -----------------------------------------
-    # Coarser dt so CN energy oscillation is large enough to see in an
-    # inset, separate from the dominant BE decay on the main axis.
-    T_p = 50 * 2 * np.pi
-    dt_p = 0.3
-    n_steps_p = int(np.ceil(T_p / dt_p))
-
-    ic_p = (2.8, 0.0)
-    H0_p = 0.5 * ic_p[1] ** 2 - np.cos(ic_p[0])
-
-    pend_res = _make_pendulum_residual()
-    results_pend = {}
-    for cls in steppers:
-        q, p, t = _integrate_ode(cls, pend_res, ic_p, dt_p, n_steps_p)
-        results_pend[cls] = (q, p, t)
-
-    energies_pend = {}
-    for cls, (label, color, ls, lw) in zip(steppers, styles):
-        q, p, t = results_pend[cls]
-        H = 0.5 * p ** 2 - np.cos(q) - H0_p
-        ax_pendulum.plot(t, H, color=color, lw=lw, ls=ls, label=label)
-        energies_pend[cls] = (t, H)
-
-    ax_pendulum.set_xlabel(r"$t$", fontsize=11)
-    ax_pendulum.set_ylabel(r"$\mathcal{H}(t) - \mathcal{H}(0)$", fontsize=11)
-    ax_pendulum.set_title(
-        "Pendulum  (nonlinear $\\mathcal{H} = \\frac{1}{2} p^2 - \\cos q$)",
-        fontsize=11,
-    )
-    ax_pendulum.legend(fontsize=9, loc="lower left")
-    apply_style(ax_pendulum)
-
-    # Inset: zoom into CN vs IM (BE is off-scale)
-    ax_inset = ax_pendulum.inset_axes([0.38, 0.35, 0.58, 0.55])
-    for cls, (_, color, ls, lw) in zip(
-        steppers[1:], styles[1:],
-    ):
-        t, H = energies_pend[cls]
-        ax_inset.plot(t, H, color=color, lw=lw, ls=ls)
-    ax_inset.set_ylabel(r"$\Delta\mathcal{H}$", fontsize=8)
-    ax_inset.tick_params(labelsize=7)
-    ax_inset.set_title("CN vs IM (zoom)", fontsize=8)
+    states, times = integrate_ode(stepper_class, residual, ic, dt, n_steps)
+    return states[0], states[1], times
 
 
 def plot_four_cell_matrix(axes):
     """hamiltonian_systems_concept.qmd -> fig-four-cell-matrix.
 
-    2x2 grid of mini phase portraits showing surrogate parametrisation
+    2x2 grid of mini phase portraits showing surrogate parameterization
     x integrator. Only the (Hamiltonian + symplectic) cell shows clean
     closed orbits.
 
@@ -813,14 +660,14 @@ def plot_four_cell_matrix(axes):
          "Hamiltonian surrogate +\nsymplectic integrator"],
     ]
 
-    sho_res = _make_sho_residual(omega)
+    sho_res = make_sho_residual(omega)
 
     # Naive surrogate: approximate vector field with small asymmetric
     # error that breaks Hamiltonian structure. Neither integrator can
     # produce closed orbits from non-conservative dynamics.
     eps = 0.08
     A_naive = np.array([[eps, 1.0], [-omega ** 2, eps]])
-    naive_res = _SimpleODEResidual(
+    naive_res = SimpleODEResidual(
         f_fn=lambda y: A_naive @ y,
         jac_fn=lambda y: A_naive,
         nstates=2,

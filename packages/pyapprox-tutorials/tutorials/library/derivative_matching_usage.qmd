@@ -9,6 +9,7 @@ estimated_time: 12
 render_time: 25
 prerequisites:
   - dynamical_systems_learning_concept
+  - ode_timestepping_usage
   - surrogate_workflow
 tags:
   - dynamical-systems
@@ -277,6 +278,11 @@ Now we use the fitted surrogate to predict a trajectory from a new initial
 condition $(0.5, 1.0)$ that was **not** in the training data. This is the
 generalization test: the surrogate learned the rule from a $(2, 0)$
 trajectory, can it now predict the dynamics starting elsewhere?
+
+The residual, stepper, Newton solver and integrator below are the standard
+pipeline described in
+[Time Stepping for ODEs](ode_timestepping_usage.qmd); the only difference
+here is that the residual wraps a *learned* right-hand side.
 
 ```{python}
 stepper    = BackwardEulerAdjoint(ode_residual)

@@ -11,6 +11,14 @@
 #
 # All public functions are re-exported here for easy import:
 #   from _figures import plot_whatever
+#
+# TODO: these re-exports are not actually used — tutorials import from
+# the submodule directly (from pyapprox_tutorials.figures._adjoint
+# import ...), so every new helper has to be remembered in two places.
+# _adjoint is deliberately absent for that reason; do NOT add it back.
+# Leave the blocks below alone until someone decides to remove them all
+# in one pass — deleting them piecemeal only makes the list look like it
+# has gaps.
 
 from ._bayesian import (  # noqa: F401
     plot_2d_chain,
