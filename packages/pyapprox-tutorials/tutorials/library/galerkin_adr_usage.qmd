@@ -1,0 +1,425 @@
+---
+title: "Solving a Steady PDE with Finite Elements"
+subtitle: "PyApprox Tutorial Library"
+description: "Building a mesh, basis, physics, and boundary conditions, solving a steady advection-diffusion-reaction problem, and coupling it to a flow solved separately."
+tutorial_type: usage
+topic: finite_elements
+difficulty: beginner
+estimated_time: 15
+prerequisites: []
+tags:
+  - finite-elements
+  - galerkin
+  - advection-diffusion
+  - boundary-conditions
+  - navier-stokes
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Assemble a steady finite element solve from its four parts --- mesh, basis,
+  physics, and boundary conditions
+- Explain the two roles boundary conditions play, and which parts of the
+  discrete system each one touches
+- Swap Dirichlet, Neumann, and Robin conditions across the sides of one
+  problem without rewriting the physics
+- Solve a different PDE --- including a multi-field one --- with the same
+  mesh, solver, and boundary condition machinery
+- Compute a coefficient with one solve and pass it to another as a callable
+
+
+## The Four Parts
+
+A steady finite element solve in PyApprox is built from four objects, each
+with one job:
+
+| Object | Responsibility |
+|---|---|
+| **Mesh** | the geometry: how the domain is divided into elements |
+| **Basis** | the approximation space on that mesh, and its degrees of freedom |
+| **Physics** | the equation: coefficients, forcing, and the weak form |
+| **Boundary conditions** | what happens on each side of the domain |
+
+The split is what makes the rest of this tutorial short. Refining the mesh
+does not change the physics; changing the boundary conditions does not change
+the mesh; and, as the closing section shows, changing the equation entirely
+leaves the other three untouched.
+
+Nothing in that list mentions parameters. A physics object describes one
+fixed PDE with definite coefficients. Making those coefficients depend on a
+parameter vector --- for uncertainty quantification, design, or control --- is
+a separate concern handled by a parameterization layer, and no part of this
+tutorial needs one.
+
+The running example is a contaminant released into a channel containing three
+staggered obstacles. Its concentration $u$ obeys the steady
+advection-diffusion-reaction equation
+
+$$
+-\nabla \cdot (D \nabla u) + \vc{v} \cdot \nabla u - R(u) = f ,
+$$ {#eq-adr}
+
+where $D$ is a diffusivity, $\vc{v}$ a velocity, $R$ a reaction term, and $f$
+a source.
+
+
+## Mesh, Basis, and Physics
+
+The mesh divides the domain; the basis puts an approximation space on it.
+`degree=1` gives piecewise-bilinear elements whose degrees of freedom sit at
+mesh vertices.
+
+`build_obstructed_mesh` constructs a structured grid and then deletes the
+cells the obstacles occupy.
+
+```{python}
+import numpy as np
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.zoo.obstructed_flow import build_obstructed_mesh
+from pyapprox.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+
+mesh = build_obstructed_mesh(bkd, nrefine=3)
+basis = LagrangeBasis(mesh, degree=1)
+
+print(f"{basis.ndofs()} degrees of freedom")
+print("boundaries:", mesh.boundary_names())
+```
+
+Removing cells creates new boundary. Each obstacle contributes its own named
+boundary --- `obs0`, `obs1`, `obs2` --- alongside the four outer sides, and
+every one of them needs a boundary condition.
+
+The resulting mesh is deliberately not uniform. Its $x$ grid lines are spaced
+$2/7, 1/7, 1/7, 1/7, 2/7$, because those interior lines are what place the
+obstacle edges; `nrefine` then subdivides every cell equally, which preserves
+that spacing rather than evening it out. Elements in the two outer columns
+are therefore twice as wide as those in the middle band --- putting the
+resolution where the geometry is, which is usually what you want.
+
+
+The physics object holds the coefficients of @eq-adr. Each may be a constant
+or a callable of the coordinates, so a spatially varying diffusivity or
+velocity requires no different setup --- only a different argument.
+
+We start with no flow at all: $\vc{v} = \vc{0}$, so material spreads by
+diffusion alone. Advection is added later in the tutorial, once there is a
+velocity field to add.
+
+The remaining ingredient is the source term $f$. A forcing is any callable of
+the coordinates returning one value per point --- here a Gaussian blob on the
+left, the point of release.
+
+```{python}
+DIFFUSIVITY = 0.005
+DECAY = -1.0        # R(u) = -u: material decays at a rate set by its own
+                    # concentration. A positive value would be a source.
+
+
+def forcing(coords, time=0.0):
+    """A Gaussian release centered at (0.15, 0.5)."""
+    x, y = coords[0], coords[1]
+    return np.exp(-((x - 0.15) ** 2 + (y - 0.5) ** 2) / 0.01)
+```
+
+This is how a problem normally arrives: the coefficients, the source, and the
+boundary data are given, and the solution is the thing you do not know. (The
+tutorial that follows this one runs that logic backwards --- choosing a
+solution and deriving the forcing that produces it --- but only because doing
+so makes the solver's error measurable.)
+
+
+## Boundary Conditions and Their Two Roles
+
+Boundary conditions enter a finite element system in two different ways, and
+the distinction matters as soon as anything is differentiated or solved.
+
+*Natural* conditions --- Neumann and Robin --- prescribe a flux. They arise
+from the boundary term left over when the weak form is integrated by parts,
+so they are **added to the assembled system**: a Robin condition contributes
+to both the matrix and the right-hand side, a Neumann condition to the
+right-hand side alone. The solution values on such a boundary remain
+unknowns.
+
+*Essential* conditions --- Dirichlet --- prescribe the solution itself. There
+is nothing to integrate: the value is known, so those rows of the system are
+**replaced** by the statement $u = g$. Those degrees of freedom stop being
+unknowns.
+
+Here the left and right sides are held at zero concentration --- material
+reaching them is carried away --- and the condition on the outer walls and
+the three obstacle surfaces is the one we vary below.
+
+```{python}
+from pyapprox.pde.galerkin.boundary.implementations import (
+    DirichletBC, NeumannBC, RobinBC,
+)
+from pyapprox.pde.galerkin.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
+)
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+
+WALLS = ["bottom", "top", "obs0", "obs1", "obs2"]
+
+
+def wall_condition(kind, name):
+    """One boundary condition of the requested type."""
+    if kind == "Dirichlet":   # absorbing: u = 0 at the surface
+        return DirichletBC(basis, name, value_func=0.0, bkd=bkd)
+    if kind == "Neumann":     # sealed: no material crosses the surface
+        return NeumannBC(basis, name, flux_func=0.0, bkd=bkd)
+    # partially absorbing: material leaves at a rate proportional to u
+    return RobinBC(basis, name, alpha=5.0, value_func=0.0, bkd=bkd)
+
+
+def solve_plume(kind):
+    """Assemble and solve with the chosen condition on the walls."""
+    bcs = [DirichletBC(basis, side, value_func=0.0, bkd=bkd)
+           for side in ("left", "right")]
+    bcs += [wall_condition(kind, name) for name in WALLS]
+
+    physics = AdvectionDiffusionReaction(
+        basis=basis,
+        diffusivity=DIFFUSIVITY,
+        reaction=DECAY,
+        forcing=forcing,
+        boundary_conditions=bcs,
+        bkd=bkd,
+    )
+    return physics, SteadyStateSolver(physics, tol=1e-12).solve_linear()
+
+
+physics, result = solve_plume("Dirichlet")
+print(f"essential (rows replaced): {len(physics.essential_bcs())}")
+print(f"natural   (added to form): {len(physics.weak_form_bcs())}")
+print(f"converged={result.converged}")
+```
+
+With every boundary Dirichlet, all seven conditions are essential and none is
+natural --- the counts above report exactly that split. The equation is
+linear in $u$, so `solve_linear` assembles the system once and solves it. A
+nonlinear equation appears later, when the flow is computed.
+
+```{python}
+#| echo: false
+#| label: fig-mesh-field
+#| fig-cap: "The mesh and the steady solution computed on it."
+import matplotlib.pyplot as plt
+
+from pyapprox_tutorials.figures._galerkin import plot_mesh_and_field
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+plot_mesh_and_field(basis, result.solution, bkd, axes)
+fig.tight_layout()
+```
+
+### Swapping conditions
+
+Because the conditions are separate objects, changing one changes a line.
+Each type says something different about what the walls and obstacle surfaces
+do to the material that reaches them.
+
+```{python}
+KINDS = ["Dirichlet", "Neumann", "Robin"]
+plume_solutions = [solve_plume(kind)[1].solution for kind in KINDS]
+
+for kind, sol in zip(KINDS, plume_solutions):
+    print(f"{kind:10s} peak concentration {bkd.to_numpy(sol).max():.3f}")
+```
+
+```{python}
+#| echo: false
+#| label: fig-bc-swap
+#| fig-cap: "One physics under three conditions on the outer walls and obstacle surfaces, on a shared color scale. The left and right sides are held at zero in all three."
+from pyapprox_tutorials.figures._galerkin import plot_bc_triptych
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+plot_bc_triptych([basis] * 3, plume_solutions, KINDS, bkd, axes)
+```
+
+The sealed (Neumann) case holds the most material, and for a simple reason:
+nothing crosses the walls or the obstacle surfaces, so the only ways out are
+decay and the two open sides. Dirichlet is the opposite extreme --- every
+surface absorbs perfectly, pinning $u$ to zero there --- and the peak drops
+accordingly. Robin sits between them, absorbing at a rate proportional to the
+local concentration, with $\alpha$ setting how strongly; large $\alpha$
+approaches the Dirichlet case, small $\alpha$ the sealed one.
+
+Nothing but the boundary condition list changed between the three solves. The
+mesh, the basis, the coefficients, and the solver were identical.
+
+
+## How Accurate Is Any of This?
+
+Every solution above was computed on one fixed mesh, and none of them is the
+exact solution. A finite element approximation improves as the mesh is
+refined --- for elements of degree $p$ the error in the $L^2$ norm falls like
+$h^{p+1}$, where $h$ is the element size --- so `nrefine` is a knob that
+trades cost against accuracy.
+
+That raises a question this tutorial deliberately does not answer: how do you
+know the solver is computing the right thing at all? Nothing above was
+checked against a known answer, because for this problem there isn't one ---
+which is precisely the difficulty. Measuring the observed rate of convergence
+and checking it against $h^{p+1}$ is one half of the answer, and a solution
+the basis can represent exactly --- reproduced to round-off on a single mesh
+--- is the other. [Verifying a PDE Solver](mms_verification_usage.qmd) does
+both, by *choosing* a solution and deriving the forcing that produces it.
+
+
+## Solving a Different Equation: the Flow
+
+Everything so far ignored the velocity in @eq-adr. Adding it needs a
+$\vc{v}$, and unlike the diffusivity, a velocity field cannot simply be
+written down: the flow must go *around* the obstacles, not slip along their
+surfaces, and conserve mass. Those requirements are themselves a PDE --- the
+steady Navier-Stokes equations,
+
+$$
+(\vc{v} \cdot \nabla) \vc{v} - \nu \nabla^2 \vc{v} + \nabla p = \vc{0},
+\qquad \nabla \cdot \vc{v} = 0 ,
+$$ {#eq-navier-stokes}
+
+for velocity $\vc{v}$ and pressure $p$ together, with $\nu = 1/\mathrm{Re}$.
+
+This is the flexibility claim made concrete, and it stretches further than
+the transport problem did. @eq-navier-stokes solves for two fields at once,
+so it carries two bases --- a vector one for $\vc{v}$, a scalar one for $p$
+--- where the transport problem needed only one. Its convective term
+$(\vc{v} \cdot \nabla) \vc{v}$ is also nonlinear, so the solve is a Newton
+iteration rather than a single linear system. Neither difference changes the
+mesh, the boundary condition machinery, or the way a solution is obtained.
+
+```{python}
+from pyapprox.pde.zoo.obstructed_flow import (
+    extract_velocity_callable, solve_obstructed_stokes,
+)
+
+# The flow is resolved on its own mesh, independent of the transport one.
+stokes_mesh = build_obstructed_mesh(bkd, nrefine=2)
+stokes_solution, stokes, vel_basis, pres_basis = solve_obstructed_stokes(
+    stokes_mesh, bkd, reynolds_num=20.0, vel_shape_params=[2.5, 2.5],
+)
+print(f"flow unknowns: {stokes.nstates()}")
+```
+
+The Reynolds number sets the viscosity as $\nu = 1/\mathrm{Re}$, and
+`vel_shape_params` shapes the inflow profile imposed on the left; no-slip
+holds on the outer walls and on all three obstacle surfaces, with a natural
+outflow on the right.
+
+`extract_velocity_callable` turns the flow solution into a function of
+position, evaluable anywhere on the transport mesh:
+
+```{python}
+velocity = extract_velocity_callable(
+    stokes_solution, stokes, vel_basis, pres_basis, basis, bkd,
+)
+
+speed = np.hypot(*velocity(bkd.to_numpy(basis.dof_coordinates())))
+print(f"peak speed {speed.max():.3f}")
+```
+
+```{python}
+#| echo: false
+#| label: fig-velocity
+#| fig-cap: "The frozen flow: streamlines colored by speed. The staggered blocks force a serpentine path, and the fluid accelerates through the narrow gaps between them."
+from pyapprox_tutorials.figures._galerkin import plot_velocity_field
+
+fig, ax = plt.subplots(figsize=(6.5, 5))
+stream = plot_velocity_field(velocity, ax)
+fig.colorbar(stream.lines, ax=ax, label="speed")
+fig.tight_layout()
+```
+
+
+## Putting Them Together
+
+The flow does not depend on the contaminant, so it can be solved once and
+reused --- *frozen*, in the usual terminology. It then goes into the
+transport physics like any other coefficient: one extra argument, and nothing
+else changes.
+
+```{python}
+def solve_transport(kind, flow=None):
+    """As solve_plume, with an optional velocity field."""
+    bcs = [DirichletBC(basis, side, value_func=0.0, bkd=bkd)
+           for side in ("left", "right")]
+    bcs += [wall_condition(kind, name) for name in WALLS]
+
+    physics = AdvectionDiffusionReaction(
+        basis=basis, diffusivity=DIFFUSIVITY, velocity=flow,
+        reaction=DECAY, forcing=forcing, boundary_conditions=bcs, bkd=bkd,
+    )
+    return SteadyStateSolver(physics, tol=1e-12).solve_linear().solution
+
+
+still = solve_transport("Neumann")
+flowing = solve_transport("Neumann", flow=velocity)
+
+print(f"no flow:    peak {bkd.to_numpy(still).max():.3f}")
+print(f"with flow:  peak {bkd.to_numpy(flowing).max():.3f}")
+```
+
+```{python}
+#| echo: false
+#| label: fig-coupled
+#| fig-cap: "The same transport problem without and with the frozen flow, on a shared logarithmic scale spanning three decades. Without flow, concentration falls away steeply past the first obstacle; with it, material is carried through the gaps and reaches the far side of the domain. The darkest region is everything below the bottom of the scale."
+from pyapprox_tutorials.figures._galerkin import (
+    plot_concentration_comparison,
+)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
+plot_concentration_comparison(
+    basis, [still, flowing], ["Diffusion only", "With frozen flow"],
+    bkd, axes,
+)
+```
+
+The plume is no longer symmetric about its source. Material is swept toward
+the outflow, threading the gaps between the blocks, and reaches parts of the
+domain that diffusion alone leaves effectively empty --- the region past the
+last obstacle differs by orders of magnitude between the two panels, which is
+why the figure uses a logarithmic scale. The peak also falls slightly, from
+0.457 to 0.400, because the flow carries away material that would otherwise
+accumulate near the release.
+
+Two PDEs, solved separately by the same machinery, coupled by passing one
+solution to the other as a coefficient.
+
+
+## Summary
+
+- A steady solve is a mesh, a basis, a physics, and boundary conditions.
+  Each can be changed without touching the others.
+- Natural conditions are added to the assembled system; essential conditions
+  replace rows of it. The physics object reports which are which.
+- Removing cells from a mesh creates new named boundaries, and each one needs
+  a condition like any other side of the domain.
+- Solving a different PDE meant constructing a different physics object ---
+  even one that is nonlinear and solves for two fields at once. The mesh, the
+  solver, and the boundary condition machinery were unchanged.
+- A coefficient that is not known in closed form can be computed by another
+  solve and passed in as a callable. The transport problem never learns where
+  its velocity came from.
+
+### Where to go next
+
+- [Verifying a PDE Solver](mms_verification_usage.qmd) --- how to establish
+  that this solver computes what it claims to, by choosing a solution and
+  deriving the forcing that produces it.
+- [The Adjoint Method](adjoint_concept.qmd) --- how to differentiate the
+  output of a solve like this one with respect to its inputs.

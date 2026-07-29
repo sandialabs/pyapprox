@@ -190,6 +190,12 @@ website:
             - parametric_dynamical_systems_usage.qmd
             - hamiltonian_systems_concept.qmd
             - learning_hamiltonians_usage.qmd
+        - section: "Finite Element Modeling"
+          contents:
+            - galerkin_adr_usage.qmd
+        - section: "Verification and Validation"
+          contents:
+            - mms_verification_usage.qmd
         - section: "Time Integration"
           contents:
             - ode_timestepping_usage.qmd

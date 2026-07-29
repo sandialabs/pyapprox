@@ -1,0 +1,441 @@
+---
+title: "Verifying a PDE Solver"
+subtitle: "PyApprox Tutorial Library"
+description: "The method of manufactured solutions as a two-tier code verification protocol: exact representation to round-off, and observed order of accuracy under refinement."
+tutorial_type: usage
+topic: verification
+difficulty: beginner
+estimated_time: 18
+prerequisites:
+  - galerkin_adr_usage.qmd
+tags:
+  - verification
+  - manufactured-solutions
+  - convergence
+  - testing
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why a manufactured solution lets you measure a solver's true error
+- Run the tier-1 check --- an exactly representable solution reproduced to
+  round-off on a single mesh
+- Run the tier-2 check --- observed order of accuracy under refinement
+- Say what each tier catches that the other misses, and why neither is
+  sufficient alone
+- Apply the same protocol to a nonlinear problem and to your own physics
+
+
+## Why Verify First
+
+Everything built on top of a PDE solver inherits its errors. A gradient
+computed by the adjoint method differentiates whatever the solver actually
+computes, not the equation you meant to write. A Bayesian posterior
+concentrates around parameters that fit the solver's output. A neural
+surrogate trained on solver data learns the solver, bugs included. In each
+case the downstream result can look entirely reasonable while being wrong,
+because nothing downstream is in a position to notice.
+
+*Code verification* asks a narrower question than "is my model right?": it
+asks whether the code solves the equations it claims to solve. That question
+has a definite answer, and the method of manufactured solutions is how you
+get it. For the broader picture of verification and validation for
+computational and machine-learning models, see @jakeman2026vv.
+
+The obstacle to measuring error is that PDEs of interest rarely have
+closed-form solutions --- if they did, there would be no reason to
+discretize. Manufactured solutions invert the problem. Rather than solving
+for $u$ given $f$, *choose* the $u$ you want and compute the $f$ that makes
+it exact.
+
+Take the steady advection-diffusion-reaction equation from
+[Solving a Steady PDE with Finite Elements](galerkin_adr_usage.qmd),
+
+$$
+-\nabla \cdot (D \nabla u) + \vc{v} \cdot \nabla u - R(u) = f .
+$$ {#eq-adr}
+
+Pick any $u$, substitute it into the left-hand side, and whatever comes out
+*is* the forcing that makes $u$ the exact solution. No solve is involved ---
+only differentiation, which is mechanical. PyApprox does it symbolically with
+sympy:
+
+```{python}
+import sympy as sp
+
+from pyapprox.pde.galerkin.manufactured import (
+    GalerkinManufacturedSolutionAdapter,
+)
+from pyapprox.pde.manufactured import ManufacturedAdvectionDiffusionReaction
+from pyapprox.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+
+manufactured = ManufacturedAdvectionDiffusionReaction(
+    sol_str="sin(pi*x)*sin(pi*y)",   # the solution we choose
+    nvars=2,
+    diff_str="1.0",                  # D
+    react_str="1.0*u",               # R(u)
+    vel_strs=["0", "0"],             # v
+    bkd=bkd,
+    oned=True,
+)
+
+expressions = manufactured.expressions()
+print("solution:", sp.simplify(expressions["solution"]))
+print("forcing: ", sp.simplify(expressions["forcing"]))
+```
+
+The forcing is the derived quantity, and it is worth checking by hand once.
+With $D = 1$, no velocity, and $R(u) = u$, @eq-adr reads
+$-\nabla^2 u - u = f$. For $u = \sin \pi x \sin \pi y$ we have
+$\nabla^2 u = -2\pi^2 u$, so $f = 2\pi^2 u - u = (2\pi^2 - 1) u$ --- which is
+what sympy printed. Nothing here is a guess: given the solution, the forcing
+is determined.
+
+Now the solver can be run against a known answer, and the difference between
+what it produces and that answer is its true error.
+
+
+## The Two Tiers
+
+A useful verification protocol runs two different checks, because they fail
+in different ways.
+
+| Tier | Solution | What is measured | Catches |
+|---|---|---|---|
+| **T1** | representable exactly by the basis | error on a *single* mesh | implementation errors --- wrong assembly, wrong boundary values, sign errors |
+| **T2** | not representable | observed order under refinement | errors that only degrade accuracy --- wrong quadrature order, inconsistent boundary treatment |
+
+The two are complementary, and this is the central point of the protocol.
+A code can pass T1 and fail T2: if it reproduces polynomials exactly but
+integrates with too low a quadrature order, the exact case is unaffected
+while the general case loses accuracy. A code can pass T2 and fail T1: a
+consistent discretization of the *wrong* equation converges beautifully at
+the theoretical rate, to the wrong answer. Neither tier alone would notice.
+
+Both tiers need a genuine norm of the error, not a sample of it:
+
+$$
+\|u_h - u\|_{L^2} = \left( \int_\Omega (u_h - u)^2 \right)^{1/2},
+$$ {#eq-l2}
+
+computed by element quadrature. Sampling the error at degrees of freedom is
+cheaper and looks equivalent, but those points are special: for degree-2
+elements the nodal error is smaller than the error in between, and a
+refinement study built on it reports a rate near four where @eq-l2 gives
+three. Measuring the wrong quantity turns a passing check into a misleading
+one.
+
+```{python}
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.pde.galerkin.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
+)
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox_tutorials.figures._galerkin import l2_error
+
+
+def solve_adr(nx, degree, sol_str):
+    """Solve the ADR problem manufactured from sol_str; return its error."""
+    mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[(0.0, 1.0), (0.0, 1.0)],
+                            bkd=bkd)
+    basis = LagrangeBasis(mesh, degree=degree)
+
+    man = ManufacturedAdvectionDiffusionReaction(
+        sol_str=sol_str, nvars=2, diff_str="1.0", react_str="1.0*u",
+        vel_strs=["0", "0"], bkd=bkd, oned=True,
+    )
+    # The adapter turns the symbolic functions into the shapes the finite
+    # element code wants, including boundary data consistent with sol_str.
+    adapter = GalerkinManufacturedSolutionAdapter(basis, man.functions, bkd)
+    bc_set = adapter.create_boundary_conditions(["D", "D", "D", "D"])
+
+    physics = AdvectionDiffusionReaction(
+        basis=basis, diffusivity=1.0, reaction=1.0,
+        forcing=adapter.forcing_for_galerkin(),
+        boundary_conditions=bc_set.all_conditions(), bkd=bkd,
+    )
+    result = SteadyStateSolver(physics, tol=1e-13).solve_linear()
+    return l2_error(basis, bkd.to_numpy(result.solution),
+                    adapter.solution_function())
+```
+
+
+## Tier 1: Exact Representation
+
+Degree-$p$ elements represent polynomials of degree $\le p$ exactly. If the
+manufactured solution is such a polynomial, it lies *in* the approximation
+space, so there is no discretization error to make: the only error left is
+floating-point round-off.
+
+This makes T1 the sharpest kind of test --- pass or fail on a single mesh,
+no refinement study, no judgment about whether a rate is close enough.
+
+```{python}
+import numpy as np
+
+T1_CASES = {
+    "degree 1, $u = xy$": (1, "x*y"),
+    "degree 2, $u = x^2y + y^2 - xy$": (2, "x**2*y + y**2 - x*y"),
+}
+T1_SIZES = [4, 8, 16]
+
+t1_errors = {}
+for label, (degree, sol_str) in T1_CASES.items():
+    t1_errors[label] = [solve_adr(nx, degree, sol_str) for nx in T1_SIZES]
+    print(f"{label}: {np.array(t1_errors[label])}")
+```
+
+Every value is at the $10^{-16}$ level --- machine precision for double
+arithmetic --- and refining the mesh does not reduce it, because there is
+nothing left to reduce.
+
+```{python}
+#| echo: false
+#| label: fig-t1-roundoff
+#| fig-cap: "Tier-1 errors against mesh size. Flat lines at machine precision are the signature of exact representation: refinement cannot improve an error that is already round-off."
+import matplotlib.pyplot as plt
+
+from pyapprox_tutorials.figures._galerkin import plot_roundoff_errors
+
+fig, ax = plt.subplots(figsize=(6.5, 4.5))
+plot_roundoff_errors(T1_SIZES, t1_errors, ax)
+fig.tight_layout()
+```
+
+```{python}
+for label, errors in t1_errors.items():
+    assert max(errors) < 1e-12, f"{label} is not exact: {max(errors):.2e}"
+```
+
+A threshold of $10^{-12}$ rather than exactly zero leaves room for round-off
+to accumulate through assembly and the linear solve. What matters is the
+scale: an error of $10^{-16}$ means the discretization is exact, while
+$10^{-4}$ would mean something is wrong no matter how clean the convergence
+rates look afterwards.
+
+
+## Tier 2: Observed Order of Accuracy
+
+Now choose a solution the basis *cannot* represent. Trigonometric and
+exponential functions are the usual choices --- no polynomial equals them, so
+a genuine discretization error exists at every mesh, and theory predicts how
+fast it shrinks:
+
+$$
+\|u_h - u\|_{L^2} = \mathcal{O}(h^{p+1})
+$$ {#eq-order}
+
+for degree-$p$ elements, with $h$ the element size. Halving $h$ should
+therefore divide the error by $2^{p+1}$, so the observed order
+
+$$
+\text{rate} = \log_2 \frac{\|u_{h}-u\|}{\|u_{h/2}-u\|}
+$$ {#eq-rate}
+
+should approach $p+1$.
+
+```{python}
+from pyapprox_tutorials.figures._galerkin import convergence_rates
+
+T2_SIZES = [4, 8, 16, 32]
+t2_errors = {}
+
+for degree in (1, 2):
+    t2_errors[degree] = [
+        solve_adr(nx, degree, "sin(pi*x)*sin(pi*y)") for nx in T2_SIZES
+    ]
+    rates = convergence_rates(t2_errors[degree])
+    print(f"degree {degree}: theory {degree + 1}, "
+          f"observed {np.round(rates, 3)}")
+```
+
+Both approach their theoretical values from below, which is the expected
+behavior: the asymptotic rate is reached as the mesh resolves the solution.
+
+```{python}
+#| echo: false
+#| label: fig-t2-convergence
+#| fig-cap: "Tier-2 convergence. Measured error against element size, with the theoretical slope for each degree offset below the data for comparison."
+from pyapprox_tutorials.figures._galerkin import plot_spatial_convergence
+
+fig, ax = plt.subplots(figsize=(6, 4.5))
+plot_spatial_convergence(T2_SIZES, t2_errors, ax)
+fig.tight_layout()
+```
+
+```{python}
+for degree, errors in t2_errors.items():
+    observed = convergence_rates(errors)
+    assert np.all(observed > degree + 1 - 0.2), (
+        f"degree {degree} lost order: {observed}"
+    )
+```
+
+The tolerance of $0.2$ below theory is a judgment call, and it is exactly the
+kind of judgment T1 does not require --- which is why running both matters.
+Too tight a tolerance fails on coarse meshes that have not reached the
+asymptotic regime; too loose a one passes a code that has genuinely lost half
+an order.
+
+
+## The Same Protocol on a Nonlinear Problem
+
+Nothing above depends on the equation being linear. Burgers' equation
+replaces the fixed velocity of @eq-adr with the solution itself,
+
+$$
+u \frac{\partial u}{\partial x}
+  - \nu \frac{\partial^2 u}{\partial x^2} = f ,
+$$ {#eq-burgers}
+
+and the manufactured machinery differentiates it just the same.
+
+```{python}
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
+from pyapprox.pde.manufactured import ManufacturedBurgers1D
+
+burgers_man = ManufacturedBurgers1D("sin(pi*x)", "0.1", bkd, oned=True)
+print("solution:", sp.simplify(burgers_man.expressions()["solution"]))
+print("forcing: ", sp.simplify(burgers_man.expressions()["forcing"]))
+```
+
+That forcing is checkable by hand too: for $u = \sin \pi x$ and
+$\nu = 0.1$, the advective term $u u_x$ is $\pi \sin \pi x \cos \pi x$ and
+$-\nu u_{xx}$ is $0.1\pi^2 \sin \pi x$, which together factor to exactly the
+printed expression.
+
+```{python}
+def viscosity_for_galerkin(functions):
+    """Adapt the scalar viscosity callable to skfem's coordinate shapes."""
+    viscosity = functions["viscosity"]
+
+    def adapted(coords):
+        ndim, trailing = coords.shape[0], coords.shape[1:]
+        values = viscosity(coords.reshape(ndim, -1))
+        if hasattr(values, "shape") and values.ndim > 1:
+            values = (values[:, 0] if values.shape[1] == 1
+                      else values.flatten())
+        return values.reshape(trailing)
+
+    return adapted
+
+
+def solve_burgers(nx, degree, sol_str):
+    """Solve Burgers manufactured from sol_str; return error and iterations."""
+    mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
+    basis = LagrangeBasis(mesh, degree=degree)
+
+    man = ManufacturedBurgers1D(sol_str, "0.1", bkd, oned=True)
+    adapter = GalerkinManufacturedSolutionAdapter(basis, man.functions, bkd)
+    bc_set = adapter.create_boundary_conditions(["D", "D"])
+
+    physics = BurgersPhysics(
+        basis=basis, viscosity=viscosity_for_galerkin(man.functions),
+        bkd=bkd, forcing=adapter.forcing_for_galerkin(),
+        boundary_conditions=bc_set.all_conditions(),
+    )
+
+    # Start away from the answer so the Newton iteration has work to do.
+    exact = adapter.solution_function()
+    guess = np.asarray(
+        exact(bkd.to_numpy(basis.dof_coordinates()))
+    ).flatten() + 1.0
+    result = SteadyStateSolver(
+        physics, tol=1e-12, max_iter=20, line_search=True
+    ).solve(bkd.asarray(guess))
+
+    return (l2_error(basis, bkd.to_numpy(result.solution), exact),
+            result.iterations)
+```
+
+Tier 1 first. A quadratic is representable by degree-2 elements, so the
+solver should land on it exactly --- and because the exact solution lies in
+the space, Newton reaches it in a single step:
+
+```{python}
+for nx in (8, 16):
+    error, iterations = solve_burgers(nx, 2, "x*(1.0-x)")
+    print(f"nx={nx:2d}  L2 error {error:.2e}  Newton iterations {iterations}")
+    assert error < 1e-12
+```
+
+Then tier 2, with a solution that is not representable:
+
+```{python}
+for degree in (1, 2):
+    errors = [solve_burgers(nx, degree, "sin(pi*x)")[0]
+              for nx in (8, 16, 32, 64)]
+    observed = convergence_rates(errors)
+    print(f"degree {degree}: theory {degree + 1}, "
+          f"observed {np.round(observed, 3)}")
+    assert np.all(observed > degree + 1 - 0.2)
+```
+
+Both tiers pass for a nonlinear equation with no change to the protocol. The
+only thing that differed was constructing a different physics object and
+calling `solve` with an initial guess instead of `solve_linear`.
+
+
+## Verifying Your Own Physics
+
+The protocol is not specific to the Galerkin finite element method used
+here. `pyapprox.pde.manufactured` is a shared symbolic module covering
+several physics families, and it derives forcing terms without knowing how
+they will be discretized; the Galerkin adapter used above is a thin layer
+over it, and the collocation module has its own. A collocation solver, a
+finite volume solver, or a spectral solver is verified the same way, with the
+same two tiers and the same expectations --- only $p+1$ changes to whatever
+that method's theory predicts.
+
+To verify a solver you have written yourself:
+
+1. Manufacture a solution your discretization represents exactly and check
+   the error is round-off on one mesh. Fix anything that fails here first ---
+   a T1 failure is an outright bug, and its cause is usually easier to find
+   than an order loss.
+2. Manufacture a non-representable solution, refine, and check the observed
+   order against theory.
+3. Repeat both with every boundary condition type your solver supports.
+   Inconsistent boundary treatment is the classic cause of a code that
+   passes T1 but silently drops to first order in T2.
+
+`docs/conventions/pde_solver_extension.md` describes the testing contract a
+new physics implementation is expected to satisfy; this tutorial is the
+executable half of it.
+
+
+## Summary
+
+- Manufactured solutions invert the problem: choose $u$, derive the $f$ that
+  makes it exact, and the solver's true error becomes measurable.
+- Tier 1 uses an exactly representable solution. The error should be
+  round-off on a single mesh --- a pass/fail check with no judgment call.
+- Tier 2 uses a non-representable solution and checks the observed order of
+  accuracy against $h^{p+1}$.
+- Neither tier suffices alone: T1 misses order loss, and T2 misses a
+  consistent discretization of the wrong equation.
+- Both must be measured in a true $L^2$ norm; sampling at degrees of freedom
+  superconverges and reports the wrong rate.
+- The protocol is method-agnostic and applies unchanged to nonlinear physics.
+
+### Where to go next
+
+- [Solving a Steady PDE with Finite Elements](galerkin_adr_usage.qmd) ---
+  the solver setup this tutorial verifies.
+- [The Adjoint Method](adjoint_concept.qmd) --- differentiating the output
+  of a solve, which inherits every error verification did not catch.

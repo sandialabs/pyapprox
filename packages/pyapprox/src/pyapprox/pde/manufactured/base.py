@@ -328,6 +328,23 @@ class ManufacturedSolution(ABC, Generic[Array]):
             return False
         return any(self.transient.values())
 
+    def expressions(self) -> Dict[str, Any]:
+        """Return the symbolic expressions behind the callables.
+
+        The returned dictionary maps a name --- ``"solution"``,
+        ``"forcing"``, and whichever others the physics defines --- to the
+        sympy expression that ``functions`` provides a callable for.
+        Useful for displaying the forcing the manufactured machinery
+        derived, rather than only evaluating it.
+
+        Returns
+        -------
+        Dict[str, Any]
+            A copy of the expression dictionary; mutating it does not
+            affect this object.
+        """
+        return dict(self._expressions)
+
     def _expressions_to_functions(self) -> None:
         """Convert all sympy expressions to callable functions."""
         self.transient["forcing"] = self.is_transient()
