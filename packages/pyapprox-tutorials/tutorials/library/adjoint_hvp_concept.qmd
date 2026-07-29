@@ -1,0 +1,342 @@
+---
+title: "Second-Order Adjoints and Hessian-Vector Products"
+subtitle: "PyApprox Tutorial Library"
+description: "Applying the reduced Hessian to a vector in four solves, independent of the number of parameters."
+tutorial_type: concept
+topic: optimization
+difficulty: intermediate
+estimated_time: 10
+prerequisites:
+  - adjoint_concept
+tags:
+  - adjoint
+  - hessian
+  - second-order
+  - newton-cg
+  - pde-constrained-optimization
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why a Hessian-vector product, not a Hessian, is the right object to
+  compute when the parameters are many
+- Identify the four solves of the forward-over-adjoint recipe and which
+  Jacobian each one reuses
+- Name the terms of the Lagrangian Hessian ($\mathcal{L}_{uu}$,
+  $\mathcal{L}_{uz}$, $\mathcal{L}_{zz}$) and where each enters
+- Verify a Hessian-vector product two ways: against a finite difference of the
+  gradient, and against the symmetry identity
+  $\langle \mt{H}\vc{u}, \vc{v}\rangle = \langle \mt{H}\vc{v}, \vc{u}\rangle$
+
+
+## Why Products, Not Matrices
+
+[The Adjoint Method](adjoint_concept.qmd) computed $\nabla J$ for the
+implicitly constrained problem
+
+$$
+\min_{\vc{z}} \; J(\vc{z}) = f(\vc{u}(\vc{z}), \vc{z})
+\quad \text{subject to} \quad
+\vc{c}(\vc{u}, \vc{z}) = \vc{0}
+$$ {#eq-hvp-problem}
+
+in two solves, independent of $n_z$. Gradient-only methods converge slowly on
+ill-conditioned problems, and curvature fixes that --- but the reduced Hessian
+$\nabla^2 J \in \mathbb{R}^{n_z \times n_z}$ has $n_z^2$ entries, and forming
+it column by column costs $O(n_z)$ solves. For the control problems this
+series builds toward, that is exactly the cost adjoints were introduced to
+avoid.
+
+The resolution is that Newton-type methods never need the matrix. Newton-CG
+and trust-region solvers access curvature only through *products*
+$\nabla^2 J\, \vc{v}$ --- and one such product costs a fixed number of solves,
+whatever $n_z$ is. The reduced Hessian is available as an *operator* even when
+it is unavailable as an array.
+
+
+## The Four Solves
+
+Differentiating the gradient expression of @eq-hvp-problem once more produces
+the *forward-over-adjoint* recipe. Write the Lagrangian
+$\mathcal{L} = f + \boldsymbol{\lambda}^\top \vc{c}$ as before; its second
+derivatives $\mathcal{L}_{uu}$, $\mathcal{L}_{uz}$, $\mathcal{L}_{zz}$ carry
+contributions from both the objective and the constraint, each weighted by the
+adjoint state. Applying $\nabla^2 J$ to a direction $\vc{v}$ then takes four
+solves:
+
+1. **State solve.** $\vc{c}(\vc{u}, \vc{z}) = \vc{0}$.
+2. **Adjoint solve.** $\vc{c}_{\vc{u}}^\top \boldsymbol{\lambda} = -f_{\vc{u}}^\top$.
+3. **Tangent solve.** $\vc{c}_{\vc{u}} \vc{w} = -\vc{c}_{\vc{z}} \vc{v}$ ---
+   how the state moves when the parameters move along $\vc{v}$.
+4. **Second adjoint solve.**
+   $\vc{c}_{\vc{u}}^\top \vc{s} = \mathcal{L}_{uu} \vc{w} - \mathcal{L}_{uz} \vc{v}$.
+
+Then assemble
+$\nabla^2 J\, \vc{v} = \vc{c}_{\vc{z}}^\top \vc{s} - \mathcal{L}_{zu} \vc{w} + \mathcal{L}_{zz} \vc{v}$.
+
+Steps 1 and 2 are the gradient computation, and in practice are already done
+and cached. So the *marginal* cost of a Hessian-vector product is two extra
+solves --- and both reuse $\vc{c}_{\vc{u}}$, or its transpose, which the state
+solve already formed and factorized. Only the right-hand sides differ.
+
+```{python}
+#| echo: false
+#| label: fig-hvp-solves
+#| fig-cap: "The four solves behind one Hessian-vector product, and what each reuses. Steps 1 and 2 are the gradient recipe; steps 3 and 4 are what curvature adds. Notice that every solve after the first uses the same operator $c_u$ or its transpose --- a Hessian-vector product needs no new factorization, only new right-hand sides."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_hvp_solve_schematic
+
+fig, ax = plt.subplots(figsize=(8.0, 3.4))
+plot_hvp_solve_schematic(ax)
+plt.tight_layout()
+plt.show()
+```
+
+Notice what does *not* appear: $n_z$. Each of the four solves produces one
+vector, and the direction $\vc{v}$ enters only through right-hand sides. The
+K-independence that makes adjoint gradients practical extends to curvature.
+
+
+## Applying the Operator
+
+We keep the state equation of the previous tutorial but change what is
+measured. Reading a single state component gives an objective that slopes
+steadily across the parameter box, and curvature is invisible under a
+dominant gradient. A *misfit* --- the squared distance between the solved
+state and a reference state --- has a genuine minimum wherever the reference
+is attainable, and near that minimum curvature is all that is left. The
+problem takes the functional as an argument, so the state equation, the
+prior, and the adjoint machinery are untouched.
+
+```{python}
+import numpy as np
+
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
+    MSEFunctional,
+)
+from pyapprox_benchmarks.problems.coupled_state_equations import (
+    CoupledStateEquationsForwardUQ,
+)
+
+bkd = NumpyBkd()
+# The reference parameters, and the states the solve attains there.
+reference_param = bkd.asarray([[0.5], [1.0]])
+ratio = (1.0 - 0.5) / (1.0 + 0.5 * 1.0)
+targets = bkd.asarray([[np.sqrt(1.0 + 1.0 * ratio)], [np.sqrt(ratio)]])
+
+functional = MSEFunctional(2, 2, bkd)
+functional.set_observations(targets)
+qoi = CoupledStateEquationsForwardUQ(bkd, functional=functional).problem().function()
+
+direction = bkd.asarray([[0.6], [-0.8]])
+print("H v =", bkd.to_numpy(qoi.hvp(reference_param, direction)).ravel())
+```
+
+Four solves produced the product. Nothing in the call exposes a matrix; the
+Hessian exists only as this action on a vector.
+
+Because $n_z = 2$ here, we can afford to do what a real problem cannot ---
+apply the operator to each unit vector in turn and assemble the full reduced
+Hessian. This is a diagnostic, not a method: it costs $n_z$ products and is
+shown only because a $2 \times 2$ matrix can be printed and inspected.
+
+```{python}
+param = reference_param
+
+
+def hvp(vec):
+    """Reduced-Hessian-vector product at the reference parameters."""
+    return qoi.hvp(param, vec)
+
+
+columns = []
+for index in range(qoi.nvars()):
+    unit = np.zeros((qoi.nvars(), 1))
+    unit[index, 0] = 1.0
+    columns.append(bkd.to_numpy(hvp(bkd.asarray(unit))).ravel())
+hessian = bkd.asarray(np.column_stack(columns))
+print(bkd.to_numpy(hessian))
+print("eigenvalues:", np.linalg.eigvalsh(bkd.to_numpy(hessian)))
+```
+
+Both eigenvalues are positive, so the reduced Hessian is *positive definite*
+and the reference parameters sit at a genuine minimum of the misfit. Their
+ratio is the more informative number: the objective resists motion in one
+direction far more stiffly than in the other, and that ratio is the condition
+number a first-order method would have to fight. Gradient descent takes steps
+along the steepest direction, which in an elongated valley is almost never the
+direction of the minimum; curvature information is what lets a Newton-type
+method step along the valley instead of across it.
+
+```{python}
+#| echo: false
+#| label: fig-reduced-hessian
+#| fig-cap: "The assembled reduced Hessian. Each cell is one entry $H_{ij}$, printed and shaded on a diverging scale centered at zero --- red for positive, blue for negative --- so the sign pattern is readable at a glance. Notice the off-diagonal entries are equal: symmetry emerges from the four-solve recipe rather than being imposed by it, which is why it makes such a strong correctness check."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_hessian_matrix
+
+fig, ax = plt.subplots(figsize=(4.0, 3.6))
+image = plot_hessian_matrix(hessian, ax, bkd)
+fig.colorbar(image, ax=ax, shrink=0.85)
+plt.tight_layout()
+plt.show()
+```
+
+The same two numbers have a geometric reading. The level sets of the local
+quadratic model are ellipses whose semi-axes go like
+$1/\sqrt{\lambda}$, so the small eigenvalue is the *long*, soft axis --- the
+direction the objective barely resists --- and the large one the short, stiff
+axis. @fig-curvature draws those axes on the objective itself.
+
+```{python}
+#| echo: false
+#| label: fig-curvature
+#| fig-cap: "The misfit over the parameter box; dark is small. A white dot marks each evaluation point, and the two double-headed arrows through it are the eigenvectors of the reduced Hessian there --- drawn double-headed because an eigenvector defines an axis, not a direction of travel. Each arrow's half-length is proportional to $1/\\sqrt{|\\lambda|}$, so the arrows are the semi-axes of the ellipse $\\vc{d}^\\top \\mt{H} \\vc{d} = \\text{const}$: the long arrow is the soft direction the objective barely resists, the short one the stiff direction it resists most, and their ratio is the square root of the condition number. Green marks positive curvature (red would mark negative, and appears nowhere here because both eigenvalues are positive). Notice that at the minimum the long axis lies *along* the dark valley and the short axis crosses it: the Hessian has recovered the shape of the basin from four solves, without the surface ever being sampled."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_curvature_panels
+
+fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.6))
+contours = plot_curvature_panels(
+    qoi,
+    [reference_param, bkd.asarray([[0.30], [0.60]])],
+    ["at the minimum", "away from it"],
+    axes,
+)
+fig.colorbar(contours, ax=axes, label="$J$")
+plt.show()
+```
+
+
+## Verification {#sec-verification}
+
+A Hessian-vector product admits a check the gradient does not. The reduced
+Hessian is symmetric, so for any two directions
+
+$$
+\langle \nabla^2 J\, \vc{u}, \vc{v} \rangle
+= \langle \nabla^2 J\, \vc{v}, \vc{u} \rangle .
+$$ {#eq-symmetry}
+
+Nothing in the four-solve recipe enforces this. The two sides are computed by
+different sequences of solves with different right-hand sides, so agreement to
+machine precision is strong evidence that every term and sign is correct. It
+is also cheap, needs no step-size tuning, and --- unlike a finite-difference
+check --- has no truncation error to trade against rounding error.
+
+Alongside it we apply the step-size sweep of
+[the previous tutorial](adjoint_concept.qmd#sec-verification), now to the
+gradient rather than the objective: the product $\nabla^2 J\, \vc{v}$ should
+match $(\nabla J(\vc{z} + \epsilon \vc{v}) - \nabla J(\vc{z}))/\epsilon$, and
+the error against $\epsilon$ should trace the same V.
+
+```{python}
+#| echo: false
+#| label: fig-hvp-v-curve
+#| fig-cap: "Relative error between the Hessian-vector product and a finite difference of the adjoint gradient, log-log. Notice the same V as the first-order check, one differentiation later: the floor sits higher because the quantity being differenced is itself computed by a solve, so its own rounding error sets the noise level."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_v_curve
+
+def gradient(p):
+    return qoi.jacobian(p)
+
+fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
+hvp_reference = hvp(direction)
+errors = []
+for eps in bkd.to_numpy(fd_eps):
+    quotient = (gradient(param + eps * direction) - gradient(param)) / eps
+    errors.append(
+        float(
+            np.linalg.norm(bkd.to_numpy(quotient).T - bkd.to_numpy(hvp_reference))
+            / np.linalg.norm(bkd.to_numpy(hvp_reference))
+        )
+    )
+hvp_errors = bkd.asarray(np.array(errors))
+
+fig, ax = plt.subplots(figsize=(6.5, 4.5))
+plot_v_curve(fd_eps, hvp_errors, hvp_errors, bkd, ax)
+# One curve only: relabel and drop the duplicate the two-curve helper drew.
+ax.lines[1].remove()
+handles, labels = ax.get_legend_handles_labels()
+ax.legend([handles[0], handles[-1]], ["HVP vs FD of gradient", "V bottom"], fontsize=8)
+ax.set_ylabel(r"relative error in $\nabla^2 J\, v$")
+plt.tight_layout()
+plt.show()
+```
+
+::: {.callout-note collapse="true"}
+## Verification summary
+
+```{python}
+#| echo: false
+vec_u = bkd.asarray([[0.6], [-0.8]])
+vec_v = bkd.asarray([[0.3], [0.95]])
+hu_v = float(bkd.to_numpy(hvp(vec_u)).ravel() @ bkd.to_numpy(vec_v).ravel())
+hv_u = float(bkd.to_numpy(hvp(vec_v)).ravel() @ bkd.to_numpy(vec_u).ravel())
+hessian_np = bkd.to_numpy(hessian)
+errors_np = bkd.to_numpy(hvp_errors)
+eps_np = bkd.to_numpy(fd_eps)
+
+print(f"<Hu,v>            = {hu_v:.12f}")
+print(f"<Hv,u>            = {hv_u:.12f}")
+print(f"symmetry residual = {abs(hu_v - hv_u):.2e}")
+print(f"|H - H^T|_max     = {np.abs(hessian_np - hessian_np.T).max():.2e}")
+print(
+    f"HVP vs FD: best relative error {errors_np.min():.2e} "
+    f"at eps={eps_np[errors_np.argmin()]:.1e}"
+)
+assert abs(hu_v - hv_u) < 1e-12, "Hessian-vector product is not symmetric"
+assert errors_np.min() < 1e-5, "HVP failed its finite-difference check"
+```
+
+Both checks pass. The symmetry residual is at machine precision, and the
+finite-difference comparison reaches a small relative error at an interior
+step size.
+:::
+
+
+## Key Takeaways
+
+- Newton-type methods need Hessian *products*, not the Hessian; one product
+  costs a fixed number of solves regardless of $n_z$.
+- The forward-over-adjoint recipe is four solves --- state, adjoint, tangent,
+  second adjoint --- of which the first two are the gradient and are usually
+  already cached, so an HVP costs two extra solves.
+- Every solve uses $\vc{c}_{\vc{u}}$ or $\vc{c}_{\vc{u}}^\top$: no new
+  operator is formed, only new right-hand sides.
+- The eigenvalues carry the geometry: their ratio is the condition number, and
+  the level sets of the local model are ellipses with semi-axes
+  $1/\sqrt{\lambda}$. Away from a minimum the reduced Hessian may be
+  indefinite, which is why practical Newton methods are safeguarded and why a
+  Tikhonov term, shifting the spectrum by $\alpha$, is worth its bias.
+- Verify with symmetry first --- it is exact, tuning-free, and independent of
+  the finite-difference check.
+
+
+## Next Steps
+
+- *Adjoints for Time-Dependent Problems* (forthcoming) stacks time steps into
+  one large state equation, after which everything here applies unchanged.
+- *Steering a Plume* (forthcoming) hands these products to a trust-region
+  optimizer on a PDE-constrained control problem.
+
+
+## References
+
+::: {#refs}
+:::

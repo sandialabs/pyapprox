@@ -1,0 +1,423 @@
+---
+title: "The Adjoint Method"
+subtitle: "PyApprox Tutorial Library"
+description: "Computing the gradient of an objective constrained by a state equation in two solves, independent of the number of parameters."
+tutorial_type: concept
+topic: optimization
+difficulty: intermediate
+estimated_time: 10
+prerequisites: []
+tags:
+  - adjoint
+  - gradients
+  - implicitly-constrained-optimization
+  - pde-constrained-optimization
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Write an implicitly constrained optimization problem as an objective
+  $f(\vc{u}, \vc{z})$ coupled to a state equation $\vc{c}(\vc{u}, \vc{z}) = \vc{0}$
+- Derive the adjoint gradient from the Lagrangian in three steps: state solve,
+  adjoint solve, gradient assembly
+- Explain why the adjoint costs two solves regardless of the number of
+  parameters, while finite differences and the tangent method cost one solve
+  per parameter
+- Verify any gradient implementation with a step-size sweep, and recognize the
+  V shape that distinguishes a correct derivative from a wrong one
+
+
+## The Problem
+
+Optimization problems in simulation almost never expose their objective
+directly as a function of the parameters. Instead the parameters $\vc{z} \in
+\mathbb{R}^{n_z}$ enter a *state equation* --- a linear system, a nonlinear
+algebraic system, a discretized PDE --- whose solution $\vc{u} \in
+\mathbb{R}^{n_u}$ is what the objective actually scores:
+
+$$
+\min_{\vc{z}} \; J(\vc{z}) = f(\vc{u}(\vc{z}), \vc{z})
+\quad \text{subject to} \quad
+\vc{c}(\vc{u}, \vc{z}) = \vc{0}.
+$$ {#eq-implicit-problem}
+
+The constraint is *implicit*: for each $\vc{z}$ it defines $\vc{u}(\vc{z})$
+through a solve, not through a formula. This tutorial follows the derivation
+in @heinkenschloss2008, on the simplest possible setting --- a static,
+finite-dimensional system with no time and no PDE. Everything here transfers
+unchanged to time-dependent and PDE-constrained problems; later tutorials add
+that structure without adding a new principle.
+
+We need $\nabla J$. Differentiating @eq-implicit-problem with the chain rule
+gives
+
+$$
+\nabla J^\top
+= f_{\vc{z}} + f_{\vc{u}} \frac{d\vc{u}}{d\vc{z}},
+$$ {#eq-chain-rule}
+
+where $f_{\vc{u}} \in \mathbb{R}^{1 \times n_u}$ and $f_{\vc{z}} \in
+\mathbb{R}^{1 \times n_z}$ are partial derivatives of the objective. The
+difficulty is the *sensitivity* $d\vc{u}/d\vc{z} \in \mathbb{R}^{n_u \times
+n_z}$. Differentiating the constraint gives an equation for it,
+
+$$
+\vc{c}_{\vc{u}} \frac{d\vc{u}}{d\vc{z}} = -\vc{c}_{\vc{z}},
+$$ {#eq-tangent}
+
+which is $n_z$ linear systems --- one per column, one per parameter. That is
+the *tangent* (or forward sensitivity) method, and its cost grows with $n_z$.
+
+
+## The Adjoint Derivation
+
+Form the Lagrangian, pairing the constraint with a multiplier
+$\boldsymbol{\lambda} \in \mathbb{R}^{n_u}$:
+
+$$
+\mathcal{L}(\vc{u}, \vc{z}, \boldsymbol{\lambda})
+= f(\vc{u}, \vc{z}) + \boldsymbol{\lambda}^\top \vc{c}(\vc{u}, \vc{z}).
+$$ {#eq-lagrangian}
+
+When $\vc{u}$ solves the state equation the constraint term vanishes, so
+$\mathcal{L} = J$ for *any* $\boldsymbol{\lambda}$. That freedom is the whole
+trick: choose $\boldsymbol{\lambda}$ to annihilate the expensive term.
+Differentiating @eq-lagrangian with respect to $\vc{z}$,
+
+$$
+\nabla J^\top
+= \underbrace{f_{\vc{z}} + \boldsymbol{\lambda}^\top \vc{c}_{\vc{z}}}_{\text{cheap}}
++ \underbrace{\left(f_{\vc{u}} + \boldsymbol{\lambda}^\top \vc{c}_{\vc{u}}\right)}_{\text{set to zero}}
+\frac{d\vc{u}}{d\vc{z}}.
+$$ {#eq-lagrangian-derivative}
+
+Choosing $\boldsymbol{\lambda}$ so the bracketed factor vanishes removes
+$d\vc{u}/d\vc{z}$ from the expression entirely. The resulting recipe is three
+steps:
+
+1. **State solve.** Solve $\vc{c}(\vc{u}, \vc{z}) = \vc{0}$ for $\vc{u}$.
+2. **Adjoint solve.** Solve
+   $\vc{c}_{\vc{u}}^\top \boldsymbol{\lambda} = -f_{\vc{u}}^\top$.
+3. **Gradient assembly.** Form
+   $\nabla J^\top = f_{\vc{z}} + \boldsymbol{\lambda}^\top \vc{c}_{\vc{z}}$.
+
+Two features deserve emphasis. First, none of the three steps involves
+$n_z$: the adjoint solve produces one vector $\boldsymbol{\lambda}$, and step
+3 contracts it against $\vc{c}_{\vc{z}}$ to yield all $n_z$ gradient
+components at once. Second, step 2 is a *single linear* solve with the
+*transposed* state Jacobian --- even when $\vc{c}$ is nonlinear and step 1
+required a full Newton iteration. The linearization the state solve already
+built is reused, transposed.
+
+```{python}
+#| echo: false
+#| label: fig-cost-table
+#| fig-cap: "State-equation solves per gradient, by method. Finite differences need one extra solve per parameter; the tangent method solves @eq-tangent column by column, also one per parameter. The adjoint pays for a state solve and an adjoint solve and stops. Notice that the adjoint row does not change as $n_z$ grows --- that constancy is the entire reason adjoints make large-scale optimization possible."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_gradient_cost_table
+
+fig, ax = plt.subplots(figsize=(7.0, 2.0))
+plot_gradient_cost_table([1, 10, 100], ax)
+plt.tight_layout()
+plt.show()
+```
+
+
+## A Concrete State Equation
+
+We use a small nonlinear system from the PyApprox benchmark library. The
+state $\vc{u} = (u_1, u_2)$ and parameters $\vc{z} = (a, b)$ satisfy
+
+$$
+\vc{c}(\vc{u}, \vc{z}) =
+\begin{pmatrix} a\, u_1^2 + u_2^2 - 1 \\ u_1^2 - b\, u_2^2 - 1 \end{pmatrix}
+= \vc{0},
+$$ {#eq-state-equation}
+
+which is genuinely nonlinear in the state, so step 1 runs Newton's method
+while step 2 remains a single linear solve. A real solution exists only for
+$a < 1$: the closed form $u_2^2 = (1-a)/(1+ab)$ turns negative beyond it. The
+objective reads off one state component, $f(\vc{u}, \vc{z}) = u_2$, so
+$f_{\vc{z}} = \vc{0}$ and the entire gradient comes from the adjoint term.
+
+PyApprox ships this as a forward UQ problem: the parameters carry a
+distribution, and the quantity of interest is defined through the solve.
+
+```{python}
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox_benchmarks.problems.coupled_state_equations import (
+    CoupledStateEquationsForwardUQ,
+)
+
+bkd = NumpyBkd()
+problem = CoupledStateEquationsForwardUQ(bkd).problem()
+qoi = problem.function()
+
+param = bkd.asarray([[0.5], [1.228]])
+print("J(z) =", float(bkd.to_numpy(qoi(param))[0, 0]))
+```
+
+Evaluating `qoi` ran a Newton solve and read off $u_2$. Everything so far is
+the forward problem; no derivative has been computed.
+
+Because there are only two parameters, the whole objective can be drawn.
+@fig-qoi-surface does exactly that, and puts the gradient on top of it.
+
+```{python}
+#| echo: false
+#| label: fig-qoi-surface
+#| fig-cap: "The implicitly defined objective over the parameter box; light is large, and every pixel of it is a Newton solve. The white dot is the evaluation point. The solid orange arrow is the adjoint gradient $\\nabla J$, drawn from that point and pointing uphill; the dashed white arrow is its negative, the direction an optimizer would step. Both are scaled for legibility, so their common length carries no units --- only their shared direction is meaningful. Notice that the surface is a ramp rather than a bowl: the objective has no interior minimum here, which is why the gradient is large and the curvature --- the subject of the next tutorial --- is invisible at this scale."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_qoi_surface_with_gradient
+
+fig, ax = plt.subplots(figsize=(6.4, 4.8))
+contours = plot_qoi_surface_with_gradient(qoi, param, ax)
+fig.colorbar(contours, ax=ax, label="$J(a, b)$")
+plt.tight_layout()
+plt.show()
+```
+
+
+## The Three Steps in Code
+
+The recipe transcribes directly. Below, the three steps are written out
+against the state equation and functional the problem is built from, and then
+compared with the gradient the problem already exposes.
+
+```{python}
+from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
+from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (
+    NonLinearCoupledStateEquations,
+)
+
+state_eq = NonLinearCoupledStateEquations(bkd)
+functional = WeightedSumFunctional(bkd.asarray([[0.0], [1.0]]), 2, bkd)
+init_state = bkd.full((2, 1), 0.75)
+
+
+def adjoint_gradient(param):
+    """Gradient of J by the three-step adjoint recipe."""
+    # (1) state solve
+    fwd_state = state_eq.solve(init_state, param)
+    # (2) adjoint solve: c_u^T lambda = -f_u^T
+    adj_state = bkd.solve(
+        state_eq.state_jacobian(fwd_state, param).T,
+        -functional.state_jacobian(fwd_state, param).T,
+    )
+    # (3) assemble: f_z + lambda^T c_z
+    return functional.param_jacobian(
+        fwd_state, param
+    ) + adj_state.T @ state_eq.param_jacobian(fwd_state, param)
+
+
+print("hand-rolled =", bkd.to_numpy(adjoint_gradient(param)).ravel())
+print("library     =", bkd.to_numpy(qoi.jacobian(param)).ravel())
+```
+
+Two solves produced both gradient components, and the problem's own
+`jacobian` reproduces the hand-rolled result: it runs the same three steps,
+caching the state solve and the Jacobians so that repeated objective and
+gradient queries during an optimization do not re-solve. Note that step 2
+transposes the state Jacobian --- and that the transpose is not cosmetic. It
+is the difference between the correct gradient and a plausible-looking wrong
+one, as the verification below demonstrates.
+
+
+## Verification: the Step-Size Sweep {#sec-verification}
+
+Throughout this series we verify every gradient the same way. For a random
+direction $\vc{v}$ we compare the directional derivative predicted by the
+adjoint gradient, $\vc{g}^\top \vc{v}$, against a finite-difference quotient,
+$(J(\vc{z} + \epsilon \vc{v}) - J(\vc{z}))/\epsilon$, and report the relative
+error between the two. A correct implementation gives an error near zero, but
+how near depends on $\epsilon$ in a characteristic way: for large $\epsilon$
+the comparison is polluted by truncation error (the $O(\epsilon)$ remainder of
+the one-sided difference quotient), while for very small $\epsilon$ it is
+polluted by rounding error (subtracting nearly equal function values).
+Plotting the error against $\epsilon$ therefore produces a V shape: error
+falling as $\epsilon$ shrinks, reaching a floor, then rising again. Seeing
+this V is stronger evidence than any single error value --- a wrong gradient
+produces a flat line at some offset instead of a V, because no choice of
+$\epsilon$ can make a wrong derivative agree with a right one. When later
+tutorials print a single ratio at a stated $\epsilon$, they are reporting the
+bottom of this V.
+
+```{python}
+#| echo: false
+#| label: fig-v-curve
+#| fig-cap: "Relative error of the directional derivative against finite-difference step size, log-log. The correct adjoint gradient (blue) falls along the $\\epsilon^1$ truncation slope, bottoms out where rounding error takes over (star), and rises again. The broken gradient --- step 2 solved without transposing the state Jacobian --- is orange. Notice that the V is the signature of a correct derivative; the flat line cannot be fixed by tuning $\\epsilon$."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import (
+    _broken_adjoint_for_figure,
+    fd_error_sweep,
+    plot_v_curve,
+)
+
+fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
+direction = bkd.asarray([[0.6], [-0.8]])
+
+
+def objective(p):
+    return float(functional(state_eq.solve(init_state, p), p)[0, 0])
+
+
+correct_errors = fd_error_sweep(
+    objective, adjoint_gradient, param, direction, fd_eps, bkd
+)
+broken_errors = fd_error_sweep(
+    objective,
+    lambda p: _broken_adjoint_for_figure(state_eq, functional, init_state, p),
+    param,
+    direction,
+    fd_eps,
+    bkd,
+)
+
+fig, ax = plt.subplots(figsize=(6.5, 4.5))
+plot_v_curve(fd_eps, correct_errors, broken_errors, bkd, ax)
+plt.tight_layout()
+plt.show()
+```
+
+The broken gradient in @fig-v-curve drops the transpose in step 2, solving
+$\vc{c}_{\vc{u}} \boldsymbol{\lambda} = -f_{\vc{u}}^\top$ instead of
+$\vc{c}_{\vc{u}}^\top \boldsymbol{\lambda} = -f_{\vc{u}}^\top$. The result has
+the right shape and a comparable magnitude --- the kind of error that survives
+a shape assertion and a smell test, and that only a derivative check catches.
+
+
+## Why Not Automatic Differentiation?
+
+Automatic differentiation could produce this gradient too. Reverse-mode AD and
+the adjoint method share the same headline property --- one gradient for a
+cost independent of the number of parameters --- because they are the same
+theorem. So the choice is not about that scaling, and it is not that AD
+struggles with nonlinearity. Two other things decide it.
+
+**Cost grows with the solver's work.** Reverse-mode AD differentiates the
+program that ran. When that program is Newton's method, the tape records
+*every iteration*, and the reverse sweep walks back through all of them. The
+adjoint method differentiates the *solution* instead: the implicit function
+theorem says the converged state satisfies $\vc{c}(\vc{u},\vc{z}) = \vc{0}$
+exactly, so one transposed solve with the final Jacobian suffices no matter
+how many iterations produced it.
+
+```{python}
+#| echo: false
+#| label: fig-ad-comparison
+#| fig-cap: "Cost of one gradient against the number of Newton iterations in the forward solve, with the operations recorded on the autograd tape on the right axis. The adjoint line is flat; the AD line and the tape both grow linearly, doubling when the iteration count doubles. Notice that the timings are noisy --- they come from a handful of repetitions in the documentation build --- but the slopes are the claim, not the ratios."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import (
+    measure_ad_vs_adjoint,
+    plot_ad_comparison,
+)
+
+adjoint_seconds, rows = measure_ad_vs_adjoint(qoi, param)
+fig, ax = plt.subplots(figsize=(6.4, 4.2))
+plot_ad_comparison(adjoint_seconds, rows, ax)
+plt.tight_layout()
+plt.show()
+```
+
+The recorded-operation counts in @fig-ad-comparison are exact and identical on
+any machine: this state equation adds twenty-four operations to the tape per
+Newton iteration, so a solve taking twice as many steps records twice as many.
+The wall-clock ratios are only indicative --- they depend on the machine and,
+on a two-by-two system, are inflated by per-operation overhead that a larger
+problem would amortize. What transfers is that one curve rises with the
+solver's iteration count and the other does not. A stiff transient problem
+taking fifteen Newton steps per time step pays that multiplier at every step.
+
+**Some solvers cannot be taped at all.** The control problem this series
+builds toward assembles its operators with `scikit-fem` and solves them with
+sparse factorizations from SciPy. Neither is written against an AD framework's
+tensor type, so no tape records them; the benchmark enforces this by rejecting
+any backend but NumPy. The adjoint needs only the action of the transposed
+Jacobian, which those libraries already provide. Where AD is available it is a
+reasonable choice, and PyApprox supports it through backends such as PyTorch;
+where the forward model leaves the tape, the adjoint is the only route to a
+gradient.
+
+Frameworks that offer implicit differentiation --- `jax.lax.custom_root`,
+`jaxopt`, a hand-written `torch.autograd.Function` --- close the first gap by
+applying exactly the identity derived above instead of taping the iteration.
+Using them correctly means knowing what they compute, which is the content of
+this tutorial.
+
+::: {.callout-note collapse="true"}
+## Verification summary
+
+```{python}
+#| echo: false
+correct_np = bkd.to_numpy(correct_errors)
+broken_np = bkd.to_numpy(broken_errors)
+eps_np = bkd.to_numpy(fd_eps)
+print(
+    f"adjoint gradient: best relative error {correct_np.min():.2e} "
+    f"at eps={eps_np[correct_np.argmin()]:.1e}"
+)
+print(
+    f"                  V depth (worst/best) {correct_np.max() / correct_np.min():.1e}"
+)
+print(
+    f"broken  gradient: best relative error {broken_np.min():.2e}, "
+    f"flatness (worst/best) {broken_np.max() / broken_np.min():.1f}"
+)
+assert correct_np.min() < 1e-6, "adjoint gradient failed its finite-difference check"
+assert broken_np.min() > 1e-2, "the broken gradient was not detectably wrong"
+```
+
+The correct gradient reaches a small relative error at an interior step size
+and degrades on both sides of it. The broken gradient never gets close at any
+step size, and its error barely varies --- the flat line of @fig-v-curve.
+:::
+
+
+## Key Takeaways
+
+- An implicitly constrained problem couples an objective $f(\vc{u}, \vc{z})$ to
+  a state equation $\vc{c}(\vc{u}, \vc{z}) = \vc{0}$; the gradient of the
+  reduced objective needs the sensitivity $d\vc{u}/d\vc{z}$, which the adjoint
+  method avoids computing.
+- The recipe is three steps: solve the state equation, solve
+  $\vc{c}_{\vc{u}}^\top \boldsymbol{\lambda} = -f_{\vc{u}}^\top$, assemble
+  $f_{\vc{z}} + \boldsymbol{\lambda}^\top \vc{c}_{\vc{z}}$.
+- Cost is two solves, independent of $n_z$. Finite differences and the tangent
+  method both cost $O(n_z)$ solves.
+- The adjoint solve is linear and uses the transposed state Jacobian, even for
+  a nonlinear state equation.
+- Verify with a step-size sweep and look for the V. A flat line means the
+  gradient is wrong, and no step size will rescue it.
+
+
+## Next Steps
+
+- *Adjoints for Time-Dependent Problems* (forthcoming) applies this same
+  derivation to an ODE by stacking all time steps into one large state
+  equation --- the backward-in-time sweep falls out as block back-substitution.
+- *Steering a Plume* (forthcoming) puts the machinery to work on a
+  PDE-constrained control problem where $n_z$ is large enough that the cost
+  table above decides which methods are usable at all.
+
+
+## References
+
+::: {#refs}
+:::
