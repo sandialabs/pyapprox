@@ -409,8 +409,8 @@ step size, and its error barely varies --- the flat line of @fig-v-curve.
 
 ## Next Steps
 
-- *Adjoints for Time-Dependent Problems* (forthcoming) applies this same
-  derivation to an ODE by stacking all time steps into one large state
+- [Adjoints for Time-Dependent Problems](adjoint_ode_concept.qmd) applies this
+  same derivation to an ODE by stacking all time steps into one large state
   equation --- the backward-in-time sweep falls out as block back-substitution.
 - *Steering a Plume* (forthcoming) puts the machinery to work on a
   PDE-constrained control problem where $n_z$ is large enough that the cost

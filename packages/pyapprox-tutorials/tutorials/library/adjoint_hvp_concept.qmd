@@ -330,8 +330,9 @@ step size.
 
 ## Next Steps
 
-- *Adjoints for Time-Dependent Problems* (forthcoming) stacks time steps into
-  one large state equation, after which everything here applies unchanged.
+- [Adjoints for Time-Dependent Problems](adjoint_ode_concept.qmd) stacks time
+  steps into one large state equation, after which everything here applies
+  unchanged.
 - *Steering a Plume* (forthcoming) hands these products to a trust-region
   optimizer on a PDE-constrained control problem.
 

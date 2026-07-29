@@ -1,6 +1,7 @@
 """Plotting functions for the adjoint concept tutorials.
 
-Covers: adjoint_concept.qmd, adjoint_hvp_concept.qmd
+Covers: adjoint_concept.qmd, adjoint_hvp_concept.qmd,
+adjoint_ode_concept.qmd
 """
 
 import matplotlib.pyplot as plt
@@ -13,6 +14,235 @@ from pyapprox.interface.functions.plot.plot2d_rectangular import (
 )
 
 from ._style import COLORS, NEON_CMAP
+
+
+def _draw_block_bidiagonal(ax, nsteps, transposed, title):
+    """One block-bidiagonal matrix with its substitution direction.
+
+    Draws the all-at-once Jacobian of a time-stepping scheme: diagonal
+    blocks for the step residual's dependence on its own state, and one
+    off-diagonal for its dependence on the previous state. Transposing
+    moves the off-diagonal from below the diagonal to above it, which is
+    what turns forward substitution into backward substitution.
+    """
+    for row in range(nsteps):
+        for col in range(nsteps):
+            on_diagonal = row == col
+            below = row == col + 1
+            above = col == row + 1
+            occupied = on_diagonal or (above if transposed else below)
+            if not occupied:
+                continue
+            color = COLORS["primary"] if on_diagonal else COLORS["secondary"]
+            ax.add_patch(
+                plt.Rectangle(
+                    (col, nsteps - 1 - row), 1, 1, facecolor=color,
+                    alpha=0.75 if on_diagonal else 0.5,
+                    edgecolor="white", lw=1.5,
+                )
+            )
+            if on_diagonal:
+                label = rf"$A_{{{row + 1}}}^\top$" if transposed \
+                    else rf"$A_{{{row + 1}}}$"
+            else:
+                label = r"$B^\top$" if transposed else r"$B$"
+            ax.text(col + 0.5, nsteps - 0.5 - row, label, ha="center",
+                    va="center", fontsize=9, color="white")
+    # The order the blocks are resolved in: down the diagonal for the
+    # untransposed system, up it for the transposed one.
+    start, stop = (0.5, nsteps - 0.5) if transposed else (nsteps - 0.5, 0.5)
+    ax.annotate(
+        "",
+        xy=(-0.55, stop), xytext=(-0.55, start),
+        arrowprops=dict(arrowstyle="-|>", lw=2.4, color=COLORS["accent"]),
+    )
+    ax.text(
+        -1.15, nsteps / 2,
+        "solved backward\nin time" if transposed else "solved forward\nin time",
+        rotation=90, ha="center", va="center", fontsize=8,
+        color=COLORS["accent"],
+    )
+    ax.set_xlim(-1.5, nsteps)
+    ax.set_ylim(-0.3, nsteps + 0.1)
+    ax.set_aspect("equal")
+    ax.set_title(title, fontsize=11)
+    ax.axis("off")
+    return ax
+
+
+def plot_all_at_once_blocks(axes, nsteps=4):
+    """adjoint_ode_concept.qmd -> fig-all-at-once
+
+    The all-at-once Jacobian beside its transpose. Both are block
+    bidiagonal; the transpose moves the coupling block across the
+    diagonal, which reverses the direction the system is solved in.
+    """
+    # Plain mathtext: matplotlib does not know the document's LaTeX
+    # macros, so figure labels spell the symbols out.
+    _draw_block_bidiagonal(
+        axes[0], nsteps, transposed=False,
+        title=r"$\mathbf{C}_{\mathbf{Y}}$  (block lower bidiagonal)",
+    )
+    _draw_block_bidiagonal(
+        axes[1], nsteps, transposed=True,
+        title=r"$\mathbf{C}_{\mathbf{Y}}^\top$  (block upper bidiagonal)",
+    )
+    return axes
+
+
+def plot_quadrature_rules(axes, nintervals=4):
+    """transient_functionals_concept.qmd -> fig-quadrature-rules
+
+    What each rule assumes about the integrand between stored states:
+    a constant taken from the left endpoint, from the right endpoint,
+    from the interval midpoint, or a straight line between the two ends.
+    The shaded area is what the rule actually sums; the curve is the
+    integrand it is approximating.
+    """
+    def integrand(time):
+        return 1.0 + 0.6 * np.sin(1.7 * time) + 0.25 * time
+
+    edges = np.linspace(0.0, 4.0, nintervals + 1)
+    fine = np.linspace(edges[0], edges[-1], 400)
+    rules = (
+        ("left rectangle", "forward Euler"),
+        ("right rectangle", "backward Euler"),
+        ("midpoint", "implicit midpoint"),
+        ("trapezoidal", "Crank-Nicolson"),
+    )
+    for ax, (rule, scheme) in zip(axes, rules):
+        for left, right in zip(edges[:-1], edges[1:]):
+            if rule == "trapezoidal":
+                xs = [left, left, right, right]
+                ys = [0.0, integrand(left), integrand(right), 0.0]
+            else:
+                sample = {
+                    "left rectangle": left,
+                    "right rectangle": right,
+                    "midpoint": 0.5 * (left + right),
+                }[rule]
+                height = integrand(sample)
+                xs = [left, left, right, right]
+                ys = [0.0, height, height, 0.0]
+            ax.fill(xs, ys, facecolor=COLORS["primary"], alpha=0.25,
+                    edgecolor=COLORS["primary"], lw=1.2)
+        ax.plot(fine, integrand(fine), color=COLORS["reference"], lw=2.0)
+        # Mark the states each rule evaluates at.
+        if rule == "midpoint":
+            samples = 0.5 * (edges[:-1] + edges[1:])
+        elif rule == "left rectangle":
+            samples = edges[:-1]
+        elif rule == "right rectangle":
+            samples = edges[1:]
+        else:
+            samples = edges
+        ax.plot(samples, integrand(samples), "o", color=COLORS["reference"],
+                markersize=5, zorder=5)
+        ax.set_title(f"{rule}\n({scheme})", fontsize=9)
+        ax.set_xticks(edges)
+        ax.set_xticklabels([])
+        ax.set_yticks([])
+        ax.set_ylim(0.0, 2.6)
+    axes[0].set_ylabel(r"$q(y(t))$")
+    return axes
+
+
+def plot_quadrature_orders(deltats, errors, ax):
+    """transient_functionals_concept.qmd -> fig-quadrature-mismatch
+
+    Error in a time-integrated quantity of interest against step size,
+    log-log, one curve per scheme-and-rule pairing. Returns the observed
+    order of each curve so the tutorial can assert on them.
+    """
+    palette = [COLORS["primary"], COLORS["reference"], COLORS["gray"]]
+    styles = ["-o", "-s", "--^"]
+    deltats_np = np.asarray(deltats)
+    orders = {}
+    for (label, curve), color, style in zip(errors.items(), palette, styles):
+        curve_np = np.asarray(curve)
+        order = float(np.polyfit(np.log(deltats_np), np.log(curve_np), 1)[0])
+        orders[label] = order
+        ax.loglog(deltats_np, curve_np, style, color=color,
+                  label=f"{label} ({order:.2f})")
+    ax.set_xlabel(r"$\Delta t$")
+    ax.set_ylabel(r"error in $Q$")
+    ax.legend(fontsize=7)
+    return orders
+
+
+def measure_gradient_cost(nparams_list, nstates=2, deltat=0.1, final_time=1.0):
+    """adjoint_ode_concept.qmd -> data for fig-cost-vs-nparams
+
+    Times one adjoint gradient against a central-difference gradient on
+    a linear ODE, as the parameter count grows. Returns
+    ``(adjoint_times, fd_times)`` in seconds.
+    """
+    import time
+
+    from pyapprox.ode.functionals.endpoint import EndpointFunctional
+    from pyapprox.ode.implicit_steppers.backward_euler import (
+        BackwardEulerAdjoint,
+    )
+    from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+    from pyapprox.util.backends.numpy import NumpyBkd
+    from pyapprox.util.rootfinding.newton import NewtonSolver
+    from pyapprox_benchmarks.functions.ode.linear_ode import LinearODEResidual
+
+    bkd = NumpyBkd()
+    rng = np.random.RandomState(0)
+    state_matrix = bkd.asarray(np.array([[-1.0, 0.5], [0.2, -2.0]]))
+    init_state = bkd.asarray(np.array([1.0, 0.5]))
+    adjoint_times, fd_times = [], []
+    for nparams in nparams_list:
+        forcing = bkd.asarray(rng.normal(0, 1, (nstates, nparams)))
+        residual = LinearODEResidual(state_matrix, forcing, bkd)
+        integrator = TimeIntegrator(
+            0.0, final_time, deltat,
+            NewtonSolver(BackwardEulerAdjoint(residual)),
+        )
+        integrator.set_functional(
+            EndpointFunctional(
+                state_idx=0, nstates=nstates, nparams=nparams, bkd=bkd
+            )
+        )
+        param = bkd.asarray(rng.normal(0, 1, (nparams, 1)))
+        residual.set_param(bkd.flatten(param))
+        states, times = integrator.solve(init_state)
+
+        start = time.perf_counter()
+        integrator.gradient(states, times, param)
+        adjoint_times.append(time.perf_counter() - start)
+
+        # Central differences: two extra forward solves per parameter.
+        start = time.perf_counter()
+        for index in range(nparams):
+            for sign in (1.0, -1.0):
+                perturbed = bkd.copy(param)
+                perturbed[index, 0] += sign * 1e-6
+                residual.set_param(bkd.flatten(perturbed))
+                integrator.solve(init_state)
+        fd_times.append(time.perf_counter() - start)
+        residual.set_param(bkd.flatten(param))
+    return adjoint_times, fd_times
+
+
+def plot_gradient_cost_scaling(nparams_list, adjoint_times, fd_times, ax):
+    """adjoint_ode_concept.qmd -> fig-cost-vs-nparams
+
+    Wall-clock cost of one gradient against the number of parameters.
+    The adjoint line is flat; finite differences grow linearly because
+    each parameter needs its own perturbed solve.
+    """
+    ax.plot(nparams_list, np.array(fd_times) * 1e3, "-o",
+            color=COLORS["secondary"], label="finite differences")
+    ax.plot(nparams_list, np.array(adjoint_times) * 1e3, "-o",
+            color=COLORS["primary"], label="adjoint")
+    ax.set_xlabel("number of parameters")
+    ax.set_ylabel("time per gradient [ms]")
+    ax.set_xscale("log", base=2)
+    ax.set_yscale("log")
+    ax.legend(fontsize=8)
+    return ax
 
 
 def _reduced_hessian(function, bkd, point):

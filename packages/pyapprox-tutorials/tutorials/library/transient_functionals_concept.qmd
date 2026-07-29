@@ -1,0 +1,337 @@
+---
+title: "Quantities of Interest Over a Trajectory"
+subtitle: "PyApprox Tutorial Library"
+description: "Approximating a time integral with the quadrature rule the time-stepping scheme implies, and what goes wrong when the two do not match."
+tutorial_type: concept
+topic: dynamical_systems
+difficulty: intermediate
+estimated_time: 8
+prerequisites:
+  - ode_timestepping_usage
+tags:
+  - ode
+  - time-stepping
+  - quadrature
+  - functionals
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Write a time-integrated quantity of interest as a weighted sum over a
+  computed trajectory
+- Name the quadrature rule each time-stepping scheme implies, and explain why
+  the rule belongs to the scheme rather than to the user
+- Predict and measure what happens when the two are mismatched: the
+  trajectory stays accurate while the quantity of interest silently loses an
+  order --- in a plain forward run, with no derivative in sight
+- Say which rules admit per-step second-order work, and why every scheme here
+  produces a banded rather than a dense coupling in time
+
+
+## Beyond Endpoint Values
+
+The simplest quantity of interest a trajectory can produce is a value read off
+its final state --- a concentration at the end of an episode, a position at
+touchdown. Real objectives are rarely that. A control problem penalizes
+concentration in a region *throughout* an episode; a calibration problem sums
+misfit against data collected over an interval. Both are time integrals,
+
+$$
+Q = \int_0^T q(\vc{y}(t))\, dt,
+$$ {#eq-time-integral}
+
+and a computed trajectory gives values at finitely many instants, so the
+integral has to be approximated by a quadrature rule:
+
+$$
+Q \approx \sum_j w_j\, q(\hat{\vc{y}}_j),
+\qquad \hat{\vc{y}} = \mt{S}\vc{y},
+$$ {#eq-time-quadrature}
+
+where $\mt{S}$ selects or interpolates the stored states the rule evaluates at
+and $\vc{w}$ weights them. The question this tutorial answers is where
+$(\vc{w}, \mt{S})$ comes from.
+
+
+## The Scheme Chooses the Rule
+
+Not the user. Each time-stepping scheme already commits to a quadrature by
+the way it advances the solution, and using any other rule wastes accuracy the
+scheme paid for. Backward Euler evaluates the right-hand side at the end of
+each interval, so summing with the right-hand endpoint is consistent with what
+it did; Crank-Nicolson averages the two ends, which is exactly the trapezoidal
+rule.
+
+This is a statement about **evaluating** @eq-time-integral, not about
+differentiating it. Everything in this section applies to a forward run that
+never computes a gradient: the quantity of interest is an approximation of an
+integral, and its accuracy is set by the rule used to sum the trajectory. The
+adjoint enters only later, and inherits whichever rule the evaluation used.
+
+| Scheme | Implied rule | Order |
+|---|---|---|
+| forward Euler | left rectangle | 1 |
+| backward Euler | right rectangle | 1 |
+| Crank-Nicolson | trapezoidal | 2 |
+| implicit midpoint | midpoint | 2 |
+
+Each rule amounts to an assumption about the integrand *between* the states
+the solve stored, and @fig-quadrature-rules shows what those assumptions look
+like.
+
+```{python}
+#| echo: false
+#| label: fig-quadrature-rules
+#| fig-cap: "What each quadrature rule assumes between stored states. The red curve is the integrand and the red dots are the states the rule evaluates; the shaded area is what the rule actually sums. The three rectangle rules hold the integrand constant across each interval --- taken from the left end, the right end, or the middle --- while the trapezoidal rule joins the two ends with a straight line. Notice that the midpoint rule samples where no state was stored, which is why it needs states interpolated between the ones the solve produced."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_quadrature_rules
+
+fig, axes = plt.subplots(1, 4, figsize=(12.0, 2.9))
+plot_quadrature_rules(axes)
+plt.tight_layout()
+plt.show()
+```
+
+The constant-across-an-interval rules are first order; the ones that follow
+the integrand more closely --- a straight line, or a value taken from the
+middle --- are second. That is the same ordering as the schemes they belong
+to, which is not a coincidence: a scheme and its rule make the same
+assumption about what happens between steps.
+
+Every stepper reports its own rule, so the pairing never has to be
+remembered:
+
+```{python}
+import numpy as np
+
+from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerAdjoint
+from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonAdjoint
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox_benchmarks.functions.ode.linear_ode import LinearODEResidual
+
+bkd = NumpyBkd()
+state_matrix = bkd.asarray(np.array([[-1.0, 0.5], [0.2, -2.0]]))
+forcing_matrix = bkd.asarray(np.eye(2))
+times = bkd.asarray(np.linspace(0.0, 1.0, 5))
+
+for stepper_class in (BackwardEulerAdjoint, CrankNicolsonAdjoint):
+    stepper = stepper_class(
+        LinearODEResidual(state_matrix, forcing_matrix, bkd)
+    )
+    rule = stepper.trajectory_quadrature(times)
+    print(f"{stepper_class.__name__:24s} {type(rule).__name__}")
+```
+
+The functional takes the rule by injection rather than as a constructor
+argument, from whatever component owns the scheme. That is a deliberate
+choice: a functional cannot be built holding a rule that disagrees with the
+solve that produced its trajectory.
+
+### Which Quantities Need a Rule
+
+The requirement is not that everything computed from a trajectory must use
+the scheme's rule. It is that a quantity **approximating behavior between the
+stored states** must, because that is what the rule encodes.
+
+An endpoint quantity of interest is the clean counterexample.
+`EndpointFunctional` returns $y_k(T)$ by reading the last column of the
+trajectory: a value the solve computed, not an approximation of anything.
+There is nothing between nodes to assume, so no rule applies and every scheme
+reports it identically.
+
+The two really are different questions, and forward Euler shows it sharply.
+Its integral rule samples the *left* end of each interval, so over five stored
+states it uses indices $0,1,2,3$ --- **never the final time**. Yet forward
+Euler's endpoint quantity of interest is still $y_4$. Implicit midpoint is
+starker: its rule samples between stored states, so it touches no stored node
+at all. A quantity of interest at the final time could be expressed as a
+quadrature --- a single unit weight on the last index --- but it would be a
+different rule from the one the scheme implies for integrals, chosen for a
+different purpose. Pairing is about matching the rule to the quantity, and
+only integrals inherit the scheme's.
+
+
+## What a Mismatch Costs
+
+To see what is being prevented, do it deliberately. The system below has an
+exact solution, so the error in $Q$ can be measured against the truth rather
+than against a finer approximation of itself.
+
+```{python}
+from scipy.integrate import quad
+from scipy.linalg import expm
+
+from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
+    TimeIntegratedWeightedL2Functional,
+)
+from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.time_quadrature import (
+    right_rectangle_quadrature,
+    trapezoidal_quadrature,
+)
+from pyapprox.util.rootfinding.newton import NewtonSolver
+
+WEIGHT = np.array([[1.0, 0.0], [0.0, 0.5]])
+INITIAL = np.array([1.0, 0.5])
+PARAM = np.array([0.5, 0.3])
+FINAL_TIME = 1.0
+MATRIX = np.array([[-1.0, 0.5], [0.2, -2.0]])
+
+
+def exact_state(time):
+    """Solution of dy/dt = A y + B p with constant forcing."""
+    forcing = np.eye(2) @ PARAM
+    homogeneous = expm(MATRIX * time) @ INITIAL
+    particular = np.linalg.solve(
+        MATRIX, (expm(MATRIX * time) - np.eye(2)) @ forcing
+    )
+    return homogeneous + particular
+
+
+exact_qoi = quad(
+    lambda t: exact_state(t) @ WEIGHT @ exact_state(t),
+    0.0, FINAL_TIME, limit=200, epsabs=1e-13, epsrel=1e-13,
+)[0]
+
+
+def integrated_qoi(stepper_class, deltat, rule):
+    """Time-integrated QoI, with the quadrature supplied explicitly."""
+    residual = LinearODEResidual(state_matrix, forcing_matrix, bkd)
+    residual.set_param(bkd.asarray(PARAM))
+    integrator = TimeIntegrator(
+        0.0, FINAL_TIME, deltat, NewtonSolver(stepper_class(residual)),
+    )
+    functional = TimeIntegratedWeightedL2Functional(
+        bkd.asarray(WEIGHT), 2, bkd
+    )
+    integrator.set_functional(functional)
+    states, solve_times = integrator.solve(bkd.asarray(INITIAL))
+    functional.set_time_quadrature(rule(solve_times, bkd))
+    value = functional(states, bkd.asarray(PARAM[:, None]))
+    return float(bkd.to_float(value))
+
+
+print(f"exact Q = {exact_qoi:.10f}")
+```
+
+Crank-Nicolson produces a second-order accurate trajectory either way. The
+only thing that changes below is how those states are summed.
+
+```{python}
+#| echo: false
+#| label: fig-quadrature-mismatch
+#| fig-cap: "Error in the time-integrated quantity of interest against step size, log-log. Crank-Nicolson with its own trapezoidal rule converges at second order; the same trajectory summed with backward Euler's rectangle rule converges at first. Backward Euler with the rectangle rule is shown as a control --- first order is correct there, so the rectangle rule is not at fault. Notice that the mismatched curve is roughly a thousand times less accurate at the finest step, from states that are just as accurate as the matched case."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_quadrature_orders
+
+deltats = [0.1, 0.05, 0.025, 0.0125, 0.00625]
+configurations = {
+    "Crank-Nicolson + trapezoidal": (CrankNicolsonAdjoint, trapezoidal_quadrature),
+    "Crank-Nicolson + rectangle (mismatch)": (
+        CrankNicolsonAdjoint, right_rectangle_quadrature
+    ),
+    "backward Euler + rectangle": (
+        BackwardEulerAdjoint, right_rectangle_quadrature
+    ),
+}
+errors = {
+    label: np.array([
+        abs(integrated_qoi(stepper, dt, rule) - exact_qoi) for dt in deltats
+    ])
+    for label, (stepper, rule) in configurations.items()
+}
+
+fig, ax = plt.subplots(figsize=(6.6, 4.4))
+orders = plot_quadrature_orders(deltats, errors, ax)
+plt.tight_layout()
+plt.show()
+```
+
+The trajectory is not what degraded --- the states are identical in the first
+two cases. What degraded is the sum over them, and nothing about the run
+announces it. The residuals converge, the solver reports success, and the
+quantity of interest is quietly an order less accurate than the scheme that
+produced it. This is the failure the injection interface exists to make
+unrepresentable.
+
+::: {.callout-note collapse="true"}
+## Verification
+
+```{python}
+#| echo: false
+for label, order in orders.items():
+    print(f"{label:40s} observed order {order:.2f}")
+assert orders["Crank-Nicolson + trapezoidal"] > 1.8
+assert orders["Crank-Nicolson + rectangle (mismatch)"] < 1.2
+assert orders["backward Euler + rectangle"] < 1.2
+```
+
+The matched second-order pairing converges at the rate its scheme promises;
+the mismatched one falls to the rate of the rule rather than of the scheme.
+:::
+
+
+## Differentiating a Time Integral
+
+None of this changes when a gradient is wanted. The functional feeds
+$\partial Q/\partial \vc{y}_n$ into the backward recursion, and the same
+rule that evaluated $Q$ weights those contributions --- which is why the
+quadrature has to be settled before differentiation is even considered.
+[Adjoints for Time-Dependent Problems](adjoint_ode_concept.qmd) works
+through the recursion and shows the gradient of a time-integrated
+functional computed and verified.
+
+## Two Constraints Worth Knowing
+
+**Per-step Hessian-vector products need a nodal rule.** The left rectangle,
+right rectangle and trapezoidal rules all evaluate at stored states, so each
+step's contribution is independent. The midpoint rule evaluates *between*
+stored states, coupling adjacent steps, and
+`TimeIntegratedWeightedL2Functional` raises rather than silently computing
+something else. Implicit midpoint is available for gradients but not for
+per-step second-order work with this functional.
+
+**Every scheme here is one-step.** That is why the all-at-once Jacobian of the
+previous tutorial is block *bi*diagonal: each step depends on its immediate
+predecessor and nothing earlier. A multistep method would widen that band, and
+lengthen the adjoint recursion to look back the same number of steps.
+
+
+## Key Takeaways
+
+- A quantity of interest defined over an interval is a quadrature sum over the
+  computed trajectory, not a value read off it.
+- The rule belongs to the scheme: backward Euler implies the rectangle rule,
+  Crank-Nicolson the trapezoidal rule, implicit midpoint the midpoint rule.
+- Pairing a second-order scheme with a first-order rule leaves the trajectory
+  accurate and the quantity of interest an order worse --- silently. Obtaining
+  the rule from the stepper that produced the trajectory rules this out. This
+  applies to plain forward evaluation; no derivative need be involved.
+- Adjoint gradients are unchanged in principle; a time-integrated functional
+  simply contributes to the backward recursion at every step rather than one.
+
+
+## Next Steps
+
+- *Steering a Plume* (forthcoming) minimizes exactly this kind of objective:
+  a time-integrated measure of contamination, differentiated by the adjoint
+  and handed to an optimizer.
+
+
+## References
+
+::: {#refs}
+:::

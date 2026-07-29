@@ -1,0 +1,345 @@
+---
+title: "Adjoints for Time-Dependent Problems"
+subtitle: "PyApprox Tutorial Library"
+description: "Stacking every time step into one large state equation, so that the backward-in-time adjoint sweep falls out as block back-substitution."
+tutorial_type: concept
+topic: optimization
+difficulty: intermediate
+estimated_time: 12
+prerequisites:
+  - ode_timestepping_usage
+  - adjoint_concept
+tags:
+  - adjoint
+  - ode
+  - time-stepping
+  - gradients
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Compute the gradient of a trajectory-dependent quantity of interest with
+  `TimeIntegrator.gradient`, and verify it against finite differences
+- Write down the adjoint recursion a time-stepping scheme solves: a terminal
+  condition, a backward sweep, and a sum over the trajectory
+- Explain why that sweep runs backward in time, rather than taking it on
+  faith --- the reason is that transposing the all-at-once Jacobian turns
+  forward substitution into back-substitution
+- Say what changes when the scheme changes, and what does not
+
+
+## One Large State Equation
+
+The goal is a gradient: given a quantity of interest computed from a
+trajectory, find its derivative with respect to the parameters, at a cost
+that does not grow with how many parameters there are. The answer is a
+*backward sweep* over the trajectory, and calling for it takes two lines ---
+name a functional, then ask the integrator for the gradient. The rest of this
+tutorial explains what that sweep solves and why it runs backward, because a
+reader who takes the direction on faith cannot debug it when it goes wrong.
+
+[The Adjoint Method](adjoint_concept.qmd) derived a gradient for an objective
+constrained by a state equation $\vc{c}(\vc{u}, \vc{z}) = \vc{0}$, and needed
+no time and no PDE to do it. A time-stepping run appears to be a different
+kind of object: a loop, running forward, producing a trajectory rather than a
+single state.
+
+It is not. Collect every computed state into one long vector
+
+$$
+\vc{Y} = (\vc{y}_1, \vc{y}_2, \ldots, \vc{y}_N),
+$$ {#eq-stacked-state}
+
+and each step of the scheme becomes one block row of a single algebraic
+system. For backward Euler, step $n$ contributes
+
+$$
+\vc{R}_n(\vc{y}_n, \vc{y}_{n-1}, \vc{p})
+= \mt{M}(\vc{y}_n - \vc{y}_{n-1}) - \Delta t\, f(\vc{y}_n, t_n, \vc{p})
+= \vc{0},
+$$ {#eq-step-residual}
+
+and stacking all $N$ of them gives $\vc{C}(\vc{Y}, \vc{p}) = \vc{0}$ --- a
+state equation of exactly the form the previous tutorial treated, only larger.
+Everything derived there applies verbatim. What this tutorial adds is
+*structure*: the all-at-once Jacobian is not a dense matrix, and its shape is
+what makes the adjoint recognizable as a backward sweep.
+
+
+## The Shape of the All-at-Once Jacobian
+
+Each step residual @eq-step-residual involves only two states: its own and its
+predecessor. So $\partial \vc{R}_n / \partial \vc{y}_m$ vanishes unless
+$m = n$ or $m = n-1$, and the Jacobian $\mt{C}_{\vc{Y}}$ is **block lower
+bidiagonal**: diagonal blocks $\mt{A}_n = \partial \vc{R}_n/\partial
+\vc{y}_n$, and one subdiagonal of blocks $\mt{B} = \partial \vc{R}_n /
+\partial \vc{y}_{n-1}$, which for backward Euler is just $-\mt{M}$.
+
+Before reading anything off that shape, one clarification, because
+$\vc{C}(\vc{Y}, \vc{p}) = \vc{0}$ is in general **nonlinear**. A matrix is
+not the system; $\mt{C}_{\vc{Y}}$ is its Jacobian, evaluated at the converged
+trajectory. So the two directions are not the same kind of computation:
+
+**Forward stepping follows the pattern of block forward substitution, but
+each block is a nonlinear solve.** The dependency structure is what the lower
+bidiagonal shape records --- $\vc{y}_1$ from the initial condition, then
+$\vc{y}_2$ from $\vc{y}_1$, down the diagonal --- while the arithmetic inside
+each block row is Newton's method, iterating until @eq-step-residual is
+satisfied. Nobody substitutes through a nonlinear system.
+
+**The adjoint system genuinely is a linear solve, and back-substitution is
+literal.** Once the forward trajectory is known, the adjoint equation of the
+previous tutorial reads
+$\mt{C}_{\vc{Y}}^\top \boldsymbol{\lambda} = -(\partial Q/\partial
+\vc{Y})^\top$ with $\mt{C}_{\vc{Y}}^\top$ a fixed matrix built from the
+converged states. Transposing moves the coupling block from below the
+diagonal to above it, and an upper triangular system is solved by *back*
+substitution --- last unknown first. The backward-in-time adjoint sweep is
+not a separate algorithm anyone had to invent; it is what block
+back-substitution looks like when the blocks are indexed by time.
+
+That asymmetry is worth keeping in mind: the backward sweep costs **one
+linear solve per step** even when the forward solve needed several Newton
+iterations at every step. Linearizing once, at the solution, is the whole
+economy of the adjoint method.
+
+```{python}
+#| echo: false
+#| label: fig-all-at-once
+#| fig-cap: "The all-at-once Jacobian and its transpose, for four steps. Blue blocks are each step's dependence on its own state, orange its dependence on the previous one. Notice that transposing moves the orange blocks from below the diagonal to above it, and the green arrow reverses: the same substitution algorithm now resolves the last time step first. This is the whole reason adjoint sweeps run backward in time."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import plot_all_at_once_blocks
+
+fig, axes = plt.subplots(1, 2, figsize=(9.5, 4.4))
+plot_all_at_once_blocks(axes)
+plt.tight_layout()
+plt.show()
+```
+
+This also explains the transpose that the previous tutorial showed to be
+load-bearing. Dropping it there produced a plausible but wrong gradient; here
+it would mean solving the adjoint system in the wrong direction entirely.
+
+Writing the transposed system out block by block gives the recursion an
+implementation follows. With $\mt{A}_n^\top$ on the diagonal and
+$\mt{B}^\top$ above it, the last block row involves only
+$\boldsymbol{\lambda}_N$, so it is solved first, and each earlier multiplier
+follows from the one after it:
+
+$$
+\mt{A}_N^\top \boldsymbol{\lambda}_N = -\left(\pd{Q}{\vc{y}_N}\right)^\top,
+\qquad
+\mt{A}_n^\top \boldsymbol{\lambda}_n
+= -\left(\pd{Q}{\vc{y}_n}\right)^\top - \mt{B}^\top \boldsymbol{\lambda}_{n+1},
+$$ {#eq-adjoint-recursion}
+
+after which the gradient assembles as a sum over the trajectory,
+
+$$
+\nabla_{\vc{p}} Q
+= \pd{Q}{\vc{p}}
++ \sum_{n=1}^{N} \boldsymbol{\lambda}_n^\top \pd{\vc{R}_n}{\vc{p}} .
+$$ {#eq-transient-gradient}
+
+Those two blocks are not a derivation that lives only on paper. A stepper
+exposes them directly: `adjoint_diag_jacobian` returns $\mt{A}_n^\top$ and
+`adjoint_off_diag_jacobian` returns $\mt{B}^\top$, and the integrator's
+adjoint solve walks the recursion using them.
+
+A different scheme changes what the blocks contain --- Crank-Nicolson and
+Heun evaluate $f$ at more than one point, so their diagonal blocks differ ---
+but not the bidiagonal shape. That shape follows from each step depending
+only on its immediate predecessor, which is true of every scheme PyApprox
+provides: all of them are one-step methods. A multistep method, whose update
+reaches back several steps, would widen the band and lengthen the recursion
+correspondingly, without changing anything else about the argument.
+
+
+## Computing the Gradient
+
+The forward pipeline is the one from
+[Time Stepping for ODEs](ode_timestepping_usage.qmd). The only additions are
+a functional saying what scalar to differentiate, and the `Adjoint` tier of
+the stepper, which carries the two block accessors named above.
+
+```{python}
+import numpy as np
+
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
+from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerAdjoint
+from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox_benchmarks.functions.ode.linear_ode import LinearODEResidual
+
+bkd = NumpyBkd()
+nstates, nparams = 2, 2
+
+# dy/dt = A y + B p: the parameters enter as a forcing.
+residual = LinearODEResidual(
+    bkd.asarray(np.array([[-1.0, 0.5], [0.2, -2.0]])),
+    bkd.asarray(np.array([[1.0, 0.0], [0.0, 1.0]])),
+    bkd,
+)
+integrator = TimeIntegrator(
+    0.0, 1.0, 0.1, NewtonSolver(BackwardEulerAdjoint(residual)),
+)
+# Q reads one state component at the final time.
+integrator.set_functional(
+    EndpointFunctional(state_idx=0, nstates=nstates, nparams=nparams, bkd=bkd)
+)
+
+param = bkd.asarray(np.array([[0.5], [0.3]]))
+residual.set_param(bkd.flatten(param))
+init_state = bkd.asarray(np.array([1.0, 0.5]))
+
+states, times = integrator.solve(init_state)
+gradient = integrator.gradient(states, times, param)
+print("trajectory:", states.shape)
+print("gradient  :", bkd.to_numpy(gradient).ravel())
+```
+
+One backward sweep over the trajectory produced both components. Note what
+the call did *not* require: no re-solve per parameter, and no derivative of
+the time-stepping loop with respect to anything.
+
+The gradient is the exact derivative of the *computed* quantity of interest
+--- the one the scheme actually produced, discretization error and all --- not
+an approximation of the derivative of the continuous problem. That is what
+makes it usable by an optimizer: the objective and its gradient describe the
+same discrete function, so a line search behaves.
+
+::: {.callout-note collapse="true"}
+## Verification
+
+```{python}
+#| echo: false
+eps = 1e-6
+fd_gradient = np.zeros((1, nparams))
+for index in range(nparams):
+    for sign in (1.0, -1.0):
+        perturbed = bkd.copy(param)
+        perturbed[index, 0] += sign * eps
+        residual.set_param(bkd.flatten(perturbed))
+        perturbed_states, _ = integrator.solve(init_state)
+        value = bkd.to_float(integrator._functional(perturbed_states, perturbed))
+        fd_gradient[0, index] += sign * value / (2 * eps)
+residual.set_param(bkd.flatten(param))
+
+adjoint_np = bkd.to_numpy(gradient)
+relative = np.linalg.norm(adjoint_np - fd_gradient) / np.linalg.norm(fd_gradient)
+print("adjoint          :", adjoint_np.ravel())
+print("central difference:", fd_gradient.ravel())
+print(f"relative error   : {relative:.2e}")
+assert relative < 1e-6, "adjoint gradient disagrees with finite differences"
+```
+
+The two agree to the accuracy a central difference can resolve, which is the
+same check [the first tutorial](adjoint_concept.qmd#sec-verification) applied
+to a static system.
+:::
+
+
+## The Cost Argument, Again
+
+The reason for all of this is the same one as in the static case, and it
+survives the extra structure: the adjoint costs one backward sweep whatever
+the number of parameters, while finite differences need a fresh forward solve
+per parameter.
+
+```{python}
+#| echo: false
+#| label: fig-cost-vs-nparams
+#| fig-cap: "Time to compute one gradient against the number of parameters, log-log. Finite differences rise linearly --- each parameter buys two more forward solves --- while the adjoint stays flat, since the backward sweep is the same size no matter how many parameters the forcing carries. Notice that the timings come from a handful of runs in the documentation build and are correspondingly noisy; the slopes are the claim, not the values."
+
+import matplotlib.pyplot as plt
+from pyapprox_tutorials.figures._adjoint import (
+    measure_gradient_cost,
+    plot_gradient_cost_scaling,
+)
+
+nparams_list = [2, 4, 8, 16, 32]
+adjoint_times, fd_times = measure_gradient_cost(nparams_list)
+
+fig, ax = plt.subplots(figsize=(6.4, 4.2))
+plot_gradient_cost_scaling(nparams_list, adjoint_times, fd_times, ax)
+plt.tight_layout()
+plt.show()
+```
+
+For the two-parameter problem above the difference is not worth discussing.
+For a control problem whose parameters are the nodal values of a field, it is
+the difference between a gradient that takes one backward sweep and one that
+takes thousands of forward solves.
+
+### What Changes for Automatic Differentiation
+
+[The first tutorial](adjoint_concept.qmd) weighed the adjoint against
+reverse-mode automatic differentiation and found the deciding issue to be
+that AD differentiates the program that ran: taping a Newton solve records
+every iteration, so its cost grows with the iteration count while the adjoint
+uses only the converged linearization.
+
+Time stepping multiplies that. The tape now grows along two axes at once ---
+iterations *within* a step, and steps --- so a run of $N$ steps taking $k$
+Newton iterations each records $Nk$ linearizations. Measured on the backward
+Euler loop for this problem, the recorded operation count is almost exactly
+$21$ per step at three iterations per step ($106$, $211$, $421$, $841$ nodes
+at $5$, $10$, $20$, $40$ steps) and rises in proportion to the iteration
+count at fixed step count ($71$, $141$, $211$, $351$ nodes at one, two, three
+and five iterations). The adjoint sweep is one linear solve per step, whatever
+$k$ is.
+
+Memory is the sharper constraint, and it is new here. Reverse mode must
+retain everything the backward pass will need: the whole trajectory *and*
+every Newton iterate within every step. The adjoint retains the trajectory
+alone, and need not even do that --- checkpointing schemes store a subset of
+states and recompute the rest during the backward sweep, trading solves for
+storage at a ratio the user picks. On a transient PDE with a large state
+vector, that difference decides whether the gradient can be computed at all.
+
+
+## Key Takeaways
+
+- A time-stepping run is one large state equation over the stacked
+  trajectory; the adjoint derivation needs no modification to handle it.
+- The all-at-once Jacobian is block lower bidiagonal because each step
+  couples only to its predecessor.
+- Forward stepping is block forward substitution; the transposed system is
+  upper bidiagonal, so the adjoint sweep runs backward in time. That is the
+  origin of the backward sweep, not a separate algorithm.
+- `adjoint_diag_jacobian` and `adjoint_off_diag_jacobian` are the blocks of
+  $\mt{C}_{\vc{Y}}^\top$; changing the scheme changes the block contents, not
+  the structure.
+- The discrete adjoint gives the exact gradient of the computed quantity of
+  interest, which is what an optimizer needs.
+
+
+## Next Steps
+
+- [Quantities of Interest Over a Trajectory](transient_functionals_concept.qmd)
+  replaces the endpoint functional used here with a time integral, which
+  contributes to the backward recursion at every step rather than one --- and
+  which must be summed with the quadrature rule the scheme implies.
+- *Steering a Plume* (forthcoming) applies this to a PDE-constrained control
+  problem, where each block of $\mt{C}_{\vc{Y}}$ is itself a sparse
+  finite-element operator and the parameter count makes the cost argument
+  decisive.
+
+
+## References
+
+::: {#refs}
+:::

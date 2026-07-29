@@ -193,11 +193,13 @@ website:
         - section: "Time Integration"
           contents:
             - ode_timestepping_usage.qmd
+            - transient_functionals_concept.qmd
             - hamiltonian_integration_concept.qmd
         - section: "Adjoints and Derivatives"
           contents:
             - adjoint_concept.qmd
             - adjoint_hvp_concept.qmd
+            - adjoint_ode_concept.qmd
         - section: "Optimization Under Uncertainty"
           contents:
             - design_under_uncertainty.qmd
