@@ -23,6 +23,7 @@ where:
 from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
+    from skfem import Basis
     from skfem.assembly.form.form import FormExtraParams
     from skfem.element.discrete_field import DiscreteField
 
@@ -31,6 +32,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.pde.constitutive.coefficient_functions import (
+    BasisEvaluableFieldProtocol,
     ConstantDiffusion,
     ConstantVelocity,
     CoordinateDiffusion,
@@ -69,6 +71,55 @@ except ImportError:
 ReactionFunc = Callable[[np.ndarray, np.ndarray], np.ndarray]
 # R'(x, u) -> derivative w.r.t. u at quadrature points
 ReactionDerivFunc = Callable[[np.ndarray, np.ndarray], np.ndarray]
+
+
+class _FieldOnBasisEvaluator:
+    """Evaluates a nodal field on a fixed basis, ignoring coordinates.
+
+    A nodal field's ``values(coords)`` must locate the element holding
+    each coordinate, which during assembly repeats work the basis has
+    already done. A field satisfying ``BasisEvaluableFieldProtocol``
+    can evaluate itself directly on the basis instead, at identical
+    values (to round-off) and a fraction of the cost.
+
+    Substitutable for the coordinate callables the kernels expect: the
+    coordinates handed in are the basis's own quadrature points, so
+    discarding them loses nothing. Module-level class, not a closure,
+    so the forms stay picklable.
+    """
+
+    def __init__(
+        self,
+        field: BasisEvaluableFieldProtocol,
+        skfem_basis: "Basis",
+    ) -> None:
+        self._field = field
+        self._skfem_basis = skfem_basis
+
+    def __call__(
+        self, coords: NDArray[np.floating[Any]]
+    ) -> NDArray[np.floating[Any]]:
+        values: NDArray[np.floating[Any]] = self._field.values_on_basis(
+            self._skfem_basis
+        )
+        return values
+
+
+def _coefficient_evaluator(
+    field: object,
+    skfem_basis: "Basis",
+    coordinate_evaluator: Callable[
+        [NDArray[np.floating[Any]]], NDArray[np.floating[Any]]
+    ],
+) -> Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]:
+    """Return the fast evaluator when the field supports it.
+
+    Called once per assembly, not per quadrature point, so the
+    capability check never runs in the hot path.
+    """
+    if isinstance(field, BasisEvaluableFieldProtocol):
+        return _FieldOnBasisEvaluator(field, skfem_basis)
+    return coordinate_evaluator
 
 
 class _DiffusionReactionKernel:
@@ -288,12 +339,20 @@ class _AdvectionKernel:
 
 
 class _ForcingKernel:
-    """Picklable kernel for the forcing load form (w, f)."""
+    """Picklable kernel for the forcing load form (w, f).
+
+    A forcing callable takes quadrature coordinates and, when it is
+    time-dependent, a time. Both arities are accepted --- hence the
+    ellipsis in the parameter list --- but either way it returns values
+    at those coordinates, so the return type is concrete.
+    """
 
     __name__ = "forcing"
 
     def __init__(
-        self, forcing_func: Callable[..., Any], time: float
+        self,
+        forcing_func: Callable[..., NDArray[np.floating[Any]]],
+        time: float,
     ) -> None:
         self._forcing_func = forcing_func
         self._time = time
@@ -593,8 +652,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             if isinstance(reaction, LinearReaction)
             else None
         )
+        skfem_basis = self._basis.skfem_basis()
         react_callable = (
-            reaction.values
+            _coefficient_evaluator(reaction, skfem_basis, reaction.values)
             if isinstance(reaction, NodalFieldLinearReaction)
             else None
         )
@@ -602,7 +662,11 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         return BilinearForm(
             _DiffusionReactionKernel(
                 None,
-                self._diffusion_function.values,
+                _coefficient_evaluator(
+                    self._diffusion_function,
+                    skfem_basis,
+                    self._diffusion_function.values,
+                ),
                 react_coeff,
                 react_callable,
             )
@@ -613,8 +677,24 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         velocity = self._velocity_function
         if velocity is None:
             return None
+        # A NodalFieldVelocity carries its OWN (vector) basis, which is
+        # generally not this physics' basis — an upstream flow solve
+        # supplies it. Its quadrature points must therefore come from
+        # that basis, so the fast path is only valid when the two
+        # discretize the same elements. Comparing quadrature shapes is
+        # what establishes that.
+        evaluator: Callable[
+            [NDArray[np.floating[Any]]], NDArray[np.floating[Any]]
+        ] = velocity.values
+        if isinstance(velocity, NodalFieldVelocity):
+            vel_skfem = velocity.basis().skfem_basis()
+            own_shape = self._basis.skfem_basis().global_coordinates().shape
+            if vel_skfem.global_coordinates().shape == own_shape:
+                evaluator = _coefficient_evaluator(
+                    velocity, vel_skfem, velocity.values
+                )
         return BilinearForm(
-            _AdvectionKernel(None, velocity.values, self._conservative)
+            _AdvectionKernel(None, evaluator, self._conservative)
         )
 
     def forcing_form(self, time: float) -> Optional["LinearForm"]:

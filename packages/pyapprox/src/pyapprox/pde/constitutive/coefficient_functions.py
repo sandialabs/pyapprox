@@ -149,12 +149,70 @@ class CoordinateDiffusion:
         return f"CoordinateDiffusion({self._func!r})"
 
 
+@runtime_checkable
+class BasisEvaluableFieldProtocol(Protocol):
+    """A nodal field that can evaluate itself on its own basis.
+
+    Field-agnostic: diffusivity, forcing, reaction, and velocity fields
+    all satisfy it, because the capability concerns HOW a field is
+    evaluated rather than WHICH coefficient it supplies.
+
+    ``values(coords)`` accepts arbitrary points, so it must locate the
+    element containing each one. During assembly that work is wasted:
+    the points are the basis's own quadrature points, whose elements the
+    basis already knows. ``values_on_basis`` is the assembly fast path,
+    returning bit-identical values without the search.
+
+    Consumers select it with an ``isinstance`` check at CONSTRUCTION and
+    pass the bound method onward, so no per-call branching or capability
+    sniffing happens during assembly.
+    """
+
+    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+        """Evaluate at ``skfem_basis``'s quadrature points.
+
+        Parameters
+        ----------
+        skfem_basis : Basis
+            The basis being assembled on. Must be the basis this field's
+            DOFs live on; a mismatch raises.
+
+        Returns
+        -------
+        ndarray
+            Values with the basis's quadrature trailing shape
+            ``(nelems, nquad)``, or ``(ncomponents, nelems, nquad)`` for
+            a vector field.
+        """
+        ...
+
+
 class _BasisEvaluatorProtocol(Protocol):
-    """The single basis member NodalFieldDiffusion consumes."""
+    """The basis members the scalar nodal fields consume."""
 
     def evaluate(self, coeffs: Any, points: Any) -> Any: ...
 
     def ndofs(self) -> int: ...
+
+    def skfem_basis(self) -> "Basis": ...
+
+
+def _interpolate_on_basis(
+    skfem_basis: "Basis", dofs: _Quad, ndofs: int, owner: str
+) -> _Quad:
+    """Interpolate DOFs at a basis's quadrature points.
+
+    Shared by the nodal fields. The DOF-count check is what makes the
+    fast path safe: interpolating against a basis the DOFs do not belong
+    to would silently return values at the wrong locations.
+    """
+    if int(skfem_basis.N) != int(ndofs):
+        raise ValueError(
+            f"{owner} holds {ndofs} DOFs but the supplied basis has "
+            f"{int(skfem_basis.N)}; values_on_basis requires the basis "
+            "the field's DOFs live on"
+        )
+    return np.asarray(skfem_basis.interpolate(np.asarray(dofs)))
 
 
 class NodalFieldDiffusion:
@@ -211,6 +269,12 @@ class NodalFieldDiffusion:
         flat = coords_np.reshape(coords_np.shape[0], -1)
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
+
+    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+        """Values at the basis's quadrature points (assembly fast path)."""
+        return _interpolate_on_basis(
+            skfem_basis, self._dofs, self.ndofs(), "NodalFieldDiffusion"
+        )
 
     def is_constant(self) -> bool:
         return False
@@ -278,6 +342,12 @@ class NodalFieldForcing:
         flat = coords_np.reshape(coords_np.shape[0], -1)
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
+
+    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+        """Values at the basis's quadrature points (assembly fast path)."""
+        return _interpolate_on_basis(
+            skfem_basis, self._dofs, self.ndofs(), "NodalFieldForcing"
+        )
 
     def __repr__(self) -> str:
         return f"NodalFieldForcing(ndofs={self.ndofs()})"
@@ -441,6 +511,16 @@ class NodalFieldVelocity:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape)
 
+    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+        """Values at the basis's quadrature points (assembly fast path).
+
+        A vector basis interpolates to ``(ncomponents, nelems, nquad)``,
+        which is the shape ``values`` returns for the same points.
+        """
+        return _interpolate_on_basis(
+            skfem_basis, self._dofs, self.ndofs(), "NodalFieldVelocity"
+        )
+
     def is_constant(self) -> bool:
         return False
 
@@ -564,6 +644,13 @@ class NodalFieldLinearReaction:
         flat = coords_np.reshape(coords_np.shape[0], -1)
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
+
+    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+        """Values at the basis's quadrature points (assembly fast path)."""
+        return _interpolate_on_basis(
+            skfem_basis, self._dofs, self.ndofs(),
+            "NodalFieldLinearReaction",
+        )
 
     def value(self, coords: _Quad, state: _Quad) -> _Quad:
         return self.values(coords) * np.asarray(state)
