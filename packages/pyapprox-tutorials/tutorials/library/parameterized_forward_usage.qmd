@@ -218,7 +218,7 @@ for i, (field, sol) in enumerate(zip(fields, solutions)):
 ```{python}
 #| echo: false
 #| label: fig-realizations
-#| fig-cap: "Three realizations. Top: the diffusivity field drawn from @eq-kle. Bottom: the concentration it produces. Each row shares one color scale, so the panels are comparable within a row."
+#| fig-cap: "Three realizations. Top: the diffusivity field drawn from @eq-kle, on a linear scale. Bottom: the concentration it produces, on a logarithmic scale spanning three decades --- a linear scale there is dominated by the core at the release and hides the differences the diffusivity makes. Each row shares one color scale, so the panels are comparable within a row."
 import matplotlib.pyplot as plt
 
 from pyapprox_tutorials.figures._galerkin import plot_field_realizations
@@ -241,8 +241,10 @@ Nothing above is specific to uncertainty quantification. What makes it a
 forward study is repeating it: draw many $\vc{p}$, solve for each, and look at
 the distribution of some scalar output.
 
-The output here is the amount of material reaching a region downstream of the
-obstacles --- a weighted integral of the concentration:
+The output here is the average concentration reaching a region downstream of
+the obstacles: the concentration integrated against a Gaussian weight
+centered there, divided by that weight's own integral so the result is a mean
+rather than a quantity whose size depends on how the weight was scaled.
 
 ```{python}
 import skfem
@@ -250,20 +252,35 @@ import skfem
 skfem_basis = basis.skfem_basis()
 
 
-@skfem.Functional
-def zone_concentration(w):
-    """Concentration integrated against a Gaussian weight at (0.85, 0.5)."""
+def _zone_weight(w):
+    """A Gaussian bump marking the region of interest."""
     pts = np.asarray(w.x)
     x, y = pts[0], pts[1]
-    weight = np.exp(-(((x - 0.85) ** 2 + (y - 0.5) ** 2) / 0.01))
-    return w["uh"] * weight
+    return np.exp(-(((x - 0.85) ** 2 + (y - 0.5) ** 2) / 0.01))
+
+
+@skfem.Functional
+def weighted_concentration(w):
+    return w["uh"] * _zone_weight(w)
+
+
+@skfem.Functional
+def zone_area(w):
+    return _zone_weight(w)
+
+
+# Dividing by the weight's own integral makes the result a weighted
+# MEAN concentration, in the same units as u. Without it the number
+# would depend on how the weight happens to be scaled.
+ZONE_AREA = float(zone_area.assemble(skfem_basis))
 
 
 def qoi(solution):
     values = np.asarray(bkd.to_numpy(solution))
-    return float(zone_concentration.assemble(
+    total = float(weighted_concentration.assemble(
         skfem_basis, uh=skfem_basis.interpolate(values)
     ))
+    return total / ZONE_AREA
 ```
 
 The loop is the same one any forward study runs. Only the model inside it is
@@ -310,31 +327,36 @@ Pushing a distribution through a model does not preserve its shape --- the
 point [Forward Uncertainty Quantification](forward_uq.qmd) makes with models
 cheap enough to evaluate a million times.
 
-The estimator machinery is unchanged from that tutorial. A Monte Carlo mean is
-a Monte Carlo mean whether the model is a polynomial or a finite element
-solve, so the multifidelity and control-variate methods in
-[Approximate Control Variates](acv_concept.qmd) apply here without
-modification --- and matter more, because each sample is now expensive.
-
-
 ## What Each Sample Cost
 
-Every number in the histogram above required one linear solve, and no
-derivative information was computed anywhere in this tutorial. That is the
-defining feature of a forward study: the model is a black box that maps
-$\vc{p}$ to an output, and the only way to learn about it is to evaluate it.
+That histogram is two hundred linear solves. On this mesh each takes a few
+milliseconds, which is why the study fits in a tutorial --- but the mesh is
+coarse, the problem is steady, and there are four parameters. Refine the
+mesh, make the problem transient, or resolve the field more finely and the
+same study becomes hours or days. Sampling is the expensive part of forward
+uncertainty quantification, and it gets worse exactly as the model gets more
+realistic.
 
-That is also its limitation. Two hundred samples characterize a distribution
-in four dimensions. Optimizing over $\vc{p}$, calibrating it against data, or
-choosing where to measure all ask a different question --- not "what is the
-spread of the output" but "how does the output *change* when $\vc{p}$
-changes." Answering it by finite differences costs one extra solve per
-parameter, per evaluation, which is affordable for the four parameters here
-and hopeless for the hundreds a finely resolved field needs.
+Two responses to that cost run through the rest of the library. One is to
+spend the samples more cleverly. A Monte Carlo mean is a Monte Carlo mean
+whether the model is a polynomial or a finite element solve, so the
+multifidelity and control-variate estimators in
+[Approximate Control Variates](acv_concept.qmd) apply here unchanged --- and
+matter far more, because they reach a target accuracy with fewer evaluations
+of the expensive model by borrowing information from cheap approximations
+of it.
 
-The parameterization object already carries what is needed to do better:
-`param_derivatives()` exposes the derivative capabilities of the composed
-map. What to do with them is the subject of the next tutorials.
+The other is to ask a question sampling answers badly. Optimizing $\vc{p}$,
+calibrating it against data, or choosing where to measure all depend on how
+the output *changes* when $\vc{p}$ changes. Estimating that by finite
+differences costs an extra solve per parameter, per evaluation --- tolerable
+for the four parameters here, hopeless for the hundreds a finely resolved
+field needs. The parameterization already carries the machinery for the
+alternative: `param_derivatives()` exposes the exact sensitivities of the
+discrete equations to $\vc{p}$. Those are what the adjoint method consumes to
+produce a gradient with respect to every parameter at the cost of one extra
+solve, however many parameters there are. How that works is the subject of
+the next tutorials.
 
 
 ## Summary
@@ -348,7 +370,10 @@ map. What to do with them is the subject of the next tutorials.
   parameters, and the lognormal form keeps a diffusivity positive.
 - Sampling is draw, `apply`, solve. The forward-UQ workflow is the same one
   used for any model; only the cost per sample changes.
-- No derivatives were computed. Each sample cost one solve.
+- That cost is the binding constraint. Each solve grows with mesh resolution
+  and time dependence, and the number of solves grows with how much you ask
+  --- which is what motivates both better estimators and ways of computing
+  derivatives more efficiently than finite differences.
 
 ### Where to go next
 

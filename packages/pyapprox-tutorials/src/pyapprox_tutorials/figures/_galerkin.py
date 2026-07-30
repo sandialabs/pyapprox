@@ -224,37 +224,66 @@ def plot_roundoff_errors(mesh_sizes, errors_by_label, ax):
     ax.grid(True, alpha=0.2, which="both")
 
 
-def plot_field_realizations(basis, fields, solutions, bkd, axes):
+def plot_field_realizations(basis, fields, solutions, bkd, axes, decades=3):
     """parameterized_forward_usage.qmd -> fig-realizations
 
     Diffusivity realizations on the top row, the concentrations they
     produce on the bottom. Each ROW shares a color scale so panels are
     comparable across realizations; the rows do not share one with each
     other because they are different quantities.
-    """
-    tri = triangulation(basis)
 
-    for row, (values, label) in enumerate((
-        ([np.asarray(bkd.to_numpy(f)) for f in fields], r"$\kappa$"),
-        ([np.asarray(bkd.to_numpy(s)) for s in solutions], "$u$"),
-    )):
-        levels = np.linspace(
-            min(v.min() for v in values), max(v.max() for v in values), 40
+    The diffusivity row is linear --- the draws differ by a factor of
+    about three, which a linear scale shows plainly. The concentration
+    row is logarithmic: those fields are dominated by the bright core at
+    the release, and on a linear scale that core swamps the differences
+    the diffusivity produces, rendering three visibly distinct inputs as
+    three near-identical pictures.
+    """
+    from matplotlib.colors import LogNorm
+    from matplotlib.ticker import LogLocator
+
+    tri = triangulation(basis)
+    field_values = [np.asarray(bkd.to_numpy(f)) for f in fields]
+    solution_values = [np.asarray(bkd.to_numpy(s)) for s in solutions]
+
+    levels = np.linspace(
+        min(v.min() for v in field_values),
+        max(v.max() for v in field_values),
+        40,
+    )
+    for col, vals in enumerate(field_values):
+        contours = axes[0, col].tricontourf(
+            tri, vals, levels=levels, cmap=NEON_CMAP
         )
-        for col, vals in enumerate(values):
-            contours = axes[row, col].tricontourf(
-                tri, vals, levels=levels, cmap=NEON_CMAP
-            )
-            axes[row, col].set_aspect("equal")
-            if row == 0:
-                axes[row, col].set_title(f"realization {col + 1}")
-        bar = axes[row, -1].get_figure().colorbar(
-            contours, ax=list(axes[row, :]), shrink=0.85
+        axes[0, col].set_aspect("equal")
+        axes[0, col].set_title(f"realization {col + 1}")
+    bar = axes[0, -1].get_figure().colorbar(
+        contours, ax=list(axes[0, :]), shrink=0.85
+    )
+    bar.set_label(r"$\kappa$")
+
+    vmax = max(v.max() for v in solution_values)
+    floor = vmax * 10.0 ** (-decades)
+    log_levels = np.logspace(np.log10(floor), np.log10(vmax), 60)
+    # Below-range means "very dilute" here, not the positivity alarm the
+    # shared palette reserves magenta for.
+    cmap = NEON_CMAP.copy()
+    cmap.set_under(cmap(0.0))
+    for col, vals in enumerate(solution_values):
+        contours = axes[1, col].tricontourf(
+            tri, np.clip(vals, floor, None), levels=log_levels,
+            norm=LogNorm(vmin=floor, vmax=vmax), cmap=cmap,
         )
-        bar.set_label(label)
+        axes[1, col].set_aspect("equal")
+        axes[1, col].set_xlabel("$x$")
+    bar = axes[1, -1].get_figure().colorbar(
+        contours, ax=list(axes[1, :]), shrink=0.85,
+        ticks=LogLocator(base=10),
+    )
+    bar.set_label("$u$")
+
+    for row in (0, 1):
         axes[row, 0].set_ylabel("$y$")
-    for ax in axes[1, :]:
-        ax.set_xlabel("$x$")
 
 
 def plot_qoi_histogram(values, ax):
