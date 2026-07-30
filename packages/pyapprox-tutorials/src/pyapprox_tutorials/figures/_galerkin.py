@@ -224,6 +224,62 @@ def plot_roundoff_errors(mesh_sizes, errors_by_label, ax):
     ax.grid(True, alpha=0.2, which="both")
 
 
+def plot_field_realizations(basis, fields, solutions, bkd, axes):
+    """parameterized_forward_usage.qmd -> fig-realizations
+
+    Diffusivity realizations on the top row, the concentrations they
+    produce on the bottom. Each ROW shares a color scale so panels are
+    comparable across realizations; the rows do not share one with each
+    other because they are different quantities.
+    """
+    tri = triangulation(basis)
+
+    for row, (values, label) in enumerate((
+        ([np.asarray(bkd.to_numpy(f)) for f in fields], r"$\kappa$"),
+        ([np.asarray(bkd.to_numpy(s)) for s in solutions], "$u$"),
+    )):
+        levels = np.linspace(
+            min(v.min() for v in values), max(v.max() for v in values), 40
+        )
+        for col, vals in enumerate(values):
+            contours = axes[row, col].tricontourf(
+                tri, vals, levels=levels, cmap=NEON_CMAP
+            )
+            axes[row, col].set_aspect("equal")
+            if row == 0:
+                axes[row, col].set_title(f"realization {col + 1}")
+        bar = axes[row, -1].get_figure().colorbar(
+            contours, ax=list(axes[row, :]), shrink=0.85
+        )
+        bar.set_label(label)
+        axes[row, 0].set_ylabel("$y$")
+    for ax in axes[1, :]:
+        ax.set_xlabel("$x$")
+
+
+def plot_qoi_histogram(values, ax):
+    """parameterized_forward_usage.qmd -> fig-qoi-histogram
+
+    Push-forward distribution of a scalar output, with the sample mean
+    and a one-standard-deviation band marked.
+    """
+    values = np.asarray(values)
+    mean = values.mean()
+    std = values.std(ddof=1)
+
+    ax.hist(values, bins=24, color=COLORS["primary"], alpha=0.75,
+            edgecolor="white")
+    ax.axvline(mean, color=COLORS["reference"], linewidth=2,
+               label=f"mean = {mean:.3g}")
+    ax.axvspan(mean - std, mean + std, color=COLORS["secondary"],
+               alpha=0.18, label=rf"$\pm$ 1 std = {std:.2g}")
+
+    ax.set_xlabel("downstream concentration")
+    ax.set_ylabel("count")
+    ax.legend()
+    ax.grid(True, alpha=0.2)
+
+
 def plot_concentration_comparison(basis, solutions, titles, bkd, axes,
                                   decades=3):
     """galerkin_adr_usage.qmd -> fig-coupled

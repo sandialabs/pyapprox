@@ -1,0 +1,359 @@
+---
+title: "Putting Parameters into a PDE"
+subtitle: "PyApprox Tutorial Library"
+description: "Separating a PDE from its parameters with a parameterization layer, sampling a random diffusivity field, and running a forward uncertainty study whose model is a real PDE solve."
+tutorial_type: usage
+topic: finite_elements
+difficulty: beginner
+estimated_time: 15
+prerequisites:
+  - galerkin_adr_usage.qmd
+tags:
+  - finite-elements
+  - parameterization
+  - uncertainty-quantification
+  - karhunen-loeve
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why a physics object should not know where its coefficients came
+  from, and what a parameterization layer does instead
+- Represent an uncertain spatial field with a Karhunen-Loeve expansion and
+  write realizations of it into a physics
+- Run a forward uncertainty study whose model is a PDE solve, using the same
+  workflow as any other forward study
+- Say what each sample costs, and why that cost sets up the tutorials that
+  follow
+
+
+## The Layer Story
+
+[Solving a Steady PDE with Finite Elements](galerkin_adr_usage.qmd) built a
+physics object with definite coefficients: a diffusivity of 0.005, a decay
+rate of $-1$, a Gaussian source. Nothing in it mentioned parameters, and that
+was deliberate.
+
+The physics object never learns that its diffusivity came from a
+Karhunen-Loeve expansion, an optimizer, or a hand-typed constant. A
+parameterization is a separate object that maps a parameter vector to
+coefficient values and writes them into the physics through its public
+setters. This separation is what lets the same physics serve uncertainty
+quantification, design, and control without modification --- the chapters
+that follow only ever change which object produces $\vc{p}$ and what is done
+with the solution.
+
+So there are two objects with two jobs:
+
+| Object | Responsibility |
+|---|---|
+| **Physics** | the equation, for whatever coefficient values it currently holds |
+| **Parameterization** | map $\vc{p}$ to coefficient values, and write them in |
+
+The rest of this tutorial makes that concrete for one uncertain coefficient:
+the diffusivity.
+
+
+## A Physics Whose Diffusivity Can Be Written To
+
+There is one requirement on the physics side. A coefficient that will be
+parameterized cannot be a plain number, because a number has nowhere to write
+to. It must be a *field* object holding degrees of freedom, which the
+parameterization can then set.
+
+```{python}
+import numpy as np
+
+from pyapprox.pde.constitutive.coefficient_functions import (
+    NodalFieldDiffusion,
+)
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import (
+    DirichletBC, NeumannBC,
+)
+from pyapprox.pde.galerkin.physics.advection_diffusion import (
+    AdvectionDiffusionReaction,
+)
+from pyapprox.pde.zoo.obstructed_flow import build_obstructed_mesh
+from pyapprox.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+
+mesh = build_obstructed_mesh(bkd, nrefine=3)
+basis = LagrangeBasis(mesh, degree=1)
+
+MEAN_DIFFUSIVITY = 0.02
+DECAY = -1.0
+
+
+def forcing(coords, time=0.0):
+    """A Gaussian release centered at (0.15, 0.5)."""
+    x, y = coords[0], coords[1]
+    return np.exp(-((x - 0.15) ** 2 + (y - 0.5) ** 2) / 0.01)
+
+
+# The diffusivity as nodal DOFs rather than a constant: a field the
+# parameterization can write into.
+diffusion = NodalFieldDiffusion(
+    basis, np.full(basis.ndofs(), MEAN_DIFFUSIVITY)
+)
+
+bcs = [DirichletBC(basis, side, value_func=0.0, bkd=bkd)
+       for side in ("left", "right")]
+bcs += [NeumannBC(basis, name, flux_func=0.0, bkd=bkd)
+        for name in ("bottom", "top", "obs0", "obs1", "obs2")]
+
+physics = AdvectionDiffusionReaction(
+    basis=basis, diffusivity=diffusion, reaction=DECAY, forcing=forcing,
+    boundary_conditions=bcs, bkd=bkd,
+)
+print(f"{physics.nstates()} unknowns")
+```
+
+This is the same construction as the previous tutorial with one argument
+changed. The physics does not behave differently; it simply reads its
+diffusivity from an object instead of a scalar.
+
+
+## An Uncertain Field
+
+Suppose the diffusivity is not known --- it varies across the domain in a way
+we cannot measure point by point, but whose typical magnitude and length
+scale we can characterize. A *Karhunen-Loeve expansion* turns that
+description into a finite set of numbers. It writes the field as
+
+$$
+\kappa(\vc{x}) = \exp\left(
+  \mu + \sigma \sum_{k=1}^{d} \sqrt{\lambda_k}\, \phi_k(\vc{x})\, p_k
+\right),
+$$ {#eq-kle}
+
+where $\lambda_k$ and $\phi_k$ come from the covariance kernel and the
+parameters $\vc{p} \in \mathbb{R}^d$ are what we sample. Two properties
+matter here. The exponential keeps $\kappa$ positive no matter what
+$\vc{p}$ is, which a diffusivity requires. And a $d$-dimensional vector
+replaces a whole field, so an uncertainty study has finitely many inputs.
+
+```{python}
+from pyapprox.pde.field_maps.kle_factory import (
+    create_lognormal_kle_field_map,
+)
+
+NUM_KLE_TERMS = 4
+
+kle_map = create_lognormal_kle_field_map(
+    mesh_coords=basis.dof_coordinates(),
+    mean_log_field=bkd.full((basis.ndofs(),), np.log(MEAN_DIFFUSIVITY)),
+    bkd=bkd,
+    correlation_length=0.25,   # how far the field stays correlated
+    num_kle_terms=NUM_KLE_TERMS,
+    sigma=0.5,                 # spread of the log-field
+)
+```
+
+A field map is only the $\vc{p} \mapsto \kappa$ half. It knows nothing about
+the PDE, and the PDE knows nothing about it. The parameterization is what
+joins them:
+
+```{python}
+from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+    AdvectionDiffusionParameterization,
+)
+
+parameterization = AdvectionDiffusionParameterization(
+    physics, diffusivity_map=kle_map, bkd=bkd,
+)
+
+print(f"parameters: {parameterization.nparams()}")
+print(f"parameterized: {parameterization.owned_coefficients()}")
+```
+
+Only the diffusivity is parameterized here, but the constructor also accepts
+`forcing_map`, `reaction_map`, and `velocity_map`. Which coefficients are
+uncertain is a choice made at this layer, not in the physics.
+
+
+## Sampling and Solving
+
+The workflow is three lines: draw $\vc{p}$, apply it, solve. `apply` writes
+the coefficient values into the physics, so the solve that follows sees the
+new field.
+
+```{python}
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+
+
+def solve_for(params):
+    """Write params into the physics, then solve."""
+    parameterization.apply(params)
+    result = SteadyStateSolver(physics, tol=1e-10).solve_linear()
+    return result.solution
+
+
+rng = np.random.default_rng(0)
+samples = [bkd.asarray(rng.normal(size=NUM_KLE_TERMS)) for _ in range(3)]
+
+fields, solutions = [], []
+for params in samples:
+    solutions.append(solve_for(params))
+    fields.append(bkd.asarray(np.asarray(diffusion.dofs()).copy()))
+
+for i, (field, sol) in enumerate(zip(fields, solutions)):
+    kappa = bkd.to_numpy(field)
+    print(f"sample {i}: kappa in [{kappa.min():.4f}, {kappa.max():.4f}], "
+          f"peak concentration {bkd.to_numpy(sol).max():.3f}")
+```
+
+```{python}
+#| echo: false
+#| label: fig-realizations
+#| fig-cap: "Three realizations. Top: the diffusivity field drawn from @eq-kle. Bottom: the concentration it produces. Each row shares one color scale, so the panels are comparable within a row."
+import matplotlib.pyplot as plt
+
+from pyapprox_tutorials.figures._galerkin import plot_field_realizations
+
+fig, axes = plt.subplots(2, 3, figsize=(14, 7.5))
+plot_field_realizations(basis, fields, solutions, bkd, axes)
+```
+
+The diffusivity fields differ substantially: across these draws $\kappa$
+spans roughly a factor of three, and each field puts its high- and low-
+diffusivity regions in different places. The concentrations differ
+accordingly --- where material passes through a low-diffusivity region the
+plume stays tight, and where it meets a high-diffusivity one it spreads and
+the peak falls.
+
+
+## A Forward Uncertainty Study
+
+Nothing above is specific to uncertainty quantification. What makes it a
+forward study is repeating it: draw many $\vc{p}$, solve for each, and look at
+the distribution of some scalar output.
+
+The output here is the amount of material reaching a region downstream of the
+obstacles --- a weighted integral of the concentration:
+
+```{python}
+import skfem
+
+skfem_basis = basis.skfem_basis()
+
+
+@skfem.Functional
+def zone_concentration(w):
+    """Concentration integrated against a Gaussian weight at (0.85, 0.5)."""
+    pts = np.asarray(w.x)
+    x, y = pts[0], pts[1]
+    weight = np.exp(-(((x - 0.85) ** 2 + (y - 0.5) ** 2) / 0.01))
+    return w["uh"] * weight
+
+
+def qoi(solution):
+    values = np.asarray(bkd.to_numpy(solution))
+    return float(zone_concentration.assemble(
+        skfem_basis, uh=skfem_basis.interpolate(values)
+    ))
+```
+
+The loop is the same one any forward study runs. Only the model inside it is
+a PDE solve.
+
+```{python}
+NUM_SAMPLES = 200
+
+rng = np.random.default_rng(1)
+qoi_values = np.array([
+    qoi(solve_for(bkd.asarray(rng.normal(size=NUM_KLE_TERMS))))
+    for _ in range(NUM_SAMPLES)
+])
+
+mean = qoi_values.mean()
+std = qoi_values.std(ddof=1)
+print(f"mean {mean:.3e}")
+print(f"std  {std:.3e}  ({100 * std / mean:.0f}% of the mean)")
+print(f"range [{qoi_values.min():.3e}, {qoi_values.max():.3e}]"
+      f"  ({qoi_values.max() / qoi_values.min():.0f}x)")
+```
+
+```{python}
+#| echo: false
+#| label: fig-qoi-histogram
+#| fig-cap: "The push-forward distribution of the downstream concentration under an uncertain diffusivity, with the sample mean and one standard deviation marked."
+from pyapprox_tutorials.figures._galerkin import plot_qoi_histogram
+
+fig, ax = plt.subplots(figsize=(6.5, 4.5))
+plot_qoi_histogram(qoi_values, ax)
+fig.tight_layout()
+```
+
+The spread is large --- a standard deviation comparable to the mean itself,
+with the smallest and largest samples differing by more than an order of
+magnitude. Two things compound to produce it. The zone sits far downstream of
+the release, so it samples the dilute tail of the plume, where a modest change
+in diffusivity changes the concentration by a large factor. And the
+distribution is strongly skewed rather than symmetric, which follows from
+@eq-kle: the parameters are Gaussian, but the field is their exponential, and
+the PDE solution is a further nonlinear function on top of that.
+
+Pushing a distribution through a model does not preserve its shape --- the
+point [Forward Uncertainty Quantification](forward_uq.qmd) makes with models
+cheap enough to evaluate a million times.
+
+The estimator machinery is unchanged from that tutorial. A Monte Carlo mean is
+a Monte Carlo mean whether the model is a polynomial or a finite element
+solve, so the multifidelity and control-variate methods in
+[Approximate Control Variates](acv_concept.qmd) apply here without
+modification --- and matter more, because each sample is now expensive.
+
+
+## What Each Sample Cost
+
+Every number in the histogram above required one linear solve, and no
+derivative information was computed anywhere in this tutorial. That is the
+defining feature of a forward study: the model is a black box that maps
+$\vc{p}$ to an output, and the only way to learn about it is to evaluate it.
+
+That is also its limitation. Two hundred samples characterize a distribution
+in four dimensions. Optimizing over $\vc{p}$, calibrating it against data, or
+choosing where to measure all ask a different question --- not "what is the
+spread of the output" but "how does the output *change* when $\vc{p}$
+changes." Answering it by finite differences costs one extra solve per
+parameter, per evaluation, which is affordable for the four parameters here
+and hopeless for the hundreds a finely resolved field needs.
+
+The parameterization object already carries what is needed to do better:
+`param_derivatives()` exposes the derivative capabilities of the composed
+map. What to do with them is the subject of the next tutorials.
+
+
+## Summary
+
+- A physics object holds coefficients; a parameterization maps a parameter
+  vector onto them and writes them in. Neither knows about the other's
+  concerns.
+- A coefficient that will be parameterized must be a field object with
+  degrees of freedom, not a bare number.
+- A Karhunen-Loeve expansion represents an uncertain field with finitely many
+  parameters, and the lognormal form keeps a diffusivity positive.
+- Sampling is draw, `apply`, solve. The forward-UQ workflow is the same one
+  used for any model; only the cost per sample changes.
+- No derivatives were computed. Each sample cost one solve.
+
+### Where to go next
+
+- [The Adjoint Method](adjoint_concept.qmd) --- how to compute the gradient
+  of an output with respect to $\vc{p}$ at a cost independent of the number
+  of parameters.
+- [Forward Uncertainty Quantification](forward_uq.qmd) --- the push-forward
+  ideas behind this study, on models cheap enough to explore freely.
