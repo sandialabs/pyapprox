@@ -22,6 +22,7 @@ Representations
   actionably when handed one.
 """
 
+import inspect
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -41,21 +42,209 @@ _Quad = NDArray[np.floating[Any]]
 
 
 # =====================================================================
+# Time-awareness declaration
+# =====================================================================
+#
+# Time is threaded as an ARGUMENT, never held as state. The principle:
+# bind what is constant across an evaluation, thread what varies within
+# it. A parameter vector is constant per residual evaluation, so
+# ``set_param`` is state; time is not (Crank-Nicolson assembles at
+# t_n and t_{n+1}, multi-stage schemes at every stage time), so time is
+# passed in.
+#
+# Whether a supplier consults that time is DECLARED, never inferred.
+# Inference by signature inspection is unreliable (``*args``,
+# undecorated wrappers, C builtins) and insufficient: cache-key policy
+# needs an answer regardless of what a signature looks like. Runtime
+# protocols cannot help either --- they test method presence, so a
+# one-argument lambda satisfies a ``__call__(coords, time)`` protocol
+# just as well as a two-argument function does.
+#
+# TODO(time-aware suppliers): require TimeIndependent/TimeDependent for
+# EVERY coefficient and forcing supplier, and drop the bare ``f(coords)``
+# form entirely.
+#
+# Bare callables are accepted today for compatibility, and
+# ``as_time_aware`` treats them as time-independent. That default is a
+# guess, and guesses about time are the failure mode this module exists
+# to remove: assume time-independent and a transient source silently
+# freezes at t=0; assume time-dependent and a supplier whose second
+# parameter means something else silently receives a time. Requiring a
+# wrapper everywhere deletes the guess rather than improving it, and
+# lets ``as_time_aware`` collapse to a single isinstance check.
+#
+# DRIVE-BY RULE until then: when you touch a file that constructs a
+# coefficient or forcing supplier, wrap the bare callables it passes ---
+# ``TimeIndependent(f)`` for a steady field, ``TimeDependent(f)`` for one
+# that varies. Small, local, and each one removes a place where the
+# default has to be trusted.
+
+
+@runtime_checkable
+class TimeVaryingProtocol(Protocol):
+    """Anything that states whether its values vary with time.
+
+    Separate from ``TimeAwareCallableProtocol`` because the two answer
+    different questions: this one is about the FIELD, and coefficient
+    objects expose their values through ``values``/``value`` rather than
+    ``__call__``. Consumers use it to key a cache --- an assembled
+    operator built from a time-varying coefficient must not be reused at
+    a later time.
+    """
+
+    def is_time_dependent(self) -> bool:
+        """Whether the values depend on time."""
+        ...
+
+
+@runtime_checkable
+class TimeAwareCallableProtocol(Protocol):
+    """A coefficient supplier that states whether it consults time."""
+
+    def __call__(self, coords: _Quad, time: float) -> _Quad:
+        """Evaluate at coordinates and time."""
+        ...
+
+    def is_time_dependent(self) -> bool:
+        """Whether the values depend on ``time``.
+
+        Describes the FIELD, not the problem: a steady solve of a
+        time-dependent coefficient is a well-defined snapshot. Consumers
+        use this to choose a cache key, never to decide whether a
+        problem is transient.
+        """
+        ...
+
+
+class TimeIndependent:
+    """Adapt a ``f(coords)`` supplier to the ``f(coords, time)`` call.
+
+    Bare one-argument callables are permanent public API for
+    time-independent coefficients; this wrapper is how they reach a
+    uniform internal call site. Module-level and picklable, so wrapping
+    does not make a picklable supplier unpicklable (it cannot rescue one
+    that already was not).
+    """
+
+    def __init__(self, func: Callable[[_Quad], _Quad]) -> None:
+        self._func = func
+
+    def __call__(self, coords: _Quad, time: float) -> _Quad:
+        return self._func(coords)
+
+    def is_time_dependent(self) -> bool:
+        return False
+
+    def func(self) -> Callable[[_Quad], _Quad]:
+        """Return the wrapped supplier."""
+        return self._func
+
+    def __repr__(self) -> str:
+        return f"TimeIndependent({self._func!r})"
+
+
+class TimeDependent:
+    """Declare a ``f(coords, time)`` supplier as consulting time.
+
+    Wrap when time is real: a supplier that genuinely varies in time
+    must say so, because nothing can detect it reliably and a silently
+    dropped time produces wrong numbers rather than an error.
+    """
+
+    def __init__(self, func: Callable[[_Quad, float], _Quad]) -> None:
+        self._func = func
+
+    def __call__(self, coords: _Quad, time: float) -> _Quad:
+        return self._func(coords, time)
+
+    def is_time_dependent(self) -> bool:
+        return True
+
+    def func(self) -> Callable[[_Quad, float], _Quad]:
+        """Return the wrapped supplier."""
+        return self._func
+
+    def __repr__(self) -> str:
+        return f"TimeDependent({self._func!r})"
+
+
+def _accepts_a_time_argument(func: Callable[..., _Quad]) -> bool:
+    """Whether ``func`` could be called with a second positional value.
+
+    Used ONCE per construction to reject an ambiguous supplier --- never
+    to infer what a supplier means. A signature that cannot be read
+    (C builtins) is not treated as ambiguous: refusing something that
+    cannot be checked would block legitimate callables for no gain.
+    """
+    try:
+        signature = inspect.signature(func)
+    except (ValueError, TypeError):
+        return False
+    npositional = 0
+    for parameter in signature.parameters.values():
+        if parameter.kind is parameter.VAR_POSITIONAL:
+            return True
+        if parameter.kind in (
+            parameter.POSITIONAL_ONLY,
+            parameter.POSITIONAL_OR_KEYWORD,
+        ):
+            npositional += 1
+    return npositional >= 2
+
+
+def as_time_aware(func: Callable[..., _Quad]) -> TimeAwareCallableProtocol:
+    """Normalize a supplier to the ``f(coords, time)`` call convention.
+
+    A supplier is exactly one of two things, and the rule that keeps
+    that total is: ANY callable that takes a time must say which it is.
+
+    - ``f(coords)`` --- unambiguous, so it stays bare. This is permanent
+      public API for time-independent suppliers.
+    - ``TimeIndependent(f)`` / ``TimeDependent(f)`` --- declared, so
+      ``is_time_dependent`` answers and normalization is idempotent.
+
+    A bare callable that could also accept a time is neither, and is
+    rejected here rather than guessed at. Guessing is what makes this
+    class of bug silent: assume time-independent and a transient source
+    freezes at t=0; assume time-dependent and a supplier whose second
+    parameter means something else gets a time in it. Both produce wrong
+    numbers with no error, and ``f(coords, time=0.0)`` in particular
+    swallows the arity mismatch that would otherwise raise.
+    """
+    if isinstance(func, TimeAwareCallableProtocol):
+        return func
+    if _accepts_a_time_argument(func):
+        raise TypeError(
+            f"{getattr(func, '__name__', func)!r} accepts a second "
+            "positional argument, so whether it depends on time is "
+            "ambiguous and pyapprox will not guess. Declare it:\n"
+            "    TimeDependent(func)    - values change with time\n"
+            "    TimeIndependent(func)  - the second argument is not a "
+            "time\n"
+            "A supplier that takes coordinates alone needs no wrapper."
+        )
+    return TimeIndependent(func)
+
+
+# =====================================================================
 # Diffusion functions
 # =====================================================================
 
 
 @runtime_checkable
 class DiffusionFunctionProtocol(Protocol):
-    """State-independent diffusivity law kappa(x)."""
+    """State-independent diffusivity law kappa(x, t)."""
 
-    def values(self, coords: _Quad) -> _Quad:
-        """Evaluate kappa at coordinates.
+    def values(self, coords: _Quad, time: float) -> _Quad:
+        """Evaluate kappa at coordinates and time.
 
         Parameters
         ----------
         coords : ndarray
             Coordinates, shape (ndim, npts) or (ndim, nelems, nquad).
+        time : float
+            Evaluation time. Time-independent laws ignore it; steady
+            solves pass a fixed value that nothing consults.
 
         Returns
         -------
@@ -69,11 +258,22 @@ class DiffusionFunctionProtocol(Protocol):
         """Whether kappa is spatially constant."""
         ...
 
+    def is_time_dependent(self) -> bool:
+        """Whether kappa varies with time.
+
+        Drives cache-key policy: consumers key assembled operators on
+        ``(version, time)`` when this is True and on ``version`` alone
+        when it is False.
+        """
+        ...
+
     def version(self) -> int:
         """Monotone counter, incremented on every mutation.
 
         Consumers cache assembled operators keyed on this value;
-        immutable functions return a constant.
+        immutable functions return a constant. Time is NOT a mutation —
+        it is an argument, and time-dependence is expressed through
+        ``is_time_dependent`` instead.
         """
         ...
 
@@ -107,12 +307,15 @@ class ConstantDiffusion:
         """Return the constant."""
         return self._value
 
-    def values(self, coords: _Quad) -> _Quad:
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
         coords_np = np.asarray(coords)
         return np.full(coords_np.shape[1:], self._value)
 
     def is_constant(self) -> bool:
         return True
+
+    def is_time_dependent(self) -> bool:
+        return False
 
     def version(self) -> int:
         return 0
@@ -122,25 +325,30 @@ class ConstantDiffusion:
 
 
 class CoordinateDiffusion:
-    """Diffusivity from a coordinate function kappa(x).
+    """Diffusivity from a coordinate function kappa(x) or kappa(x, t).
 
     Parameters
     ----------
     func : Callable
         Accepts coordinates of shape (ndim, npts) and returns (npts,).
+        A bare callable is taken to be time-independent; wrap it in
+        ``TimeDependent`` for a law that varies in time.
     """
 
-    def __init__(self, func: Callable[[_Quad], _Quad]) -> None:
-        self._func = func
+    def __init__(self, func: Callable[..., _Quad]) -> None:
+        self._func = as_time_aware(func)
 
-    def values(self, coords: _Quad) -> _Quad:
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
         coords_np = np.asarray(coords)
         flat = coords_np.reshape(coords_np.shape[0], -1)
-        values = np.asarray(self._func(flat))
+        values = np.asarray(self._func(flat, time))
         return values.reshape(coords_np.shape[1:])
 
     def is_constant(self) -> bool:
         return False
+
+    def is_time_dependent(self) -> bool:
+        return self._func.is_time_dependent()
 
     def version(self) -> int:
         return 0
@@ -252,6 +460,10 @@ class NodalFieldDiffusion:
         self._dofs = dofs_np
         self._version = getattr(self, "_version", 0) + 1
 
+    def is_time_dependent(self) -> bool:
+        """Fixed values; time is accepted and ignored."""
+        return False
+
     def version(self) -> int:
         """Monotone counter; incremented by every set_dofs call."""
         return self._version
@@ -264,7 +476,7 @@ class NodalFieldDiffusion:
         """Return the number of field DOFs."""
         return int(self._basis.ndofs())
 
-    def values(self, coords: _Quad) -> _Quad:
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
         coords_np = np.asarray(coords)
         flat = coords_np.reshape(coords_np.shape[0], -1)
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
@@ -324,6 +536,10 @@ class NodalFieldForcing:
         self._dofs = dofs_np
         self._version = getattr(self, "_version", 0) + 1
 
+    def is_time_dependent(self) -> bool:
+        """Fixed values; time is accepted and ignored."""
+        return False
+
     def version(self) -> int:
         """Monotone counter; incremented by every set_dofs call."""
         return self._version
@@ -336,8 +552,14 @@ class NodalFieldForcing:
         """Return the number of field DOFs."""
         return int(self._basis.ndofs())
 
-    def __call__(self, coords: _Quad) -> _Quad:
-        """Evaluate the nodal interpolant at coordinates (ndim, npts)."""
+    def __call__(self, coords: _Quad, time: float = 0.0) -> _Quad:
+        """Evaluate the nodal interpolant at coordinates (ndim, npts).
+
+        Accepts a time so the field satisfies the time-aware supplier
+        contract it declares through ``is_time_dependent``; the DOFs are
+        fixed, so the value is ignored. The default keeps the bare
+        ``f(coords)`` call working for existing consumers.
+        """
         coords_np = np.asarray(coords)
         flat = coords_np.reshape(coords_np.shape[0], -1)
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
@@ -360,15 +582,22 @@ class NodalFieldForcing:
 
 @runtime_checkable
 class VelocityFunctionProtocol(Protocol):
-    """State-independent advection velocity law v(x)."""
+    """State-independent advection velocity law v(x, t).
 
-    def values(self, coords: _Quad) -> _Quad:
-        """Evaluate the velocity at coordinates.
+    A velocity computed by an upstream transient flow solve is the
+    motivating time-dependent case: the transport problem evaluates it
+    with the assembly's time and never learns where it came from.
+    """
+
+    def values(self, coords: _Quad, time: float) -> _Quad:
+        """Evaluate the velocity at coordinates and time.
 
         Parameters
         ----------
         coords : ndarray
             Coordinates, shape (ndim, npts) or (ndim, nelems, nquad).
+        time : float
+            Evaluation time. Time-independent laws ignore it.
 
         Returns
         -------
@@ -380,6 +609,10 @@ class VelocityFunctionProtocol(Protocol):
 
     def is_constant(self) -> bool:
         """Whether the velocity is spatially constant."""
+        ...
+
+    def is_time_dependent(self) -> bool:
+        """Whether the velocity varies with time."""
         ...
 
     def version(self) -> int:
@@ -397,7 +630,7 @@ class ConstantVelocity:
         """Return the constant vector. Shape: (ndim,)."""
         return self._vec
 
-    def values(self, coords: _Quad) -> _Quad:
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
         coords_np = np.asarray(coords)
         shape = (len(self._vec),) + (1,) * (coords_np.ndim - 1)
         return np.broadcast_to(
@@ -407,6 +640,10 @@ class ConstantVelocity:
     def is_constant(self) -> bool:
         return True
 
+    def is_time_dependent(self) -> bool:
+        """Fixed values; time is accepted and ignored."""
+        return False
+
     def version(self) -> int:
         return 0
 
@@ -415,26 +652,31 @@ class ConstantVelocity:
 
 
 class CoordinateVelocity:
-    """Velocity from a coordinate function v(x).
+    """Velocity from a coordinate function v(x) or v(x, t).
 
     Parameters
     ----------
     func : Callable
         Accepts coordinates of shape (ndim, npts) and returns
-        (ndim, npts).
+        (ndim, npts). A bare callable is taken to be time-independent;
+        wrap a velocity from a transient flow solve in ``TimeDependent``
+        so it is evaluated at the assembly's time rather than frozen.
     """
 
-    def __init__(self, func: Callable[[_Quad], _Quad]) -> None:
-        self._func = func
+    def __init__(self, func: Callable[..., _Quad]) -> None:
+        self._func = as_time_aware(func)
 
-    def values(self, coords: _Quad) -> _Quad:
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
         coords_np = np.asarray(coords)
         flat = coords_np.reshape(coords_np.shape[0], -1)
-        values = np.asarray(self._func(flat))
+        values = np.asarray(self._func(flat, time))
         return values.reshape(coords_np.shape)
 
     def is_constant(self) -> bool:
         return False
+
+    def is_time_dependent(self) -> bool:
+        return self._func.is_time_dependent()
 
     def version(self) -> int:
         return 0
@@ -489,6 +731,10 @@ class NodalFieldVelocity:
         self._dofs = dofs_np
         self._version = getattr(self, "_version", 0) + 1
 
+    def is_time_dependent(self) -> bool:
+        """Fixed values; time is accepted and ignored."""
+        return False
+
     def version(self) -> int:
         """Monotone counter; incremented by every set_dofs call."""
         return self._version
@@ -505,7 +751,7 @@ class NodalFieldVelocity:
         """Return the vector basis the DOFs live on."""
         return self._basis
 
-    def values(self, coords: _Quad) -> _Quad:
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
         coords_np = np.asarray(coords)
         flat = coords_np.reshape(coords_np.shape[0], -1)
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
@@ -571,6 +817,10 @@ class LinearReaction:
         """Return the linear coefficient."""
         return self._coeff
 
+    def is_time_dependent(self) -> bool:
+        """Fixed coefficient; time is accepted and ignored."""
+        return False
+
     def value(self, coords: _Quad, state: _Quad) -> _Quad:
         return self._coeff * np.asarray(state)
 
@@ -626,6 +876,10 @@ class NodalFieldLinearReaction:
         self._dofs = dofs_np
         self._version = getattr(self, "_version", 0) + 1
 
+    def is_time_dependent(self) -> bool:
+        """Fixed values; time is accepted and ignored."""
+        return False
+
     def version(self) -> int:
         """Monotone counter; incremented by every set_dofs call."""
         return self._version
@@ -638,7 +892,7 @@ class NodalFieldLinearReaction:
         """Return the number of field DOFs."""
         return int(self._basis.ndofs())
 
-    def values(self, coords: _Quad) -> _Quad:
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
         """Evaluate the coefficient interpolant at coordinates."""
         coords_np = np.asarray(coords)
         flat = coords_np.reshape(coords_np.shape[0], -1)
@@ -693,6 +947,10 @@ class CallableReaction:
         self._second_derivative_func = second_derivative_func
         if second_derivative_func is not None:
             self.second_derivative = self._second_derivative_impl
+
+    def is_time_dependent(self) -> bool:
+        """Reaction laws are functions of state, not time."""
+        return False
 
     def value(self, coords: _Quad, state: _Quad) -> _Quad:
         return np.asarray(self._value_func(coords, state))

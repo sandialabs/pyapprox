@@ -25,6 +25,10 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
+)
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
@@ -149,7 +153,9 @@ def _build_stokes_from_manufactured(
                 vals = funcs["solution"](x_eval)
             return np.asarray(vals[:, :nvars])
 
-        return vel_bc
+        return (
+            TimeDependent(vel_bc) if transient else TimeIndependent(vel_bc)
+        )
 
     def _make_pres_bc(
         funcs: _ManufacturedFuncs, nvars: int, transient: bool
@@ -162,7 +168,9 @@ def _build_stokes_from_manufactured(
                 vals = funcs["solution"](x_eval)
             return np.asarray(vals[:, nvars])
 
-        return pres_bc
+        return (
+            TimeDependent(pres_bc) if transient else TimeIndependent(pres_bc)
+        )
 
     if transient:
         # For transient: use full forcing (includes du/dT for velocity)
@@ -173,7 +181,7 @@ def _build_stokes_from_manufactured(
                 vals = funcs["forcing"](x_eval, time)
                 return np.asarray(vals[:, :nvars])
 
-            return vel_forcing
+            return TimeDependent(vel_forcing)
 
         def _make_pres_forcing(
             funcs: _ManufacturedFuncs, nvars: int
@@ -182,13 +190,13 @@ def _build_stokes_from_manufactured(
                 vals = funcs["forcing"](x_eval, time)
                 return np.asarray(vals[:, nvars])
 
-            return pres_forcing
+            return TimeDependent(pres_forcing)
     else:
         # For steady state: use spatial-only forcing
         def _make_vel_forcing(
             funcs: _ManufacturedFuncs, nvars: int
         ) -> Callable[..., _NumpyArray]:
-            def vel_forcing(x_eval: _NumpyArray, time: float = 0.0) -> _NumpyArray:
+            def vel_forcing(x_eval: _NumpyArray) -> _NumpyArray:
                 return funcs["vel_forcing"](x_eval)
 
             return vel_forcing
@@ -196,7 +204,7 @@ def _build_stokes_from_manufactured(
         def _make_pres_forcing(
             funcs: _ManufacturedFuncs, nvars: int
         ) -> Callable[..., _NumpyArray]:
-            def pres_forcing(x_eval: _NumpyArray, time: float = 0.0) -> _NumpyArray:
+            def pres_forcing(x_eval: _NumpyArray) -> _NumpyArray:
                 return funcs["pres_forcing"](x_eval)
 
             return pres_forcing

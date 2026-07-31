@@ -8,18 +8,18 @@ if not package_available("skfem"):
 
 
 import numpy as np
-from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
-    CompositeLinearElasticity,
-)
-from scipy.sparse import issparse
-
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
     StructuredMesh3D,
 )
+from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
+    CompositeLinearElasticity,
+)
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from scipy.sparse import issparse
 
 
 def _to_dense(mat, bkd):
@@ -133,9 +133,11 @@ class TestLinearElasticityBase:
         sol_func = functions["solution"]
         forcing_func = functions["forcing"]
 
-        def body_force(x, time):
+        def _body_force_impl(x):
             vals = forcing_func(x)  # (npts, 1)
             return vals.T  # (1, npts) = (ndim, npts)
+
+        body_force = TimeIndependent(_body_force_impl)
 
         def dirichlet_value(coords, time=0.0):
             vals = sol_func(coords)  # (nbndry_dofs, 1)
@@ -365,11 +367,13 @@ class TestLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
 
-        def body_force(x, time):
+        def _body_force_impl(x):
             # Constant gravity-like force in y direction
             f = np.zeros_like(x)
             f[1, :] = -1.0
             return f
+
+        body_force = TimeIndependent(_body_force_impl)
 
         physics = LinearElasticity.from_uniform(
             basis=basis,
@@ -398,11 +402,13 @@ class TestLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
 
-        def body_force(x, time):
+        def _body_force_impl(x):
             # Constant gravity-like force in z direction
             f = np.zeros_like(x)
             f[2, :] = -1.0
             return f
+
+        body_force = TimeIndependent(_body_force_impl)
 
         physics = LinearElasticity.from_uniform(
             basis=basis,
@@ -805,8 +811,10 @@ class TestLinearElasticity3DManufactured:
         sol_func = functions["solution"]
         forcing_func = functions["forcing"]
 
-        def body_force(x, time):
+        def _body_force_impl(x):
             return forcing_func(x).T  # (ndim, npts)
+
+        body_force = TimeIndependent(_body_force_impl)
 
         def dirichlet_value(coords, time=0.0):
             return sol_func(coords).T  # (ndim, npts) vector convention

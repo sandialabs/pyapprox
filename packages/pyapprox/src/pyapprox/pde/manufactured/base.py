@@ -346,7 +346,20 @@ class ManufacturedSolution(ABC, Generic[Array]):
         return dict(self._expressions)
 
     def _expressions_to_functions(self) -> None:
-        """Convert all sympy expressions to callable functions."""
+        """Convert all sympy expressions to callable functions.
+
+        Transient emissions are wrapped in ``TimeDependent`` so consumers
+        can ask whether a callable consults time instead of inferring it
+        from a signature. Steady emissions stay bare ``f(coords)``: that
+        is the documented convention for a time-independent supplier, and
+        wrapping them would change the call signature of every existing
+        consumer for no gain --- ``as_time_aware`` normalizes them where
+        a uniform internal call is wanted.
+        """
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeDependent,
+        )
+
         self.transient["forcing"] = self.is_transient()
         if any(self.transient.values()) and not self.transient.get("solution", False):
             raise ValueError("solution must be transient because another function is")
@@ -358,8 +371,8 @@ class ManufacturedSolution(ABC, Generic[Array]):
                         expr
                     )
                 else:
-                    self.functions[name] = self._transient_expression_list_to_function(
-                        expr
+                    self.functions[name] = TimeDependent(
+                        self._transient_expression_list_to_function(expr)
                     )
             elif isinstance(expr, list) and isinstance(expr[0], list):
                 if not self.transient.get(name, False):
@@ -367,14 +380,16 @@ class ManufacturedSolution(ABC, Generic[Array]):
                         self._steady_expression_list_of_lists_to_function(expr)
                     )
                 else:
-                    self.functions[name] = (
+                    self.functions[name] = TimeDependent(
                         self._transient_expression_list_of_lists_to_function(expr)
                     )
             else:
                 if not self.transient.get(name, False):
                     self.functions[name] = self._steady_expression_to_function(expr)
                 else:
-                    self.functions[name] = self._transient_expression_to_function(expr)
+                    self.functions[name] = TimeDependent(
+                        self._transient_expression_to_function(expr)
+                    )
 
     def nvars(self) -> int:
         """Return number of spatial dimensions."""

@@ -23,6 +23,7 @@ from numpy.typing import NDArray
 from scipy.sparse import block_diag as sp_block_diag
 from scipy.sparse import csr_matrix
 
+from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
@@ -64,15 +65,12 @@ class _VelComponentBCValueFunc:
         crds: np.ndarray,
         comp_idx: int,
     ) -> None:
-        self._func = func
+        self._func = as_time_aware(func)
         self._crds = crds
         self._comp_idx = int(comp_idx)
 
     def __call__(self, time: float) -> np.ndarray:
-        try:
-            vals = self._func(self._crds, time)
-        except TypeError:
-            vals = self._func(self._crds)
+        vals = self._func(self._crds, time)
         if vals.ndim == 2:
             return vals[:, self._comp_idx]
         return vals
@@ -90,14 +88,11 @@ class _PresBCValueFunc:
         func: Callable[..., np.ndarray],
         crds: np.ndarray,
     ) -> None:
-        self._func = func
+        self._func = as_time_aware(func)
         self._crds = crds
 
     def __call__(self, time: float) -> np.ndarray:
-        try:
-            vals = self._func(self._crds, time)
-        except TypeError:
-            vals = self._func(self._crds)
+        vals = self._func(self._crds, time)
         if vals.ndim == 2:
             return vals.flatten()
         return vals
@@ -162,8 +157,16 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         self._bkd = bkd
         self._navier_stokes = navier_stokes
         self._viscosity = viscosity
+        # Raw suppliers kept for consumers that inspect them; normalized
+        # companions are what assembly evaluates as f(coords, time).
         self._vel_forcing = vel_forcing
         self._pres_forcing = pres_forcing
+        self._vel_forcing_eval = (
+            None if vel_forcing is None else as_time_aware(vel_forcing)
+        )
+        self._pres_forcing_eval = (
+            None if pres_forcing is None else as_time_aware(pres_forcing)
+        )
         self._vel_dirichlet_bcs = vel_dirichlet_bcs or []
         self._pres_dirichlet_bcs = pres_dirichlet_bcs or []
 
@@ -344,7 +347,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         if self._vel_forcing is None:
             return np.zeros(self.vel_ndofs())
 
-        vel_forcing_func = self._vel_forcing
+        vel_forcing_func = self._vel_forcing_eval
         nvars = self._ndim
         current_time = time
         prepare_points = self._prepare_points
@@ -353,10 +356,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             x_np = np.asarray(w.x)
             x_eval, orig_shape = prepare_points(x_np)
 
-            try:
-                f = vel_forcing_func(x_eval, current_time)
-            except TypeError:
-                f = vel_forcing_func(x_eval)
+            f = vel_forcing_func(x_eval, current_time)
             # f shape: (npts, nvars)
 
             if orig_shape is not None:
@@ -377,7 +377,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         if self._pres_forcing is None:
             return np.zeros(self.pres_ndofs())
 
-        pres_forcing_func = self._pres_forcing
+        pres_forcing_func = self._pres_forcing_eval
         current_time = time
         prepare_points = self._prepare_points
 
@@ -385,10 +385,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             x_np = np.asarray(w.x)
             x_eval, orig_shape = prepare_points(x_np)
 
-            try:
-                f = pres_forcing_func(x_eval, current_time)
-            except TypeError:
-                f = pres_forcing_func(x_eval)
+            f = pres_forcing_func(x_eval, current_time)
             # f shape: (npts,)
 
             if orig_shape is not None:

@@ -21,7 +21,11 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
     StateDependentDiffusionProtocol,
+    TimeAwareCallableProtocol,
+    TimeDependent,
+    TimeIndependent,
     VelocityFunctionProtocol,
+    as_time_aware,
 )
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
@@ -48,6 +52,11 @@ __all__ = [
     "VelocityFunctionProtocol",
     "ReactionFunctionProtocol",
     "ReactionFunctionWithSecondDerivativeProtocol",
+    "TimeAwareCallableProtocol",
+    # Time-awareness declaration for coefficient suppliers
+    "TimeDependent",
+    "TimeIndependent",
+    "as_time_aware",
     # Coefficient function implementations
     "ConstantDiffusion",
     "CoordinateDiffusion",

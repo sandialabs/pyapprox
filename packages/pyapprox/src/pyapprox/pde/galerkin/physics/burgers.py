@@ -26,6 +26,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
+from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -57,6 +58,16 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
     The Newton linearization produces state-dependent bilinear and linear
     forms that are reassembled at every Newton iteration.
 
+    TIME THREADING (partial). The forcing is normalized through
+    ``as_time_aware`` and evaluated at the assembly's time, so a
+    ``TimeDependent`` source works. The VISCOSITY is not:
+    ``_get_viscosity`` calls it with coordinates alone, so a viscosity
+    declaring time-dependence would fail on the wrong-arity call.
+    Nothing here caches an assembled operator across times --- the forms
+    are rebuilt every Newton iteration --- so there is no stale-cache
+    hazard, only a missing capability. Extend it if a time-varying
+    viscosity is ever needed, following the forcing's pattern.
+
     Parameters
     ----------
     basis : GalerkinBasisProtocol
@@ -84,7 +95,13 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         super().__init__(basis, bkd, boundary_conditions)
         self._mass = ScalarMassAssembler(basis, bkd)
         self._viscosity = viscosity
+        # Keep the raw supplier (consumers may inspect its type) and a
+        # normalized companion that assembly evaluates uniformly as
+        # f(coords, time).
         self._forcing = forcing
+        self._forcing_eval = (
+            None if forcing is None else as_time_aware(forcing)
+        )
 
     def is_linear(self) -> bool:
         """Burgers equation is always nonlinear."""
@@ -99,15 +116,16 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
             return np.full(coords.shape[-1], self._viscosity)
 
     def _get_forcing(self, coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-        """Get forcing values at given coordinates."""
-        if self._forcing is None:
+        """Get forcing values at given coordinates and time.
+
+        The supplier declares whether it consults time, so this is a
+        single unconditional call: a TypeError raised inside a forcing
+        now propagates instead of being mistaken for a wrong-arity call
+        and silently retried without the time.
+        """
+        if self._forcing_eval is None:
             return np.zeros(coords.shape[-1])
-        try:
-            ret: NDArray[np.floating[Any]] = self._forcing(coords, time)
-            return ret
-        except TypeError:
-            ret2: NDArray[np.floating[Any]] = self._forcing(coords)
-            return ret2
+        return self._forcing_eval(coords, time)
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""

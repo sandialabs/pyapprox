@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.protocols.boundary import (
@@ -47,8 +48,7 @@ except ImportError:
     )
 
 
-@BilinearForm
-def _elastic_form(u: Any, v: Any, w: Any) -> Any:
+def _elastic_form_impl(u: Any, v: Any, w: Any) -> Any:
     """Elasticity bilinear form with element-wise Lame parameters.
 
     ``w.lam`` and ``w.mu`` must be ``(nelem, nquad)`` arrays.
@@ -60,11 +60,28 @@ def _elastic_form(u: Any, v: Any, w: Any) -> Any:
     )
 
 
+# Wrapped by call rather than by decorator: skfem ships no type stubs, so
+# `@BilinearForm` erases the decorated function's type entirely. Calling
+# it keeps the annotations on _elastic_form_impl and matches how the
+# other 54 form sites in this package are written.
+_elastic_form = BilinearForm(_elastic_form_impl)
+
+
 class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
     """Linear elasticity with per-element material properties.
 
     Supports multi-material composites where each subdomain has its own
     Young's modulus and Poisson's ratio.
+
+    TIME THREADING (partial). The body force is normalized through
+    ``as_time_aware`` and evaluated at the assembly's time, so a
+    ``TimeDependent`` load works. The MATERIAL PROPERTIES are not:
+    ``material_map`` fixes (E, nu) per subdomain at construction and the
+    stiffness is assembled from those constants, so a modulus that
+    degrades with time cannot be expressed. Supporting it means making
+    the per-element Lame arrays a function of the assembly time and
+    keying the stiffness cache on time, as
+    :class:`AdvectionDiffusionReaction` does for its coefficients.
 
     Parameters
     ----------
@@ -77,8 +94,11 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
     bkd : Backend[Array]
         Computational backend.
     body_force : Callable, optional
-        Body force per unit volume. Takes coordinates (ndim, npts) and
-        time (float), returns (ndim, npts).
+        Body force per unit volume, returning (ndim, npts). A steady
+        force takes coordinates alone, ``f(coords)``. A force that
+        varies in time must declare itself by wrapping in
+        ``TimeDependent``; ``TimeIndependent`` declares the opposite for
+        a callable that could accept a time but ignores it.
     boundary_conditions : list of BoundaryConditionProtocol, optional
         Boundary conditions (Dirichlet, Neumann, Robin).
 
@@ -141,6 +161,13 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
             boundary_conditions=boundary_conditions,
         )
 
+    # The base class stores the basis as the scalar
+    # GalerkinBasisProtocol, which has no ncomponents(). This physics is
+    # vector-valued by construction, so narrow the attribute back to
+    # what the constructor already requires rather than casting at each
+    # use.
+    _basis: VectorLagrangeBasis[Array]
+
     def __init__(
         self,
         basis: VectorLagrangeBasis[Array],
@@ -151,7 +178,13 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
+        # Keep the raw supplier (consumers may inspect its type) and a
+        # normalized companion that assembly evaluates uniformly as
+        # f(coords, time).
         self._body_force = body_force
+        self._body_force_eval = (
+            None if body_force is None else as_time_aware(body_force)
+        )
         self._material_map = dict(material_map)
         self._element_materials = {
             k: np.asarray(v) for k, v in element_materials.items()
@@ -301,10 +334,10 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         skfem_basis = self._basis.skfem_basis()
         ndim = self._basis.ncomponents()
 
-        if self._body_force is None:
+        if self._body_force_eval is None:
             load_np = np.zeros(self.nstates())
         else:
-            body_force_func = self._body_force
+            body_force_func = self._body_force_eval
             current_time = time
 
             def linear_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:

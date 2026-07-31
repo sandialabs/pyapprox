@@ -169,6 +169,10 @@ class ParabolicInlet:
         vals[:, 0] = y ** (self._a - 1) * (1 - y) ** (self._b - 1)
         return vals
 
+    def is_time_dependent(self) -> bool:
+        """The profile is fixed; the accepted time is ignored."""
+        return False
+
 
 class ZeroVelocity:
     """Zero-velocity BC (a picklable class, not a closure)."""
@@ -177,6 +181,10 @@ class ZeroVelocity:
         self, x: np.ndarray, time: float = 0.0,
     ) -> np.ndarray:
         return np.zeros((x.shape[1], 2))
+
+    def is_time_dependent(self) -> bool:
+        """Identically zero; the accepted time is ignored."""
+        return False
 
 
 def solve_obstructed_stokes(

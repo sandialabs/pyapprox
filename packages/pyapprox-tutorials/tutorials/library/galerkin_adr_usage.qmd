@@ -129,7 +129,7 @@ DECAY = -1.0        # R(u) = -u: material decays at a rate set by its own
                     # concentration. A positive value would be a source.
 
 
-def forcing(coords, time=0.0):
+def forcing(coords):
     """A Gaussian release centered at (0.15, 0.5)."""
     x, y = coords[0], coords[1]
     return np.exp(-((x - 0.15) ** 2 + (y - 0.5) ** 2) / 0.01)

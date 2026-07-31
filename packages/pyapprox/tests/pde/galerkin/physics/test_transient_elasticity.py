@@ -18,6 +18,7 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.manufactured.adapter import (
@@ -142,12 +143,16 @@ class TestTransientElasticity2D:
         )
         basis = VectorLagrangeBasis(mesh, degree=2)
 
-        # Forcing function for the physics: body_force(x, time)
+        # Forcing function for the physics. This one genuinely consults
+        # time, so it must say so: an undeclared two-arity callable is
+        # refused rather than guessed at.
         forcing_func = functions["forcing"]
 
-        def body_force(x, time):
+        def _body_force(x, time):
             vals = forcing_func(x, time)  # (npts, 2)
             return vals.T  # (2, npts) — physics expects (ndim, npts)
+
+        body_force = TimeDependent(_body_force)
 
         # Dirichlet BCs on all 4 boundaries
         bndry_names = ["left", "right", "bottom", "top"]

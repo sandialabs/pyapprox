@@ -12,13 +12,12 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.manufactured import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
     create_helmholtz_manufactured_test,
 )
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
@@ -148,12 +147,22 @@ class TestADRManufacturedBase:
 
         forcing = adapter.forcing_for_galerkin()
 
-        # Test that forcing returns 1D array
+        # The adapter returns a DECLARED supplier, so consumers never
+        # have to guess: this problem is steady, and the wrapper says so.
+        assert not forcing.is_time_dependent()
+
+        # Test that forcing returns 1D array. Suppliers are called
+        # uniformly as f(coords, time); a steady one ignores the time.
         x = np.array([[0.0, 0.5, 1.0]])
-        f_vals = forcing(x)
+        f_vals = forcing(x, 0.0)
 
         assert f_vals.ndim == 1
         assert len(f_vals) == 3
+
+        # Being steady is a claim about the values, so check it holds.
+        bkd.assert_allclose(
+            bkd.asarray(forcing(x, 5.0)), bkd.asarray(f_vals), rtol=1e-14
+        )
 
     def test_adapter_solution_function(self, numpy_bkd) -> None:
         """Test adapter provides solution function."""

@@ -393,9 +393,7 @@ class AdvectionDiffusionOEDProblem(
             adr_skfem = self._adr_basis.skfem_basis()
             probes_cache = self._adr_probes_cache
 
-            def forcing_func(
-                x: np.ndarray, time: float = 0.0,
-            ) -> np.ndarray:
+            def forcing_func(x: np.ndarray) -> np.ndarray:
                 shape = None
                 if len(x.shape) > 2:
                     shape = x.shape

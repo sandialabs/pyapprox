@@ -33,6 +33,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
+from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.constitutive.protocols import (
     StressModelProtocol,
     StressModelWithTangentProtocol,
@@ -70,6 +71,19 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     stiffness (Jacobian) is available when the stress model implements
     StressModelWithTangentProtocol.
 
+    TIME THREADING (partial). The body force is normalized through
+    ``as_time_aware`` and evaluated at the assembly's time, so a
+    ``TimeDependent`` load works. The MATERIAL PROPERTIES are not: the
+    stress model is queried as ``compute_stress_*(F, bkd)`` with no time
+    argument, and its Lame parameters are fixed at construction. A
+    time-varying modulus --- the natural way to express material
+    degradation, creep or curing --- therefore cannot be expressed
+    today. Adding it means threading time into StressModelProtocol, not
+    just this class, since the tangent modulus would have to follow.
+    Nothing here caches an assembled operator across times (the forms
+    are rebuilt every Newton iteration), so this is a missing capability
+    rather than a stale-cache hazard.
+
     Parameters
     ----------
     basis : VectorLagrangeBasis
@@ -79,23 +93,45 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     bkd : Backend
         Computational backend.
     body_force : Callable, optional
-        Body force per unit volume. Takes coordinates (ndim, npts) and
-        time (float), returns (ndim, npts).
+        Body force per unit volume, returning (ndim, npts). A steady
+        force takes coordinates alone, ``f(coords)``. A force that
+        varies in time must declare itself by wrapping in
+        ``TimeDependent``; ``TimeIndependent`` declares the opposite for
+        a callable that could accept a time but ignores it.
     boundary_conditions : list of BoundaryConditionProtocol, optional
         Boundary conditions (Dirichlet, Neumann, Robin).
     """
 
+    # The base class stores the basis as the scalar
+    # GalerkinBasisProtocol, which has no ncomponents(). This physics is
+    # vector-valued by construction, so narrow the attribute back to
+    # what the constructor already requires rather than casting at each
+    # use.
+    _basis: VectorLagrangeBasis[Array]
+
     def __init__(
         self,
         basis: VectorLagrangeBasis[Array],
-        stress_model: StressModelProtocol[Array],
+        stress_model: StressModelProtocol[NDArray[Any]],
         bkd: Backend[Array],
         body_force: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
-        self._stress_model = stress_model
+        # skfem assembles in NumPy: the quadrature-point deformation
+        # gradients handed to the stress model are NumPy arrays whatever
+        # Array is, and _numpy_bkd below is the backend passed alongside
+        # them. Recording that here makes the attribute's type say what
+        # the assembly actually does, instead of claiming an Array-generic
+        # call the forms can never make.
+        self._stress_model: StressModelProtocol[NDArray[Any]] = stress_model
+        # Keep the raw supplier (consumers may inspect its type) and a
+        # normalized companion that assembly evaluates uniformly as
+        # f(coords, time).
         self._body_force = body_force
+        self._body_force_eval = (
+            None if body_force is None else as_time_aware(body_force)
+        )
         self._numpy_bkd = NumpyBkd()
 
         # Cache mass matrix
@@ -218,7 +254,12 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                     for i in range(3)
                 )
                 P = stress_model.compute_stress_3d(F, numpy_bkd)
-                result = 0.0
+                # Seeded from an array-valued zero rather than the scalar
+                # 0.0, so the accumulator's type matches what every term
+                # contributes.
+                result: NDArray[np.floating[Any]] = np.zeros_like(
+                    v.grad[0, 0]
+                )
                 for i in range(3):
                     for j in range(3):
                         result = result + P[i][j] * v.grad[i, j]
@@ -240,12 +281,12 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
         Computes: integral f.v dX
         """
-        if self._body_force is None:
+        if self._body_force_eval is None:
             return self._bkd.asarray(np.zeros(self.nstates()))
 
         skfem_basis = self._basis.skfem_basis()
         ndim = self.ndim()
-        body_force_func = self._body_force
+        body_force_func = self._body_force_eval
         current_time = time
 
         def load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
@@ -346,7 +387,12 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 F22 = 1.0 + w.u_prev.grad[1, 1]
                 A = stress_model.compute_tangent_2d(F11, F12, F21, F22, numpy_bkd)
                 # K[du, v] = sum_{i,J,k,L} A_{iJkL} * dv_i/dX_J * du_k/dX_L
-                result = 0.0
+                # Seeded from an array-valued zero rather than the scalar
+                # 0.0, so the accumulator's type matches what every term
+                # contributes.
+                result: NDArray[np.floating[Any]] = np.zeros_like(
+                    v.grad[0, 0]
+                )
                 for i in range(2):
                     for J in range(2):
                         for k in range(2):
@@ -393,7 +439,10 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                 f"Tangent stiffness not available for {ndim}D."
             )
 
-        return K_np
+        # skfem's asm() is untyped, so pin the result here rather than
+        # letting Any leak out through the declared Array return.
+        stiffness: Array = K_np
+        return stiffness
 
     def spatial_jacobian(self, state: Array, time: float) -> Array:
         """Compute dR/du without Dirichlet enforcement.

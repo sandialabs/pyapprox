@@ -19,6 +19,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
@@ -55,11 +56,13 @@ def _make_physics(
     )
     basis = VectorLagrangeBasis(mesh, degree=1)
 
-    def body_force(x, time):
+    def _body_force_impl(x):
         f = np.zeros_like(x)
         f[0, :] = 1.0
         f[1, :] = -2.0
         return f
+
+    body_force = TimeIndependent(_body_force_impl)
 
     if with_bcs:
         bc_list = [

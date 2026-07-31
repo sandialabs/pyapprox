@@ -31,6 +31,7 @@ from scipy.sparse import csr_matrix
 
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
+    as_time_aware,
 )
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
@@ -57,6 +58,17 @@ _KappaFn = Callable[
 
 class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
     """Quasilinear diffusion :math:`-\\nabla\\cdot(a(x)\\kappa(u)\\nabla u) = f`.
+
+    TIME THREADING (partial). The forcing is normalized through
+    ``as_time_aware`` and evaluated at the assembly's time, so a
+    ``TimeDependent`` source works. Neither :math:`a(x)` nor
+    :math:`\\kappa(u)` is: the nodal diffusivity holds fixed DOFs (a
+    parameterization updates them through ``set_dofs``, which is a
+    mutation rather than a time), and ``kappa`` is a function of the
+    STATE, called with state values alone. Nothing here caches an
+    assembled operator across times, so there is no stale-cache hazard,
+    only a missing capability. Extend it if a time-varying
+    :math:`a(x, t)` is ever needed, following the forcing's pattern.
 
     Parameters
     ----------
@@ -110,7 +122,12 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
         self._kappa = kappa
         self._kappa_deriv = kappa_deriv
         self._kappa_second_deriv = kappa_second_deriv
+        # Raw supplier kept for consumers that inspect it; normalized
+        # companion is what assembly evaluates.
         self._forcing = forcing
+        self._forcing_eval = (
+            None if forcing is None else as_time_aware(forcing)
+        )
 
     def is_linear(self) -> bool:
         """Quasilinear diffusion is nonlinear in the state."""
@@ -131,15 +148,16 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
     def _get_forcing(
         self, coords: np.ndarray, time: float = 0.0
     ) -> np.ndarray:
-        """Get forcing values at given coordinates."""
-        if self._forcing is None:
+        """Get forcing values at given coordinates and time.
+
+        The supplier declares whether it consults time, so this is a
+        single unconditional call: a TypeError raised inside a forcing
+        now propagates instead of being mistaken for a wrong-arity call
+        and silently retried without the time.
+        """
+        if self._forcing_eval is None:
             return np.zeros(coords.shape[-1])
-        try:
-            ret: NDArray[np.floating[Any]] = self._forcing(coords, time)
-            return ret
-        except TypeError:
-            ret2: NDArray[np.floating[Any]] = self._forcing(coords)
-            return ret2
+        return self._forcing_eval(coords, time)
 
     def _interpolate(self, dofs: np.ndarray) -> "DiscreteField":
         """Interpolate DOFs at quadrature points."""

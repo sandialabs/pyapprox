@@ -16,6 +16,7 @@ import numpy as np
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldForcing,
+    TimeDependent,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
@@ -291,14 +292,14 @@ class TestCachingUnchanged:
         )
 
     def test_time_dependent_callable_forcing_not_cached(self, numpy_bkd):
-        """Callable forcings may depend on time: every evaluation
-        assembles fresh, and different times give different loads."""
+        """A forcing declared time-dependent assembles fresh at each
+        time, so different times give different loads."""
 
         def forcing(x, time=0.0):
             return (1.0 + time) * np.ones(x.shape[1])
 
         physics = _make_physics(
-            numpy_bkd, diffusivity=1.0, forcing=forcing
+            numpy_bkd, diffusivity=1.0, forcing=TimeDependent(forcing)
         )
         zeros = numpy_bkd.zeros((physics.nstates(),))
         load_t0 = physics.spatial_residual(zeros, 0.0)

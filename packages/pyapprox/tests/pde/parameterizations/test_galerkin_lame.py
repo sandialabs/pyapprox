@@ -22,6 +22,7 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
     AdjointOperatorWithJacobianAndHVP,
 )
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
@@ -49,12 +50,18 @@ def _to_dense(mat):
     return np.asarray(mat)
 
 
-def _body_force(x, time):
+def _body_force_impl(x):
     """Module-level body force (local defs would break pickle tests)."""
     f = np.zeros_like(x)
     f[0, :] = 1.0
     f[1, :] = -2.0
     return f
+
+
+# Declared time-independent rather than left bare. TimeIndependent is a
+# module-level class wrapping a module-level function, so this stays
+# picklable --- which the pickle tests below rely on.
+_body_force = TimeIndependent(_body_force_impl)
 
 
 def _make_physics(bkd, E=1.0, nu=0.3, with_bcs=True):

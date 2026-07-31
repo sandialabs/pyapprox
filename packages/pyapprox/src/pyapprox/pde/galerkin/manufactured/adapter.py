@@ -10,6 +10,11 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
+    TimeVaryingProtocol,
+)
 from pyapprox.pde.constitutive.protocols import (
     SymbolicStressModelProtocol,
 )
@@ -157,21 +162,46 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         if vel_func is None:
             return None
 
-        def adapted_velocity(
-            x: NDArray[np.floating[Any]],
+        # Branch on whether the VELOCITY consults time, not on whether the
+        # problem is transient: a transient problem may well have a steady
+        # velocity, and wrapping that one as TimeDependent would send it a
+        # time it cannot accept.
+        velocity_varies = isinstance(vel_func, TimeVaryingProtocol) and (
+            vel_func.is_time_dependent()
+        )
+
+        def _reshape(
+            vals: NDArray[np.floating[Any]],
+            ndim: int,
+            trailing: Tuple[int, ...],
         ) -> NDArray[np.floating[Any]]:
-            # x: (ndim, ...) from skfem
-            orig_shape = x.shape
-            ndim = orig_shape[0]
-            trailing = orig_shape[1:]
-            flat = x.reshape(ndim, -1)
-            # Manufactured velocity returns (npts, ndim)
-            vals = vel_func(flat)
-            # Transpose to (ndim, npts) then reshape to (ndim, ...)
+            # Manufactured velocity returns (npts, ndim); skfem wants
+            # (ndim, ...) matching the input coordinate shape.
             ret: NDArray[np.floating[Any]] = vals.T.reshape(ndim, *trailing)
             return ret
 
-        return adapted_velocity
+        if velocity_varies:
+
+            def varying_velocity(
+                x: NDArray[np.floating[Any]],
+                time: float,
+            ) -> NDArray[np.floating[Any]]:
+                ndim = x.shape[0]
+                trailing = x.shape[1:]
+                return _reshape(
+                    vel_func(x.reshape(ndim, -1), time), ndim, trailing
+                )
+
+            return TimeDependent(varying_velocity)
+
+        def steady_velocity(
+            x: NDArray[np.floating[Any]],
+        ) -> NDArray[np.floating[Any]]:
+            ndim = x.shape[0]
+            trailing = x.shape[1:]
+            return _reshape(vel_func(x.reshape(ndim, -1)), ndim, trailing)
+
+        return TimeIndependent(steady_velocity)
 
     def forcing_for_galerkin(self) -> Callable[..., Any]:
         """Return forcing function adapted for Galerkin physics interface.
@@ -186,40 +216,38 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         """
         forcing_func = self._functions["forcing"]
 
+        def _squeeze(
+            vals: NDArray[np.floating[Any]],
+        ) -> NDArray[np.floating[Any]]:
+            # Manufactured forcing is (npts, 1) for scalar problems;
+            # Galerkin physics wants (npts,).
+            if hasattr(vals, "shape") and vals.ndim > 1:
+                ret: NDArray[np.floating[Any]] = (
+                    vals[:, 0] if vals.shape[1] == 1 else vals
+                )
+                return ret
+            ret2: NDArray[np.floating[Any]] = vals
+            return ret2
+
+        # Declare what this adapter already knows. Without it a consumer
+        # normalizing an undeclared callable would take it for
+        # time-independent and freeze a transient forcing at t=0.
         if self._time_dependent:
 
-            def adapted_forcing(
+            def varying_forcing(
                 x: NDArray[np.floating[Any]],
-                time: float = 0.0,
+                time: float,
             ) -> NDArray[np.floating[Any]]:
-                vals = forcing_func(x, time)
-                if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = (
-                        vals[:, 0]
-                        if vals.shape[1] == 1
-                        else vals
-                    )
-                    return ret
-                ret2: NDArray[np.floating[Any]] = vals
-                return ret2
-        else:
+                return _squeeze(forcing_func(x, time))
 
-            def adapted_forcing(
-                x: NDArray[np.floating[Any]],
-                time: float = 0.0,
-            ) -> NDArray[np.floating[Any]]:
-                vals = forcing_func(x)
-                if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = (
-                        vals[:, 0]
-                        if vals.shape[1] == 1
-                        else vals
-                    )
-                    return ret
-                ret2: NDArray[np.floating[Any]] = vals
-                return ret2
+            return TimeDependent(varying_forcing)
 
-        return adapted_forcing
+        def steady_forcing(
+            x: NDArray[np.floating[Any]],
+        ) -> NDArray[np.floating[Any]]:
+            return _squeeze(forcing_func(x))
+
+        return TimeIndependent(steady_forcing)
 
     def _eval_flux(
         self,
@@ -781,35 +809,38 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         """Return body force adapted for Galerkin physics.
 
         The manufactured solution returns forcing as (npts, ncomponents).
-        Galerkin physics expects body_force(x, time) returning (ndim, npts).
+        Galerkin physics expects a body force returning (ndim, npts).
 
         Returns
         -------
         Callable
-            body_force(x, time) -> (ndim, npts)
+            A declared supplier --- ``TimeDependent`` for a transient
+            problem, ``TimeIndependent`` for a steady one. Declaring
+            which it is keeps a transient body force from being taken
+            for steady and frozen at t=0.
         """
         forcing_func = self._functions["forcing"]
-        time_dep = self._time_dependent
 
-        if time_dep:
+        if self._time_dependent:
 
-            def adapted_forcing(
+            def varying_body_force(
                 x: NDArray[np.floating[Any]],
-                time: float = 0.0,
+                time: float,
             ) -> NDArray[np.floating[Any]]:
                 vals = forcing_func(x, time)  # (npts, ncomponents)
                 ret: NDArray[np.floating[Any]] = vals.T
                 return ret
-        else:
 
-            def adapted_forcing(
-                x: NDArray[np.floating[Any]], time: float = 0.0,
-            ) -> NDArray[np.floating[Any]]:
-                vals = forcing_func(x)  # (npts, ncomponents)
-                ret: NDArray[np.floating[Any]] = vals.T
-                return ret
+            return TimeDependent(varying_body_force)
 
-        return adapted_forcing
+        def steady_body_force(
+            x: NDArray[np.floating[Any]],
+        ) -> NDArray[np.floating[Any]]:
+            vals = forcing_func(x)  # (npts, ncomponents)
+            ret: NDArray[np.floating[Any]] = vals.T
+            return ret
+
+        return TimeIndependent(steady_body_force)
 
     def _create_dirichlet_bc(self, boundary_name: str) -> DirichletBC[Array]:
         """Create a Dirichlet BC for vector-valued displacement.

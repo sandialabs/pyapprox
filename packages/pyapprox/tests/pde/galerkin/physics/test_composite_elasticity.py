@@ -14,6 +14,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
@@ -131,9 +132,11 @@ class TestCompositeLinearElasticityBase:
         sol_func = functions["solution"]
         forcing_func = functions["forcing"]
 
-        def body_force(x, time):
+        def _body_force_impl(x):
             vals = forcing_func(x)
             return vals.T
+
+        body_force = TimeIndependent(_body_force_impl)
 
         def dirichlet_value(coords, time=0.0):
             vals = sol_func(coords)
@@ -298,10 +301,12 @@ class TestCompositeLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
 
-        def body_force(x, time):
+        def _body_force_impl(x):
             f = np.zeros_like(x)
             f[1, :] = -1.0
             return f
+
+        body_force = TimeIndependent(_body_force_impl)
 
         physics = _uniform_material(
             basis,
@@ -326,10 +331,12 @@ class TestCompositeLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
 
-        def body_force(x, time):
+        def _body_force_impl(x):
             f = np.zeros_like(x)
             f[2, :] = -1.0
             return f
+
+        body_force = TimeIndependent(_body_force_impl)
 
         physics = _uniform_material(
             basis,

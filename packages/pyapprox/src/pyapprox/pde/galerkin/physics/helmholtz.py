@@ -21,6 +21,10 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeVaryingProtocol,
+    as_time_aware,
+)
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -47,6 +51,17 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
 
     In weak form:
         integral(grad(u) . grad(v)) + k^2 * integral(u * v) = integral(f * v)
+
+    TIME THREADING (partial). The forcing is normalized through
+    ``as_time_aware`` and evaluated at the assembly's time, so a
+    ``TimeDependent`` source works. The WAVENUMBER is not: the mass form
+    calls ``k2(x)`` with coordinates alone, so a wavenumber declaring
+    time-dependence would fail on the wrong-arity call. The stiffness
+    cache already keys on time for that case, but the guard is
+    unreachable until the wavenumber is threaded.
+    Extend it if a time-varying wavenumber is ever needed --- the
+    pattern is the forcing's: normalize at construction, bind the time
+    into the form, pass it at the call site.
 
     The stiffness matrix is:
         K_ij = integral(grad(phi_j) . grad(phi_i)) + k^2(x) * integral(phi_j * phi_i)
@@ -102,12 +117,18 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         self._wavenumber = wavenumber
         self._wavenumber_is_callable = callable(wavenumber)
 
-        # Store forcing
+        # Store forcing: the raw supplier for consumers that inspect it,
+        # and a normalized companion evaluated as f(coords, time).
         self._forcing = forcing
+        self._forcing_eval = (
+            None if forcing is None else as_time_aware(forcing)
+        )
 
         # Cache assembled matrices
         self._stiffness_cached: Optional[Array] = None
         self._load_cached: Optional[Array] = None
+        self._load_cached_time: Optional[float] = None
+        self._stiffness_cached_time: Optional[float] = None
 
     def wavenumber(self) -> Union[float, Callable[..., Any]]:
         """Return the wavenumber k (scalar) or k^2(x) (callable)."""
@@ -125,6 +146,13 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         """Solve M * x = rhs for x."""
         return self._mass.mass_solve(rhs)
 
+    def _wavenumber_is_time_dependent(self) -> bool:
+        """Whether k^2(x) declares that it varies with time."""
+        return (
+            isinstance(self._wavenumber, TimeVaryingProtocol)
+            and self._wavenumber.is_time_dependent()
+        )
+
     def _assemble_stiffness(self, state: Array, time: float) -> Array:
         """Assemble stiffness matrix K.
 
@@ -133,7 +161,13 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
             K_laplacian_ij = integral(grad(phi_j) . grad(phi_i))
             M_ij = integral(k^2(x) * phi_j * phi_i)
         """
-        if self._stiffness_cached is not None:
+        # A wavenumber that declares time-dependence forces re-assembly
+        # when the time moves; a fixed one keeps the single-key fast
+        # path and is assembled once.
+        if self._stiffness_cached is not None and (
+            not self._wavenumber_is_time_dependent()
+            or self._stiffness_cached_time == time
+        ):
             return self._stiffness_cached
 
         skfem_basis = self._basis.skfem_basis()
@@ -188,6 +222,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         # Cache since coefficients are constant (even callable ones are
         # spatially varying but not state-dependent)
         self._stiffness_cached = stiffness
+        self._stiffness_cached_time = time
 
         return stiffness
 
@@ -195,16 +230,28 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         """Assemble load vector b.
 
         b_i = integral(f * phi_i)
+
+        A time-independent forcing assembles once and is reused. A
+        forcing that declares time-dependence is keyed on the time it
+        was assembled at, so a transient source is re-assembled when the
+        time moves rather than frozen at its first evaluation.
         """
-        if self._load_cached is not None:
+        cacheable = (
+            self._forcing_eval is None
+            or not self._forcing_eval.is_time_dependent()
+        )
+        if self._load_cached is not None and (
+            cacheable or self._load_cached_time == time
+        ):
             return self._load_cached
 
         skfem_basis = self._basis.skfem_basis()
 
-        if self._forcing is None:
+        if self._forcing_eval is None:
             load_np = np.zeros(self.nstates())
         else:
-            forcing_func = self._forcing
+            forcing_func = self._forcing_eval
+            current_time = time
 
             def linear_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
                 # w.x shape: (ndim, nelem, nquad)
@@ -212,10 +259,10 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
                 if len(x_shape) == 3:
                     ndim, nelem, nquad = x_shape
                     x_flat = w.x.reshape(ndim, -1)
-                    forc_flat = forcing_func(x_flat)
+                    forc_flat = forcing_func(x_flat, current_time)
                     forc = forc_flat.reshape(nelem, nquad)
                 else:
-                    forc = forcing_func(w.x)
+                    forc = forcing_func(np.asarray(w.x), current_time)
                 ret: NDArray[np.floating[Any]] = forc * v
                 return ret
 
@@ -223,8 +270,10 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
 
         load = self._bkd.asarray(load_np.astype(np.float64))
 
-        # Cache since forcing is not state-dependent
+        # The load is state-independent, so it is cached; the time it was
+        # built at is recorded so a time-dependent forcing invalidates.
         self._load_cached = load
+        self._load_cached_time = time
 
         return load
 

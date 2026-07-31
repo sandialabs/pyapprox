@@ -46,7 +46,10 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
     StateDependentDiffusionProtocol,
+    TimeAwareCallableProtocol,
+    TimeVaryingProtocol,
     VelocityFunctionProtocol,
+    as_time_aware,
 )
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
@@ -97,8 +100,11 @@ class _FieldOnBasisEvaluator:
         self._skfem_basis = skfem_basis
 
     def __call__(
-        self, coords: NDArray[np.floating[Any]]
+        self, coords: NDArray[np.floating[Any]], time: float = 0.0
     ) -> NDArray[np.floating[Any]]:
+        # Nodal fields hold fixed DOFs, so neither the coordinates nor
+        # the time change what this returns; both are accepted so the
+        # evaluator is substitutable for a coefficient's ``values``.
         values: NDArray[np.floating[Any]] = self._field.values_on_basis(
             self._skfem_basis
         )
@@ -108,14 +114,16 @@ class _FieldOnBasisEvaluator:
 def _coefficient_evaluator(
     field: object,
     skfem_basis: "Basis",
-    coordinate_evaluator: Callable[
-        [NDArray[np.floating[Any]]], NDArray[np.floating[Any]]
-    ],
-) -> Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]:
+    coordinate_evaluator: Callable[..., NDArray[np.floating[Any]]],
+) -> Callable[..., NDArray[np.floating[Any]]]:
     """Return the fast evaluator when the field supports it.
 
     Called once per assembly, not per quadrature point, so the
     capability check never runs in the hot path.
+
+    The ellipsis spans the coefficient ``values`` signature, which takes
+    a time argument the kernels do not yet thread through; the basis
+    fast path ignores its coordinate argument either way.
     """
     if isinstance(field, BasisEvaluableFieldProtocol):
         return _FieldOnBasisEvaluator(field, skfem_basis)
@@ -142,11 +150,16 @@ class _DiffusionReactionKernel:
         react_callable: Optional[
             Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
         ] = None,
+        time: float = 0.0,
     ) -> None:
         self._diff_const = diff_const
         self._diff_callable = diff_callable
         self._react_coeff = react_coeff
         self._react_callable = react_callable
+        # Bound at construction: kernels are built per assembly, so the
+        # time is immutable for the life of this one. Crank-Nicolson's
+        # two assemblies each carry their own.
+        self._time = time
 
     def __call__(
         self,
@@ -160,7 +173,7 @@ class _DiffusionReactionKernel:
             diff = self._diff_const
         else:
             assert self._diff_callable is not None
-            diff = self._diff_callable(np.asarray(w.x))
+            diff = self._diff_callable(np.asarray(w.x), self._time)
 
         # Diffusion term: (grad(w), D*grad(u)) contributes D*grad(u).grad(v)
         result: NDArray[np.floating[Any]] = diff * dot(grad(u), grad(v))
@@ -170,7 +183,9 @@ class _DiffusionReactionKernel:
         if self._react_coeff is not None:
             result = result - self._react_coeff * u * v
         elif self._react_callable is not None:
-            result = result - self._react_callable(np.asarray(w.x)) * u * v
+            result = result - (
+                self._react_callable(np.asarray(w.x), self._time) * u * v
+            )
 
         return result
 
@@ -312,10 +327,13 @@ class _AdvectionKernel:
             Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
         ],
         conservative: bool,
+        time: float = 0.0,
     ) -> None:
         self._vel_np = vel_np
         self._vel_callable = vel_callable
         self._conservative = conservative
+        # Bound at construction; see _DiffusionReactionKernel.
+        self._time = time
 
     def __call__(
         self,
@@ -327,7 +345,7 @@ class _AdvectionKernel:
             vel = self._vel_np
         else:
             assert self._vel_callable is not None
-            vel = self._vel_callable(np.asarray(w.x))
+            vel = self._vel_callable(np.asarray(w.x), self._time)
         if self._conservative:
             # Conservative: -(v*u, grad(w)) from div(v*u)
             ret: NDArray[np.floating[Any]] = -u * dot(vel, grad(v))
@@ -341,17 +359,18 @@ class _AdvectionKernel:
 class _ForcingKernel:
     """Picklable kernel for the forcing load form (w, f).
 
-    A forcing callable takes quadrature coordinates and, when it is
-    time-dependent, a time. Both arities are accepted --- hence the
-    ellipsis in the parameter list --- but either way it returns values
-    at those coordinates, so the return type is concrete.
+    Takes a supplier already normalized to ``f(coords, time)``, so the
+    time it was built with is bound for the whole assembly and the call
+    is unconditional. A TypeError raised inside a forcing now
+    propagates instead of being mistaken for a wrong-arity call and
+    silently retried without the time.
     """
 
     __name__ = "forcing"
 
     def __init__(
         self,
-        forcing_func: Callable[..., NDArray[np.floating[Any]]],
+        forcing_func: TimeAwareCallableProtocol,
         time: float,
     ) -> None:
         self._forcing_func = forcing_func
@@ -365,16 +384,10 @@ class _ForcingKernel:
         if len(x_shape) == 3:
             ndim, nelem, nquad = x_shape
             x_flat = x_np.reshape(ndim, -1)
-            try:
-                forc_flat = self._forcing_func(x_flat, self._time)
-            except TypeError:
-                forc_flat = self._forcing_func(x_flat)
+            forc_flat = self._forcing_func(x_flat, self._time)
             forc = forc_flat.reshape(nelem, nquad)
         else:
-            try:
-                forc = self._forcing_func(x_np, self._time)
-            except TypeError:
-                forc = self._forcing_func(x_np)
+            forc = self._forcing_func(x_np, self._time)
         ret: NDArray[np.floating[Any]] = forc * v
         return ret
 
@@ -455,6 +468,26 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
     where R(u) is a general (possibly nonlinear) reaction term.
     Positive R(u) represents a source/production term.
+
+    TIME THREADING. Diffusivity, velocity, and forcing are evaluated at
+    the assembly's time, so any of them may be declared
+    ``TimeDependent``. The stiffness cache keys on time whenever a
+    contributing coefficient declares time-dependence, and on
+    coefficient versions alone otherwise --- so a steady problem still
+    assembles once and reuses it across every time step.
+
+    The REACTION is the exception, by construction rather than
+    omission: it is R(x, u), a function of state supplying
+    ``value``/``derivative``/``is_linear``, so a coefficient-style
+    ``TimeDependent`` supplier is not a valid reaction and is rejected.
+    A time-varying reaction would need that protocol widened first.
+
+    The SENSITIVITY surface is not time-threaded:
+    ``residual_<field>_jacobian`` and the mixed slots differentiate with
+    respect to nodal-field DOFs, and a nodal field is time-independent
+    by construction. Differentiating through a time-varying coefficient
+    (a separable control ``f(x, t) = sum_k p_k b_k(t) s_k(x)``, say)
+    needs time threaded through those assemblies first.
 
     The weak form is:
         (w, du/dt) + (w, v.grad(u)) + (grad(w), D*grad(u)) = (w, R(u)) + (w, f)
@@ -549,7 +582,13 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         self._diffusion_function = self._coerce_diffusion(diffusivity)
         self._velocity_function = self._coerce_velocity(velocity)
         self._reaction_function = self._coerce_reaction(reaction)
+        # The raw supplier stays put: forcing_function() hands it to the
+        # parameterization facade, and the load cache keys on its being a
+        # NodalFieldForcing. Assembly evaluates the normalized companion.
         self._forcing = forcing
+        self._forcing_eval = (
+            None if forcing is None else as_time_aware(forcing)
+        )
         self._conservative = conservative
 
         # Version-keyed assembly caches: coefficient objects carry a
@@ -636,7 +675,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             or self._reaction_function.is_linear()
         )
 
-    def _diffusion_reaction_form(self) -> "BilinearForm":
+    def _diffusion_reaction_form(
+        self, time: float = 0.0
+    ) -> "BilinearForm":
         """Bilinear form for diffusion plus linear reaction.
 
         All diffusion functions are consumed uniformly through
@@ -669,10 +710,13 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                 ),
                 react_coeff,
                 react_callable,
+                time,
             )
         )
 
-    def _advection_form(self) -> Optional["BilinearForm"]:
+    def _advection_form(
+        self, time: float = 0.0
+    ) -> Optional["BilinearForm"]:
         """Bilinear form for advection, or None when velocity is absent."""
         velocity = self._velocity_function
         if velocity is None:
@@ -684,7 +728,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         # discretize the same elements. Comparing quadrature shapes is
         # what establishes that.
         evaluator: Callable[
-            [NDArray[np.floating[Any]]], NDArray[np.floating[Any]]
+            ..., NDArray[np.floating[Any]]
         ] = velocity.values
         if isinstance(velocity, NodalFieldVelocity):
             vel_skfem = velocity.basis().skfem_basis()
@@ -694,14 +738,16 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
                     velocity, vel_skfem, velocity.values
                 )
         return BilinearForm(
-            _AdvectionKernel(None, evaluator, self._conservative)
+            _AdvectionKernel(
+                None, evaluator, self._conservative, time
+            )
         )
 
     def forcing_form(self, time: float) -> Optional["LinearForm"]:
         """Linear form for the forcing contribution (w, f), or None."""
-        if self._forcing is None:
+        if self._forcing_eval is None:
             return None
-        return LinearForm(_ForcingKernel(self._forcing, time))
+        return LinearForm(_ForcingKernel(self._forcing_eval, time))
 
     def reaction_form(self) -> Optional["LinearForm"]:
         """Linear form for the nonlinear reaction (w, R(u)), or None.
@@ -727,7 +773,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             return None
         return BilinearForm(_ReactionJacobianKernel(reaction.derivative))
 
-    def stiffness_forms(self) -> List["BilinearForm"]:
+    def stiffness_forms(
+        self, time: float = 0.0
+    ) -> List["BilinearForm"]:
         """Return the bilinear forms whose sum assembles the stiffness.
 
         Each form can be assembled on any compatible skfem basis — in
@@ -735,17 +783,43 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         consumers such as hyper-reduction can extract per-element
         contributions without changing the global assembly path.
 
+        Parameters
+        ----------
+        time : float
+            Bound into the returned forms, which evaluate their
+            coefficients at it. A form is therefore a snapshot: build a
+            new one to assemble at a different time. Steady problems can
+            ignore this, which is why it defaults.
+
         Returns
         -------
         List[BilinearForm]
             Diffusion (+ linear reaction) form, followed by the
             advection form when a velocity is present.
         """
-        forms = [self._diffusion_reaction_form()]
-        advection = self._advection_form()
+        forms = [self._diffusion_reaction_form(time)]
+        advection = self._advection_form(time)
         if advection is not None:
             forms.append(advection)
         return forms
+
+    def _stiffness_is_time_dependent(self) -> bool:
+        """Whether any coefficient in the stiffness varies with time.
+
+        Drives the cache key, not the assembly: a declared
+        time-dependent coefficient forces re-assembly when the time
+        moves, while a steady problem keeps the single-key fast path.
+        """
+        contributors = (
+            self._diffusion_function,
+            self._velocity_function,
+            self._reaction_function,
+        )
+        return any(
+            isinstance(contributor, TimeVaryingProtocol)
+            and contributor.is_time_dependent()
+            for contributor in contributors
+        )
 
     def _assemble_stiffness(self, state: Array, time: float) -> Array:
         """Assemble stiffness matrix K.
@@ -762,7 +836,15 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         # The stiffness (diffusion + advection + linear reaction) is
         # state-independent; the cache is keyed on the coefficient
         # function versions so field updates (set_dofs) invalidate it
-        # while Newton iterations and time steps reuse it.
+        # while Newton iterations reuse it.
+        #
+        # Time joins the key only when a contributing coefficient
+        # declares that it varies with time. Without that, a
+        # time-dependent diffusivity or velocity would assemble once and
+        # be served stale at every later time --- silently, and the
+        # adjoint would inherit the stale Jacobian. Time-independent
+        # coefficients keep the single-key fast path, so a steady
+        # problem reuses one assembly across all time steps as before.
         versions = (
             self._diffusion_function.version(),
             self._velocity_function.version()
@@ -772,6 +854,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             if isinstance(self._reaction_function, NodalFieldLinearReaction)
             else 0,
         )
+        if self._stiffness_is_time_dependent():
+            versions = versions + (time,)
         if (
             self._stiffness_cached is not None
             and self._stiffness_versions == versions
@@ -780,7 +864,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
         skfem_basis = self._basis.skfem_basis()
 
-        forms = self.stiffness_forms()
+        forms = self.stiffness_forms(time)
         stiffness = asm(forms[0], skfem_basis)
         # Add advection if present
         for form in forms[1:]:

@@ -26,6 +26,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
+from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
@@ -58,6 +59,15 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     Young's modulus and Poisson's ratio. The Neo-Hookean constitutive model
     is evaluated with element-wise Lame parameters at each quadrature point.
 
+    TIME THREADING (partial). The body force is normalized through
+    ``as_time_aware`` and evaluated at the assembly's time, so a
+    ``TimeDependent`` load works. The MATERIAL PROPERTIES are not:
+    ``material_map`` fixes (E, nu) per subdomain at construction and the
+    element-wise Lame parameters are precomputed from it, so a modulus
+    that degrades with time cannot be expressed. Supporting it means
+    making those per-element arrays a function of the assembly time
+    rather than constants built once.
+
     Parameters
     ----------
     basis : VectorLagrangeBasis[Array]
@@ -69,8 +79,11 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     bkd : Backend[Array]
         Computational backend.
     body_force : Callable, optional
-        Body force per unit volume. Takes coordinates (ndim, npts) and
-        time (float), returns (ndim, npts).
+        Body force per unit volume, returning (ndim, npts). A steady
+        force takes coordinates alone, ``f(coords)``. A force that
+        varies in time must declare itself by wrapping in
+        ``TimeDependent``; ``TimeIndependent`` declares the opposite for
+        a callable that could accept a time but ignores it.
     boundary_conditions : list of BoundaryConditionProtocol, optional
         Boundary conditions (Dirichlet, Neumann, Robin).
 
@@ -117,6 +130,13 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             boundary_conditions=boundary_conditions,
         )
 
+    # The base class stores the basis as the scalar
+    # GalerkinBasisProtocol, which has no ncomponents(). This physics is
+    # vector-valued by construction, so narrow the attribute back to
+    # what the constructor already requires rather than casting at each
+    # use.
+    _basis: VectorLagrangeBasis[Array]
+
     def __init__(
         self,
         basis: VectorLagrangeBasis[Array],
@@ -127,7 +147,13 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
+        # Keep the raw supplier (consumers may inspect its type) and a
+        # normalized companion that assembly evaluates uniformly as
+        # f(coords, time).
         self._body_force = body_force
+        self._body_force_eval = (
+            None if body_force is None else as_time_aware(body_force)
+        )
         self._material_map = dict(material_map)
         self._element_materials = {
             k: np.asarray(v) for k, v in element_materials.items()
@@ -328,7 +354,12 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
                     ),
                 )
 
-                result = np.zeros_like(v.grad[0, 0])
+                # Annotated because skfem's DiscreteField is untyped, so
+                # zeros_like() would otherwise make the accumulator Any
+                # and leak it through the declared return type.
+                result: NDArray[np.floating[Any]] = np.zeros_like(
+                    v.grad[0, 0]
+                )
                 for i in range(3):
                     for j in range(3):
                         result = result + P[i][j] * v.grad[i, j]
@@ -349,12 +380,12 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
     def _assemble_load(self, time: float) -> Array:
         """Assemble external load vector from body forces."""
-        if self._body_force is None:
+        if self._body_force_eval is None:
             return self._bkd.asarray(np.zeros(self.nstates()))
 
         skfem_basis = self._basis.skfem_basis()
         ndim = self.ndim()
-        body_force_func = self._body_force
+        body_force_func = self._body_force_eval
         current_time = time
 
         def load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
