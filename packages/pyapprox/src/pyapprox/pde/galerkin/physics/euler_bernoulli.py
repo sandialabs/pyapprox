@@ -304,8 +304,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             x_nodes = self.node_coordinates()
             ei_array = EI_val
 
-            @BilinearForm
-            def beam_stiffness_form(
+            def varying_stiffness_form(
                 u: "DiscreteField",
                 v: "DiscreteField",
                 w: "FormExtraParams",
@@ -320,16 +319,21 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
                     * v.hess[0, 0]
                 )
                 return ret
+
+            # Wrapped by call, not by decorator: skfem is unstubbed, so
+            # `@BilinearForm` would erase these annotations.
+            beam_stiffness_form = BilinearForm(varying_stiffness_form)
         else:
 
-            @BilinearForm
-            def beam_stiffness_form(
+            def uniform_stiffness_form(
                 u: "DiscreteField",
                 v: "DiscreteField",
                 w: "FormExtraParams",
             ) -> np.ndarray:
                 ret: NDArray[np.floating[Any]] = EI_val * u.hess[0, 0] * v.hess[0, 0]
                 return ret
+
+            beam_stiffness_form = BilinearForm(uniform_stiffness_form)
 
         self._stiffness = asm(beam_stiffness_form, self._skfem_basis)
         return self._stiffness
@@ -345,8 +349,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         if self._mass is not None:
             return self._mass
 
-        @BilinearForm
-        def beam_mass_form(
+        def mass_form(
             u: "DiscreteField",
             v: "DiscreteField",
             w: "FormExtraParams",
@@ -354,7 +357,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             ret: NDArray[np.floating[Any]] = u.value * v.value
             return ret
 
-        self._mass = asm(beam_mass_form, self._skfem_basis)
+        self._mass = asm(BilinearForm(mass_form), self._skfem_basis)
         return self._mass
 
     def load_vector(self) -> Array:
@@ -367,13 +370,12 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         """
         load_func = self._load_func
 
-        @LinearForm
-        def beam_load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+        def load_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
             x = w.x[0]
             ret: NDArray[np.floating[Any]] = load_func(x) * v.value
             return ret
 
-        f = asm(beam_load_form, self._skfem_basis)
+        f = asm(LinearForm(load_form), self._skfem_basis)
         return self._bkd.asarray(f.astype(np.float64))
 
     def spatial_residual(self, state: Array, time: float = 0.0) -> Array:

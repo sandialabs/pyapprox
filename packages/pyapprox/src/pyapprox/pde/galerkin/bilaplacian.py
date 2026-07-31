@@ -10,7 +10,15 @@ The bilaplacian prior is used as a Gaussian process approximation for
 Bayesian inverse problems.
 """
 
-from typing import TYPE_CHECKING, Any, Generic, List, Optional
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Union,
+)
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -168,9 +176,14 @@ class BiLaplacianPrior(Generic[Array]):
             bndry_basis = skfem_basis.boundary(bc.boundary_name())
 
             def robin_bilinear(
-                u: object, v: object, w: object, _alpha: object = alpha
-            ) -> object:
-                return _alpha * u * v
+                u: "DiscreteField",
+                v: "DiscreteField",
+                w: "FormExtraParams",
+                _alpha: Union[
+                    float, Callable[[np.ndarray], np.ndarray]
+                ] = alpha,
+            ) -> np.ndarray:
+                return np.asarray(_alpha * u * v)
 
             stiffness += asm(BilinearForm(robin_bilinear), bndry_basis)
 

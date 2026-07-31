@@ -175,6 +175,14 @@ class RobinBCProtocol(Protocol, Generic[Array]):
         spatially varying callable evaluated at boundary points)."""
         ...
 
+    def boundary_name(self) -> str:
+        """Return the name of the boundary this condition applies to.
+
+        Needed by consumers that must restrict a basis to this boundary
+        before assembling the Robin surface terms.
+        """
+        ...
+
     def boundary_values(self, time: float) -> Array:
         """Return Robin boundary values g.
 
