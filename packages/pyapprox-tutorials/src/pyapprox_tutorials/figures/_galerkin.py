@@ -352,3 +352,262 @@ def plot_concentration_comparison(basis, solutions, titles, bkd, axes,
         contours, ax=list(axes), shrink=0.85, ticks=LogLocator(base=10)
     )
     bar.set_label("concentration")
+
+
+def vorticity(vel_basis, vel_dofs, scalar_basis):
+    """Recover vorticity from a velocity field by L2 projection.
+
+    Vorticity ``w = dv/dx - du/dy`` is a DERIVATIVE of the discrete
+    velocity, so it does not live in the velocity space: differentiating
+    a P2 field gives something discontinuous across element boundaries.
+    The variationally consistent recovery solves
+
+        (w, q) = (dv/dx - du/dy, q)    for all test functions q
+
+    i.e. a mass-matrix solve against the weak curl. This uses the
+    basis's own quadrature and shape-function gradients, so the P2
+    velocity is differentiated exactly rather than being reduced to
+    vertex values and differenced by hand.
+
+    Parameters
+    ----------
+    vel_basis : skfem Basis
+        Vector basis the velocity dofs belong to (e.g. P2 vector).
+    vel_dofs : array
+        Velocity coefficients, length ``vel_basis.N``.
+    scalar_basis : skfem Basis
+        Scalar basis to project onto (e.g. P1). Must be built on the
+        same mesh; its quadrature is used for the assembly.
+
+    Returns
+    -------
+    array
+        Nodal vorticity, length ``scalar_basis.N``.
+    """
+    from skfem import BilinearForm, LinearForm, asm, solve
+
+    @BilinearForm
+    def _mass(u, v, w):
+        return u * v
+
+    @LinearForm
+    def _weak_curl(q, w):
+        # w["uh"].grad[i][j] = d u_i / d x_j
+        return (w["uh"].grad[1][0] - w["uh"].grad[0][1]) * q
+
+    # The projection basis must integrate on the SAME quadrature points
+    # as the velocity, or skfem rejects the interpolated field. Rebuild
+    # it here rather than requiring every caller to know that.
+    from skfem import Basis
+    quad_basis = Basis(
+        scalar_basis.mesh, scalar_basis.elem, quadrature=vel_basis.quadrature
+    )
+    uh = vel_basis.interpolate(np.asarray(vel_dofs))
+    return solve(asm(_mass, quad_basis),
+                 asm(_weak_curl, quad_basis, uh=uh))
+
+
+def vorticity_animation(vel_basis, scalar_basis, solutions, times, geometry,
+                        path, fps=12, stride=2, nrefs=2, bitrate=900,
+                        width_in=12.0, xmax_diameters=13.0):
+    """galerkin_transient_usage.qmd -> the vortex-shedding animation.
+
+    Writes an MP4 (H.264, web-playable) of the vorticity field over a
+    trajectory. MP4 rather than GIF: the same clip is roughly 17x
+    smaller and does not band the smooth colour gradients.
+
+    Frames are drawn one at a time rather than accumulated, so peak
+    memory is a single frame regardless of trajectory length.
+
+    Parameters
+    ----------
+    vel_basis, scalar_basis : skfem Basis
+        Vector velocity basis and the scalar basis to recover vorticity
+        onto; see :func:`vorticity`.
+    solutions : array (nstates, ntimes)
+        Trajectory. Only the velocity block is read.
+    times : array (ntimes,)
+    geometry : dict
+        ``L``, ``H``, ``cx``, ``cy``, ``R`` -- domain and cylinder.
+    path : str
+        Output ``.mp4``.
+    nrefs : int
+        Display refinement. Vorticity is recovered on ``scalar_basis``
+        and then subdivided for plotting; without this the picture is
+        piecewise-linear on the original elements and looks faceted.
+
+    Returns
+    -------
+    str
+        ``path``, so a Quarto cell can hand it straight to an embed.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation
+
+    from ._style import NEON_DIVERGING
+
+    cx, cy, R = geometry["cx"], geometry["cy"], geometry["R"]
+    H = geometry["H"]
+    xmax = min(geometry["L"], cx + xmax_diameters)
+    nvel = vel_basis.N
+    frames = np.arange(0, len(times), stride)
+
+    def frame_field(index):
+        nodal = vorticity(vel_basis, solutions[:nvel, index], scalar_basis)
+        refined, values = scalar_basis.refinterp(nodal, nrefs=nrefs)
+        tri = Triangulation(refined.p[0], refined.p[1], refined.t.T)
+        xc = refined.p[0][refined.t].mean(axis=0)
+        yc = refined.p[1][refined.t].mean(axis=0)
+        tri.set_mask(np.hypot(xc - cx, yc - cy) < R * 1.001)
+        return tri, values
+
+    # Colour scale from a sample of frames: the full trajectory would
+    # mean holding every field in memory at once.
+    sample = [frame_field(k)[1] for k in frames[::max(1, len(frames) // 8)]]
+    vmax = float(np.median([np.percentile(np.abs(v), 97) for v in sample]))
+    levels = np.linspace(-vmax, vmax, 41)
+
+    fontsize = max(6.5, 11.0 * width_in / 13.0)
+    fig, ax = plt.subplots(
+        figsize=(width_in, width_in * H / xmax), facecolor="black"
+    )
+    fig.subplots_adjust(left=0.005, right=0.995, top=0.90, bottom=0.005)
+
+    def draw(i):
+        ax.clear()
+        tri, values = frame_field(frames[i])
+        ax.tricontourf(
+            tri, values, levels=levels, cmap=NEON_DIVERGING, extend="both"
+        )
+        ax.add_patch(
+            plt.Circle((cx, cy), R, facecolor="0.12", edgecolor="0.75",
+                       lw=1.3, zorder=6)
+        )
+        ax.set_xlim(0, xmax)
+        ax.set_ylim(0, H)
+        ax.set_aspect("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(
+            f"Vorticity   t = {times[frames[i]]:.1f}",
+            color="white", fontsize=fontsize,
+        )
+        return []
+
+    FuncAnimation(fig, draw, frames=len(frames), blit=False).save(
+        path,
+        writer=_mp4_writer(fps, bitrate),
+        savefig_kwargs={"facecolor": "black"},
+    )
+    plt.close(fig)
+    return path
+
+
+def _mp4_writer(fps, bitrate):
+    """FFMpegWriter configured for web playback.
+
+    Even dimensions are required by H.264; ``faststart`` puts the
+    metadata first so a browser can begin playing before the whole file
+    has downloaded.
+
+    The encoder comes from ``imageio-ffmpeg``, which bundles an ffmpeg
+    binary -- CI runners have none. It sits in this package's
+    ``docs-build`` extra rather than its base dependencies, so importing
+    the figure helpers does not pull a large wheel. Every path that
+    encodes goes through here, which is why this is the only place the
+    dependency is checked.
+    """
+    import matplotlib
+    from matplotlib.animation import FFMpegWriter
+
+    try:
+        import imageio_ffmpeg
+    except ImportError as err:
+        # pyapprox.util.import_optional_dependency is not used here: it
+        # names pyapprox in its install hint, and this extra is on
+        # pyapprox-tutorials.
+        raise ImportError(
+            "Tutorial animations require the optional dependency "
+            "'imageio-ffmpeg'. Install it with: "
+            "pip install 'pyapprox-tutorials[docs-build]'"
+        ) from err
+
+    matplotlib.rcParams["animation.ffmpeg_path"] = (
+        imageio_ffmpeg.get_ffmpeg_exe()
+    )
+    return FFMpegWriter(
+        fps=fps, bitrate=bitrate, codec="libx264",
+        extra_args=["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+                    "-pix_fmt", "yuv420p", "-profile:v", "baseline",
+                    "-movflags", "+faststart"],
+    )
+
+
+def concentration_animation(basis, solutions, times, path, bkd,
+                            fps=12, stride=1, bitrate=900, nlevels=41,
+                            label="concentration $u$"):
+    """galerkin_transient_usage.qmd -> the transport-evolution animation.
+
+    A scalar field on a degree-1 basis, drawn with a fixed colour scale
+    so brightness is comparable across frames -- a per-frame scale would
+    make a decaying field look constant.
+
+    Frames are drawn one at a time rather than accumulated, so peak
+    memory is a single frame regardless of trajectory length.
+
+    Parameters
+    ----------
+    basis : GalerkinBasisProtocol
+        Degree-1 basis the solution lives on.
+    solutions : array (ndofs, ntimes)
+    times : array (ntimes,)
+    path : str
+        Output ``.mp4``.
+
+    Returns
+    -------
+    str
+        ``path``, so a Quarto cell can hand it straight to an embed.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation
+
+    # NEON_CMAP renders anything below the lowest level in magenta -- a
+    # deliberate alarm for genuinely negative concentration. A discrete
+    # solution dips to round-off below zero (order 1e-11 here), which
+    # would speckle the whole domain magenta for no physical reason, so
+    # clip at zero and let the alarm mean what it is for.
+    values = np.clip(bkd.to_numpy(solutions), 0.0, None)
+    times_np = bkd.to_numpy(times)
+    frames = np.arange(0, len(times_np), stride)
+    tri = triangulation(basis)
+
+    vmax = float(np.percentile(np.abs(values), 99.5))
+    levels = np.linspace(0.0, vmax, nlevels)
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.0))
+
+    def draw(i):
+        ax.clear()
+        contours = ax.tricontourf(
+            tri, values[:, frames[i]], levels=levels,
+            cmap=NEON_CMAP, extend="both",
+        )
+        for (x0, y0), width, height in _BLOCKS:
+            ax.add_patch(
+                Rectangle((x0, y0), width, height, facecolor="0.55",
+                          edgecolor="0.3", zorder=3)
+            )
+        ax.set_aspect("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(f"$t = {times_np[frames[i]]:.2f}$")
+        return contours
+
+    contours = draw(0)
+    fig.colorbar(contours, ax=ax, shrink=0.85, label=label)
+    FuncAnimation(fig, draw, frames=len(frames), blit=False).save(
+        path, writer=_mp4_writer(fps, bitrate)
+    )
+    plt.close(fig)
+    return path

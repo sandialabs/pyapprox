@@ -17,6 +17,37 @@ dependencies = [
     "pyapprox-benchmarks",
 ]
 
+[project.optional-dependencies]
+# imageio-ffmpeg ships a self-contained ffmpeg binary, which matters
+# because CI runners have no system ffmpeg. Only the figure helpers that
+# encode an animation import it, and only while a tutorial renders, so
+# it stays out of the base dependencies -- it is a large wheel.
+#
+# It lives here rather than in pyapprox[docs-build] because the code
+# that imports it is in THIS package, and pyapprox does not depend on
+# pyapprox-tutorials.
+#
+# FUTURE: the docs-build extra is split across two packages and neither
+# half says so. pyapprox[docs-build] bundles two unrelated things --
+# runtime extras that pyapprox code imports (fem, umbridge, numba,
+# parallel, cvxpy) and Quarto tooling that NO pyapprox source imports
+# (jupyter-cache, quartodoc). Meanwhile 97 of the 120 tutorials import
+# pyapprox_tutorials, so a docs build genuinely needs all three
+# packages -- a fact recorded only in .github/workflows/docs.yml, not in
+# any pyproject.
+#
+# Consolidating would put the whole requirement where it belongs:
+#
+#   [pyapprox-tutorials] docs-build = [
+#       "pyapprox[runtime-extras]",   # what the tutorials compute with
+#       "jupyter-cache>=1.0", "quartodoc>=0.6", "imageio-ffmpeg>=0.4",
+#   ]
+#
+# and reduce CI to a single extras install. Check first whether
+# quartodoc is wanted for pyapprox's own API reference, and update
+# pyapprox[dev], which currently rolls up pyapprox[docs].
+docs-build = ["imageio-ffmpeg>=0.4"]
+
 [tool.hatch.version]
 source = "vcs"
 raw-options.root = "../.."

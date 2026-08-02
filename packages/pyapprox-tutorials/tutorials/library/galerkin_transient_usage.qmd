@@ -1,0 +1,499 @@
+---
+title: "Evolving a PDE in Time"
+subtitle: "PyApprox Tutorial Library"
+description: "Where the mass matrix comes from, why it is not the identity, and what it costs when it becomes singular."
+tutorial_type: usage
+topic: finite_elements
+difficulty: beginner
+estimated_time: 20
+prerequisites: []
+tags:
+  - finite-elements
+  - galerkin
+  - time-integration
+  - mass-matrix
+  - navier-stokes
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Derive the mass matrix from the weak form, and explain why it is the Gram
+  matrix of the basis rather than the identity
+- Evolve an existing steady physics object in time by adding one
+  configuration object, without rewriting the physics
+- Switch between backward Euler and Crank--Nicolson by changing one string
+- Recognise when the mass matrix stops being invertible, and what that
+  changes about the system being solved
+- Read the cost of a transient solve from the discretization, before running
+  it
+
+
+## The Pipeline, With One Addition
+
+[The steady tutorial](galerkin_adr_usage.qmd) built a solve from four
+objects: mesh, basis, physics, and boundary conditions. A transient solve
+adds exactly one more --- a time-integration configuration --- and reuses the
+other four unchanged.
+
+That is the whole interface change. Everything interesting is in what the
+discretization does with the time derivative, which is the subject of the
+next section.
+
+The running example is the same contaminant in the same obstructed channel,
+now released and watched as it spreads:
+
+$$
+\frac{\partial u}{\partial t}
+  - \nabla \cdot (D \nabla u)
+  + \vc{v} \cdot \nabla u = f .
+$$ {#eq-transient-adr}
+
+
+## Where the Mass Matrix Comes From
+
+::: {.callout-note collapse="false"}
+## The derivation
+
+Multiply @eq-transient-adr by a test function $\phi_i$ and integrate over the
+domain $\Omega$. Integrating the diffusion term by parts,
+
+$$
+\int_\Omega \frac{\partial u}{\partial t}\,\phi_i \,d\Omega
++ \int_\Omega D \nabla u \cdot \nabla \phi_i \,d\Omega
+= \int_\Omega f \phi_i \,d\Omega
++ \underbrace{\int_{\partial\Omega} D \frac{\partial u}{\partial n}
+    \phi_i \, ds}_{\text{natural boundary term}} ,
+$$
+
+where the advection term has been dropped from the display only to keep it
+readable --- it contributes to the stiffness in the same way. The
+boundary term that survives integration by parts *is* the natural (Neumann)
+condition: imposing nothing on a boundary is not an omission, it is a
+statement that the flux there is zero.
+
+Now expand the solution in the basis. The time dependence lives in the
+coefficients, the space dependence in the basis functions:
+
+$$
+u(x, t) = \sum_j u_j(t)\, \phi_j(x) .
+$$
+
+Substituting, and using linearity of the integral,
+
+$$
+\sum_j \frac{d u_j}{d t}
+  \underbrace{\int_\Omega \phi_i \phi_j \,d\Omega}_{M_{ij}}
++ \sum_j u_j
+  \underbrace{\left[ \int_\Omega D \nabla\phi_j \cdot \nabla\phi_i \,d\Omega
+      + \cdots \right]}_{K_{ij}}
+= f_i ,
+$$
+
+which is the matrix system
+
+$$
+M \dot{\vc{u}} + K \vc{u} = \vc{f} .
+$$ {#eq-semidiscrete}
+:::
+
+The matrix $M_{ij} = \int_\Omega \phi_i \phi_j$ is the **Gram matrix** of the
+basis. It is the identity only if the basis is orthonormal, and finite
+element bases are deliberately not: they are local functions with overlapping
+support, chosen so that $K$ is sparse. Wherever $\phi_i$ and $\phi_j$ overlap
+--- that is, on every pair of neighbouring nodes --- $M_{ij} \neq 0$.
+
+Two consequences follow, and the rest of this tutorial is about them.
+
+**Every step needs a linear solve.** @eq-semidiscrete gives
+$\dot{\vc{u}} = M^{-1}(\vc{f} - K\vc{u})$. Even a fully explicit method must
+invert $M$. Lumping --- replacing $M$ by a diagonal matrix with the same row
+sums --- is the standard way to avoid this, and is available as
+`lumped_mass=True`.
+
+**$M$ can be worse than non-diagonal.** It can be singular. The closing
+section is about what happens then.
+
+
+## Evolving the Existing Physics
+
+The physics object is built exactly as in the steady tutorial. Only the
+solve differs.
+
+```{python}
+import numpy as np
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.time_integration import (
+    GalerkinModel,
+    TimeIntegrationConfig,
+)
+from pyapprox.pde.zoo.obstructed_flow import build_obstructed_mesh
+from pyapprox.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+mesh = build_obstructed_mesh(bkd, nrefine=3)
+basis = LagrangeBasis(mesh, degree=1)
+
+print(f"{basis.ndofs()} degrees of freedom")
+```
+
+The mass matrix is assembled from the basis alone --- it knows nothing about
+the equation. Its sparsity is worth looking at directly, because it is the
+concrete form of the claim above.
+
+```{python}
+#| echo: true
+from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
+
+mass = ScalarMassAssembler(basis, bkd).mass_matrix()
+ndofs = basis.ndofs()
+
+print(f"M is {ndofs} x {ndofs}")
+print(f"non-zeros: {mass.nnz} ({mass.nnz / ndofs:.1f} per row)")
+print(f"diagonal only would be: {ndofs}")
+```
+
+Between eight and nine non-zeros per row, not one. Each node couples to itself and to
+its neighbours, because their basis functions share support.
+
+
+## Choosing a Time Integrator
+
+`TimeIntegrationConfig` collects everything about *how* to march: the method,
+the interval, the step size, and the tolerances for the nonlinear solve at
+each step.
+
+The physics is the steady one unchanged: a Gaussian release near the left
+inlet, carried downstream by the frozen flow.
+
+```{python}
+from pyapprox.pde.galerkin.boundary import DirichletBC
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.zoo.obstructed_flow import (
+    extract_velocity_callable,
+    solve_obstructed_stokes,
+)
+
+# The flow is solved once, on its own mesh, and then frozen: it drives
+# the transport but is not affected by it. Without a velocity this would
+# be pure diffusion and nothing would travel downstream.
+#
+# navier_stokes=False drops the convective term, leaving linear Stokes:
+# one linear solve rather than a Newton iteration. The closing section
+# puts that term back, which is where the cost comes from.
+stokes_mesh = build_obstructed_mesh(bkd, nrefine=2)
+stokes_solution, stokes, stokes_vel, stokes_pres = solve_obstructed_stokes(
+    stokes_mesh, bkd, reynolds_num=20.0, vel_shape_params=[2.5, 2.5],
+    navier_stokes=False,
+)
+velocity = extract_velocity_callable(
+    stokes_solution, stokes, stokes_vel, stokes_pres, basis, bkd,
+)
+
+DIFFUSIVITY = 0.005
+
+
+def release(coords):
+    """A Gaussian source centred at (0.15, 0.5)."""
+    x, y = coords[0], coords[1]
+    return np.exp(-((x - 0.15) ** 2 + (y - 0.5) ** 2) / 0.01)
+
+
+physics = AdvectionDiffusionReaction(
+    basis=basis,
+    diffusivity=DIFFUSIVITY,
+    velocity=velocity,
+    forcing=release,
+    boundary_conditions=[
+        DirichletBC(basis, name, value_func=0.0, bkd=bkd)
+        for name in mesh.boundary_names()
+    ],
+    bkd=bkd,
+)
+
+config = TimeIntegrationConfig(
+    method="backward_euler",   # or "crank_nicolson"
+    init_time=0.0,
+    final_time=10.0,
+    deltat=0.04,
+    newton_tol=1e-8,
+    newton_maxiter=20,
+    lumped_mass=False,
+    verbosity=0,
+)
+
+solutions, times = GalerkinModel(physics, bkd).solve_transient(
+    bkd.asarray(np.zeros(physics.nstates())), config
+)
+print(f"{len(times)} steps to t = {times[-1]:.1f}")
+```
+
+Starting from an empty domain, the release is carried downstream, threading
+between the obstacles, until inflow balances outflow and the field stops
+changing.
+
+```{python}
+#| echo: false
+#| output: asis
+from pyapprox_tutorials.figures._galerkin import concentration_animation
+
+transport_video = concentration_animation(
+    basis, solutions, times, "transport_evolution.mp4", bkd,
+    fps=24, stride=2,
+)
+print(f'<video autoplay loop muted playsinline '
+      f'style="width:100%;max-width:720px">'
+      f'<source src="{transport_video}" type="video/mp4"></video>')
+```
+
+Switching integrator is a one-string change. Backward Euler is first-order
+and strongly damping; Crank--Nicolson is second-order and preserves
+oscillations that backward Euler would smooth away. That difference matters
+when the physics *is* an oscillation, as in the closing section.
+
+
+## When the Mass Matrix Is Singular
+
+Everything so far assumed $M$ is invertible. For the incompressible
+Navier--Stokes equations it is not.
+
+Velocity $\vc{v}$ and pressure $p$ are solved together, but the equations
+contain $\partial \vc{v} / \partial t$ and no $\partial p / \partial t$:
+pressure is not evolved, it is whatever instantaneously enforces
+$\nabla \cdot \vc{v} = 0$. Assembling as before gives
+
+$$
+\begin{bmatrix} M_{\vc{v}} & 0 \\ 0 & 0 \end{bmatrix}
+\begin{bmatrix} \dot{\vc{v}} \\ \dot{p} \end{bmatrix}
++ \cdots
+$$ {#eq-dae}
+
+The zero block is not an approximation. The system is a **differential
+algebraic equation**, not an ODE: some rows evolve, others are constraints
+that must hold at every instant. Pressure acts as a Lagrange multiplier.
+
+This changes what the discretization must provide. Velocity and pressure
+cannot use the same element --- an arbitrary pairing produces a singular
+system. The Taylor--Hood element used here pairs quadratic velocity with
+linear pressure, which is stable.
+
+Building it needs a mesh that conforms to the cylinder, so this one is
+loaded rather than constructed from grid lines. Triangles fit a curved
+boundary; the structured quads used above cannot.
+
+```{python}
+import os
+
+import pyapprox_benchmarks
+from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.mesh.unstructured import UnstructuredMesh2D
+
+mesh_path = os.path.join(
+    os.path.dirname(pyapprox_benchmarks.__file__),
+    "data", "cylinder_flow_tri_h_0_20.json",
+)
+cyl_mesh = UnstructuredMesh2D(mesh_path, bkd)
+
+vel_basis = VectorLagrangeBasis(cyl_mesh, degree=2)   # quadratic velocity
+pres_basis = LagrangeBasis(cyl_mesh, degree=1)        # linear pressure
+
+print(f"{cyl_mesh.nelements()} triangles")
+print(f"velocity dofs: {vel_basis.ndofs()}")
+print(f"pressure dofs: {pres_basis.ndofs()}")
+print(f"total:         {vel_basis.ndofs() + pres_basis.ndofs()}")
+```
+
+The velocity count is not twice the node count: $P_2$ places a degree of
+freedom at every element edge midpoint as well as every vertex, and there
+are two components. That is where most of the cost lives.
+
+Boundary conditions follow the geometry. The inlet velocity is ramped from
+rest so the flow develops rather than being shocked into motion --- a
+time-dependent condition, so it is wrapped in `TimeDependent` to declare
+that it must be re-evaluated at every step.
+
+```{python}
+import numpy as np
+
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
+from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
+
+geom = {"L": 11.0, "H": 4.1, "cx": 2.0, "cy": 2.0, "R": 0.5}
+UMAX, T_RAMP, RE = 1.5, 2.0, 150.0
+
+
+def ramped_inlet(coords, time):
+    """Parabolic profile, amplitude ramping to full over ``T_RAMP``."""
+    y = coords[1]
+    amplitude = min(1.0, time / T_RAMP)
+    values = np.zeros((coords.shape[1], 2))
+    values[:, 0] = amplitude * 4 * UMAX * y * (geom["H"] - y) / geom["H"] ** 2
+    return values
+
+
+def no_slip(coords):
+    """Takes coordinates alone, which declares it time-independent.
+
+    A callable accepting a time is ambiguous --- it might consult it or
+    ignore it --- and pyapprox refuses to guess. Either take coordinates
+    only, as here, or wrap in ``TimeDependent`` / ``TimeIndependent``.
+    """
+    return np.zeros((coords.shape[1], 2))
+
+
+mean_speed = 2.0 * UMAX / 3.0
+viscosity = mean_speed * (2 * geom["R"]) / RE
+
+cyl_physics = StokesPhysics(
+    vel_basis, pres_basis, bkd,
+    navier_stokes=True,
+    viscosity=viscosity,
+    vel_dirichlet_bcs=[
+        ("inlet", TimeDependent(ramped_inlet)),
+        ("wall", no_slip),
+        ("cylinder", no_slip),
+    ],
+)
+print(f"Re = {RE:.0f}, viscosity = {viscosity:.5f}")
+print(f"{cyl_physics.nstates()} unknowns")
+```
+
+The outlet is absent from that list, and deliberately so. Imposing nothing
+there is the natural condition derived earlier: vortices convect out of the
+domain instead of reflecting off a prescribed boundary.
+
+The cost of all this is easiest to see as a table. Both columns use the same
+`GalerkinModel`, the same `TimeIntegrationConfig`, and the same
+`solve_transient` call.
+
+| | Transport (above) | Navier--Stokes |
+|---|---|---|
+| unknowns per node | 1 | 3 ($v_x$, $v_y$, $p$) |
+| element | $P_1$ | Taylor--Hood $P_2$/$P_1$ |
+| mass matrix | Gram, invertible | singular --- a DAE |
+| linear in the state | yes | no --- Newton at every step |
+| degrees of freedom | 1,199 | 13,447 |
+| solve time | under a second | ~150 seconds |
+
+The last row is the point. The interface did not change; the discretization
+did, and the cost followed.
+
+
+## Nonlinearity Creates Structure, and Structure Costs
+
+The table above compares two discretizations of a fixed size. But the deeper
+reason Navier--Stokes is expensive is not that its matrices are larger --- it
+is that the nonlinear term $\vc{v} \cdot \nabla \vc{v}$ *generates structure
+that has to be resolved*.
+
+Transport, driven by a fixed flow, smooths: the release above spreads and
+settles, and a coarse mesh captures it because there is nothing fine to
+capture. Navier--Stokes feeds back on itself. Past a critical Reynolds
+number the steady wake behind a blunt body becomes unstable, and the flow
+begins shedding vortices alternately from each side --- the von Kármán
+vortex street.
+
+Those vortices are the smallest features in the solution, and they set the
+mesh requirement. Too coarse and numerical diffusion damps the instability
+away: the wake comes out steady and symmetric, which looks like a converged
+answer rather than a missing one. That is the expensive part --- not the cost
+per unknown, but how many unknowns the physics demands before it will show
+you the phenomenon at all.
+
+```{python}
+cyl_config = TimeIntegrationConfig(
+    method="crank_nicolson",
+    init_time=0.0,
+    final_time=25.0,
+    deltat=0.1,
+    newton_tol=1e-7,
+    newton_maxiter=20,
+    lumped_mass=False,
+    verbosity=0,
+)
+
+cyl_solutions, cyl_times = GalerkinModel(cyl_physics, bkd).solve_transient(
+    bkd.asarray(np.zeros(cyl_physics.nstates())), cyl_config
+)
+print(f"{len(cyl_times)} steps to t = {cyl_times[-1]:.0f}")
+```
+
+Crank--Nicolson rather than backward Euler: shedding is an oscillation, and
+backward Euler's damping would suppress the very thing being shown.
+
+```{python}
+#| echo: false
+#| output: asis
+from pyapprox_tutorials.figures._galerkin import vorticity_animation
+
+video = vorticity_animation(
+    vel_basis.skfem_basis(),
+    pres_basis.skfem_basis(),
+    bkd.to_numpy(cyl_solutions),
+    bkd.to_numpy(cyl_times),
+    geom,
+    "cylinder_shedding.mp4",
+)
+print(f'<video autoplay loop muted playsinline '
+      f'style="width:100%;max-width:960px">'
+      f'<source src="{video}" type="video/mp4"></video>')
+```
+
+Colour is vorticity, $\omega = \partial v_y/\partial x - \partial
+v_x/\partial y$, on a diverging scale --- black at zero, cyan for one sign of
+rotation and amber for the other. The alternating colours *are* the
+alternating sign, which is why this figure needs a diverging map where the
+concentration above used a sequential one: a sequential map would render
+$+\omega$ and $-\omega$ identically and erase the street.
+
+Vorticity is a derivative of the discrete velocity, so it does not live in
+the velocity space --- differentiating a $P_2$ field gives something
+discontinuous across elements. Recovering it consistently means projecting
+the weak curl back onto a continuous space, a mass-matrix solve of exactly
+the kind derived above:
+
+$$
+(\omega, q) = \left(
+  \frac{\partial v_y}{\partial x} - \frac{\partial v_x}{\partial y},\ q
+\right) \quad \text{for all } q .
+$$
+
+The same $M$ appears again, now recovering a derived quantity rather than
+advancing the solution.
+
+::: {.callout-warning}
+## This solution is under-resolved, deliberately
+
+The cell Reynolds number $h\lvert\vc{v}\rvert/\nu$ reaches 25--48 on this
+mesh, against a stability threshold of about 2 for a Galerkin discretization
+with no upwinding. The shedding frequency is robust, but the fine structure
+upstream of the cylinder oscillates from node to node --- visible in the
+figure as speckle near the leading edge.
+
+Refining until that disappears means roughly $170\times$ the elements. The
+alternative is a stabilized formulation such as SUPG. This tutorial shows
+neither: at 2.5 minutes for a mesh this coarse, the honest lesson is that
+transient Navier--Stokes gets expensive quickly, and that a plausible-looking
+answer is not the same as a converged one.
+:::
+
+
+## What to Read Next
+
+- [Verifying a solver with manufactured solutions](mms_verification_usage.qmd)
+  --- how to establish that a transient solve is correct, rather than merely
+  plausible
+- [Adjoints for time-dependent problems](adjoint_ode_concept.qmd) --- the
+  mass matrix reappears transposed, in the adjoint of the recursion this
+  tutorial ran forward

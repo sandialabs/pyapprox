@@ -68,3 +68,8 @@ tutorials/library/render_errors.txt
 tutorials/library/render_times.txt
 tutorials/library/render_timings.csv
 tutorials/library/time_renders.sh
+
+# Animations a tutorial encodes while rendering. Generated from a
+# committed mesh, so the source of truth is in git and the artifact is
+# not.
+packages/pyapprox-tutorials/tutorials/library/*.mp4

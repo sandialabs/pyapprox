@@ -50,6 +50,9 @@ rol = ["rol-python"]
 # Test infrastructure (no pyapprox-benchmarks — cycle broken by test relocation)
 test = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-timeout>=2.2"]
 lint = ["mypy>=1.8", "ruff>=0.3", "import-linter>=2.0"]
+# Quarto tooling. No pyapprox source imports these -- see the FUTURE note
+# in packages/pyapprox-tutorials/pyproject.toml on consolidating the
+# docs-build extras into that package, where the docs are built.
 docs = ["jupyter-cache>=1.0", "quartodoc>=0.6"]
 docs-build = ["pyapprox[docs,fem,umbridge,numba,parallel,cvxpy]"]
 # Developer rollup: all runtime extras + lint + test + docs

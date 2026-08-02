@@ -193,6 +193,7 @@ website:
         - section: "Finite Element Modeling"
           contents:
             - galerkin_adr_usage.qmd
+            - galerkin_transient_usage.qmd
             - parameterized_forward_usage.qmd
         - section: "Verification and Validation"
           contents:
