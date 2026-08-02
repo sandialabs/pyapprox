@@ -468,6 +468,11 @@ class Backend(Protocol, Generic[Array]):
         ...
 
     @staticmethod
+    def log1p(array: Array) -> Array:
+        """log(1 + x), accurate for small x."""
+        ...
+
+    @staticmethod
     def copy(array: Array) -> Array: ...
 
     @staticmethod

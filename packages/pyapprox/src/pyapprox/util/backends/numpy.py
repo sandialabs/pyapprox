@@ -328,6 +328,10 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.asarray(np.expm1(array))
 
     @staticmethod
+    def log1p(array: NDArray[Any]) -> NDArray[Any]:
+        return np.asarray(np.log1p(array))
+
+    @staticmethod
     def copy(array: NDArray[Any]) -> NDArray[Any]:
         return array.copy()
 

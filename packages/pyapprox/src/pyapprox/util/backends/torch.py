@@ -386,6 +386,10 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.expm1(array)
 
     @staticmethod
+    def log1p(array: torch.Tensor) -> torch.Tensor:
+        return torch.log1p(array)
+
+    @staticmethod
     def copy(array: torch.Tensor) -> torch.Tensor:
         return array.clone()
 
