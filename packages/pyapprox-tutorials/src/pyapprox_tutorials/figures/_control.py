@@ -110,8 +110,10 @@ def plot_frozen_flow(problem, bkd, ax, density=1.4):
     vel_x = vel_flat[0].reshape(ngrid, ngrid)
     vel_y = vel_flat[1].reshape(ngrid, ngrid)
     speed = np.hypot(vel_x, vel_y)
+    # Speed is non-negative, so the sequential house map applies; viridis
+    # here was the last off-palette colormap in the series.
     stream = ax.streamplot(
-        grid_1d, grid_1d, vel_x, vel_y, color=speed, cmap="viridis",
+        grid_1d, grid_1d, vel_x, vel_y, color=speed, cmap=NEON_CMAP,
         density=density, linewidth=0.9, arrowsize=0.8,
     )
     _draw_domain(ax, problem)

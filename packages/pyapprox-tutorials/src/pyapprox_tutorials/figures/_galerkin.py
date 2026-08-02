@@ -181,8 +181,10 @@ def plot_velocity_field(velocity, ax, ngrid=44, density=1.3):
     vel_y = values[1].reshape(ngrid, ngrid)
     speed = np.hypot(vel_x, vel_y)
 
+    # Speed is non-negative, so the sequential house map applies; viridis
+    # here was the last off-palette colormap in the series.
     stream = ax.streamplot(
-        grid_1d, grid_1d, vel_x, vel_y, color=speed, cmap="viridis",
+        grid_1d, grid_1d, vel_x, vel_y, color=speed, cmap=NEON_CMAP,
         density=density, linewidth=0.9, arrowsize=0.8,
     )
     for (x0, y0), width, height in _BLOCKS:
