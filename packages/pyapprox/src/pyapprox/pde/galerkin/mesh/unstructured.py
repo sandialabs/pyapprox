@@ -5,14 +5,14 @@ Loads 2D unstructured meshes from JSON files with named boundaries
 """
 
 import json
-from typing import Dict, Generic, List, Optional, Tuple
+from typing import Dict, Generic, List, Optional, Tuple, Type, Union
 
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import MeshQuad
+    from skfem import MeshQuad, MeshTri
 except ImportError:
     from pyapprox.util.optional_deps import import_optional_dependency
 
@@ -22,11 +22,14 @@ except ImportError:
 
 
 class UnstructuredMesh2D(Generic[Array]):
-    """2D unstructured quad mesh loaded from a JSON file.
+    """2D unstructured triangle or quad mesh loaded from a JSON file.
+
+    The element type is inferred from the connectivity width: 3 nodes
+    per element gives a ``MeshTri``, 4 a ``MeshQuad``.
 
     The JSON file must contain:
     - ``p``: node coordinates, list of [x, y] pairs (nnodes x 2)
-    - ``t``: element connectivity, list of 4-node lists (nelems x 4)
+    - ``t``: element connectivity, list of 3- or 4-node lists
     - ``boundaries``: dict mapping boundary names to lists of facet indices
     - ``subdomains``: dict mapping subdomain names to lists of element indices
 
@@ -76,8 +79,23 @@ class UnstructuredMesh2D(Generic[Array]):
 
         self._subdomains = subdomains
 
+        # Element type follows from the connectivity width: 3 nodes per
+        # element is a triangle, 4 a quadrilateral. Triangles conform to
+        # curved boundaries, so meshes around holes or cylinders arrive
+        # as triangles even though the earlier meshes here were quads.
+        nnodes_per_elem = elems_T.shape[0]
+        if nnodes_per_elem == 3:
+            mesh_cls: Union[Type[MeshTri], Type[MeshQuad]] = MeshTri
+        elif nnodes_per_elem == 4:
+            mesh_cls = MeshQuad
+        else:
+            raise ValueError(
+                f"each element must have 3 (triangle) or 4 (quad) nodes, "
+                f"got {nnodes_per_elem}"
+            )
+
         # Construct skfem mesh with boundaries and subdomains
-        self._skfem_mesh = MeshQuad(
+        self._skfem_mesh = mesh_cls(
             pts_T,
             elems_T,
             _boundaries=boundaries if boundaries else None,
@@ -125,7 +143,7 @@ class UnstructuredMesh2D(Generic[Array]):
             self._skfem_mesh.t.astype(np.int64), dtype=self._bkd.int64_dtype()
         )
 
-    def skfem_mesh(self) -> MeshQuad:
+    def skfem_mesh(self) -> Union[MeshTri, MeshQuad]:
         """Return the underlying skfem mesh object."""
         return self._skfem_mesh
 
