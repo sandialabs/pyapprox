@@ -192,17 +192,26 @@ def solve_obstructed_stokes(
     bkd: Backend[Array],
     reynolds_num: float,
     vel_shape_params: List[float],
+    navier_stokes: bool = True,
 ) -> Tuple[
     Array,
     "StokesPhysics[Array]",
     "VectorLagrangeBasis[Array]",
     "LagrangeBasis[Array]",
 ]:
-    """Solve steady Navier-Stokes on the obstructed mesh.
+    """Solve the steady flow on the obstructed mesh.
 
     Parabolic inlet on the left wall (shape parameters ``(a, b)``),
     no-slip on bottom/top and all obstruction boundaries, natural
     outflow on the right; viscosity is ``1 / reynolds_num``.
+
+    Parameters
+    ----------
+    navier_stokes : bool, default True
+        Include the nonlinear convective term, so the solve is a Newton
+        iteration. ``False`` drops it, leaving linear Stokes: one linear
+        solve, and a flow that does not depend on its own momentum. The
+        two agree only at low Reynolds number.
 
     Returns
     -------
@@ -243,7 +252,7 @@ def solve_obstructed_stokes(
         vel_basis,
         pres_basis,
         bkd,
-        navier_stokes=True,
+        navier_stokes=navier_stokes,
         viscosity=viscosity,
         vel_dirichlet_bcs=vel_bcs,
     )
