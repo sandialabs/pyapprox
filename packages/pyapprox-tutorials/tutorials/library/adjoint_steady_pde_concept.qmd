@@ -1,0 +1,460 @@
+---
+title: "Adjoints for a Constrained PDE Solve"
+subtitle: "PyApprox Tutorial Library"
+description: "Where boundary conditions enter the adjoint, why forward corrections zero rows but transposed ones zero columns, and what the adjoint variable means."
+tutorial_type: concept
+topic: finite_elements
+difficulty: intermediate
+estimated_time: 25
+prerequisites: []
+tags:
+  - adjoints
+  - finite-elements
+  - galerkin
+  - boundary-conditions
+  - sensitivity
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Write the residual of a finite element solve with essential boundary
+  conditions as row replacement, and say what each row asserts
+- Derive the adjoint equation for that constrained residual, and explain
+  which entries of $\partial Q/\partial u$ must be zeroed
+- Explain why forward quantities are corrected by zeroing ROWS while
+  transposed ones are corrected by zeroing COLUMNS
+- Interpret the adjoint variable as a map of what a measurement can see
+- Check an adjoint gradient against finite differences, and know what a
+  convention error looks like when it fails
+
+
+## The Question the Adjoint Answers
+
+[Parameterizing a forward solve](parameterized_forward_usage.qmd) turned a
+diffusivity field into a handful of numbers $\vc{p}$, so that a solution
+could be computed for any $\vc{p}$. This tutorial asks the next question:
+how does a *scalar* extracted from that solution change when $\vc{p}$
+changes?
+
+Write the solve as a residual that vanishes at the solution,
+
+$$
+\vc{R}(\vc{u}, \vc{p}) = \vc{0} ,
+$$ {#eq-residual}
+
+and the quantity of interest as $Q(\vc{u}, \vc{p})$. Here $Q$ is the
+contaminant concentration at one sensor.
+
+Finite differences would cost one solve per parameter. [The adjoint
+method](adjoint_concept.qmd) costs **one extra solve regardless of how many
+parameters there are** --- and that tutorial derives it on a small algebraic
+system, with no PDE and no boundary conditions in the way. Everything below
+is that same three-step recipe; what is new is what boundary conditions do
+to it.
+
+
+## Boundary Conditions as Row Replacement
+
+A finite element residual does not enforce essential (Dirichlet) boundary
+conditions inside the weak form. It enforces them by *replacing rows*. For
+degree of freedom $d$ on a constrained boundary, the $d$-th residual is not
+the weak form at all:
+
+$$
+R_i = \begin{cases}
+  \text{weak form at } i, & i \text{ interior} \\
+  u_d - g_d, & d \text{ constrained}
+\end{cases}
+$$ {#eq-rowreplace}
+
+The constrained rows say "this degree of freedom equals its boundary value",
+nothing more. Differentiating, the corresponding rows of the Jacobian are
+rows of the identity.
+
+```{python}
+import numpy as np
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+
+# A deliberately tiny 1D problem: small enough to print.
+small_mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
+small_basis = LagrangeBasis(small_mesh, degree=1)
+small_physics = AdvectionDiffusionReaction(
+    basis=small_basis, diffusivity=1.0, bkd=bkd,
+    forcing=lambda x: np.ones(x.shape[1]),
+    boundary_conditions=[
+        DirichletBC(small_basis, "left", 0.0, bkd),
+        DirichletBC(small_basis, "right", 0.0, bkd),
+    ],
+)
+
+jac = small_physics.jacobian(bkd.zeros((small_physics.nstates(),)), 0.0)
+dense = np.asarray(bkd.to_numpy(jac).todense())
+constrained = bkd.to_numpy(small_physics.constraint_set().dofs())
+
+print("constrained dofs:", constrained)
+print("row 0    :", np.round(dense[0], 3))
+print("column 0 :", np.round(dense[:, 0], 3))
+```
+
+Row $0$ is a row of the identity, as promised. **Column $0$ is not.** Its
+nonzero off-diagonal entry is an interior equation's coupling to the
+constrained degree of freedom: node $1$ is a neighbour of node $0$, so the
+weak form at node $1$ references $u_0$.
+
+That asymmetry is the whole subject of the next section.
+
+
+## Rows Become Columns
+
+The adjoint equation involves $J^{T}$, and transposing exchanges rows with
+columns. The constraint row of $J$ --- clean, a row of the identity ---
+becomes a constraint *column* of $J^{T}$. The messy coupling column becomes
+a row.
+
+```{python}
+#| echo: false
+#| label: fig-rows-to-columns
+#| fig-cap: "Sparsity of the 7-DOF 1D Jacobian and its transpose, with constrained degrees of freedom marked. Left: constraints occupy ROWS. Right: after transposing, they occupy COLUMNS. Color marks where an entry is nonzero, not how large it is, so the single diagonal entry of each identity row stays visible against the much larger interior couplings. Corrections that zero rows on a forward quantity must zero columns on a transposed one."
+import matplotlib.pyplot as plt
+
+from pyapprox_tutorials.figures._galerkin import plot_rows_to_columns
+
+fig, axes = plt.subplots(1, 2, figsize=(9, 4.4))
+plot_rows_to_columns(jac, small_physics.constraint_set().dofs(), axes, bkd)
+plt.tight_layout()
+```
+
+This is the practical rule, and the reason adjoint code contains two
+different-looking corrections that are really one idea:
+
+| quantity | orientation | correction |
+|---|---|---|
+| residual, $\partial R/\partial p$ | forward | zero **rows** at constrained dofs |
+| $\partial Q/\partial u$, adjoint solve | transposed | zero **columns** at constrained dofs |
+
+Getting this backwards produces a gradient that is wrong by a boundary term:
+usually small, always systematic, and invisible without a finite difference
+check.
+
+
+## The Three Steps, With Constraints
+
+The recipe from [the adjoint tutorial](adjoint_concept.qmd), written for
+@eq-rowreplace:
+
+1. **Forward solve.** Solve $\vc{R}(\vc{u}, \vc{p}) = \vc{0}$ for $\vc{u}$.
+2. **Adjoint solve.** Solve
+   $$
+   J^{T} \vc{\lambda} = -\left(
+     \frac{\partial Q}{\partial \vc{u}}
+   \right)_{\text{constrained entries zeroed}} .
+   $$ {#eq-adjoint}
+3. **Assemble.** $\displaystyle
+   \frac{d Q}{d \vc{p}} = \frac{\partial Q}{\partial \vc{p}}
+   + \vc{\lambda}^{T} \frac{\partial \vc{R}}{\partial \vc{p}}$, with the
+   constrained rows of $\partial \vc{R}/\partial \vc{p}$ zeroed.
+
+Step 2's zeroing is the substantive one. A constrained degree of freedom is
+not free to vary --- it equals its boundary value whatever $\vc{p}$ does ---
+so a sensitivity of $Q$ with respect to it is meaningless and must not enter
+the right-hand side.
+
+
+## Setting Up
+
+The problem is the one from the [forward
+tutorial](parameterized_forward_usage.qmd): a contaminant released into an
+obstructed channel, carried by a flow solved once and frozen, with an
+uncertain diffusivity field represented by a KLE.
+
+```{python}
+from pyapprox.pde.constitutive.coefficient_functions import (
+    NodalFieldDiffusion,
+)
+from pyapprox.pde.field_maps.kle_factory import (
+    create_lognormal_kle_field_map,
+)
+from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+    AdvectionDiffusionParameterization,
+)
+from pyapprox.pde.zoo.obstructed_flow import (
+    build_obstructed_mesh,
+    extract_velocity_callable,
+    solve_obstructed_stokes,
+)
+
+NUM_KLE_TERMS = 3
+MEAN_DIFFUSIVITY = 0.02
+
+mesh = build_obstructed_mesh(bkd, nrefine=3)
+basis = LagrangeBasis(mesh, degree=1)
+
+# Frozen flow, as in the forward tutorial.
+stokes_mesh = build_obstructed_mesh(bkd, nrefine=2)
+stokes_sol, stokes, stokes_vel, stokes_pres = solve_obstructed_stokes(
+    stokes_mesh, bkd, reynolds_num=20.0, vel_shape_params=[2.5, 2.5],
+    navier_stokes=False,
+)
+velocity = extract_velocity_callable(
+    stokes_sol, stokes, stokes_vel, stokes_pres, basis, bkd,
+)
+
+
+def release(coords):
+    """A Gaussian source near the inlet."""
+    x, y = coords[0], coords[1]
+    return np.exp(-((x - 0.15) ** 2 + (y - 0.5) ** 2) / 0.01)
+
+
+physics = AdvectionDiffusionReaction(
+    basis=basis, diffusivity=NodalFieldDiffusion(basis), bkd=bkd,
+    velocity=velocity, forcing=release,
+    boundary_conditions=[
+        DirichletBC(basis, name, 0.0, bkd)
+        for name in mesh.boundary_names()
+    ],
+)
+
+kle_map = create_lognormal_kle_field_map(
+    mesh_coords=basis.dof_coordinates(),
+    mean_log_field=bkd.full((basis.ndofs(),), np.log(MEAN_DIFFUSIVITY)),
+    bkd=bkd, correlation_length=0.25, num_kle_terms=NUM_KLE_TERMS,
+    sigma=0.5,
+)
+parameterization = AdvectionDiffusionParameterization(
+    physics, diffusivity_map=kle_map, bkd=bkd,
+)
+
+print(f"{physics.nstates()} degrees of freedom")
+print(f"{len(bkd.to_numpy(physics.constraint_set().dofs()))} constrained")
+print(f"{parameterization.nparams()} parameters")
+```
+
+Roughly a fifth of the degrees of freedom are constrained --- every node on
+the outer walls and on all three obstacle surfaces. That is a large fraction
+for the constraint handling to get wrong quietly.
+
+The sensor sits downstream of the obstacles, deliberately off the
+centreline: a sensor exactly mid-channel would produce an adjoint field
+almost symmetric about it, which looks like a plotting error.
+
+```{python}
+rng = np.random.default_rng(0)
+param = bkd.asarray(rng.normal(size=NUM_KLE_TERMS))
+
+coords = bkd.to_numpy(basis.dof_coordinates())
+free = [
+    i for i in range(physics.nstates())
+    if i not in set(int(d) for d in
+                    bkd.to_numpy(physics.constraint_set().dofs()))
+]
+sensor = min(
+    free, key=lambda i: np.hypot(coords[0, i] - 0.85, coords[1, i] - 0.30)
+)
+sensor_xy = (coords[0, sensor], coords[1, sensor])
+print(f"sensor at ({sensor_xy[0]:.3f}, {sensor_xy[1]:.3f})")
+```
+
+
+## Solving Forward, Then Backward
+
+```{python}
+import scipy.sparse as sp
+from scipy.sparse.linalg import spsolve
+
+# Step 1: forward solve.
+parameterization.apply(param)
+state = SteadyStateSolver(physics, tol=1e-12).solve_linear().solution
+print(f"Q = {bkd.to_numpy(state)[sensor]:.6e}")
+
+# Step 2: adjoint solve. dQ/du for a point sensor is a unit vector;
+# zeroing its constrained entries is the correction from @eq-adjoint.
+dQ_du = np.zeros(physics.nstates())
+dQ_du[sensor] = 1.0
+dQ_du[bkd.to_numpy(physics.constraint_set().dofs()).astype(int)] = 0.0
+
+jacobian = sp.csr_matrix(bkd.to_numpy(physics.jacobian(state, 0.0)))
+adjoint = spsolve(jacobian.T.tocsr(), -dQ_du)
+print(f"one extra solve; |lambda| max = {np.abs(adjoint).max():.2f}")
+```
+
+That is the entire adjoint: one linear solve with the transposed Jacobian.
+
+
+## What the Adjoint Shows
+
+```{python}
+#| echo: false
+#| label: fig-forward-adjoint
+#| fig-cap: "The forward solution and the adjoint, with the sensor marked on both. The concentration peaks at the release and spreads downstream; the adjoint peaks at the sensor and decays upstream. They are answers to different questions."
+from pyapprox_tutorials.figures._galerkin import plot_forward_and_adjoint
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.6))
+cf, ca = plot_forward_and_adjoint(
+    basis, state, bkd.asarray(adjoint), bkd, axes, sensor_xy
+)
+fig.colorbar(cf, ax=axes[0], shrink=0.8, label="$u$")
+fig.colorbar(ca, ax=axes[1], shrink=0.8, label=r"$\lambda$")
+plt.tight_layout()
+```
+
+The two fields peak in different places, and the contrast is the point.
+
+The forward solution is largest at the release, because that is where
+contaminant enters. The adjoint is largest **at the sensor**, because that is
+where the quantity of interest lives, and it decays upstream against the
+flow.
+
+```{python}
+print("mean |lambda| by distance downstream:")
+for lo in np.arange(0.0, 1.0, 0.2):
+    band = (coords[0] >= lo) & (coords[0] < lo + 0.2)
+    print(f"  x in [{lo:.1f}, {lo + 0.2:.1f}): {np.abs(adjoint[band]).mean():8.3f}")
+```
+
+Three orders of magnitude between the sensor's band and the inlet's. Read
+physically, $\lambda$ is a map of **what this sensor can see**: a change in
+the equation where $\lambda$ is large moves the reading, and a change where
+$\lambda$ is near zero cannot. Material released at the far inlet does reach
+the sensor, but a perturbation there is diluted by the time it arrives.
+
+Note the source location plays no part in this. $\lambda$ is anchored to the
+sensor, not to the release; the source enters the gradient separately,
+through $\partial \vc{R}/\partial \vc{p}$.
+
+```{python}
+constrained_dofs = bkd.to_numpy(
+    physics.constraint_set().dofs()
+).astype(int)
+print(f"max |lambda| on constrained dofs: "
+      f"{np.abs(adjoint[constrained_dofs]).max():.3e}")
+```
+
+Nonzero, despite the right-hand side being zero there. Those entries are the
+**discrete boundary reaction**: how much the boundary condition itself has to
+push to hold its value, expressed in the units of the quantity of interest.
+
+
+## Checking It
+
+An adjoint gradient that is wrong by a boundary term still looks plausible.
+The check is finite differences --- and rather than a single step size,
+which can agree by luck, PyApprox sweeps a range of them with
+`DerivativeChecker`.
+
+The adjoint machinery is assembled the same way the forward tutorial
+assembles it. `ImplicitFunctionOfParameters` then presents the whole
+PDE-constrained map $\vc{p} \mapsto Q$ as an ordinary function with a
+derivative, which is the interface `DerivativeChecker` consumes: the
+checker never learns that a PDE solve is happening inside.
+
+```{python}
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
+from pyapprox.optimization.implicitfunction.operator.as_function import (
+    ImplicitFunctionOfParameters,
+)
+from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
+    AdjointOperatorWithJacobianAndHVP,
+)
+from pyapprox.pde.models.galerkin.steady import (
+    GalerkinStateEquationWithHVPAdapter,
+)
+
+state_equation = GalerkinStateEquationWithHVPAdapter(
+    physics, parameterization, bkd,
+)
+weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
+weights[sensor] = 1.0
+operator = AdjointOperatorWithJacobianAndHVP(
+    state_equation, WeightedSumFunctional(weights, NUM_KLE_TERMS, bkd),
+)
+
+qoi_of_params = ImplicitFunctionOfParameters(
+    operator, bkd.zeros((physics.nstates(), 1))
+)
+
+param_col = bkd.reshape(param, (NUM_KLE_TERMS, 1))
+fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
+checker = DerivativeChecker(qoi_of_params)
+errors = checker.check_derivatives(param_col, fd_eps=fd_eps)
+
+for name, curve in zip(("gradient", "Hessian-vector product"), errors):
+    print(f"{name:<24} best relative error "
+          f"{bkd.to_float(bkd.min(curve)):.2e}")
+```
+
+Two curves, because the operator supplies second derivatives as well: the
+gradient is checked against a difference of the quantity of interest, and
+the Hessian-vector product against a difference of the gradient.
+
+```{python}
+#| echo: false
+#| label: fig-v-curve
+#| fig-cap: "Relative error against finite-difference step size, log-log. Each curve falls with slope one --- the truncation error of a one-sided difference --- until round-off in the PDE solve takes over and it rises again. The V bottom near $\\epsilon = 10^{-7}$ is the sharpest a one-sided difference can be. A gradient wrong by a boundary term does not produce a shallow V; it produces a flat line, because the discrepancy is a property of the derivative rather than of the step size."
+import matplotlib.pyplot as plt
+
+from pyapprox.interface.functions.derivative_checks.plots import (
+    plot_fd_error_sweep,
+)
+from pyapprox_tutorials.figures._style import COLORS
+
+fig, ax = plt.subplots(figsize=(6.5, 4.5))
+plot_fd_error_sweep(
+    fd_eps, errors, bkd, ax,
+    labels=["gradient", "Hessian-vector product"],
+    slope_guides=[1],
+)
+# The shared sweep helper draws with the matplotlib default cycle; recolor
+# to the palette the rest of the series uses.
+for line, color in zip(ax.lines, (COLORS["primary"], COLORS["secondary"])):
+    line.set_color(color)
+ax.legend()
+plt.tight_layout()
+plt.show()
+```
+
+The V is the signature of a correct derivative. Falling with slope one on
+the right means the difference quotient really is converging to the
+analytical value; the floor and the rise on the left are round-off, not a
+modelling error. `error_ratio` compresses that shape into one number --- the
+ratio of the best error to the worst --- so the same check can run in a test
+suite without a human looking at the plot.
+
+That is what makes the check worth running: a constraint-handling error ---
+zeroing rows where columns were needed, or forgetting to zero
+$\partial Q/\partial \vc{u}$ --- does not produce a slightly worse V. It
+flattens the curve entirely, at a relative error near one, six orders above
+this floor. The two outcomes are never ambiguous.
+
+
+## What to Read Next
+
+- [Evolving a PDE in time](galerkin_transient_usage.qmd) --- the mass matrix
+  this tutorial did not need, which reappears transposed in the transient
+  adjoint
+- [Adjoints for time-dependent problems](adjoint_ode_concept.qmd) --- the
+  same three steps applied to a whole trajectory rather than one solve

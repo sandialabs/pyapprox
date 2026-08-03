@@ -206,6 +206,7 @@ website:
         - section: "Adjoints and Derivatives"
           contents:
             - adjoint_concept.qmd
+            - adjoint_steady_pde_concept.qmd
             - adjoint_hvp_concept.qmd
             - adjoint_ode_concept.qmd
         - section: "Optimization Under Uncertainty"
