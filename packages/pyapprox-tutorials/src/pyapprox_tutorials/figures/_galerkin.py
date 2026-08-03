@@ -611,3 +611,100 @@ def concentration_animation(basis, solutions, times, path, bkd,
     )
     plt.close(fig)
     return path
+
+
+def plot_rows_to_columns(jacobian, constrained, ax_pair, bkd):
+    """adjoint_steady_pde_concept.qmd -> fig-rows-to-columns
+
+    A small Jacobian beside its transpose, with the constrained degrees
+    of freedom marked. A constraint ROW of the forward matrix is a row
+    of the identity; transposing turns it into a COLUMN, and the
+    couplings that lived in the constrained COLUMN become a row. That is
+    why forward quantities are corrected by zeroing rows and transposed
+    ones by zeroing columns.
+
+    Plots the sparsity pattern rather than the magnitudes. A constraint
+    row holds a single 1.0 among zeros while the interior couplings are
+    far larger, so a magnitude scale renders those rows as near-blank ---
+    reading as absent structure when they are the most structured rows
+    present.
+    """
+    import scipy.sparse as sp
+
+    dense = sp.csr_matrix(bkd.to_numpy(jacobian)).toarray()
+    nonzero = (np.abs(dense) > 0.0).astype(float)
+    idx = np.asarray(bkd.to_numpy(constrained), dtype=int)
+
+    for ax, matrix, title, mark in (
+        (ax_pair[0], nonzero, r"$J$: constraint ROWS", "row"),
+        (ax_pair[1], nonzero.T, r"$J^{T}$: constraint COLUMNS", "col"),
+    ):
+        ax.imshow(matrix, cmap=NEON_CMAP, vmin=0.0, vmax=1.0)
+        for d in idx:
+            if mark == "row":
+                ax.axhline(d, color=COLORS["secondary"], lw=2.5, alpha=0.75)
+            else:
+                ax.axvline(d, color=COLORS["secondary"], lw=2.5, alpha=0.75)
+        ax.set_title(title, fontsize=11)
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+
+def plot_forward_and_adjoint(basis, state, adjoint, bkd, axes, probe_xy):
+    """adjoint_steady_pde_concept.qmd -> fig-forward-adjoint
+
+    The forward solution beside the adjoint, with the sensor marked on
+    both. They answer different questions and peak in different places:
+    the concentration is largest at the release and spreads downstream,
+    while the adjoint is largest AT the sensor and decays upstream. The
+    sensor is the only feature the two pictures share.
+
+    Both use the sequential map. The adjoint here is one-signed apart
+    from the constrained dofs, whose reaction is 0.3% of the range --
+    a diverging map would spend half its span on values that are
+    indistinguishable from zero, and its near-white extreme would hide
+    the sensor marker exactly where the adjoint peaks.
+    """
+    forward = bkd.to_numpy(state)
+    lam = bkd.to_numpy(adjoint)
+    tri = triangulation(basis)
+
+    fwd_max = float(np.percentile(forward, 99.5))
+    contours_f = axes[0].tricontourf(
+        tri, np.clip(forward, 0.0, None),
+        levels=np.linspace(0.0, fwd_max, 41), cmap=NEON_CMAP, extend="max",
+    )
+    axes[0].set_title("Forward: where the contaminant is")
+
+    lam_max = float(np.percentile(lam, 99.5))
+    contours_a = axes[1].tricontourf(
+        tri, np.clip(lam, 0.0, None),
+        levels=np.linspace(0.0, lam_max, 41), cmap=NEON_CMAP, extend="max",
+    )
+    axes[1].set_title("Adjoint: what the sensor can see")
+
+    for ax in axes:
+        for (x0, y0), width, height in _BLOCKS:
+            ax.add_patch(
+                Rectangle((x0, y0), width, height, facecolor="0.55",
+                          edgecolor="0.3", zorder=3)
+            )
+        # The sensor, marked identically on both so the eye can compare.
+        # Orange rather than white: the map runs to near-white at its top
+        # end, and the adjoint peaks AT the sensor, so a white marker
+        # vanishes exactly where it is most needed.
+        ax.plot(*probe_xy, "o", markersize=11, markerfacecolor="none",
+                markeredgecolor=COLORS["secondary"], markeredgewidth=2.2,
+                zorder=6)
+        # Offset left: the sensor sits near the right edge of the domain,
+        # so a rightward label runs off the axes.
+        ax.annotate("sensor", probe_xy, textcoords="offset points",
+                    xytext=(-12, 12), ha="right",
+                    color=COLORS["secondary"],
+                    fontsize=9, fontweight="bold", zorder=6)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_aspect("equal")
+        ax.set_xticks([])
+        ax.set_yticks([])
+    return contours_f, contours_a
