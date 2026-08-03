@@ -1,0 +1,590 @@
+---
+title: "Adjoints When the Mass Matrix Is Not the Identity"
+subtitle: "PyApprox Tutorial Library"
+description: "What a consistent finite element mass matrix changes in a transient adjoint: where M transposed appears, why the boundary couples to interior nodes, and why the gradient converges at the scheme's order."
+tutorial_type: concept
+topic: finite_elements
+difficulty: intermediate
+estimated_time: 30
+prerequisites: []
+tags:
+  - adjoints
+  - finite-elements
+  - galerkin
+  - time-integration
+  - mass-matrix
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Explain why a finite element evolution is $M\dot{\vc{u}} = \vc{F}$ rather
+  than $\dot{\vc{u}} = \vc{F}$, and what $M$ collects
+- Locate $M^{T}$ in the transient adjoint recursion, and say which block it
+  sits in
+- Derive the reduced interior evolution by partitioning $M$, and read off
+  the $M_{id}\dot{\vc{g}}$ term that a time-varying boundary contributes
+- Say which time steppers supply that term automatically and which need it
+  analytically
+- Measure the temporal convergence of a quantity of interest **and** of its
+  gradient, and explain why they share an order
+
+
+## The One Thing That Changes
+
+[The steady tutorial](adjoint_steady_pde_concept.qmd) solved
+$\vc{R}(\vc{u}, \vc{p}) = \vc{0}$ once and took one transposed solve. This
+tutorial runs the same physics forward in time. Almost nothing about the
+adjoint recipe changes --- it is still solve forward, solve backward,
+assemble --- and this tutorial does not repeat it.
+
+What changes is that a finite element evolution is not
+$\dot{\vc{u}} = \vc{F}(\vc{u}, t)$. It is
+
+$$
+M \dot{\vc{u}} = \vc{F}(\vc{u}, t) ,
+$$ {#eq-mass-ode}
+
+where $M$ is the **mass matrix**, $M_{ij} = \int_\Omega \phi_i \phi_j$. It
+is not the identity, it is not diagonal, and it does not go away. Wherever
+it appears going forward, $M^{T}$ appears coming back.
+
+Everything in this tutorial is a consequence of that one fact.
+
+
+## A Reminder of What $M$ Is
+
+[Evolving a PDE in time](galerkin_transient_usage.qmd) derives $M$ from the
+weak form and explains why it is the Gram matrix of the basis rather than
+the identity. That derivation is not repeated here. Three facts from it are
+what the rest of this tutorial leans on:
+
+- $M_{ij} = \int_\Omega \phi_i \phi_j$, so $M_{ij} \neq 0$ exactly when the
+  basis functions at nodes $i$ and $j$ overlap --- that is, on every pair of
+  neighbouring nodes
+- $M$ is symmetric, and it is the identity only for an orthonormal basis,
+  which a nodal finite element basis deliberately is not
+- lumping replaces it with a diagonal approximation, and switching that on
+  is exactly what makes the coupling below disappear
+
+Worth confirming numerically, since everything that follows is a consequence
+of $M$ not being the identity.
+
+```{python}
+import numpy as np
+
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.util.backends.numpy import NumpyBkd
+
+bkd = NumpyBkd()
+
+small_mesh = StructuredMesh2D(
+    nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
+)
+small_basis = LagrangeBasis(small_mesh, degree=1)
+small_physics = AdvectionDiffusionReaction(
+    basis=small_basis, diffusivity=1.0, bkd=bkd,
+    forcing=lambda x: np.ones(x.shape[1]),
+    boundary_conditions=[
+        DirichletBC(small_basis, name, 0.0, bkd)
+        for name in ("left", "right", "bottom", "top")
+    ],
+)
+
+mass = np.asarray(bkd.to_numpy(small_physics.mass_matrix()).todense())
+print(f"M is {mass.shape[0]}x{mass.shape[1]}, "
+      f"symmetric: {np.allclose(mass, mass.T)}")
+print(f"identity? {np.allclose(mass, np.eye(mass.shape[0]))}")
+print(f"sum of all entries: {mass.sum():.6f}  (the area of the domain)")
+```
+
+That last line is a useful check on what $M$ is. The basis functions sum to
+one at every point, so $\sum_{ij} M_{ij} = \int_\Omega 1 = |\Omega|$. A
+matrix of inner products, not a bookkeeping device.
+
+
+## The Adjoint Carries $M^{T}$
+
+Discretize @eq-mass-ode in time. Backward Euler gives a residual per step,
+
+$$
+\vc{R}_n(\vc{u}_n, \vc{u}_{n-1}, \vc{p})
+= M(\vc{u}_n - \vc{u}_{n-1}) - \Delta t\, \vc{F}(\vc{u}_n, t_n, \vc{p})
+= \vc{0} ,
+$$ {#eq-be-residual}
+
+and the whole trajectory is one large block-bidiagonal system: step $n$
+depends on step $n-1$. Its Jacobian has
+
+$$
+\frac{\partial \vc{R}_n}{\partial \vc{u}_n}
+= M - \Delta t\, \frac{\partial \vc{F}}{\partial \vc{u}} ,
+\qquad
+\frac{\partial \vc{R}_n}{\partial \vc{u}_{n-1}} = -M .
+$$ {#eq-blocks}
+
+Transposing for the adjoint turns the block-bidiagonal system upside down:
+the recursion runs **backwards** in time, and $M^{T}$ appears in both
+blocks --- in the diagonal one, and as the coupling that carries adjoint
+information from step $n$ back to step $n-1$:
+
+$$
+\left(M - \Delta t\,
+  \frac{\partial \vc{F}}{\partial \vc{u}}\right)^{T} \vc{\lambda}_n
+= -\left(\frac{\partial Q}{\partial \vc{u}_n}\right)
+  + M^{T} \vc{\lambda}_{n+1} .
+$$ {#eq-adjoint-recursion}
+
+This is the [ODE adjoint recursion](adjoint_ode_concept.qmd) with $M$
+inserted, and the constrained rows of
+[the steady tutorial](adjoint_steady_pde_concept.qmd) present in **every**
+diagonal block rather than once. Neither idea is re-derived here.
+
+
+## What a Moving Boundary Does
+
+The mass matrix has a consequence that is easy to miss, and it is the
+reason $M$ deserves a tutorial rather than a footnote.
+
+Split the degrees of freedom into interior ($i$) and Dirichlet-constrained
+($d$), and partition @eq-mass-ode to match:
+
+$$
+\begin{bmatrix} M_{ii} & M_{id} \\ M_{di} & M_{dd} \end{bmatrix}
+\begin{bmatrix} \dot{\vc{u}}_i \\ \dot{\vc{u}}_d \end{bmatrix}
+=
+\begin{bmatrix} \vc{F}_i \\ \vc{F}_d \end{bmatrix} .
+$$ {#eq-partition}
+
+The constrained values are known: $\vc{u}_d = \vc{g}(t)$. Substituting, and
+keeping only the interior rows,
+
+$$
+M_{ii} \dot{\vc{u}}_i
+= \vc{F}_i - M_{id} \dot{\vc{g}} .
+$$ {#eq-reduced}
+
+**The interior evolution is forced by the rate of change of the boundary
+data**, through $M_{id}$. Not by its value --- by its derivative. If the
+boundary condition is constant in time, $\dot{\vc{g}} = \vc{0}$ and the term
+vanishes, which is why it is invisible in most examples. As soon as the
+boundary moves, it is a real contribution and omitting it is simply wrong.
+
+The block $M_{id}$ is small but not empty: it is nonzero exactly where an
+interior basis function overlaps a boundary one.
+
+```{python}
+constrained = np.sort(
+    bkd.to_numpy(small_physics.constraint_set().dofs()).astype(int)
+)
+interior = np.array(
+    [k for k in range(mass.shape[0]) if k not in set(constrained.tolist())]
+)
+M_id = mass[np.ix_(interior, constrained)]
+couples = (np.abs(M_id) > 1e-14).any(axis=1)
+
+print(f"{len(interior)} interior dofs, {len(constrained)} constrained")
+print(f"M_id is {M_id.shape[0]}x{M_id.shape[1]} with "
+      f"{int((np.abs(M_id) > 1e-14).sum())} nonzeros")
+print(f"{int(couples.sum())} interior dofs feel the boundary's rate")
+```
+
+```{python}
+#| echo: false
+#| label: fig-mass-coupling
+#| fig-cap: "Left: nonzeros of the mass matrix, with constrained degrees of freedom marked on both axes --- $M$ couples every node to its neighbours, constrained or not. Right: the same information on the mesh. The interior nodes drawn in blue are those with a nonzero row in $M_{id}$: they are one layer inward from the boundary, and their evolution feels how fast the boundary data is changing."
+import matplotlib.pyplot as plt
+
+from pyapprox_tutorials.figures._galerkin import plot_mass_coupling
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 4.6))
+plot_mass_coupling(
+    mass, constrained, bkd.to_numpy(small_basis.dof_coordinates()), axes
+)
+plt.tight_layout()
+```
+
+The coupling reaches exactly one layer of nodes inward. That is the support
+of the boundary basis functions, and nothing more.
+
+
+### Which Steppers Need $\dot{\vc{g}}$ Analytically
+
+One-step implicit methods never see @eq-reduced. Backward Euler steps
+@eq-be-residual, which contains $M(\vc{u}_n - \vc{u}_{n-1})$ --- and with
+$\vc{u}_d$ pinned to $\vc{g}$ at each end, that difference already supplies
+$M_{id}(\vc{g}_n - \vc{g}_{n-1})$, the discrete stand-in for
+$\Delta t\, M_{id}\dot{\vc{g}}$. Nothing extra is required of the user.
+
+Stage-based methods evaluate at intermediate times where no such difference
+is available, so they need $\dot{\vc{g}}$ **analytically**. Of the steppers
+PyApprox registers, `"heun"` is the one that reports itself multistage;
+`"forward_euler"`, `"backward_euler"`, `"crank_nicolson"` and
+`"implicit_midpoint"` all step from one solution to the next and so supply
+the term from their own difference.
+
+PyApprox takes it as an explicit constructor argument rather than
+approximating it silently:
+
+``` python
+DirichletBC(
+    basis, "left", ramp, bkd, value_time_derivative_func=ramp_dot
+)
+```
+
+Combine `"heun"` with a consistent mass matrix and a time-varying boundary
+that lacks `value_time_derivative_func`, and the construction raises rather
+than integrating the wrong problem --- naming the three ways out: supply the
+analytic derivative, lump the mass, or use a one-step method.
+
+
+## A Transient Gradient End to End
+
+The problem is the one from
+[the steady tutorial](adjoint_steady_pde_concept.qmd) --- a contaminant
+released into an obstructed channel, uncertain diffusivity field, one
+downstream sensor --- now evolving from a clean initial condition rather
+than sitting at steady state.
+
+```{python}
+from pyapprox.pde.constitutive.coefficient_functions import (
+    NodalFieldDiffusion,
+)
+from pyapprox.pde.field_maps.kle_factory import (
+    create_lognormal_kle_field_map,
+)
+from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+    AdvectionDiffusionParameterization,
+)
+from pyapprox.pde.zoo.obstructed_flow import (
+    build_obstructed_mesh,
+    extract_velocity_callable,
+    solve_obstructed_stokes,
+)
+
+NUM_KLE_TERMS = 3
+MEAN_DIFFUSIVITY = 0.02
+
+mesh = build_obstructed_mesh(bkd, nrefine=3)
+basis = LagrangeBasis(mesh, degree=1)
+
+stokes_mesh = build_obstructed_mesh(bkd, nrefine=2)
+stokes_sol, stokes, stokes_vel, stokes_pres = solve_obstructed_stokes(
+    stokes_mesh, bkd, reynolds_num=20.0, vel_shape_params=[2.5, 2.5],
+    navier_stokes=False,
+)
+velocity = extract_velocity_callable(
+    stokes_sol, stokes, stokes_vel, stokes_pres, basis, bkd,
+)
+
+
+def release(coords):
+    """A Gaussian source near the inlet."""
+    x, y = coords[0], coords[1]
+    return np.exp(-((x - 0.15) ** 2 + (y - 0.5) ** 2) / 0.01)
+
+
+physics = AdvectionDiffusionReaction(
+    basis=basis, diffusivity=NodalFieldDiffusion(basis), bkd=bkd,
+    velocity=velocity, forcing=release,
+    boundary_conditions=[
+        DirichletBC(basis, name, 0.0, bkd)
+        for name in mesh.boundary_names()
+    ],
+)
+
+kle_map = create_lognormal_kle_field_map(
+    mesh_coords=basis.dof_coordinates(),
+    mean_log_field=bkd.full((basis.ndofs(),), np.log(MEAN_DIFFUSIVITY)),
+    bkd=bkd, correlation_length=0.25, num_kle_terms=NUM_KLE_TERMS,
+    sigma=0.5,
+)
+parameterization = AdvectionDiffusionParameterization(
+    physics, diffusivity_map=kle_map, bkd=bkd,
+)
+
+coords = bkd.to_numpy(basis.dof_coordinates())
+constrained_set = set(
+    int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+)
+sensor = min(
+    (i for i in range(physics.nstates()) if i not in constrained_set),
+    key=lambda i: np.hypot(coords[0, i] - 0.85, coords[1, i] - 0.30),
+)
+print(f"{physics.nstates()} degrees of freedom, sensor at dof {sensor}")
+```
+
+The quantity of interest is the concentration at that sensor **at the final
+time**. `WeightedEndpointFunctional` expresses that as $Q = \vc{c}^{T}
+\vc{u}(T)$ with $\vc{c}$ a unit vector. (Quantities integrated *over* time
+are a separate topic, covered in
+[transient functionals](transient_functionals_concept.qmd).)
+
+```{python}
+from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.functionals.weighted_endpoint import (
+    WeightedEndpointFunctional,
+)
+from pyapprox.pde.models.galerkin.transient import (
+    GalerkinTransientForwardModel,
+)
+
+FINAL_TIME = 3.0
+
+weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
+weights[sensor] = 1.0
+functional = WeightedEndpointFunctional(weights, NUM_KLE_TERMS, bkd)
+
+rng = np.random.default_rng(0)
+param = bkd.reshape(
+    bkd.asarray(rng.normal(size=NUM_KLE_TERMS)), (NUM_KLE_TERMS, 1)
+)
+
+
+def build_model(method, deltat):
+    """A transient forward model with its adjoint gradient attached."""
+    config = TimeIntegrationConfig(
+        method=method, init_time=0.0, final_time=FINAL_TIME, deltat=deltat,
+        newton_tol=1e-12, newton_maxiter=20, lumped_mass=False, verbosity=0,
+    )
+    return GalerkinTransientForwardModel(
+        physics, parameterization, bkd.zeros((physics.nstates(),)),
+        config, bkd, functional=functional,
+    )
+
+
+model = build_model("backward_euler", 0.05)
+print(f"Q = {float(bkd.to_numpy(model(param))[0, 0]):.6e}")
+print(f"grad Q = {bkd.to_numpy(model.derivatives().jacobian(param)).ravel()}")
+```
+
+`lumped_mass=False` is the choice that matters here: it keeps the
+**consistent** mass matrix. Setting it `True` replaces $M$ with a diagonal
+approximation, which is cheaper and destroys the $M_{id}$ coupling this
+tutorial is about --- a lumped $M$ has no off-diagonal entries, so
+@eq-reduced loses its forcing term entirely.
+
+The model satisfies `FunctionProtocol` and carries its derivatives in a
+bundle, so it verifies exactly like the steady one --- the checker cannot
+tell that a whole trajectory is being solved and unwound inside.
+
+```{python}
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+
+fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
+checker = DerivativeChecker(model)
+errors = checker.check_derivatives(param, fd_eps=fd_eps)
+
+for name, curve in zip(("gradient", "Hessian-vector product"), errors):
+    print(f"{name:<24} best relative error "
+          f"{bkd.to_float(bkd.min(curve)):.2e}")
+```
+
+```{python}
+#| echo: false
+#| label: fig-transient-v-curve
+#| fig-cap: "Relative error against finite-difference step size for the transient gradient and Hessian-vector product. The same V as the steady case, with a shallower floor: each difference quotient now stacks the round-off of an entire trajectory of Newton solves rather than of one."
+from pyapprox.interface.functions.derivative_checks.plots import (
+    plot_fd_error_sweep,
+)
+from pyapprox_tutorials.figures._style import COLORS
+
+fig, ax = plt.subplots(figsize=(6.5, 4.5))
+plot_fd_error_sweep(
+    fd_eps, errors, bkd, ax,
+    labels=["gradient", "Hessian-vector product"],
+    slope_guides=[1],
+)
+for line, color in zip(ax.lines, (COLORS["primary"], COLORS["secondary"])):
+    line.set_color(color)
+ax.legend()
+plt.tight_layout()
+plt.show()
+```
+
+
+## Watching Both Sweeps
+
+The recursion of @eq-adjoint-recursion runs backwards, and it cannot start
+until the forward trajectory exists --- every diagonal block needs
+$\partial \vc{F}/\partial \vc{u}$ evaluated at $\vc{u}_n$. Both trajectories
+are available after the gradient call: the forward one from the model, the
+adjoint one from the storage the operator keeps.
+
+```{python}
+solutions, solution_times = model.forward_solve(param)
+operator = model.hvp_operator(functional)
+operator.jacobian(bkd.zeros((physics.nstates(),)), param)
+adjoints = operator.storage().get_adjoint_trajectory()
+
+print(f"forward  {bkd.to_numpy(solutions).shape}")
+print(f"adjoint  {bkd.to_numpy(adjoints).shape}")
+```
+
+Two fields of the same size, and that is the memory cost of the method: the
+whole forward trajectory has to be kept, because the backward sweep
+linearizes about it.
+
+```{python}
+#| echo: false
+#| label: fig-sweeps
+#| output: asis
+from pyapprox_tutorials.figures._galerkin import forward_adjoint_animation
+
+video = forward_adjoint_animation(
+    basis, solutions, adjoints, solution_times,
+    "adjoint_transient_sweeps.mp4", bkd,
+    (coords[0, sensor], coords[1, sensor]), fps=12, stride=2,
+)
+print(f'<video autoplay loop muted playsinline '
+      f'style="width:100%;max-width:960px">'
+      f'<source src="{video}" type="video/mp4"></video>')
+```
+
+The forward sweep runs first, with the adjoint panel dark because there is
+nothing to compute yet. Once the trajectory is complete the clock reverses
+and the adjoint sweeps back, with the forward field held at its final state.
+Both panels are on a log scale: the forward peak saturates within the first
+few frames, so on a linear scale the faint leading edge --- the part that
+actually reaches the sensor --- is invisible.
+
+Played this way the two halves of the method are hard to confuse. The plume
+spreads outwards from the release, downstream with the flow. The adjoint
+spreads outwards from the sensor, **upstream against it**.
+
+It also decays as the sweep proceeds, by three orders of magnitude:
+
+```{python}
+adjoint_np = np.abs(bkd.to_numpy(adjoints))
+for index in (-1, -11, -21, 0):
+    print(f"t = {bkd.to_numpy(solution_times)[index]:4.2f}   "
+          f"max |lambda| = {adjoint_np[:, index].max():9.3f}")
+```
+
+The adjoint is largest at $t = T$, where it is seeded, and smallest at
+$t = 0$. That ordering says something physical: a perturbation applied at
+the final instant lands on the sensor immediately and undiluted, while the
+same perturbation applied at $t = 0$ has the whole trajectory to diffuse
+through before the reading is taken. Early times influence the quantity of
+interest, but weakly --- which is exactly the sensitivity the gradient is
+made of.
+
+
+## The Gradient Converges at the Scheme's Order
+
+Here is the question this section settles. The time stepper introduces an
+error of its own, on top of the spatial discretization. Backward Euler is
+first order in $\Delta t$, Crank--Nicolson second. That is a statement about
+$Q$. **Does the gradient inherit it, or lose an order?**
+
+Losing an order would be a reasonable guess --- differentiating usually
+costs accuracy. Measure it instead.
+
+```{python}
+DELTATS = [0.2, 0.1, 0.05, 0.025]
+REFERENCE_DELTAT = 0.003125
+
+errors_by_case = {}
+rates = {}
+for method, label in (("backward_euler", "backward Euler"),
+                      ("crank_nicolson", "Crank-Nicolson")):
+    reference = build_model(method, REFERENCE_DELTAT)
+    q_ref = float(bkd.to_numpy(reference(param))[0, 0])
+    g_ref = bkd.to_numpy(reference.derivatives().jacobian(param)).ravel()
+
+    q_errors, g_errors = [], []
+    for deltat in DELTATS:
+        coarse = build_model(method, deltat)
+        q = float(bkd.to_numpy(coarse(param))[0, 0])
+        g = bkd.to_numpy(coarse.derivatives().jacobian(param)).ravel()
+        q_errors.append(abs(q - q_ref) / abs(q_ref))
+        g_errors.append(
+            np.linalg.norm(g - g_ref) / np.linalg.norm(g_ref)
+        )
+
+    errors_by_case[(label, "$Q$")] = q_errors
+    errors_by_case[(label, r"$\nabla Q$")] = g_errors
+    rates[label] = (
+        np.log2(np.array(q_errors[:-1]) / np.array(q_errors[1:])),
+        np.log2(np.array(g_errors[:-1]) / np.array(g_errors[1:])),
+    )
+
+for label, (q_rate, g_rate) in rates.items():
+    print(f"{label:16s} Q rates {np.round(q_rate, 2)}   "
+          f"grad Q rates {np.round(g_rate, 2)}")
+```
+
+```{python}
+#| echo: false
+#| label: fig-temporal-convergence
+#| fig-cap: "Temporal convergence of the quantity of interest (circles) and of its gradient (squares), for both schemes, against a finely-stepped reference. Both quantities follow the scheme's own order: slope one for backward Euler, slope two for Crank--Nicolson. The gradient does not lag the value it differentiates."
+from pyapprox_tutorials.figures._galerkin import plot_temporal_convergence
+
+fig, ax = plt.subplots(figsize=(6.5, 4.8))
+plot_temporal_convergence(DELTATS, errors_by_case, ax)
+plt.tight_layout()
+plt.show()
+```
+
+The gradient converges at the same order as the quantity it differentiates.
+
+The reason is worth stating, because it is the practical argument for the
+**discrete** adjoint over the continuous one. PyApprox differentiates the
+discrete time-stepping equations --- @eq-be-residual and its transpose ---
+not the underlying PDE. The result is the exact gradient *of the scheme you
+actually ran*, whatever $\Delta t$ it used. Its error relative to the true
+PDE gradient is inherited entirely from the scheme's own $O(\Delta t^k)$
+error, so the two converge together.
+
+The alternative --- discretizing the continuous adjoint PDE separately ---
+gives a gradient that is only approximately the derivative of the computed
+$Q$. Optimizers notice the difference: a gradient that is not quite the
+derivative of the objective it is paired with will stall a line search that
+a consistent one walks straight through.
+
+So the choice of $\Delta t$ is a single accuracy knob for both quantities.
+Crank--Nicolson at $\Delta t = 0.05$ here delivers a gradient about two
+hundred times more accurate than backward Euler at the same step, for one
+extra assembly per step.
+
+
+## Key Takeaways
+
+- A finite element evolution is $M\dot{\vc{u}} = \vc{F}$. The mass matrix
+  collects basis-function overlaps, is symmetric and non-diagonal, and sums
+  to the area of the domain.
+- The transient adjoint is the ODE recursion with $M^{T}$ in both the
+  diagonal and the coupling block, run backwards, with constrained rows in
+  every block.
+- Partitioning $M$ shows the interior evolution is forced by
+  $M_{id}\dot{\vc{g}}$ --- the boundary's **rate of change**, reaching one
+  layer of nodes inward. One-step implicit methods supply it from their own
+  differences; stage-based methods require it analytically, and PyApprox
+  enforces that through a protocol rather than trusting the caller.
+- $Q$ and $\nabla Q$ converge at the scheme's order, because the discrete
+  adjoint differentiates the scheme rather than the PDE.
+
+
+## What to Read Next
+
+- [Second-order adjoints](adjoint_hvp_concept.qmd) --- what a
+  Hessian-vector product costs once a trajectory is involved
+- [Quantities integrated over time](transient_functionals_concept.qmd) ---
+  QoIs that accumulate along the trajectory rather than reading its endpoint
+- [Evolving a PDE in time](galerkin_transient_usage.qmd) --- the forward
+  pipeline whose adjoint this tutorial takes
