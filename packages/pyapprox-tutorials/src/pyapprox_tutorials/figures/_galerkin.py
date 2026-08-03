@@ -10,6 +10,7 @@ checked against the theoretical order.
 """
 
 import numpy as np
+from matplotlib.colors import ListedColormap
 from matplotlib.patches import Rectangle
 from matplotlib.tri import Triangulation
 
@@ -708,3 +709,292 @@ def plot_forward_and_adjoint(basis, state, adjoint, bkd, axes, probe_xy):
         ax.set_xticks([])
         ax.set_yticks([])
     return contours_f, contours_a
+
+
+def plot_temporal_convergence(deltats, errors_by_case, ax):
+    """adjoint_transient_pde_concept.qmd -> fig-temporal-convergence
+
+    Error in the quantity of interest AND in its gradient against time
+    step, for two schemes. The point of plotting both together is that
+    the gradient tracks the scheme's order rather than losing one:
+    the discrete adjoint differentiates the discrete solve exactly, so
+    it inherits the scheme's temporal accuracy.
+
+    Parameters
+    ----------
+    deltats : array_like
+        Time steps, one per measurement.
+    errors_by_case : dict
+        Maps ``(scheme_label, quantity_label)`` to an error sequence.
+    ax : matplotlib.axes.Axes
+        Axes to draw on.
+    """
+    dts = np.asarray(deltats, dtype=float)
+    styles = {"$Q$": "o-", r"$\nabla Q$": "s--"}
+    # Fixed per scheme, so the slope guides below cannot end up a
+    # different color from the curves they belong to.
+    palette = [COLORS["primary"], COLORS["secondary"]]
+    schemes = list(dict.fromkeys(key[0] for key in errors_by_case))
+    colors = {
+        scheme: palette[ii % len(palette)]
+        for ii, scheme in enumerate(schemes)
+    }
+    for (scheme, quantity), errs in errors_by_case.items():
+        ax.loglog(
+            dts, np.asarray(errs, dtype=float),
+            styles.get(quantity, "o-"), color=colors[scheme],
+            label=f"{scheme}, {quantity}",
+        )
+
+    # Reference slopes anchored at the coarsest step of each scheme's Q
+    # curve, offset down so they do not hide under the data. Each guide
+    # takes its scheme's color: two same-colored dotted lines of
+    # different slope are not tellable apart in the legend.
+    for scheme, order in (("backward Euler", 1), ("Crank-Nicolson", 2)):
+        key = (scheme, "$Q$")
+        if key not in errors_by_case:
+            continue
+        base = float(np.asarray(errors_by_case[key], dtype=float)[0])
+        ax.loglog(
+            dts, 0.3 * base * (dts / dts[0]) ** order, ":",
+            color=colors.get(scheme, "0.45"), alpha=0.8,
+            label=rf"$\Delta t^{order}$ (slope)",
+        )
+
+    ax.set_xlabel(r"time step $\Delta t$")
+    ax.set_ylabel("relative error")
+    ax.grid(True, alpha=0.2, which="both")
+    ax.legend(fontsize=8)
+
+
+def plot_mass_coupling(mass, constrained, coords, axes):
+    """adjoint_transient_pde_concept.qmd -> fig-mass-coupling
+
+    Left: the mass matrix sparsity, with the constrained rows and
+    columns marked. Right: the mesh nodes, distinguishing constrained
+    nodes from the interior nodes that couple to them through
+    :math:`M_{id}`.
+
+    The pairing is the argument: :math:`M_{id}` is not a boundary
+    artifact confined to the boundary, it reaches one layer of interior
+    nodes inward, and those are the nodes whose evolution feels the
+    boundary's rate of change.
+    """
+    dense = np.asarray(mass)
+    idx = np.asarray(constrained, dtype=int)
+    interior = np.array(
+        [k for k in range(dense.shape[0]) if k not in set(idx.tolist())]
+    )
+
+    # Three-level map rather than gridlines over the whole matrix: with
+    # this many constrained dofs, ruled lines cover more of the picture
+    # than they annotate. 0 = zero, 1 = interior-interior nonzero,
+    # 2 = a nonzero in a constrained row or column.
+    pattern = (np.abs(dense) > 1e-14).astype(float)
+    touches = np.zeros_like(pattern, dtype=bool)
+    touches[idx, :] = True
+    touches[:, idx] = True
+    pattern[(pattern > 0) & touches] = 2.0
+    axes[0].imshow(
+        pattern,
+        cmap=ListedColormap(["black", "#7df9ff", COLORS["secondary"]]),
+        vmin=0.0, vmax=2.0, interpolation="nearest",
+    )
+    axes[0].set_title(
+        "$M$: nonzeros (orange touches a constrained dof)", fontsize=10
+    )
+    axes[0].set_xticks([])
+    axes[0].set_yticks([])
+
+    coupling = np.abs(dense[np.ix_(interior, idx)]) > 1e-14
+    couples = interior[coupling.any(axis=1)]
+    isolated = interior[~coupling.any(axis=1)]
+
+    pts = np.asarray(coords)
+    axes[1].plot(
+        pts[0, isolated], pts[1, isolated], "o", markersize=6,
+        color="0.75", label="interior, no coupling",
+    )
+    axes[1].plot(
+        pts[0, couples], pts[1, couples], "o", markersize=7,
+        color=COLORS["primary"], label="interior, couples to boundary",
+    )
+    axes[1].plot(
+        pts[0, idx], pts[1, idx], "s", markersize=6,
+        color=COLORS["secondary"], label="constrained",
+    )
+    axes[1].set_aspect("equal")
+    axes[1].set_title(r"nodes reached by $M_{id}$", fontsize=10)
+    axes[1].set_xlabel("$x$")
+    axes[1].set_ylabel("$y$")
+    # Outside the axes: every interior position holds a node, so any
+    # in-axes legend covers the data it explains.
+    axes[1].legend(
+        fontsize=7, loc="upper left", bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0, frameon=False,
+    )
+
+
+def forward_adjoint_animation(basis, solutions, adjoints, times, path, bkd,
+                              probe_xy, fps=12, stride=1, bitrate=1400,
+                              nlevels=41):
+    """adjoint_transient_pde_concept.qmd -> the forward/adjoint animation.
+
+    The forward solution and the adjoint side by side, played as the
+    solver actually runs them: first a forward sweep with the adjoint
+    panel dark, then --- once the trajectory is complete and the
+    functional has seeded the adjoint at the final time --- a second
+    sweep with the clock running BACKWARDS and the forward field held at
+    its final state.
+
+    Showing the two phases in sequence rather than on one clock is the
+    point. The adjoint cannot start until the forward solve has
+    finished, because the recursion needs the trajectory it linearizes
+    about; that ordering is why the whole forward solution must be
+    stored, and it is invisible if both panels advance together.
+
+    BOTH panels are drawn on a log scale, and the adjoint over
+    :math:`|\\lambda|`. Neither choice is cosmetic. The forward peak
+    saturates within the first few frames and then changes by a few
+    percent, while the plume that actually reaches the sensor is two
+    orders of magnitude fainter --- on a linear scale the panel looks
+    frozen after t is small, because everything still evolving is
+    crushed into the bottom of the range. The adjoint spans three orders
+    of magnitude across the trajectory, being seeded at the final time
+    and growing as the recursion runs backwards, and is mostly negative,
+    since a residual perturbation enters the reading with a minus sign.
+
+    Frames are drawn one at a time rather than accumulated, so peak
+    memory is a single frame regardless of trajectory length.
+
+    Parameters
+    ----------
+    basis : GalerkinBasisProtocol
+        Degree-1 basis both fields live on.
+    solutions : array (ndofs, ntimes)
+        Forward trajectory.
+    adjoints : array (ndofs, ntimes)
+        Adjoint trajectory, same time ordering as ``solutions``.
+    times : array (ntimes,)
+    path : str
+        Output ``.mp4``.
+    probe_xy : tuple of float
+        Sensor location, marked on both panels.
+
+    Returns
+    -------
+    str
+        ``path``, so a Quarto cell can hand it straight to an embed.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation
+    from matplotlib.colors import LogNorm
+
+    fwd = np.clip(bkd.to_numpy(solutions), 0.0, None)
+    adj = np.abs(bkd.to_numpy(adjoints))
+    times_np = bkd.to_numpy(times)
+    frames = np.arange(0, len(times_np), stride)
+    tri = triangulation(basis)
+
+    def decade_levels(values, ndecades):
+        """Log levels spanning ndecades below the field's peak.
+
+        Floored at a fixed fraction of the peak rather than at the true
+        minimum, which is round-off: a scale reaching down to 1e-16
+        would spend most of its range on noise.
+        """
+        top = float(np.percentile(values, 99.9))
+        return np.logspace(np.log10(top) - ndecades, np.log10(top),
+                           nlevels)
+
+    fwd_levels = decade_levels(fwd, 4.0)
+    adj_levels = decade_levels(adj, 5.0)
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.3))
+
+    # Phase 1 walks the forward trajectory with the adjoint panel dark;
+    # phase 2 holds the forward field at its final state and walks the
+    # adjoint backwards. Each entry is (forward index, adjoint index or
+    # None).
+    schedule = [(k, None) for k in frames]
+    schedule += [(frames[-1], k) for k in frames[::-1]]
+
+    def draw(i):
+        fwd_index, adj_index = schedule[i]
+        for ax in axes:
+            ax.clear()
+        # Clip up to the floor rather than extending below it: NEON_CMAP
+        # paints under-range values magenta as an alarm for genuinely
+        # negative concentration, and a log floor set by choice is not
+        # that.
+        forward = axes[0].tricontourf(
+            tri, np.clip(fwd[:, fwd_index], fwd_levels[0], None),
+            levels=fwd_levels,
+            norm=LogNorm(vmin=fwd_levels[0], vmax=fwd_levels[-1]),
+            cmap=NEON_CMAP, extend="max",
+        )
+        # Before the forward sweep finishes there is no adjoint to draw.
+        # Flooring the field at the scale's own minimum renders the panel
+        # in the map's darkest colour, so "not yet computed" looks like
+        # what it is rather than like a field of zeros.
+        adjoint_values = (
+            np.full(adj.shape[0], adj_levels[0]) if adj_index is None
+            else np.clip(adj[:, adj_index], adj_levels[0], None)
+        )
+        adjoint = axes[1].tricontourf(
+            tri, adjoint_values, levels=adj_levels,
+            norm=LogNorm(vmin=adj_levels[0], vmax=adj_levels[-1]),
+            cmap=NEON_CMAP, extend="max",
+        )
+        axes[0].set_title(
+            "forward: where the contaminant is"
+            + ("" if adj_index is None else "  (final state, held)"),
+            fontsize=10,
+        )
+        axes[1].set_title(
+            r"adjoint $|\lambda|$: what the sensor can see"
+            if adj_index is not None
+            else "adjoint: waits for the forward solve",
+            fontsize=10,
+        )
+        for ax in axes:
+            for (x0, y0), width, height in _BLOCKS:
+                ax.add_patch(
+                    Rectangle((x0, y0), width, height, facecolor="0.55",
+                              edgecolor="0.3", zorder=3)
+                )
+            ax.plot(*probe_xy, "o", markersize=9, markerfacecolor="none",
+                    markeredgecolor=COLORS["secondary"], markeredgewidth=2.0,
+                    zorder=6)
+            ax.set_aspect("equal")
+            ax.set_xticks([])
+            ax.set_yticks([])
+        clock = fwd_index if adj_index is None else adj_index
+        phase = (
+            "forward sweep  $\\rightarrow$" if adj_index is None
+            else "$\\leftarrow$  adjoint sweep"
+        )
+        fig.suptitle(
+            f"{phase}     $t = {times_np[clock]:.2f}$", fontsize=11
+        )
+        return forward, adjoint
+
+    forward, adjoint = draw(0)
+    # Decade ticks explicitly: contour levels on a LogNorm otherwise
+    # leave the colorbar with a single label.
+    for mappable, levels, ax, label in (
+        (forward, fwd_levels, axes[0], "$u$"),
+        (adjoint, adj_levels, axes[1], r"$|\lambda|$"),
+    ):
+        decades = 10.0 ** np.arange(
+            np.ceil(np.log10(levels[0])), np.floor(np.log10(levels[-1])) + 1
+        )
+        bar = fig.colorbar(mappable, ax=ax, shrink=0.85, label=label)
+        bar.set_ticks(decades)
+        bar.ax.tick_params(labelsize=8)
+    fig.subplots_adjust(top=0.86, bottom=0.04)
+    FuncAnimation(fig, draw, frames=len(schedule), blit=False).save(
+        path, writer=_mp4_writer(fps, bitrate)
+    )
+    plt.close(fig)
+    return path
