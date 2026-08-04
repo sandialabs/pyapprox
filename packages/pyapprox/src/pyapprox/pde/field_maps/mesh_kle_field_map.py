@@ -59,3 +59,10 @@ class MeshKLEFieldMap(Generic[Array]):
         instead of degrading to first order. Shape: (nvars,).
         """
         return self._bkd.zeros((self.nvars(),))
+
+    def is_linear(self) -> bool:
+        """Linear in the parameters, so a temporal modulation may scale
+        its jacobian columns. Declared because linearity cannot be
+        detected, and composing a modulation with a nonlinear map
+        silently describes a field the forward solve never evaluates."""
+        return True
