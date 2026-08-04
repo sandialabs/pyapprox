@@ -20,7 +20,16 @@ where:
     f = forcing/source term
 """
 
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+)
 
 if TYPE_CHECKING:
     from skfem import Basis
@@ -46,7 +55,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
     StateDependentDiffusionProtocol,
-    TimeAwareCallableProtocol,
     TimeVaryingProtocol,
     VelocityFunctionProtocol,
     as_time_aware,
@@ -110,21 +118,57 @@ class _FieldOnBasisEvaluator:
         )
         return values
 
+    def is_time_dependent(self) -> bool:
+        """Always False, and that is the point.
+
+        This evaluator discards the time it is handed, so it may only
+        wrap a field whose values are fixed. ``_coefficient_evaluator``
+        enforces that before selecting it; declaring it here keeps the
+        claim visible next to the code that relies on it.
+        """
+        return False
+
+
+class _TimedEvaluatorProtocol(Protocol):
+    """The call convention the assembly kernels need: ``f(coords, time)``.
+
+    Weaker than ``TimeAwareCallableProtocol``, which additionally
+    requires ``is_time_dependent``. Both a coefficient's bound
+    ``values`` method and a normalized supplier satisfy this, and the
+    kernels only ever call — they never ask a supplier to describe
+    itself, so requiring the declaration here would reject the bound
+    methods for a capability nothing at this layer consults.
+    """
+
+    def __call__(
+        self, coords: NDArray[np.floating[Any]], time: float
+    ) -> NDArray[np.floating[Any]]: ...
+
 
 def _coefficient_evaluator(
     field: object,
     skfem_basis: "Basis",
-    coordinate_evaluator: Callable[..., NDArray[np.floating[Any]]],
-) -> Callable[..., NDArray[np.floating[Any]]]:
+    coordinate_evaluator: _TimedEvaluatorProtocol,
+) -> _TimedEvaluatorProtocol:
     """Return the fast evaluator when the field supports it.
 
     Called once per assembly, not per quadrature point, so the
     capability check never runs in the hot path.
 
-    The ellipsis spans the coefficient ``values`` signature, which takes
-    a time argument the kernels do not yet thread through; the basis
-    fast path ignores its coordinate argument either way.
+    Both the fast evaluator and the fallback take ``(coords, time)``, so
+    the kernels see one call convention whichever is selected; the basis
+    fast path ignores its coordinate argument.
+
+    A field that declares its values depend on time is NOT eligible:
+    ``_FieldOnBasisEvaluator`` returns the field's stored DOFs and
+    discards the time it is handed, so routing a time-varying field
+    through it would evaluate every step at the field's initial state.
+    Satisfying ``BasisEvaluableFieldProtocol`` is a statement about how
+    a field can be evaluated, not about whether its values are fixed,
+    and the two must be checked separately.
     """
+    if isinstance(field, TimeVaryingProtocol) and field.is_time_dependent():
+        return coordinate_evaluator
     if isinstance(field, BasisEvaluableFieldProtocol):
         return _FieldOnBasisEvaluator(field, skfem_basis)
     return coordinate_evaluator
@@ -143,13 +187,9 @@ class _DiffusionReactionKernel:
     def __init__(
         self,
         diff_const: Optional[float],
-        diff_callable: Optional[
-            Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
-        ],
+        diff_callable: Optional[_TimedEvaluatorProtocol],
         react_coeff: Optional[float],
-        react_callable: Optional[
-            Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
-        ] = None,
+        react_callable: Optional[_TimedEvaluatorProtocol] = None,
         time: float = 0.0,
     ) -> None:
         self._diff_const = diff_const
@@ -323,9 +363,7 @@ class _AdvectionKernel:
     def __init__(
         self,
         vel_np: Optional[NDArray[np.floating[Any]]],
-        vel_callable: Optional[
-            Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
-        ],
+        vel_callable: Optional[_TimedEvaluatorProtocol],
         conservative: bool,
         time: float = 0.0,
     ) -> None:
@@ -370,7 +408,7 @@ class _ForcingKernel:
 
     def __init__(
         self,
-        forcing_func: TimeAwareCallableProtocol,
+        forcing_func: _TimedEvaluatorProtocol,
         time: float,
     ) -> None:
         self._forcing_func = forcing_func
@@ -589,6 +627,21 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         self._forcing_eval = (
             None if forcing is None else as_time_aware(forcing)
         )
+        # Whether the assembled forcing load may be cached across times.
+        # Decided ONCE here rather than per assembly, so no capability
+        # sniffing happens in the hot path. Two conditions, and the
+        # second is not implied by the first: the supplier must carry a
+        # version() to key the cache on, AND it must declare that its
+        # values do not depend on time. A field that satisfies the
+        # nodal-DOF interface but whose DOFs vary in time would
+        # otherwise have the first step's load reused for the whole
+        # trajectory -- silently, since nothing raises.
+        self._forcing_load_cacheable = isinstance(
+            forcing, NodalFieldForcing
+        ) and not (
+            isinstance(forcing, TimeVaryingProtocol)
+            and forcing.is_time_dependent()
+        )
         self._conservative = conservative
 
         # Version-keyed assembly caches: coefficient objects carry a
@@ -598,7 +651,12 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         # The same pattern serves the stiffness (below) and the
         # time-invariant forcing load (_assemble_forcing_load).
         self._stiffness_cached: Optional[Array] = None
-        self._stiffness_versions: Optional[Tuple[int, int, int]] = None
+        # Three coefficient versions, plus the assembly time when any of
+        # them depends on it: a time-dependent stiffness must not be
+        # served from a key that cannot distinguish two times.
+        self._stiffness_versions: Optional[
+            Union[Tuple[int, int, int], Tuple[int, int, int, float]]
+        ] = None
         self._load_cached: Optional[Array] = None
         self._forcing_load_cached: Optional[np.ndarray] = None
         self._forcing_load_version: Optional[int] = None
@@ -744,10 +802,21 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         )
 
     def forcing_form(self, time: float) -> Optional["LinearForm"]:
-        """Linear form for the forcing contribution (w, f), or None."""
+        """Linear form for the forcing contribution (w, f), or None.
+
+        A nodal forcing takes the same basis fast path as the other
+        coefficients: evaluating it by coordinate makes the element
+        search the basis has already done, once per quadrature point.
+        """
         if self._forcing_eval is None:
             return None
-        return LinearForm(_ForcingKernel(self._forcing_eval, time))
+        # Both branches of the selector satisfy the time-aware call
+        # convention: _FieldOnBasisEvaluator accepts (coords, time), and
+        # the fallback is the already-normalized _forcing_eval.
+        evaluator: _TimedEvaluatorProtocol = _coefficient_evaluator(
+            self._forcing, self._basis.skfem_basis(), self._forcing_eval
+        )
+        return LinearForm(_ForcingKernel(evaluator, time))
 
     def reaction_form(self) -> Optional["LinearForm"]:
         """Linear form for the nonlinear reaction (w, R(u)), or None.
@@ -845,7 +914,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         # adjoint would inherit the stale Jacobian. Time-independent
         # coefficients keep the single-key fast path, so a steady
         # problem reuses one assembly across all time steps as before.
-        versions = (
+        versions: Union[
+            Tuple[int, int, int], Tuple[int, int, int, float]
+        ] = (
             self._diffusion_function.version(),
             self._velocity_function.version()
             if self._velocity_function is not None
@@ -855,7 +926,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             else 0,
         )
         if self._stiffness_is_time_dependent():
-            versions = versions + (time,)
+            versions = versions[:3] + (time,)
         if (
             self._stiffness_cached is not None
             and self._stiffness_versions == versions
@@ -919,17 +990,26 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     def _assemble_forcing_load(self, time: float) -> Optional[np.ndarray]:
         """Assemble the forcing contribution (w, f) to the load.
 
-        A ``NodalFieldForcing`` is time-invariant and version-carrying,
-        so its assembled load is cached keyed on the coefficient
-        version — rebinds (set_dofs) invalidate, while Newton
-        iterations and time steps reuse it. Callable forcings may
-        depend on time and are assembled fresh every call.
+        A forcing whose values do not depend on time and that carries a
+        ``version()`` has its assembled load cached on that version —
+        rebinds (``set_dofs``) invalidate, while Newton iterations and
+        time steps reuse it. Everything else is assembled fresh every
+        call, which is what keeps a time-varying forcing correct: the
+        cache key has no time component, so caching one would freeze it
+        at its first evaluation. ``_forcing_load_cacheable`` records
+        that decision, made once at construction.
         """
         forcing_form = self.forcing_form(time)
         if forcing_form is None:
             return None
-        if not isinstance(self._forcing, NodalFieldForcing):
+        if not self._forcing_load_cacheable:
             return np.asarray(asm(forcing_form, self._basis.skfem_basis()))
+        if not isinstance(self._forcing, NodalFieldForcing):
+            raise TypeError(
+                "forcing load marked cacheable but the forcing is "
+                f"{type(self._forcing).__name__}, which carries no "
+                "version() to key the cache on"
+            )
         version = self._forcing.version()
         if (
             self._forcing_load_cached is not None
