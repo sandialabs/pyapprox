@@ -54,9 +54,11 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldVelocity,
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
+    SpatiallyVaryingReactionProtocol,
     StateDependentDiffusionProtocol,
     TimeVaryingProtocol,
     VelocityFunctionProtocol,
+    VersionedProtocol,
     as_time_aware,
 )
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
@@ -754,9 +756,13 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             else None
         )
         skfem_basis = self._basis.skfem_basis()
+        # Selected on the CAPABILITY, not on a concrete class: gating on
+        # one class silently dropped any other spatially varying linear
+        # reaction from the stiffness --- no error, just a missing term.
         react_callable = (
             _coefficient_evaluator(reaction, skfem_basis, reaction.values)
-            if isinstance(reaction, NodalFieldLinearReaction)
+            if isinstance(reaction, SpatiallyVaryingReactionProtocol)
+            and reaction.is_linear()
             else None
         )
 
@@ -923,8 +929,11 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             self._velocity_function.version()
             if self._velocity_function is not None
             else 0,
+            # Keyed on the capability to carry a version, not on a
+            # concrete class: a reaction whose values change without
+            # bumping the key would be served a stale stiffness.
             self._reaction_function.version()
-            if isinstance(self._reaction_function, NodalFieldLinearReaction)
+            if isinstance(self._reaction_function, VersionedProtocol)
             else 0,
         )
         if self._stiffness_is_time_dependent():

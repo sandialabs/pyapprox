@@ -1313,3 +1313,125 @@ class TestDiffusivityPositivity:
         state = numpy_bkd.zeros((physics.nstates(),))
         with pytest.raises(ValueError, match="must be positive"):
             physics._assemble_stiffness(state, 0.0)
+
+
+class TestLinearReactionSelectedByCapability:
+    """The stiffness picks a linear reaction on what it CAN do.
+
+    Gating on one concrete class silently dropped every other
+    spatially varying linear reaction from the stiffness: no error,
+    just a missing term in the operator and in every adjoint derived
+    from it.
+    """
+
+    @staticmethod
+    def _physics(numpy_bkd, reaction):
+        from pyapprox.pde.galerkin.basis import LagrangeBasis
+        from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+        from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+        from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+
+        mesh = StructuredMesh2D(
+            nx=4, ny=4, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=numpy_bkd
+        )
+        basis = LagrangeBasis(mesh, degree=1)
+        return AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=1.0,
+            bkd=numpy_bkd,
+            reaction=reaction,
+            forcing=lambda x: np.ones(x.shape[1]),
+            boundary_conditions=[
+                DirichletBC(basis, name, 0.0, numpy_bkd)
+                for name in ("left", "right", "bottom", "top")
+            ],
+        ), basis
+
+    def test_a_custom_linear_reaction_reaches_the_stiffness(
+        self, numpy_bkd
+    ) -> None:
+        """Satisfying the protocol is enough; being a particular class
+        is not required."""
+
+        class _CustomLinearReaction:
+            def values(self, coords, time=0.0):
+                return np.full(np.asarray(coords).shape[1:], 2.0)
+
+            def value(self, coords, state, time=0.0):
+                return self.values(coords, time) * np.asarray(state)
+
+            def derivative(self, coords, state, time=0.0):
+                return np.broadcast_to(
+                    self.values(coords, time), np.asarray(state).shape
+                ).copy()
+
+            def is_linear(self):
+                return True
+
+            def version(self):
+                return 1
+
+        without, basis = self._physics(numpy_bkd, None)
+        with_reaction, _ = self._physics(
+            numpy_bkd, _CustomLinearReaction()
+        )
+        state = numpy_bkd.zeros((basis.ndofs(),))
+        bare = np.asarray(
+            numpy_bkd.to_numpy(
+                without._assemble_stiffness(state, 0.0)
+            ).todense()
+        )
+        reacted = np.asarray(
+            numpy_bkd.to_numpy(
+                with_reaction._assemble_stiffness(state, 0.0)
+            ).todense()
+        )
+        assert np.abs(reacted - bare).max() > 1e-10
+
+    def test_a_modulated_reaction_reassembles_per_time(
+        self, numpy_bkd
+    ) -> None:
+        """The end-to-end property step 5 exists for: a control that
+        varies in time must change the operator it enters."""
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeModulatedNodalFieldLinearReaction,
+        )
+        from pyapprox.pde.field_maps.modulation import (
+            PiecewiseLinearModulation,
+        )
+        from pyapprox.pde.galerkin.basis import LagrangeBasis
+        from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+
+        mesh = StructuredMesh2D(
+            nx=4, ny=4, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=numpy_bkd
+        )
+        basis = LagrangeBasis(mesh, degree=1)
+        coords = numpy_bkd.to_numpy(basis.dof_coordinates())
+        modes = np.stack(
+            [
+                np.exp(-20.0 * (coords[0] - centre) ** 2)
+                for centre in (0.25, 0.5, 0.75)
+            ],
+            axis=1,
+        )
+        reaction = TimeModulatedNodalFieldLinearReaction(
+            basis,
+            modes,
+            PiecewiseLinearModulation(numpy_bkd, [0.0, 0.5, 1.0]),
+            np.array([2.0, 1.0, 3.0]),
+        )
+        physics, _ = self._physics(numpy_bkd, reaction)
+        assert physics._stiffness_is_time_dependent()
+
+        state = numpy_bkd.zeros((basis.ndofs(),))
+        early = np.asarray(
+            numpy_bkd.to_numpy(
+                physics._assemble_stiffness(state, 0.0)
+            ).todense()
+        )
+        late = np.asarray(
+            numpy_bkd.to_numpy(
+                physics._assemble_stiffness(state, 1.0)
+            ).todense()
+        )
+        assert np.abs(late - early).max() > 1e-10

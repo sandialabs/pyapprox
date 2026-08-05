@@ -292,3 +292,126 @@ class TestTimeVaryingFieldsMustVaryOnBothPaths:
             NodalFieldLinearReaction,
         ):
             assert not field_cls(basis, dofs).is_time_dependent()
+
+
+class TestTimeModulatedNodalFieldLinearReaction:
+    """A separable coefficient r(x,t) = sum_k c_k b_k(t) s_k(x).
+
+    The field holds NUMBERS -- modes, a modulation, coefficients -- and
+    answers what its values are at a point and time. It knows nothing
+    about field maps, parameters, or derivatives: computing those here
+    would put the parameterization's job in the constitutive layer.
+    """
+
+    @staticmethod
+    def _field(numpy_bkd, coefficients=None):
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeModulatedNodalFieldLinearReaction,
+        )
+        from pyapprox.pde.field_maps.modulation import (
+            PiecewiseLinearModulation,
+        )
+        from pyapprox.pde.galerkin.basis import LagrangeBasis
+
+        basis = LagrangeBasis(_mesh(numpy_bkd), degree=1)
+        coords = numpy_bkd.to_numpy(basis.dof_coordinates())
+        modes = np.stack(
+            [
+                np.exp(-20.0 * (coords[0] - centre) ** 2)
+                for centre in (0.25, 0.5, 0.75)
+            ],
+            axis=1,
+        )
+        modulation = PiecewiseLinearModulation(
+            numpy_bkd, [0.0, 0.5, 1.0]
+        )
+        if coefficients is None:
+            coefficients = np.array([2.0, 1.0, 3.0])
+        return (
+            TimeModulatedNodalFieldLinearReaction(
+                basis, modes, modulation, coefficients
+            ),
+            basis,
+            modes,
+        )
+
+    def test_declares_time_dependence(self, numpy_bkd) -> None:
+        field, _, _ = self._field(numpy_bkd)
+        assert field.is_time_dependent()
+
+    def test_dofs_realize_the_separable_sum(self, numpy_bkd) -> None:
+        """At a knot the hat basis is a unit vector, so the realized
+        DOFs are exactly that mode scaled by its coefficient --- an
+        analytic check on the whole construction."""
+        field, _, modes = self._field(numpy_bkd)
+        realized = np.asarray(field.dofs_at(0.0))
+        numpy_bkd.assert_allclose(
+            numpy_bkd.asarray(realized),
+            numpy_bkd.asarray(2.0 * modes[:, 0]),
+            rtol=1e-13,
+        )
+
+    def test_dofs_track_time(self, numpy_bkd) -> None:
+        field, _, _ = self._field(numpy_bkd)
+        early = np.asarray(field.dofs_at(0.0))
+        late = np.asarray(field.dofs_at(1.0))
+        assert np.abs(late - early).max() > 1e-8
+
+    def test_both_evaluation_paths_agree_over_time(self, numpy_bkd) -> None:
+        """The step-3 invariant: a field varying in time must vary on
+        the coordinate path AND the basis fast path, or assembly reads
+        frozen values while the cache looks correct."""
+        field, basis, _ = self._field(numpy_bkd)
+        skfem_basis = basis.skfem_basis()
+        coords = _quadrature_coords(skfem_basis)
+        for time in (0.0, 0.25, 0.75, 1.0):
+            general = np.asarray(field.values(coords, time))
+            fast = np.asarray(field.values_on_basis(skfem_basis, time))
+            assert fast.shape == general.shape
+            numpy_bkd.assert_allclose(
+                numpy_bkd.asarray(fast),
+                numpy_bkd.asarray(general),
+                rtol=1e-11,
+                atol=1e-13,
+            )
+
+    def test_zero_coefficients_give_a_zero_field(self, numpy_bkd) -> None:
+        field, _, _ = self._field(numpy_bkd, np.zeros(3))
+        for time in (0.0, 0.5, 1.0):
+            assert np.abs(np.asarray(field.dofs_at(time))).max() == 0.0
+
+    def test_version_bumps_on_coefficient_update(self, numpy_bkd) -> None:
+        """So assembled operators keyed on it invalidate."""
+        field, _, _ = self._field(numpy_bkd)
+        before = field.version()
+        field.set_coefficients(np.array([1.0, 1.0, 1.0]))
+        assert field.version() > before
+
+    def test_rejects_a_mode_count_mismatch(self, numpy_bkd) -> None:
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeModulatedNodalFieldLinearReaction,
+        )
+        from pyapprox.pde.field_maps.modulation import ConstantModulation
+        from pyapprox.pde.galerkin.basis import LagrangeBasis
+
+        basis = LagrangeBasis(_mesh(numpy_bkd), degree=1)
+        modes = np.ones((basis.ndofs(), 2))
+        with pytest.raises(ValueError, match="each mode"):
+            TimeModulatedNodalFieldLinearReaction(
+                basis, modes, ConstantModulation(numpy_bkd, 3)
+            )
+
+    def test_rejects_wrong_mode_row_count(self, numpy_bkd) -> None:
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeModulatedNodalFieldLinearReaction,
+        )
+        from pyapprox.pde.field_maps.modulation import ConstantModulation
+        from pyapprox.pde.galerkin.basis import LagrangeBasis
+
+        basis = LagrangeBasis(_mesh(numpy_bkd), degree=1)
+        with pytest.raises(ValueError, match="spatial_modes must have"):
+            TimeModulatedNodalFieldLinearReaction(
+                basis,
+                np.ones((basis.ndofs() - 1, 2)),
+                ConstantModulation(numpy_bkd, 2),
+            )

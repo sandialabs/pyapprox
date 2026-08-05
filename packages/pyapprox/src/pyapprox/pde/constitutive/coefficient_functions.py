@@ -98,6 +98,22 @@ class TimeVaryingProtocol(Protocol):
 
 
 @runtime_checkable
+class VersionedProtocol(Protocol):
+    """Anything carrying a monotone counter bumped on every mutation.
+
+    Consumers key assembled operators on it so a rebind invalidates
+    while repeated evaluation reuses. Separate from
+    ``TimeVaryingProtocol`` because the two answer different questions:
+    a version tracks MUTATION, while time-dependence is a property of
+    the values at a fixed version.
+    """
+
+    def version(self) -> int:
+        """Monotone counter, incremented on every mutation."""
+        ...
+
+
+@runtime_checkable
 class TimeAwareCallableProtocol(Protocol):
     """A coefficient supplier that states whether it consults time."""
 
@@ -815,6 +831,27 @@ class ReactionFunctionProtocol(Protocol):
 
 
 @runtime_checkable
+class SpatiallyVaryingReactionProtocol(ReactionFunctionProtocol, Protocol):
+    """A linear reaction whose coefficient varies over the domain.
+
+    ``value``/``derivative`` answer the pointwise law R(x, u); this adds
+    the coefficient r(x, t) on its own, which is what the LINEAR path
+    assembles into the stiffness. A constant reaction has no such
+    accessor (its coefficient is a scalar), and a nonlinear one never
+    reaches the stiffness at all.
+
+    Declared as a capability so the assembly selects on what a
+    coefficient CAN do rather than on which class it is: gating on a
+    concrete class silently dropped any other spatially varying linear
+    reaction from the stiffness --- no error, just a missing term.
+    """
+
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
+        """Evaluate r(x, t) at coordinates. Shape follows ``coords``."""
+        ...
+
+
+@runtime_checkable
 class ReactionFunctionWithSecondDerivativeProtocol(
     ReactionFunctionProtocol, Protocol
 ):
@@ -942,6 +979,154 @@ class NodalFieldLinearReaction:
 
     def __repr__(self) -> str:
         return f"NodalFieldLinearReaction(ndofs={self.ndofs()})"
+
+
+class TimeModulatedNodalFieldLinearReaction:
+    """Linear reaction whose nodal DOFs vary in time.
+
+    The field is separable,
+
+    .. math::
+
+        r(x, t) = \\sum_k c_k\\, b_k(t)\\, s_k(x),
+
+    with :math:`s_k` the columns of ``spatial_modes`` and :math:`b_k`
+    the profiles of a modulation. Interpolating those DOFs gives the
+    coefficient at any point and time.
+
+    Knows nothing about parameterizations. It holds NUMBERS --- a mode
+    matrix, a modulation, and coefficients --- and answers "what are my
+    values here, at this time". It does not know what produced the
+    modes, what the coefficients mean, or how to differentiate itself:
+    computing a derivative here would put the parameterization's job in
+    the constitutive layer, and the caller that owns the mapping is the
+    one that can keep the forward field and the gradient describing the
+    same control.
+
+    Parameters
+    ----------
+    basis : _BasisEvaluatorProtocol
+        Basis the DOFs live on.
+    spatial_modes : ndarray
+        One column per coefficient. Shape: (ndofs, nmodes).
+    modulation : TimeVaryingProtocol
+        Supplies ``values(time)`` of shape ``(nmodes,)``.
+    coefficients : ndarray, optional
+        Initial coefficients. Shape: (nmodes,). Defaults to zeros.
+    """
+
+    def __init__(
+        self,
+        basis: _BasisEvaluatorProtocol,
+        spatial_modes: _Quad,
+        modulation: Any,
+        coefficients: Optional[_Quad] = None,
+    ) -> None:
+        modes = np.asarray(spatial_modes, dtype=np.float64)
+        if modes.ndim != 2 or modes.shape[0] != basis.ndofs():
+            raise ValueError(
+                f"spatial_modes must have shape ({basis.ndofs()}, "
+                f"nmodes), got {modes.shape}"
+            )
+        nmodes = int(modulation.nmodes())
+        if modes.shape[1] != nmodes:
+            raise ValueError(
+                f"spatial_modes has {modes.shape[1]} columns but the "
+                f"modulation supplies {nmodes} profiles; each mode "
+                "needs exactly one profile"
+            )
+        self._basis = basis
+        self._modes = modes
+        self._modulation = modulation
+        if coefficients is None:
+            coefficients = np.zeros(nmodes)
+        self.set_coefficients(coefficients)
+
+    def set_coefficients(self, coefficients: _Quad) -> None:
+        """Set the mode coefficients. Shape: (nmodes,)."""
+        values = np.asarray(coefficients, dtype=np.float64)
+        if values.shape != (self._modes.shape[1],):
+            raise ValueError(
+                f"coefficients must have shape "
+                f"({self._modes.shape[1]},), got {values.shape}"
+            )
+        self._coefficients = values
+        self._version = getattr(self, "_version", 0) + 1
+
+    def is_time_dependent(self) -> bool:
+        """The DOFs move with time, so assembled operators built from
+        this field must not be reused across times."""
+        return True
+
+    def version(self) -> int:
+        """Monotone counter; incremented by every coefficient update."""
+        return self._version
+
+    def nmodes(self) -> int:
+        """Return the number of modes."""
+        return int(self._modes.shape[1])
+
+    def ndofs(self) -> int:
+        """Return the number of field DOFs."""
+        return int(self._basis.ndofs())
+
+    def dofs_at(self, time: float) -> _Quad:
+        """Return the DOFs realized at ``time``. Shape: (ndofs,)."""
+        profiles = np.asarray(self._modulation.values(time))
+        realized: _Quad = self._modes @ (self._coefficients * profiles)
+        return realized
+
+    def values(self, coords: _Quad, time: float = 0.0) -> _Quad:
+        """Evaluate the coefficient interpolant at coordinates."""
+        coords_np = np.asarray(coords)
+        flat = coords_np.reshape(coords_np.shape[0], -1)
+        values = np.asarray(
+            self._basis.evaluate(self.dofs_at(time), flat)
+        )
+        return values.reshape(coords_np.shape[1:])
+
+    def values_on_basis(
+        self, skfem_basis: "Basis", time: float = 0.0
+    ) -> _Quad:
+        """Values at the basis's quadrature points (assembly fast path)."""
+        return _interpolate_on_basis(
+            skfem_basis,
+            self.dofs_at(time),
+            self.ndofs(),
+            "TimeModulatedNodalFieldLinearReaction",
+        )
+
+    # ``value``/``derivative``/``second_derivative`` are the NONLINEAR
+    # reaction surface, which a linear reaction never reaches: the
+    # physics routes ``is_linear()`` coefficients into the stiffness
+    # (where time IS threaded, through ``values_on_basis``) and returns
+    # None from the nonlinear forms. They are declared for protocol
+    # conformance only, and take a time so that a future caller cannot
+    # get a silently frozen field from them.
+
+    def value(self, coords: _Quad, state: _Quad, time: float = 0.0) -> _Quad:
+        return self.values(coords, time) * np.asarray(state)
+
+    def derivative(
+        self, coords: _Quad, state: _Quad, time: float = 0.0
+    ) -> _Quad:
+        return np.broadcast_to(
+            self.values(coords, time), np.asarray(state).shape
+        ).copy()
+
+    def second_derivative(
+        self, coords: _Quad, state: _Quad, time: float = 0.0
+    ) -> _Quad:
+        return np.zeros_like(np.asarray(state))
+
+    def is_linear(self) -> bool:
+        return True
+
+    def __repr__(self) -> str:
+        return (
+            "TimeModulatedNodalFieldLinearReaction("
+            f"ndofs={self.ndofs()}, nmodes={self.nmodes()})"
+        )
 
 
 class CallableReaction:
