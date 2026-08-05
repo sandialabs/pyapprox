@@ -781,3 +781,165 @@ class TestDenseBackendAssemblies:
         state = torch.randn(6, dtype=torch.float64, requires_grad=True)
         out = term.param_jacobian(state, 0.0, params)
         assert out.grad_fn is not None
+
+
+class TestTimeModulationValidation:
+    """Construction refuses pairings that would be silently wrong.
+
+    Each check guards a failure that produces plausible numbers rather
+    than an exception, so each is made once at construction instead of
+    being trusted at every assembly.
+    """
+
+    @staticmethod
+    def _linear_map(bkd, nvars=2, npts=4):
+        return MeshKLEFieldMap(
+            bkd,
+            bkd.asarray(np.zeros(npts)),
+            bkd.asarray(np.ones((npts, nvars))),
+        )
+
+    @staticmethod
+    def _term(bkd, field_map, modulation, require_positive=False):
+        from pyapprox.pde.parameterizations.field_term import (
+            _FieldParameterizationTerm,
+        )
+
+        npts = field_map(bkd.asarray(np.zeros(field_map.nvars()))).shape[0]
+
+        def _noop_setter(values):
+            return None
+
+        def _field_jacobian(state, time):
+            return bkd.asarray(np.eye(npts))
+
+        return _FieldParameterizationTerm.state_independent(
+            setter=_noop_setter,
+            physics=object(),
+            field_jacobian=_field_jacobian,
+            field_map=field_map,
+            bkd=bkd,
+            nstates=npts,
+            nfield_dofs=npts,
+            owned_coefficients=("field",),
+            require_positive=require_positive,
+            time_modulation=modulation,
+        )
+
+    def test_accepts_a_matching_nonnegative_modulation(
+        self, numpy_bkd
+    ) -> None:
+        from pyapprox.pde.field_maps.modulation import ConstantModulation
+
+        field_map = self._linear_map(numpy_bkd, nvars=2)
+        term = self._term(
+            numpy_bkd, field_map, ConstantModulation(numpy_bkd, 2)
+        )
+        assert term.nparams() == 2
+
+    def test_rejects_mismatched_mode_count(self, numpy_bkd) -> None:
+        """Each parameter needs exactly one temporal profile."""
+        from pyapprox.pde.field_maps.modulation import ConstantModulation
+
+        field_map = self._linear_map(numpy_bkd, nvars=2)
+        with pytest.raises(ValueError, match="3 modes but"):
+            self._term(
+                numpy_bkd, field_map, ConstantModulation(numpy_bkd, 3)
+            )
+
+    def test_rejects_a_nonlinear_map(self, numpy_bkd) -> None:
+        """Modulation and a pointwise nonlinearity do not commute, so
+        scaling jacobian columns would describe a field the forward
+        solve never evaluates."""
+        from pyapprox.pde.field_maps.kle_factory import (
+            create_lognormal_kle_field_map,
+        )
+        from pyapprox.pde.field_maps.modulation import ConstantModulation
+
+        lognormal = create_lognormal_kle_field_map(
+            mesh_coords=numpy_bkd.asarray(np.linspace(0, 1, 4)[None, :]),
+            mean_log_field=numpy_bkd.asarray(np.zeros(4)),
+            bkd=numpy_bkd,
+            correlation_length=0.5,
+            num_kle_terms=2,
+            sigma=0.5,
+        )
+        with pytest.raises(TypeError, match="is_linear"):
+            self._term(
+                numpy_bkd, lognormal, ConstantModulation(numpy_bkd, 2)
+            )
+
+    def test_rejects_require_positive_with_a_sign_changing_basis(
+        self, numpy_bkd
+    ) -> None:
+        """A sign-changing profile makes the field negative at some
+        times whatever bounds the parameters carry, so the positivity
+        guarantee cannot be honoured and is refused rather than
+        silently dropped."""
+
+        class _SignChanging:
+            def __init__(self, bkd, nmodes):
+                self._bkd = bkd
+                self._nmodes = nmodes
+
+            def bkd(self):
+                return self._bkd
+
+            def nmodes(self):
+                return self._nmodes
+
+            def values(self, time):
+                return self._bkd.asarray(
+                    [np.cos((k + 1) * np.pi * time)
+                     for k in range(self._nmodes)]
+                )
+
+            def is_time_dependent(self):
+                return True
+
+        field_map = self._linear_map(numpy_bkd, nvars=2)
+        with pytest.raises(TypeError, match="is_non_negative"):
+            self._term(
+                numpy_bkd,
+                field_map,
+                _SignChanging(numpy_bkd, 2),
+                require_positive=True,
+            )
+
+    def test_sign_changing_basis_is_fine_without_require_positive(
+        self, numpy_bkd
+    ) -> None:
+        """The refusal is about the positivity CLAIM, not the basis: a
+        sign-changing modulation is valid for a coefficient whose sign
+        is unconstrained."""
+
+        class _SignChanging:
+            def __init__(self, bkd, nmodes):
+                self._bkd = bkd
+                self._nmodes = nmodes
+
+            def bkd(self):
+                return self._bkd
+
+            def nmodes(self):
+                return self._nmodes
+
+            def values(self, time):
+                return self._bkd.asarray(
+                    [np.cos((k + 1) * np.pi * time)
+                     for k in range(self._nmodes)]
+                )
+
+            def is_time_dependent(self):
+                return True
+
+        field_map = self._linear_map(numpy_bkd, nvars=2)
+        term = self._term(
+            numpy_bkd, field_map, _SignChanging(numpy_bkd, 2)
+        )
+        assert term.nparams() == 2
+
+    def test_no_modulation_is_still_the_default(self, numpy_bkd) -> None:
+        field_map = self._linear_map(numpy_bkd, nvars=2)
+        term = self._term(numpy_bkd, field_map, None)
+        assert term.nparams() == 2

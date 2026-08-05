@@ -41,7 +41,10 @@ from typing import Callable, Generic, Optional, Tuple, TypeVar, Union
 import numpy as np
 from scipy.sparse import spmatrix
 
-from pyapprox.pde.field_maps.modulation import TimeModulationProtocol
+from pyapprox.pde.field_maps.modulation import (
+    NonNegativeModulationProtocol,
+    TimeModulationProtocol,
+)
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
     FieldMapWithHVPProtocol,
@@ -106,6 +109,56 @@ def _is_linear_map(field_map: FieldMapProtocol[Array]) -> bool:
     return isinstance(field_map, LinearFieldMapProtocol) and (
         field_map.is_linear()
     )
+
+
+def _validate_time_modulation(
+    time_modulation: TimeModulationProtocol[Array],
+    field_map: FieldMapProtocol[Array],
+    require_positive: bool,
+) -> None:
+    """Reject modulation pairings that would be silently wrong.
+
+    Every check here guards a failure that produces plausible numbers
+    rather than an exception, so each is made once at construction
+    instead of being trusted at every assembly.
+    """
+    if not isinstance(time_modulation, TimeModulationProtocol):
+        raise TypeError(
+            "time_modulation must satisfy TimeModulationProtocol, got "
+            f"{type(time_modulation).__name__}"
+        )
+    if time_modulation.nmodes() != field_map.nvars():
+        raise ValueError(
+            f"time_modulation has {time_modulation.nmodes()} modes but "
+            f"the field map has {field_map.nvars()} parameters; each "
+            "parameter needs exactly one temporal profile"
+        )
+    if not _is_linear_map(field_map):
+        raise TypeError(
+            "a temporal modulation requires a field map declaring "
+            f"is_linear(), got {type(field_map).__name__}. For a "
+            "pointwise-nonlinear map the two do not commute --- "
+            "exp(sum_k p_k b_k(t) s_k) is not b(t) exp(sum_k p_k s_k) "
+            "--- so scaling the jacobian columns would describe a field "
+            "the forward solve never evaluates"
+        )
+    if require_positive and not isinstance(
+        time_modulation, NonNegativeModulationProtocol
+    ):
+        # require_positive means "the FIELD is positive at all DOFs".
+        # Under modulation the field is p_k b_k(t) s_k summed, so a
+        # sign-changing profile makes it negative at some times however
+        # the parameters are bounded. Refusing is the honest answer:
+        # silently keeping a check that can no longer hold would leave
+        # callers believing a guarantee they no longer have.
+        raise TypeError(
+            "require_positive with a temporal modulation needs a "
+            "modulation declaring is_non_negative() (see "
+            "NonNegativeModulationProtocol), got "
+            f"{type(time_modulation).__name__}; a sign-changing profile "
+            "makes the field negative at some times whatever bounds the "
+            "parameters carry"
+        )
 
 
 # Slot adapters: parameterizations must be picklable, so facades wire
@@ -266,6 +319,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         bc_flux_field_jacobian: Optional[
             BCFluxFieldJacobianFn[Array]
         ] = None,
+        time_modulation: Optional[TimeModulationProtocol[Array]] = None,
     ) -> None:
         if not owned_coefficients:
             raise ValueError(
@@ -277,6 +331,10 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             raise TypeError(
                 "field_map must satisfy FieldMapProtocol, got "
                 f"{type(field_map).__name__}"
+            )
+        if time_modulation is not None:
+            _validate_time_modulation(
+                time_modulation, field_map, require_positive
             )
         for name, slot in (
             ("field_state_hvp", field_state_hvp),
@@ -326,13 +384,11 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         self._state_field_hvp = state_field_hvp
         self._field_field_hvp = field_field_hvp
         self._field_map = field_map
-        # Always absent for now: the constructor argument that can set a
-        # modulation arrives with its validation (matching mode counts,
-        # refusing nonlinear maps). Declared here so every derivative
-        # can route through _modulated_jacobian already, which is what
-        # gives the per-column rule a single implementation site for
-        # both the tangent and the adjoint transpose.
-        self._time_modulation: Optional[TimeModulationProtocol[Array]] = None
+        # Validated above when present. Every derivative routes through
+        # _modulated_jacobian, so the per-column rule has one
+        # implementation site for the tangent and the adjoint transpose
+        # alike.
+        self._time_modulation = time_modulation
         self._bkd = bkd
         self._nstates = nstates
         self._nfield_dofs = nfield_dofs
@@ -416,6 +472,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         nfield_dofs: int,
         owned_coefficients: Tuple[str, ...],
         require_positive: bool = False,
+        time_modulation: Optional[TimeModulationProtocol[Array]] = None,
     ) -> "_FieldParameterizationTerm[Array, PhysicsT]":
         """Term depending on the field only (e.g. forcing): slots
         (Zero, Zero, Zero)."""
@@ -432,6 +489,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             nfield_dofs,
             owned_coefficients,
             require_positive=require_positive,
+            time_modulation=time_modulation,
         )
 
     # -- parameterization surface (facades delegate here)
@@ -585,9 +643,13 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         # The map's own curvature is taken UNMODULATED, which is exact
         # only because a modulation may not be attached to a nonlinear
         # map: for a linear map this term is identically zero, so the
-        # scaling has nothing to act on. Attaching one to a nonlinear
-        # map would silently drop the b(t) factor from the second
-        # derivative, so the guard is load-bearing rather than advisory.
+        # scaling has nothing to act on.
+        #
+        # __init__ refuses that pairing, so this is unreachable today.
+        # It stays because the cost is one comparison on a path that
+        # already assembles, and what it guards is silent: a future
+        # construction path that skipped the validation would produce a
+        # plausible wrong Hessian rather than an error.
         if self._time_modulation is not None and not _is_linear_map(
             field_map
         ):
