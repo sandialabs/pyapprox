@@ -181,3 +181,114 @@ class TestProtocol:
             CoordinateDiffusion(lambda x: np.ones(x.shape[-1])),
             BasisEvaluableFieldProtocol,
         )
+
+
+class TestTimeVaryingFieldsMustVaryOnBothPaths:
+    """A field declaring time dependence must honour it on BOTH routes.
+
+    The trap this closes: override ``values``/``__call__`` to consult
+    time but leave ``values_on_basis`` returning fixed DOFs, and the
+    coordinate path varies while the fast path does not. Assembly
+    prefers the fast path, so the solve silently uses frozen values --
+    and because the cache still invalidates each step (the field
+    declares itself time-dependent), the result looks right.
+
+    Agreement at a SINGLE time cannot catch it: the two paths coincide
+    wherever the frozen values happen to be correct, which includes
+    whatever time the field was built at.
+    """
+
+    @staticmethod
+    def _check_paths_agree_over_time(bkd, field, basis, times):
+        skfem_basis = basis.skfem_basis()
+        coords = _quadrature_coords(skfem_basis)
+        for time in times:
+            general = np.asarray(field.values(coords, time))
+            fast = np.asarray(field.values_on_basis(skfem_basis, time))
+            assert fast.shape == general.shape
+            bkd.assert_allclose(
+                bkd.asarray(fast),
+                bkd.asarray(general),
+                rtol=1e-11,
+                atol=1e-13,
+            )
+
+    def test_a_correct_time_varying_field_passes(self, numpy_bkd) -> None:
+        bkd = numpy_bkd
+        basis = LagrangeBasis(_mesh(bkd), degree=1)
+
+        class _Consistent(NodalFieldDiffusion):
+            """Both routes scale the DOFs by the same factor."""
+
+            def is_time_dependent(self) -> bool:
+                return True
+
+            def _scaled(self, time):
+                return self.dofs() * (1.0 + 10.0 * time)
+
+            def values(self, coords, time=0.0):
+                coords_np = np.asarray(coords)
+                flat = coords_np.reshape(coords_np.shape[0], -1)
+                values = np.asarray(
+                    self._basis.evaluate(self._scaled(time), flat)
+                )
+                return values.reshape(coords_np.shape[1:])
+
+            def values_on_basis(self, skfem_basis, time=0.0):
+                return np.asarray(
+                    skfem_basis.interpolate(self._scaled(time))
+                )
+
+        field = _Consistent(basis, np.linspace(0.5, 2.0, basis.ndofs()))
+        self._check_paths_agree_over_time(
+            bkd, field, basis, (0.0, 0.3, 1.0)
+        )
+
+    def test_a_field_varying_on_one_path_only_is_caught(
+        self, numpy_bkd
+    ) -> None:
+        """The guard on the test above: it must be able to fail.
+
+        This double is exactly the mistake -- ``values`` consults time,
+        ``values_on_basis`` is inherited and does not.
+        """
+        bkd = numpy_bkd
+        basis = LagrangeBasis(_mesh(bkd), degree=1)
+
+        class _InconsistentOnFastPath(NodalFieldDiffusion):
+            def is_time_dependent(self) -> bool:
+                return True
+
+            def values(self, coords, time=0.0):
+                coords_np = np.asarray(coords)
+                flat = coords_np.reshape(coords_np.shape[0], -1)
+                values = np.asarray(
+                    self._basis.evaluate(
+                        self.dofs() * (1.0 + 10.0 * time), flat
+                    )
+                )
+                return values.reshape(coords_np.shape[1:])
+
+        field = _InconsistentOnFastPath(
+            basis, np.linspace(0.5, 2.0, basis.ndofs())
+        )
+        # Agrees at t = 0, where the frozen DOFs are still correct.
+        self._check_paths_agree_over_time(bkd, field, basis, (0.0,))
+        # Diverges as soon as time moves.
+        with pytest.raises(AssertionError):
+            self._check_paths_agree_over_time(bkd, field, basis, (0.5,))
+
+    def test_shipped_fields_declare_no_time_dependence(
+        self, numpy_bkd
+    ) -> None:
+        """Why the shipped fields need no such check: their DOFs are
+        fixed, so both routes ignore the time by construction."""
+        bkd = numpy_bkd
+        basis = LagrangeBasis(_mesh(bkd), degree=1)
+        dofs = np.ones(basis.ndofs())
+        for field_cls in (
+            NodalFieldDiffusion,
+            NodalFieldForcing,
+            NodalFieldLinearReaction,
+        ):
+            assert not field_cls(basis, dofs).is_time_dependent()

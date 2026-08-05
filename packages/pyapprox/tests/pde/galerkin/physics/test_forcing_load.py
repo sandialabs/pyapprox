@@ -70,6 +70,17 @@ class _TimeVaryingNodalForcing(NodalFieldForcing):
     def __call__(self, coords, time: float = 0.0):
         return np.full(coords.shape[1], 1.0 + 10.0 * time)
 
+    def values_on_basis(self, skfem_basis, time: float = 0.0):
+        """Time-varying on the fast path too.
+
+        Overriding only ``__call__`` would leave this returning the
+        frozen inherited DOFs, so a fast path that ignored time would
+        still look correct here — the test would be unable to fail.
+        """
+        return np.full(
+            skfem_basis.global_coordinates().shape[1:], 1.0 + 10.0 * time
+        )
+
 
 def _make_basis(numpy_bkd):
     """The basis alone: forcings need it before the physics exists."""
@@ -223,29 +234,64 @@ class TestForcingCapabilityInvariants:
         )
         assert not physics._forcing_load_cacheable
 
-    def test_time_varying_forcing_must_not_use_the_basis_fast_path(
+    def test_time_varying_forcing_keeps_the_basis_fast_path(
         self, numpy_bkd
     ) -> None:
-        """``_FieldOnBasisEvaluator`` discards the time it is given.
+        """A time-varying field is still eligible for the fast path.
 
-        So the selector must reject a time-varying field even when that
-        field satisfies ``BasisEvaluableFieldProtocol`` — which a
-        subclass of a nodal field does, by inheriting
-        ``values_on_basis``. Protocol membership says how a field CAN be
-        evaluated; it says nothing about whether its values are fixed.
+        Excluding it would be safe but expensive on exactly the path
+        that pays: a fixed field assembles once, a time-varying one
+        every step.
         """
         basis = _make_basis(numpy_bkd)
         forcing = _TimeVaryingNodalForcing(
             basis, dofs=np.ones(basis.ndofs())
         )
-        # The premise: it does satisfy the protocol, so the guard below
-        # cannot pass merely because the field is ineligible anyway.
         assert isinstance(forcing, BasisEvaluableFieldProtocol)
 
         evaluator = _coefficient_evaluator(
             forcing, basis.skfem_basis(), forcing
         )
-        assert not isinstance(evaluator, _FieldOnBasisEvaluator)
+        assert isinstance(evaluator, _FieldOnBasisEvaluator)
+
+    def test_the_fast_path_tracks_time(self, numpy_bkd) -> None:
+        """The property the fast path must not quietly lose.
+
+        Comparing the two paths at a SINGLE time cannot catch a fast
+        path that ignores time: both would agree there and disagree
+        everywhere else. The cache would also invalidate correctly each
+        step, so the frozen field would look right.
+        """
+        basis = _make_basis(numpy_bkd)
+        forcing = _TimeVaryingNodalForcing(
+            basis, dofs=np.ones(basis.ndofs())
+        )
+        evaluator = _coefficient_evaluator(
+            forcing, basis.skfem_basis(), forcing
+        )
+        coords = numpy_bkd.to_numpy(basis.dof_coordinates())
+
+        early = np.asarray(evaluator(coords, 0.0))
+        late = np.asarray(evaluator(coords, 1.0))
+        assert np.abs(late - early).max() > 1e-8
+
+    def test_fast_path_defers_time_dependence_to_the_field(
+        self, numpy_bkd
+    ) -> None:
+        """So wrapping a field does not change how caches key on it."""
+        basis = _make_basis(numpy_bkd)
+        varying = _TimeVaryingNodalForcing(
+            basis, dofs=np.ones(basis.ndofs())
+        )
+        fixed = NodalFieldForcing(basis, dofs=np.ones(basis.ndofs()))
+        skfem_basis = basis.skfem_basis()
+
+        assert _FieldOnBasisEvaluator(
+            varying, skfem_basis
+        ).is_time_dependent()
+        assert not _FieldOnBasisEvaluator(
+            fixed, skfem_basis
+        ).is_time_dependent()
 
     def test_fixed_nodal_forcing_keeps_both_capabilities(
         self, numpy_bkd

@@ -374,9 +374,18 @@ class BasisEvaluableFieldProtocol(Protocol):
     Consumers select it with an ``isinstance`` check at CONSTRUCTION and
     pass the bound method onward, so no per-call branching or capability
     sniffing happens during assembly.
+
+    The fast path takes the assembly ``time`` for the same reason
+    ``values`` does. A field whose DOFs vary in time would otherwise be
+    re-assembled every step from values frozen at its first evaluation
+    -- and because the cache would correctly invalidate each step, the
+    result looks right while being wrong. Fields with fixed DOFs accept
+    the argument and ignore it.
     """
 
-    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+    def values_on_basis(
+        self, skfem_basis: "Basis", time: float = 0.0
+    ) -> _Quad:
         """Evaluate at ``skfem_basis``'s quadrature points.
 
         Parameters
@@ -384,6 +393,9 @@ class BasisEvaluableFieldProtocol(Protocol):
         skfem_basis : Basis
             The basis being assembled on. Must be the basis this field's
             DOFs live on; a mismatch raises.
+        time : float
+            Assembly time. Ignored by fields with fixed DOFs; consulted
+            by fields whose DOFs are a function of time.
 
         Returns
         -------
@@ -482,7 +494,9 @@ class NodalFieldDiffusion:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
 
-    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+    def values_on_basis(
+        self, skfem_basis: "Basis", time: float = 0.0
+    ) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path)."""
         return _interpolate_on_basis(
             skfem_basis, self._dofs, self.ndofs(), "NodalFieldDiffusion"
@@ -565,7 +579,9 @@ class NodalFieldForcing:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
 
-    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+    def values_on_basis(
+        self, skfem_basis: "Basis", time: float = 0.0
+    ) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path)."""
         return _interpolate_on_basis(
             skfem_basis, self._dofs, self.ndofs(), "NodalFieldForcing"
@@ -757,7 +773,9 @@ class NodalFieldVelocity:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape)
 
-    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+    def values_on_basis(
+        self, skfem_basis: "Basis", time: float = 0.0
+    ) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path).
 
         A vector basis interpolates to ``(ncomponents, nelems, nquad)``,
@@ -899,7 +917,9 @@ class NodalFieldLinearReaction:
         values = np.asarray(self._basis.evaluate(self._dofs, flat))
         return values.reshape(coords_np.shape[1:])
 
-    def values_on_basis(self, skfem_basis: "Basis") -> _Quad:
+    def values_on_basis(
+        self, skfem_basis: "Basis", time: float = 0.0
+    ) -> _Quad:
         """Values at the basis's quadrature points (assembly fast path)."""
         return _interpolate_on_basis(
             skfem_basis, self._dofs, self.ndofs(),

@@ -110,23 +110,29 @@ class _FieldOnBasisEvaluator:
     def __call__(
         self, coords: NDArray[np.floating[Any]], time: float = 0.0
     ) -> NDArray[np.floating[Any]]:
-        # Nodal fields hold fixed DOFs, so neither the coordinates nor
-        # the time change what this returns; both are accepted so the
-        # evaluator is substitutable for a coefficient's ``values``.
+        # The coordinates are discarded -- they are the basis's own
+        # quadrature points, which is the whole point of the fast path.
+        # The TIME is forwarded: a field whose DOFs vary in time would
+        # otherwise be re-assembled every step from frozen values, and
+        # because the cache correctly invalidates each step the result
+        # would look right while being wrong.
         values: NDArray[np.floating[Any]] = self._field.values_on_basis(
-            self._skfem_basis
+            self._skfem_basis, time
         )
         return values
 
     def is_time_dependent(self) -> bool:
-        """Always False, and that is the point.
+        """Defers to the wrapped field.
 
-        This evaluator discards the time it is handed, so it may only
-        wrap a field whose values are fixed. ``_coefficient_evaluator``
-        enforces that before selecting it; declaring it here keeps the
-        claim visible next to the code that relies on it.
+        The evaluator adds no time dependence of its own and removes
+        none: it forwards the assembly time to ``values_on_basis``. A
+        field that varies in time keeps saying so through this wrapper,
+        which is what keeps the assembly caches keyed correctly.
         """
-        return False
+        field = self._field
+        return isinstance(field, TimeVaryingProtocol) and (
+            field.is_time_dependent()
+        )
 
 
 class _TimedEvaluatorProtocol(Protocol):
@@ -159,16 +165,12 @@ def _coefficient_evaluator(
     the kernels see one call convention whichever is selected; the basis
     fast path ignores its coordinate argument.
 
-    A field that declares its values depend on time is NOT eligible:
-    ``_FieldOnBasisEvaluator`` returns the field's stored DOFs and
-    discards the time it is handed, so routing a time-varying field
-    through it would evaluate every step at the field's initial state.
-    Satisfying ``BasisEvaluableFieldProtocol`` is a statement about how
-    a field can be evaluated, not about whether its values are fixed,
-    and the two must be checked separately.
+    Time-varying fields are eligible too: ``values_on_basis`` takes the
+    assembly time and ``_FieldOnBasisEvaluator`` forwards it. Excluding
+    them would be safe but expensive, and expensive on exactly the path
+    that pays it -- a fixed field assembles its load once, while a
+    time-varying one re-assembles every step.
     """
-    if isinstance(field, TimeVaryingProtocol) and field.is_time_dependent():
-        return coordinate_evaluator
     if isinstance(field, BasisEvaluableFieldProtocol):
         return _FieldOnBasisEvaluator(field, skfem_basis)
     return coordinate_evaluator
