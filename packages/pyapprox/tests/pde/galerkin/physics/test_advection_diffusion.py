@@ -1209,3 +1209,107 @@ class TestParametrizedADR2DExact:
             )
         rel_error = np.linalg.norm(u_num - u_exact) / np.linalg.norm(u_exact)
         assert rel_error < 1e-8
+
+
+class TestDiffusivityPositivity:
+    """The operator's own requirement, enforced where it is consumed.
+
+    :math:`-\\nabla\\cdot(D\\nabla u)` is elliptic only while
+    :math:`D > 0`. Where D dips negative the local operator changes
+    character and the linear solve returns a plausible field with NO
+    error --- measured before this check existed: a single negative DOF
+    changed the peak from 0.7535 to 0.7030 and raised nothing.
+
+    Enforced by the physics rather than by a parameterization, because
+    the requirement holds however the field arrived: built directly,
+    mutated through ``set_dofs``, or written by an optimizer.
+    """
+
+    @staticmethod
+    def _physics(numpy_bkd, dofs):
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            NodalFieldDiffusion,
+        )
+        from pyapprox.pde.galerkin.basis import LagrangeBasis
+        from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+        from pyapprox.pde.galerkin.mesh import StructuredMesh2D
+        from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+
+        mesh = StructuredMesh2D(
+            nx=4, ny=4, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=numpy_bkd
+        )
+        basis = LagrangeBasis(mesh, degree=1)
+        return AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=NodalFieldDiffusion(basis, dofs=dofs(basis)),
+            bkd=numpy_bkd,
+            forcing=lambda x: np.ones(x.shape[1]),
+            boundary_conditions=[
+                DirichletBC(basis, name, 0.0, numpy_bkd)
+                for name in ("left", "right", "bottom", "top")
+            ],
+        )
+
+    def test_positive_diffusivity_assembles(self, numpy_bkd) -> None:
+        physics = self._physics(
+            numpy_bkd, lambda b: np.full(b.ndofs(), 0.1)
+        )
+        state = numpy_bkd.zeros((physics.nstates(),))
+        physics._assemble_stiffness(state, 0.0)
+
+    def test_negative_diffusivity_raises(self, numpy_bkd) -> None:
+        """One negative DOF is enough: it makes the operator
+        non-elliptic there, and previously solved silently."""
+
+        def _dofs(basis):
+            values = np.full(basis.ndofs(), 0.1)
+            values[5] = -0.5
+            return values
+
+        physics = self._physics(numpy_bkd, _dofs)
+        state = numpy_bkd.zeros((physics.nstates(),))
+        with pytest.raises(ValueError, match="must be positive"):
+            physics._assemble_stiffness(state, 0.0)
+
+    def test_a_field_mutated_after_construction_is_caught(
+        self, numpy_bkd
+    ) -> None:
+        """The case a parameterization-side check could never cover on
+        its own: the field goes bad through set_dofs, with no
+        parameterization involved at all."""
+        physics = self._physics(
+            numpy_bkd, lambda b: np.full(b.ndofs(), 0.1)
+        )
+        state = numpy_bkd.zeros((physics.nstates(),))
+        physics._assemble_stiffness(state, 0.0)
+
+        diffusion = physics.diffusion_function()
+        bad = np.full(diffusion.ndofs(), 0.1)
+        bad[3] = -1.0
+        diffusion.set_dofs(bad)
+        with pytest.raises(ValueError, match="must be positive"):
+            physics._assemble_stiffness(state, 0.0)
+
+    def test_checks_quadrature_values_not_dofs(self, numpy_bkd) -> None:
+        """The check is on what the operator integrates.
+
+        A single zero DOF does NOT make the interpolant zero at any
+        quadrature point --- the surrounding positive nodes carry it ---
+        so this assembles. That is the correct behaviour and a real
+        difference from checking DOFs: what matters is the field the
+        integrand sees, not the coefficients that generate it. Making
+        the whole field zero does raise.
+        """
+        physics = self._physics(
+            numpy_bkd,
+            lambda b: np.where(
+                np.arange(b.ndofs()) == 2, 0.0, 0.1
+            ),
+        )
+        state = numpy_bkd.zeros((physics.nstates(),))
+        physics._assemble_stiffness(state, 0.0)
+
+        physics = self._physics(numpy_bkd, lambda b: np.zeros(b.ndofs()))
+        state = numpy_bkd.zeros((physics.nstates(),))
+        with pytest.raises(ValueError, match="must be positive"):
+            physics._assemble_stiffness(state, 0.0)

@@ -146,9 +146,27 @@ class AdvectionDiffusionReaction(AbstractScalarPhysics[Array]):
         self._has_reaction = True
 
     def _get_diffusion(self, time: float) -> Array:
-        """Get diffusion array at given time."""
+        """Get diffusion array at given time.
+
+        Positivity is a property of THIS operator, not of whatever
+        produced the field: the diffusion term is elliptic only while
+        D > 0, and where it dips negative the solve returns a plausible
+        field rather than failing. Checked here, where the operator
+        consumes the values, so it holds for a physics built directly,
+        a field mutated after construction, and a parameterized one
+        alike.
+        """
         if self._diffusion_func is not None:
             self._diffusion_array = self._diffusion_func(time)
+        smallest = self._bkd.to_float(self._bkd.min(self._diffusion_array))
+        if smallest <= 0.0:
+            raise ValueError(
+                "diffusivity must be positive everywhere; found "
+                f"{smallest:.3e} at time {time:.6g}. A non-positive "
+                "diffusivity makes the operator non-elliptic there, "
+                "which yields a plausible-looking solution rather than "
+                "a solver failure"
+            )
         return self._diffusion_array
 
     def _get_reaction(self, time: float) -> Array:

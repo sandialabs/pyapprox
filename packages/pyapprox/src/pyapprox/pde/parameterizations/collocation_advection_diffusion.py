@@ -137,7 +137,6 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
             nstates=physics.nstates(),
             nfield_dofs=physics.npts(),
             owned_coefficients=("diffusion",),
-            require_positive=True,
             bc_flux_field_jacobian=physics.boundary_flux_diffusion_jacobian,
         )
 

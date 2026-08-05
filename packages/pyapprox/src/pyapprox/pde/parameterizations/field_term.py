@@ -41,10 +41,7 @@ from typing import Callable, Generic, Optional, Tuple, TypeVar, Union
 import numpy as np
 from scipy.sparse import spmatrix
 
-from pyapprox.pde.field_maps.modulation import (
-    NonNegativeModulationProtocol,
-    TimeModulationProtocol,
-)
+from pyapprox.pde.field_maps.modulation import TimeModulationProtocol
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
     FieldMapWithHVPProtocol,
@@ -114,13 +111,18 @@ def _is_linear_map(field_map: FieldMapProtocol[Array]) -> bool:
 def _validate_time_modulation(
     time_modulation: TimeModulationProtocol[Array],
     field_map: FieldMapProtocol[Array],
-    require_positive: bool,
 ) -> None:
     """Reject modulation pairings that would be silently wrong.
 
-    Every check here guards a failure that produces plausible numbers
-    rather than an exception, so each is made once at construction
-    instead of being trusted at every assembly.
+    Both checks concern this layer's OWN consistency --- that the
+    modulation matches the map it scales, and that scaling jacobian
+    columns is a valid chain rule for that map. Admissibility of the
+    resulting field (positivity, bounds) belongs to the physics whose
+    operator requires it, not here.
+
+    Made once at construction rather than trusted at every assembly,
+    because each guards a failure that produces plausible numbers
+    rather than an exception.
     """
     if not isinstance(time_modulation, TimeModulationProtocol):
         raise TypeError(
@@ -141,23 +143,6 @@ def _validate_time_modulation(
             "exp(sum_k p_k b_k(t) s_k) is not b(t) exp(sum_k p_k s_k) "
             "--- so scaling the jacobian columns would describe a field "
             "the forward solve never evaluates"
-        )
-    if require_positive and not isinstance(
-        time_modulation, NonNegativeModulationProtocol
-    ):
-        # require_positive means "the FIELD is positive at all DOFs".
-        # Under modulation the field is p_k b_k(t) s_k summed, so a
-        # sign-changing profile makes it negative at some times however
-        # the parameters are bounded. Refusing is the honest answer:
-        # silently keeping a check that can no longer hold would leave
-        # callers believing a guarantee they no longer have.
-        raise TypeError(
-            "require_positive with a temporal modulation needs a "
-            "modulation declaring is_non_negative() (see "
-            "NonNegativeModulationProtocol), got "
-            f"{type(time_modulation).__name__}; a sign-changing profile "
-            "makes the field negative at some times whatever bounds the "
-            "parameters carry"
         )
 
 
@@ -289,9 +274,6 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
     field_state_jacobian : FieldStateJacobianFn, optional
         :math:`A(\\delta g, u, t)`. Required when ``state_field_hvp``
         is ``FromLinearity()``.
-    require_positive : bool, default False
-        If True, ``apply`` raises when the mapped field is not strictly
-        positive everywhere.
     bc_flux_field_jacobian : BCFluxFieldJacobianFn, optional
         :math:`B(u, t) = \\partial(\\text{flux} \\cdot n)/\\partial g`
         at boundary points, ``(state, time, bc_indices, normals) ->
@@ -315,7 +297,6 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         nfield_dofs: int,
         owned_coefficients: Tuple[str, ...],
         field_state_jacobian: Optional[FieldStateJacobianFn[Array]] = None,
-        require_positive: bool = False,
         bc_flux_field_jacobian: Optional[
             BCFluxFieldJacobianFn[Array]
         ] = None,
@@ -333,9 +314,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
                 f"{type(field_map).__name__}"
             )
         if time_modulation is not None:
-            _validate_time_modulation(
-                time_modulation, field_map, require_positive
-            )
+            _validate_time_modulation(time_modulation, field_map)
         for name, slot in (
             ("field_state_hvp", field_state_hvp),
             ("state_field_hvp", state_field_hvp),
@@ -394,7 +373,6 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         self._nfield_dofs = nfield_dofs
         self._owned_coefficients = tuple(owned_coefficients)
         self._field_state_jacobian = field_state_jacobian
-        self._require_positive = require_positive
         self._bc_flux_field_jacobian = bc_flux_field_jacobian
 
         bc_flux_fn = (
@@ -437,7 +415,6 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         nstates: int,
         nfield_dofs: int,
         owned_coefficients: Tuple[str, ...],
-        require_positive: bool = False,
         bc_flux_field_jacobian: Optional[
             BCFluxFieldJacobianFn[Array]
         ] = None,
@@ -457,7 +434,6 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             nfield_dofs,
             owned_coefficients,
             field_state_jacobian=field_state_jacobian,
-            require_positive=require_positive,
             bc_flux_field_jacobian=bc_flux_field_jacobian,
         )
 
@@ -471,7 +447,6 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         nstates: int,
         nfield_dofs: int,
         owned_coefficients: Tuple[str, ...],
-        require_positive: bool = False,
         time_modulation: Optional[TimeModulationProtocol[Array]] = None,
     ) -> "_FieldParameterizationTerm[Array, PhysicsT]":
         """Term depending on the field only (e.g. forcing): slots
@@ -488,7 +463,6 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             nstates,
             nfield_dofs,
             owned_coefficients,
-            require_positive=require_positive,
             time_modulation=time_modulation,
         )
 
@@ -522,13 +496,6 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
                 f"field map produced {field.shape[0]} DOFs but the "
                 f"physics field has {self._nfield_dofs}"
             )
-        if self._require_positive:
-            min_val = self._bkd.to_float(self._bkd.min(field))
-            if min_val <= 0.0:
-                raise ValueError(
-                    "field must be positive at all DOFs; found min "
-                    f"value {min_val:.2e}"
-                )
         self._setter(field)
 
     # -- derivative calculus (exists exactly once, here)

@@ -145,7 +145,6 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             nstates=physics.nstates(),
             nfield_dofs=diffusion.ndofs(),
             owned_coefficients=("diffusivity",),
-            require_positive=True,
         )
 
     def _forcing_term(

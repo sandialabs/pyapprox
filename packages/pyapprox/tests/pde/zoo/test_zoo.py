@@ -277,20 +277,29 @@ class TestDiffusionPositivityValidation:
         return param, physics
 
     def test_nonpositive_diffusion_raises(self, bkd):
-        """ValueError raised when parameterized diffusion is non-positive."""
+        """ValueError raised when the diffusion field is non-positive.
+
+        Raised by the PHYSICS when it first uses the field, not by the
+        parameterization that wrote it: positivity is a property of the
+        operator, so it must hold for a physics built directly or
+        mutated after construction, neither of which passes through a
+        parameterization.
+        """
         npts = 5
         param, physics = self._make_param_and_physics(bkd, npts)
         # field = 0.0 + (-0.1)*ones = -0.1 everywhere
+        param.apply(bkd.array([-0.1]))
         with pytest.raises(ValueError) as ctx:
-            param.apply(bkd.array([-0.1]))
+            physics._get_diffusion(0.0)
         assert "positive" in str(ctx.value)
 
     def test_zero_diffusion_raises(self, bkd):
-        """ValueError raised when parameterized diffusion is zero."""
+        """Zero is inadmissible too: the diffusion term vanishes."""
         npts = 5
         param, physics = self._make_param_and_physics(bkd, npts)
+        param.apply(bkd.array([0.0]))
         with pytest.raises(ValueError):
-            param.apply(bkd.array([0.0]))
+            physics._get_diffusion(0.0)
 
     def test_positive_diffusion_succeeds(self, bkd):
         """No error when parameterized diffusion is positive."""

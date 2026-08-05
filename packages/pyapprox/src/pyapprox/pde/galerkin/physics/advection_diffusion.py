@@ -937,6 +937,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
         skfem_basis = self._basis.skfem_basis()
 
+        self._check_diffusivity_positive(skfem_basis, time)
+
         forms = self.stiffness_forms(time)
         stiffness = asm(forms[0], skfem_basis)
         # Add advection if present
@@ -948,6 +950,41 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
         result: Array = stiffness
         return result
+
+    def _check_diffusivity_positive(
+        self, skfem_basis: "Basis", time: float
+    ) -> None:
+        """Raise if the diffusivity is not positive where it is used.
+
+        A property of THIS operator, not of whatever produced the
+        field: :math:`-\\nabla\\cdot(D\\nabla u)` is elliptic only while
+        :math:`D > 0`. Where D dips negative the local operator changes
+        character and the linear solve returns a plausible field with no
+        error, so the check has to exist somewhere -- and the only place
+        that sees every field, however it arrived, is the assembly that
+        consumes it. A parameterization can enforce it for the fields it
+        writes, but not for a physics built directly, a field mutated
+        through ``set_dofs``, or a manufactured-solution setup.
+
+        Evaluated at the quadrature points the assembly will integrate
+        over, so it also covers interpolation between DOFs. Runs once
+        per assembly, inside the cache miss: a cached stiffness was
+        already checked when it was built.
+        """
+        values = _coefficient_evaluator(
+            self._diffusion_function,
+            skfem_basis,
+            self._diffusion_function.values,
+        )(np.asarray(skfem_basis.global_coordinates()), time)
+        smallest = float(np.min(np.asarray(values)))
+        if smallest <= 0.0:
+            raise ValueError(
+                "diffusivity must be positive everywhere it is "
+                f"evaluated; found {smallest:.3e} at time {time:.6g}. "
+                "A non-positive diffusivity makes the operator "
+                "non-elliptic there, which yields a plausible-looking "
+                "solution rather than a solver failure"
+            )
 
     def _assemble_load(self, state: Array, time: float) -> Array:
         """Assemble load vector b.

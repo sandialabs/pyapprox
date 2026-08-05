@@ -155,7 +155,6 @@ def _build_engine_term(
         nstates=physics.nstates(),
         nfield_dofs=physics.nstates(),
         owned_coefficients=("field",),
-        require_positive=True,
     )
 
 
@@ -588,42 +587,24 @@ class TestFieldParameterizationTerm:
                 owned_coefficients=("field",),
             )
 
-    def test_apply_positivity_and_length(self, numpy_bkd: NumpyBkd) -> None:
-        """require_positive raise and wrong-length field raise."""
+    def test_apply_rejects_a_wrong_length_field(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A shape mismatch is this layer's own concern.
+
+        Whether the resulting VALUES are admissible is not: positivity
+        of a diffusivity is a property of the operator consuming it, so
+        the physics checks that where it assembles. This term writes
+        whatever the map produces.
+        """
         bkd = numpy_bkd
         physics, field_map = _build_physics_and_map(bkd, False)
         term = _build_engine_term(bkd, physics, field_map)
-        # exp map is always positive: apply succeeds
         term.apply(bkd.asarray(np.array([0.4, -0.3, 0.2])))
 
         diffusion = physics.diffusion_function()
         assert isinstance(diffusion, NodalFieldDiffusion)
         nstates = physics.nstates()
-        coords = np.linspace(0.0, 1.0, nstates)
-        # Linear map that goes negative -> positivity raise
-        negative_map = MeshKLEFieldMap(
-            bkd,
-            bkd.asarray(-1.0 * np.ones(nstates)),
-            bkd.asarray(coords[:, None]),
-        )
-        bad_term = _FieldParameterizationTerm.linear_field_state(
-            setter=lambda f: diffusion.set_dofs(bkd.to_numpy(f)),
-            physics=physics,
-            field_jacobian=lambda s, t: (
-                physics.residual_diffusivity_jacobian(s)
-            ),
-            field_state_jacobian=lambda d, s, t: (
-                physics.residual_diffusivity_state_jacobian(d, s)
-            ),
-            field_map=negative_map,
-            bkd=bkd,
-            nstates=nstates,
-            nfield_dofs=nstates,
-            owned_coefficients=("field",),
-            require_positive=True,
-        )
-        with pytest.raises(ValueError, match="positive"):
-            bad_term.apply(bkd.asarray(np.array([0.1])))
 
         # Wrong-length field -> raise
         short_map = MeshKLEFieldMap(
@@ -800,7 +781,7 @@ class TestTimeModulationValidation:
         )
 
     @staticmethod
-    def _term(bkd, field_map, modulation, require_positive=False):
+    def _term(bkd, field_map, modulation):
         from pyapprox.pde.parameterizations.field_term import (
             _FieldParameterizationTerm,
         )
@@ -822,7 +803,6 @@ class TestTimeModulationValidation:
             nstates=npts,
             nfield_dofs=npts,
             owned_coefficients=("field",),
-            require_positive=require_positive,
             time_modulation=modulation,
         )
 
@@ -869,49 +849,17 @@ class TestTimeModulationValidation:
                 numpy_bkd, lognormal, ConstantModulation(numpy_bkd, 2)
             )
 
-    def test_rejects_require_positive_with_a_sign_changing_basis(
+    def test_sign_changing_basis_is_accepted(
         self, numpy_bkd
     ) -> None:
-        """A sign-changing profile makes the field negative at some
-        times whatever bounds the parameters carry, so the positivity
-        guarantee cannot be honoured and is refused rather than
-        silently dropped."""
+        """This layer takes no view on the sign of the field it builds.
 
-        class _SignChanging:
-            def __init__(self, bkd, nmodes):
-                self._bkd = bkd
-                self._nmodes = nmodes
-
-            def bkd(self):
-                return self._bkd
-
-            def nmodes(self):
-                return self._nmodes
-
-            def values(self, time):
-                return self._bkd.asarray(
-                    [np.cos((k + 1) * np.pi * time)
-                     for k in range(self._nmodes)]
-                )
-
-            def is_time_dependent(self):
-                return True
-
-        field_map = self._linear_map(numpy_bkd, nvars=2)
-        with pytest.raises(TypeError, match="is_non_negative"):
-            self._term(
-                numpy_bkd,
-                field_map,
-                _SignChanging(numpy_bkd, 2),
-                require_positive=True,
-            )
-
-    def test_sign_changing_basis_is_fine_without_require_positive(
-        self, numpy_bkd
-    ) -> None:
-        """The refusal is about the positivity CLAIM, not the basis: a
-        sign-changing modulation is valid for a coefficient whose sign
-        is unconstrained."""
+        Whether a coefficient may go negative is a property of the
+        OPERATOR consuming it, so the physics owns that judgement. A
+        structural rule here would also be prohibitive: a sign-changing
+        basis with a bias term produces a field that stays positive,
+        and refusing it would reject a valid configuration.
+        """
 
         class _SignChanging:
             def __init__(self, bkd, nmodes):
