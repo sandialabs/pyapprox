@@ -251,6 +251,8 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
 
         npartition_samples = self._bkd.flatten(self._bkd.array(nsps_cvxpy.value))
 
+        relaxed_npartition_samples = npartition_samples
+
         # Round if requested
         if round_nsamples:
             npartition_samples = self._bkd.asarray(
@@ -278,4 +280,5 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
             objective_value=obj_value,
             success=True,
             message="",
+            relaxed_npartition_samples=relaxed_npartition_samples,
         )

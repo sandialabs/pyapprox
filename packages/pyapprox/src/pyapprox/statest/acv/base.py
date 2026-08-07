@@ -103,7 +103,43 @@ class ACVEstimator(Generic[Array]):
 
     def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
         """Compute covariance from npartition_samples."""
+        if not self._bkd.is_floating_dtype(npartition_samples):
+            raise TypeError(
+                "_covariance_from_npartition_samples requires float-typed "
+                f"npartition_samples, got dtype={npartition_samples.dtype}"
+            )
         return self._covariance_from_nsamples_per_model(npartition_samples)
+
+    def covariance_at_npartition_samples(
+        self, npartition_samples: Array
+    ) -> Array:
+        """Return the estimator covariance at a hypothetical allocation.
+
+        Evaluates the continuous relaxation, so ``npartition_samples`` must be
+        float-typed and need not be integral. Supports autodiff gradients.
+        See :meth:`covariance_at` to evaluate from partition ratios instead.
+        To obtain the covariance of an estimator whose allocation is fixed and
+        whose samples will be drawn, build a :class:`FittedACVEstimator` and
+        call its ``covariance``.
+
+        Parameters
+        ----------
+        npartition_samples : Array
+            Float-typed partition sample counts. Shape (npartitions,).
+
+        Returns
+        -------
+        Array
+            Estimator covariance. Shape (nstats, nstats).
+        """
+        # Validated here rather than only downstream so that subclasses
+        # overriding the covariance path still reject discrete counts.
+        if not self._bkd.is_floating_dtype(npartition_samples):
+            raise TypeError(
+                "covariance_at_npartition_samples requires float-typed "
+                f"npartition_samples, got dtype={npartition_samples.dtype}"
+            )
+        return self._covariance_from_npartition_samples(npartition_samples)
 
     def _optimal_weights(self, CF: Array, cf: Array) -> Array:
         return optimal_cv_weights(self._bkd, CF, cf)
@@ -373,10 +409,13 @@ class FittedACVEstimator(Generic[Array]):
         self._bkd = bkd
         self._stat = template._stat
 
-        CF, cf = template._get_discrepancy_covariances(allocation.npartition_samples)
+        self._nps_float = bkd.asarray(
+            allocation.npartition_samples, dtype=bkd.double_dtype()
+        )
+        CF, cf = template._get_discrepancy_covariances(self._nps_float)
         self._weights_val = template._optimal_weights(CF, cf)
         self._covariance_val = template._covariance_from_npartition_samples(
-            allocation.npartition_samples
+            self._nps_float
         )
         self._criteria_val = template._optimization_criteria(self._covariance_val)
 
@@ -706,7 +745,7 @@ class FittedACVEstimator(Generic[Array]):
                     *self._stat.compute_pilot_quantities(boostrap_pilot_values)
                 )
                 CF, cf = self._template._get_discrepancy_covariances(
-                    self._allocation.npartition_samples
+                    self._nps_float
                 )
                 weights = self._template._optimal_weights(CF, cf)
                 weights_acc.append(self._bkd.flatten(weights))

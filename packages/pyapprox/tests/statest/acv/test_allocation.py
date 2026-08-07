@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-
 from pyapprox.statest.acv.allocation import (
     ACVAllocator,
     AnalyticalAllocator,
@@ -11,13 +10,12 @@ from pyapprox.statest.acv.allocation import (
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.result import ACVAllocationResult
 from pyapprox.statest.acv.variants import (
-    GISEstimator,
     GMFEstimator,
-    GRDEstimator,
     MFMCEstimator,
     MLMCEstimator,
 )
 from pyapprox.statest.statistics import MultiOutputMean
+
 from tests._helpers.markers import slow_test
 
 
@@ -411,7 +409,10 @@ class TestFittedACVEstimator:
         assert all(float(n) > 0 for n in npartition_samples)
 
     def test_covariance_consistency(self, bkd):
-        """FittedACVEstimator.covariance() equals fresh computation from discrete counts."""
+        """FittedACVEstimator.covariance() equals a fresh computation.
+
+        The fresh computation uses the same discrete counts.
+        """
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
@@ -421,7 +422,12 @@ class TestFittedACVEstimator:
         assert result.success
 
         fitted = FittedACVEstimator(est, result)
-        fresh_cov = est._covariance_from_npartition_samples(result.npartition_samples)
+        # The template evaluates the continuous relaxation, so the discrete
+        # allocation must be cast to float at the boundary, exactly as
+        # FittedACVEstimator does internally.
+        fresh_cov = est.covariance_at_npartition_samples(
+            bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+        )
         bkd.assert_allclose(fitted.covariance(), fresh_cov)
 
     def test_template_unchanged_after_fitting(self, bkd):

@@ -326,7 +326,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         return partitions_per_model
 
     def _compute_nsamples_per_model(self, npartition_samples: Array) -> Array:
-        if self._bkd.is_integer_dtype(npartition_samples):
+        if not self._bkd.is_floating_dtype(npartition_samples):
             raise TypeError(
                 "_compute_nsamples_per_model requires float-typed "
                 f"npartition_samples, got dtype={npartition_samples.dtype}"
@@ -361,7 +361,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         Note the number of samples per subset is simply the diagonal of this
         matrix
         """
-        if self._bkd.is_integer_dtype(npartition_samples):
+        if not self._bkd.is_floating_dtype(npartition_samples):
             raise TypeError(
                 "_nintersect_samples requires float-typed "
                 f"npartition_samples, got dtype={npartition_samples.dtype}"
@@ -440,6 +440,36 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
     def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
         psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
         return self._bkd.multidot([self._asketch, psi_inv, self._asketch.T])
+
+    def covariance_at(self, npartition_samples: Array) -> Array:
+        """Return the estimator covariance at a hypothetical allocation.
+
+        Evaluates the continuous relaxation, so ``npartition_samples`` must be
+        float-typed and need not be integral. Use this to compare candidate
+        allocations, e.g. during optimization; the computation preserves the
+        autograd graph. To obtain the covariance of an estimator whose
+        allocation is fixed and whose samples will be drawn, build a
+        :class:`FittedGroupACVEstimator` and call its ``covariance``.
+
+        Parameters
+        ----------
+        npartition_samples : Array
+            Float-typed partition sample counts. Shape (npartitions,).
+
+        Returns
+        -------
+        Array
+            Estimator covariance. Shape (nstats, nstats).
+        """
+        # Validated here rather than downstream because subclasses that
+        # override _psi_matrix, e.g. MLBLUEEstimator, never reach the
+        # float guard in _nintersect_samples.
+        if not self._bkd.is_floating_dtype(npartition_samples):
+            raise TypeError(
+                "covariance_at requires float-typed npartition_samples, got "
+                f"dtype={npartition_samples.dtype}"
+            )
+        return self._covariance_from_npartition_samples(npartition_samples)
 
     def _get_model_subset_costs(self, subsets: List[Array], costs: Array) -> Array:
         subset_costs = self._bkd.array(

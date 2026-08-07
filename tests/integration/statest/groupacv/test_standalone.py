@@ -20,23 +20,7 @@ from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.statest.acv import GMFEstimator, GRDEstimator, MFMCEstimator
 from pyapprox.statest.acv.variants import _allocate_samples_mfmc
-from pyapprox.statest.groupacv import (
-    FittedGroupACVEstimator,
-    GroupACVCostConstraint,
-    GroupACVEstimatorIS,
-    GroupACVEstimatorNested,
-    GroupACVLogDetObjective,
-    GroupACVTraceObjective,
-    MLBLUEEstimator,
-    MLBLUEObjective,
-    MLBLUESPDAllocationOptimizer,
-    _get_allocation_matrix_is,
-    _get_allocation_matrix_nested,
-    _nest_subsets,
-    get_model_subsets,
-)
 from pyapprox.statest.groupacv.allocation import (
     GroupACVAllocationOptimizer,
     GroupACVAllocationResult,
@@ -60,6 +44,22 @@ from pyapprox_benchmarks.statest import (
     PolynomialEnsembleBenchmark,
 )
 
+from pyapprox.statest.acv import GMFEstimator, GRDEstimator, MFMCEstimator
+from pyapprox.statest.groupacv import (
+    FittedGroupACVEstimator,
+    GroupACVCostConstraint,
+    GroupACVEstimatorIS,
+    GroupACVEstimatorNested,
+    GroupACVLogDetObjective,
+    GroupACVTraceObjective,
+    MLBLUEEstimator,
+    MLBLUEObjective,
+    MLBLUESPDAllocationOptimizer,
+    _get_allocation_matrix_is,
+    _get_allocation_matrix_nested,
+    _nest_subsets,
+    get_model_subsets,
+)
 from tests._helpers.acv_utils import allocate_with_allocator
 from tests._helpers.markers import slow_test, slower_test
 
@@ -644,6 +644,39 @@ class TestMLBLUESPDAllocationOptimizer:
         bkd.assert_allclose(
             bkd.asarray([result.npartition_samples.shape[0]]),
             bkd.asarray([est.nsubsets()]),
+        )
+
+    def test_spd_stores_relaxed_npartition_samples(self, bkd):
+        """SDP must honour the documented relaxed_npartition_samples contract.
+
+        GroupACVAllocationResult promises the continuous counts are always
+        stored on success, so consumers can recover the pre-rounding
+        allocation regardless of which optimizer produced the result.
+        """
+        est = self._create_mlblue_estimator(bkd, nmodels=3, nqoi=1)
+        allocator = MLBLUESPDAllocationOptimizer(est)
+        result = allocator.optimize(target_cost=100, min_nhf_samples=1)
+
+        assert result.success
+        assert result.relaxed_npartition_samples is not None
+        assert bkd.is_floating_dtype(result.relaxed_npartition_samples)
+        bkd.assert_allclose(
+            bkd.asarray([result.relaxed_npartition_samples.shape[0]]),
+            bkd.asarray([est.nsubsets()]),
+        )
+
+    def test_spd_unrounded_relaxed_matches_npartition_samples(self, bkd):
+        """With round_nsamples=False the two allocations coincide."""
+        est = self._create_mlblue_estimator(bkd, nmodels=3, nqoi=1)
+        allocator = MLBLUESPDAllocationOptimizer(est)
+        result = allocator.optimize(
+            target_cost=100, min_nhf_samples=1, round_nsamples=False
+        )
+
+        assert result.success
+        assert result.relaxed_npartition_samples is not None
+        bkd.assert_allclose(
+            result.relaxed_npartition_samples, result.npartition_samples
         )
 
         # Check that all sample counts are non-negative
@@ -1457,6 +1490,27 @@ class TestGradientOptimizationTorchOnly:
         )
         assert float(gest_cost) <= target_cost * 1.01  # Allow 1% tolerance
         assert float(mlest_cost) <= target_cost * 1.01
+
+        # Given the same optimizer and the same initial guess, the two
+        # equivalent estimator classes must also CONVERGE to the same
+        # allocation, not merely agree once an allocation is fixed. This is
+        # what licenses using GroupACVEstimatorIS as a stand-in for
+        # MLBLUEEstimator in optimization studies.
+        self._bkd.assert_allclose(
+            self._bkd.asarray(gest_nps, dtype=self._bkd.double_dtype()),
+            self._bkd.asarray(mlest_nps, dtype=self._bkd.double_dtype()),
+            rtol=1e-4,
+            atol=1e-6,
+        )
+
+        # ... and therefore to the same estimator variance.
+        gest_var = gest.covariance_at(
+            self._bkd.asarray(gest_nps, dtype=self._bkd.double_dtype())
+        )
+        mlest_var = mlest.covariance_at(
+            self._bkd.asarray(mlest_nps, dtype=self._bkd.double_dtype())
+        )
+        self._bkd.assert_allclose(gest_var, mlest_var, rtol=1e-4)
 
     @pytest.mark.parametrize(
         "nmodels,min_nhf_samples,nqoi",
@@ -2431,6 +2485,160 @@ class TestISBetaEquivalence:
         # No NaN in covariance
         cov = est._covariance_from_npartition_samples(nps_float)
         assert np.all(np.isfinite(bkd.to_numpy(cov)))
+
+
+class TestOptimizedAllocationMonteCarlo:
+    """The variance the optimizer reports is the variance actually attained.
+
+    The other Monte Carlo tests validate the analytical variance formula at a
+    hand-specified allocation. That leaves open whether an allocation returned
+    by the optimizer achieves the variance it is credited with -- the
+    allocation is chosen to minimise that same analytical expression, so a
+    fault in it would be invisible to a purely analytical check.
+
+    Here the allocation comes from the optimizer, and the resulting estimator
+    is realised many times to compare the sample variance of the estimates
+    against the reported one. The polynomial ensemble has exactly known
+    statistics, so the covariance supplied to the estimator carries no
+    pilot-estimation error and any discrepancy is attributable to the
+    estimator or the allocation.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(3)
+
+    def _setup(self, bkd, nmodels):
+        bm = PolynomialEnsembleBenchmark(bkd, nmodels=nmodels)
+        problem = bm.problem()
+        return (
+            bm.ensemble_covariance(), problem.costs(), problem.models(),
+        )
+
+    def _saob_subsets(self, nmodels, max_group_size, bkd):
+        """SAOB-M groups: S^k = {k-1, ..., min(k+M-2, L)} for k=1..L+1."""
+        nlf = nmodels - 1
+        return [
+            bkd.array(
+                list(range(kk, min(kk + max_group_size, nmodels))), dtype=int
+            )
+            for kk in range(nlf + 1)
+        ]
+
+    def _check(self, bkd, estimator_class, subsets, nmodels, target_cost,
+               ntrials):
+        cov, costs, models = self._setup(bkd, nmodels)
+        stat = MultiOutputMean(1, bkd)
+        stat.set_pilot_quantities(cov)
+        template = estimator_class(stat, costs, model_subsets=subsets)
+
+        # The allocation under test. Log-space scaling with an inequality
+        # budget is the configuration the group_acv_optimization tutorial
+        # recommends; it is not the AllocationProblemConfig default, so it
+        # has to be requested explicitly. Rounded, because realising the
+        # estimator requires an integral number of samples.
+        allocator = GroupACVAllocationOptimizer(
+            template,
+            problem_config=AllocationProblemConfig(
+                variable_scaling="log",
+                budget_constraint_form="inequality",
+            ),
+        )
+        result = allocator.optimize(
+            target_cost=target_cost, min_nhf_samples=1, round_nsamples=True,
+        )
+        assert result.success, result.message
+        fitted = FittedGroupACVEstimator(template, result)
+        reported = fitted.covariance()
+
+        estimates = []
+        for _ in range(ntrials):
+            samples_per_model = fitted.generate_samples_per_model(
+                lambda n: bkd.asarray(np.random.rand(1, int(n)))
+            )
+            values_per_model = [
+                models[ii](samples_per_model[ii])
+                for ii in range(template.nmodels())
+            ]
+            estimates.append(fitted(values_per_model))
+        attained = bkd.cov(bkd.stack(estimates), ddof=1, rowvar=False)
+
+        # A variance estimated from ntrials realisations has a standard error
+        # of roughly sqrt(2/ntrials) relative to its mean, about 2% here, so
+        # the tolerance is set several standard errors out to keep the test
+        # from failing on an unlucky seed. It still catches a wrong formula
+        # or an unattainable allocation, which err by tens of percent.
+        bkd.assert_allclose(attained, reported, rtol=1e-1, atol=4e-3)
+
+    # numpy_bkd only: this validates a variance formula, which is
+    # backend-independent, so running it twice would re-test the same
+    # mathematics. 5000 trials give a standard error near 2% on the variance,
+    # comfortably inside the tolerance while keeping the test quick -- a
+    # formula or allocation fault shows up as tens of percent, not units.
+    @slow_test
+    def test_nested_saob_variance_is_attained(self, numpy_bkd):
+        """Nested GACV on SAOB-M groups, the restricted-grouping case."""
+        nmodels = 4
+        self._check(
+            numpy_bkd, GroupACVEstimatorNested,
+            self._saob_subsets(nmodels, 3, numpy_bkd),
+            nmodels, target_cost=100.0, ntrials=5000,
+        )
+
+    @slow_test
+    def test_is_all_subsets_variance_is_attained(self, numpy_bkd):
+        """Independent-sample GACV over all subsets, i.e. full ML-BLUE."""
+        nmodels = 4
+        self._check(
+            numpy_bkd, GroupACVEstimatorIS, get_model_subsets(nmodels, numpy_bkd),
+            nmodels, target_cost=100.0, ntrials=5000,
+        )
+
+
+class TestCovarianceAt:
+    """Public covariance_at accessor on the estimator template."""
+
+    def _estimator(self, bkd):
+        cov = bkd.array(
+            [[1.0, 0.9, 0.8], [0.9, 1.0, 0.7], [0.8, 0.7, 1.0]]
+        )
+        costs = bkd.array([1.0, 0.1, 0.01])
+        stat = MultiOutputMean(1, bkd)
+        stat.set_pilot_quantities(cov)
+        return MLBLUEEstimator(stat, costs)
+
+    def test_matches_private_method(self, bkd):
+        est = self._estimator(bkd)
+        nps = bkd.full((est.nsubsets(),), 10.0)
+        bkd.assert_allclose(
+            est.covariance_at(nps),
+            est._covariance_from_npartition_samples(nps),
+            rtol=1e-12,
+        )
+
+    def test_accepts_non_integral_allocation(self, bkd):
+        """The continuous relaxation need not be integral."""
+        est = self._estimator(bkd)
+        nps = bkd.full((est.nsubsets(),), 12.5)
+        assert np.all(np.isfinite(bkd.to_numpy(est.covariance_at(nps))))
+
+    def test_rejects_integer_allocation(self, bkd):
+        """Discrete counts belong to FittedGroupACVEstimator, not here."""
+        est = self._estimator(bkd)
+        nps = bkd.asarray(
+            bkd.full((est.nsubsets(),), 10.0), dtype=bkd.int64_dtype()
+        )
+        with pytest.raises(TypeError, match="requires float-typed"):
+            est.covariance_at(nps)
+
+    def test_decreases_with_more_samples(self, bkd):
+        """Variance must fall as the allocation grows."""
+        est = self._estimator(bkd)
+        small = est.covariance_at(bkd.full((est.nsubsets(),), 10.0))
+        large = est.covariance_at(bkd.full((est.nsubsets(),), 100.0))
+        assert float(bkd.to_numpy(large).flat[0]) < float(
+            bkd.to_numpy(small).flat[0]
+        )
 
 
 # ---------------------------------------------------------------------------

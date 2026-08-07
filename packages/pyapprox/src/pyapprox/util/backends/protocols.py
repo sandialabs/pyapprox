@@ -176,6 +176,9 @@ class Backend(Protocol, Generic[Array]):
     def is_integer_dtype(array: Array) -> bool: ...
 
     @staticmethod
+    def is_floating_dtype(array: Array) -> bool: ...
+
+    @staticmethod
     def stack(
         arrays: Union[List[Array], Tuple[Array, ...]], axis: int = 0
     ) -> Array: ...

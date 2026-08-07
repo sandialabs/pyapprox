@@ -1,7 +1,6 @@
 from typing import Union
 
 import pytest
-
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -150,3 +149,40 @@ class TestTorchBkdMPS:
         arr = torch_mps_bkd.to_numpy(tensor)
         assert isinstance(arr, np.ndarray)
         np.testing.assert_allclose(arr, np.ones(3), rtol=1e-6)
+
+
+class TestDtypePredicates:
+    """is_floating_dtype / is_integer_dtype agree across backends.
+
+    Estimator templates guard their continuous-relaxation math with
+    is_floating_dtype, so the predicate must reject every non-float dtype
+    identically on every backend.
+    """
+
+    def test_float_is_floating(self, bkd):
+        assert bkd.is_floating_dtype(bkd.array([1.0, 2.0]))
+
+    def test_float_is_not_integer(self, bkd):
+        assert not bkd.is_integer_dtype(bkd.array([1.0, 2.0]))
+
+    def test_int_is_not_floating(self, bkd):
+        int_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.int64_dtype())
+        assert not bkd.is_floating_dtype(int_array)
+
+    def test_int_is_integer(self, bkd):
+        int_array = bkd.asarray(bkd.array([1.0, 2.0]), dtype=bkd.int64_dtype())
+        assert bkd.is_integer_dtype(int_array)
+
+    def test_bool_is_not_floating(self, bkd):
+        """Bool must not pass the float guard on either backend.
+
+        numpy and torch disagree on whether bool counts as an integer
+        dtype, so only the positive float check is reliable here.
+        """
+        assert not bkd.is_floating_dtype(bkd.array([True, False]))
+
+    def test_complex_is_not_floating(self, bkd):
+        complex_array = bkd.asarray(
+            bkd.array([1.0, 2.0]), dtype=bkd.complex_dtype()
+        )
+        assert not bkd.is_floating_dtype(complex_array)

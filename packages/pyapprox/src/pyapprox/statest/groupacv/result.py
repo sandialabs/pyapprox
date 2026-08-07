@@ -10,25 +10,38 @@ from pyapprox.util.backends.protocols import Array
 class GroupACVAllocationResult(Generic[Array]):
     """Allocation result for GroupACV estimators.
 
-    Attributes
-    ----------
-    npartition_samples : Array
-        Partition sample counts. Shape (npartitions,).
-        Integer when ``round_nsamples=True``, float otherwise.
-    nsamples_per_model : Array
-        Sample counts per model. Shape (nmodels,).
-    actual_cost : float
-        Actual computational cost.
-    objective_value : Array
-        Objective value. Shape (1,).
-    success : bool
-        Whether allocation succeeded.
-    message : str
-        Status message.
+    Sample counts appear in two forms. Continuous counts are the relaxation
+    explored during optimization, where gradients are required; the template
+    estimator's math is float-only and rejects integer input. Discrete counts
+    are the post-rounding numbers of samples actually drawn, and are what
+    :class:`FittedGroupACVEstimator` requires.
+
+    Continuous Attributes (Optimization)
+    ------------------------------------
     relaxed_npartition_samples : Array or None
         Continuous (unrounded) partition sample counts. Shape (npartitions,).
         Always stored when optimization succeeds. Same as
         ``npartition_samples`` when ``round_nsamples=False``.
+    objective_value : Array
+        Objective value. Shape (1,).
+
+    Discrete Attributes (Evaluation)
+    --------------------------------
+    npartition_samples : Array
+        Partition sample counts. Shape (npartitions,). Use for sample
+        generation. Integer when ``round_nsamples=True``, float otherwise.
+    nsamples_per_model : Array
+        Sample counts per model. Shape (nmodels,). Integer when
+        ``round_nsamples=True``, float otherwise.
+
+    Other Attributes
+    ----------------
+    actual_cost : float
+        Actual computational cost.
+    success : bool
+        Whether allocation succeeded.
+    message : str
+        Status message.
     """
 
     npartition_samples: Array
