@@ -52,6 +52,9 @@ class _StackedLameSetter(Generic[Array]):
         self._set_lamda_fn = set_lamda_fn
         self._npts = npts
 
+    def writes_params(self) -> bool:
+        return False
+
     def __call__(self, values: Array) -> None:
         self._set_mu_fn(values[: self._npts])
         self._set_lamda_fn(values[self._npts :])

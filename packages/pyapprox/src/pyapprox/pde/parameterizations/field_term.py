@@ -103,6 +103,11 @@ _FieldFieldSlot = Union[Zero, FieldShapedHVPFn[Array]]
 
 PhysicsT = TypeVar("PhysicsT")
 
+# The shared ``Array`` TypeVar is invariant, which is right where a type
+# both goes in and comes out. A setter only CONSUMES its argument, so its
+# protocol needs a contravariant one of its own.
+SetterArray = TypeVar("SetterArray", contravariant=True)
+
 
 def _is_linear_map(field_map: FieldMapProtocol[Array]) -> bool:
     """Whether the map DECLARES it is linear in its parameters.
@@ -161,8 +166,8 @@ def _validate_time_modulation(
 
 
 @runtime_checkable
-class ParamWritingSetterProtocol(Protocol):
-    """A setter that receives the PARAMETERS, not a mapped field.
+class FieldSetterProtocol(Protocol[SetterArray]):
+    """A setter that states WHICH vector its ``__call__`` expects.
 
     Two things can own the map from parameters to coefficient values.
     Usually the parameterization owns it --- a KLE, a basis expansion,
@@ -172,15 +177,24 @@ class ParamWritingSetterProtocol(Protocol):
     and realizes its values per assembly time. Handing that coefficient
     a mapped field would mean choosing one time and freezing it.
 
+    The two cases take vectors of different LENGTH (``nfield_dofs``
+    versus ``nmodes``) and different MEANING, and nothing about a bare
+    callable distinguishes them. So the setter must say, and the term
+    refuses one that does not: a wrong guess here writes a plausible
+    vector into the wrong slot rather than raising.
+
     Declared on the SETTER rather than sniffed from the coefficient: the
     term deliberately holds only bound callables (see this module's
     docstring), never the objects they came from, which is what lets one
-    engine serve both discretizations and lets tests pass plain
-    lambdas.
+    engine serve both discretizations.
     """
 
     def writes_params(self) -> bool:
         """Whether ``__call__`` expects the parameter vector."""
+        ...
+
+    def __call__(self, values: SetterArray) -> None:
+        """Write ``values`` onto the coefficient."""
         ...
 
 
@@ -355,7 +369,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
 
     def __init__(
         self,
-        setter: Callable[[Array], None],
+        setter: FieldSetterProtocol[Array],
         physics: PhysicsT,
         field_jacobian: FieldJacobianFn[Array],
         field_state_hvp: _FieldStateSlot[Array],
@@ -426,19 +440,17 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
                 "(state, time, bc_indices, normals) -> (n_bc, nfield) "
                 f"or None, got {type(bc_flux_field_jacobian).__name__}"
             )
+        if not isinstance(setter, FieldSetterProtocol):
+            raise TypeError(
+                "setter must satisfy FieldSetterProtocol, declaring "
+                "writes_params(); got "
+                f"{type(setter).__name__}. Wrap a bound physics setter "
+                "in ToNumpySetter (the parameterization owns the map) "
+                "or ParamSetter (the coefficient owns it)"
+            )
         self._setter = setter
-        # Read ONCE here, not per apply. A plain callable declares
-        # nothing and is treated as writing a mapped field, which is
-        # what every setter did before separable coefficients existed.
-        #
-        # TODO: that default is a guess, and guesses about who owns the
-        # map are the failure this declaration exists to remove. Ten
-        # test sites still pass bare lambdas; once they use
-        # ToNumpySetter/ParamSetter this should REQUIRE the protocol and
-        # raise on an undeclared setter.
-        self._setter_writes_params = isinstance(
-            setter, ParamWritingSetterProtocol
-        ) and setter.writes_params()
+        # Read ONCE here, not per apply.
+        self._setter_writes_params = setter.writes_params()
         self._physics = physics
         self._field_jacobian = field_jacobian
         self._field_state_hvp = field_state_hvp
@@ -488,7 +500,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
 
     @staticmethod
     def linear_field_state(
-        setter: Callable[[Array], None],
+        setter: FieldSetterProtocol[Array],
         physics: PhysicsT,
         field_jacobian: FieldJacobianFn[Array],
         field_state_jacobian: FieldStateJacobianFn[Array],
@@ -523,7 +535,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
 
     @staticmethod
     def state_independent(
-        setter: Callable[[Array], None],
+        setter: FieldSetterProtocol[Array],
         physics: PhysicsT,
         field_jacobian: FieldJacobianFn[Array],
         field_map: FieldMapProtocol[Array],

@@ -29,6 +29,7 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
+    _ConstantInTimeFieldSetter,
 )
 from pyapprox.pde.parameterizations.field_term import (
     FieldStateJacobianAdapter,
@@ -174,7 +175,7 @@ class TestFacadeConstruction:
         field_map = _exp_kle_map(bkd, coords, 2, 0.4)
         with pytest.raises(TypeError, match="bc_flux_field_jacobian"):
             _FieldParameterizationTerm.linear_field_state(
-                setter=physics.set_diffusion,
+                setter=_ConstantInTimeFieldSetter(physics.set_diffusion),
                 physics=physics,
                 field_jacobian=StateJacobianAdapter(
                     physics.residual_diffusion_jacobian

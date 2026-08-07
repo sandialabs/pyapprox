@@ -54,6 +54,9 @@ class _ConstantInTimeFieldSetter(Generic[Array]):
     ) -> None:
         self._set_fn = set_fn
 
+    def writes_params(self) -> bool:
+        return False
+
     def __call__(self, values: Array) -> None:
         self._set_fn(ConstantInTimeField(values))
 

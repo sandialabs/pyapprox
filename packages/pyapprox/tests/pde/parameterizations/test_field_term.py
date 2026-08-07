@@ -65,6 +65,48 @@ from tests._helpers.adjoint_checks import NumpyArray
 _NPARAMS = 3
 
 
+class _NegatedSetter:
+    """Writes the negated mapped field: ``r = -exp(...)`` damping.
+
+    The sign belongs to the damping convention, not to the setter
+    plumbing, so the matching ``field_jacobian`` negates too.
+    """
+
+    def __init__(self, set_fn, bkd):
+        self._set_fn = set_fn
+        self._bkd = bkd
+
+    def writes_params(self) -> bool:
+        return False
+
+    def __call__(self, values) -> None:
+        self._set_fn(-self._bkd.to_numpy(values))
+
+
+class _NoopSetter:
+    """Discards writes, for tests that only exercise construction."""
+
+    def writes_params(self) -> bool:
+        return False
+
+    def __call__(self, values) -> None:
+        return None
+
+
+class _DirectSetter:
+    """Passes the mapped field straight to a setter taking backend
+    arrays, with no numpy conversion."""
+
+    def __init__(self, set_fn):
+        self._set_fn = set_fn
+
+    def writes_params(self) -> bool:
+        return False
+
+    def __call__(self, values) -> None:
+        self._set_fn(values)
+
+
 class _QuadraticFieldToy:
     """Analytic residual R_j(g) = c_j g_j^2 / 2: state-independent and
     quadratic in the field, so the field-field curvature slot is a
@@ -142,7 +184,7 @@ def _build_engine_term(
     diffusion = physics.diffusion_function()
     assert isinstance(diffusion, NodalFieldDiffusion)
     return _FieldParameterizationTerm.linear_field_state(
-        setter=lambda field: diffusion.set_dofs(bkd.to_numpy(field)),
+        setter=ToNumpySetter(diffusion.set_dofs, bkd),
         physics=physics,
         field_jacobian=lambda state, time: (
             physics.residual_diffusivity_jacobian(state)
@@ -256,9 +298,7 @@ class TestFieldParameterizationTerm:
             kle, exp, exp, bkd, transform_deriv2=exp
         )
         term = _FieldParameterizationTerm.state_independent(
-            setter=lambda field: nodal_forcing.set_dofs(
-                bkd.to_numpy(field)
-            ),
+            setter=ToNumpySetter(nodal_forcing.set_dofs, bkd),
             physics=physics,
             field_jacobian=lambda state, time: (
                 physics.residual_forcing_jacobian()
@@ -336,9 +376,7 @@ class TestFieldParameterizationTerm:
             kle, exp, exp, bkd, transform_deriv2=exp
         )
         term = _FieldParameterizationTerm.linear_field_state(
-            setter=lambda field: nodal_reaction.set_dofs(
-                -bkd.to_numpy(field)
-            ),
+            setter=_NegatedSetter(nodal_reaction.set_dofs, bkd),
             physics=physics,
             field_jacobian=lambda state, time: (
                 -physics.residual_reaction_jacobian(state)
@@ -423,9 +461,7 @@ class TestFieldParameterizationTerm:
             kle, exp, exp, bkd, transform_deriv2=exp
         )
         term = _FieldParameterizationTerm.linear_field_state(
-            setter=lambda field: nodal_velocity.set_dofs(
-                bkd.to_numpy(field)
-            ),
+            setter=ToNumpySetter(nodal_velocity.set_dofs, bkd),
             physics=physics,
             field_jacobian=lambda state, time: (
                 physics.residual_velocity_jacobian(state)
@@ -556,7 +592,7 @@ class TestFieldParameterizationTerm:
         assert isinstance(diffusion, NodalFieldDiffusion)
         with pytest.raises(TypeError, match="field_state_jacobian"):
             _FieldParameterizationTerm(
-                setter=lambda f: diffusion.set_dofs(bkd.to_numpy(f)),
+                setter=ToNumpySetter(diffusion.set_dofs, bkd),
                 physics=physics,
                 field_jacobian=lambda s, t: (
                     physics.residual_diffusivity_jacobian(s)
@@ -572,7 +608,7 @@ class TestFieldParameterizationTerm:
             )
         with pytest.raises(TypeError, match="FromLinearity"):
             _FieldParameterizationTerm(
-                setter=lambda f: diffusion.set_dofs(bkd.to_numpy(f)),
+                setter=ToNumpySetter(diffusion.set_dofs, bkd),
                 physics=physics,
                 field_jacobian=lambda s, t: (
                     physics.residual_diffusivity_jacobian(s)
@@ -613,7 +649,7 @@ class TestFieldParameterizationTerm:
             bkd.asarray(np.ones((nstates - 2, 1))),
         )
         wrong_term = _FieldParameterizationTerm.linear_field_state(
-            setter=lambda f: diffusion.set_dofs(bkd.to_numpy(f)),
+            setter=ToNumpySetter(diffusion.set_dofs, bkd),
             physics=physics,
             field_jacobian=lambda s, t: (
                 physics.residual_diffusivity_jacobian(s)
@@ -697,7 +733,7 @@ class TestDenseBackendAssemblies:
         physics = _DenseLinearFieldToy(amat, bkd)
         field_map = _LinearFieldMapToy(phi, bkd)
         term = _FieldParameterizationTerm.linear_field_state(
-            setter=physics.set_field,
+            setter=_DirectSetter(physics.set_field),
             physics=physics,
             field_jacobian=physics.field_jacobian,
             field_state_jacobian=physics.field_state_jacobian,
@@ -788,14 +824,11 @@ class TestTimeModulationValidation:
 
         npts = field_map(bkd.asarray(np.zeros(field_map.nvars()))).shape[0]
 
-        def _noop_setter(values):
-            return None
-
         def _field_jacobian(state, time):
             return bkd.asarray(np.eye(npts))
 
         return _FieldParameterizationTerm.state_independent(
-            setter=_noop_setter,
+            setter=_NoopSetter(),
             physics=object(),
             field_jacobian=_field_jacobian,
             field_map=field_map,
@@ -890,4 +923,47 @@ class TestTimeModulationValidation:
     def test_no_modulation_is_still_the_default(self, numpy_bkd) -> None:
         field_map = self._linear_map(numpy_bkd, nvars=2)
         term = self._term(numpy_bkd, field_map, None)
+        assert term.nparams() == 2
+
+
+class TestSetterMustDeclareWhatItWrites:
+    """A bare callable does not say whether it takes the mapped field or
+    the parameters, and the two differ in length AND meaning."""
+
+    @staticmethod
+    def _term(bkd, setter):
+        npts = 4
+        field_map = MeshKLEFieldMap(
+            bkd,
+            bkd.asarray(np.zeros(npts)),
+            bkd.asarray(np.ones((npts, 2))),
+        )
+
+        def _field_jacobian(state, time):
+            return bkd.asarray(np.eye(npts))
+
+        return _FieldParameterizationTerm.state_independent(
+            setter=setter,
+            physics=object(),
+            field_jacobian=_field_jacobian,
+            field_map=field_map,
+            bkd=bkd,
+            nstates=npts,
+            nfield_dofs=npts,
+            owned_coefficients=("field",),
+        )
+
+    def test_rejects_an_undeclared_callable(self, numpy_bkd) -> None:
+        def _bare(values):
+            return None
+
+        with pytest.raises(TypeError, match="FieldSetterProtocol"):
+            self._term(numpy_bkd, _bare)
+
+    def test_rejects_a_bare_lambda(self, numpy_bkd) -> None:
+        with pytest.raises(TypeError, match="writes_params"):
+            self._term(numpy_bkd, lambda values: None)
+
+    def test_accepts_a_declared_setter(self, numpy_bkd) -> None:
+        term = self._term(numpy_bkd, _NoopSetter())
         assert term.nparams() == 2
