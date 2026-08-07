@@ -605,3 +605,162 @@ class TestTransientAdjointWorkedExample:
         )
         assert model.derivatives().hvp is not None
         _check_gradient_and_hvp(bkd, model)
+
+
+class TestTimeModulatedControl:
+    """The adjoint gradient of a control that varies in time.
+
+    The whole separable chain end to end: a coefficient holding its own
+    modes and profiles, a facade that derives the parameter map from
+    those same modes, and a per-column b(t) scaling reaching the
+    adjoint. Verified against finite differences rather than by
+    inspection, because every layer here can be wrong in a way that
+    still produces plausible numbers.
+    """
+
+    _KNOTS = [0.0, 0.06, 0.12]
+
+    def _build(self, method: str):
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeModulatedNodalFieldLinearReaction,
+        )
+        from pyapprox.pde.field_maps.modulation import (
+            PiecewiseLinearModulation,
+        )
+        from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+        from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+            FROM_FIELD,
+        )
+
+        bkd = NumpyBkd()
+        mesh = StructuredMesh2D(
+            nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
+        )
+        basis = LagrangeBasis(mesh, degree=1)
+        ndofs = basis.ndofs()
+        coords = bkd.to_numpy(basis.dof_coordinates())
+        modes = np.stack(
+            [
+                np.exp(
+                    -15.0
+                    * ((coords[0] - c) ** 2 + (coords[1] - 0.5) ** 2)
+                )
+                for c in (0.3, 0.5, 0.7)
+            ],
+            axis=1,
+        )
+        # Knots offset from the step grid (dt = 0.02) so b(t) varies
+        # WITHIN a step. Crank-Nicolson evaluates at t_prev and t_curr;
+        # if those coincided, a stepper binding one time per step would
+        # be indistinguishable from a correct one.
+        reaction = TimeModulatedNodalFieldLinearReaction(
+            basis,
+            modes,
+            PiecewiseLinearModulation(bkd, self._KNOTS),
+            np.array([0.5, 0.3, 0.4]),
+        )
+        physics = AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=NodalFieldDiffusion(
+                basis, dofs=0.1 * np.ones(ndofs)
+            ),
+            bkd=bkd,
+            reaction=reaction,
+            forcing=NodalFieldForcing(basis, dofs=np.ones(ndofs)),
+            boundary_conditions=[
+                DirichletBC(basis, name, 0.0, bkd)
+                for name in ("left", "right", "bottom", "top")
+            ],
+        )
+        param = AdvectionDiffusionParameterization(
+            physics, reaction_map=FROM_FIELD, bkd=bkd
+        )
+        constrained = set(
+            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+        )
+        free = [i for i in range(ndofs) if i not in constrained]
+        weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
+        weights[free[len(free) // 2]] = 1.0
+        model = GalerkinTransientForwardModel(
+            physics,
+            param,
+            bkd.zeros((physics.nstates(),)),
+            TimeIntegrationConfig(
+                method=method,
+                init_time=0.0,
+                final_time=0.1,
+                deltat=0.02,
+                newton_tol=1e-12,
+                newton_maxiter=20,
+                lumped_mass=False,
+                verbosity=0,
+            ),
+            bkd,
+            functional=WeightedEndpointFunctional(
+                weights, param.nparams(), bkd
+            ),
+        )
+        return bkd, model, reaction, param
+
+    @pytest.mark.parametrize(
+        "method", ["backward_euler", "crank_nicolson"]
+    )
+    def test_gradient_matches_fd(self, method: str) -> None:
+        bkd, model, _, param = self._build(method)
+        assert model.nvars() == param.nparams() == 3
+
+        sample, direction = _sample_and_direction(model.nvars())
+        checker = DerivativeChecker(model)
+        errors = checker.check_derivatives(
+            bkd.asarray(sample),
+            direction=bkd.asarray(direction),
+            relative=True,
+        )
+        ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
+        assert ratio <= 2e-5
+
+    def test_the_control_actually_moves_the_qoi(self) -> None:
+        """Without this every other assertion still passes if the
+        control is silently dropped: a gradient of zero agrees with a
+        finite difference of zero."""
+        bkd, model, _, _ = self._build("crank_nicolson")
+        quiet = float(
+            bkd.to_numpy(model(bkd.asarray(np.zeros((3, 1)))))[0, 0]
+        )
+        acting = float(
+            bkd.to_numpy(
+                model(bkd.asarray(np.array([[0.5], [0.3], [0.4]])))
+            )[0, 0]
+        )
+        assert abs(acting - quiet) > 1e-8
+
+    def test_the_modes_have_one_holder(self) -> None:
+        """A2: the field's modes and the map's jacobian must be the
+        SAME array. Two copies could disagree with nothing detecting
+        it --- the forward solve using one and the gradient the other,
+        each self-consistent, with finite differences agreeing because
+        they perturb the same wrong forward field."""
+        bkd, _, reaction, param = self._build("backward_euler")
+        term = param._inner
+        derived = term._field_map.jacobian(bkd.asarray(np.zeros(3)))
+        np.testing.assert_array_equal(
+            np.asarray(bkd.to_numpy(derived)),
+            np.asarray(reaction.spatial_modes()),
+        )
+
+    def test_a_supplied_map_is_refused(self) -> None:
+        """Passing a map for a coefficient that owns its own modes is a
+        contradiction, so it raises rather than being silently ignored:
+        the caller would otherwise believe their map was used."""
+        bkd, _, _, param = self._build("backward_euler")
+        physics = param.physics()
+        nstates = physics.nstates()
+        unrelated_map = MeshKLEFieldMap(
+            bkd,
+            bkd.asarray(np.zeros(nstates)),
+            bkd.asarray(np.ones((nstates, 3))),
+        )
+        with pytest.raises(TypeError, match="FROM_FIELD"):
+            AdvectionDiffusionParameterization(
+                physics, reaction_map=unrelated_map, bkd=bkd
+            )

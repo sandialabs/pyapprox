@@ -10,12 +10,16 @@ construction wiring only.
 
 from typing import Generic, List, Optional, Tuple, Union
 
+import numpy as np
+
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldForcing,
     NodalFieldLinearReaction,
     NodalFieldVelocity,
+    TimeModulatedFieldProtocol,
 )
+from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
 from pyapprox.pde.field_maps.protocol import FieldMapProtocol
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
@@ -27,6 +31,7 @@ from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.field_term import (
     ConstantJacobianAdapter,
     FieldStateJacobianAdapter,
+    ParamSetter,
     StateJacobianAdapter,
     ToNumpySetter,
     _FieldParameterizationTerm,
@@ -36,6 +41,30 @@ from pyapprox.util.backends.protocols import Array, Backend
 _ADRTerm = _FieldParameterizationTerm[
     Array, AdvectionDiffusionReaction[Array]
 ]
+
+
+class _FromField:
+    """Sentinel: take the parameter-to-field map from the coefficient.
+
+    A separable coefficient (see ``TimeModulatedFieldProtocol``) already
+    holds its spatial modes, so the map from mode coefficients to field
+    DOFs is fixed the moment the physics is built. There is no map for
+    the caller to supply --- but a slot is still only parameterized when
+    the caller asks, so the kwarg remains and this is what they pass.
+
+    Passing an actual map for such a coefficient RAISES rather than
+    being ignored: two sets of modes could disagree, and the failure
+    would be invisible --- the forward solve using one set and the
+    gradient the other, each self-consistent, with finite differences
+    agreeing because they perturb the same wrong forward field.
+    """
+
+    def __repr__(self) -> str:
+        return "FROM_FIELD"
+
+
+FROM_FIELD = _FromField()
+"""Opt a slot in when the coefficient supplies its own spatial modes."""
 
 
 def _require_field(
@@ -83,7 +112,9 @@ class AdvectionDiffusionParameterization(Generic[Array]):
         *,
         diffusivity_map: Optional[FieldMapProtocol[Array]] = None,
         forcing_map: Optional[FieldMapProtocol[Array]] = None,
-        reaction_map: Optional[FieldMapProtocol[Array]] = None,
+        reaction_map: Optional[
+            Union[FieldMapProtocol[Array], _FromField]
+        ] = None,
         velocity_map: Optional[FieldMapProtocol[Array]] = None,
         bkd: Backend[Array],
     ) -> None:
@@ -169,9 +200,33 @@ class AdvectionDiffusionParameterization(Generic[Array]):
         )
 
     def _reaction_term(
-        self, field_map: FieldMapProtocol[Array]
+        self, field_map: Union[FieldMapProtocol[Array], _FromField]
     ) -> _ADRTerm[Array]:
         physics, bkd = self._physics, self._bkd
+        modulated = physics.reaction_function()
+        if isinstance(modulated, TimeModulatedFieldProtocol):
+            if not isinstance(field_map, _FromField):
+                raise TypeError(
+                    "the physics's reaction is a separable "
+                    f"{type(modulated).__name__}, which already fixes "
+                    "its spatial modes; pass reaction_map=FROM_FIELD to "
+                    "parameterize its mode coefficients. A second map "
+                    "could disagree with the field's own modes, and the "
+                    "forward solve and the gradient would then describe "
+                    "different controls"
+                )
+            return self._modulated_reaction_term(modulated)
+        if isinstance(field_map, _FromField):
+            # Without this the term's own guard reports only
+            # "field_map must satisfy FieldMapProtocol, got _FromField",
+            # which does not say what the caller got wrong.
+            raise TypeError(
+                "reaction_map=FROM_FIELD takes the spatial modes from "
+                "the coefficient, but the physics's reaction is "
+                f"{type(modulated).__name__}, which has none; supply a "
+                "field map, or build the physics with a separable "
+                "reaction"
+            )
         reaction = _require_field(
             physics.reaction_function(),
             NodalFieldLinearReaction,
@@ -192,6 +247,53 @@ class AdvectionDiffusionParameterization(Generic[Array]):
             nstates=physics.nstates(),
             nfield_dofs=reaction.ndofs(),
             owned_coefficients=("reaction",),
+        )
+
+    def _modulated_reaction_term(
+        self, reaction: TimeModulatedFieldProtocol
+    ) -> _ADRTerm[Array]:
+        """Parameterize a reaction that is separable in space and time.
+
+        The parameters are the MODE COEFFICIENTS, so the setter writes
+        those rather than nodal DOFs and ``nfield_dofs`` counts modes.
+
+        The field map is DERIVED from the field's own modes rather than
+        supplied alongside them. Two copies of the modes could disagree,
+        and the failure would be invisible: the forward solve would use
+        one set and the gradient another, each self-consistent, with
+        finite differences agreeing because they perturb the same wrong
+        forward field. Deriving makes that impossible rather than
+        merely discouraged.
+
+        The caller still passes ``reaction_map`` to opt this slot in,
+        but it must be the sentinel :data:`FROM_FIELD`: the physics
+        fixed the spatial modes when it was built, so an actual map
+        could only contradict them. Refusing is the point --- silently
+        discarding a map the caller supplied would leave them believing
+        it was used.
+        """
+        physics, bkd = self._physics, self._bkd
+        modes = np.asarray(reaction.spatial_modes())
+        derived_map = BasisExpansion(
+            bkd,
+            0.0,
+            [bkd.asarray(modes[:, k]) for k in range(modes.shape[1])],
+        )
+        return _FieldParameterizationTerm.linear_field_state(
+            setter=ParamSetter(reaction.set_coefficients, bkd),
+            physics=physics,
+            field_jacobian=StateJacobianAdapter(
+                physics.residual_reaction_jacobian
+            ),
+            field_state_jacobian=FieldStateJacobianAdapter(
+                physics.residual_reaction_state_jacobian
+            ),
+            field_map=derived_map,
+            bkd=bkd,
+            nstates=physics.nstates(),
+            nfield_dofs=reaction.nmodes(),
+            owned_coefficients=("reaction",),
+            time_modulation=reaction.modulation(),
         )
 
     def _velocity_term(

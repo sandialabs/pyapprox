@@ -50,7 +50,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     LinearReaction,
     NodalFieldDiffusion,
     NodalFieldForcing,
-    NodalFieldLinearReaction,
     NodalFieldVelocity,
     ReactionFunctionProtocol,
     ReactionFunctionWithSecondDerivativeProtocol,
@@ -1331,12 +1330,19 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         Array
             Sensitivity matrix (scipy sparse). Shape: (nstates, nstates)
         """
-        if not isinstance(self._reaction_function, NodalFieldLinearReaction):
+        # Requires a LINEAR reaction: the sensitivity below is the
+        # reaction mass structure, which is the derivative only when the
+        # reaction enters the residual as +(v, r u). Checked on the
+        # capability rather than on a concrete class --- the assembly
+        # itself never touches the reaction object, so any linear one
+        # with nodal DOFs is differentiable this way. (The sibling
+        # residual_reaction_state_jacobian has never checked at all.)
+        reaction = self._reaction_function
+        if reaction is None or not reaction.is_linear():
             raise TypeError(
-                "residual_reaction_jacobian requires a "
-                "NodalFieldLinearReaction reaction (nodal DOFs are the "
-                "differentiable representation), got "
-                f"{type(self._reaction_function).__name__}"
+                "residual_reaction_jacobian requires a linear reaction "
+                "whose nodal DOFs are the differentiable "
+                f"representation, got {type(reaction).__name__}"
             )
         skfem_basis = self._basis.skfem_basis()
         state_np = self._bkd.to_numpy(state)

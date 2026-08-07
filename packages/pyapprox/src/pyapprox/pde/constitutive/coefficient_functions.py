@@ -981,6 +981,44 @@ class NodalFieldLinearReaction:
         return f"NodalFieldLinearReaction(ndofs={self.ndofs()})"
 
 
+@runtime_checkable
+class TimeModulatedFieldProtocol(Protocol):
+    """A coefficient field of the separable form
+
+    .. math::
+
+        \\text{field}(x, t) = \\sum_k c_k\\, b_k(t)\\, s_k(x).
+
+    Declares the three things a parameterization needs to differentiate
+    such a field WITHOUT the field itself knowing anything about
+    parameterizations: the spatial modes it sums, the profiles scaling
+    them, and how to update the coefficients.
+
+    The modes are exposed so a consumer can DERIVE the map ``c -> DOFs``
+    from the field rather than be handed a second copy. Two copies can
+    disagree, and the failure is invisible: the forward solve would use
+    one set of modes and the gradient another, each internally
+    consistent, with finite differences agreeing because they perturb
+    the same wrong forward field.
+    """
+
+    def spatial_modes(self) -> _Quad:
+        """The modes summed. Shape: (ndofs, nmodes)."""
+        ...
+
+    def modulation(self) -> Any:
+        """The profiles scaling the modes (a TimeModulationProtocol)."""
+        ...
+
+    def set_coefficients(self, coefficients: _Quad) -> None:
+        """Set the mode coefficients. Shape: (nmodes,)."""
+        ...
+
+    def nmodes(self) -> int:
+        """Number of modes, and so of coefficients."""
+        ...
+
+
 class TimeModulatedNodalFieldLinearReaction:
     """Linear reaction whose nodal DOFs vary in time.
 
@@ -1065,6 +1103,23 @@ class TimeModulatedNodalFieldLinearReaction:
     def nmodes(self) -> int:
         """Return the number of modes."""
         return int(self._modes.shape[1])
+
+    def spatial_modes(self) -> _Quad:
+        """The modes this field sums. Shape: (ndofs, nmodes).
+
+        Exposed so a parameterization can DERIVE the coefficient-to-DOF
+        map from the same array this field interpolates, rather than
+        holding a second copy that could drift from it.
+        """
+        return self._modes
+
+    def modulation(self) -> Any:
+        """The temporal profiles scaling the modes."""
+        return self._modulation
+
+    def coefficients(self) -> _Quad:
+        """Current mode coefficients. Shape: (nmodes,)."""
+        return self._coefficients
 
     def ndofs(self) -> int:
         """Return the number of field DOFs."""

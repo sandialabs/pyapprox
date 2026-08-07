@@ -627,7 +627,7 @@ class TestFieldParameterizationTerm:
             nfield_dofs=nstates,
             owned_coefficients=("field",),
         )
-        with pytest.raises(ValueError, match="DOFs"):
+        with pytest.raises(ValueError, match="setter expects"):
             wrong_term.apply(bkd.asarray(np.array([0.1])))
 
 

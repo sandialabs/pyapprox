@@ -36,7 +36,16 @@ Second-derivative slots are REQUIRED and three-valued (``Zero()``,
 structure is stated explicitly at the construction site.
 """
 
-from typing import Callable, Generic, Optional, Tuple, TypeVar, Union
+from typing import (
+    Callable,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    TypeVar,
+    Union,
+    runtime_checkable,
+)
 
 import numpy as np
 from scipy.sparse import spmatrix
@@ -151,8 +160,38 @@ def _validate_time_modulation(
 # pickles by object-reference + name; a lambda does not).
 
 
+@runtime_checkable
+class ParamWritingSetterProtocol(Protocol):
+    """A setter that receives the PARAMETERS, not a mapped field.
+
+    Two things can own the map from parameters to coefficient values.
+    Usually the parameterization owns it --- a KLE, a basis expansion,
+    whatever the caller supplied --- and the term evaluates it and
+    writes the result. But a separable coefficient already holds its own
+    modes and temporal profiles, so it wants the parameters themselves
+    and realizes its values per assembly time. Handing that coefficient
+    a mapped field would mean choosing one time and freezing it.
+
+    Declared on the SETTER rather than sniffed from the coefficient: the
+    term deliberately holds only bound callables (see this module's
+    docstring), never the objects they came from, which is what lets one
+    engine serve both discretizations and lets tests pass plain
+    lambdas.
+    """
+
+    def writes_params(self) -> bool:
+        """Whether ``__call__`` expects the parameter vector."""
+        ...
+
+
 class ToNumpySetter(Generic[Array]):
-    """Picklable setter adapter: backend values -> numpy -> bound setter."""
+    """Picklable setter adapter: backend values -> numpy -> bound setter.
+
+    Writes a MAPPED FIELD: the parameterization owns the
+    parameter-to-field map, the term evaluates it, and this stores the
+    result. Use :class:`ParamSetter` when the coefficient owns its own
+    map instead.
+    """
 
     def __init__(
         self,
@@ -161,6 +200,37 @@ class ToNumpySetter(Generic[Array]):
     ) -> None:
         self._set_fn = set_fn
         self._bkd = bkd
+
+    def writes_params(self) -> bool:
+        return False
+
+    def __call__(self, values: Array) -> None:
+        self._set_fn(np.asarray(self._bkd.to_numpy(values)))
+
+
+class ParamSetter(Generic[Array]):
+    """Picklable setter adapter for a coefficient that owns its map.
+
+    Identical plumbing to :class:`ToNumpySetter`; the difference is the
+    declaration, which tells the term to pass the parameters through
+    rather than evaluate a map first.
+
+    The term's length check still applies, against whatever the wrapped
+    setter expects (``nmodes`` for a separable coefficient), so pairing
+    this with a field setter fails immediately on the shape rather than
+    writing something plausible.
+    """
+
+    def __init__(
+        self,
+        set_fn: Callable[[np.ndarray], None],
+        bkd: Backend[Array],
+    ) -> None:
+        self._set_fn = set_fn
+        self._bkd = bkd
+
+    def writes_params(self) -> bool:
+        return True
 
     def __call__(self, values: Array) -> None:
         self._set_fn(np.asarray(self._bkd.to_numpy(values)))
@@ -357,6 +427,18 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
                 f"or None, got {type(bc_flux_field_jacobian).__name__}"
             )
         self._setter = setter
+        # Read ONCE here, not per apply. A plain callable declares
+        # nothing and is treated as writing a mapped field, which is
+        # what every setter did before separable coefficients existed.
+        #
+        # TODO: that default is a guess, and guesses about who owns the
+        # map are the failure this declaration exists to remove. Ten
+        # test sites still pass bare lambdas; once they use
+        # ToNumpySetter/ParamSetter this should REQUIRE the protocol and
+        # raise on an undeclared setter.
+        self._setter_writes_params = isinstance(
+            setter, ParamWritingSetterProtocol
+        ) and setter.writes_params()
         self._physics = physics
         self._field_jacobian = field_jacobian
         self._field_state_hvp = field_state_hvp
@@ -418,6 +500,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         bc_flux_field_jacobian: Optional[
             BCFluxFieldJacobianFn[Array]
         ] = None,
+        time_modulation: Optional[TimeModulationProtocol[Array]] = None,
     ) -> "_FieldParameterizationTerm[Array, PhysicsT]":
         """Term linear in the field AND the state (e.g. kappa grad u,
         r*u): slots (FromLinearity, FromLinearity, Zero)."""
@@ -435,6 +518,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
             owned_coefficients,
             field_state_jacobian=field_state_jacobian,
             bc_flux_field_jacobian=bc_flux_field_jacobian,
+            time_modulation=time_modulation,
         )
 
     @staticmethod
@@ -489,14 +573,25 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         return self._derivs
 
     def apply(self, params_1d: Array) -> None:
-        """Map parameters to field DOFs and set them on the physics."""
-        field = self._field_map(params_1d)
-        if field.shape[0] != self._nfield_dofs:
+        """Write what the coefficient's setter expects.
+
+        Usually that is the mapped field, because the parameterization
+        owns the parameter-to-field map. A setter declaring
+        ``writes_params`` belongs to a coefficient that owns its own map
+        and realizes its values per assembly time; evaluating a map for
+        it here would pick one time and freeze the result.
+        """
+        values = (
+            params_1d
+            if self._setter_writes_params
+            else self._field_map(params_1d)
+        )
+        if values.shape[0] != self._nfield_dofs:
             raise ValueError(
-                f"field map produced {field.shape[0]} DOFs but the "
-                f"physics field has {self._nfield_dofs}"
+                f"setter expects {self._nfield_dofs} values but got "
+                f"{values.shape[0]}"
             )
-        self._setter(field)
+        self._setter(values)
 
     # -- derivative calculus (exists exactly once, here)
 
