@@ -37,11 +37,13 @@ jupyter: python3
 After completing this tutorial, you will be able to:
 
 - Configure `GroupACVAllocationOptimizer` with the default `AllocationProblemConfig`
-  and explain why log-space variable scaling and inequality budget form are the
-  recommended defaults
-- Recognize the failure signatures of alternative scaling configurations: gentle
-  widening of the optimality gap for `none`/`constraint_only`, and catastrophic
-  non-monotonic convergence for `full`
+  and explain why log-space variable scaling is the recommended default
+- Detect the allocator's silent failure mode — a returned allocation that never
+  left the initial guess, reported as `success=True` — and recognize that
+  solver tolerance, not just problem configuration, determines whether it occurs
+- Recognize the failure signatures of alternative scaling configurations: a
+  gradually widening optimality gap for `none`, and non-monotonic convergence
+  for cost scaling (`"full"`)
 - Understand why `MLBLUESPDAllocationOptimizer`, despite solving a convex
   reformulation, can produce much worse allocations than SLSQP on problems
   with many subsets when using the cvxpy default backends (CLARABEL, SCS)
@@ -128,7 +130,8 @@ log_ineq = AllocationProblemConfig(
 )
 allocator = GroupACVAllocationOptimizer(
     template,
-    optimizer=ScipySLSQPOptimizer(maxiter=1000, ftol=1e-6),
+    # ftol=1e-10, not the SciPy default: see the tolerance discussion below
+    optimizer=ScipySLSQPOptimizer(maxiter=1000, ftol=1e-10),
     problem_config=log_ineq,
 )
 result = allocator.optimize(target_cost=500.0, round_nsamples=False)
@@ -140,20 +143,94 @@ print(f"actual cost = {result.actual_cost:.2f}")
 print(f"variance   = {float(bkd.to_numpy(cov_est[0,0])):.3e}")
 ```
 
+This recipe is an empirical finding, not a theorem. It comes from sweeping the
+available configurations on the five-model polynomial benchmark for **mean
+estimation**; the claims below are scoped to that setting. What the sweep
+mainly established is uncomfortable but worth stating plainly: for this
+problem the formulation does not separate cleanly from the solver. Variable
+scaling, solver choice, and convergence tolerance each move the achieved
+variance by one to two orders of magnitude, so none of them can be treated as
+an implementation detail that a user may safely leave alone.
+
 Three knobs determine the recipe and matter in this order:
 
+- **Solver tolerance.** The single largest effect, and the one most easily
+  missed. The allocation objective takes values around $10^{-5}$ to $10^{-8}$,
+  and its gradient is smaller still. SLSQP's `ftol` is an *absolute*
+  tolerance, so the default `ftol=1e-6` can exceed the objective's own scale;
+  SLSQP then declares convergence at the starting point. This tutorial uses
+  `ftol=1e-10`. See @sec-silent-stall for how to detect the failure.
 - **Variable scaling.** The optimizer works in a transformed variable space
   $m_k = g(n_k)$. For `"log"`, $m_k = \log n_k$. The transformation equalizes
   the dynamic range of partition sample counts when model costs span many
   orders of magnitude — without it the gradient with respect to the cheap-model
   partitions is many orders of magnitude smaller than the gradient with respect
   to the HF partition, and SLSQP terminates prematurely.
-- **Budget constraint form.** `"inequality"` is the default. Some optimizers
-  may perform better with `"equality"`, but SLSQP produces the same result
-  with either form on this benchmark.
-- **Lower bound on $m_k$.** Automatically set from the statistic's dead
-  threshold: zero for mean estimation, two for variance. Users should not
-  need to override this.
+- **Budget constraint form.** `"inequality"` is the default and the choice does
+  not matter here: across every scaling and budget in @fig-scaling-comparison,
+  equality and inequality produce bit-identical allocations. The reason is
+  visible in `result.actual_cost`, which equals the target budget in every run
+  — for mean estimation more samples never increase variance, so the optimum
+  always spends the full budget and the inequality is active. Under the
+  $n_k \geq 2$ dead-region constraint of variance estimation this reasoning no
+  longer applies, and the two forms have not been compared there.
+- **Lower bound on $n_k$.** Automatically set from the statistic's dead
+  threshold: zero for mean estimation, two for variance. The bound is
+  imposed on the raw sample counts $n_k$, not on the transformed variables
+  — the variable space transforms it along with everything else, so under
+  `"log"` the optimizer sees $\log n_k \ge \log(\max(n_{\min}, 10^{-30}))$.
+  Users should not need to override this.
+
+
+## The Silent Stall: When `success` Lies {#sec-silent-stall}
+
+The allocator's most dangerous failure does not raise, and does not set
+`result.success` to `False`. SLSQP evaluates the objective at the initial
+guess, finds the change smaller than `ftol`, and reports success without
+having moved. The returned allocation is the starting point — a uniform
+split across all partitions — which is a valid allocation and a poor one.
+
+The check that catches it is to ask whether the partitions ever
+differentiated:
+
+```{python}
+loose = GroupACVAllocationOptimizer(
+    GroupACVEstimatorIS(stat_mean, costs, model_subsets=subsets),
+    optimizer=ScipySLSQPOptimizer(maxiter=1000, ftol=1e-6),
+    problem_config=AllocationProblemConfig(
+        variable_scaling="none", budget_constraint_form="inequality"
+    ),
+)
+loose_result = loose.optimize(target_cost=5000.0, round_nsamples=False)
+nps = bkd.to_numpy(loose_result.npartition_samples).ravel()
+spread = nps.max() - nps.min()
+print(f"success = {loose_result.success}")
+print(f"spread across partitions = {spread:.3e}")
+print(f"stalled at initial guess = {spread < 1e-9 * max(1.0, nps.max())}")
+```
+
+A spread of exactly zero means every partition still holds the same sample
+count the optimizer started with. Tightening `ftol` to `1e-10` on the same
+problem lowers the estimator variance by roughly a factor of 50.
+
+Two properties of this failure are worth internalizing. It is **silent** —
+`success` is `True`, so any workflow that checks only that flag will consume
+a uniform allocation as though it were optimized. And it is **not confined to
+one solver**: `trust-constr` exhibits the same stall on this problem, though
+it does at least report `success=False` when it happens, and it is insensitive
+to its own `gtol` over the range $10^{-8}$ to $10^{-14}$. Substituting a
+different solver is therefore not a fix on its own.
+
+::: {.callout-warning}
+## Tolerance is problem-scaled, not universal
+
+`ftol=1e-10` is calibrated to this benchmark, where the objective sits around
+$10^{-5}$–$10^{-8}$. It is not a universal constant. Tightening further is
+not uniformly better either: at $P = 1000$ with log scaling, `ftol=1e-12`
+stalls where `1e-10` succeeds. For a new problem, compare the objective's
+magnitude against the tolerance rather than copying a number, and use the
+spread check above to confirm the optimizer moved.
+:::
 
 
 ## Choosing the Objective: Trace vs Log-Determinant
@@ -199,7 +276,7 @@ objective.
 
 ```{python}
 #| echo: false
-#| fig-cap: "Cross-evaluation of trace-optimal and log-det-optimal allocations on the 3-model 3-QoI multi-output benchmark at $P = 100$. **(a)** Trace of the estimator covariance. The trace-optimal allocation (green) achieves the smallest trace; the log-det-optimal allocation (blue) is larger by the factor in the title. **(b)** Log-determinant. The log-det-optimal allocation wins; the trace-optimal allocation has a larger log-det by the additive offset in the title. The bar with the heavy black outline is the winner of each panel."
+#| fig-cap: "Cross-evaluation of trace-optimal and log-det-optimal allocations on the 3-model 3-QoI multi-output benchmark at $P = 100$. **(a)** Trace of the estimator covariance. The trace-optimal allocation (green) achieves the smallest trace; the log-det-optimal allocation (blue) is larger by the factor in the title. **(b)** Log-determinant. The log-det-optimal allocation wins; the trace-optimal allocation has a larger log-det by the additive offset in the title. Because these bars are already logarithms, the offset is reported additively, with the equivalent multiplicative factor on $\\det(\\mathrm{Cov})$ given alongside it — a difference of log-determinants is the log of a determinant ratio. The bar with the heavy black outline is the winner of each panel."
 #| label: fig-trace-vs-logdet
 
 from pyapprox_tutorials.figures._group_acv_optimization import (
@@ -214,7 +291,17 @@ plt.show()
 
 Two practical points come out of this:
 
-- For single-QoI problems the choice is invisible — keep the default.
+- For single-QoI problems the choice does not change the optimum — keep the
+  default. It does, however, change the tolerance you need. Because
+  $\nabla \log f = \nabla f / f$, taking the logarithm divides the gradient by
+  the objective's own magnitude. With variance values near $10^{-8}$ an
+  unlogged objective produces gradients around $10^{-8}$, below the SciPy
+  default `ftol`, so the solver stops immediately; the logged objective lifts
+  the same gradients by roughly $1/f$ into a range an absolute tolerance can
+  resolve. This is why the recommended `ftol` here is tied to the logged
+  default — a tolerance chosen for one objective does not transfer to the
+  other. The invariance is not unlimited: the logged objective itself fails to
+  converge at `ftol` of $10^{-14}$ and below on this benchmark.
 - For multi-QoI problems, pick the objective that matches the downstream
   decision. If users will report each QoI's uncertainty separately, trace
   is the natural target. If users will form joint confidence regions or
@@ -228,13 +315,20 @@ Two practical points come out of this:
 
 `AllocationProblemConfig.variable_scaling` accepts four values: `"none"`,
 `"constraint_only"`, `"full"`, and `"log"`. The other three exist for diagnostic
-and special-case use. @fig-scaling-comparison contrasts SLSQP's behavior with
-each, sweeping the target budget on the five-model polynomial benchmark for
-mean estimation.
+and special-case use. @fig-scaling-comparison sweeps the target budget on the
+five-model polynomial benchmark for mean estimation, at the tightened
+`ftol=1e-10` established above.
+
+The figure plots three of the four. `"constraint_only"` is omitted because it
+tracks `"none"` to within a few percent at every budget — the two differ only
+in whether the constraint output is normalized, and on this benchmark that
+distinction does not reach the allocation. Cost scaling appears as **cost**;
+it is the value spelled `"full"` in the API, and rescales each partition by
+its cost ratio, $m_k = (c_k / c_{\min})\, n_k$.
 
 ```{python}
 #| echo: false
-#| fig-cap: "Estimator variance vs budget for SLSQP with four scaling configurations, all using inequality budget form. **log/ineq** (blue, solid) is monotonic and consistently best. **none/ineq** (green, dashed) and **constraint_only/ineq** (purple, dot-dashed) are competitive at small to moderate budgets but their gap to log/ineq widens as the budget grows. **full/ineq** (red, dotted) exhibits non-monotonic convergence: the variance at budget=1000 is worse than at budget=500, and at budget=5000 the optimizer terminates after only ~23 iterations stuck near the initial guess — a clear gradient-pathology signature. The dotted gray reference is single-fidelity Monte Carlo at the same budget."
+#| fig-cap: "Estimator variance vs budget for SLSQP at `ftol=1e-10` with three variable scalings, all using inequality budget form. **log** (blue, solid) is monotonic and lowest at every budget. **none** (green, dashed) is close at small budgets — within 6% at $P = 50$ — and widens to roughly $2.7\\times$ by $P = 5000$. **cost** (red, dotted), the `\"full\"` setting, is both worst and non-monotonic: variance at $P = 1000$ ($3.50\\times 10^{-6}$) is higher than at $P = 500$ ($2.27\\times 10^{-6}$), so more budget buys a worse allocation. The dotted gray reference is single-fidelity Monte Carlo at the same budget. At the SciPy-default `ftol=1e-6` this figure looks very different and is not trustworthy: `none` and `cost` both stall at the initial guess by $P = 5000$, landing on the Monte Carlo value and exaggerating log scaling's margin to roughly $110\\times$."
 #| label: fig-scaling-comparison
 
 from pyapprox_tutorials.figures._group_acv_optimization import (
@@ -249,24 +343,26 @@ plt.show()
 
 Three patterns are worth committing to memory:
 
-**Full scaling is worse with more budget.** The `full` configuration rescales
-$m_k = (c_k / c_{\min}) n_k$, so partitions involving expensive models live on
-a much larger scale than partitions on cheap models. As the budget grows the
+**Cost scaling is worse with more budget.** Because it rescales
+$m_k = (c_k / c_{\min}) n_k$, partitions involving expensive models live on a
+much larger scale than partitions on cheap models. As the budget grows the
 optimum allocation shifts mass onto cheap LF models, which sharpens the cost
-ratio in the variables, which worsens the conditioning, which causes SLSQP to
-stop earlier with a poorer iterate. The non-monotonic variance curve is the
+ratio in the variables and worsens the conditioning, so SLSQP stops at a
+poorer iterate. The non-monotonic step between $P = 500$ and $P = 1000$ is the
 visible signature.
 
-**None and constraint-only scaling degrade slowly.** Both work in raw $n$-space
-and differ only in whether the constraint output is normalized. They produce
-nearly identical iterates at moderate budgets but lose roughly a factor of two
-in variance relative to log scaling by budget = 5000. The optimizer is not
-stuck; the local minimum it finds is just slightly worse than log scaling's.
+**None degrades gradually.** Working in raw $n$-space costs little at small
+budgets — at $P = 50$ it is within 6% of log scaling — but the gap widens to
+about $2.7\times$ by $P = 5000$. The optimizer is not stuck here; the local
+minimum it reaches is simply worse than log scaling's.
 
-**Log scaling is the workhorse.** Across more than three orders of magnitude
-in budget, log scaling is consistently the best of the four. There is no
-budget regime in this benchmark where another scaling beats it. Use it as the
-default unless you have a specific reason to deviate.
+**Log scaling is the workhorse.** It is lowest at every budget in
+@fig-scaling-comparison, so it remains the recommended default. The margin is
+worth reading carefully, though: at $P = 50$ the three scalings sit within
+about 25% of each other, and log scaling's advantage over `none` grows to
+roughly $2.7\times$ only by $P = 5000$. The case for it is that it is best
+across the whole range while the alternatives each degrade somewhere — `none`
+steadily, cost scaling non-monotonically.
 
 
 ## The MLBLUE Mean-Only Convex Formulation: Theory and a Numerical Trap
@@ -358,7 +454,7 @@ range grows.
 
 ```{python}
 #| echo: false
-#| fig-cap: "MLBLUE mean estimation: variance achieved by the SPD allocator (red, dashed, stars) vs SLSQP+log/ineq (blue, solid, circles) across budgets on the five-model polynomial benchmark. SPD here is solved via cvxpy with the CLARABEL backend (the cvxpy default). SPD is substantially worse than SLSQP at every budget shown — the gap is already a factor of a few at $P = 50$ and grows to roughly $50\\times$ by $P = 5000$. The shaded region is the SPD suboptimality, with ratio annotations at each point where the gap exceeds $1.2\\times$. The widening with budget reflects growing Schur-complement conditioning $\\kappa_{\\text{SDP}}$, not numerical tolerance: both CLARABEL and SCS converge cleanly with duality gap below $10^{-12}$ to the suboptimal point. SPD agrees with SLSQP only when the subset count is small enough that $\\Psi$ stays low-dimensional (verified separately on a two-subset version of this problem)."
+#| fig-cap: "MLBLUE mean estimation: variance achieved by the SPD allocator (red, dashed, stars) vs SLSQP+log/ineq (blue, solid, circles) across budgets on the five-model polynomial benchmark. SPD here is solved via cvxpy with the CLARABEL backend (the cvxpy default). SPD is substantially worse than SLSQP at every budget shown — the gap is already $13.7\\times$ at $P = 50$ and grows to $110\\times$ by $P = 5000$. The shaded region is the SPD suboptimality, with ratio annotations at each point where the gap exceeds $1.2\\times$. The widening with budget reflects growing Schur-complement conditioning $\\kappa_{\\text{SDP}}$, not numerical tolerance: both CLARABEL and SCS converge cleanly with duality gap below $10^{-12}$ to the suboptimal point. SPD agrees with SLSQP only when the subset count is small enough that $\\Psi$ stays low-dimensional (verified separately on a two-subset version of this problem)."
 #| label: fig-spd-vs-slsqp
 
 from pyapprox_tutorials.figures._group_acv_optimization import (
@@ -388,11 +484,16 @@ low-dimensional and $\kappa_{\text{SDP}}$ stays well below $10^7$ across
 all budgets — even CLARABEL agrees with SLSQP to high precision and provides
 a useful sanity check on the gradient solver. (We have confirmed exact
 agreement between SPD and SLSQP across the full budget sweep on a literal
-two-subset version of this benchmark.) Second, even when the SDP result is
-suboptimal, it is typically in the right *basin* of the convex landscape —
-passing `init_guess=spd_result.npartition_samples` to
-`GroupACVAllocationOptimizer.optimize()` is a sensible warm-start that
-places SLSQP near the optimum (exercise 3).
+two-subset version of this benchmark.) Second, the SDP allocation can be
+passed to `GroupACVAllocationOptimizer.optimize()` as
+`init_guess=spd_result.npartition_samples`. As a warm start it is of limited
+value on this benchmark, and is not a substitute for choosing `ftol`
+correctly. It does prevent the silent stall of @sec-silent-stall — an SPD
+starting point is differentiated enough that SLSQP does not immediately meet
+a loose tolerance — but it recovers far less than tightening `ftol` does on
+the same cases, and at the recommended `log` config with `ftol=1e-10` it
+changes the result by less than 0.1%. It can also hurt: starting inside a
+poor basin can trap SLSQP there (exercise 3).
 
 
 ## Variance Estimation and the $n \geq 2$ Dead Region
@@ -505,36 +606,55 @@ The following table summarizes the allocator choice for common configurations.
 | Multi-QoI, marginal variances matter most         | Add `objective=GroupACVTraceObjective()` to any of the above              |
 | Multi-QoI, joint uncertainty matters most         | Keep the default `GroupACVLogDetObjective`                                |
 | Want to try SDP on a problem with few subsets     | `MLBLUESPDAllocationOptimizer` (default CLARABEL); for more reliability, pass `solver_name="CVXOPT"` |
-| Want a coarse SDP-based initial guess for SLSQP   | `MLBLUESPDAllocationOptimizer` → pass `result.npartition_samples` as `init_guess` to `GroupACVAllocationOptimizer.optimize()` |
+| Allocator stalls at the initial guess             | Tighten `ftol` first (@sec-silent-stall); an SPD `init_guess` also clears the stall but recovers much less |
 | Allocator fails despite reasonable setup          | Increase `maxiter` / tighten `ftol`; if still failing, file a bug report  |
 
 A few rules that hold across all scenarios: always use `log/ineq` as the
 problem config unless you have a specific reason to deviate, always pass an
-explicit `ScipySLSQPOptimizer` rather than relying on the default optimizer,
-and check `result.success` before consuming `result.npartition_samples`.
+explicit `ScipySLSQPOptimizer` with an `ftol` chosen against your objective's
+magnitude rather than relying on either default, and do not treat
+`result.success` as sufficient — check that the returned allocation actually
+left the initial guess (@sec-silent-stall).
 
 
 ## Key Takeaways
 
 - The default optimizer recipe for group ACV is SLSQP with
-  `AllocationProblemConfig(variable_scaling="log", budget_constraint_form="inequality")`.
+  `AllocationProblemConfig(variable_scaling="log", budget_constraint_form="inequality")`
+  and an explicit `ftol` — `1e-10` on this benchmark. This is an empirical
+  result for mean estimation on the five-model polynomial benchmark, not a
+  general theorem.
+- Solver settings are not separable from the problem formulation here.
+  Tolerance alone moves the achieved variance by 10–50×, which is larger than
+  the spread between variable scalings. A configuration recommendation that
+  omits the tolerance is incomplete.
+- The allocator can fail silently: SLSQP returns `success=True` while sitting
+  at the initial guess. Detect it by checking that the partition counts
+  differentiated (@sec-silent-stall). `trust-constr` stalls on the same
+  problem — at $P = 5000$ it never leaves the initial guess under any `gtol`
+  tested — so changing solver is not by itself a remedy.
+- The budget constraint form does not matter for mean estimation: equality and
+  inequality give bit-identical allocations because the optimum always spends
+  the full budget. This has not been checked under the $n_k \geq 2$ dead
+  region of variance estimation.
 - The default objective is `GroupACVLogDetObjective`. For single-QoI
   problems this is equivalent to minimizing the scalar variance. For
   multi-QoI, trace-optimal and log-det-optimal allocations differ
   (see @fig-trace-vs-logdet) — pick the objective that matches the downstream
   decision.
-- Other variable scalings degrade at high budgets: `none` and `constraint_only`
-  widen their gap to log-space gradually; `full` exhibits non-monotonic
-  convergence and is essentially never the right choice (see @fig-scaling-comparison).
+- Other variable scalings degrade at high budgets: `none` widens its gap to
+  log-space gradually, reaching about $2.7\times$ at $P = 5000$; cost scaling
+  (`"full"`) exhibits non-monotonic convergence and is essentially never the
+  right choice (see @fig-scaling-comparison). Log scaling wins at every budget
+  in that figure, but by a factor of a few rather than orders of magnitude.
 - For mean estimation with MLBLUE-style independent subsets, the allocation
   problem is convex in theory — but the SDP reformulation
   (`MLBLUESPDAllocationOptimizer`) with the cvxpy default backends
   (CLARABEL, SCS) suffers a Schur-complement conditioning gap between the
   $\Psi$ block and the variance scalar $t$, leading to allocations that are
-  2–50× worse than SLSQP on the polynomial five-model benchmark (see
+  14–110× worse than SLSQP on the polynomial five-model benchmark (see
   @fig-spd-vs-slsqp). Use SLSQP with `log/ineq` for MLBLUE mean estimation
-  as the workhorse; treat the SDP allocator as a coarse initialization or a
-  small-subset sanity check.
+  as the workhorse; treat the SDP allocator as a small-subset sanity check.
 - Variance estimation enforces $m^k \geq 2$ per partition, which makes direct
   SLSQP fail or waste budget at tight budgets. `MeanGuidedSubsetFitter`
   screens with a cheap mean solve to find the active subset, then runs the
@@ -543,10 +663,11 @@ and check `result.success` before consuming `result.npartition_samples`.
 
 ## Exercises
 
-1. Rerun the SLSQP scaling comparison with `budget_constraint_form="equality"`
-   instead of `"inequality"`. Does the failure pattern of `full` scaling
-   change? Why might equality form be slightly harder for an active-set
-   solver like SLSQP near the optimum?
+1. Sweep `ftol` over $10^{-6}, 10^{-8}, \ldots, 10^{-14}$ for each variable
+   scaling at $P = 5000$, recording both the estimator variance and the spread
+   across partition counts. Identify the tolerance at which each scaling stops
+   stalling, and find the case where tightening `ftol` makes the result worse
+   rather than better. *(Hint: log scaling at $P = 1000$ and `ftol=1e-12`.)*
 
 2. Take a budget where direct SLSQP succeeds on the variance problem (say
    $P = 1000$). Run both the direct allocator and `MeanGuidedSubsetFitter`.
@@ -559,8 +680,9 @@ and check `result.success` before consuming `result.npartition_samples`.
    SLSQP variance at each budget. Verify that the ratio grows with budget,
    and explain in terms of the conditioning number $\kappa_{\text{SDP}}$.
    Then warm-start SLSQP from the SPD allocation (pass `init_guess`) and
-   verify it recovers the SLSQP-from-default-init result in a small number
-   of iterations.
+   compare against the default uniform start, at both `ftol=1e-6` and
+   `ftol=1e-10`. At which tolerance does the warm start help, and does it
+   ever make the result worse? Relate your answer to @sec-silent-stall.
 
 4. The `MeanGuidedSubsetFitter` has an `activity_threshold` parameter
    (default $1.0$). Predict what happens if you set it to $10^{-1}$ on

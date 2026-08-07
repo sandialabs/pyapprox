@@ -3,8 +3,8 @@
 Covers: group_acv_optimization.qmd
 
 Demonstrates:
-  - Why log-space variable scaling outperforms none/constraint_only/full
-    across budgets, with full-scaling exhibiting non-monotonic
+  - Why log-space variable scaling outperforms none and cost ("full")
+    scaling across budgets, with cost scaling exhibiting non-monotonic
     convergence (more budget -> worse local minimum).
   - SPD reference for the convex MLBLUE-mean special case.
   - Variance estimation failure under direct SLSQP at low budgets
@@ -40,45 +40,65 @@ from pyapprox_benchmarks.statest import (
 # ---------------------------------------------------------------------------
 # Shared configuration
 # ---------------------------------------------------------------------------
+# Every config here uses the inequality budget form. Equality was checked
+# across all scalings and budgets on this benchmark and gives bit-identical
+# allocations, because the optimum always spends the full budget for mean
+# estimation -- so the constraint form is not a varied axis and is left out
+# of the labels. "constraint_only" is likewise omitted: it tracks "none" to
+# within a few percent everywhere, so plotting it adds a curve without
+# adding a distinction.
 _SCALING_CONFIGS = {
-    "log/ineq": AllocationProblemConfig(
+    "log": AllocationProblemConfig(
         variable_scaling="log", budget_constraint_form="inequality",
     ),
-    "none/ineq": AllocationProblemConfig(
+    "none": AllocationProblemConfig(
         variable_scaling="none", budget_constraint_form="inequality",
     ),
-    "constraint_only/ineq": AllocationProblemConfig(
-        variable_scaling="constraint_only",
-        budget_constraint_form="inequality",
-    ),
-    "full/ineq": AllocationProblemConfig(
+    "full": AllocationProblemConfig(
         variable_scaling="full", budget_constraint_form="inequality",
     ),
 }
 
+# Display labels only. The dict keys above are the strings
+# AllocationProblemConfig actually accepts; "full" is opaque as a legend
+# entry, so the plots say "cost" -- naming what the transform uses, the
+# per-partition cost ratio. The prose gives the API string.
+_SCALING_LABELS = {
+    "log": "log",
+    "none": "none",
+    "full": "cost",
+}
+
 _SCALING_COLORS = {
-    "log/ineq": "#2C7FB8",
-    "none/ineq": "#27AE60",
-    "constraint_only/ineq": "#8E44AD",
-    "full/ineq": "#C0392B",
+    "log": "#2C7FB8",
+    "none": "#27AE60",
+    "full": "#C0392B",
 }
 
 _SCALING_STYLES = {
-    "log/ineq": "-",
-    "none/ineq": "--",
-    "constraint_only/ineq": "-.",
-    "full/ineq": ":",
+    "log": "-",
+    "none": "--",
+    "full": ":",
 }
 
 _SCALING_MARKERS = {
-    "log/ineq": "o",
-    "none/ineq": "s",
-    "constraint_only/ineq": "^",
-    "full/ineq": "D",
+    "log": "o",
+    "none": "s",
+    "full": "D",
 }
 
 
-def _slsqp(maxiter: int = 1000, ftol: float = 1e-6) -> ScipySLSQPOptimizer:
+# Tolerance matters more than any configuration knob in this module: the
+# allocation objective takes values around 1e-5 to 1e-8, so an absolute
+# ftol of 1e-6 exceeds the objective's own scale and SLSQP reports
+# convergence at the initial guess. 1e-10 is tight enough that every
+# scaling in the comparison figure actually moves off that guess.
+_DEFAULT_FTOL = 1e-10
+
+
+def _slsqp(
+    maxiter: int = 1000, ftol: float = _DEFAULT_FTOL
+) -> ScipySLSQPOptimizer:
     return ScipySLSQPOptimizer(maxiter=maxiter, ftol=ftol)
 
 
@@ -168,7 +188,7 @@ def _run_mean_guided(
     Returns None on failure.
     """
     if config is None:
-        config = _SCALING_CONFIGS["log/ineq"]
+        config = _SCALING_CONFIGS["log"]
     fitter = MeanGuidedSubsetFitter(
         stat, costs, GroupACVEstimatorIS,
         candidate_subsets=subsets,
@@ -221,7 +241,7 @@ def plot_scaling_comparison(ax, budgets=(50.0, 100.0, 500.0, 1000.0, 5000.0)):
             variances.append(v if v is not None else np.nan)
         config_results[name] = variances
 
-    for name in ["log/ineq", "none/ineq", "constraint_only/ineq", "full/ineq"]:
+    for name in ["log", "none", "full"]:
         vs = config_results[name]
         ax.loglog(
             budgets, vs,
@@ -229,7 +249,7 @@ def plot_scaling_comparison(ax, budgets=(50.0, 100.0, 500.0, 1000.0, 5000.0)):
             linestyle=_SCALING_STYLES[name],
             marker=_SCALING_MARKERS[name],
             lw=1.8, ms=7,
-            label=name,
+            label=_SCALING_LABELS[name],
         )
 
     mc_vars = [_mc_variance(stat, costs, tc) for tc in budgets]
@@ -282,7 +302,7 @@ def plot_spd_vs_slsqp(ax, budgets=(50.0, 100.0, 500.0, 1000.0, 5000.0)):
         spd_vars.append(_run_mlblue_spd(stat, costs, subsets, tc) or np.nan)
         slsqp_vars.append(
             _run_groupacv_slsqp(
-                stat, costs, subsets, _SCALING_CONFIGS["log/ineq"], tc
+                stat, costs, subsets, _SCALING_CONFIGS["log"], tc
             ) or np.nan
         )
 
@@ -378,7 +398,7 @@ def plot_variance_rescue(
         direct_vars.append(
             _run_groupacv_slsqp(
                 stat, costs, subsets,
-                _SCALING_CONFIGS["log/ineq"], tc,
+                _SCALING_CONFIGS["log"], tc,
             )
         )
         mg = _run_mean_guided(stat, costs, subsets, tc)
@@ -490,7 +510,7 @@ def plot_trace_vs_logdet(axes, target_cost: float = 100.0):
     stat = MultiOutputMean(nqoi, bkd)
     stat.set_pilot_quantities(cov)
     subsets = get_model_subsets(nmodels, bkd)
-    config = _SCALING_CONFIGS["log/ineq"]
+    config = _SCALING_CONFIGS["log"]
 
     def _solve(objective_class):
         template = GroupACVEstimatorIS(
@@ -548,7 +568,8 @@ def plot_trace_vs_logdet(axes, target_cost: float = 100.0):
         )
     ratio_t = vals_t[1 - winner_t] / vals_t[winner_t]
     ax_t.set_title(
-        rf"(a) $\mathrm{{tr}}(\mathrm{{Cov}})$ — wrong choice {ratio_t:.2f}$\times$ worse",
+        rf"(a) $\mathrm{{tr}}(\mathrm{{Cov}})$ — wrong choice "
+        rf"{ratio_t:.2f}$\times$ worse",
         fontsize=11,
     )
     ax_t.set_ylabel(r"$\mathrm{tr}(\mathrm{Cov})$", fontsize=11)
@@ -574,9 +595,17 @@ def plot_trace_vs_logdet(axes, target_cost: float = 100.0):
             b.get_x() + b.get_width() / 2, v, f"{v:.3f}",
             ha="center", va=va, fontsize=9,
         )
+    # Panel (a) reports a ratio, but the bars here are already logarithms,
+    # so a ratio of them would depend on the units Cov is measured in. The
+    # meaningful comparison is the difference, which IS a ratio one level
+    # down: logdet(A) - logdet(B) = log(det(A)/det(B)). Both readings are
+    # given so the panel can be compared with (a) without the reader
+    # having to exponentiate by eye.
     diff_d = vals_d[1 - winner_d] - vals_d[winner_d]
+    det_ratio_d = float(np.exp(diff_d))
     ax_d.set_title(
-        rf"(b) $\log\det(\mathrm{{Cov}})$ — wrong choice +{diff_d:.3f} larger",
+        rf"(b) $\log\det(\mathrm{{Cov}})$ — wrong choice +{diff_d:.3f} "
+        rf"in $\log\det$ ($\det$ {det_ratio_d:.2f}$\times$ larger)",
         fontsize=11,
     )
     ax_d.set_ylabel(r"$\log\det(\mathrm{Cov})$", fontsize=11)
