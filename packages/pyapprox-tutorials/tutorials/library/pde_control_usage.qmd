@@ -1,0 +1,746 @@
+---
+title: "Steering a Plume"
+subtitle: "PyApprox Tutorial Library"
+description: "Setting up and solving a PDE-constrained control problem: extraction devices in an obstructed channel, first at a fixed rate, then on a schedule that varies in time."
+tutorial_type: usage
+topic: optimization
+difficulty: advanced
+estimated_time: 40
+prerequisites: []
+tags:
+  - control
+  - adjoints
+  - finite-elements
+  - optimization
+  - time-integration
+format:
+  html:
+    code-fold: false
+    code-tools: true
+    toc: true
+execute:
+  echo: true
+  warning: false
+jupyter: python3
+---
+
+## Learning Objectives
+
+After completing this tutorial, you will be able to:
+
+- Assemble a PDE-constrained control problem from a benchmark substrate,
+  a parameterized coefficient, and a functional
+- Bind a bound-constrained optimizer to an objective carrying an adjoint
+  gradient, and read the strategy it learns
+- Price actuation effort with the mass matrix so the cost means
+  $\int_0^T\!\!\int_\Omega r^2$ rather than a sum over coefficients
+- Extend a control that is constant in time to one discretized in time,
+  and say what that changes in the parameterization
+- Explain why the gradient's cost does not grow with the number of
+  controls, and measure it
+
+
+## The Problem
+
+A contaminant is released into a channel that is partly blocked by three
+staggered obstructions. The flow carries the plume downstream, and a
+rectangular **protected zone** sits above the last block. Eight
+extraction devices are installed at fixed locations. Each removes
+contaminant at a rate proportional to the local concentration, and the
+question is how hard to run each one.
+
+We want to minimize contamination in the zone, plus the cost of running
+the pumps,
+
+$$
+J(\vc{p}) = \int_0^T\!\!\int_\Omega w(\inputs)\, u(\inputs, t; \vc{p})^2
+\,d\inputs\,dt \;+\; \frac{\alpha}{2}\, \vc{p}^\top W \vc{p} ,
+$$ {#eq-objective}
+
+where $w$ is the indicator of the protected zone and $W$ prices effort
+(@sec-effort). The state $u$ solves an advection-diffusion-reaction
+equation, so every evaluation of $J$ is a transient PDE solve and every
+gradient is an adjoint sweep. This tutorial is about the mechanics of
+setting that up; the adjoint machinery underneath is
+[the transient adjoint](adjoint_transient_pde_concept.qmd).
+
+The substrate ships as a benchmark, so we do not rebuild the physics.
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox_benchmarks.problems.optimization import (
+    ObstructedFlowControlProblem,
+)
+
+bkd = NumpyBkd()
+problem = ObstructedFlowControlProblem(
+    bkd,
+    nstokes_refine=2,
+    ntransport_refine=2,
+    diffusivity=0.01,
+    final_time=8.0,
+    deltat=0.25,
+)
+print(f"{problem.ncontrols()} devices, {problem.basis().ndofs()} DOFs")
+```
+
+The backend must be NumPy: the forward solve uses `scikit-fem`, which
+has no PyTorch path, and the benchmark rejects any other backend rather
+than failing later in the solver.
+
+The flow is solved once, before any control, and frozen. Nothing the
+devices do feeds back into the velocity, so there is no reason to
+recompute it inside the optimization loop.
+
+```{python}
+#| echo: false
+#| label: fig-frozen-flow
+#| fig-cap: "Frozen flow through the obstructed channel, streamlines colored by speed. The dashed rectangle is the protected zone, the star is the release point, and the hollow circles are the installed extraction devices. Notice that the blocks force the flow into narrow gaps, and the plume must pass through one of them to reach the zone --- which is where a control has leverage."
+from pyapprox_tutorials.figures._control import plot_frozen_flow
+
+fig, ax = plt.subplots(figsize=(7.0, 4.2))
+plot_frozen_flow(problem, bkd, ax)
+plt.tight_layout()
+plt.show()
+```
+
+
+## Pricing Effort with the Mass Matrix {#sec-effort}
+
+The effort term needs care, and it is the one place where a plausible
+shortcut gives the wrong answer.
+
+Writing the cost as $\tfrac{\alpha}{2}\|\vc{p}\|^2$ --- a plain sum of
+squared coefficients --- treats the parameter vector as a list of
+unrelated numbers. But $\vc{p}$ encodes a **field**: the extraction rate
+$r(\inputs) = \sum_k p_k q_k(\inputs)$, where $q_k$ is the $k$-th
+device's Gaussian footprint. The physically meaningful cost is the field
+norm
+
+$$
+\int_\Omega r(\inputs)^2 \,d\inputs = \vc{p}^\top M_q\, \vc{p},
+\qquad (M_q)_{kl} = \int_\Omega q_k q_l ,
+$$ {#eq-gram}
+
+with $M_q$ the actuator **Gram matrix**. The two agree only when the
+device footprints do not overlap, so that $M_q$ is diagonal.
+
+```{python}
+from skfem import BilinearForm
+
+@BilinearForm
+def _mass(u, v, w):
+    return u * v
+
+mass_matrix = _mass.assemble(problem.basis().skfem_basis())
+ndev = problem.ncontrols()
+footprints = np.asarray(
+    [problem.extraction_field(np.eye(ndev)[k]) for k in range(ndev)]
+).T
+gram = footprints.T @ (mass_matrix @ footprints)
+
+scale = np.sqrt(np.diag(gram))
+correlation = gram / np.outer(scale, scale)
+off_diagonal = np.abs(correlation - np.eye(ndev))
+print(f"largest footprint overlap: {off_diagonal.max():.3f}")
+```
+
+They overlap by more than 20%, so the diagonal shortcut is not available
+here: two devices in the same corridor partly do each other's work, and a
+cost that ignores this prices a redundant pair as though it were two
+independent ones. We use the true Gram matrix.
+
+`TikhonovAugmentedFunctional` takes any symmetric positive definite
+weight, so this costs nothing but passing it. The same finite element
+mass matrix that the time stepper already assembles supplies $M_q$.
+
+::: {.callout-note collapse="true"}
+## Why $\alpha$ is a price, not a regularizer
+
+The term $\tfrac{\alpha}{2}\vc{p}^\top W \vc{p}$ is not a smoothness
+penalty --- with a handful of discrete amplitudes there is nothing
+spatial to smooth. Its reading here is a **cost**: $J$ = damage +
+actuation, and $\alpha$ is the exchange rate between contamination in
+the protected zone and pumping effort. Quadratic effort is not merely
+convenient --- when the amplitudes are pumping rates, dissipated power
+scales like rate squared.
+
+Note the difference from an inverse problem: there, a Tikhonov term is a
+bias one would shrink if one could; here it is part of the objective,
+$\alpha$ is data, and no "true" $\vc{p}$ is being biased away from.
+
+Mathematically the term also removes directions the physics barely sees.
+A device downstream of the zone influences $J$ almost not at all, and at
+$\alpha = 0$ such directions make the problem ill-conditioned and its
+minimizers arbitrarily large. Adding $\alpha W$ to the reduced Hessian
+eliminates both pathologies.
+:::
+
+
+## The Steady Control
+
+With the pieces in place, the control problem is an objective plus
+bounds. The model returned by `problem.model()` satisfies
+`ObjectiveProtocol`: calling it solves the PDE forward and returns $J$,
+and its derivatives bundle carries an adjoint gradient and a
+second-order-adjoint Hessian-vector product.
+
+The benchmark's own functional uses an unweighted cost, so we rebuild it
+with the Gram weight. Effort is charged over the horizon, hence the
+factor $T$ --- a device held at rate $p$ for $T$ seconds costs $T$ times
+what it costs for one second. That bookkeeping is what makes this
+problem comparable to the time-varying one later.
+
+```{python}
+from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
+from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
+    TimeIntegratedWeightedL2Functional,
+)
+
+FINAL_TIME, DELTAT = 8.0, 0.25
+zone_mass = problem.zone_weight().assemble_weighted_mass(
+    problem.basis(), bkd
+)
+steady_weight = FINAL_TIME * gram
+```
+
+The benchmark assembles its model with an unweighted cost, so we build
+one around the same physics with the weighted functional instead. The
+helper below is the assembly the benchmark itself performs --- mesh,
+frozen velocity, fixed release, and a Danckwerts inlet condition --- with
+the reaction and functional left open, because those are the two pieces
+this tutorial varies.
+
+```{python}
+#| code-fold: true
+#| code-summary: "Assembling a model around a given reaction and functional"
+from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.pde.constitutive.coefficient_functions import (
+    NodalFieldDiffusion,
+    NodalFieldForcing,
+    NodalFieldLinearReaction,
+)
+from pyapprox.pde.field_maps.basis_expansion import BasisExpansion
+from pyapprox.pde.galerkin.boundary.implementations import RobinBC
+from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.models.galerkin.transient import (
+    GalerkinTransientForwardModel,
+)
+from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+    AdvectionDiffusionParameterization,
+)
+from pyapprox_benchmarks.problems.optimization.obstructed_flow_control import (
+    _InletNormalSpeed,
+)
+
+DIFFUSIVITY = 0.01
+basis = problem.basis()
+
+
+def build_model(reaction, reaction_map, weight):
+    """Assemble the transport model with a Gram-weighted effort cost."""
+    physics = AdvectionDiffusionReaction(
+        basis=basis,
+        diffusivity=NodalFieldDiffusion(
+            basis, dofs=DIFFUSIVITY * np.ones(basis.ndofs())
+        ),
+        bkd=bkd,
+        velocity=problem.velocity(),
+        forcing=NodalFieldForcing(basis, dofs=problem.release_field()),
+        reaction=reaction,
+        boundary_conditions=[
+            RobinBC(basis, "left", _InletNormalSpeed(2.5, 2.5), 0.0, bkd)
+        ],
+    )
+    parameterization = AdvectionDiffusionParameterization(
+        physics, reaction_map=reaction_map, bkd=bkd
+    )
+    functional = TikhonovAugmentedFunctional(
+        TimeIntegratedWeightedL2Functional(
+            zone_mass, parameterization.nparams(), bkd
+        ),
+        problem.alpha(),
+        bkd,
+        weight=bkd.asarray(weight),
+    )
+    return GalerkinTransientForwardModel(
+        physics,
+        parameterization,
+        bkd.zeros((physics.nstates(),)),
+        TimeIntegrationConfig(
+            method="crank_nicolson", init_time=0.0,
+            final_time=FINAL_TIME, deltat=DELTAT, newton_tol=1e-12,
+            newton_maxiter=5, lumped_mass=False, verbosity=0,
+        ),
+        bkd,
+        functional=functional,
+    )
+```
+
+The steady control maps its eight amplitudes onto the reaction through a
+`BasisExpansion` whose columns are the device footprints.
+
+```{python}
+steady_model = build_model(
+    NodalFieldLinearReaction(basis, dofs=np.zeros(basis.ndofs())),
+    BasisExpansion(
+        bkd, 0.0,
+        [bkd.asarray(-footprints[:, k]) for k in range(ndev)],
+    ),
+    steady_weight,
+)
+```
+
+Bounds are structural rather than tuning: extraction rates are
+non-negative because a device removes contaminant and cannot inject it,
+and a negative rate would let the optimizer manufacture concentration
+and drive $J$ below zero.
+
+```{python}
+from pyapprox.optimization.minimize.scipy.lbfgsb import LBFGSBOptimizer
+
+start = bkd.asarray(0.5 * np.ones((ndev, 1)))
+uncontrolled = bkd.asarray(np.zeros((ndev, 1)))
+J_uncontrolled = float(bkd.to_numpy(steady_model(uncontrolled))[0, 0])
+
+optimizer = LBFGSBOptimizer(verbosity=0, maxiter=200)
+optimizer.bind(steady_model, problem.bounds())
+steady_rates = optimizer.minimize(start).optima()
+J_steady = float(bkd.to_numpy(steady_model(steady_rates))[0, 0])
+
+print(f"J(0) = {J_uncontrolled:.5f}")
+print(f"J*   = {J_steady:.5f}   ({J_uncontrolled / J_steady:.1f}x better)")
+```
+
+Start strictly inside the box. Interior-point methods can terminate
+spuriously when started exactly on a bound, and $\vc{p} = \vc{0}$ sits on
+the extraction lower bound --- a trap worth knowing about, because the
+symptom is a "converged" result after a single evaluation.
+
+The learned strategy is legible.
+
+```{python}
+#| echo: false
+#| label: fig-amplitudes
+#| fig-cap: "Optimized extraction rates, ordered left to right across the domain, with a matching domain sketch. Marker area is proportional to rate. Notice that the optimizer does not defend the protected zone --- it intercepts the plume upstream, where the flow is still funnelled through a gap."
+from pyapprox_tutorials.figures._control import plot_amplitudes
+
+rates_np = bkd.to_numpy(steady_rates).ravel()
+fig, axes = plt.subplots(
+    2, 1, figsize=(7.0, 6.0),
+    gridspec_kw={"height_ratios": [1.0, 1.3]},
+)
+plot_amplitudes(problem, rates_np, axes[0], axes[1])
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| echo: false
+order = np.argsort(-rates_np)
+labels = problem.actuator_labels()
+print("device                  rate")
+for k in order:
+    print(f"  {labels[k]:22s} {rates_np[k]:6.3f}")
+```
+
+Effort concentrates on the devices feeding the zone; the device placed
+downstream of the zone, where nothing it removes can help, is left near
+the bottom. That is the gradient doing the work --- nothing told the
+optimizer where the plume goes.
+
+```{python}
+#| echo: false
+#| label: fig-steady-video
+#| output: asis
+from pyapprox_tutorials.figures._control import save_control_gif
+
+sols_uncontrolled, times = steady_model.forward_solve(uncontrolled)
+sols_steady, _ = steady_model.forward_solve(steady_rates)
+color_bound = float(
+    max(bkd.to_numpy(sols_uncontrolled).max(),
+        bkd.to_numpy(sols_steady).max())
+)
+steady_video = "control_steady.mp4"
+save_control_gif(
+    problem, bkd, sols_uncontrolled, sols_steady, times, rates_np,
+    steady_video, fps=8, max_frames=33,
+    color_bound=color_bound, gamma=0.5, size_ref=float(rates_np.max()),
+)
+print(f'<video autoplay loop muted playsinline '
+      f'style="width:100%;max-width:960px">'
+      f'<source src="{steady_video}" type="video/mp4"></video>')
+```
+
+Left is uncontrolled, right is the optimized control, on one colour
+scale. The plume is thinned as it crosses the active devices. Marker
+area is the extraction rate, and it never changes --- the devices run
+flat out from the first instant, including well before any contaminant
+reaches them, and keep running after the plume has passed.
+
+That is what the next section fixes.
+
+
+## Letting the Control Vary in Time
+
+Nothing about a physical pump requires a constant rate. The control is
+really a field in space *and* time,
+
+$$
+r(\inputs, t) = \sum_{d}\sum_{j} p_{dj}\, q_d(\inputs)\, h_j(t) ,
+$$ {#eq-separable}
+
+with $q_d$ the device footprints as before and $h_j$ hat functions on
+the time grid. Discretizing a space-time field means choosing a basis
+over the whole domain, so we put the temporal knots at the timesteps ---
+the control is then resolved as finely as the state.
+
+PyApprox expresses this as a **modulation**: one temporal profile per
+spatial mode. The pairing is flat, so mode $k$ stands for the pair
+(device $d$, knot $j$), and the spatial modes and temporal profiles must
+be built in the same order. Here $k = j \cdot n_{\text{dev}} + d$, which
+means tiling the footprints and repeating each hat.
+
+```{python}
+from pyapprox.pde.field_maps.modulation import PiecewiseLinearModulation
+
+DELTAT = 0.25
+knots = list(np.arange(0.0, FINAL_TIME + 0.5 * DELTAT, DELTAT))
+hats = PiecewiseLinearModulation(bkd, knots)
+
+
+class TiledModulation:
+    """One profile per (knot, device) pair, flattened k = j*ndev + d."""
+
+    def __init__(self, profiles, ndevices):
+        self._profiles = profiles
+        self._ndevices = ndevices
+
+    def bkd(self):
+        return self._profiles.bkd()
+
+    def nmodes(self):
+        return self._profiles.nmodes() * self._ndevices
+
+    def values(self, time):
+        return np.repeat(
+            np.asarray(self._profiles.values(time)), self._ndevices
+        )
+
+    def is_time_dependent(self):
+        return True
+
+
+modulation = TiledModulation(hats, ndev)
+spatial_modes = -np.tile(footprints, (1, len(knots)))
+print(f"{len(knots)} knots x {ndev} devices = {modulation.nmodes()} modes")
+```
+
+The minus sign is the same convention the steady map used: the physics'
+reaction enters as $\dot u = \cdots + r u$, so a non-negative extraction
+*rate* corresponds to a negative reaction coefficient.
+
+Hat functions are worth checking rather than trusting, because a
+mismatch between the two orderings would pair every device with the
+wrong profile --- and nothing would raise, because the shapes still
+agree.
+
+```{python}
+for time in (0.0, 0.375, 8.0):
+    active = np.asarray(modulation.values(time)).reshape(len(knots), ndev)
+    print(f"t = {time:5.3f}: {np.count_nonzero(active.sum(axis=1))} "
+          f"knot(s) active, per-device sum = {active.sum(axis=0)[0]:.3f}")
+```
+
+At most two hats overlap at any instant and each device's profiles sum
+to one, so the basis is a partition of unity: a control held at a
+constant value in time reproduces exactly the steady control.
+
+Non-negativity carries over too. Hats are non-negative, so $\vc{p} \ge 0$
+still gives $r \ge 0$ everywhere, and the maximum principle that keeps
+concentrations from going negative is preserved. A sign-changing
+temporal basis --- a Fourier series, or a Karhunen-Loeve expansion in
+time --- would not have that property, which is why non-negativity is a
+capability a modulation declares rather than something assumed of all of
+them.
+
+The coefficient now owns its own spatial modes, so the parameterization
+takes them *from* the coefficient rather than being handed a second copy
+that could disagree. That is what the `FROM_FIELD` sentinel requests.
+
+```{python}
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeModulatedNodalFieldLinearReaction,
+)
+from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
+    FROM_FIELD,
+)
+
+reaction = TimeModulatedNodalFieldLinearReaction(
+    basis, spatial_modes, modulation
+)
+```
+
+`FROM_FIELD` is where this differs from the steady case. There, a
+`BasisExpansion` carried the map from amplitudes to the reaction field.
+Here the coefficient already holds its own spatial modes, so the
+parameterization derives the map from the coefficient instead of taking
+a second copy. Passing an actual field map alongside a separable
+coefficient raises rather than being ignored: two sets of modes could
+disagree, and the failure would be invisible --- the forward solve using
+one set and the gradient the other, each self-consistent, with a
+finite-difference check passing because it perturbs the same wrong
+forward problem.
+
+The effort weight becomes a space-time Gram matrix. Time and space
+separate, so it is a Kronecker product of the temporal hat mass matrix
+with the spatial one, ordered to match the flattening.
+
+```{python}
+nknots = len(knots)
+temporal_mass = np.zeros((nknots, nknots))
+for j in range(nknots - 1):
+    temporal_mass[j:j + 2, j:j + 2] += DELTAT * np.array(
+        [[1 / 3, 1 / 6], [1 / 6, 1 / 3]]
+    )
+spacetime_weight = np.kron(temporal_mass, gram)
+
+constant_in_time = np.tile(rates_np, nknots)
+print("cost of the steady control, expressed both ways:")
+print(f"  steady encoding: {rates_np @ steady_weight @ rates_np:.6f}")
+print("  time encoding:   "
+      f"{constant_in_time @ spacetime_weight @ constant_in_time:.6f}")
+```
+
+The two agree, which is the property that makes the comparison
+meaningful: the same physical control costs the same in either
+encoding, so any difference in the optima is a difference in *control*,
+not in bookkeeping. Without the $T$ factor in `steady_weight`, the
+time-varying problem would price identical behaviour eight times higher
+and lose for a reason having nothing to do with control.
+
+```{python}
+tv_model = build_model(reaction, FROM_FIELD, spacetime_weight)
+
+nparams = tv_model.nvars()
+print(f"{nparams} parameters")
+tv_bounds = bkd.asarray(np.tile([0.0, 10.0], (nparams, 1)))
+tv_optimizer = LBFGSBOptimizer(verbosity=0, maxiter=200)
+tv_optimizer.bind(tv_model, tv_bounds)
+tv_rates = tv_optimizer.minimize(
+    bkd.asarray(0.5 * np.ones((nparams, 1)))
+).optima()
+J_tv = float(bkd.to_numpy(tv_model(tv_rates))[0, 0])
+print(f"J* = {J_tv:.5f}  (steady was {J_steady:.5f})")
+```
+
+The time-varying control wins, and it has to: a constant schedule is a
+feasible point of this problem, so the optimizer can always fall back on
+the steady answer. Splitting $J$ shows *how* it wins.
+
+```{python}
+#| echo: false
+tv_np = bkd.to_numpy(tv_rates).ravel()
+alpha = problem.alpha()
+effort_steady = 0.5 * alpha * float(rates_np @ steady_weight @ rates_np)
+effort_tv = 0.5 * alpha * float(tv_np @ spacetime_weight @ tv_np)
+print(f"{'':14s} {'J':>9s} {'damage':>9s} {'effort':>9s}")
+print(f"{'steady':14s} {J_steady:9.5f} {J_steady - effort_steady:9.5f} "
+      f"{effort_steady:9.5f}")
+print(f"{'time-varying':14s} {J_tv:9.5f} {J_tv - effort_tv:9.5f} "
+      f"{effort_tv:9.5f}")
+```
+
+Not by extracting harder --- by extracting *less*, and at the right
+moments. It spends about a third less effort for essentially the same
+contamination, because it stops paying to run pumps through an empty
+channel.
+
+```{python}
+#| echo: false
+#| label: fig-schedule
+#| fig-cap: "Extraction schedules for the four busiest devices. Notice that every device starts near zero, rises as the plume arrives, and falls away again --- the optimizer discovers the plume's arrival time from the gradient alone."
+schedule = tv_np.reshape(nknots, ndev)
+busiest = np.argsort(-schedule.sum(axis=0))[:4]
+fig, ax = plt.subplots(figsize=(7.0, 4.0))
+for rank, d in enumerate(busiest):
+    ax.plot(knots, schedule[:, d], "-o", ms=3,
+            label=labels[d].replace("_", " "))
+ax.set_xlabel("time $t$")
+ax.set_ylabel("extraction rate $p_d(t)$")
+ax.legend(fontsize=8)
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| echo: false
+#| label: fig-tv-video
+#| output: asis
+sols_tv, tv_times = tv_model.forward_solve(tv_rates)
+
+
+def rates_at(time):
+    return schedule.T @ np.asarray(hats.values(time))
+
+
+size_ref = float(max(rates_np.max(), schedule.max()))
+tv_video = "control_timevarying.mp4"
+save_control_gif(
+    problem, bkd, sols_uncontrolled, sols_tv, tv_times, tv_np,
+    tv_video, fps=8, max_frames=33,
+    color_bound=color_bound, gamma=0.5, size_ref=size_ref,
+    amplitudes_at=rates_at,
+)
+print(f'<video autoplay loop muted playsinline '
+      f'style="width:100%;max-width:960px">'
+      f'<source src="{tv_video}" type="video/mp4"></video>')
+```
+
+Same two panels, same colour scale, and the same marker scale as the
+steady video so the two are directly comparable. Now the markers pulse:
+nearly invisible while the channel is clean, swelling as the plume
+arrives, shrinking once it has passed.
+
+
+## What the Gradient Costs {#sec-cost}
+
+One forward solve and one adjoint sweep produce the exact gradient of
+$J$ with respect to all the amplitudes at once; doubling the number of
+actuators does not change the cost of an optimization step. This
+K-independence --- established in [the ODE tutorial's cost
+figure](adjoint_ode_concept.qmd) --- is the entire reason adjoints, not
+finite differences, make PDE-constrained control practical.
+
+It is worth measuring rather than asserting, because the claim is easy
+to state and the whole design rests on it.
+
+```{python}
+import time
+
+fd_step = 1e-6
+
+
+def timed(fn, repeats=2):
+    best = np.inf
+    for _ in range(repeats):
+        start_time = time.perf_counter()
+        fn()
+        best = min(best, time.perf_counter() - start_time)
+    return best
+
+
+point = bkd.asarray(0.5 * np.ones((nparams, 1)))
+t_objective = timed(lambda: tv_model(point))
+t_adjoint = timed(lambda: tv_model.derivatives().jacobian(point))
+print(f"one objective        {t_objective:.3f} s")
+print(f"one adjoint gradient {t_adjoint:.3f} s")
+print(f"finite differences   {nparams + 1} solves "
+      f"= {(nparams + 1) * t_objective:.1f} s (estimated)")
+```
+
+The estimate is not a stand-in for the measurement --- we can afford the
+real thing on a few coordinates and check the arithmetic.
+
+```{python}
+sample_indices = [0, nparams // 2, nparams - 1]
+base_value = float(bkd.to_numpy(tv_model(point))[0, 0])
+adjoint_gradient = bkd.to_numpy(
+    tv_model.derivatives().jacobian(point)
+).ravel()
+
+start_time = time.perf_counter()
+for index in sample_indices:
+    shifted = bkd.to_numpy(point).copy()
+    shifted[index, 0] += fd_step
+    forward = float(bkd.to_numpy(tv_model(bkd.asarray(shifted)))[0, 0])
+    difference = (forward - base_value) / fd_step
+    print(f"  k={index:3d}  adjoint {adjoint_gradient[index]: .6e}  "
+          f"FD {difference: .6e}")
+per_coordinate = (time.perf_counter() - start_time) / len(sample_indices)
+print(f"\n{per_coordinate:.3f} s per coordinate "
+      f"x {nparams} = {per_coordinate * nparams:.1f} s for the "
+      f"full gradient")
+print(f"the adjoint delivers all {nparams} in {t_adjoint:.3f} s")
+```
+
+Finite differences agree to six digits and take about **190 times** as
+long --- minutes against a couple of seconds, for the same vector. That
+ratio grows with every parameter added, because the adjoint cost does
+not move. Refining the control in time is what makes this bite: the
+steady problem has eight parameters, where finite differences are merely
+wasteful; discretizing the same control at every timestep takes it to
+several hundred, where an optimizer needing a gradient per iteration
+stops being viable.
+
+The wall-clock numbers are indicative and machine-dependent. What
+transfers is that one cost rises with the number of controls and the
+other does not.
+
+::: {.callout-note collapse="true"}
+## Verification
+
+The gradient and Hessian-vector product are checked against finite
+differences at both problem sizes. `error_ratio` compares the analytical
+derivative to the best finite-difference estimate over a sweep of step
+sizes; the Hessian-vector symmetry identity
+$\langle Hd, o\rangle = \langle Ho, d\rangle$ is immune to
+finite-difference noise entirely.
+
+```{python}
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+
+rng = np.random.default_rng(0)
+for name, model in (("steady", steady_model), ("time-varying", tv_model)):
+    size = model.nvars()
+    at = bkd.asarray(0.5 * np.ones((size, 1)))
+    direction = bkd.asarray(rng.normal(size=(size, 1)))
+    checker = DerivativeChecker(model)
+    errors = checker.check_derivatives(at, direction=direction,
+                                       relative=True)
+    ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
+    hvp = model.derivatives().hvp
+    other = bkd.asarray(rng.normal(size=(size, 1)))
+    left = float(bkd.to_numpy(bkd.sum(other * hvp(at, direction))))
+    right = float(bkd.to_numpy(bkd.sum(direction * hvp(at, other))))
+    print(f"{name:14s} K={size:4d}  gradient ratio {ratio:.2e}   "
+          f"HVP symmetry {abs(left - right) / abs(left):.2e}")
+```
+:::
+
+
+## Key Takeaways
+
+- A control problem is a parameterized coefficient plus a functional
+  plus bounds. The benchmark supplies the physics; the parameterization
+  says which coefficient is being steered, and the facade wires the
+  derivatives.
+- Price effort with the mass matrix. A plain sum of squared coefficients
+  is a field norm only when the actuator footprints do not overlap ---
+  here they overlap by more than 20%.
+- Comparing two discretizations of the same control requires pricing
+  them consistently. A cost charged per unit time makes a constant
+  schedule cost the same whether it is written as one number or as one
+  number per timestep.
+- A control that varies in time is the same object with a temporal
+  modulation attached: one profile per spatial mode, non-negative if the
+  physics needs $r \ge 0$, and the coefficient owns the modes so the
+  forward solve and the gradient cannot describe different controls.
+- The adjoint gradient costs one forward solve and one backward sweep no
+  matter how many controls there are. That is what makes a control
+  resolved at every timestep tractable.
+
+
+## What to Read Next
+
+- [Adjoints when the mass matrix is not the
+  identity](adjoint_transient_pde_concept.qmd) --- the machinery this
+  tutorial drives
+- [Second-order adjoints](adjoint_hvp_concept.qmd) --- where the
+  Hessian-vector product used by Newton-type optimizers comes from
+- [Quantities integrated over time](transient_functionals_concept.qmd)
+  --- the functional whose weighted form appears in @eq-objective

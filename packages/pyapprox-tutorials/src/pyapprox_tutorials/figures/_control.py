@@ -9,6 +9,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.colors import PowerNorm
 from matplotlib.tri import Triangulation
 
+from ._galerkin import _mp4_writer
 from ._style import COLORS, NEON_CMAP
 
 # Obstruction blocks of the obstructed-flow substrate (drawn as filled
@@ -20,7 +21,10 @@ _BLOCKS = [
 ]
 
 
-def _draw_domain(ax, problem, extraction_rates=None, dark=False):
+def _draw_domain(
+    ax, problem, extraction_rates=None, dark=False, size_ref=None,
+    accent=None, filled=False,
+):
     """Blocks, zone outline, release marker, extraction-device markers.
 
     Without rates, devices are drawn as HOLLOW layout markers (where
@@ -29,8 +33,25 @@ def _draw_domain(ax, problem, extraction_rates=None, dark=False):
     at zero rate disappears, so marker area honestly reflects effort.
     ``dark`` switches marker/outline colors for black-background
     concentration panels.
+
+    ``accent`` overrides the hollow-marker and outline color, for
+    panels whose background already spends the default. ``filled``
+    fills the layout markers, for a busy background where a thin ring
+    disappears; only for panels that show no rates at all, since where
+    rates ARE drawn the hollow/filled distinction is what separates an
+    installed device from a running one.
+
+    ``size_ref`` is the rate that draws a full-size marker. It defaults
+    to the largest rate in THIS call, which is right for a single
+    figure but wrong across the frames of an animation: each frame
+    would renormalize to its own maximum, so a device pulling 10% of
+    peak effort in a busy frame would draw the same size as one pulling
+    100% in a quiet frame — hiding exactly the variation a time-varying
+    control is meant to show. Pass the maximum over all frames to make
+    sizes comparable.
     """
-    accent = "white" if dark else COLORS["primary"]
+    if accent is None:
+        accent = "white" if dark else COLORS["primary"]
     active_color = "#ff9f1c" if dark else COLORS["secondary"]
     star_color = "white" if dark else COLORS["purple"]
     for (x0, y0), width, height in _BLOCKS:
@@ -52,14 +73,17 @@ def _draw_domain(ax, problem, extraction_rates=None, dark=False):
     centers = problem.actuator_centers()
     if extraction_rates is None:
         ax.plot(
-            centers[0], centers[1], "o", markerfacecolor="none",
-            markeredgecolor=accent, markersize=6, linestyle="none",
-            zorder=5,
+            centers[0], centers[1], "o",
+            markerfacecolor=accent if filled else "none",
+            markeredgecolor=accent, markersize=7 if filled else 6,
+            linestyle="none", zorder=5,
         )
     else:
-        sizes = 18.0 * np.abs(extraction_rates) / max(
-            np.abs(extraction_rates).max(), 1e-12
+        reference = (
+            np.abs(extraction_rates).max() if size_ref is None
+            else size_ref
         )
+        sizes = 18.0 * np.abs(extraction_rates) / max(reference, 1e-12)
         for kk in range(centers.shape[1]):
             ax.plot(
                 centers[0, kk], centers[1, kk], "o",
@@ -84,9 +108,15 @@ def _triangulation(problem, bkd):
 def plot_frozen_flow(problem, bkd, ax, density=1.4):
     """pde_control_usage.qmd -> fig-frozen-flow
 
-    Streamlines of the frozen Navier-Stokes velocity colored by speed,
-    threading the staggered blocks; zone, release, and actuators
-    marked.
+    Speed of the frozen Navier-Stokes velocity as a filled neon field,
+    with streamlines threading the staggered blocks drawn over it in
+    neon orange; zone, release, and actuators marked.
+
+    Two channels, two encodings: magnitude is the field (zero = black,
+    the house convention every scalar field in the series uses), and
+    DIRECTION is the streamlines. Coloring the lines by speed instead
+    would spend both channels on the same quantity and leave the
+    direction to be inferred from line shape alone.
     """
     ngrid = 120
     grid_1d = np.linspace(0.0, 1.0, ngrid)
@@ -110,15 +140,32 @@ def plot_frozen_flow(problem, bkd, ax, density=1.4):
     vel_x = vel_flat[0].reshape(ngrid, ngrid)
     vel_y = vel_flat[1].reshape(ngrid, ngrid)
     speed = np.hypot(vel_x, vel_y)
-    # Speed is non-negative, so the sequential house map applies; viridis
-    # here was the last off-palette colormap in the series.
-    stream = ax.streamplot(
-        grid_1d, grid_1d, vel_x, vel_y, color=speed, cmap=NEON_CMAP,
-        density=density, linewidth=0.9, arrowsize=0.8,
+    # Speed is a magnitude, so the sequential house map applies with
+    # zero = black as everywhere else in the series. Levels start at
+    # EXACTLY zero and the range is not extended: NEON_CMAP paints
+    # under-range values magenta as a negativity alarm, and a magnitude
+    # can never trip it honestly. Extending the range would fire it on
+    # the no-slip walls and the stagnation pockets behind the blocks
+    # --- 7.7% of the domain here --- reporting an error where there is
+    # only slow water. Block interiors are NaN and stay unpainted, so
+    # the blocks read as holes rather than as still water.
+    field = ax.contourf(
+        grid_x, grid_y, speed, cmap=NEON_CMAP,
+        levels=np.linspace(0.0, float(np.nanmax(speed)), 41),
     )
-    _draw_domain(ax, problem)
-    ax.set_title("Frozen flow: streamlines colored by speed")
-    return stream
+    # Streamlines over a dark field need the light accent; the neon blue
+    # they used to carry is invisible against the low end of its own
+    # colormap.
+    ax.streamplot(
+        grid_1d, grid_1d, vel_x, vel_y, color="#ff9f1c",
+        density=density, linewidth=0.8, arrowsize=0.8,
+    )
+    # Magenta for the device markers: it is the one hue the neon map
+    # never produces, so the markers cannot be mistaken for the field
+    # they sit on, and the orange is already spent on the streamlines.
+    _draw_domain(ax, problem, dark=True, accent="#ff00ff", filled=True)
+    ax.set_title("Frozen flow: speed, with streamlines")
+    return field
 
 
 def plot_amplitudes(problem, amplitudes, ax_bar, ax_domain):
@@ -180,6 +227,9 @@ def save_control_gif(
     cmap=NEON_CMAP,
     nlevels=41,
     gamma=1.0,
+    amplitudes_at=None,
+    size_ref=None,
+    bitrate=1400,
 ):
     """pde_control_usage.qmd -> the bookend GIF
 
@@ -187,8 +237,18 @@ def save_control_gif(
     control", fixed colorbar across panels and frames; zone outlined
     on both. The LEFT panel shows the device layout as hollow markers
     (installed, inactive); the RIGHT panel draws devices sized by
-    their extraction rate with no minimum size. Writes ``path``
-    (.gif) plus first/last static PNGs.
+    their extraction rate with no minimum size. Writes ``path`` --- an
+    ``.mp4`` (H.264, the house format) or a ``.gif``, chosen by the
+    extension --- plus first/last static PNGs.
+
+    ``amplitudes`` are the steady rates, drawn identically on every
+    frame. For a control that varies in time, pass ``amplitudes_at``,
+    a callable ``time -> rates``, and the markers pulse with the
+    schedule; ``amplitudes`` is then ignored. Supply ``size_ref`` (the
+    largest rate over the whole horizon) so marker sizes stay
+    comparable from frame to frame and between the two GIFs — without
+    it each frame renormalizes to its own maximum and the schedule
+    becomes invisible.
 
     Returns the (first_png, last_png) paths.
     """
@@ -228,16 +288,23 @@ def save_control_gif(
 
     def _draw_frame(index):
         contours = None
+        frame_amps = (
+            amplitudes if amplitudes_at is None
+            else amplitudes_at(float(times_np[index]))
+        )
         for ax, sols, title, amps in (
             (axes[0], sols_unc, "No control", None),
-            (axes[1], sols_ctl, "Optimized control", amplitudes),
+            (axes[1], sols_ctl, "Optimized control", frame_amps),
         ):
             ax.clear()
             contours = ax.tricontourf(
                 tri, sols[:, index], levels=levels, cmap=cmap,
                 extend="both", norm=norm,
             )
-            _draw_domain(ax, problem, extraction_rates=amps, dark=True)
+            _draw_domain(
+                ax, problem, extraction_rates=amps, dark=True,
+                size_ref=size_ref,
+            )
             ax.set_title(title)
             ax.set_xticks([])
             ax.set_yticks([])
@@ -248,16 +315,24 @@ def save_control_gif(
     # Fixed levels: one static colorbar serves every frame.
     fig.colorbar(contours, ax=axes, shrink=0.85, label="concentration $u$")
 
-    first_png = str(path).replace(".gif", "_first.png")
+    stem = str(path).rsplit(".", 1)[0]
+    first_png = f"{stem}_first.png"
     fig.savefig(first_png, dpi=110, bbox_inches="tight")
 
     animation = FuncAnimation(
         fig, _draw_frame, frames=frame_idx, interval=1000 / fps
     )
-    animation.save(str(path), writer=PillowWriter(fps=fps))
+    # H.264 for an .mp4 target (the house format for tutorial video --- a
+    # 40-frame GIF of two contour panels is an order of magnitude
+    # larger), Pillow for a .gif.
+    writer = (
+        _mp4_writer(fps, bitrate) if str(path).endswith(".mp4")
+        else PillowWriter(fps=fps)
+    )
+    animation.save(str(path), writer=writer)
 
     _draw_frame(frame_idx[-1])
-    last_png = str(path).replace(".gif", "_last.png")
+    last_png = f"{stem}_last.png"
     fig.savefig(last_png, dpi=110, bbox_inches="tight")
     plt.close(fig)
     return first_png, last_png

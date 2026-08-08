@@ -73,3 +73,8 @@ tutorials/library/time_renders.sh
 # committed mesh, so the source of truth is in git and the artifact is
 # not.
 packages/pyapprox-tutorials/tutorials/library/*.mp4
+# Stills a tutorial writes beside its animation, and any other image a
+# render drops in the tutorial directory. Committed artwork lives in
+# library/assets/, which this does not match --- the pattern has no
+# slash, so it applies to that one directory and not below it.
+packages/pyapprox-tutorials/tutorials/library/*.png

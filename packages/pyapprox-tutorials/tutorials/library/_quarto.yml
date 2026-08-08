@@ -210,6 +210,9 @@ website:
             - adjoint_ode_concept.qmd
             - adjoint_steady_pde_concept.qmd
             - adjoint_transient_pde_concept.qmd
+        - section: "PDE-Constrained Optimization"
+          contents:
+            - pde_control_usage.qmd
         - section: "Optimization Under Uncertainty"
           contents:
             - design_under_uncertainty.qmd
