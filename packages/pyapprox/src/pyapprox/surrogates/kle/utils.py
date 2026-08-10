@@ -29,7 +29,7 @@ def adjust_sign_eig(U: Array, bkd: Backend[Array]) -> Array:
     """
     idx = bkd.argmax(bkd.abs(U[0, :]))
     s = bkd.sign(U[idx, :])
-    II = bkd.where(s == 0)[0]
+    II = bkd.where(bkd.equal(s, 0.0))[0]
     s[II] = 1.0
     U *= s
     return U
