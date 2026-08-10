@@ -73,8 +73,13 @@ class _InletNormalSpeed:
 
 
 class ObstructedFlowControlProblem(Generic[Array]):
-    """Distributed-forcing control of transport through an obstructed
+    """Extraction-rate control of transport through an obstructed
     channel.
+
+    The controls are the rates of extraction devices, which enter the
+    LINEAR REACTION coefficient: each removes contaminant in proportion
+    to the local concentration. The forcing slot carries the fixed
+    Gaussian release and is not parameterized.
 
     Composes the obstructed-flow substrate
     (:mod:`pyapprox.pde.zoo.obstructed_flow`) with the transient
