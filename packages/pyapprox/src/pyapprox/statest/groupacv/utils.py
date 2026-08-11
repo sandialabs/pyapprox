@@ -146,6 +146,92 @@ def _get_allocation_matrix_nested(subsets: List[Array], bkd: Backend[Array]) -> 
     return allocation_mat
 
 
+def _validate_parents(parents: List[int]) -> None:
+    """Check that ``parents`` describes a rooted forest.
+
+    Parameters
+    ----------
+    parents : List[int]
+        ``parents[k]`` is the index of the parent of group ``k``, or -1 if
+        ``k`` is a root. A parent must appear earlier in the list than its
+        child, which makes the forest topologically ordered and is what lets
+        the allocation matrix be built in a single pass.
+
+    Raises
+    ------
+    ValueError
+        If the list is empty, an index is out of range, or a parent does not
+        precede its child. Either of the latter two would otherwise produce
+        an allocation matrix that silently misrepresents the sample sharing.
+
+    Notes
+    -----
+    A root is not checked for separately because the precedence rule already
+    guarantees one: ``parents[0]`` cannot be 0 (a self-loop) nor any larger
+    index, so it must be -1. The walk in
+    :func:`_get_allocation_matrix_tree` therefore always terminates.
+    """
+    nnodes = len(parents)
+    if nnodes == 0:
+        raise ValueError("parents must be non-empty")
+    for kk, parent in enumerate(parents):
+        if parent == -1:
+            continue
+        if not (0 <= parent < nnodes):
+            raise ValueError(
+                f"parents[{kk}]={parent} is out of range [0, {nnodes})"
+            )
+        if parent >= kk:
+            raise ValueError(
+                f"parents[{kk}]={parent} does not precede its child; "
+                "parents must be listed before the groups they contain, "
+                "so that the forest is topologically ordered"
+            )
+
+
+def _get_allocation_matrix_tree(
+    parents: List[int], bkd: Backend[Array]
+) -> Array:
+    """
+    Get allocation matrix for tree-structured nested sampling.
+
+    Group ``k`` uses the partitions on the path from its root down to ``k``
+    inclusive, so two groups share exactly the partitions above their lowest
+    common ancestor and draw independent samples below it. The chain is the
+    special case ``parents = [-1, 0, 1, ..., K-2]``, which reproduces
+    :func:`_get_allocation_matrix_nested`; a forest of isolated roots
+    (``parents = [-1, -1, ...]``) reproduces
+    :func:`_get_allocation_matrix_is`. The topology therefore interpolates
+    between fully nested and fully independent sampling.
+
+    Parameters
+    ----------
+    parents : List[int]
+        ``parents[k]`` is the parent group index of group ``k``, or -1 if
+        ``k`` is a root. Parents must precede their children.
+
+    bkd : Backend[Array]
+        The backend for array operations
+
+    Returns
+    -------
+    Array
+        Allocation matrix of shape (nsubsets, npartitions), with one
+        partition per group.
+    """
+    _validate_parents(parents)
+    nsubsets = len(parents)
+    allocation_mat = bkd.full(
+        (nsubsets, nsubsets), 0.0, dtype=bkd.double_dtype()
+    )
+    for kk in range(nsubsets):
+        node = kk
+        while node != -1:
+            allocation_mat[kk, node] = 1.0
+            node = parents[node]
+    return allocation_mat
+
+
 def _nest_subsets(
     subsets: List[Array], nmodels: int, bkd: Backend[Array]
 ) -> Tuple[List[Array], Array]:

@@ -50,6 +50,7 @@ from pyapprox.statest.groupacv import (
     GroupACVCostConstraint,
     GroupACVEstimatorIS,
     GroupACVEstimatorNested,
+    GroupACVEstimatorTree,
     GroupACVLogDetObjective,
     GroupACVTraceObjective,
     MLBLUEEstimator,
@@ -57,6 +58,7 @@ from pyapprox.statest.groupacv import (
     MLBLUESPDAllocationOptimizer,
     _get_allocation_matrix_is,
     _get_allocation_matrix_nested,
+    _get_allocation_matrix_tree,
     _nest_subsets,
     get_model_subsets,
 )
@@ -2593,6 +2595,440 @@ class TestOptimizedAllocationMonteCarlo:
             numpy_bkd, GroupACVEstimatorIS, get_model_subsets(nmodels, numpy_bkd),
             nmodels, target_cost=100.0, ntrials=5000,
         )
+
+
+class TestTreeAllocationMatrix:
+    """The tree allocation matrix and the topologies it generalises."""
+
+    def test_chain_parents_reproduce_nested(self, bkd):
+        """A path is the chain, so it must match the nested constructor."""
+        subsets = [
+            bkd.array([0, 1, 2]), bkd.array([1, 2]),
+            bkd.array([2]),
+        ]
+        bkd.assert_allclose(
+            _get_allocation_matrix_tree([-1, 0, 1], bkd),
+            _get_allocation_matrix_nested(subsets, bkd),
+        )
+
+    def test_isolated_roots_reproduce_independent(self, bkd):
+        """A forest of roots shares nothing, so it must match IS."""
+        subsets = [
+            bkd.array([0, 1, 2]), bkd.array([1, 2]),
+            bkd.array([2]),
+        ]
+        bkd.assert_allclose(
+            _get_allocation_matrix_tree([-1, -1, -1], bkd),
+            _get_allocation_matrix_is(subsets, bkd),
+        )
+
+    def test_branching_matrix_is_not_triangular(self, bkd):
+        """The branching case is the one neither existing constructor covers.
+
+        Groups 1 and 2 are siblings: each holds the root partition and its
+        own, and neither contains the other. No row or column permutation
+        makes this lower triangular, so it is genuinely outside the chain.
+        """
+        amat = bkd.to_numpy(
+            _get_allocation_matrix_tree([-1, 0, 0], bkd)
+        )
+        np.testing.assert_array_equal(
+            amat, np.array([[1, 0, 0], [1, 1, 0], [1, 0, 1]], dtype=float),
+        )
+        # Neither sibling's partition set contains the other's, which is what
+        # no chain can produce.
+        assert amat[1, 2] == 0.0 and amat[2, 1] == 0.0
+
+    def test_deeper_tree(self, bkd):
+        """Two levels of branching, to exercise multi-step ancestor walks."""
+        # 0 -> {1, 2}; 1 -> {3}; 2 -> {4}
+        amat = bkd.to_numpy(
+            _get_allocation_matrix_tree([-1, 0, 0, 1, 2], bkd)
+        )
+        expected = np.array([
+            [1, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0],
+            [1, 0, 1, 0, 0],
+            [1, 1, 0, 1, 0],
+            [1, 0, 1, 0, 1],
+        ], dtype=float)
+        np.testing.assert_array_equal(amat, expected)
+
+    @pytest.mark.parametrize(
+        "parents,match",
+        [
+            ([0, -1], "does not precede"),   # root is not first
+            ([-1, 5], "out of range"),
+            ([-1, 1], "does not precede"),   # self-loop
+            ([0, 0], "does not precede"),    # self-loop at the first node
+            ([], "non-empty"),
+        ],
+    )
+    def test_invalid_parents_raise(self, bkd, parents, match):
+        """A malformed forest must fail loudly.
+
+        Each of these would otherwise yield an allocation matrix that
+        misrepresents which samples are shared, and the resulting covariance
+        would be wrong without any error being raised.
+        """
+        with pytest.raises(ValueError, match=match):
+            _get_allocation_matrix_tree(parents, bkd)
+
+    def test_first_node_is_always_a_root(self, bkd):
+        """The precedence rule alone guarantees a root, so none is required.
+
+        This is why no separate rootless check exists: parents[0] can be
+        neither 0 nor a larger index, leaving only -1.
+        """
+        for bad_first in (0, 1, 2):
+            with pytest.raises(ValueError):
+                _get_allocation_matrix_tree([bad_first, -1, -1], bkd)
+        amat = bkd.to_numpy(_get_allocation_matrix_tree([-1, 0, 0], bkd))
+        assert amat[0, 0] == 1.0 and amat[0, 1:].sum() == 0.0
+
+
+class TestTreeEstimator:
+    """The tree estimator against the chain it generalises."""
+
+    def _stat(self, bkd, nmodels):
+        cov = bkd.array(
+            np.eye(nmodels) + 0.6 * (np.ones((nmodels, nmodels)) - np.eye(nmodels))
+        )
+        stat = MultiOutputMean(1, bkd)
+        stat.set_pilot_quantities(cov)
+        return stat
+
+    def _costs(self, bkd, nmodels):
+        return bkd.array(np.array([10.0 ** (-ii) for ii in range(nmodels)]))
+
+    def test_chain_parents_match_nested_estimator(self, bkd):
+        """With chain parents the two estimators must agree exactly.
+
+        This pins the generalisation: the tree estimator is only correct if
+        it reproduces the established chain behaviour on the chain.
+        """
+        nmodels = 3
+        subsets = [
+            bkd.array([0, 1, 2]), bkd.array([1, 2]),
+            bkd.array([2]),
+        ]
+        nps = bkd.array(np.array([10.0, 5.0, 5.0]))
+
+        nested = GroupACVEstimatorNested(
+            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            model_subsets=list(subsets),
+        )
+        tree = GroupACVEstimatorTree(
+            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            parents=[-1, 0, 1], model_subsets=list(subsets),
+        )
+        bkd.assert_allclose(
+            tree._allocation_mat, nested._allocation_mat,
+        )
+        bkd.assert_allclose(
+            tree.covariance_at(nps), nested.covariance_at(nps),
+        )
+
+    def test_siblings_share_only_the_root(self, bkd):
+        """The defining property of a branch, in the intersection counts.
+
+        A chain would report min(m_1, m_2) shared samples between groups 1
+        and 2; a tree reports only the root, which is what makes the two
+        topologies different estimators rather than a relabelling.
+        """
+        nmodels = 4
+        subsets = [
+            bkd.array([0, 1, 2, 3]), bkd.array([1, 2]),
+            bkd.array([2, 3]),
+        ]
+        tree = GroupACVEstimatorTree(
+            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            parents=[-1, 0, 0], model_subsets=list(subsets),
+        )
+        nps = bkd.array(np.array([10.0, 5.0, 5.0]))
+        nintersect = bkd.to_numpy(tree._nintersect_samples(nps))
+
+        assert nintersect[1, 2] == 10.0  # only the root partition
+        assert nintersect[1, 1] == 15.0  # root plus its own
+        assert nintersect[2, 2] == 15.0
+
+    def test_rejects_mismatched_parents_and_subsets(self, bkd):
+        nmodels = 3
+        with pytest.raises(ValueError, match="one to one"):
+            GroupACVEstimatorTree(
+                self._stat(bkd, nmodels),
+                self._costs(bkd, nmodels),
+                parents=[-1, 0],
+                model_subsets=[
+                    bkd.array([0, 1, 2]), bkd.array([1, 2]),
+                    bkd.array([2]),
+                ],
+            )
+
+    def test_requires_parents(self, bkd):
+        nmodels = 3
+        with pytest.raises(ValueError, match="parents must be given"):
+            GroupACVEstimatorTree(
+                self._stat(bkd, nmodels),
+                self._costs(bkd, nmodels),
+            )
+
+    def test_forest_of_two_subtrees_is_block_diagonal(self, bkd):
+        """Some groups nested, others independent, in one estimator.
+
+        Several roots make this a forest rather than a tree. Groups within a
+        subtree reuse samples; groups in different subtrees share none, so
+        the intersection matrix is block diagonal. This is the case that a
+        single chain and fully independent sampling both fail to express.
+        """
+        nmodels = 4
+        subsets = [
+            bkd.array([0, 1]), bkd.array([1]),
+            bkd.array([2, 3]), bkd.array([3]),
+        ]
+        tree = GroupACVEstimatorTree(
+            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            parents=[-1, 0, -1, 2], model_subsets=list(subsets),
+        )
+        nps = bkd.array(np.array([10.0, 10.0, 10.0, 10.0]))
+        nintersect = bkd.to_numpy(tree._nintersect_samples(nps))
+
+        # Within each subtree the child reuses its root's samples.
+        assert nintersect[0, 1] == 10.0
+        assert nintersect[2, 3] == 10.0
+        # Across subtrees nothing is shared.
+        assert nintersect[0, 2] == 0.0
+        assert nintersect[0, 3] == 0.0
+        assert nintersect[1, 2] == 0.0
+        assert nintersect[1, 3] == 0.0
+
+    def test_all_roots_match_independent_estimator(self, bkd):
+        """Every group its own root is exactly independent sampling."""
+        nmodels = 4
+        subsets = [
+            bkd.array([0, 1]), bkd.array([1]),
+            bkd.array([2, 3]), bkd.array([3]),
+        ]
+        nps = bkd.array(np.array([10.0, 10.0, 10.0, 10.0]))
+
+        tree = GroupACVEstimatorTree(
+            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            parents=[-1] * 4, model_subsets=list(subsets),
+        )
+        independent = GroupACVEstimatorIS(
+            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            model_subsets=list(subsets),
+        )
+        bkd.assert_allclose(
+            tree.covariance_at(nps), independent.covariance_at(nps),
+        )
+
+    def test_graph_structure(self, bkd):
+        nmodels = 4
+        subsets = [
+            bkd.array([0, 1, 2, 3]), bkd.array([1, 2]),
+            bkd.array([2, 3]),
+        ]
+        tree = GroupACVEstimatorTree(
+            self._stat(bkd, nmodels), self._costs(bkd, nmodels),
+            parents=[-1, 0, 0], model_subsets=list(subsets),
+        )
+        graph = tree.graph()
+        assert sorted(graph.nodes) == [0, 1, 2]
+        assert sorted(graph.edges) == [(0, 1), (0, 2)]
+        assert graph.nodes[1]["models"] == (1, 2)
+
+
+class TestTreeMonteCarlo:
+    """The tree estimator's reported variance is the one actually attained.
+
+    This is the test the chain-only variants could not provide. A branching
+    topology shares samples between siblings only above their common
+    ancestor, and nothing but real sampling confirms that the samples drawn
+    honour that structure -- an implementation that quietly gave siblings
+    the same samples, or wholly disjoint ones, would still produce a
+    plausible-looking covariance.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(5)
+
+    def _check(self, bkd, parents, subsets, npartition_samples, ntrials=5000):
+        """Realise the estimator repeatedly and compare against its formula."""
+        nmodels = 4
+        benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=nmodels)
+        problem = benchmark.problem()
+        costs, models = problem.costs(), problem.models()
+
+        stat = MultiOutputMean(1, bkd)
+        stat.set_pilot_quantities(benchmark.ensemble_covariance())
+        template = GroupACVEstimatorTree(
+            stat, costs, parents=parents, model_subsets=list(subsets),
+        )
+
+        nps_float = bkd.array(np.asarray(npartition_samples, dtype=float))
+        reported = template.covariance_at(nps_float)
+
+        result = GroupACVAllocationResult(
+            npartition_samples=bkd.asarray(
+                np.round(bkd.to_numpy(nps_float)), dtype=int,
+            ),
+            nsamples_per_model=bkd.asarray(
+                np.round(
+                    bkd.to_numpy(
+                        template._compute_nsamples_per_model(nps_float)
+                    )
+                ),
+                dtype=int,
+            ),
+            actual_cost=0.0,
+            objective_value=bkd.array(np.array([0.0])),
+            success=True,
+            message="",
+        )
+        fitted = FittedGroupACVEstimator(template, result)
+
+        estimates = []
+        for _ in range(ntrials):
+            samples_per_model = fitted.generate_samples_per_model(
+                lambda n: bkd.asarray(np.random.rand(1, int(n)))
+            )
+            values_per_model = [
+                models[ii](samples_per_model[ii])
+                for ii in range(template.nmodels())
+            ]
+            estimates.append(fitted(values_per_model))
+        attained = bkd.cov(bkd.stack(estimates), ddof=1, rowvar=False)
+
+        # As for the chain tests, 5000 realisations give a standard error
+        # near 2% on a variance, so the tolerance sits several standard
+        # errors out. A structure that shared the wrong samples between
+        # branches errs by far more than that.
+        bkd.assert_allclose(attained, reported, rtol=1e-1, atol=4e-3)
+
+    @slow_test
+    def test_branching_tree_variance_is_attained(self, numpy_bkd):
+        """One root, two siblings sharing only the root's samples."""
+        # Root holds every model; the two branches then refine disjoint
+        # low-fidelity pairs, which is exactly the case a chain cannot
+        # express without forcing one branch to contain the other.
+        self._check(
+            numpy_bkd,
+            parents=[-1, 0, 0],
+            subsets=[
+                numpy_bkd.array([0, 1, 2, 3]), numpy_bkd.array([1, 2]),
+                numpy_bkd.array([2, 3]),
+            ],
+            npartition_samples=[20.0, 30.0, 30.0],
+        )
+
+    @slow_test
+    def test_forest_variance_is_attained(self, numpy_bkd):
+        """Two disjoint subtrees: nested within each, independent across.
+
+        The block-diagonal structure is asserted elsewhere from the
+        intersection counts, but only sampling shows the two roots really
+        draw independent samples. Were the second root to reuse the first's
+        stream, the reported covariance would understate the truth while
+        every internal quantity still looked right.
+        """
+        self._check(
+            numpy_bkd,
+            parents=[-1, 0, -1, 2],
+            subsets=[
+                numpy_bkd.array([0, 1]), numpy_bkd.array([1]),
+                numpy_bkd.array([2, 3]), numpy_bkd.array([3]),
+            ],
+            npartition_samples=[20.0, 30.0, 40.0, 50.0],
+        )
+
+    @slow_test
+    def test_optimized_tree_allocation_is_attained(self, numpy_bkd):
+        """The optimizer's allocation for a tree attains its reported variance.
+
+        The tests above fix the allocation by hand, which leaves open whether
+        an allocation the optimizer chooses is achievable: the optimizer
+        minimises the same analytical expression the check compares against,
+        so a fault in that expression for branching topologies could be
+        exploited by the allocation and stay invisible. Optimising first and
+        then sampling is what closes that gap.
+        """
+        bkd = numpy_bkd
+        nmodels = 4
+        benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=nmodels)
+        problem = benchmark.problem()
+        costs, models = problem.costs(), problem.models()
+
+        stat = MultiOutputMean(1, bkd)
+        stat.set_pilot_quantities(benchmark.ensemble_covariance())
+        subsets = [
+            bkd.array([0, 1, 2, 3]), bkd.array([1, 2]), bkd.array([2, 3]),
+        ]
+        template = GroupACVEstimatorTree(
+            stat, costs, parents=[-1, 0, 0], model_subsets=list(subsets),
+        )
+
+        # Log scaling with an inequality budget, as the optimization
+        # tutorial recommends and the chain equivalents of this test use.
+        allocator = GroupACVAllocationOptimizer(
+            template,
+            problem_config=AllocationProblemConfig(
+                variable_scaling="log",
+                budget_constraint_form="inequality",
+            ),
+        )
+        result = allocator.optimize(
+            target_cost=100.0, min_nhf_samples=1, round_nsamples=True,
+        )
+        assert result.success, result.message
+
+        fitted = FittedGroupACVEstimator(template, result)
+        reported = fitted.covariance()
+
+        ntrials = 5000
+        estimates = []
+        for _ in range(ntrials):
+            samples_per_model = fitted.generate_samples_per_model(
+                lambda n: bkd.asarray(np.random.rand(1, int(n)))
+            )
+            values_per_model = [
+                models[ii](samples_per_model[ii])
+                for ii in range(template.nmodels())
+            ]
+            estimates.append(fitted(values_per_model))
+        attained = bkd.cov(bkd.stack(estimates), ddof=1, rowvar=False)
+
+        bkd.assert_allclose(attained, reported, rtol=1e-1, atol=4e-3)
+
+    @slow_test
+    def test_branching_differs_from_chain(self, numpy_bkd):
+        """The branch is not a relabelled chain.
+
+        Without this, the attainment test above could pass against an
+        implementation that silently fell back to the chain.
+        """
+        bkd = numpy_bkd
+        nmodels = 4
+        benchmark = PolynomialEnsembleBenchmark(bkd, nmodels=nmodels)
+        cov = benchmark.ensemble_covariance()
+        costs = benchmark.problem().costs()
+        subsets = [
+            bkd.array([0, 1, 2, 3]), bkd.array([1, 2]), bkd.array([2, 3]),
+        ]
+        nps = bkd.array(np.array([20.0, 30.0, 30.0]))
+
+        def _cov_for(parents):
+            stat = MultiOutputMean(1, bkd)
+            stat.set_pilot_quantities(cov)
+            est = GroupACVEstimatorTree(
+                stat, costs, parents=parents, model_subsets=list(subsets),
+            )
+            return bkd.to_numpy(est.covariance_at(nps))
+
+        branch = _cov_for([-1, 0, 0])
+        chain = _cov_for([-1, 0, 1])
+        assert not np.allclose(branch, chain, rtol=1e-6)
 
 
 class TestCovarianceAt:

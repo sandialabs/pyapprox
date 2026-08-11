@@ -43,6 +43,7 @@ from pyapprox.statest.groupacv.search import (
 from pyapprox.statest.groupacv.utils import (
     _get_allocation_matrix_is,
     _get_allocation_matrix_nested,
+    _get_allocation_matrix_tree,
     _grouped_acv_sigma,
     _grouped_acv_sigma_block,
     _nest_subsets,
@@ -56,6 +57,7 @@ from pyapprox.statest.groupacv.variable_space import (
 from pyapprox.statest.groupacv.variants import (
     GroupACVEstimatorIS,
     GroupACVEstimatorNested,
+    GroupACVEstimatorTree,
 )
 
 __all__ = [
@@ -64,6 +66,7 @@ __all__ = [
     "get_model_subsets_limited",
     "_get_allocation_matrix_is",
     "_get_allocation_matrix_nested",
+    "_get_allocation_matrix_tree",
     "_nest_subsets",
     "_grouped_acv_sigma_block",
     "_grouped_acv_sigma",
@@ -89,6 +92,7 @@ __all__ = [
     "FittedGroupACVEstimator",
     "GroupACVEstimatorIS",
     "GroupACVEstimatorNested",
+    "GroupACVEstimatorTree",
     "MLBLUEEstimator",
     # Search classes
     "GroupACVSearch",
