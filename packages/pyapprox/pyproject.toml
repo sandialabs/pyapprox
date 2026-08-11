@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "pyapprox"
 dynamic = ["version"]
 description = "High-dimensional function approximation, uncertainty quantification, and experimental design"
-readme = "../../README.md"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [

@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "pyapprox-tutorials"
 dynamic = ["version"]
 description = "Tutorials and tutorial figure helpers for the PyApprox library"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [

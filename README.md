@@ -70,8 +70,15 @@ approx_values = surrogate(test_pts)
 ## Installation
 
 PyApprox lives in a monorepo with three packages, all published on PyPI:
-`pyapprox` (core), `pyapprox-benchmarks` (benchmark functions), and
-`pyapprox-tutorials` (tutorial helpers).
+
+| Package | Contents | Depends on |
+|---------|----------|------------|
+| [`pyapprox`](packages/pyapprox/README.md) | The core library — surrogates, multi-fidelity estimators, PDE solvers, inference, optimization | — |
+| [`pyapprox-benchmarks`](packages/pyapprox-benchmarks/README.md) | Reference functions, problems, and benchmarks with known ground truth | `pyapprox` |
+| [`pyapprox-tutorials`](packages/pyapprox-tutorials/README.md) | Tutorial sources and the figure helpers they import | `pyapprox`, `pyapprox-benchmarks` |
+
+Most users need only `pyapprox`. The dependency direction is one-way, so
+installing a downstream package pulls in the ones above it.
 
 ### From PyPI (recommended)
 
