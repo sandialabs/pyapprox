@@ -48,7 +48,16 @@ runtime-extras = ["pyapprox[fem,umbridge,numba,parallel,cvxpy]"]
 # Isolated — requires manual Trilinos ROL build, never in any rollup
 rol = ["rol-python"]
 # Test infrastructure (no pyapprox-benchmarks — cycle broken by test relocation)
-test = ["pytest>=7.4", "pytest-cov>=4.1", "pytest-timeout>=2.2"]
+test = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-timeout>=2.2",
+    # Available but not enabled by default: each worker is a separate
+    # process with its own torch import, so a high worker count costs
+    # real memory. CI opts in with an explicit -n; local runs stay serial
+    # unless you pass -n yourself.
+    "pytest-xdist>=3.5",
+]
 lint = ["mypy>=1.8", "ruff>=0.3", "import-linter>=2.0"]
 # Quarto tooling. No pyapprox source imports these -- see the FUTURE note
 # in packages/pyapprox-tutorials/pyproject.toml on consolidating the
