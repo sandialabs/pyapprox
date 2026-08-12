@@ -7,6 +7,7 @@ from mathematical definitions.
 
 import numpy as np
 import pytest
+from pyapprox.interface.functions.autograd import WithAutogradJacobian
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -20,7 +21,25 @@ from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
+from pyapprox.statest.acv import GMFEstimator, GRDEstimator, MFMCEstimator
 from pyapprox.statest.acv.variants import _allocate_samples_mfmc
+from pyapprox.statest.groupacv import (
+    FittedGroupACVEstimator,
+    GroupACVCostConstraint,
+    GroupACVEstimatorIS,
+    GroupACVEstimatorNested,
+    GroupACVEstimatorTree,
+    GroupACVLogDetObjective,
+    GroupACVTraceObjective,
+    MLBLUEEstimator,
+    MLBLUEObjective,
+    MLBLUESPDAllocationOptimizer,
+    _get_allocation_matrix_is,
+    _get_allocation_matrix_nested,
+    _get_allocation_matrix_tree,
+    _nest_subsets,
+    get_model_subsets,
+)
 from pyapprox.statest.groupacv.allocation import (
     GroupACVAllocationOptimizer,
     GroupACVAllocationResult,
@@ -44,24 +63,6 @@ from pyapprox_benchmarks.statest import (
     PolynomialEnsembleBenchmark,
 )
 
-from pyapprox.statest.acv import GMFEstimator, GRDEstimator, MFMCEstimator
-from pyapprox.statest.groupacv import (
-    FittedGroupACVEstimator,
-    GroupACVCostConstraint,
-    GroupACVEstimatorIS,
-    GroupACVEstimatorNested,
-    GroupACVEstimatorTree,
-    GroupACVLogDetObjective,
-    GroupACVTraceObjective,
-    MLBLUEEstimator,
-    MLBLUEObjective,
-    MLBLUESPDAllocationOptimizer,
-    _get_allocation_matrix_is,
-    _get_allocation_matrix_nested,
-    _get_allocation_matrix_tree,
-    _nest_subsets,
-    get_model_subsets,
-)
 from tests._helpers.acv_utils import allocate_with_allocator
 from tests._helpers.markers import slow_test, slower_test
 
@@ -2597,8 +2598,153 @@ class TestOptimizedAllocationMonteCarlo:
         )
 
 
+class TestTreeObjectiveDerivatives:
+    """Objective gradients for nested and tree topologies.
+
+    Analytical derivatives are only available for independent sampling --
+    the capability check requires an identity allocation matrix -- so these
+    objectives declare no jacobian of their own and are wrapped in
+    ``WithAutogradJacobian``, which is what the optimizer composes for them
+    in practice. That restricts these tests to Torch, the only autodiff
+    backend.
+
+    The concern they address is that sharing samples between groups might
+    make the objective non-smooth in the partition sizes. It does not:
+    which partitions a group holds is fixed by the topology, so the
+    intersection counts are linear in the partition sizes and no comparison
+    of magnitudes enters. Were the allocation instead chosen by comparing
+    sizes at evaluation time, the objective would kink wherever two
+    partitions were equal.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        import torch
+
+        torch.set_default_dtype(torch.float64)
+        self._bkd = TorchBkd()
+
+    def _stat_and_costs(self, nmodels):
+        np.random.seed(1)
+        cov = self._bkd.array(np.random.normal(0, 1, (nmodels, nmodels)))
+        cov = cov.T @ cov
+        costs = self._bkd.arange(
+            nmodels, 0, -1, dtype=self._bkd.double_dtype()
+        )
+        stat = MultiOutputMean(1, self._bkd)
+        stat.set_pilot_quantities(cov)
+        return stat, costs
+
+    def _subsets(self, nmodels):
+        """Chain-shaped groups, one per partition."""
+        return [
+            self._bkd.array(list(range(kk, nmodels)), dtype=int)
+            for kk in range(nmodels)
+        ]
+
+    def _estimator(self, topology, nmodels):
+        stat, costs = self._stat_and_costs(nmodels)
+        subsets = self._subsets(nmodels)
+        if topology == "nested":
+            return GroupACVEstimatorNested(
+                stat, costs, model_subsets=list(subsets),
+            )
+        parents = {
+            # A path, the chain the nested variant hard-codes.
+            "chain": [-1] + list(range(nmodels - 1)),
+            # One root with the remaining groups as its children, so no
+            # sibling contains another.
+            "branching": [-1] + [0] * (nmodels - 1),
+            # Two components: nothing is shared across the split.
+            "forest": [-1, 0, -1] + [2] * (nmodels - 3),
+        }[topology]
+        return GroupACVEstimatorTree(
+            stat, costs, parents=parents, model_subsets=list(subsets),
+        )
+
+    @pytest.mark.parametrize(
+        "topology,nmodels",
+        [
+            ("nested", 3), ("nested", 4),
+            ("chain", 3), ("chain", 4),
+            ("branching", 3), ("branching", 4),
+            ("forest", 3), ("forest", 4),
+        ],
+    )
+    def test_trace_objective_jacobian(self, topology, nmodels):
+        est = self._estimator(topology, nmodels)
+        obj = GroupACVTraceObjective(self._bkd)
+        obj.set_estimator(est)
+
+        iterate = est._init_guess(100)
+        checker = DerivativeChecker(
+            WithAutogradJacobian(obj, self._bkd)
+        )
+        errors = checker.check_derivatives(iterate, verbosity=0)
+        assert checker.error_ratio(errors[0]) <= 2e-6
+
+    @pytest.mark.parametrize(
+        "topology,nmodels",
+        [
+            ("nested", 3), ("chain", 3), ("branching", 3), ("forest", 3),
+            ("branching", 4), ("forest", 4),
+        ],
+    )
+    def test_logdet_objective_jacobian(self, topology, nmodels):
+        est = self._estimator(topology, nmodels)
+        obj = GroupACVLogDetObjective(self._bkd)
+        obj.set_estimator(est)
+
+        iterate = est._init_guess(100)
+        checker = DerivativeChecker(
+            WithAutogradJacobian(obj, self._bkd)
+        )
+        errors = checker.check_derivatives(iterate, verbosity=0)
+        assert checker.error_ratio(errors[0]) <= 2e-6
+
+    @pytest.mark.parametrize("topology", ["nested", "branching", "forest"])
+    def test_gradient_is_smooth_where_partitions_coincide(self, topology):
+        """No kink where two partitions have equal size.
+
+        A covariance written as 1/max(m_k, m_k') looks like it should be
+        non-differentiable when the two arguments cross. It is not, because
+        the max is a consequence of the fixed prefix structure rather than
+        a comparison made at evaluation time.
+
+        The test is the rate, not the size, of the gap between the one-sided
+        slopes. Ordinary curvature makes them differ by O(step), so the gap
+        falls by ten each time the step does; a real kink leaves an O(1)
+        difference that does not shrink at all. Comparing the gap against a
+        fixed tolerance would not tell those apart.
+        """
+        bkd = self._bkd
+        est = self._estimator(topology, 3)
+
+        def objective(second):
+            nps = bkd.array(np.array([30.0, second, 20.0]))
+            return float(
+                bkd.to_numpy(
+                    bkd.trace(est._covariance_from_npartition_samples(nps))
+                )
+            )
+
+        crossing = 30.0
+        gaps = []
+        for step in (1e-2, 1e-3, 1e-4):
+            left = (objective(crossing) - objective(crossing - step)) / step
+            right = (objective(crossing + step) - objective(crossing)) / step
+            gaps.append(abs(left - right))
+
+        for coarse, fine in zip(gaps[:-1], gaps[1:]):
+            assert fine < coarse * 0.2, (
+                f"one-sided slopes for {topology} differ by {gaps}, which is "
+                "not converging like a smooth function; the objective kinks "
+                "where two partitions coincide"
+            )
+
+
 class TestTreeAllocationMatrix:
-    """The tree allocation matrix and the topologies it generalises."""
+    """The tree allocation matrix and the topologies it generalizes."""
 
     def test_chain_parents_reproduce_nested(self, bkd):
         """A path is the chain, so it must match the nested constructor."""
