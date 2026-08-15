@@ -42,6 +42,19 @@ into. No finite-difference fallback exists anywhere in this module or in
 producers: what to do about an absent capability is the consumer's
 decision (scipy receives ``jac=None`` and applies its own FD; ROL falls
 back to its internal secant).
+
+TODO (future extension, when a concrete need arises): there is no way to
+declare that several quantities come from ONE invocation. Every field is
+an independent callable, so a producer whose value, jacobian and hvp all
+fall out of a single solve — an adjoint solver, typically, where the
+gradient is already formed once the forward solve finishes — must either
+solve once per quantity or cache internally on the last sample seen. The
+latter is the usual workaround and is fragile: it depends on call order
+and on exact sample equality, and it is hidden mutable state that breaks
+under threading or interleaved samples. A fused accessor (returning
+value and jacobian together) would fix this at the root, but it affects
+every producer and consumer of the bundle, so it needs its own design
+pass rather than being added in passing.
 """
 
 from __future__ import annotations
