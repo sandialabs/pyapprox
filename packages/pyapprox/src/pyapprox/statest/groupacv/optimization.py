@@ -630,6 +630,25 @@ class GroupACVCostConstraint(Generic[Array]):
         target_cost, _ = self._ensure_budget()
         return target_cost
 
+    def normalization(self) -> Array:
+        """Per-row divisors that bring constraint values to order one.
+
+        Dividing a row and its bounds by a positive constant leaves the
+        feasible set unchanged, so this affects conditioning only. It
+        matters because the rows carry incommensurable units: the cost
+        row scales with the budget while the sample-count row is order
+        one, and optimizers apply a single scalar tolerance to the whole
+        constraint vector. Without rescaling, one tolerance enforces
+        very different accuracy on each row.
+
+        Owned by the constraint because the appropriate divisor depends
+        on what each row measures, which the variable spaces cannot know.
+        """
+        bkd, _ = self._ensure_bound()
+        target_cost, _ = self._ensure_budget()
+        norm_val = target_cost if target_cost else 1.0
+        return bkd.array([norm_val, 1.0])
+
     def _set_cost_equality(self) -> None:
         """Set budget constraint to equality (cost == target exactly)."""
         self._ensure_budget()

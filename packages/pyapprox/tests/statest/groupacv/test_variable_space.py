@@ -1,7 +1,13 @@
 """Unit tests for variable_space module: wrappers, strategies, config."""
 
+from typing import Generic
+
 import numpy as np
 import pytest
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.statest.groupacv import GroupACVEstimatorIS
 from pyapprox.statest.groupacv.optimization import (
     GroupACVCostConstraint,
@@ -24,6 +30,7 @@ from pyapprox.statest.statistics import (
     MultiOutputMean,
     MultiOutputVariance,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _bundle_jac(obj):
@@ -131,6 +138,136 @@ class TestRescaledConstraint:
         wrapped = _RescaledConstraint(con, scale)
         bkd.assert_allclose(wrapped.lb(), con.lb())
         bkd.assert_allclose(wrapped.ub(), con.ub())
+
+    def test_whvp_zero_for_linear_inner(self, bkd):
+        """The cost constraint is linear in n, so its curvature is zero.
+
+        Pins that generalizing the chain rule to nonlinear constraints
+        left the cost-constraint path numerically untouched.
+        """
+        est, _, con, iterate = _make_objective_and_constraint(bkd)
+        partition_costs = bkd.einsum(
+            "m,mp->p", est._costs, est._partitions_per_model
+        )
+        scale = partition_costs / bkd.min(partition_costs)
+        wrapped = _RescaledConstraint(con, scale)
+        m_iterate = iterate * scale[:, None]
+        vec = bkd.full((con.nvars(), 1), 0.5)
+        weights = bkd.full((con.nqoi(), 1), 1.3)
+        whvp = wrapped.derivatives().whvp(m_iterate, vec, weights)
+        bkd.assert_allclose(whvp, bkd.zeros((con.nvars(), 1)), atol=1e-14)
+
+
+class _QuadraticConstraint(Generic[Array]):
+    """Constraint with genuine curvature, for the chain-rule tests.
+
+    Row 0 is ``sum(n_i^2)`` and row 1 is ``sum(n_i)``, mirroring the
+    cost constraint's two-row layout. The cost constraint cannot
+    exercise the second-order chain rule because it is linear in n, so
+    the wrappers' curvature handling needs a nonlinear stand-in.
+    """
+
+    def __init__(self, bkd: Backend[Array], nvars: int = 3) -> None:
+        self._bkd = bkd
+        self._nvars = nvars
+        self._derivs = Derivatives.second_order_weighted(
+            jacobian=self.jacobian, whvp=self.whvp
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        return self._derivs
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nvars(self) -> int:
+        return self._nvars
+
+    def nqoi(self) -> int:
+        return 2
+
+    def lb(self) -> Array:
+        return self._bkd.zeros((2,))
+
+    def ub(self) -> Array:
+        return self._bkd.full((2,), float("inf"))
+
+    def normalization(self) -> Array:
+        return self._bkd.full((2,), 1.0)
+
+    def __call__(self, samples: Array) -> Array:
+        n = samples[:, 0]
+        bkd = self._bkd
+        return bkd.hstack((bkd.sum(n**2), bkd.sum(n)))[:, None]
+
+    def jacobian(self, samples: Array) -> Array:
+        n = samples[:, 0]
+        bkd = self._bkd
+        return bkd.vstack([2.0 * n, bkd.full((self._nvars,), 1.0)])
+
+    def whvp(self, samples: Array, vec: Array, weights: Array) -> Array:
+        # Row 1 is linear, so only row 0's weight scales the curvature.
+        # weights is a column (nqoi, 1), the documented orientation.
+        return 2.0 * weights[0, 0] * vec
+
+
+class TestNonlinearConstraintCurvature:
+    """The m-space chain rules must carry inner curvature through.
+
+    Both wrappers previously assumed the inner constraint was linear in
+    n. That holds for the cost constraint but silently produced a zero
+    or truncated Hessian for any constraint with curvature, which the
+    linear cost constraint could never reveal.
+    """
+
+    def test_rescaled_whvp(self, bkd):
+        inner = _QuadraticConstraint(bkd)
+        scale = bkd.array([1.0, 2.0, 4.0])
+        wrapped = _RescaledConstraint(inner, scale)
+        checker = DerivativeChecker(wrapped)
+        errors = checker.check_derivatives(
+            bkd.array([[1.5], [2.5], [3.0]]),
+            weights=bkd.array([[1.3], [0.5]]),
+        )
+        assert float(checker.error_ratio(errors[1])) <= 1e-6
+
+    def test_log_whvp(self, bkd):
+        inner = _QuadraticConstraint(bkd)
+        wrapped = _LogConstraint(inner, bkd)
+        checker = DerivativeChecker(wrapped)
+        errors = checker.check_derivatives(
+            bkd.array([[0.4], [0.7], [1.0]]),
+            weights=bkd.array([[1.3], [0.5]]),
+        )
+        assert float(checker.error_ratio(errors[1])) <= 1e-6
+
+    def test_log_whvp_exceeds_diagonal_only_term(self, bkd):
+        """The inner curvature term is present, not only the diagonal
+        term the change of variables introduces."""
+        inner = _QuadraticConstraint(bkd)
+        wrapped = _LogConstraint(inner, bkd)
+        m = bkd.array([[0.4], [0.7], [1.0]])
+        vec = bkd.array([[0.3], [-0.7], [1.1]])
+        weights = bkd.array([[1.3], [0.5]])
+        n = bkd.exp(m)[:, 0]
+        diagonal_only = (
+            bkd.einsum("i,ij->j", weights[:, 0], inner.jacobian(bkd.exp(m))) * n
+        )[:, None] * vec
+        full = wrapped.derivatives().whvp(m, vec, weights)
+        assert float(bkd.max(bkd.abs(full - diagonal_only))) > 1e-6
+
+    def test_capability_absent_when_inner_lacks_curvature(self, bkd):
+        """A first-order inner stays first-order once wrapped."""
+
+        class _FirstOrderOnly(_QuadraticConstraint):
+            def __init__(self, bkd):
+                super().__init__(bkd)
+                self._derivs = Derivatives.first_order(jacobian=self.jacobian)
+
+        inner = _FirstOrderOnly(bkd)
+        scale = bkd.array([1.0, 2.0, 4.0])
+        assert _RescaledConstraint(inner, scale).derivatives().whvp is None
+        assert _LogConstraint(inner, bkd).derivatives().whvp is None
 
 
 class TestNormalizedConstraint:

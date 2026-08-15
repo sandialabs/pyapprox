@@ -74,6 +74,20 @@ class _ConstraintLike(Protocol[Array]):
 
 
 @runtime_checkable
+class _AllocationConstraint(_ConstraintLike[Array], Protocol[Array]):
+    """A constraint an allocation problem is posed against.
+
+    Adds the per-row divisors used to condition the constraint vector.
+    The scale depends on what each row measures, so the constraint
+    supplies it rather than the variable space that wraps it.
+    """
+
+    def normalization(self) -> Array:
+        """Positive per-row divisors, shape ``(nqoi,)``."""
+        ...
+
+
+@runtime_checkable
 class VariableSpace(Protocol[Array]):
     """Protocol for variable-space transformations in GroupACV allocation."""
 
@@ -104,7 +118,7 @@ class VariableSpace(Protocol[Array]):
         ...
 
     def wrap_constraint(
-        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+        self, constraint: "_AllocationConstraint[Array]", scale: Array
     ) -> "_ConstraintLike[Array]":
         """Wrap constraint to accept optimizer-space variables."""
         ...
@@ -203,7 +217,7 @@ class _RescaledConstraint(Generic[Array]):
     """
 
     def __init__(
-        self, inner: "GroupACVCostConstraint[Array]", scale: Array
+        self, inner: "_ConstraintLike[Array]", scale: Array
     ) -> None:
         self._inner = inner
         self._scale = scale
@@ -253,10 +267,18 @@ class _RescaledConstraint(Generic[Array]):
     def _whvp_impl(
         self, npartition_samples: Array, vec: Array, weights: Array
     ) -> Array:
-        # The inner constraint is linear in n and the rescaling is
-        # linear, so the m-space Hessian is zero.
-        bkd = self._inner.bkd()
-        return bkd.zeros((self.nvars(), 1))
+        # n = m/s, so d2g/dm_k dm_p = (d2g/dn_k dn_p)/(s_k s_p), giving
+        # whvp_m(m, v, w) = whvp_n(n, v/s, w)/s. A constraint that is
+        # linear in n has a zero inner whvp, and this evaluates to zero
+        # for it; a nonlinear one contributes its real curvature.
+        inner_whvp = self._inner_whvp
+        if inner_whvp is None:
+            raise RuntimeError(
+                "whvp is unavailable; check derivatives() before calling"
+            )
+        n = npartition_samples / self._scale[:, None]
+        scaled_vec = vec / self._scale[:, None]
+        return inner_whvp(n, scaled_vec, weights) / self._scale[:, None]
 
 
 class _LogObjective(Generic[Array]):
@@ -344,22 +366,23 @@ class _LogConstraint(Generic[Array]):
     """
 
     def __init__(
-        self, inner: "GroupACVCostConstraint[Array]", bkd: Backend[Array]
+        self, inner: "_ConstraintLike[Array]", bkd: Backend[Array]
     ) -> None:
         self._inner = inner
         self._bkd = bkd
         d = inner.derivatives()
         self._inner_jac: Optional[JacobianFn[Array]] = d.jacobian
-        # Both wrapped derivatives are built from the inner JACOBIAN
-        # (the inner constraint is linear in n), so both key on it. The
-        # whvp field is additionally gated on the inner whvp so that a
-        # first-order-only inner stays first-order when wrapped.
+        self._inner_whvp: Optional[WHVPFn[Array]] = d.whvp
+        # The log-space whvp needs BOTH the inner jacobian (for the
+        # diagonal term the change of variables introduces) and the
+        # inner whvp (for the inner constraint's own curvature), so it
+        # is gated on both.
         self._derivs: Derivatives[Array] = Derivatives(
             jacobian=None
             if self._inner_jac is None
             else self._jacobian_impl,
             whvp=self._whvp_impl
-            if self._inner_jac is not None and d.whvp is not None
+            if self._inner_jac is not None and self._inner_whvp is not None
             else None,
         )
 
@@ -400,22 +423,26 @@ class _LogConstraint(Generic[Array]):
         self, m: Array, vec: Array, weights: Array
     ) -> Array:
         inner_jac = self._inner_jac
-        if inner_jac is None:
+        inner_whvp = self._inner_whvp
+        if inner_jac is None or inner_whvp is None:
             raise RuntimeError(
                 "whvp is unavailable; check derivatives() before calling"
             )
-        # g_i(m) = g_i(exp(m)), constraint g_i is linear in n:
-        #   g_i(n) = a_i^T n + b_i
-        # So d²g_i/dm_k dm_p = δ_{kp} * (dg_i/dn_k) * n_k
-        # whvp = Σ_i w_i * diag(dg_i/dn * n) @ vec
+        # g_i(m) = g_i(exp(m)) with n = exp(m), so
+        #   d²g_i/dm_k dm_p = n_k n_p (d²g_i/dn_k dn_p)
+        #                     + δ_{kp} n_k (dg_i/dn_k)
+        # The first term is the inner constraint's own curvature and
+        # vanishes when it is linear in n; the second is introduced by
+        # the change of variables and is present either way.
         n = self._bkd.exp(m)
         n_1d = n[:, 0]
+        curvature = n_1d[:, None] * inner_whvp(n, n_1d[:, None] * vec, weights)
         J_n = inner_jac(n)
         # J_n shape: (nqoi, nvars), weights shape: (nqoi, 1)
         weighted_diag = self._bkd.einsum(
             "i,ij->j", weights[:, 0], J_n
         ) * n_1d
-        return (weighted_diag[:, None] * vec)
+        return curvature + weighted_diag[:, None] * vec
 
 
 class _NormalizedConstraint(Generic[Array]):
@@ -514,7 +541,7 @@ class IdentitySpace(Generic[Array]):
         return objective
 
     def wrap_constraint(
-        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+        self, constraint: "_AllocationConstraint[Array]", scale: Array
     ) -> _ConstraintLike[Array]:
         return constraint
 
@@ -544,13 +571,9 @@ class ConstraintScaledSpace(Generic[Array]):
         return objective
 
     def wrap_constraint(
-        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+        self, constraint: "_AllocationConstraint[Array]", scale: Array
     ) -> _ConstraintLike[Array]:
-        bkd = constraint.bkd()
-        target_cost = constraint.target_cost()
-        norm_val = target_cost if target_cost and target_cost != 0 else 1.0
-        norm = bkd.array([norm_val, 1.0])
-        return _NormalizedConstraint(constraint, norm)
+        return _NormalizedConstraint(constraint, constraint.normalization())
 
 
 class FullCostSpace(Generic[Array]):
@@ -578,14 +601,10 @@ class FullCostSpace(Generic[Array]):
         return _RescaledObjective(objective, scale)
 
     def wrap_constraint(
-        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+        self, constraint: "_AllocationConstraint[Array]", scale: Array
     ) -> _ConstraintLike[Array]:
-        bkd = constraint.bkd()
-        target_cost = constraint.target_cost()
-        norm_val = target_cost if target_cost and target_cost != 0 else 1.0
-        norm = bkd.array([norm_val, 1.0])
         rescaled = _RescaledConstraint(constraint, scale)
-        return _NormalizedConstraint(rescaled, norm)
+        return _NormalizedConstraint(rescaled, constraint.normalization())
 
 
 class LogSpace(Generic[Array]):
@@ -628,13 +647,10 @@ class LogSpace(Generic[Array]):
         return _LogObjective(objective, self._bkd)
 
     def wrap_constraint(
-        self, constraint: "GroupACVCostConstraint[Array]", scale: Array
+        self, constraint: "_AllocationConstraint[Array]", scale: Array
     ) -> _ConstraintLike[Array]:
-        target_cost = constraint.target_cost()
-        norm_val = target_cost if target_cost and target_cost != 0 else 1.0
-        norm = self._bkd.array([norm_val, 1.0])
         log_con = _LogConstraint(constraint, self._bkd)
-        return _NormalizedConstraint(log_con, norm)
+        return _NormalizedConstraint(log_con, constraint.normalization())
 
 
 # ---------------------------------------------------------------------------
