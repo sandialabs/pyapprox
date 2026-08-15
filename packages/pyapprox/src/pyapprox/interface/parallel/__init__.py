@@ -77,7 +77,6 @@ __all__ = [
     "SequentialBackend",
     # Protocols
     "ParallelBackendProtocol",
-    "ParallelFunctionProtocol",
     # Utilities
     "BatchSplitter",
     "TensorTransfer",
