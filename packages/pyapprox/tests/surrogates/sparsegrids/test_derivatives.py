@@ -182,7 +182,7 @@ class TestSparseGridDerivatives:
         surrogate = self._build_surrogate(2, 3, func, bkd)
 
         test_pt = bkd.asarray([[0.3], [0.4]])
-        weights = bkd.asarray([[0.6, 0.4]])
+        weights = bkd.asarray([[0.6], [0.4]])
 
         checker = DerivativeChecker(surrogate)
         errors = checker.check_derivatives(test_pt, verbosity=0, weights=weights)

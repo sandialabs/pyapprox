@@ -93,6 +93,16 @@ class FunctionWithJVPFromHVP(Generic[Array]):
             raise AttributeError(
                 "weights must be provided if testing the weighted hessian of a function"
             )
+        if weights is not None and weights.shape != (function.nqoi(), 1):
+            raise ValueError(
+                "weights must have shape (nqoi, 1) = "
+                f"({function.nqoi()}, 1), got {tuple(weights.shape)}. This "
+                "is the orientation documented in "
+                "pyapprox.interface.functions.derivatives and passed to "
+                "production whvps by the optimizer adapters; a whvp that "
+                "reads the whole weight vector rather than weights[0, 0] "
+                "silently uses one weight if handed a row."
+            )
         self._fun = function
         self._jacobian = derivs.jacobian
         self._explicit_jvp = derivs.jvp
@@ -135,7 +145,9 @@ class FunctionWithJVPFromHVP(Generic[Array]):
             raise RuntimeError(
                 "weights are required for multi-QoI hessian checks"
             )
-        return weights @ jacobian(samples)
+        # weights is (nqoi, 1) and the jacobian is (nqoi, nvars), so the
+        # weighted jacobian contracts over the QoI axis.
+        return weights.T @ jacobian(samples)
 
     def jvp(self, sample: Array, vec: Array) -> Array:
         hvp = self._hvp

@@ -418,7 +418,7 @@ class TestGroupACVConstraintDerivatives:
         iterate = est._init_guess(target_cost)
         checker = DerivativeChecker(constraint)
         # Pass weights for multi-QoI constraint (nqoi=2) with whvp
-        weights = bkd.asarray([[0.6, 0.4]])  # Shape (1, nqoi)
+        weights = bkd.asarray([[0.6], [0.4]])  # Shape (nqoi, 1)
         errors = checker.check_derivatives(iterate, weights=weights, verbosity=0)
 
         # Constraints are linear, so Jacobian should be exact
@@ -3311,7 +3311,7 @@ class TestRescaledConstraintDerivatives:
         wrapped = _RescaledConstraint(con, scale)
         iterate = est._init_guess(100) * scale[:, None]
         checker = DerivativeChecker(wrapped)
-        weights = bkd.asarray([[0.6, 0.4]])
+        weights = bkd.asarray([[0.6], [0.4]])
         errors = checker.check_derivatives(
             iterate, weights=weights, verbosity=0
         )
@@ -3342,7 +3342,7 @@ class TestNormalizedConstraintDerivatives:
         wrapped = _NormalizedConstraint(con, norm)
         iterate = est._init_guess(100)
         checker = DerivativeChecker(wrapped)
-        weights = bkd.asarray([[0.6, 0.4]])
+        weights = bkd.asarray([[0.6], [0.4]])
         errors = checker.check_derivatives(
             iterate, weights=weights, verbosity=0
         )
@@ -3365,7 +3365,7 @@ class TestNormalizedConstraintDerivatives:
         composed = _NormalizedConstraint(rescaled, norm)
         iterate = est._init_guess(100) * scale[:, None]
         checker = DerivativeChecker(composed)
-        weights = bkd.asarray([[0.6, 0.4]])
+        weights = bkd.asarray([[0.6], [0.4]])
         errors = checker.check_derivatives(
             iterate, weights=weights, verbosity=0
         )

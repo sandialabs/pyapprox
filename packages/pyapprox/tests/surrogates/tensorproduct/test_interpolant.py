@@ -233,7 +233,7 @@ class TestTensorProductInterpolant:
         # Use DerivativeChecker with weights for multi-QoI
         checker = DerivativeChecker(interp)
         sample = bkd.asarray([[0.3], [-0.4]])
-        weights = bkd.asarray([[0.6, 0.4]])  # Shape (1, nqoi)
+        weights = bkd.asarray([[0.6], [0.4]])  # Shape (nqoi, 1)
         errors = checker.check_derivatives(sample, weights=weights)
 
         # Check jacobian error ratio
