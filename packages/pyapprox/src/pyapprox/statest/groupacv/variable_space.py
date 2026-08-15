@@ -33,7 +33,6 @@ from pyapprox.util.backends.protocols import Array, Backend
 if TYPE_CHECKING:
     from pyapprox.statest.groupacv.optimization import (
         GroupACVCostConstraint,
-        GroupACVObjective,
     )
     from pyapprox.statest.statistics import MultiOutputStatistic
 
@@ -47,13 +46,15 @@ if TYPE_CHECKING:
 class _ObjectiveLike(Protocol[Array]):
     """Structural type for objective-like objects (original or wrapped).
 
-    Derivative capability travels in the ``Derivatives`` bundle.
+    Derivative capability travels in the ``Derivatives`` bundle. The
+    call argument is positional-only so that anything satisfying
+    ``ObjectiveProtocol`` satisfies this too.
     """
 
     def bkd(self) -> Backend[Array]: ...
     def nvars(self) -> int: ...
     def nqoi(self) -> int: ...
-    def __call__(self, samples: Array) -> Array: ...
+    def __call__(self, samples: Array, /) -> Array: ...
     def derivatives(self) -> Derivatives[Array]: ...
 
 
@@ -112,7 +113,7 @@ class VariableSpace(Protocol[Array]):
         ...
 
     def wrap_objective(
-        self, objective: "GroupACVObjective[Array]", scale: Array
+        self, objective: "_ObjectiveLike[Array]", scale: Array
     ) -> "_ObjectiveLike[Array]":
         """Wrap objective to accept optimizer-space variables."""
         ...
@@ -148,7 +149,7 @@ class _RescaledObjective(Generic[Array]):
     """
 
     def __init__(
-        self, inner: "GroupACVObjective[Array]", scale: Array
+        self, inner: "_ObjectiveLike[Array]", scale: Array
     ) -> None:
         self._inner = inner
         self._scale = scale
@@ -289,7 +290,7 @@ class _LogObjective(Generic[Array]):
     """
 
     def __init__(
-        self, inner: "GroupACVObjective[Array]", bkd: Backend[Array]
+        self, inner: "_ObjectiveLike[Array]", bkd: Backend[Array]
     ) -> None:
         self._inner = inner
         self._bkd = bkd
@@ -536,7 +537,7 @@ class IdentitySpace(Generic[Array]):
         return m_opt
 
     def wrap_objective(
-        self, objective: "GroupACVObjective[Array]", scale: Array
+        self, objective: "_ObjectiveLike[Array]", scale: Array
     ) -> _ObjectiveLike[Array]:
         return objective
 
@@ -566,7 +567,7 @@ class ConstraintScaledSpace(Generic[Array]):
         return m_opt
 
     def wrap_objective(
-        self, objective: "GroupACVObjective[Array]", scale: Array
+        self, objective: "_ObjectiveLike[Array]", scale: Array
     ) -> _ObjectiveLike[Array]:
         return objective
 
@@ -596,7 +597,7 @@ class FullCostSpace(Generic[Array]):
         return m_opt / scale
 
     def wrap_objective(
-        self, objective: "GroupACVObjective[Array]", scale: Array
+        self, objective: "_ObjectiveLike[Array]", scale: Array
     ) -> _ObjectiveLike[Array]:
         return _RescaledObjective(objective, scale)
 
@@ -642,7 +643,7 @@ class LogSpace(Generic[Array]):
         return self._bkd.exp(m_opt)
 
     def wrap_objective(
-        self, objective: "GroupACVObjective[Array]", scale: Array
+        self, objective: "_ObjectiveLike[Array]", scale: Array
     ) -> _ObjectiveLike[Array]:
         return _LogObjective(objective, self._bkd)
 

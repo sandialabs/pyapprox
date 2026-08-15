@@ -2,7 +2,10 @@
 
 from typing import TYPE_CHECKING, Generic, Optional
 
-from pyapprox.interface.functions.autograd import WithAutogradJacobian
+from pyapprox.statest.groupacv._allocation_common import (
+    raw_bounds,
+    solve_in_variable_space,
+)
 from pyapprox.statest.groupacv.optimization import (
     GroupACVCostConstraint,
     GroupACVLogDetObjective,
@@ -12,15 +15,10 @@ from pyapprox.statest.groupacv.result import GroupACVAllocationResult
 from pyapprox.statest.groupacv.variable_space import (
     AllocationProblemConfig,
     BudgetConstraintForm,
-    VariableSpace,
 )
-from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
-    from pyapprox.interface.functions.protocols.objective import (
-        ObjectiveProtocol,
-    )
     from pyapprox.optimization.minimize.protocols import (
         BindableOptimizerProtocol,
     )
@@ -175,45 +173,25 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         )
         budget_form.adjust_bounds(self._constraint)
 
-        # 3. Compute partition costs and raw n-space bounds
-        bounds_lb = self._config.resolve_bounds_lb(self._est._stat)
-        npartitions = self._est.npartitions()
-        partition_costs = bkd.einsum(
-            "m,mp->p", self._est._costs, self._est._partitions_per_model
-        )
-        bounds_list = []
-        for m in range(npartitions):
-            max_n_m = target_cost / bkd.to_float(partition_costs[m])
-            bounds_list.append([bounds_lb, max_n_m])
-        raw_bounds = bkd.array(bounds_list)
+        # 3. Compute raw n-space bounds from the budget
+        n_bounds = raw_bounds(self._est, self._config, target_cost)
 
-        # 4. Build variable space and transform
-        space: VariableSpace[Array] = self._config.build_variable_space(bkd)
-        scale = space.compute_scale(partition_costs, bkd)
-        opt_bounds = space.transform_bounds(raw_bounds, scale, bkd)
-        wrapped_obj: "ObjectiveProtocol[Array]" = space.wrap_objective(
-            self._objective, scale
-        )
-        wrapped_con = space.wrap_constraint(self._constraint, scale)
-
-        # Autograd is a composition source: when no analytical jacobian
-        # is available (stat lacks sigma-block derivatives or estimator
-        # is not IS) and the backend can autodiff, differentiate the
-        # optimizer-space objective the optimizer actually sees.
-        if wrapped_obj.derivatives().jacobian is None and isinstance(
-            bkd, AutodiffBackend
-        ):
-            wrapped_obj = WithAutogradJacobian(wrapped_obj, bkd)
-
-        # 5. Bind and minimize
-        self._optimizer.bind(wrapped_obj, opt_bounds, [wrapped_con])
+        # 4-5. Move into the optimizer's variable space, solve, and
+        # transform the answer back to sample counts.
         if init_guess is None:
             init_guess = self._est._init_guess(target_cost)
-        opt_guess = space.transform_init_guess(init_guess, scale)
-        result = self._optimizer.minimize(opt_guess)
+        solution = solve_in_variable_space(
+            self._objective,
+            self._constraint,
+            n_bounds,
+            init_guess,
+            self._optimizer,
+            self._config,
+            self._est,
+        )
 
         # 6. Handle failure
-        if not result.success():
+        if not solution.succeeded():
             nsamples_per_model = self._est._compute_nsamples_per_model(
                 init_guess[:, 0]
             )
@@ -225,28 +203,10 @@ class GroupACVAllocationOptimizer(Generic[Array]):
                 ),
                 objective_value=bkd.array([float("inf")]),
                 success=False,
-                message="Optimization failed",
+                message=solution.message(),
             )
 
-        # 7. Transform back to n-space and check for negative sample counts
-        npartition_samples = space.transform_from_optimizer(
-            result.optima()[:, 0], scale
-        )
-        if bkd.any_bool(npartition_samples < 0):
-            nsamples_per_model = self._est._compute_nsamples_per_model(
-                init_guess[:, 0]
-            )
-            return GroupACVAllocationResult(
-                npartition_samples=init_guess[:, 0],
-                nsamples_per_model=nsamples_per_model,
-                actual_cost=bkd.to_float(
-                    self._est._estimator_cost(init_guess[:, 0])
-                ),
-                objective_value=bkd.array([float("inf")]),
-                success=False,
-                message="Negative sample counts in n-space",
-            )
-
+        npartition_samples = solution.npartition_samples()
         relaxed_npartition_samples = npartition_samples
 
         # Round if requested
