@@ -64,6 +64,14 @@ from pyapprox.statest.strategies import (
     ModelSubsetStrategy,
     QoISubsetStrategy,
 )
+from pyapprox.statest.tolerance import (
+    CVToleranceAllocator,
+    LogDeterminantConstraint,
+    MaxMarginalStandardErrorConstraint,
+    MCToleranceAllocator,
+    ToleranceConstraintProtocol,
+    TraceConstraint,
+)
 
 __all__ = [
     "MultiOutputStatistic",
@@ -101,6 +109,13 @@ __all__ = [
     "GroupACVCostConstraint",
     "get_model_subsets",
     "default_groupacv_optimizer",
+    # Tolerance-driven (inverse) allocation
+    "ToleranceConstraintProtocol",
+    "MaxMarginalStandardErrorConstraint",
+    "TraceConstraint",
+    "LogDeterminantConstraint",
+    "MCToleranceAllocator",
+    "CVToleranceAllocator",
     # Plotting
     "plot_allocation",
     "plot_estimator_variance_reductions",
