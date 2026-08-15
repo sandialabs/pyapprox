@@ -6,11 +6,14 @@ Integration tests with benchmarks will be added in Phase 8.
 
 import numpy as np
 import pytest
-
 from pyapprox.statest.allocation import CVAllocator, MCAllocator
-from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
-from pyapprox.statest.mc_estimator import FittedMCEstimator, MCEstimator
-from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.cv_estimator import CVEstimator
+from pyapprox.statest.mc_estimator import MCEstimator
+from pyapprox.statest.statistics import (
+    MultiOutputMean,
+    MultiOutputMeanAndVariance,
+    MultiOutputVariance,
+)
 
 
 class TestMCEstimator:
@@ -307,3 +310,71 @@ class TestCVEstimator:
         mc_var = mc_fitted.covariance()[0, 0]
         # With high correlation, CV should reduce variance
         assert float(cv_var) <= float(mc_var)
+
+
+class TestMinSampleGuards:
+    """Allocators must reject budgets below the statistic's sample floor.
+
+    Variance statistics need at least two samples: their estimator
+    covariance contains a V/(nsamples*(nsamples-1)) term, which divides
+    by zero at nsamples=1 and surfaces as a LinAlgError from the
+    eigenvalue decomposition rather than as a usable diagnostic.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(42)
+
+    def _variance_stat(self, bkd, cls, nqoi):
+        stat = cls(nqoi, bkd)
+        pilot = [bkd.array(np.random.normal(0, 1, (nqoi, 500)))]
+        stat.set_pilot_quantities(*stat.compute_pilot_quantities(pilot))
+        return stat
+
+    @pytest.mark.parametrize(
+        "cls", [MultiOutputVariance, MultiOutputMeanAndVariance]
+    )
+    def test_mc_budget_below_floor_raises(self, bkd, cls) -> None:
+        """MCAllocator raises ValueError, not LinAlgError, at nsamples=1."""
+        stat = self._variance_stat(bkd, cls, 2)
+        est = MCEstimator(stat, bkd.array([2.0]))
+        # budget 2.0 / cost 2.0 -> 1 sample, below the floor of 2
+        with pytest.raises(ValueError, match="target_cost is too small"):
+            MCAllocator(est).allocate(2.0)
+
+    @pytest.mark.parametrize(
+        "cls", [MultiOutputVariance, MultiOutputMeanAndVariance]
+    )
+    def test_cv_budget_below_floor_raises(self, bkd, cls) -> None:
+        """CVAllocator applies the same floor via stat.min_nsamples()."""
+        stat = self._variance_stat(bkd, cls, 2)
+        est = CVEstimator(stat, bkd.array([2.0, 1.0]))
+        with pytest.raises(ValueError, match="target_cost is too small"):
+            CVAllocator(est).allocate(3.0)
+
+    def test_mc_mean_allows_single_sample(self, bkd) -> None:
+        """Mean statistics have a floor of 1, so nsamples=1 stays legal."""
+        stat = MultiOutputMean(1, bkd)
+        stat.set_pilot_quantities(bkd.eye(1) * 4.0)
+        est = MCEstimator(stat, bkd.array([2.0]))
+        fitted = MCAllocator(est).allocate(2.0)
+        bkd.assert_allclose(
+            bkd.asarray([fitted.nsamples_per_model()[0]]), bkd.asarray([1])
+        )
+
+    @pytest.mark.parametrize(
+        "cls,expected",
+        [
+            (MultiOutputMean, 1),
+            (MultiOutputVariance, 2),
+            (MultiOutputMeanAndVariance, 2),
+        ],
+    )
+    def test_min_nsamples_matches_allocator_floor(
+        self, bkd, cls, expected
+    ) -> None:
+        """The floor the allocators read is the statistic's own accessor."""
+        stat = cls(2, bkd)
+        bkd.assert_allclose(
+            bkd.asarray([stat.min_nsamples()]), bkd.asarray([expected])
+        )

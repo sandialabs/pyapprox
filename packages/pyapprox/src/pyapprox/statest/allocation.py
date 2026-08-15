@@ -5,10 +5,6 @@ from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
 from pyapprox.statest.mc_estimator import FittedMCEstimator, MCEstimator
-from pyapprox.statest.statistics import (
-    MultiOutputMeanAndVariance,
-    MultiOutputVariance,
-)
 from pyapprox.util.backends.protocols import Array, Array_co
 
 
@@ -88,6 +84,12 @@ class MCAllocator(Generic[Array]):
         """
         bkd = self._bkd
         nsamples = bkd.to_int(bkd.floor(target_cost / self._template._costs[0]))
+        min_nhf_samples = self._template._stat.min_nsamples()
+        if nsamples < min_nhf_samples:
+            raise ValueError(
+                "target_cost is too small. Not enough samples of each model"
+                " can be taken {0} < {1}".format(nsamples, min_nhf_samples)
+            )
         nsamples_per_model = bkd.asarray([nsamples], dtype=int)
         actual_cost = bkd.to_float(self._template._costs[0] * nsamples)
         return FittedMCEstimator(self._template, nsamples_per_model, actual_cost)
@@ -123,11 +125,7 @@ class CVAllocator(Generic[Array]):
         nsamples_float = target_cost / bkd.sum(template._costs)
         nsamples = bkd.to_int(bkd.floor(nsamples_float))
 
-        variance_stats = (MultiOutputVariance, MultiOutputMeanAndVariance)
-        if isinstance(template._stat, variance_stats):
-            min_nhf_samples = 2
-        else:
-            min_nhf_samples = 1
+        min_nhf_samples = template._stat.min_nsamples()
         if nsamples < min_nhf_samples:
             raise ValueError(
                 "target_cost is too small. Not enough samples of each model"
