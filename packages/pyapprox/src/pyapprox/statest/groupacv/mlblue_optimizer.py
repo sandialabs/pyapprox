@@ -6,7 +6,11 @@ including the semidefinite programming (SPD) optimizer that uses cvxpy.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Generic, Optional
+import importlib.util
+import pathlib
+import sys
+import warnings
+from typing import TYPE_CHECKING, Dict, Generic, List, Optional
 
 from pyapprox.statest.groupacv.optimization import (
     MLBLUEObjective,
@@ -19,6 +23,69 @@ if TYPE_CHECKING:
     from cvxpy.expressions.expression import Expression as CvxpyExpression
 
     from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
+
+
+def _vendored_openmp_runtimes(module_name: str) -> List[str]:
+    """Paths to OpenMP runtimes shipped inside an installed package.
+
+    Locates the package on disk without importing it. Importing is what
+    triggers the failure this detects, so the check must not perform it.
+    Returns an empty list when the package is absent or ships no runtime
+    of its own, which is the case for builds that link a shared one.
+    """
+    try:
+        spec = importlib.util.find_spec(module_name)
+    except (ImportError, ValueError):
+        return []
+    if spec is None or not spec.submodule_search_locations:
+        return []
+    root = pathlib.Path(list(spec.submodule_search_locations)[0])
+    patterns = ("libomp*.dylib", "libiomp*.dylib", "libgomp*.so*")
+    found: List[str] = []
+    for pattern in patterns:
+        found.extend(str(path) for path in root.rglob(pattern))
+    return found
+
+
+def _warn_on_duplicate_openmp(solver_name: str) -> None:
+    """Warn when the chosen backend risks an OpenMP runtime collision.
+
+    A process that loads two OpenMP runtimes aborts immediately on
+    macOS. The abort happens below Python, so there is no exception to
+    catch and no traceback to read -- the interpreter simply dies, which
+    gives a caller nothing to act on. Detecting the arrangement in
+    advance turns that into a message naming the cause and the fix.
+
+    Warns rather than raises. The collision depends on how each package
+    was built, and the file layout is strong evidence rather than proof:
+    packages exist that vendor a runtime and coexist regardless. A user
+    whose environment works should not be stopped by a prediction that
+    it does not.
+    """
+    if solver_name != "CVXOPT" or sys.platform != "darwin":
+        return
+    cvxopt_runtimes = _vendored_openmp_runtimes("cvxopt")
+    if not cvxopt_runtimes:
+        return
+    torch_runtimes = _vendored_openmp_runtimes("torch")
+    if not torch_runtimes:
+        return
+    warnings.warn(
+        "cvxopt and torch each ship their own OpenMP runtime:\n"
+        f"  {cvxopt_runtimes[0]}\n"
+        f"  {torch_runtimes[0]}\n"
+        "Loading both into one process aborts the interpreter on macOS, "
+        "without raising an exception or printing a traceback. The "
+        "cvxopt wheel published on PyPI vendors its own runtime; the "
+        "conda-forge build links the environment's shared one and does "
+        "not collide. To fix:\n"
+        "  pip uninstall cvxopt && conda install -c conda-forge cvxopt\n"
+        "Alternatively pass solver_name='CLARABEL', which needs no "
+        "OpenMP runtime. Proceeding, since this depends on how each "
+        "package was built and the two may still coexist.",
+        RuntimeWarning,
+        stacklevel=3,
+    )
 
 
 class MLBLUESPDAllocationOptimizer(Generic[Array]):
@@ -112,6 +179,7 @@ class MLBLUESPDAllocationOptimizer(Generic[Array]):
         # Auto-detect solver if not specified
         if solver_name is None:
             solver_name = self._get_default_solver()
+        _warn_on_duplicate_openmp(solver_name)
         self._solver_name = solver_name
 
         # Set up objective

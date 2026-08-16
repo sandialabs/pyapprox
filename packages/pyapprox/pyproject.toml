@@ -49,6 +49,16 @@ cvxpy = ["cvxpy>=1.4"]
 # it holds the optimum to far larger budgets before the semidefinite
 # program's conditioning defeats it -- see the group ACV optimization
 # tutorial for the measured comparison.
+#
+# On macOS, prefer `conda install -c conda-forge cvxopt` over this extra.
+# The PyPI wheel vendors its own OpenMP runtime, and pyapprox depends on
+# torch, which vendors another; a process that loads both aborts the
+# interpreter with no exception and no traceback. Whether a given run
+# trips it depends on import order, so it fails intermittently rather
+# than immediately. The conda-forge build links the environment's shared
+# runtime and does not collide. MLBLUESPDAllocationOptimizer detects the
+# arrangement at construction and warns. This extra is deliberately kept
+# out of every rollup below for that reason.
 cvxopt = ["cvxpy[cvxopt]>=1.4"]
 # All PyPI-clean runtime extras (no lint, no rol, no test/docs tooling)
 runtime-extras = ["pyapprox[fem,umbridge,numba,parallel,cvxpy]"]
@@ -70,7 +80,11 @@ lint = ["mypy>=1.8", "ruff>=0.3", "import-linter>=2.0"]
 # in packages/pyapprox-tutorials/pyproject.toml on consolidating the
 # docs-build extras into that package, where the docs are built.
 docs = ["jupyter-cache>=1.0", "quartodoc>=0.6"]
-docs-build = ["pyapprox[docs,fem,umbridge,numba,parallel,cvxpy,cvxopt]"]
+# No cvxopt: the docs build imports torch, and a PyPI cvxopt alongside
+# it can abort the interpreter (see the cvxopt extra above). The one
+# figure that compares the two SDP backends plots recorded CVXOPT
+# measurements rather than solving with it at render time.
+docs-build = ["pyapprox[docs,fem,umbridge,numba,parallel,cvxpy]"]
 # Developer rollup: all runtime extras + lint + test + docs
 dev = ["pyapprox[runtime-extras,lint,test,docs]"]
 
