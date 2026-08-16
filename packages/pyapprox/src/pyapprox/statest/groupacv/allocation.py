@@ -154,7 +154,13 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         Returns
         -------
         GroupACVAllocationResult
-            Optimization result with npartition_samples.
+            Optimization result with npartition_samples. ``success`` is
+            False if the optimizer failed, or if the rounded allocation
+            costs more than ``target_cost``; the budget is checked here
+            rather than assumed from the optimizer's exit status. The
+            check applies only when ``round_nsamples`` is True, since a
+            relaxed allocation sits on the budget boundary and lands on
+            either side of it by the solver's convergence tolerance.
 
         Raises
         ------
@@ -226,19 +232,43 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         # Compute objective at solution (in n-space)
         obj_value = self._objective(nps_float[:, None])
 
-        # TODO verify actual_cost <= target_cost before reporting
-        # success. The optimizer is injectable, so the budget is only
-        # respected to the extent the supplied solver respects its
-        # constraints: one that reports convergence at an infeasible
-        # point is relayed here as a success. Measured with a stub
-        # solver, this returns success at 60x the requested budget.
-        # The tolerance-driven allocator checks its own guarantee for
-        # the same reason (see tolerance_allocation); this is the
-        # budget-side counterpart and needs the same relative slack,
-        # since a converged solution sits on the constraint boundary.
         if round_nsamples:
             nsamples_per_model = bkd.asarray(
                 nsamples_per_model, dtype=bkd.int64_dtype()
+            )
+
+        # The optimizer is injectable, so the budget is only respected to
+        # the extent the supplied solver respects its constraints: one
+        # that reports convergence at an infeasible point would otherwise
+        # be relayed as a success. Check the guarantee here rather than
+        # trusting the solver, mirroring the tolerance-driven allocator.
+        #
+        # Only the rounded allocation is checked, and it is checked
+        # exactly. Integer sample counts make the cost a sum of integer
+        # multiples of the model costs, so there is no continuum near the
+        # budget to converge into: an allocation is either within budget
+        # or over it by at least the cheapest model's cost. That makes
+        # any excess a real overspend rather than convergence noise, and
+        # removes the need for a tolerance to distinguish the two.
+        #
+        # A relaxed allocation has no such floor. It sits on the
+        # constraint boundary and lands on either side of it by an amount
+        # set by the solver's own convergence tolerance -- measured at
+        # 3e-8 relative under log scaling, where the returned counts are
+        # exp() of the optimizer's variables. Rejecting that would fail
+        # legitimate solves over a fraction of one sample.
+        if round_nsamples and actual_cost > target_cost:
+            return GroupACVAllocationResult(
+                npartition_samples=npartition_samples,
+                nsamples_per_model=nsamples_per_model,
+                actual_cost=actual_cost,
+                objective_value=bkd.flatten(obj_value),
+                success=False,
+                message=(
+                    "Rounded allocation exceeds target_cost: {0} > "
+                    "{1}".format(actual_cost, target_cost)
+                ),
+                relaxed_npartition_samples=relaxed_npartition_samples,
             )
 
         return GroupACVAllocationResult(
