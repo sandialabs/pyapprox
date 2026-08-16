@@ -87,6 +87,16 @@ class _AllocationConstraint(_ConstraintLike[Array], Protocol[Array]):
         """Positive per-row divisors, shape ``(nqoi,)``."""
         ...
 
+    def is_affine(self) -> bool:
+        """Whether every row is affine in the sample counts.
+
+        A solver told a constraint is affine uses its coefficient
+        matrix directly and never re-evaluates it, so answering True
+        for a constraint that curves would misstate the feasible set
+        rather than merely cost accuracy.
+        """
+        ...
+
 
 @runtime_checkable
 class VariableSpace(Protocol[Array]):
@@ -122,6 +132,17 @@ class VariableSpace(Protocol[Array]):
         self, constraint: "_AllocationConstraint[Array]", scale: Array
     ) -> "_ConstraintLike[Array]":
         """Wrap constraint to accept optimizer-space variables."""
+        ...
+
+    def preserves_affinity(self) -> bool:
+        """Whether an affine constraint stays affine after wrapping.
+
+        The cost constraint is affine in the sample counts, and a
+        solver told so can use the coefficient matrix directly instead
+        of re-evaluating the constraint and approximating a Hessian
+        that is identically zero. That is only sound where the
+        transform is itself linear.
+        """
         ...
 
 
@@ -546,6 +567,10 @@ class IdentitySpace(Generic[Array]):
     ) -> _ConstraintLike[Array]:
         return constraint
 
+    def preserves_affinity(self) -> bool:
+        """The transform is linear, so affine stays affine."""
+        return True
+
 
 class ConstraintScaledSpace(Generic[Array]):
     """No variable rescaling; constraint output normalized to ~O(1)."""
@@ -575,6 +600,10 @@ class ConstraintScaledSpace(Generic[Array]):
         self, constraint: "_AllocationConstraint[Array]", scale: Array
     ) -> _ConstraintLike[Array]:
         return _NormalizedConstraint(constraint, constraint.normalization())
+
+    def preserves_affinity(self) -> bool:
+        """The transform is linear, so affine stays affine."""
+        return True
 
 
 class FullCostSpace(Generic[Array]):
@@ -606,6 +635,10 @@ class FullCostSpace(Generic[Array]):
     ) -> _ConstraintLike[Array]:
         rescaled = _RescaledConstraint(constraint, scale)
         return _NormalizedConstraint(rescaled, constraint.normalization())
+
+    def preserves_affinity(self) -> bool:
+        """The transform is linear, so affine stays affine."""
+        return True
 
 
 class LogSpace(Generic[Array]):
@@ -652,6 +685,10 @@ class LogSpace(Generic[Array]):
     ) -> _ConstraintLike[Array]:
         log_con = _LogConstraint(constraint, self._bkd)
         return _NormalizedConstraint(log_con, constraint.normalization())
+
+    def preserves_affinity(self) -> bool:
+        """n = exp(m) makes an affine constraint nonlinear."""
+        return False
 
 
 # ---------------------------------------------------------------------------

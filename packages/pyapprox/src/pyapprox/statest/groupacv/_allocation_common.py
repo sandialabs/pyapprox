@@ -10,13 +10,28 @@ identical, and lives here so a change to it cannot land in one direction
 and be missed in the other.
 """
 
-from typing import TYPE_CHECKING, Generic, List, Optional
+from typing import (
+    TYPE_CHECKING,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Union,
+    runtime_checkable,
+)
 
-from pyapprox.interface.functions.autograd import WithAutogradJacobian
+from pyapprox.interface.functions.autograd import (
+    WithAutogradJacobian,
+    WithAutogradJacobianConstraint,
+)
+from pyapprox.optimization.minimize.constraints.linear import (
+    PyApproxLinearConstraint,
+)
 from pyapprox.statest.groupacv.variable_space import (
     AllocationProblemConfig,
     VariableSpace,
     _AllocationConstraint,
+    _ConstraintLike,
 )
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
@@ -29,6 +44,15 @@ if TYPE_CHECKING:
         BindableOptimizerProtocol,
     )
     from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
+
+
+@runtime_checkable
+class _AffineConstraint(Protocol):
+    """A constraint that can say whether it is affine in its input."""
+
+    def is_affine(self) -> bool:
+        """Whether every row is affine in the sample counts."""
+        ...
 
 
 class VariableSpaceSolution(Generic[Array]):
@@ -102,6 +126,49 @@ def raw_bounds(
     return bkd.array(bounds_list)
 
 
+def _as_linear_if_affine(
+    constraint: _ConstraintLike[Array],
+    space: VariableSpace[Array],
+    opt_guess: Array,
+    bkd: Backend[Array],
+) -> Union[_ConstraintLike[Array], PyApproxLinearConstraint[Array]]:
+    """Express an affine constraint as a linear one where sound.
+
+    The cost constraint is affine in the sample counts, but reaches
+    scipy as a general nonlinear constraint. Scipy then re-evaluates it
+    and its jacobian at every iterate and trial step, and approximates
+    a Hessian that is identically zero -- work its linear-constraint
+    path skips entirely.
+
+    Only correct where the variable space's transform is itself linear.
+    Under log-space variables the same constraint is genuinely
+    nonlinear in the optimizer's coordinates, and describing it as
+    linear would misstate the feasible set rather than merely cost
+    time, so the space is asked first.
+
+    Both the constraint and the space must agree: an accuracy
+    requirement curves in the sample counts however the variables are
+    scaled, and a constraint with no analytical jacobian has no
+    coefficient matrix to hand over.
+    """
+    if not space.preserves_affinity():
+        return constraint
+    if not isinstance(constraint, _AffineConstraint):
+        return constraint
+    if not constraint.is_affine():
+        return constraint
+    jacobian = constraint.derivatives().jacobian
+    if jacobian is None:
+        return constraint
+    # g(m) = A m + b, so b follows from one evaluation, and the bounds
+    # absorb it: lb <= g(m) <= ub becomes lb - b <= A m <= ub - b.
+    amat = jacobian(opt_guess)
+    offset = constraint(opt_guess)[:, 0] - amat @ opt_guess[:, 0]
+    return PyApproxLinearConstraint(
+        amat, constraint.lb() - offset, constraint.ub() - offset, bkd
+    )
+
+
 def solve_in_variable_space(
     objective: "ObjectiveProtocol[Array]",
     constraint: _AllocationConstraint[Array],
@@ -151,14 +218,24 @@ def solve_in_variable_space(
     # Autograd is a composition source: when no analytical jacobian is
     # available (stat lacks sigma-block derivatives or estimator is not
     # IS) and the backend can autodiff, differentiate the
-    # optimizer-space objective the optimizer actually sees.
+    # optimizer-space function the optimizer actually sees. Either side
+    # can lack one -- a criterion held to a tolerance carries the
+    # criterion's capability into the constraint role -- so both are
+    # composed.
     if wrapped_obj.derivatives().jacobian is None and isinstance(
         bkd, AutodiffBackend
     ):
         wrapped_obj = WithAutogradJacobian(wrapped_obj, bkd)
+    if wrapped_con.derivatives().jacobian is None and isinstance(
+        bkd, AutodiffBackend
+    ):
+        wrapped_con = WithAutogradJacobianConstraint(wrapped_con, bkd)
 
-    optimizer.bind(wrapped_obj, opt_bounds, [wrapped_con])
-    result = optimizer.minimize(space.transform_init_guess(init_guess, scale))
+    opt_guess = space.transform_init_guess(init_guess, scale)
+    solver_con = _as_linear_if_affine(wrapped_con, space, opt_guess, bkd)
+
+    optimizer.bind(wrapped_obj, opt_bounds, [solver_con])
+    result = optimizer.minimize(opt_guess)
     if not result.success():
         return VariableSpaceSolution(None, "Optimization failed")
 

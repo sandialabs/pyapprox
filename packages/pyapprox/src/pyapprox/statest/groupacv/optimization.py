@@ -662,6 +662,10 @@ class GroupACVCostConstraint(Generic[Array]):
         target_cost, _ = self._ensure_budget()
         return target_cost
 
+    def is_affine(self) -> bool:
+        """Both rows are affine: cost and sample counts are linear in n."""
+        return True
+
     def normalization(self) -> Array:
         """Per-row divisors that bring constraint values to order one.
 
