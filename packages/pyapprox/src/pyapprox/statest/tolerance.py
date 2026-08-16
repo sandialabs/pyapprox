@@ -182,13 +182,11 @@ class LogDeterminantConstraint(Generic[Array]):
         return f"log determinant of estimator covariance <= {self._tolerance}"
 
 
-# Bounds on the search for the smallest sufficient sample count. The
+# Bound on the search for the smallest sufficient sample count. The
 # bracket doubles from the sample floor, so the cap admits sample counts
 # far beyond any affordable budget before declaring a tolerance
-# unreachable. The repair cap absorbs a solver stopping fractionally
-# inside the infeasible side; under monotonicity one step always suffices.
+# unreachable.
 _MAX_BRACKET_DOUBLINGS = 200
-_MAX_REPAIR_STEPS = 8
 
 
 class ToleranceAllocatorMixin(Generic[Array]):
@@ -289,19 +287,25 @@ class ToleranceAllocatorMixin(Generic[Array]):
         requirement boundary, so discarding its fractional part would
         land just inside the infeasible side -- the opposite of the
         budget-driven allocators, which round down to stay under budget.
+
+        Rounding up is the whole of the step. The relaxed count is a
+        root located to ``xtol``, so raising it to the next integer
+        clears a requirement that decreases in the sample count. If the
+        result still misses, the requirement is not monotone and the
+        premise the bracket-and-solve rests on does not hold; scanning
+        upwards from here would return a larger count while leaving that
+        broken premise unreported.
         """
         bkd = self._bkd
         nsamples = int(bkd.to_int(bkd.ceil(bkd.asarray(relaxed) - 1e-10)))
         nsamples = max(nsamples, self._min_nsamples)
-        for _ in range(_MAX_REPAIR_STEPS):
-            if self._slack(constraint, float(nsamples)) >= 0.0:
-                return nsamples
-            nsamples += 1
-        raise ValueError(
-            f"{constraint.description()} was not met after rounding up from "
-            f"the relaxed solution {relaxed:g}; the requirement may not be "
-            "monotone in the sample count."
-        )
+        if self._slack(constraint, float(nsamples)) < 0.0:
+            raise ValueError(
+                f"{constraint.description()} was not met after rounding up "
+                f"from the relaxed solution {relaxed:g}; the requirement is "
+                "not monotone in the sample count."
+            )
+        return nsamples
 
     def _nsamples_for_tolerance(
         self, constraint: ToleranceConstraintProtocol[Array]

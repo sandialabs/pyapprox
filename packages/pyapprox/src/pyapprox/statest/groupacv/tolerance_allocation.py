@@ -37,12 +37,11 @@ if TYPE_CHECKING:
     from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
 
 
-# Bounds on the search for a feasible reference allocation and on the
-# repair that follows integer rounding. The reference search scales a
-# uniform allocation geometrically, so the cap admits allocations far
-# beyond any affordable budget before declaring a tolerance unreachable.
+# Bound on the search for a feasible reference allocation. The search
+# scales a uniform allocation geometrically, so the cap admits
+# allocations far beyond any affordable budget before declaring a
+# tolerance unreachable.
 _MAX_REFERENCE_DOUBLINGS = 60
-_MAX_REPAIR_STEPS = 32
 
 # Slack allowed when judging whether a relaxed solution met the
 # requirement. The optimum lies on the constraint boundary, so a
@@ -177,43 +176,31 @@ class GroupACVToleranceAllocator(Generic[Array]):
     def _round_up_to_tolerance(
         self, relaxed: Array, tolerance: float, min_nhf_samples: int
     ) -> Array:
-        """Round up to integers, then restore feasibility if needed.
+        """Round up to integer sample counts.
 
         Rounds up rather than down. The relaxed solution sits on the
         accuracy boundary, so discarding fractional parts would land
         just inside the infeasible side -- the opposite of the
         budget-driven path, which rounds down to stay under budget.
 
-        Rounding up is not sufficient on its own: the solver satisfies
-        the constraint only to its own tolerance, so the relaxed point
-        may itself be fractionally infeasible. Increment the partition
-        offering the largest criterion reduction per unit cost until the
-        requirement holds.
+        Rounding up is the whole of the step. A relaxed solution that
+        genuinely sits on the boundary is feasible once its counts are
+        raised to the next integer, so if the result still misses the
+        tolerance the relaxed point was infeasible by more than a
+        fractional sample -- the optimizer stopped short of the
+        constraint. The caller checks for that and reports it, rather
+        than adding samples until the requirement is met: repair would
+        return a feasible but needlessly expensive allocation while
+        reporting success, hiding the optimizer failure behind a
+        silently suboptimal answer when cost is the quantity the caller
+        asked to minimize.
         """
         bkd = self._bkd
         bounds_lb = self._config.resolve_bounds_lb(self._est._stat)
         npartition_samples = bkd.ceil(relaxed - 1e-10)
-        npartition_samples = bkd.maximum(
+        return bkd.maximum(
             npartition_samples, bkd.full(relaxed.shape, float(bounds_lb))
         )
-        partition_costs = bkd.einsum(
-            "m,mp->p", self._est._costs, self._est._partitions_per_model
-        )
-        for _ in range(_MAX_REPAIR_STEPS):
-            if self._criterion_value(npartition_samples) <= tolerance:
-                return npartition_samples
-            current = self._criterion_value(npartition_samples)
-            best_gain, best_idx = -float("inf"), 0
-            for m in range(self._est.npartitions()):
-                trial = bkd.copy(npartition_samples)
-                trial[m] = trial[m] + 1.0
-                gain = (current - self._criterion_value(trial)) / bkd.to_float(
-                    partition_costs[m]
-                )
-                if gain > best_gain:
-                    best_gain, best_idx = gain, m
-            npartition_samples[best_idx] = npartition_samples[best_idx] + 1.0
-        return npartition_samples
 
     def _build_result(
         self,
@@ -369,7 +356,10 @@ class GroupACVToleranceAllocator(Generic[Array]):
                 rounded,
                 relaxed,
                 False,
-                "tolerance not met after rounding to integer sample counts",
+                "tolerance not met after rounding up to integer sample "
+                "counts: the relaxed solution missed it by more than a "
+                "fractional sample, so the optimizer stopped short of "
+                "the accuracy constraint",
                 True,
             )
         return self._build_result(rounded, relaxed, True, "", True)
