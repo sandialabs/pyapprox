@@ -163,10 +163,18 @@ def _run_groupacv_slsqp(
 
 def _run_mlblue_spd(
     stat, costs, subsets, target_cost: float,
+    solver_name: Optional[str] = None,
 ) -> Optional[float]:
-    """Run the MLBLUE SPD allocator; return est variance, or None on failure."""
+    """Run the MLBLUE SPD allocator; return est variance, or None on failure.
+
+    ``solver_name`` is passed through to cvxpy. Leave it None to take the
+    allocator's own default (CLARABEL, which cvxpy installs as a hard
+    dependency); name a backend explicitly to compare them, since the
+    achieved variance depends strongly on which one solves the
+    semidefinite program.
+    """
     est = MLBLUEEstimator(stat, costs, model_subsets=subsets)
-    allocator = MLBLUESPDAllocationOptimizer(est)
+    allocator = MLBLUESPDAllocationOptimizer(est, solver_name=solver_name)
     try:
         result = allocator.optimize(target_cost, round_nsamples=False)
     except (ValueError, RuntimeError, ImportError):
@@ -272,21 +280,22 @@ def plot_scaling_comparison(ax, budgets=(50.0, 100.0, 500.0, 1000.0, 5000.0)):
 # ---------------------------------------------------------------------------
 # group_acv_optimization.qmd -> fig-spd-vs-slsqp
 # ---------------------------------------------------------------------------
-def plot_spd_vs_slsqp(ax, budgets=(50.0, 100.0, 500.0, 1000.0, 5000.0)):
+def plot_spd_vs_slsqp(
+    ax, budgets=(50.0, 100.0, 500.0, 1000.0, 5000.0, 20000.0),
+):
     """Compare MLBLUE SPD against SLSQP+log/ineq across budgets.
 
     The MLBLUE-mean allocation problem is convex, so in theory the SDP
-    (interior-point) solver returns the global optimum. In practice the
-    Schur-complement encoding suffers a conditioning gap between the
-    Psi block (which grows with budget) and the scalar variance variable
-    t. Interior-point solvers (CLARABEL, SCS, MOSEK) drive the duality
-    gap to zero on the equilibrated internal problem but cannot enforce
-    the PSD constraint to the accuracy required when the block matrix's
-    condition number exceeds ~1e8.
+    returns the global optimum. What decides whether you get it is the
+    cvxpy backend. The Schur-complement encoding puts the Psi block,
+    which grows with the budget, in the same matrix as the scalar
+    variance t, and the resulting condition number grows with budget
+    too. Every interior-point backend eventually loses the optimum to
+    it; they differ by orders of magnitude in when. CLARABEL departs
+    early, CVXOPT tracks the gradient solver far longer before drifting.
 
-    The figure shows SPD failing increasingly badly as the budget grows:
-    SLSQP+log/ineq decreases monotonically with budget while SPD stalls.
-    By P=5000 the gap is order 50x.
+    Both are plotted so the reader sees this is a solver property, not
+    a defect in the reformulation.
 
     Parameters
     ----------
@@ -297,22 +306,33 @@ def plot_spd_vs_slsqp(ax, budgets=(50.0, 100.0, 500.0, 1000.0, 5000.0)):
     bkd, costs, stat, subsets = _setup_mean_problem()
 
     budgets = list(budgets)
-    spd_vars, slsqp_vars = [], []
-    for tc in budgets:
-        spd_vars.append(_run_mlblue_spd(stat, costs, subsets, tc) or np.nan)
-        slsqp_vars.append(
-            _run_groupacv_slsqp(
-                stat, costs, subsets, _SCALING_CONFIGS["log"], tc
-            ) or np.nan
-        )
+    slsqp_vars = [
+        _run_groupacv_slsqp(
+            stat, costs, subsets, _SCALING_CONFIGS["log"], tc
+        ) or np.nan
+        for tc in budgets
+    ]
+    spd_vars = {
+        name: [
+            _run_mlblue_spd(stat, costs, subsets, tc, solver_name=name)
+            or np.nan
+            for tc in budgets
+        ]
+        for name in ("CVXOPT", "CLARABEL")
+    }
 
-    spd_arr = np.array(spd_vars, dtype=float)
+    spd_arr = np.array(spd_vars["CLARABEL"], dtype=float)
     slsqp_arr = np.array(slsqp_vars, dtype=float)
 
     ax.loglog(
         budgets, slsqp_arr, color="#2C7FB8", linestyle="-",
         marker="o", ms=7, lw=2.0,
         label="SLSQP + log/ineq (gradient solver)",
+    )
+    ax.loglog(
+        budgets, np.array(spd_vars["CVXOPT"], dtype=float),
+        color="#1B7837", linestyle="-.", marker="s", ms=6, lw=1.8,
+        label="SPD (cvxpy / CVXOPT)",
     )
     ax.loglog(
         budgets, spd_arr, color="#C0392B", linestyle="--",

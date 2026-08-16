@@ -1,12 +1,12 @@
 ---
 title: "Group ACV: Solving the Allocation Problem"
 subtitle: "PyApprox Tutorial Library"
-description: "How to drive the sample-allocation optimizer for group ACV estimators. The default recipe is SLSQP with log-space variable scaling. The MLBLUE convex SDP reformulation, although mathematically appealing, is unreliable with the cvxpy default backends (CLARABEL, SCS) on realistic multifidelity problems due to a Schur-complement conditioning gap; SLSQP remains the workhorse. Mean-guided pruning rescues variance estimation at tight budgets."
+description: "How to drive the sample-allocation optimizer for group ACV estimators, and how to tell whether the allocation it returned is trustworthy. The allocation objective is small enough that an absolute solver tolerance can report convergence without moving, so solver settings are part of the problem specification rather than defaults to leave alone. The recipe is SLSQP with log-space variable scaling. The MLBLUE convex SDP reformulation is sound, but which cvxpy backend solves it decides whether you receive the optimum. Mean-guided pruning rescues variance estimation at tight budgets."
 tutorial_type: usage
 topic: multi_fidelity
 difficulty: intermediate
 estimated_time: 17
-render_time: 100
+render_time: 220
 prerequisites:
   - group_acv_concept
   - group_acv_multistat_concept
@@ -44,9 +44,11 @@ After completing this tutorial, you will be able to:
 - Recognize the failure signatures of alternative scaling configurations: a
   gradually widening optimality gap for `none`, and non-monotonic convergence
   for cost scaling (`"full"`)
-- Understand why `MLBLUESPDAllocationOptimizer`, despite solving a convex
-  reformulation, can produce much worse allocations than SLSQP on problems
-  with many subsets when using the cvxpy default backends (CLARABEL, SCS)
+- Calibrate `ftol` to a new problem by comparing it against the objective's
+  own magnitude, rather than carrying over a number from this benchmark
+- Explain why `MLBLUESPDAllocationOptimizer` can return a much worse
+  allocation than SLSQP despite solving a convex reformulation, and choose a
+  cvxpy backend that follows the problem far enough to be useful
 - Diagnose why direct SLSQP fails for variance estimation at tight budgets — the
   $n \geq 2$ dead-region constraint — and use `MeanGuidedSubsetFitter` to recover
 
@@ -328,7 +330,7 @@ its cost ratio, $m_k = (c_k / c_{\min})\, n_k$.
 
 ```{python}
 #| echo: false
-#| fig-cap: "Estimator variance vs budget for SLSQP at `ftol=1e-10` with three variable scalings, all using inequality budget form. **log** (blue, solid) is monotonic and lowest at every budget. **none** (green, dashed) is close at small budgets — within 6% at $P = 50$ — and widens to roughly $2.7\\times$ by $P = 5000$. **cost** (red, dotted), the `\"full\"` setting, is both worst and non-monotonic: variance at $P = 1000$ ($3.50\\times 10^{-6}$) is higher than at $P = 500$ ($2.27\\times 10^{-6}$), so more budget buys a worse allocation. The dotted gray reference is single-fidelity Monte Carlo at the same budget. At the SciPy-default `ftol=1e-6` this figure looks very different and is not trustworthy: `none` and `cost` both stall at the initial guess by $P = 5000$, landing on the Monte Carlo value and exaggerating log scaling's margin to roughly $110\\times$."
+#| fig-cap: "Estimator variance against target budget for SLSQP at `ftol=1e-10` under three variable scalings, all with the inequality budget form. **log** (blue, solid), **none** (green, dashed), **cost** (red, dotted, the `\"full\"` setting). The dotted grey reference is single-fidelity Monte Carlo at the same budget."
 #| label: fig-scaling-comparison
 
 from pyapprox_tutorials.figures._group_acv_optimization import (
@@ -351,21 +353,29 @@ ratio in the variables and worsens the conditioning, so SLSQP stops at a
 poorer iterate. The non-monotonic step between $P = 500$ and $P = 1000$ is the
 visible signature.
 
-**None degrades gradually.** Working in raw $n$-space costs little at small
-budgets — at $P = 50$ it is within 6% of log scaling — but the gap widens to
-about $2.7\times$ by $P = 5000$. The optimizer is not stuck here; the local
-minimum it reaches is simply worse than log scaling's.
+**None degrades gradually.** Working in raw $n$-space costs about 19% at
+$P = 50$ and widens steadily to roughly $2.7\times$ by $P = 5000$. The
+optimizer is not stuck here; the local minimum it reaches is simply worse
+than log scaling's.
 
 **Log scaling is the workhorse.** It is lowest at every budget in
 @fig-scaling-comparison, so it remains the recommended default. The margin is
 worth reading carefully, though: at $P = 50$ the three scalings sit within
-about 25% of each other, and log scaling's advantage over `none` grows to
+about 26% of each other, and log scaling's advantage over `none` grows to
 roughly $2.7\times$ only by $P = 5000$. The case for it is that it is best
 across the whole range while the alternatives each degrade somewhere — `none`
 steadily, cost scaling non-monotonically.
 
+One caveat about reading this figure at all: it is drawn at `ftol=1e-10`. At
+the SciPy default `ftol=1e-6` the same sweep looks entirely different and is
+not trustworthy — `none` and `cost` both stall at the initial guess by
+$P = 5000$, landing on the Monte Carlo reference and inflating log scaling's
+apparent margin to roughly $110\times$. That is the silent stall of
+@sec-silent-stall reappearing as a plausible-looking figure, which is why
+tolerance comes first in this tutorial and scaling second.
 
-## The MLBLUE Mean-Only Convex Formulation: Theory and a Numerical Trap
+
+## The MLBLUE Convex Reformulation, and Which Solver Can Follow It
 
 When the target statistic is the mean and the group structure uses independent
 samples across subsets, the allocation problem is **convex** and admits a
@@ -377,12 +387,12 @@ becomes singular and Schaden-Ullmann had to add a shift $\Psi_\delta = \Psi +
 avoids this by using the Moore-Penrose pseudoinverse and the PSD constraint,
 and they report that CVXOPT's `conelp` solver converges reliably on their PDE
 benchmarks where IPOPT and SciPy's `trust-constr` either need careful tuning
-or fail outright. In theory the SDP returns the global optimum.
+or fail outright. In exact arithmetic the SDP returns the global optimum.
 
-In practice, the SDP form also has a conditioning issue — *a different one*
-from the singularity that motivated it — that makes the cvxpy-default backends
-(CLARABEL, SCS) unreliable on realistic multifidelity problems. Before
-showing it, here is the API for completeness:
+The reformulation is sound. What decides whether you actually receive that
+optimum is the solver you hand it to — and the difference between backends is
+two orders of magnitude, larger than any other choice in this tutorial. Before
+showing that, here is the API:
 
 ```{python}
 mlblue = MLBLUEEstimator(stat_mean, costs, model_subsets=subsets)
@@ -421,40 +431,49 @@ $$
 \kappa_{\text{SDP}} \;\equiv\; \frac{\max(\Psi)}{t} \;\sim\; 10^{11}
 $$
 
-is the condition number of the Schur-complement block matrix. The SDP solvers
-shipped with cvxpy — specifically **CLARABEL** (the cvxpy default) and
-**SCS** — drive the duality gap toward zero by following the central path of
-the barrier-regularized problem, but the central-path Newton system inherits
-this conditioning. When $\kappa_{\text{SDP}}$ exceeds roughly $10^8$ — which
-it does for any realistic MLBLUE problem with more than a couple of subsets
-— the solver's enforcement of the PSD constraint loses accuracy in proportion
-to the conditioning, and the returned $t$ sits above the true Schur complement
-bound. The duality gap report (typically $10^{-12}$ or smaller) tells you the
-*internal* equilibrated KKT residual is tight; it does not tell you the
-primal variable $t$ is close to its true minimum. CVXOPT — the solver CWW
-used successfully on their PDE benchmarks — has different numerical machinery
-and may avoid this failure mode; we have not tested it on the polynomial
-benchmark used here.
+is the condition number of the Schur-complement block matrix, and it grows
+with the budget: $\Psi$'s diagonal grows with the sample counts while $t$ stays
+at the scale of the estimator variance. Interior-point solvers drive the
+duality gap toward zero along the central path of the barrier-regularized
+problem, and the central-path Newton system inherits this conditioning. Past
+some $\kappa_{\text{SDP}}$ the enforcement of the PSD constraint loses accuracy
+and the returned $t$ sits above the true Schur-complement bound. A tight
+duality gap does not protect you: it reports that the *internal* equilibrated
+KKT residual is small, not that the primal variable $t$ is near its minimum.
 
-Concretely on this benchmark: at $P = 500$, the SDP returns $t = 1.3 \times
-10^{-5}$ but the variance at the SDP's own allocation is $7.1 \times 10^{-6}$
-— the SDP is **already 1.8× suboptimal at its own returned point**, and the
-SLSQP allocation is a further $1.7\times$ better. The gap to SLSQP is
-present **at every budget shown** in @fig-spd-vs-slsqp, including the
-smallest — SPD is roughly $2.5\times$ worse than SLSQP at $P = 10$ already
-— and grows past $50\times$ by $P = 5000$. Tightening solver tolerances does
-not help: we tested CLARABEL with `eps_abs/rel/infeas = 1e-12` and SCS with
-`eps_abs/rel = 1e-12, max_iters = 100000`, and both solvers converge cleanly
-to the same suboptimal allocation as their defaults.
+Every backend eventually meets this. They differ by orders of magnitude in
+*when*, and that difference is what @fig-spd-vs-slsqp is about.
 
-@fig-spd-vs-slsqp shows the gap across the budget sweep — SPD is
-substantially worse than SLSQP at every budget tested, with the
-magnitude of the gap growing as the optimal allocation's dynamic
-range grows.
+| $P$ | CVXOPT | CLARABEL |
+|---:|---:|---:|
+| 50 | 1.00 | 13.7 |
+| 100 | 1.01 | 17.1 |
+| 500 | 1.07 | 80.0 |
+| 1000 | 1.31 | 104.1 |
+| 5000 | 3.26 | 110.5 |
+| 20000 | 8.68 | 109.6 |
+
+: Estimator variance relative to the SLSQP+`log/ineq` allocation — a ratio of
+1.00 means the SDP recovered the same allocation the gradient solver found.
+{#tbl-spd-backends}
+
+CVXOPT — the solver CWW used on their PDE benchmarks — recovers the gradient
+solver's allocation to three digits at $P = 50$ and stays within 7% out to
+$P = 500$, then drifts: $3.3\times$ at $P = 5000$, $8.7\times$ at
+$P = 20000$, and $19\times$ at $P = 10^5$ (measured, past the sweep plotted
+here). CLARABEL, the backend cvxpy installs by default, departs two orders of
+magnitude earlier in budget and saturates near $110\times$. SCS is unusable on
+this problem — roughly $500\times$ at every budget tested.
+
+Tightening solver tolerances does not recover the gap. CLARABEL with
+`eps_abs/rel/infeas = 1e-12` returns the same suboptimal allocation as its
+defaults, which is what the conditioning argument predicts: the solver is
+converging accurately on a problem whose numerical conditioning has already
+lost the information.
 
 ```{python}
 #| echo: false
-#| fig-cap: "MLBLUE mean estimation: variance achieved by the SPD allocator (red, dashed, stars) vs SLSQP+log/ineq (blue, solid, circles) across budgets on the five-model polynomial benchmark. SPD here is solved via cvxpy with the CLARABEL backend (the cvxpy default). SPD is substantially worse than SLSQP at every budget shown — the gap is already $13.7\\times$ at $P = 50$ and grows to $110\\times$ by $P = 5000$. The shaded region is the SPD suboptimality, with ratio annotations at each point where the gap exceeds $1.2\\times$. The widening with budget reflects growing Schur-complement conditioning $\\kappa_{\\text{SDP}}$, not numerical tolerance: both CLARABEL and SCS converge cleanly with duality gap below $10^{-12}$ to the suboptimal point. SPD agrees with SLSQP only when the subset count is small enough that $\\Psi$ stays low-dimensional (verified separately on a two-subset version of this problem)."
+#| fig-cap: "MLBLUE mean estimation on the five-model polynomial benchmark: estimator variance against target budget for SLSQP+log/ineq (blue, solid, circles) and for the SDP allocator solved through two cvxpy backends — CVXOPT (green, dash-dot, squares) and CLARABEL (red, dashed, stars). Shading marks the CLARABEL suboptimality, annotated where the gap exceeds $1.2\\times$. Ratios are tabulated in @tbl-spd-backends."
 #| label: fig-spd-vs-slsqp
 
 from pyapprox_tutorials.figures._group_acv_optimization import (
@@ -468,26 +487,37 @@ plt.show()
 ```
 
 ::: {.callout-warning}
-## SPD as a workhorse: not recommended with cvxpy default solvers
-`MLBLUESPDAllocationOptimizer` is **not recommended as the default allocator
-for MLBLUE mean estimation** when using the cvxpy default backend (CLARABEL)
-or SCS. SLSQP with `log/ineq` configuration on `GroupACVEstimatorIS` (or
-equivalently on `MLBLUEEstimator`, which inherits the same covariance
-machinery) returns a strictly better allocation in every regime we tested
-on the polynomial five-model benchmark.
+## Use SLSQP as the workhorse; choose the backend if you use the SDP
 
+SLSQP with `log/ineq` is the recommended allocator for MLBLUE mean
+estimation. It is robust across the whole budget range, and it needs no
+dependency beyond SciPy.
+
+If you want the SDP path — as an independent check on the gradient solver,
+which is its real value — install `pyapprox[cvxopt]` and pass the backend
+explicitly:
+
+```python
+MLBLUESPDAllocationOptimizer(mlblue, solver_name="CVXOPT")
+```
+
+Taking the default backend instead means CLARABEL, which on this benchmark
+returns an allocation an order of magnitude worse from $P = 50$ onward. The
+allocator does not warn about this, because from its own point of view the
+solve converged.
 :::
 
-The SPD allocator is preserved in PyApprox for two reasons. First, on very
-small problems with **only two or three subsets** — where $\Psi$ stays
-low-dimensional and $\kappa_{\text{SDP}}$ stays well below $10^7$ across
-all budgets — even CLARABEL agrees with SLSQP to high precision and provides
-a useful sanity check on the gradient solver. (We have confirmed exact
-agreement between SPD and SLSQP across the full budget sweep on a literal
-two-subset version of this benchmark.) Second, the SDP allocation can be
-passed to `GroupACVAllocationOptimizer.optimize()` as
+Two things follow from @tbl-spd-backends that are worth carrying to other
+problems. A convexity guarantee is a statement about exact arithmetic: it
+tells you the problem *has* a unique global optimum, not that your solver
+will find it. And a solver reporting convergence is answering a question
+about its own internal residual, not about your allocation — which is the
+same lesson as @sec-silent-stall, arriving from the opposite direction.
+
+The SDP allocation can also be passed to
+`GroupACVAllocationOptimizer.optimize()` as
 `init_guess=spd_result.npartition_samples`. As a warm start it is of limited
-value on this benchmark, and is not a substitute for choosing `ftol`
+value on this benchmark and is not a substitute for choosing `ftol`
 correctly. It does prevent the silent stall of @sec-silent-stall — an SPD
 starting point is differentiated enough that SLSQP does not immediately meet
 a loose tolerance — but it recovers far less than tightening `ftol` does on
@@ -605,7 +635,7 @@ The following table summarizes the allocator choice for common configurations.
 | Variance or mean+variance estimation              | `MeanGuidedSubsetFitter` + SLSQP + `log/ineq`                             |
 | Multi-QoI, marginal variances matter most         | Add `objective=GroupACVTraceObjective()` to any of the above              |
 | Multi-QoI, joint uncertainty matters most         | Keep the default `GroupACVLogDetObjective`                                |
-| Want to try SDP on a problem with few subsets     | `MLBLUESPDAllocationOptimizer` (default CLARABEL); for more reliability, pass `solver_name="CVXOPT"` |
+| Want the SDP path as a cross-check                | `MLBLUESPDAllocationOptimizer(est, solver_name="CVXOPT")`; install `pyapprox[cvxopt]` first, and keep the budget modest |
 | Allocator stalls at the initial guess             | Tighten `ftol` first (@sec-silent-stall); an SPD `init_guess` also clears the stall but recovers much less |
 | Allocator fails despite reasonable setup          | Increase `maxiter` / tighten `ftol`; if still failing, file a bug report  |
 
@@ -647,14 +677,17 @@ left the initial guess (@sec-silent-stall).
   (`"full"`) exhibits non-monotonic convergence and is essentially never the
   right choice (see @fig-scaling-comparison). Log scaling wins at every budget
   in that figure, but by a factor of a few rather than orders of magnitude.
-- For mean estimation with MLBLUE-style independent subsets, the allocation
-  problem is convex in theory — but the SDP reformulation
-  (`MLBLUESPDAllocationOptimizer`) with the cvxpy default backends
-  (CLARABEL, SCS) suffers a Schur-complement conditioning gap between the
-  $\Psi$ block and the variance scalar $t$, leading to allocations that are
-  14–110× worse than SLSQP on the polynomial five-model benchmark (see
-  @fig-spd-vs-slsqp). Use SLSQP with `log/ineq` for MLBLUE mean estimation
-  as the workhorse; treat the SDP allocator as a small-subset sanity check.
+- For mean estimation with MLBLUE-style independent subsets the allocation
+  problem is convex, and the SDP reformulation
+  (`MLBLUESPDAllocationOptimizer`) is a sound way to state it — but the
+  Schur-complement encoding puts the $\Psi$ block and the variance scalar $t$
+  on scales that separate as the budget grows, and each backend loses the
+  optimum once its conditioning tolerance is exceeded. CVXOPT holds the
+  gradient solver's allocation to within 7% out to $P = 500$ and drifts to
+  $8.7\times$ by $P = 20000$; CLARABEL, cvxpy's default, is already
+  $13.7\times$ off at $P = 50$ (see @tbl-spd-backends). Use SLSQP with
+  `log/ineq` as the workhorse, and name `solver_name="CVXOPT"` if you want
+  the SDP as a cross-check.
 - Variance estimation enforces $m^k \geq 2$ per partition, which makes direct
   SLSQP fail or waste budget at tight budgets. `MeanGuidedSubsetFitter`
   screens with a cheap mean solve to find the active subset, then runs the
