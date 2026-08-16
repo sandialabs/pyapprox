@@ -97,6 +97,11 @@ class NumpyBkd(Backend[NDArray[Any]]):  # Specify NDArray type
         return np.issubdtype(array.dtype, np.floating)
 
     @staticmethod
+    def tracks_gradient(array: NDArray[Any]) -> bool:
+        """Always False: NumPy records no computation graph."""
+        return False
+
+    @staticmethod
     def stack(
         arrays: Union[List[NDArray[Any]], Tuple[NDArray[Any], ...]],
         axis: int = 0,

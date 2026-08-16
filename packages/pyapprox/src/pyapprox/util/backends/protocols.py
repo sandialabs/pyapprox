@@ -179,6 +179,20 @@ class Backend(Protocol, Generic[Array]):
     def is_floating_dtype(array: Array) -> bool: ...
 
     @staticmethod
+    def tracks_gradient(array: Array) -> bool:
+        """Whether ``array`` is being differentiated through.
+
+        True only while a backend that supports automatic
+        differentiation is recording operations on this array. Code
+        that memoizes results keyed on array *values* must consult
+        this: cached results are expressions wired to the array that
+        produced them, so serving them for a different array of equal
+        values yields a graph with no path back to the current input,
+        and a derivative that is silently zero.
+        """
+        ...
+
+    @staticmethod
     def stack(
         arrays: Union[List[Array], Tuple[Array, ...]], axis: int = 0
     ) -> Array: ...

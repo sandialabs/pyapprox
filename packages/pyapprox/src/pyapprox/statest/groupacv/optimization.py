@@ -77,6 +77,12 @@ class GroupACVObjective(ABC, Generic[Array]):
         self._bkd = self._est._bkd
         self._use_analytical = self._check_analytical_support()
         self._derivs = self._build_derivatives()
+        # Psi depends on the estimator's subsets, restriction matrices,
+        # regularization and pilot quantities, none of which the cache
+        # key records. Rebinding therefore invalidates it; without this
+        # a reused objective would answer for its previous estimator.
+        self._cache_key = None
+        self._cache_val = None
 
     def nvars(self) -> int:
         """Number of optimization variables (npartitions)."""
@@ -124,10 +130,37 @@ class GroupACVObjective(ABC, Generic[Array]):
         """
         return self._objective_value(samples)
 
-    def _array_cache_key(self, arr: Array) -> int:
-        """Hash for single-entry cache keyed on array contents."""
+    def _psi_cache_get(
+        self, arr: Array
+    ) -> Optional[Tuple[Array, Array, Array, Array]]:
+        """Cached results for ``arr``, or None to recompute.
+
+        Arrays being differentiated through are never served: the
+        cached results are expressions wired to the array that built
+        them, so returning them for a different array leaves the
+        current input with no path through the graph, and the
+        derivative comes back zero -- silently, with nothing to trace
+        it to. Values alone cannot distinguish the two, since the
+        detached array an optimizer passes and the grad-carrying one
+        autograd passes hold identical bytes.
+        """
         bkd, _ = self._ensure_bound()
-        return hash(bkd.to_numpy(arr).tobytes())
+        if bkd.tracks_gradient(arr):
+            return None
+        key = hash(bkd.to_numpy(arr).tobytes())
+        if key == self._cache_key:
+            return self._cache_val
+        return None
+
+    def _psi_cache_put(
+        self, arr: Array, val: Tuple[Array, Array, Array, Array]
+    ) -> None:
+        """Store results for ``arr`` unless it carries a graph."""
+        bkd, _ = self._ensure_bound()
+        if bkd.tracks_gradient(arr):
+            return
+        self._cache_key = hash(bkd.to_numpy(arr).tobytes())
+        self._cache_val = val
 
     def _compute_psi_and_derivs(
         self, npartition_samples_1d: Array
@@ -145,9 +178,9 @@ class GroupACVObjective(ABC, Generic[Array]):
           dpsi_stack[m] = ∂_m Ψ = -R_m Σ_m⁻¹ (∂_m Σ_m) Σ_m⁻¹ R_mᵀ
           d2psi_stack[m] = ∂²_m Ψ
         """
-        key = self._array_cache_key(npartition_samples_1d)
-        if self._cache_key == key and self._cache_val is not None:
-            return self._cache_val
+        cached = self._psi_cache_get(npartition_samples_1d)
+        if cached is not None:
+            return cached
 
         bkd, est = self._ensure_bound()
         npartitions = npartition_samples_1d.shape[0]
@@ -185,8 +218,7 @@ class GroupACVObjective(ABC, Generic[Array]):
             d2psi_blocks.append(d2psi_m)
         psi_inv = est._inv(psi)
         result = (psi, psi_inv, bkd.stack(dpsi_blocks), bkd.stack(d2psi_blocks))
-        self._cache_key = key
-        self._cache_val = result
+        self._psi_cache_put(npartition_samples_1d, result)
         return result
 
     @staticmethod

@@ -143,6 +143,16 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return array.is_floating_point()
 
     @staticmethod
+    def tracks_gradient(array: torch.Tensor) -> bool:
+        """Whether autograd is recording operations on ``array``.
+
+        ``grad_fn`` covers arrays produced by differentiated
+        operations; ``requires_grad`` covers leaves that gradients are
+        requested for but which no operation has yet consumed.
+        """
+        return array.requires_grad or array.grad_fn is not None
+
+    @staticmethod
     def stack(
         arrays: Union[List[torch.Tensor], Tuple[torch.Tensor, ...]],
         axis: int = 0,
