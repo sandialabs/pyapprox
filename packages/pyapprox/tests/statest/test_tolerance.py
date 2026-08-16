@@ -108,6 +108,71 @@ class TestConstraintForms:
         assert np.isfinite(bkd.to_float(constraint.value(singular)))
 
 
+class _WorstQoIVariance:
+    """An accuracy requirement defined outside the library.
+
+    Stands for a caller's own form: it is never imported, registered or
+    named by the allocator, and reaches it only by satisfying the
+    protocol.
+    """
+
+    def __init__(self, tolerance, bkd):
+        self._tolerance = tolerance
+        self._bkd = bkd
+
+    def bkd(self):
+        return self._bkd
+
+    def value(self, covariance):
+        return self._bkd.atleast_1d(self._bkd.max(self._bkd.diag(covariance)))
+
+    def tolerance(self):
+        return self._tolerance
+
+    def description(self):
+        return f"worst per-QoI variance <= {self._tolerance}"
+
+
+class TestCallerDefinedRequirements:
+    """New requirements need no change to the library.
+
+    The extension seam is the protocol, not a table of known forms, so
+    a caller supplies an object rather than registering a name.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(42)
+
+    def test_satisfies_the_protocol_without_registration(self, bkd) -> None:
+        assert isinstance(
+            _WorstQoIVariance(0.01, bkd), ToleranceConstraintProtocol
+        )
+
+    def test_allocates_against_a_caller_defined_requirement(
+        self, bkd
+    ) -> None:
+        stat = _fit_stat(bkd, MultiOutputMean, 2)
+        alloc = MCToleranceAllocator(MCEstimator(stat, [1.0]))
+        constraint = _WorstQoIVariance(0.01, bkd)
+        fitted = alloc.allocate_for_tolerance(constraint)
+        achieved = bkd.to_float(constraint.value(fitted.covariance()))
+        assert achieved <= 0.01
+
+    def test_caller_defined_requirement_is_also_minimal(self, bkd) -> None:
+        """Rounding up stops at the first sufficient count, as for the
+        shipped forms."""
+        stat = _fit_stat(bkd, MultiOutputMean, 2)
+        alloc = MCToleranceAllocator(MCEstimator(stat, [1.0]))
+        constraint = _WorstQoIVariance(0.01, bkd)
+        fitted = alloc.allocate_for_tolerance(constraint)
+        nsamples = int(bkd.to_int(fitted.nsamples_per_model()[0]))
+        below = bkd.to_float(
+            constraint.value(alloc._covariance(float(nsamples - 1)))
+        )
+        assert below > 0.01
+
+
 class TestMCToleranceAllocator:
     """Inverse allocation for MC estimators."""
 
