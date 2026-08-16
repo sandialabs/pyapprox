@@ -289,8 +289,8 @@ class TestCVToleranceAllocator:
     def _seed(self):
         np.random.seed(42)
 
-    def _allocator(self, bkd, nmodels=2, nqoi=1):
-        stat = _fit_stat(bkd, MultiOutputMean, nqoi, nmodels=nmodels)
+    def _allocator(self, bkd, nmodels=2, nqoi=1, cls=MultiOutputMean):
+        stat = _fit_stat(bkd, cls, nqoi, nmodels=nmodels)
         costs = bkd.array([2.0, 1.0][:nmodels])
         return CVToleranceAllocator(CVEstimator(stat, costs))
 
@@ -298,6 +298,7 @@ class TestCVToleranceAllocator:
         with pytest.raises(TypeError, match="requires CVEstimator"):
             CVToleranceAllocator("not an estimator")
 
+    @pytest.mark.parametrize("cls,nqoi", STATS)
     @pytest.mark.parametrize(
         "form,tolerance",
         [
@@ -306,12 +307,31 @@ class TestCVToleranceAllocator:
             (LogDeterminantConstraint, -12.0),
         ],
     )
-    def test_requirement_is_satisfied(self, bkd, form, tolerance) -> None:
-        alloc = self._allocator(bkd)
+    def test_requirement_is_satisfied(
+        self, bkd, cls, nqoi, form, tolerance
+    ) -> None:
+        """Every statistic, not just means: the mean-and-variance
+        covariance has no closed-form inverse, so it exercises the
+        numerical solve rather than a formula."""
+        alloc = self._allocator(bkd, cls=cls, nqoi=nqoi)
         constraint = form(tolerance, bkd)
         fitted = alloc.allocate_for_tolerance(constraint)
         achieved = bkd.to_float(constraint.value(fitted.covariance()))
         assert achieved <= tolerance + 1e-12
+
+    @pytest.mark.parametrize("cls,nqoi", STATS)
+    def test_allocation_is_minimal(self, bkd, cls, nqoi) -> None:
+        """One fewer sample of every model fails the requirement."""
+        alloc = self._allocator(bkd, cls=cls, nqoi=nqoi)
+        constraint = MaxMarginalStandardErrorConstraint(0.05, bkd)
+        fitted = alloc.allocate_for_tolerance(constraint)
+        nsamples = int(bkd.to_int(fitted.nsamples_per_model()[0]))
+        if nsamples <= alloc._min_nsamples:
+            pytest.skip("allocation sits on the sample floor")
+        below = bkd.to_float(
+            constraint.value(alloc._covariance(float(nsamples - 1)))
+        )
+        assert below > 0.05
 
     def test_every_model_gets_the_same_count(self, bkd) -> None:
         alloc = self._allocator(bkd, nmodels=2)

@@ -226,6 +226,16 @@ class GroupACVAllocationOptimizer(Generic[Array]):
         # Compute objective at solution (in n-space)
         obj_value = self._objective(nps_float[:, None])
 
+        # TODO verify actual_cost <= target_cost before reporting
+        # success. The optimizer is injectable, so the budget is only
+        # respected to the extent the supplied solver respects its
+        # constraints: one that reports convergence at an infeasible
+        # point is relayed here as a success. Measured with a stub
+        # solver, this returns success at 60x the requested budget.
+        # The tolerance-driven allocator checks its own guarantee for
+        # the same reason (see tolerance_allocation); this is the
+        # budget-side counterpart and needs the same relative slack,
+        # since a converged solution sits on the constraint boundary.
         if round_nsamples:
             nsamples_per_model = bkd.asarray(
                 nsamples_per_model, dtype=bkd.int64_dtype()

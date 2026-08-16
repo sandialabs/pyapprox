@@ -11,7 +11,11 @@ from typing import TYPE_CHECKING, Generic, List, Optional, Tuple
 
 import numpy as np
 
-from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.derivatives import (
+    Derivatives,
+    HVPFn,
+    JacobianFn,
+)
 from pyapprox.statest.groupacv.utils import (
     _grouped_acv_sigma,
     _grouped_acv_sigma_block,
@@ -810,3 +814,277 @@ class GroupACVCostConstraint(Generic[Array]):
         """
         bkd, _ = self._ensure_bound()
         return bkd.zeros((npartition_samples.shape[0], 1))
+
+
+class GroupACVCostObjective(Generic[Array]):
+    """Total estimator cost, as a function to minimize.
+
+    The dual of :class:`GroupACVCostConstraint`'s budget row. Built from
+    the estimator's own cost model rather than by adapting that
+    constraint: a tolerance-driven allocation has no budget, so a
+    constraint requiring one could not be evaluated. Cost is linear in
+    the partition sample counts, so the jacobian is constant and the
+    Hessian vanishes.
+    """
+
+    def __init__(self, bkd: Optional[Backend[Array]] = None) -> None:
+        self._bkd: Optional[Backend[Array]] = bkd
+        self._est: Optional[BaseGroupACVEstimator[Array]] = None
+        # Rebuilt on every set_estimator() call (the rebind moment).
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def _ensure_bound(
+        self,
+    ) -> Tuple[Backend[Array], "BaseGroupACVEstimator[Array]"]:
+        if self._bkd is None or self._est is None:
+            raise RuntimeError("Call set_estimator() before using objective")
+        return self._bkd, self._est
+
+    def set_estimator(
+        self, estimator: "BaseGroupACVEstimator[Array]"
+    ) -> None:
+        """Bind to an estimator and build the derivative bundle."""
+        self._est = estimator
+        self._bkd = estimator._bkd
+        # Populate hessian as well as hvp: the variable-space objective
+        # wrappers decide second-order capability from the hessian field.
+        self._derivs = Derivatives(
+            jacobian=self._jacobian, hvp=self._hvp, hessian=self._hessian
+        )
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        bkd, _ = self._ensure_bound()
+        return bkd
+
+    def nvars(self) -> int:
+        """Number of optimization variables (npartitions)."""
+        _, est = self._ensure_bound()
+        return int(est.npartitions())
+
+    def nqoi(self) -> int:
+        """Number of quantities of interest (always 1 for an objective)."""
+        return 1
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the total cost.
+
+        Parameters
+        ----------
+        samples : Array (nvars, 1)
+            Partition sample counts as a column vector.
+
+        Returns
+        -------
+        Array (1, 1)
+            The total cost of the allocation.
+        """
+        bkd, est = self._ensure_bound()
+        cost = est._estimator_cost(samples[:, 0])
+        return bkd.hstack((cost,))[:, None]
+
+    def _jacobian(self, npartition_samples: Array) -> Array:
+        """Constant cost gradient, shape (1, nvars)."""
+        bkd, est = self._ensure_bound()
+        return bkd.atleast_2d(
+            est._costs[None, :] @ est._partitions_per_model
+        )
+
+    def _hessian(self, npartition_samples: Array) -> Array:
+        """Zero Hessian, shape (nvars, nvars); cost is linear."""
+        bkd, _ = self._ensure_bound()
+        nvars = npartition_samples.shape[0]
+        return bkd.zeros((nvars, nvars))
+
+    def _hvp(self, npartition_samples: Array, vec: Array) -> Array:
+        """Zero Hessian-vector product, shape (nvars, 1)."""
+        bkd, _ = self._ensure_bound()
+        return bkd.zeros((npartition_samples.shape[0], 1))
+
+
+class GroupACVToleranceConstraint(Generic[Array]):
+    """Hold a GroupACV objective at or below a tolerance.
+
+    Row 0 is ``tolerance - criterion(n)`` and row 1 is the
+    minimum-high-fidelity-sample slack, matching
+    :class:`GroupACVCostConstraint`'s row layout so both directions share
+    the same bound handling. Feasibility is ``>= 0`` on both rows.
+
+    The requirement is expressed as a shifted value rather than as a
+    finite upper bound on the criterion itself, because the SLSQP
+    adapter admits an upper bound only when every row has one, and row 1
+    is unbounded above.
+    """
+
+    def __init__(
+        self,
+        criterion: GroupACVObjective[Array],
+        bkd: Optional[Backend[Array]] = None,
+    ) -> None:
+        self._criterion = criterion
+        self._bkd: Optional[Backend[Array]] = bkd
+        self._est: Optional[BaseGroupACVEstimator[Array]] = None
+        self._tolerance: Optional[float] = None
+        self._min_nhf_samples: Optional[int] = None
+        self._lb: Optional[Array] = None
+        self._ub: Optional[Array] = None
+        self._crit_jac: Optional[JacobianFn[Array]] = None
+        self._crit_hvp: Optional[HVPFn[Array]] = None
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def _ensure_bound(
+        self,
+    ) -> Tuple[Backend[Array], "BaseGroupACVEstimator[Array]"]:
+        if self._bkd is None or self._est is None:
+            raise RuntimeError("Call set_estimator() before using constraint")
+        return self._bkd, self._est
+
+    def _ensure_tolerance(self) -> Tuple[float, int]:
+        if self._tolerance is None or self._min_nhf_samples is None:
+            raise RuntimeError("Call set_tolerance() before using constraint")
+        return self._tolerance, self._min_nhf_samples
+
+    def set_estimator(
+        self, estimator: "BaseGroupACVEstimator[Array]"
+    ) -> None:
+        """Bind to an estimator and build the derivative bundle."""
+        self._est = estimator
+        self._bkd = estimator._bkd
+        self._criterion.set_estimator(estimator)
+        self._lb = self._bkd.zeros((self.nqoi(),))
+        self._ub = self._bkd.full((self.nqoi(),), float("inf"))
+        d = self._criterion.derivatives()
+        self._crit_jac = d.jacobian
+        # resolved_hvp keeps a matrix-free criterion matrix-free: it
+        # prefers a declared hvp and lifts a whvp only when needed,
+        # rather than materializing a Hessian.
+        self._crit_hvp = d.resolved_hvp(self._criterion.nqoi(), self._bkd)
+        self._derivs = Derivatives(
+            jacobian=None if self._crit_jac is None else self._jacobian,
+            whvp=(
+                None
+                if (self._crit_jac is None or self._crit_hvp is None)
+                else self._whvp
+            ),
+        )
+
+    def set_tolerance(self, tolerance: float, min_nhf_samples: int) -> None:
+        """Set the accuracy requirement and the sample-count floor."""
+        self._tolerance = tolerance
+        self._min_nhf_samples = min_nhf_samples
+
+    def tolerance(self) -> float:
+        """Return the largest acceptable criterion value."""
+        tolerance, _ = self._ensure_tolerance()
+        return tolerance
+
+    def criterion(self) -> GroupACVObjective[Array]:
+        """Return the wrapped criterion."""
+        return self._criterion
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        bkd, _ = self._ensure_bound()
+        return bkd
+
+    def nvars(self) -> int:
+        """Number of optimization variables (npartitions)."""
+        _, est = self._ensure_bound()
+        return int(est.npartitions())
+
+    def nqoi(self) -> int:
+        """Number of constraints (criterion + min HF samples)."""
+        return 2
+
+    def lb(self) -> Array:
+        """Lower bounds for constraints."""
+        if self._lb is None:
+            raise RuntimeError("Call set_estimator() before accessing bounds")
+        return self._lb
+
+    def ub(self) -> Array:
+        """Upper bounds for constraints."""
+        if self._ub is None:
+            raise RuntimeError("Call set_estimator() before accessing bounds")
+        return self._ub
+
+    def is_affine(self) -> bool:
+        """Row 0 holds a criterion, which curves in the sample counts.
+
+        The estimator covariance falls off nonlinearly as samples are
+        added, so this constraint cannot be handed to a solver as a
+        coefficient matrix however the variables are scaled.
+        """
+        return False
+
+    def normalization(self) -> Array:
+        """Per-row divisors that bring constraint values to order one.
+
+        Row scaling leaves the feasible set unchanged; it only keeps a
+        solver's scalar tolerances from meaning very different things on
+        rows carrying different units. A criterion tolerance may be
+        signed and near zero, so the magnitude is floored at one rather
+        than used directly.
+        """
+        bkd, _ = self._ensure_bound()
+        tolerance, _ = self._ensure_tolerance()
+        return bkd.array([max(abs(tolerance), 1.0), 1.0])
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the constraints.
+
+        Parameters
+        ----------
+        samples : Array (nvars, 1)
+            Partition sample counts as a column vector.
+
+        Returns
+        -------
+        Array (2, 1)
+            Constraint values, non-negative when feasible.
+        """
+        bkd, est = self._ensure_bound()
+        tolerance, min_nhf_samples = self._ensure_tolerance()
+        criterion_val = self._criterion(samples)[0, 0]
+        nhf = bkd.sum(est._partitions_per_model[0] * samples[:, 0])
+        return bkd.hstack(
+            (tolerance - criterion_val, nhf - min_nhf_samples)
+        )[:, None]
+
+    def _jacobian(self, npartition_samples: Array) -> Array:
+        """Constraint jacobian, shape (2, nvars)."""
+        crit_jac = self._crit_jac
+        if crit_jac is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
+        bkd, est = self._ensure_bound()
+        return bkd.vstack(
+            (
+                -crit_jac(npartition_samples),
+                est._partitions_per_model[0][None, :],
+            )
+        )
+
+    def _whvp(
+        self, npartition_samples: Array, vec: Array, weights: Array
+    ) -> Array:
+        """Weighted Hessian-vector product, shape (nvars, 1).
+
+        Row 1 is linear, so only row 0 contributes, negated because the
+        row is ``tolerance - criterion(n)``.
+        """
+        crit_hvp = self._crit_hvp
+        if crit_hvp is None:
+            raise RuntimeError(
+                "whvp is unavailable; check derivatives() before calling"
+            )
+        return -weights[0, 0] * crit_hvp(npartition_samples, vec)
