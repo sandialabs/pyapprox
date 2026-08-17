@@ -46,6 +46,12 @@ mistake either raises at runtime or silently mispairs. Nor can the
 ``isinstance`` at all.
 """
 
+from pyapprox.interface.evaluation.ensemble import (
+    Ensemble,
+    EnsembleBatch,
+    EnsembleProgress,
+    ModelId,
+)
 from pyapprox.interface.evaluation.protocols import (
     BatchProtocol,
     DispatcherProtocol,
@@ -69,6 +75,11 @@ from pyapprox.interface.evaluation.records import (
 )
 
 __all__ = [
+    # Ensemble
+    "Ensemble",
+    "EnsembleBatch",
+    "EnsembleProgress",
+    "ModelId",
     # Records
     "ComputeProvenance",
     "Cost",

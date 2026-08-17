@@ -43,6 +43,7 @@ from pyapprox.interface.evaluation.protocols import (
     TaskProtocol,
 )
 from pyapprox.interface.evaluation.records import (
+    ComputeProvenance,
     Cost,
     CostLedger,
     Decoded,
@@ -125,6 +126,14 @@ class Batch(Generic[Array, Task, Payload]):
         """
         nsucceeded = self._nsucceeded
         nfailed = self._nfailed
+        # Cost, like the counts, must include work that has finished but
+        # not been collected. The ledger holds only what harvesting has
+        # already charged, so reading it alone would report zero for a
+        # batch whose jobs are all done and uncollected -- accurate
+        # counts beside a cost of nothing, which is worse than either
+        # being wrong on its own. Cost-so-far exists to be read *while*
+        # work runs, which is exactly when nothing has been collected.
+        pending_costs: List[Cost] = []
         for handle in self._pending:
             if not handle.done():
                 continue
@@ -134,11 +143,12 @@ class Batch(Generic[Array, Task, Payload]):
                 nsucceeded += covered
             else:
                 nfailed += covered
+            pending_costs.append(outcome.cost())
         return EvalProgress(
             nsucceeded=nsucceeded,
             nfailed=nfailed,
             noutstanding=self._nsubmitted - nsucceeded - nfailed,
-            cost=self._ledger.total(),
+            cost=_with_uncollected(self._ledger.total(), pending_costs),
             elapsed_seconds=time.perf_counter() - self._started,
         )
 
@@ -533,6 +543,45 @@ def _select(piece: Array, name: str, take: Sequence[int]) -> Array:
     if _DERIVATIVE_FIELDS[name] == 0:
         return piece[take]
     return piece[:, take]
+
+
+def _with_uncollected(
+    charged: Cost, pending: Sequence[Cost]
+) -> Cost:
+    """Add finished-but-uncollected job costs to what is already charged.
+
+    Compute sums. Wall-clock takes the larger of the two rather than
+    their sum, since the uncollected jobs ran concurrently with the
+    collected ones under the same dispatcher -- adding them would count
+    the overlap twice. A lower bound, and the same trade the ensemble
+    makes for the same reason: the exact figure needs the spans, which
+    a total no longer carries.
+
+    Provenance degrades pessimistically, so a measured total containing
+    an estimate is reported as an estimate.
+    """
+    if not pending:
+        return charged
+    provenance = charged.provenance
+    for cost in pending:
+        if cost.provenance is provenance:
+            continue
+        if ComputeProvenance.NOT_APPLICABLE in (
+            provenance,
+            cost.provenance,
+        ):
+            provenance = ComputeProvenance.NOT_APPLICABLE
+        else:
+            provenance = ComputeProvenance.ESTIMATED
+    return Cost(
+        wall_clock=max(
+            charged.wall_clock,
+            max(cost.wall_clock for cost in pending),
+        ),
+        compute=charged.compute
+        + sum(cost.compute for cost in pending),
+        provenance=provenance,
+    )
 
 
 def _outcome_cost(
