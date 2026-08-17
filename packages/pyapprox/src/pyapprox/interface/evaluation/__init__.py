@@ -73,6 +73,15 @@ from pyapprox.interface.evaluation.records import (
     Resources,
     TimeSource,
 )
+from pyapprox.interface.evaluation.subprocess_dispatcher import (
+    ShellPayload,
+    ShellTask,
+    SubprocessDispatcher,
+)
+from pyapprox.interface.evaluation.textfile_marshaller import (
+    Retention,
+    TextFileMarshaller,
+)
 
 __all__ = [
     # Ensemble
@@ -100,4 +109,10 @@ __all__ = [
     "JobHandle",
     "MarshalError",
     "MarshallerProtocol",
+    # External solvers
+    "Retention",
+    "ShellPayload",
+    "ShellTask",
+    "SubprocessDispatcher",
+    "TextFileMarshaller",
 ]

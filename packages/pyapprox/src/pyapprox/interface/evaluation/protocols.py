@@ -292,11 +292,12 @@ class MarshallerProtocol(Protocol, Generic[Array, Task, Payload]):
 
         Returns **however many tasks the wrapped code needs**, which is
         the point of taking a request rather than exposing one method
-        per quantity. Codes differ in how much they fuse: an adjoint
-        solver has usually formed everything a gradient needs by the
-        time the forward solve finishes, so value and jacobian come back
-        from one invocation; other codes expose them as separate entry
-        points. That is a property of the code, not of the caller's ask,
+        per quantity. Codes differ in how much they fuse: a solver
+        computing derivatives alongside its values has usually formed
+        everything a gradient needs by the time the forward solve
+        finishes, so value and jacobian come back from one invocation;
+        other codes expose them as separate entry points. That is a
+        property of the code, not of the caller's ask,
         so the caller states the ask and the marshaller decides the
         invocations -- one task for a fused code, several for a split
         one. A new capability never adds a method here.

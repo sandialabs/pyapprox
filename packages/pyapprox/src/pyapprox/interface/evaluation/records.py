@@ -577,10 +577,11 @@ class Request(Generic[Array]):
 
     A request says *which quantities*, never *how many invocations*.
     That distinction is the whole point: codes differ in how much they
-    fuse. An adjoint solver has usually formed everything it needs for a
-    gradient by the time the forward solve finishes, so value and
-    jacobian come back from one invocation; other codes expose them as
-    separate entry points, or separate executables. Which one you have
+    fuse. A solver computing derivatives alongside its values has
+    usually formed everything a gradient needs by the time the forward
+    solve finishes, so value and jacobian come back from one
+    invocation; other codes expose them as separate entry points, or
+    separate executables. Which one you have
     is a property of the **wrapped code**, not of the caller's ask.
 
     So the caller states the ask, and
@@ -951,10 +952,10 @@ class EvalResult(Generic[Array]):
     materialized in order to produce one.
 
     These are fields from the outset rather than a later addition
-    because the record is frozen and sits at a boundary: an
-    adjoint-capable external solver is exactly the case that most needs
-    non-blocking evaluation, and routing one through an evaluator must
-    not silently cost it its gradient.
+    because the record is frozen and sits at a boundary: an external
+    solver that computes its own derivatives is exactly the case that
+    most needs non-blocking evaluation, and routing one through an
+    evaluator must not silently cost it its gradient.
     """
 
     values: Array
