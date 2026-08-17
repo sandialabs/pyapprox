@@ -6,15 +6,22 @@ collection and cost accounting are all exercised here first; a bug found
 through a thread pool is a bug debugged through two independent sources
 of nondeterminism at once.
 
-**Tasks run lazily, on first poll, rather than eagerly in ``submit``.**
-Running them in ``submit`` would be simpler, but it makes ``progress()``
-report either nothing or everything -- the work is already over by the
-time anyone can ask. Running each task when it is first polled means a
-serial batch genuinely advances one task at a time, so partial results
-are actionable mid-run and a caller can stop early. It also keeps
-``submit`` non-blocking, which is what every other dispatcher promises;
-a serial dispatcher that blocked there would be the one implementation
-whose ``submit`` behaved differently from the protocol's contract.
+**Tasks run in ``submit``, which therefore blocks.** That is the honest
+behavior for a dispatcher with no concurrency, and the alternative is
+worse than it first looks: returning immediately and running on first
+poll makes ``submit`` *appear* non-blocking while achieving nothing, so
+a caller who submits, waits, and then collects still pays the full cost
+at collection, and ``progress`` reports work as outstanding when it has
+not started.
+
+The difference is real rather than cosmetic. A thread or process pool,
+or a scheduler, genuinely does proceed while the caller waits — so
+waiting after ``submit`` buys something there and nothing here. A
+dispatcher with a single thread of control has nowhere for that work to
+happen, and saying so is better than a fast ``submit`` that misleads.
+
+Everything downstream still works unchanged: this dispatcher's handles
+are simply already finished when the evaluator first looks at them.
 
 Nothing here is concurrent, so nothing here needs a lock.
 """
@@ -57,13 +64,19 @@ class InlineJobHandle(Generic[Task, Payload]):
     def done(self) -> bool:
         """Whether this job has finished.
 
-        Deliberately does **not** run the task. ``done`` is what a
-        progress report calls, and a progress report must not cause the
-        work it is reporting on -- otherwise asking about a batch would
-        run it, and ``progress()`` could never show anything
-        outstanding.
+        Always true once :meth:`run_now` has been called, which
+        :meth:`InlineDispatcher.submit` does for every task before
+        returning.
         """
         return self._outcome is not None
+
+    def run_now(self) -> Outcome[Task, Payload]:
+        """Run the task, if it has not run already.
+
+        Called by ``submit``. Public so the dispatcher can drive it
+        without reaching into a private method.
+        """
+        return self._execute()
 
     def _execute(self) -> Outcome[Task, Payload]:
         """Run the task once, recording however it turned out."""
@@ -161,14 +174,24 @@ class InlineDispatcher(Generic[Task, Payload]):
     def submit(
         self, tasks: Sequence[Task]
     ) -> Sequence[InlineJobHandle[Task, Payload]]:
-        """Accept tasks and return handles, without running anything yet.
+        """Run every task, in order, and return finished handles.
 
-        Returns immediately, as the protocol requires. The work happens
-        when each handle is first polled.
+        **This blocks**, and that is the honest behavior for a
+        dispatcher with no concurrency. The alternative -- return
+        immediately and run on first poll -- makes ``submit`` look
+        non-blocking while doing nothing, so a caller who waits after
+        submitting still pays the full cost at ``collect``, and
+        ``progress`` reports work as outstanding when it has not
+        started. A dispatcher with workers genuinely does proceed during
+        that wait; this one has none, and should not pretend.
+
+        Concurrent dispatchers return before the work finishes, as the
+        protocol requires of them. Here the work *is* finished, so the
+        requirement is met trivially rather than defeated.
         """
         if self._closed:
             raise RuntimeError("cannot submit to a closed dispatcher")
-        return [
+        handles = [
             InlineJobHandle(
                 task=task,
                 indices=task.indices,
@@ -176,6 +199,9 @@ class InlineDispatcher(Generic[Task, Payload]):
             )
             for task in tasks
         ]
+        for handle in handles:
+            handle.run_now()
+        return handles
 
     def close(self) -> None:
         """Refuse further submissions. Idempotent; holds no resources."""

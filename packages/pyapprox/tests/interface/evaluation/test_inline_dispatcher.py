@@ -66,15 +66,19 @@ class TestProtocolConformance:
             InlineDispatcher("not callable")
 
 
-class TestLazyExecution:
-    """Tasks run on first poll, not in submit.
+class TestEagerExecution:
+    """Tasks run inside ``submit``, which therefore blocks.
 
-    This is what lets a serial batch report genuine partial progress. An
-    eager dispatcher would finish everything inside ``submit``, leaving
-    ``progress()`` able to say only "nothing" or "everything".
+    The honest behavior for a dispatcher with no concurrency. Running
+    lazily on first poll would make ``submit`` *look* non-blocking while
+    achieving nothing: a caller who submits, waits, then collects would
+    still pay the full cost at collection, and progress would report
+    work as outstanding when it had not started. A pool or a scheduler
+    genuinely proceeds during that wait; this dispatcher has nowhere for
+    the work to happen.
     """
 
-    def test_submit_does_not_run_tasks(self):
+    def test_submit_runs_every_task(self):
         ran = []
 
         def record(task: _Task) -> int:
@@ -83,47 +87,33 @@ class TestLazyExecution:
 
         dispatcher = InlineDispatcher(record)
         dispatcher.submit([_Task(indices=[i], value=i) for i in range(3)])
-        assert ran == []
+        assert ran == [0, 1, 2]
 
-    def test_done_does_not_run_the_task(self):
-        """Asking about work must not cause it.
+    def test_handles_are_finished_when_submit_returns(self):
+        """What makes a progress report truthful straight after submit."""
+        handles = InlineDispatcher(_run).submit(
+            [_Task(indices=[i], value=i) for i in range(3)]
+        )
+        assert all(h.done() for h in handles)
 
-        Otherwise ``progress()`` could never report anything
-        outstanding, because reporting would complete the batch.
-        """
-        ran = []
-
-        def record(task: _Task) -> int:
-            ran.append(task.value)
-            return task.value
-
-        (handle,) = InlineDispatcher(record).submit([_Task(indices=[0])])
-        assert not handle.done()
-        assert ran == []
-
-    def test_outcome_runs_the_task(self):
+    def test_outcome_after_submit_costs_nothing(self):
+        """Waiting after submit buys nothing here, because it is done."""
         (handle,) = InlineDispatcher(_run).submit(
             [_Task(indices=[0], value=4)]
         )
         assert handle.outcome().payload == 40
-        assert handle.done()
 
-    def test_tasks_run_one_at_a_time_as_polled(self):
-        """Polling the second handle must not run the third."""
+    def test_tasks_run_in_submission_order(self):
         ran = []
 
         def record(task: _Task) -> int:
             ran.append(task.value)
             return task.value
 
-        dispatcher = InlineDispatcher(record)
-        handles = dispatcher.submit(
-            [_Task(indices=[i], value=i) for i in range(3)]
+        InlineDispatcher(record).submit(
+            [_Task(indices=[i], value=i) for i in range(4)]
         )
-        handles[0].outcome()
-        assert ran == [0]
-        handles[1].outcome()
-        assert ran == [0, 1]
+        assert ran == [0, 1, 2, 3]
 
 
 class TestIdempotence:
@@ -229,30 +219,25 @@ class TestIndicesAreExplicit:
 
 
 class TestCancel:
-    def test_cancel_prevents_a_pending_task_from_running(self):
-        ran = []
+    """Nothing is ever pending here, so cancel has nothing to stop.
 
-        def record(task: _Task) -> int:
-            ran.append(task.value)
-            return task.value
+    Not a defect. The protocol's guarantee is that *pending* work will
+    not start, and an eager dispatcher never has any: by the time a
+    caller holds a handle, its task has run. Cancel does real work in a
+    concurrent dispatcher, and is tested where that behavior lives.
+    """
 
-        (handle,) = InlineDispatcher(record).submit([_Task(indices=[0])])
-        assert handle.cancel() is True
-        assert handle.outcome().status is JobStatus.CANCELLED
-        assert ran == []
-
-    def test_cancel_after_running_reports_false(self):
+    def test_cancel_reports_false_because_work_has_run(self):
         (handle,) = InlineDispatcher(_run).submit([_Task(indices=[0])])
-        handle.outcome()
         assert handle.cancel() is False
 
-    def test_cancelled_outcome_is_still_readable(self):
-        """Cancelling must not discard the record of what happened."""
+    def test_cancel_does_not_discard_the_outcome(self):
+        """Compute already spent must still reach the ledger."""
         (handle,) = InlineDispatcher(_run).submit([_Task(indices=[1, 2])])
         handle.cancel()
         outcome = handle.outcome()
         assert list(outcome.indices) == [1, 2]
-        assert outcome.status.is_retryable() is True
+        assert outcome.status is JobStatus.SUCCEEDED
 
 
 class TestLifecycle:

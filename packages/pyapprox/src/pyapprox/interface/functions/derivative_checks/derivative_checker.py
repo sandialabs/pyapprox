@@ -83,6 +83,22 @@ class DerivativeChecker(Generic[Array]):
         return errors
 
     def error_ratio(self, errors: Array) -> Array:
+        """Ratio of smallest to largest finite-difference error.
+
+        Takes **one** error array, not the list ``check_derivatives``
+        returns. That method yields one array per capability checked, so
+        a caller passes the element it means -- ``errors[0]`` for the
+        jacobian check.
+
+        TODO: passing the list itself works on NumPy, whose ``min``
+        accepts a sequence, and raises on Torch with "min(): argument
+        'input' must be Tensor, not list". So a caller who gets this
+        wrong sees it only on one backend, and any test written that way
+        is NumPy-only by accident. Resolve by having this reduce over a
+        sequence, or by returning an array when a single capability was
+        checked -- either way it wants settling alongside the batched
+        checker rather than piecemeal.
+        """
         return self.bkd().min(errors) / self.bkd().max(errors)
 
 
