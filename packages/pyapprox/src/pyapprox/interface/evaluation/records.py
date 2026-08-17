@@ -535,6 +535,14 @@ class Decoded(Generic[Array]):
     a tuple because a task may decode into values *and* derivatives, and
     a growing tuple is where positional-unpacking bugs come from.
 
+    **Entry ``k`` of every array describes ``indices[k]``.** That
+    positional correspondence is what makes this record usable, and it
+    is the marshaller's to uphold: nothing downstream can detect a
+    marshaller that returned its values in a different order from its
+    own indices, because the result would be the right shape, the right
+    size, and wrong. ``__post_init__`` checks the counts, which catches
+    truncation but not permutation.
+
     ``indices`` are the columns of the submitted batch these arrays
     belong to, which may be a **subset** of the task's own indices: a
     task where some samples decoded and others did not returns the
@@ -555,7 +563,9 @@ class Decoded(Generic[Array]):
         Jacobian-vector products, shape ``(nqoi, len(indices))`` --
         **QoI space**.
     hvps : Array, optional
-        Hessian-vector products, shape ``(nvars, len(indices))`` --
+        Hessian-vector products, shape ``(len(indices), nvars)`` --
+        sample-**first**, unlike ``values`` and ``jvps``, because the
+        batch form is scalar-implicit and carries no nqoi axis --
         **parameter space**. Carries the weighted (adjoint-Hessian)
         form too: those are the same tensor contracted differently, and
         the bundle itself converts between them with ``resolved_hvp`` /
@@ -583,6 +593,44 @@ class Decoded(Generic[Array]):
     hessians: Optional[Array] = None
     jvps: Optional[Array] = None
     hvps: Optional[Array] = None
+    hvp_weights: Optional[Array] = None
+
+    def __post_init__(self) -> None:
+        # Positional correspondence is the whole contract of this
+        # record, and it is invisible when broken: a marshaller whose
+        # values came back in a different order from its own indices
+        # would produce a result that is the right shape, the right
+        # size, and wrong. Checking what can be checked cheaply is
+        # worth more here than elsewhere for exactly that reason.
+        n = len(self.indices)
+        if len(set(self.indices)) != n:
+            raise ValueError(
+                f"indices must be unique, got {list(self.indices)}"
+            )
+        # Which axis indexes the sample. Not uniform, and not the
+        # intuitive grouping: hvps is sample-first like jacobians and
+        # hessians, because its batch form is scalar-implicit --
+        # (n, nvars), with no nqoi axis. Only jvps follows the
+        # sample-last convention that values uses.
+        for name, axis in (
+            ("values", 1),
+            ("jacobians", 0),
+            ("hessians", 0),
+            ("jvps", 1),
+            ("hvps", 0),
+        ):
+            array = getattr(self, name)
+            if array is None:
+                continue
+            if name == "values" and int(array.shape[1]) == 0 and n > 0:
+                # A decode-nothing task: succeeded, nothing decoded.
+                continue
+            if int(array.shape[axis]) != n:
+                raise ValueError(
+                    f"{name} covers {int(array.shape[axis])} samples but "
+                    f"indices names {n}; entry k of each must describe "
+                    "indices[k]"
+                )
 
     def nsamples(self) -> int:
         """How many samples decoded."""
@@ -705,8 +753,36 @@ class EvalResult(Generic[Array]):
         Jacobian-vector products, shape ``(nqoi, len(succeeded))`` --
         QoI space.
     hvps : Array, optional
-        Hessian-vector products, shape ``(nvars, len(succeeded))`` --
-        parameter space, weighted or not.
+        Hessian-vector products, shape ``(len(succeeded), nvars)`` --
+        sample-**first**, unlike ``values`` and ``jvps``, because the
+        batch form is scalar-implicit and carries no nqoi axis --
+        parameter space.
+    hvp_weights : Array, optional
+        The QoI weights ``hvps`` was contracted with, or ``None`` for a
+        plain (unweighted) product.
+
+        Shape ``(nqoi, 1)`` -- **one weight vector for the whole
+        submission**, not one per sample. That is inherited from the
+        derivative bundle, whose weighted batch signature specifies "one
+        weight vector applied to every sample", rather than a choice
+        made here. Per-sample weightings are meaningful, and a caller
+        who needs them submits once per distinct weight vector. Nothing
+        in this record forecloses widening it later: the field is a
+        single array either way.
+
+        One field holds both forms because they are contractions of the
+        same Hessian tensor, in the same shape -- the derivative bundle
+        itself treats them as convertible rather than as separate
+        capabilities. But they are not the same number: a plain product
+        requires ``nqoi == 1``, while a weighted one is
+        ``(sum_i w_i H_i) @ v`` for any ``nqoi``, and the two coincide
+        only when ``nqoi == 1`` and ``w = [1]``.
+
+        So the weights travel with the result rather than being implied
+        by the request that produced it. A result outlives its request
+        as soon as it is stored, reloaded, or passed on, and at that
+        point "weighted, and by what?" must be answerable from the
+        record alone.
     derivative_failures : Mapping[str, Array]
         Indices that produced a value but whose *derivative* did not,
         keyed by quantity name (``"jacobians"``, ``"hvps"``, ...).
@@ -747,6 +823,7 @@ class EvalResult(Generic[Array]):
     hessians: Optional[Array] = None
     jvps: Optional[Array] = None
     hvps: Optional[Array] = None
+    hvp_weights: Optional[Array] = None
     derivative_failures: dict[str, Array] = field(default_factory=dict)
 
     def nsucceeded(self) -> int:

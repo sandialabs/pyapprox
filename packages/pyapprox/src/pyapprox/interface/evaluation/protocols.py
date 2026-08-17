@@ -193,6 +193,23 @@ class DispatcherProtocol(Protocol, Generic[Task, Payload]):
         Handles are returned for tasks that have not started yet, so a
         throttling dispatcher needs an internal pending queue. That is
         what a real executor does anyway.
+
+        **A handle corresponds to a task, not to a job.** An
+        implementation may map several tasks onto one unit of work --
+        one scheduler job, one array element, one slot in an
+        allocation it already holds -- and return handles that all
+        resolve when that unit finishes. Nothing above may assume
+        one-task-one-job: that assumption forecloses task packing and
+        pilot-style allocations, where work for models with different
+        resource requests shares a single submission.
+
+        **A blocking backend does not need rewriting to satisfy this.**
+        An interface that waits for its resources before returning is a
+        slow callable, and running a slow callable without blocking is
+        what a thread pool does: hand the call to the pool, return the
+        handles, let them resolve later. Cancellation then degrades to
+        the weaker guarantee this protocol already permits, since a
+        thread blocked inside the call cannot be interrupted.
         """
         ...
 
@@ -315,6 +332,54 @@ class MarshallerProtocol(Protocol, Generic[Array, Task, Payload]):
         ``Decoded`` records cover the same indices with different fields
         populated, and the evaluator merges them by index -- which is
         what makes success per-quantity rather than per-sample.
+
+        **The implementer's obligation: entry ``k`` of every returned
+        array must describe ``indices[k]``.**
+
+        This sits here rather than in the evaluator because only a
+        marshaller *can* honor it. The evaluator reorders whole tasks by
+        the indices their outcomes carry, so out-of-order completion by
+        a dispatcher is already handled -- the information it needs is
+        present. Within one task it receives values and indices already
+        paired, and re-deriving the pairing would mean recomputing the
+        model. A permuted decode therefore yields a result of the right
+        shape, the right size, and wrong, which nothing downstream can
+        detect.
+
+        Three ways this is commonly broken, all worth checking in a new
+        marshaller:
+
+        - **Reading outputs by directory listing.** ``glob("out_*")``
+          sorts lexicographically, so ``out_10`` precedes ``out_2``.
+          Sort by the integer the name encodes, not by the name.
+        - **An unordered map inside the marshaller.**
+          ``imap_unordered`` and its equivalents yield results as they
+          finish, which is exactly what must not be zipped against an
+          ordered index list. Send the index *with* each work item so
+          each result carries its own identity back.
+        - **A solver that reorders its own output** -- MPI ranks writing
+          to a shared file, or a code that sorts before writing.
+
+        The safe construction in every case is the same: derive each
+        entry's index from the output itself, and build ``indices``
+        alongside the arrays rather than assuming the two already agree.
+
+        A marshaller that hands a whole slice to one call and receives
+        one array back -- the in-memory case -- satisfies this by
+        construction and needs no care.
+
+        **Every marshaller must carry a test for this.** Since the
+        obligation cannot be enforced at any boundary, a test is the
+        only thing standing between a permuted decode and a silently
+        wrong study. Submit samples whose values identify their own
+        column -- column ``j`` encoding ``j`` -- decode, and assert that
+        entry ``k`` is the one ``indices[k]`` names. Shape and count
+        assertions do not substitute: a permutation passes both.
+
+        Include a multi-sample task, since a per-sample marshaller
+        cannot express the failure at all, and the marshallers that can
+        get this wrong are exactly those grouping several samples per
+        task.
         """
         ...
 
@@ -379,11 +444,23 @@ class ResultStore(Protocol, Generic[Array]):
     dies, the work is gone too and only completed results can be
     salvaged. This protocol addresses the second and most of the first.
 
-    Keys are supplied by the caller and default to the submitted batch
-    index, so resuming with the same sample matrix just works.
-    Deliberately **not** a hash of the sample values: that is bit-exact,
-    silently dtype- and contiguity-dependent, and two mathematically
-    identical samples can key differently.
+    **Keys are the caller's, and so is the decision to consult a store
+    at all.** An evaluator never skips work, never refuses a duplicate,
+    and never returns something it did not just compute: it has no
+    notion of sample identity, because the caller that built the samples
+    is the only party that has one. A caller resuming asks its store
+    what it already has, submits the remainder, and maps the returned
+    column indices back itself.
+
+    That trades a visible performance bug -- a caller who forgets to
+    check recomputes -- against an invisible correctness one, where a
+    framework hands back stored values for a key that no longer means
+    what it did.
+
+    Deliberately **not** keyed on a hash of the sample values: that is
+    bit-exact, silently dtype- and contiguity-dependent, and two
+    mathematically identical samples can key differently. It would also
+    put a value comparison in a control path, which nothing here does.
 
     Implementations are injected, so a caller may back this with an
     ``.npz`` file, a database, or anything else. Nothing here enumerates
@@ -512,6 +589,12 @@ class EvaluatorProtocol(Protocol, Generic[Array]):
         a request names several quantities at once and the marshaller
         decides how many invocations that is. The per-field callables in
         :meth:`derivatives` necessarily ask for one quantity each.
+
+        **Results are indexed by column, and nothing else.** An evaluator
+        holds no notion of what a sample *is* beyond its position in what
+        was submitted, so mapping those indices onto anything durable --
+        a latent draw, an allocation partition, a design row -- belongs
+        to the caller, which is the only party that knows the mapping.
         """
         ...
 
