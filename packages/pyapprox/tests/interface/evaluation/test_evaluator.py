@@ -26,6 +26,7 @@ from pyapprox.interface.evaluation.protocols import (
 )
 from pyapprox.interface.evaluation.records import (
     CostLedger,
+    Decoded,
     JobStatus,
     Request,
 )
@@ -385,6 +386,56 @@ class TestLedger:
 
     def test_private_ledger_by_default(self, bkd):
         assert _build(bkd).ledger() is not _build(bkd).ledger()
+
+
+class TestJobReportedTime:
+    """A duration the job reports beats one the wrapper measured.
+
+    A dispatcher can only time what it waited on. For in-process work
+    that is the job, but anything external also covers process startup,
+    input staging and filesystem sync -- and on a scheduler, the entire
+    queue wait. A wrapper can report hours for a solve that took
+    minutes, which would put queue time into a compute budget.
+    """
+
+    def test_a_decoded_runtime_replaces_the_measured_one(self, bkd):
+        reported = 0.001
+
+        class SelfReporting(CallableMarshaller):
+            def values(self, outcome):
+                decoded = super().values(outcome)
+                return Decoded(
+                    values=decoded.values,
+                    indices=decoded.indices,
+                    wall_time=reported,
+                )
+
+        def slow(samples):
+            time.sleep(DELAY_PER_SAMPLE * 4)
+            return bkd.sum(samples, axis=0)[None, :]
+
+        marshaller = SelfReporting(slow, bkd, nvars=2, nqoi=1)
+        ev = Evaluator(marshaller, InlineDispatcher(marshaller.run))
+        ev.submit(bkd.ones((2, 2))).collect()
+
+        # The wrapper waited four delay units; the job says it took one
+        # millisecond. The ledger must believe the job.
+        assert ev.ledger().total().wall_clock == pytest.approx(
+            reported, abs=1e-6
+        )
+
+    def test_the_wrapper_measurement_stands_when_none_is_reported(
+        self, bkd
+    ):
+        """The common case: no runtime in the output, so time the call."""
+
+        def slow(samples):
+            time.sleep(DELAY_PER_SAMPLE)
+            return bkd.sum(samples, axis=0)[None, :]
+
+        ev = _build(bkd, fn=slow)
+        ev.submit(bkd.ones((2, 1))).collect()
+        assert ev.ledger().total().wall_clock >= DELAY_PER_SAMPLE * 0.5
 
 
 class TestCompletionHook:

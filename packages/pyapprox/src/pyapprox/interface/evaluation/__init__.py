@@ -64,6 +64,8 @@ from pyapprox.interface.evaluation.records import (
     JobStatus,
     Outcome,
     Request,
+    Resources,
+    TimeSource,
 )
 
 __all__ = [
@@ -77,6 +79,8 @@ __all__ = [
     "JobStatus",
     "Outcome",
     "Request",
+    "Resources",
+    "TimeSource",
     # Protocols -- exported because writing a dispatcher or a marshaller
     # needs all of them.
     "BatchProtocol",

@@ -51,7 +51,7 @@ this is a live hazard rather than a theoretical one.
 from dataclasses import dataclass, field
 from enum import Enum
 from math import isfinite
-from typing import Generic, Optional, Sequence, Tuple, TypeVar
+from typing import Generic, Mapping, Optional, Sequence, Tuple, TypeVar
 
 from pyapprox.util.backends.protocols import Array
 
@@ -79,6 +79,37 @@ class ComputeProvenance(Enum):
 
     NOT_APPLICABLE = "not_applicable"
     """No meaningful local core-second figure exists for this work."""
+
+
+class TimeSource(Enum):
+    """Who measured a job's duration.
+
+    The same argument as :class:`ComputeProvenance`, applied to the
+    other clock: the number travels with a statement of where it came
+    from, because the alternatives differ by orders of magnitude and a
+    caller ranking models on runtime cannot otherwise know what it is
+    comparing.
+
+    A wrapper timing a scheduler submission may report hours for a job
+    that ran for twenty minutes, since it also counts queue wait,
+    staging and filesystem sync. Mixing that with a self-reported figure
+    in one batch would silently compare two different quantities.
+    """
+
+    WRAPPER = "wrapper"
+    """Timed around the call, in the process that launched it.
+
+    Exact for in-process work, where the call *is* the job. For anything
+    external it is an upper bound that includes whatever the wrapper
+    waited through.
+    """
+
+    JOB = "job"
+    """Reported by the job itself, or by the system that ran it.
+
+    A solver writing its own runtime, or a scheduler's accounting. The
+    most accurate available, because it excludes startup and staging.
+    """
 
 
 @dataclass(frozen=True)
@@ -331,6 +362,98 @@ class JobStatus(Enum):
 
 
 @dataclass(frozen=True)
+class Resources:
+    """What one task needs from the machine that runs it.
+
+    **A property of the wrapped code, not of the dispatcher.** A
+    multifidelity ensemble may hold a serial model, a 32-rank model and
+    a 128-rank one, running on the same cluster through the same queue.
+    If the requirement lived on the dispatcher, that ensemble would need
+    three dispatchers differing only by the solver they serve -- and
+    three dispatchers cannot share one throttle, which is the whole
+    reason an ensemble wants a shared one.
+
+    So the marshaller declares what its code needs, and the dispatcher
+    decides what to do about it. **A dispatcher may ignore any of
+    this.** An in-process or thread dispatcher has no notion of a queue
+    or a memory limit and reads only ``ncores``, for accounting; a
+    scheduler dispatcher turns the rest into submission arguments. That
+    asymmetry is deliberate: a declaration a dispatcher cannot act on is
+    still worth making, because a different dispatcher can.
+
+    Attributes
+    ----------
+    ncores : int
+        Cores one task occupies. Multiplies ``wall_time`` to give the
+        compute a job is charged, so it is the one field every
+        dispatcher reads.
+    walltime_seconds : float, optional
+        How long the task may run before it should be considered lost.
+        A dispatcher holding a fixed allocation also needs this to avoid
+        starting work that cannot finish before the allocation ends.
+    memory_mb : int, optional
+        Memory the task needs. ``None`` where the caller has no figure,
+        which is not the same as needing none.
+    queue : str, optional
+        Which partition, queue or pool the work belongs in. Meaningless
+        to a local dispatcher and load-bearing to a scheduler.
+    extra : Mapping[str, str]
+        Site-specific submission arguments, passed through verbatim by
+        whichever dispatcher understands them -- an account to charge, a
+        node constraint, a GPU request.
+
+        The typed fields above are the ones this framework reads or that
+        every scheduler shares. Beyond them the space is not
+        enumerable: accounts, constraints, reservations and generic
+        resources differ by site, and a record that tried to name them
+        all would still be wrong somewhere. Without this, a site whose
+        need is missing has to edit this file or fork it, which is worse
+        than an escape hatch.
+
+        **Prefer a typed field where one fits.** Anything here is
+        invisible to type checking, unvalidated, and meaningful only to
+        a dispatcher that happens to recognize the key. A value that
+        turns out to be common belongs above, not here.
+
+        Strings rather than arbitrary objects, so the record stays
+        comparable, hashable in principle, and safe to write into a log
+        or a submission script without a serializer.
+    """
+
+    ncores: int = 1
+    walltime_seconds: Optional[float] = None
+    memory_mb: Optional[int] = None
+    queue: Optional[str] = None
+    extra: Mapping[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.ncores < 1:
+            raise ValueError(f"ncores must be >= 1, got {self.ncores}")
+        if self.walltime_seconds is not None:
+            if not isfinite(self.walltime_seconds):
+                raise ValueError(
+                    "walltime_seconds must be finite, got "
+                    f"{self.walltime_seconds}"
+                )
+            if self.walltime_seconds <= 0.0:
+                raise ValueError(
+                    "walltime_seconds must be positive, got "
+                    f"{self.walltime_seconds}"
+                )
+        if self.memory_mb is not None and self.memory_mb < 1:
+            raise ValueError(
+                f"memory_mb must be >= 1, got {self.memory_mb}"
+            )
+        if self.queue is not None and not self.queue:
+            raise ValueError("queue must be a non-empty name or None")
+
+    @classmethod
+    def serial(cls) -> "Resources":
+        """One core, nothing else specified. The common case."""
+        return cls()
+
+
+@dataclass(frozen=True)
 class Outcome(Generic[Task, Payload]):
     """What a finished job hands back.
 
@@ -360,12 +483,17 @@ class Outcome(Generic[Task, Payload]):
         the parent from submit to done: the latter counts queue wait,
         which for any batch larger than the pool is most of the elapsed
         time, and overstates compute severalfold.
-    ncores : int
-        How many cores the job occupied. A property of the *wrapped
-        code* (``mpirun -n 32``), not of the machine -- a multifidelity
-        ensemble with a serial model, a 32-rank model and a 128-rank
-        model runs on one cluster through one queue, so a per-dispatcher
-        constant would force three dispatchers differing only by solver.
+    time_source : TimeSource
+        Who measured ``wall_time``. Defaults to ``WRAPPER``, which is
+        what a dispatcher timing its own call can honestly claim. A
+        marshaller that reads a runtime out of the solver's own output,
+        or a dispatcher reading a scheduler's accounting, replaces both
+        the figure and this label.
+    resources : Resources
+        What the job asked of the machine. Carried on the outcome as
+        well as the task because cost is computed from it, and because a
+        run record that says what a job requested is more useful than
+        one that says only how long it took.
     detail : str, optional
         Human-readable note: exit code, exception text, which deadline
         expired. Diagnostics only; nothing branches on it.
@@ -376,7 +504,8 @@ class Outcome(Generic[Task, Payload]):
     status: JobStatus
     payload: Optional[Payload] = None
     wall_time: float = 0.0
-    ncores: int = 1
+    time_source: TimeSource = TimeSource.WRAPPER
+    resources: Resources = field(default_factory=Resources)
     detail: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -386,20 +515,23 @@ class Outcome(Generic[Task, Payload]):
             raise ValueError(
                 f"wall_time must be non-negative, got {self.wall_time}"
             )
-        if self.ncores < 1:
-            raise ValueError(f"ncores must be >= 1, got {self.ncores}")
         if self.status is JobStatus.SUCCEEDED and self.payload is None:
             raise ValueError("a SUCCEEDED outcome must carry a payload")
+
+    def ncores(self) -> int:
+        """How many cores this job occupied."""
+        return self.resources.ncores
 
     def cost(self) -> Cost:
         """What this job spent.
 
         ``compute`` is ``wall_time * ncores``, which is correct for a
-        heterogeneous batch precisely because ``ncores`` is per-job.
+        heterogeneous batch precisely because the core count is per-job
+        rather than a property of the dispatcher that ran it.
         """
         return Cost.measured(
             wall_clock=self.wall_time,
-            compute=self.wall_time * self.ncores,
+            compute=self.wall_time * self.resources.ncores,
         )
 
     def nsamples(self) -> int:
@@ -562,6 +694,17 @@ class Decoded(Generic[Array]):
     jvps : Array, optional
         Jacobian-vector products, shape ``(nqoi, len(indices))`` --
         **QoI space**.
+    wall_time : float, optional
+        How long the job took, **as reported by the job itself**, when
+        its output says so. A solver that writes its own runtime knows
+        better than anything wrapping it: the wrapper's figure includes
+        process startup, input staging, filesystem sync, and on a
+        scheduler the whole queue wait. Where this is present the
+        evaluator prefers it and records the outcome's time source as
+        ``JOB`` rather than ``WRAPPER``.
+
+        ``None`` when the output carries no such figure, which is the
+        common case and leaves the wrapper's measurement in place.
     hvps : Array, optional
         Hessian-vector products, shape ``(len(indices), nvars)`` --
         sample-**first**, unlike ``values`` and ``jvps``, because the
@@ -594,6 +737,7 @@ class Decoded(Generic[Array]):
     jvps: Optional[Array] = None
     hvps: Optional[Array] = None
     hvp_weights: Optional[Array] = None
+    wall_time: Optional[float] = None
 
     def __post_init__(self) -> None:
         # Positional correspondence is the whole contract of this

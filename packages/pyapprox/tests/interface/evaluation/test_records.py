@@ -22,6 +22,8 @@ from pyapprox.interface.evaluation.records import (
     EvalResult,
     JobStatus,
     Outcome,
+    Resources,
+    TimeSource,
 )
 
 
@@ -206,14 +208,20 @@ class TestJobStatus:
 
 class TestOutcome:
     def test_cost_scales_with_ncores(self, numpy_bkd):
-        """The 32-rank MPI case: compute is wall_time * ncores."""
+        """The 32-rank MPI case: compute is wall_time * ncores.
+
+        The core count rides on the outcome's ``Resources`` because it
+        is a property of the wrapped code rather than of the machine --
+        which is what lets a serial model and a 32-rank one share one
+        dispatcher, and one throttle.
+        """
         outcome = Outcome(
             task="t",
             indices=[0],
             status=JobStatus.SUCCEEDED,
             payload="p",
             wall_time=2.0,
-            ncores=32,
+            resources=Resources(ncores=32),
         )
         numpy_bkd.assert_allclose(
             numpy_bkd.asarray([outcome.cost().compute]),
@@ -242,16 +250,111 @@ class TestOutcome:
             )
 
     def test_rejects_zero_ncores(self):
+        """Validated on the record that owns the field."""
         with pytest.raises(ValueError, match="ncores"):
-            Outcome(
-                task="t", indices=[0], status=JobStatus.FAILED, ncores=0
-            )
+            Resources(ncores=0)
 
     def test_nsamples_counts_indices(self):
         outcome = Outcome(
             task="t", indices=[3, 7, 11], status=JobStatus.FAILED
         )
         assert outcome.nsamples() == 3
+
+
+class TestResources:
+    """What a task needs from the machine, declared by the code.
+
+    Lives on the task rather than the dispatcher so that one shared
+    dispatcher -- and therefore one throttle -- can serve models with
+    different requirements. A per-dispatcher constant would force an
+    ensemble holding a serial model and a 32-rank model into two
+    dispatchers, which cannot share a throttle.
+    """
+
+    def test_defaults_to_one_serial_core(self):
+        resources = Resources()
+        assert resources.ncores == 1
+        assert resources.walltime_seconds is None
+        assert resources.memory_mb is None
+        assert resources.queue is None
+        assert dict(resources.extra) == {}
+
+    def test_serial_constructor(self):
+        assert Resources.serial() == Resources()
+
+    def test_heterogeneous_models_differ(self):
+        """The case the record exists for."""
+        serial = Resources(ncores=1)
+        parallel = Resources(ncores=32, queue="compute")
+        assert serial.ncores != parallel.ncores
+        assert parallel.queue == "compute"
+
+    @pytest.mark.parametrize("bad", [0, -1])
+    def test_rejects_bad_ncores(self, bad):
+        with pytest.raises(ValueError, match="ncores"):
+            Resources(ncores=bad)
+
+    @pytest.mark.parametrize("bad", [0.0, -1.0])
+    def test_rejects_nonpositive_walltime(self, bad):
+        with pytest.raises(ValueError, match="walltime"):
+            Resources(walltime_seconds=bad)
+
+    def test_rejects_non_finite_walltime(self):
+        with pytest.raises(ValueError, match="finite"):
+            Resources(walltime_seconds=float("inf"))
+
+    def test_rejects_zero_memory(self):
+        with pytest.raises(ValueError, match="memory_mb"):
+            Resources(memory_mb=0)
+
+    def test_rejects_empty_queue_name(self):
+        """None means unspecified; empty string means nothing."""
+        with pytest.raises(ValueError, match="queue"):
+            Resources(queue="")
+
+    def test_extra_carries_site_specific_arguments(self):
+        """The escape hatch: what no record could enumerate."""
+        resources = Resources(
+            ncores=8, extra={"account": "m1234", "constraint": "gpu"}
+        )
+        assert resources.extra["account"] == "m1234"
+
+    def test_adding_a_field_would_not_break_callers(self):
+        """Defaults everywhere, so an older construction still works."""
+        assert Resources(ncores=4) == Resources(
+            ncores=4,
+            walltime_seconds=None,
+            memory_mb=None,
+            queue=None,
+        )
+
+
+class TestTimeSource:
+    """Which clock produced a duration, since they differ hugely.
+
+    A wrapper timing a scheduler submission counts queue wait, staging
+    and startup; a job reporting its own runtime counts none of them.
+    Mixing the two in one batch without saying which is which compares
+    two different quantities.
+    """
+
+    def test_outcome_defaults_to_wrapper(self):
+        """What a dispatcher timing its own call can honestly claim."""
+        outcome = Outcome(
+            task="t", indices=[0], status=JobStatus.FAILED
+        )
+        assert outcome.time_source is TimeSource.WRAPPER
+
+    def test_a_job_reported_time_can_be_recorded(self):
+        outcome = Outcome(
+            task="t",
+            indices=[0],
+            status=JobStatus.SUCCEEDED,
+            payload="p",
+            wall_time=12.0,
+            time_source=TimeSource.JOB,
+        )
+        assert outcome.time_source is TimeSource.JOB
 
 
 class TestEvalProgress:

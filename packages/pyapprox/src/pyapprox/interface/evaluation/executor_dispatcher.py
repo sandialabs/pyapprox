@@ -41,6 +41,7 @@ from pyapprox.interface.evaluation.records import (
     ComputeProvenance,
     JobStatus,
     Outcome,
+    Resources,
 )
 
 Task = TypeVar("Task", bound=TaskProtocol)
@@ -83,11 +84,11 @@ class ExecutorJobHandle(Generic[Task, Payload]):
         self,
         task: Task,
         future: "Future[TimedResult[Payload]]",
-        ncores: int = 1,
+        resources: Optional[Resources] = None,
     ) -> None:
         self._task = task
         self._future = future
-        self._ncores = ncores
+        self._resources = Resources() if resources is None else resources
 
     def done(self) -> bool:
         """Whether the job has finished, without consuming anything."""
@@ -126,7 +127,7 @@ class ExecutorJobHandle(Generic[Task, Payload]):
                 task=self._task,
                 indices=self._task.indices,
                 status=JobStatus.FAILED,
-                ncores=self._ncores,
+                resources=self._resources,
                 detail=f"{type(exc).__name__}: {exc}",
             )
         return Outcome(
@@ -135,7 +136,7 @@ class ExecutorJobHandle(Generic[Task, Payload]):
             status=JobStatus.SUCCEEDED,
             payload=timed.payload,
             wall_time=timed.wall_time,
-            ncores=self._ncores,
+            resources=self._resources,
         )
 
     def cancel(self) -> bool:
@@ -167,9 +168,11 @@ class ExecutorDispatcher(Generic[Task, Payload]):
         How many tasks run at once. A constructor argument because
         ``Executor`` exposes no public worker count, and both grouping
         and estimated costs depend on it.
-    ncores : int
-        Cores one task occupies. A property of the wrapped code rather
-        than of the pool.
+    resources : Resources, optional
+        What one task needs from the machine. A property of the wrapped
+        code rather than of the pool, which is what lets one shared
+        executor serve a serial model and a 32-rank model at once.
+        Defaults to one core and nothing else specified.
     owns_executor : bool
         Whether :meth:`close` shuts the executor down. ``False`` by
         default, so sharing is safe and the caller who built the pool
@@ -181,7 +184,7 @@ class ExecutorDispatcher(Generic[Task, Payload]):
         run: Callable[[Task], Payload],
         executor: Executor,
         concurrency: int,
-        ncores: int = 1,
+        resources: Optional[Resources] = None,
         owns_executor: bool = False,
     ) -> None:
         if not callable(run):
@@ -193,12 +196,10 @@ class ExecutorDispatcher(Generic[Task, Payload]):
             )
         if concurrency < 1:
             raise ValueError(f"concurrency must be >= 1, got {concurrency}")
-        if ncores < 1:
-            raise ValueError(f"ncores must be >= 1, got {ncores}")
         self._timed = _TimedCall(run)
         self._executor = executor
         self._concurrency = concurrency
-        self._ncores = ncores
+        self._resources = Resources() if resources is None else resources
         self._owns_executor = owns_executor
         self._closed = False
 
@@ -226,7 +227,7 @@ class ExecutorDispatcher(Generic[Task, Payload]):
             future = self._executor.submit(self._timed, task)
             handles.append(
                 ExecutorJobHandle(
-                    task=task, future=future, ncores=self._ncores
+                    task=task, future=future, resources=self._resources
                 )
             )
         return handles
@@ -251,7 +252,7 @@ class ExecutorDispatcher(Generic[Task, Payload]):
 def thread_dispatcher(
     run: Callable[[Task], Payload],
     concurrency: int,
-    ncores: int = 1,
+    resources: Optional[Resources] = None,
 ) -> ExecutorDispatcher[Task, Payload]:
     """A dispatcher over a thread pool it owns.
 
@@ -263,7 +264,7 @@ def thread_dispatcher(
         run=run,
         executor=ThreadPoolExecutor(max_workers=concurrency),
         concurrency=concurrency,
-        ncores=ncores,
+        resources=resources,
         owns_executor=True,
     )
 
@@ -271,7 +272,7 @@ def thread_dispatcher(
 def process_dispatcher(
     run: Callable[[Task], Payload],
     concurrency: int,
-    ncores: int = 1,
+    resources: Optional[Resources] = None,
 ) -> ExecutorDispatcher[Task, Payload]:
     """A dispatcher over a process pool it owns.
 
@@ -293,6 +294,6 @@ def process_dispatcher(
         run=run,
         executor=ProcessPoolExecutor(max_workers=concurrency),
         concurrency=concurrency,
-        ncores=ncores,
+        resources=resources,
         owns_executor=True,
     )

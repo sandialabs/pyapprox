@@ -34,6 +34,7 @@ from pyapprox.interface.evaluation.records import (
     ComputeProvenance,
     JobStatus,
     Outcome,
+    Resources,
 )
 
 Task = TypeVar("Task", bound=TaskProtocol)
@@ -52,12 +53,12 @@ class InlineJobHandle(Generic[Task, Payload]):
         task: Task,
         indices: Sequence[int],
         run: Callable[[Task], Payload],
-        ncores: int = 1,
+        resources: Optional[Resources] = None,
     ) -> None:
         self._task = task
         self._indices = indices
         self._run = run
-        self._ncores = ncores
+        self._resources = Resources() if resources is None else resources
         self._outcome: Optional[Outcome[Task, Payload]] = None
         self._cancelled = False
 
@@ -104,7 +105,7 @@ class InlineJobHandle(Generic[Task, Payload]):
                 indices=self._indices,
                 status=JobStatus.FAILED,
                 wall_time=time.perf_counter() - start,
-                ncores=self._ncores,
+                resources=self._resources,
                 detail=f"{type(exc).__name__}: {exc}",
             )
         else:
@@ -114,7 +115,7 @@ class InlineJobHandle(Generic[Task, Payload]):
                 status=JobStatus.SUCCEEDED,
                 payload=payload,
                 wall_time=time.perf_counter() - start,
-                ncores=self._ncores,
+                resources=self._resources,
             )
         return self._outcome
 

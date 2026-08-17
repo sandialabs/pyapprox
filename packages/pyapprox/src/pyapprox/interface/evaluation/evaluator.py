@@ -198,8 +198,6 @@ class Batch(Generic[Array, Task, Payload]):
                 continue
             self._pending.remove(handle)
             outcome = handle.outcome()
-            cost = outcome.cost()
-            self._ledger.add(cost)
 
             decoded: Optional[Decoded[Array]] = None
             if outcome.status is JobStatus.SUCCEEDED:
@@ -209,6 +207,14 @@ class Batch(Generic[Array, Task, Payload]):
                     # A statement about one task: record its samples as
                     # failed and keep the rest of the batch running.
                     decoded = None
+
+            # Decoding first, because it may carry a better duration than
+            # the dispatcher measured. A wrapper times whatever it waited
+            # through -- process startup, input staging, and on a
+            # scheduler the whole queue wait -- while a solver reporting
+            # its own runtime is timing the work itself.
+            cost = _outcome_cost(outcome, decoded)
+            self._ledger.add(cost)
 
             if decoded is None:
                 target = (
@@ -527,6 +533,26 @@ def _select(piece: Array, name: str, take: Sequence[int]) -> Array:
     if _DERIVATIVE_FIELDS[name] == 0:
         return piece[take]
     return piece[:, take]
+
+
+def _outcome_cost(
+    outcome: Outcome[Task, Payload], decoded: Optional[Decoded[Array]]
+) -> Cost:
+    """What a job spent, preferring a duration the job reported itself.
+
+    A dispatcher can only time what it waited on. For in-process work
+    that is the job, but for anything external it also covers process
+    startup, input staging, filesystem sync, and on a scheduler the
+    entire queue wait -- so the figure can exceed the real one by orders
+    of magnitude. Where the marshaller decoded a runtime out of the
+    job's own output, that is the better number and is used instead.
+    """
+    if decoded is None or decoded.wall_time is None:
+        return outcome.cost()
+    return Cost.measured(
+        wall_clock=decoded.wall_time,
+        compute=decoded.wall_time * outcome.resources.ncores,
+    )
 
 
 def _by_index(tagged: Tuple[int, Array]) -> int:
