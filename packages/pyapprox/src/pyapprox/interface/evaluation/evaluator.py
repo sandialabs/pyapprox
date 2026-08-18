@@ -274,12 +274,23 @@ class Batch(Generic[Array, Task, Payload]):
                     first = fresh[0][1]
                     if decoded.values.shape[1] > 0:
                         columns.append((first, decoded.values[:, take]))
+                # Derivatives are gathered whether or not these indices
+                # are newly succeeded. Where one request became several
+                # tasks -- a solver computing values and a jacobian by
+                # separate invocations -- the second task covers indices
+                # the first already reported, and skipping it would
+                # discard exactly the quantity it was run to produce.
+                # Success is per quantity, and this is where that holds.
+                if decoded.indices:
+                    at = list(range(len(decoded.indices)))
+                    origin = decoded.indices[0]
                     for name in _DERIVATIVE_FIELDS:
                         piece = getattr(decoded, name)
                         if piece is not None:
                             derivative_pieces[name].append(
-                                (first, _select(piece, name, take))
+                                (origin, _select(piece, name, at))
                             )
+
                 # A task that decoded fewer samples than it covered
                 # fails the remainder -- per quantity, not per sample.
                 undecoded = set(outcome.indices) - set(decoded.indices)

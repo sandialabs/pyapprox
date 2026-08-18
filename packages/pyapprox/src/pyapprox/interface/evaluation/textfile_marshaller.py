@@ -41,7 +41,16 @@ import uuid
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Generic, List, Optional, Sequence
+from typing import (
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+)
 
 from pyapprox.interface.evaluation.protocols import MarshalError
 from pyapprox.interface.evaluation.records import (
@@ -61,6 +70,68 @@ from pyapprox.util.backends.protocols import Array, Backend
 #: What the solver reads and writes, relative to its working directory.
 DEFAULT_PARAMS_FILENAME = "params.in"
 DEFAULT_RESULTS_FILENAME = "results.out"
+
+#: How many numbers one sample's worth of each quantity holds, and the
+#: shape it takes in a :class:`Decoded`, keyed by derivative-bundle
+#: field name.
+#:
+#: Shipped rather than left to each marshaller because the conventions
+#: are not uniform and getting one wrong **transposes a result rather
+#: than raising**. Jacobians, Hessians and Hessian-vector products are
+#: sample-*first*; values and jacobian-vector products are sample-*last*.
+#: A Hessian-vector product additionally carries no ``nqoi`` axis at
+#: all -- its batch form is scalar-implicit, which the derivative bundle
+#: itself flags as a recurring trap when reshaping.
+#:
+#: Bundle field names rather than a new vocabulary, so there is nothing
+#: extra to learn and the mapping to result fields is the one the
+#: records already publish.
+QUANTITY_LAYOUT: Dict[str, "_QuantityLayout"] = {}
+
+
+@dataclass(frozen=True)
+class _QuantityLayout:
+    """Where one quantity lands, and what shape it takes."""
+
+    field: str
+    count: Callable[[int, int], int]
+    shape: Callable[[int, int], Tuple[int, ...]]
+
+
+QUANTITY_LAYOUT.update(
+    {
+        "values": _QuantityLayout(
+            "values",
+            lambda nqoi, nvars: nqoi,
+            lambda nqoi, nvars: (nqoi, 1),
+        ),
+        "jacobian_batch": _QuantityLayout(
+            "jacobians",
+            lambda nqoi, nvars: nqoi * nvars,
+            lambda nqoi, nvars: (1, nqoi, nvars),
+        ),
+        "hessian_batch": _QuantityLayout(
+            "hessians",
+            lambda nqoi, nvars: nvars * nvars,
+            lambda nqoi, nvars: (1, nvars, nvars),
+        ),
+        "jvp": _QuantityLayout(
+            "jvps",
+            lambda nqoi, nvars: nqoi,
+            lambda nqoi, nvars: (nqoi, 1),
+        ),
+        "hvp_batch": _QuantityLayout(
+            "hvps",
+            lambda nqoi, nvars: nvars,
+            lambda nqoi, nvars: (1, nvars),
+        ),
+        "whvp_batch": _QuantityLayout(
+            "hvps",
+            lambda nqoi, nvars: nvars,
+            lambda nqoi, nvars: (1, nvars),
+        ),
+    }
+)
 
 
 class Retention(Enum):
@@ -153,6 +224,20 @@ class TextFileMarshaller(Generic[Array]):
         )
         self._params_filename = params_filename
         self._results_filename = results_filename
+        # How many tasks still expect each working directory to exist.
+        #
+        # A directory belongs to a *sample*, but ``release`` is called
+        # per *task*, and one sample may be covered by several: a solver
+        # computing its values and its derivatives by separate
+        # invocations shares one directory between them. Deleting on the
+        # first release would remove the inputs the second still has to
+        # read -- and it would do so silently, since that task simply
+        # finds no output where it expected one.
+        self._outstanding: Dict[str, int] = {}
+        # Directories whose sample failed in at least one invocation, so
+        # a retained-on-failure directory is kept when any of the tasks
+        # sharing it failed rather than only the last to be released.
+        self._failed_dirs: Set[str] = set()
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -190,10 +275,18 @@ class TextFileMarshaller(Generic[Array]):
           an input of its own. A jacobian-vector or Hessian-vector
           product is evaluated *with* its direction, so the direction is
           written into the input file rather than applied to a returned
-          matrix;
-        - :meth:`commands_for`, where a second executable computes them;
+          matrix. Use :meth:`direction_for` to slice it;
+        - :meth:`commands_for`, where a second executable computes them.
+          Use :meth:`quantities_in` to read the request;
         - :meth:`values`, using :meth:`read_numbers` for each extra file
-          with the count that quantity's shape implies.
+          and :meth:`decode_quantity` to reshape what it holds.
+
+        Those three helpers exist because the work they do is identical
+        for every solver and silently wrong when hand-written: the
+        direction must be indexed by the sample's batch column rather
+        than its position in a task, and each quantity has its own axis
+        convention, so a wrong one transposes a result instead of
+        raising.
 
         Everything else -- directory creation, symlinking, retention,
         grouping -- is unchanged.
@@ -213,26 +306,22 @@ class TextFileMarshaller(Generic[Array]):
         why directory creation belongs to marshalling rather than to
         dispatch.
         """
-        if not request.values:
-            raise MarshalError(
-                "this marshaller decodes values; a request for anything "
-                "else has nothing to run"
-            )
         built: List[ShellTask] = []
         for position, index in enumerate(indices):
             layout = self._prepare(index)
             self.write_inputs(
-                layout, samples[:, position : position + 1], position,
-                request,
+                layout, samples[:, position : position + 1], index, request
             )
-            built.extend(self.commands_for(layout, index, request))
+            commands = list(self.commands_for(layout, index, request))
+            self._outstanding[str(layout.workdir)] = len(commands)
+            built.extend(commands)
         return built
 
     def write_inputs(
         self,
         layout: _Layout,
         sample: Array,
-        position: int,
+        index: int,
         request: Request[Array],
     ) -> None:
         """Write everything the solver needs to read for one sample.
@@ -244,8 +333,12 @@ class TextFileMarshaller(Generic[Array]):
         writes ``request.jvp_vecs`` or ``request.hvp_vecs`` alongside
         the sample, and the weighted form writes ``hvp_weights`` too.
 
-        ``position`` indexes the vectors, which cover the whole
-        submitted batch rather than this one task.
+        ``index`` is the sample's column in the **submitted batch**,
+        which is what indexes those vectors: they span the submission,
+        not this task. Slicing them by a position within the task
+        instead would hand every task the first sample's direction --
+        correct-looking output for the wrong input, and invisible
+        wherever a task holds a single sample.
 
         A subclass overrides this and leaves the directory creation,
         symlinking and grouping above untouched.
@@ -265,7 +358,36 @@ class TextFileMarshaller(Generic[Array]):
         answers a request for values and a jacobian with *two* tasks over
         the same directory, and a subclass expresses that by overriding
         this alone.
+
+        A request for anything this marshaller cannot produce is refused
+        here rather than in :meth:`tasks`, because which quantities are
+        available is exactly what a subclass changes -- and the base
+        class refusing on its behalf would make the seam unusable.
+
+        **Tasks returned here are independent.** They share a working
+        directory but the dispatcher may run them in any order, or at
+        the same time, so none may depend on another having finished. A
+        solver whose derivative step reuses the forward solution is
+        therefore one invocation that writes both, not two -- express it
+        by returning a single task and decoding several files from it.
+        Returning two would read a forward solution that may not exist
+        yet, and only sometimes.
+
+        **Ask for everything in one request.** Requesting values now and
+        a jacobian later means two submissions, and the directory from
+        the first is gone by the second, so the sample is solved again
+        from scratch. Directory setup is milliseconds and irrelevant;
+        the repeated solve is the cost, and for a code that could have
+        produced both in one invocation it is the entire cost. Whether
+        the second request can be avoided at all is the caller's to
+        know, since only the caller can say two submissions concern the
+        same point.
         """
+        if not request.values:
+            raise MarshalError(
+                "this marshaller produces values and nothing else, so a "
+                "request for anything else has no command to run"
+            )
         return [
             ShellTask(
                 indices=(index,),
@@ -274,6 +396,86 @@ class TextFileMarshaller(Generic[Array]):
                 resources=self._resources,
             )
         ]
+
+    def quantities_in(self, request: Request[Array]) -> List[str]:
+        """Which quantities a request asks for, by bundle field name.
+
+        Restricted to what :meth:`derivatives` advertises, so a
+        marshaller is never asked to produce something it does not
+        offer. Shipped rather than left to each subclass because the
+        chain is the same for everyone and the names have to match the
+        bundle's exactly.
+        """
+        derivs = self.derivatives()
+        wanted: List[str] = []
+        if request.values:
+            wanted.append("values")
+        if request.jacobians and derivs.jacobian_batch is not None:
+            wanted.append("jacobian_batch")
+        if request.hessians and derivs.hessian_batch is not None:
+            wanted.append("hessian_batch")
+        if request.wants_jvp() and derivs.jvp is not None:
+            wanted.append("jvp")
+        if request.wants_hvp():
+            if request.is_weighted_hvp():
+                if derivs.whvp_batch is not None:
+                    wanted.append("whvp_batch")
+            elif derivs.hvp_batch is not None:
+                wanted.append("hvp_batch")
+        return wanted
+
+    def direction_for(
+        self, request: Request[Array], index: int
+    ) -> Optional[Array]:
+        """This sample's direction vector, or ``None`` if none applies.
+
+        ``index`` is the sample's column in the **submitted batch**,
+        which is what indexes these vectors: a request carries one per
+        sample across the whole submission, not per task. Slicing by a
+        position within the task instead gives every task the *first*
+        sample's direction -- an answer of the right shape to the wrong
+        question, and invisible wherever a task holds one sample.
+
+        Shipped for exactly that reason: the slice is identical for
+        every marshaller and silently wrong when it is not.
+        """
+        vectors = (
+            request.hvp_vecs
+            if request.hvp_vecs is not None
+            else request.jvp_vecs
+        )
+        if vectors is None:
+            return None
+        return vectors[:, index : index + 1]
+
+    def decode_quantity(
+        self, quantity: str, numbers: Sequence[float]
+    ) -> Tuple[str, Array]:
+        """Reshape one quantity's numbers, and say which field it fills.
+
+        Returns the ``Decoded`` field name and the array, so a subclass
+        assembles a record without having to remember which axis a
+        quantity uses -- the part that transposes silently when wrong.
+
+        Numbers are expected flat and in the order the shape implies,
+        row-major for a jacobian.
+        """
+        layout = QUANTITY_LAYOUT.get(quantity)
+        if layout is None:
+            raise MarshalError(
+                f"unknown quantity {quantity!r}; expected one of "
+                f"{sorted(QUANTITY_LAYOUT)}"
+            )
+        nqoi, nvars = self._nqoi, self._nvars
+        expected = layout.count(nqoi, nvars)
+        if len(numbers) != expected:
+            raise MarshalError(
+                f"{quantity} holds {len(numbers)} numbers, expected "
+                f"{expected}"
+            )
+        return layout.field, self._bkd.reshape(
+            self._bkd.asarray(list(numbers)), layout.shape(nqoi, nvars)
+        )
 
     def _prepare(self, index: int) -> _Layout:
         """Make a working directory and link whatever it needs.
@@ -375,13 +577,28 @@ class TextFileMarshaller(Generic[Array]):
         may write subdirectories and dotfiles, and a glob-and-unlink
         misses the second and raises on the first.
         """
+        key = outcome.task.workdir
+        remaining = self._outstanding.get(key, 1) - 1
+        if remaining > 0:
+            # Another task still needs this directory. Any failure it
+            # reported is remembered, so a sample that failed in one
+            # invocation keeps its evidence even if a sibling succeeded.
+            self._outstanding[key] = remaining
+            if outcome.status is not JobStatus.SUCCEEDED:
+                self._failed_dirs.add(key)
+            return
+        self._outstanding.pop(key, None)
+
+        failed = (
+            key in self._failed_dirs
+            or outcome.status is not JobStatus.SUCCEEDED
+        )
+        self._failed_dirs.discard(key)
+
         if self._retention is Retention.ALWAYS:
             return
-        if (
-            self._retention is Retention.ON_FAILURE
-            and outcome.status is not JobStatus.SUCCEEDED
-        ):
+        if self._retention is Retention.ON_FAILURE and failed:
             return
-        workdir = Path(outcome.task.workdir)
+        workdir = Path(key)
         if workdir.exists():
             shutil.rmtree(workdir, ignore_errors=True)
