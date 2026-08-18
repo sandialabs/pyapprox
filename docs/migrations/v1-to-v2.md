@@ -259,12 +259,14 @@ Available names include `IshigamiFunction`, `RosenbrockFunction`,
 
 ### 5.5 Model interface
 
-`pyapprox.interface.wrappers` is now class-based: `WorkTracker`,
-`TrackedModel`, `FiniteDifferenceWrapper`. Functions you pass to v2
+`pyapprox.interface.wrappers` is class-based:
+`FiniteDifferenceWrapper`. Evaluation counts and wall times are recorded
+by `FunctionTimer`/`TimedFunction` in
+`pyapprox.interface.functions.timing`. Functions you pass to pyapprox
 algorithms should satisfy the protocols in
 `pyapprox.interface.functions.protocols` (`FunctionProtocol`, etc.);
 `FunctionFromCallable` adapts a plain Python callable. UM-Bridge support
-moved behind the `umbridge` extra (`pyapprox.interface.umbridge`,
+sits behind the `umbridge` extra (`pyapprox.interface.umbridge`,
 `UMBridgeModel`), and parallel evaluation lives in
 `pyapprox.interface.parallel`.
 

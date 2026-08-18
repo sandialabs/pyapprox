@@ -3,9 +3,13 @@
 This module provides:
 
 Wrappers:
-- WorkTracker: Track model evaluation counts and wall times
-- TrackedModel: Transparent wrapper that records to WorkTracker
 - FiniteDifferenceWrapper: Add finite difference jacobian/hessian to functions
+
+Evaluation (from evaluation submodule):
+- Evaluator, Ensemble, etc. for non-blocking submit/poll/collect
+
+Timing (from functions submodule):
+- FunctionTimer, TimedFunction: record evaluation counts and wall times
 
 UMBridge:
 - UMBridgeModel: HTTP client for UMBridge models
@@ -20,14 +24,10 @@ Functions (from functions submodule):
 
 from pyapprox.interface.wrappers import (
     FiniteDifferenceWrapper,
-    TrackedModel,
-    WorkTracker,
 )
 
 __all__ = [
     # Wrappers
-    "WorkTracker",
-    "TrackedModel",
     "FiniteDifferenceWrapper",
     # UMBridge (lazy import to avoid ~300ms umbridge load time)
     "UMBridgeModel",
@@ -40,8 +40,8 @@ def __getattr__(name: str) -> object:
 
     UMBridge is deferred because importing umbridge pulls in aiohttp and
     other HTTP dependencies (~300ms), which penalizes users who never use
-    the UMBridge client.  Other symbols in this module (WorkTracker, etc.)
-    are lightweight and imported eagerly.
+    the UMBridge client.  Other symbols in this module are lightweight and
+    imported eagerly.
     """
     if name in ("UMBridgeModel", "UMBRIDGE_AVAILABLE"):
         from pyapprox.interface.umbridge import (

@@ -4,10 +4,6 @@ This module provides:
 - ParallelConfig: Configuration for parallel execution
 - make_parallel: Factory to wrap functions with parallel batch methods
 - ParallelFunctionWrapper: Wrapper class for parallel batch methods
-- ParallelJacobianMixin: Mixin for adding parallel jacobian_batch
-- ParallelHessianMixin: Mixin for adding parallel hessian_batch
-- ParallelHVPMixin: Mixin for adding parallel hvp_batch
-- ParallelWHVPMixin: Mixin for adding parallel whvp_batch
 - JoblibBackend: Parallel backend using joblib
 - FuturesBackend: Parallel backend using concurrent.futures (stdlib)
 - MpireBackend: Parallel backend using mpire
@@ -21,19 +17,13 @@ Examples
 >>> from pyapprox.interface.parallel import make_parallel
 >>> # Wrap a function with parallel support
 >>> parallel_func = make_parallel(my_func, backend="joblib_processes", n_jobs=4)
->>> jacobians = parallel_func.jacobian_batch(samples)
+>>> jacobians = parallel_func.derivatives().jacobian_batch(samples)
 
->>> # Or use mixins for class-based control
->>> from pyapprox.interface.parallel import (
-...     ParallelJacobianMixin,
-...     ParallelConfig,
-... )
->>> class MyFunction(ParallelJacobianMixin):
-...     def jacobian(self, sample):
-...         ...  # single sample implementation
->>> func = MyFunction()
->>> func.set_parallel_config(ParallelConfig(backend="mpire", n_jobs=4))
->>> jacobians = func.jacobian_batch(samples)
+>>> # Or configure the backend explicitly
+>>> from pyapprox.interface.parallel import ParallelConfig
+>>> config = ParallelConfig(backend="mpire", n_jobs=4)
+>>> parallel_func = ParallelFunctionWrapper(my_func, config)
+>>> jacobians = parallel_func.derivatives().jacobian_batch(samples)
 """
 
 from pyapprox.interface.parallel.batch_utils import BatchSplitter
@@ -47,12 +37,6 @@ from pyapprox.interface.parallel.factory import (
 )
 from pyapprox.interface.parallel.futures_backend import FuturesBackend
 from pyapprox.interface.parallel.joblib_backend import JoblibBackend
-from pyapprox.interface.parallel.mixins import (
-    ParallelHessianMixin,
-    ParallelHVPMixin,
-    ParallelJacobianMixin,
-    ParallelWHVPMixin,
-)
 from pyapprox.interface.parallel.mpire_backend import MpireBackend
 from pyapprox.interface.parallel.protocols import (
     ParallelBackendProtocol,
@@ -65,11 +49,6 @@ __all__ = [
     # Factory
     "make_parallel",
     "ParallelFunctionWrapper",
-    # Mixins
-    "ParallelJacobianMixin",
-    "ParallelHessianMixin",
-    "ParallelHVPMixin",
-    "ParallelWHVPMixin",
     # Backends
     "FuturesBackend",
     "JoblibBackend",

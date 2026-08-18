@@ -1,6 +1,6 @@
 """Every benchmark model class must expose a ``derivatives()`` bundle.
 
-Generic wrappers (timed, make_parallel, TrackedModel, ...) require
+Generic wrappers (timed, make_parallel, ...) require
 ObjectiveProtocol — evaluation plus ``derivatives()``. Per the
 derivatives-bundle convention, absence of capability is expressed by
 ``Derivatives.none()``, never by a missing method. A benchmark model
