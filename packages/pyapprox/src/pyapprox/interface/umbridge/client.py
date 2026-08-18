@@ -17,6 +17,7 @@ import subprocess
 import time
 from typing import IO, Any, Dict, Generic, List, Optional, Tuple
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
 
@@ -91,6 +92,27 @@ class UMBridgeModel(Generic[Array]):
         # Create HTTP model connection
         self._model: umbridge.HTTPModel = umbridge.HTTPModel(url, model_name)
 
+        # Capability is whatever the server advertises, resolved once
+        # here rather than per call. A server may support any subset --
+        # apply_jacobian without gradient is legal -- so the raw
+        # constructor is used rather than a named one, which would
+        # require a jacobian that this server need not provide.
+        self._derivs: Derivatives[Array] = Derivatives(
+            jacobian=(
+                self._jacobian if self._model.supports_gradient() else None
+            ),
+            jvp=(
+                self._jvp
+                if self._model.supports_apply_jacobian()
+                else None
+            ),
+            hvp=(
+                self._hvp
+                if self._model.supports_apply_hessian()
+                else None
+            ),
+        )
+
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
@@ -129,39 +151,20 @@ class UMBridgeModel(Generic[Array]):
         """
         self._config = config
 
-    def has_jacobian(self) -> bool:
-        """Check if the model supports jacobian computation.
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative capability the server advertises.
+
+        The bundle is built once at construction from the server's
+        ``supports_*`` queries, so capability is fixed for the lifetime
+        of the client and each query costs no HTTP round trip.
 
         Returns
         -------
-        bool
-            True if the model supports jacobian (gradient).
+        Derivatives[Array]
+            Populated for each capability the server advertises; every
+            other field is None.
         """
-        return bool(self._model.supports_gradient())
-
-    # TODO: PyApprox uses dynamic binding of derivative methods and protocols
-    # see numpy wrapper. Remove has_jvp has_hvp etc and use dynamic binding
-    # e.g. self.jacobian = self._jacobian if self._model supports it
-    # set this when self._model is set
-    def has_jvp(self) -> bool:
-        """Check if the model supports Jacobian-vector products.
-
-        Returns
-        -------
-        bool
-            True if the model supports apply_jacobian.
-        """
-        return bool(self._model.supports_apply_jacobian())
-
-    def has_hvp(self) -> bool:
-        """Check if the model supports Hessian-vector products.
-
-        Returns
-        -------
-        bool
-            True if the model supports apply_hessian.
-        """
-        return bool(self._model.supports_apply_hessian())
+        return self._derivs
 
     def _to_parameters(self, sample: Array) -> List[List[float]]:
         """Convert a sample to UMBridge parameter format.
@@ -211,8 +214,11 @@ class UMBridgeModel(Generic[Array]):
         values = self._bkd.asarray(results).T  # (nqoi, nsamples)
         return values
 
-    def jacobian(self, sample: Array) -> Array:
+    def _jacobian(self, sample: Array) -> Array:
         """Compute the Jacobian at a single sample.
+
+        Reached through ``derivatives().jacobian``, which is None unless
+        the server advertises gradient support.
 
         Parameters
         ----------
@@ -223,18 +229,16 @@ class UMBridgeModel(Generic[Array]):
         -------
         Array
             Jacobian matrix of shape (nqoi, nvars).
-
-        Raises
-        ------
-        RuntimeError
-            If the model does not support gradient computation.
         """
-        if not self.has_jacobian():
-            raise RuntimeError("Model does not support gradient computation")
-
         parameters = self._to_parameters(sample)
-        # UMBridge gradient returns [nvars] for sensitivity w.r.t. input
-        # For nqoi outputs, we'd need to call gradient for each output
+        # UMBridge gradient returns sens^T J, a vector of length nvars.
+        # Seeding sens with the qq-th unit vector selects row qq, so the
+        # jacobian is assembled one row per request.
+        #
+        # out_wrt and in_wrt index output and input *blocks*, not
+        # components within a block. This client exposes a single block
+        # of each, so both stay 0 for every row; passing qq there asks
+        # for a block that does not exist.
         nqoi = self.nqoi()
         nvars = self.nvars()
         jacobian = self._bkd.zeros((nqoi, nvars))
@@ -242,13 +246,18 @@ class UMBridgeModel(Generic[Array]):
         for qq in range(nqoi):
             sens = [0.0] * nqoi
             sens[qq] = 1.0
-            grad = self._model.gradient(qq, 0, parameters, sens, config=self._config)
+            grad = self._model.gradient(
+                0, 0, parameters, sens, config=self._config
+            )
             jacobian[qq, :] = self._bkd.asarray(grad)
 
         return jacobian
 
-    def jvp(self, sample: Array, vec: Array) -> Array:
+    def _jvp(self, sample: Array, vec: Array) -> Array:
         """Compute Jacobian-vector product.
+
+        Reached through ``derivatives().jvp``, which is None unless the
+        server advertises apply_jacobian support.
 
         Parameters
         ----------
@@ -261,27 +270,24 @@ class UMBridgeModel(Generic[Array]):
         -------
         Array
             Jacobian-vector product of shape (nqoi, 1).
-
-        Raises
-        ------
-        RuntimeError
-            If the model does not support apply_jacobian.
         """
-        if not self.has_jvp():
-            raise RuntimeError("Model does not support apply_jacobian")
-
         parameters = self._to_parameters(sample)
         vec_list = self._bkd.to_numpy(vec[:, 0]).tolist()
 
+        # out_wrt/in_wrt are output and input block indices, not optional
+        # flags; the server rejects None. This client exposes a single
+        # input and a single output block, so both are 0.
         result = self._model.apply_jacobian(
-            None, None, parameters, vec_list, config=self._config
+            0, 0, parameters, vec_list, config=self._config
         )
         return self._bkd.reshape(self._bkd.asarray(result), (-1, 1))
 
-    def hvp(self, sample: Array, vec: Array) -> Array:
+    def _hvp(self, sample: Array, vec: Array) -> Array:
         """Compute Hessian-vector product.
 
-        This is only valid for scalar functions (nqoi == 1).
+        This is only valid for scalar functions (nqoi == 1). Reached
+        through ``derivatives().hvp``, which is None unless the server
+        advertises apply_hessian support.
 
         Parameters
         ----------
@@ -297,23 +303,46 @@ class UMBridgeModel(Generic[Array]):
 
         Raises
         ------
-        RuntimeError
-            If the model does not support apply_hessian.
         ValueError
-            If nqoi != 1.
-        """
-        if not self.has_hvp():
-            raise RuntimeError("Model does not support apply_hessian")
+            If nqoi != 1, or if the server returns a vector whose length
+            is not nvars.
 
+        Notes
+        -----
+        The Hessian is nvars x nvars, so H v has length nvars. UM-Bridge
+        specifies this, and the C++ reference server does not constrain
+        the length. The Python reference server (as of umbridge 1.2.4)
+        instead validates the reply against the *output* size, so a
+        conformant model serving nvars values through it is rejected
+        with an InvalidOutput error whenever nvars != nqoi. That is a
+        defect in that server, not a different convention: honoring it
+        would mean returning nqoi numbers for a quantity that has nvars
+        of them. This client sends and expects the specified length, so
+        it works against C++ servers and against a fixed Python one.
+        """
         if self.nqoi() != 1:
             raise ValueError(f"HVP only defined for nqoi=1, got nqoi={self.nqoi()}")
 
         parameters = self._to_parameters(sample)
         vec_list = self._bkd.to_numpy(vec[:, 0]).tolist()
 
+        # Signature is (out_wrt, in_wrt1, in_wrt2, parameters, sens, vec):
+        # sens precedes vec. The block indices are 0 for this client's
+        # single input and output block. sens seeds the adjoint of the
+        # scalar output, so it is [1.0].
         result = self._model.apply_hessian(
-            None, None, None, parameters, vec_list, None, config=self._config
+            0, 0, 0, parameters, [1.0], vec_list, config=self._config
         )
+        # Checked rather than reshaped blindly: a server returning nqoi
+        # numbers would otherwise yield a plausible (1, 1) array that is
+        # not an HVP.
+        if len(result) != self.nvars():
+            raise ValueError(
+                f"Server returned {len(result)} values for a "
+                f"Hessian-vector product; expected nvars="
+                f"{self.nvars()}. The model may be returning a vector "
+                "sized by its output rather than its input."
+            )
         return self._bkd.reshape(self._bkd.asarray(result), (-1, 1))
 
     @staticmethod
