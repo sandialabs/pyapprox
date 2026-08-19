@@ -3,6 +3,14 @@
 This module provides ParallelFunctionWrapper for wrapping functions
 with parallel batch execution capabilities, and a make_parallel
 convenience function.
+
+Both are deprecated and scheduled for removal: an evaluator built from
+``pyapprox.interface.evaluation`` parallelizes the same work and can
+also report progress, return per-sample failures as data, and account
+for measured cost. See :class:`ParallelFunctionWrapper` for the
+equivalent composition. The rest of this subpackage is not deprecated --
+``ParallelConfig`` and the backends it constructs are used by the
+expdesign likelihoods and objectives independently of this module.
 """
 
 from typing import Generic, Literal, Optional, Union
@@ -31,6 +39,28 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 class ParallelFunctionWrapper(Generic[Array]):
     """Wrapper that adds parallel batch methods to functions.
+
+    .. deprecated::
+        Scheduled for removal. Compose an evaluator instead::
+
+            from pyapprox.interface.evaluation import (
+                CallableMarshaller, Evaluator, blocking, process_dispatcher,
+            )
+
+            marshaller = CallableMarshaller(
+                fn=fn, bkd=bkd, nvars=nvars, nqoi=nqoi, samples_per_task=1
+            )
+            model = blocking(
+                Evaluator(marshaller, process_dispatcher(marshaller.run, 4))
+            )
+
+        The result satisfies the same protocol and evaluates in
+        parallel, and additionally reports progress while work is in
+        flight, returns per-sample failures as data rather than raising,
+        and accumulates measured cost. This wrapper can do none of
+        those: it blocks until the whole batch finishes, so a failure
+        anywhere loses the batch and there is nothing to ask about
+        meanwhile.
 
     Wraps a function and reads its derivative capability from its
     ``Derivatives`` bundle: single-sample fields are forwarded
@@ -363,6 +393,10 @@ def make_parallel(
     n_jobs: int = -1,
 ) -> ParallelFunctionWrapper[Array]:
     """Create parallel wrapper for a function.
+
+    .. deprecated::
+        Scheduled for removal; see :class:`ParallelFunctionWrapper` for
+        the evaluator composition that replaces it and what that buys.
 
     Reads jacobian, hvp, whvp, hessian capability from the function's
     ``Derivatives`` bundle and adds parallel batch versions.
