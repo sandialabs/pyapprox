@@ -441,6 +441,32 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         psi_inv = self._psi_inv_from_npartition_samples(npartition_samples)
         return self._bkd.multidot([self._asketch, psi_inv, self._asketch.T])
 
+    def covariance_at_npartition_samples(
+        self, npartition_samples: Array
+    ) -> Array:
+        """Return the estimator covariance at a hypothetical allocation.
+
+        Spelled the same way here as on the approximate control variate
+        estimators, so a caller holding either can ask for the
+        covariance at an allocation without knowing which family it
+        has. :meth:`covariance_at` is the shorter name for the same
+        computation, kept because it is what existing callers use; it
+        cannot be the shared name, since on the control variate
+        estimators ``covariance_at`` takes a budget and partition ratios
+        rather than partition sample counts.
+
+        Parameters
+        ----------
+        npartition_samples : Array
+            Float-typed partition sample counts. Shape (npartitions,).
+
+        Returns
+        -------
+        Array
+            Estimator covariance. Shape (nstats, nstats).
+        """
+        return self.covariance_at(npartition_samples)
+
     def covariance_at(self, npartition_samples: Array) -> Array:
         """Return the estimator covariance at a hypothetical allocation.
 

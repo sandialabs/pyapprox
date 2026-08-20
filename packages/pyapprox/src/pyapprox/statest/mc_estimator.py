@@ -66,6 +66,31 @@ class MCEstimator(Generic[Array]):
             npartition_samples[0]
         )
 
+    def covariance_at_npartition_samples(
+        self, npartition_samples: Array
+    ) -> Array:
+        """Return the estimator covariance at a hypothetical allocation.
+
+        Evaluates the continuous relaxation, so ``npartition_samples``
+        must be float-typed and need not be integral.
+
+        Parameters
+        ----------
+        npartition_samples : Array
+            Float-typed partition sample counts. Shape (npartitions,).
+
+        Returns
+        -------
+        Array
+            Estimator covariance. Shape (nstats, nstats).
+        """
+        if not self._bkd.is_floating_dtype(npartition_samples):
+            raise TypeError(
+                "covariance_at_npartition_samples requires float-typed "
+                f"npartition_samples, got dtype={npartition_samples.dtype}"
+            )
+        return self._covariance_from_npartition_samples(npartition_samples)
+
     def __repr__(self) -> str:
         return "{0}(stat={1}, nqoi={2})".format(
             self.__class__.__name__, self._stat, self._stat._nqoi
