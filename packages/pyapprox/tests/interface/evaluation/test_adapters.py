@@ -235,3 +235,159 @@ class TestDerivativesAreCorrect:
             bkd.array([[1.5], [0.25]]), relative=True
         )
         assert bkd.to_float(checker.error_ratio(errors[0])) <= 1e-6
+
+
+def _hvp_batch(bkd):
+    """H v for f(x) = sum(x^2): H is 2I, so H v = 2 v, shape (n, nvars)."""
+
+    def hvp(samples, vecs):
+        return 2.0 * vecs.T
+
+    return hvp
+
+
+def _whvp_batch(bkd):
+    """Weighted H v: weights are (nqoi, 1), and nqoi is 1 here."""
+
+    def whvp(samples, vecs, weights):
+        return 2.0 * vecs.T * weights[0, 0]
+
+    return whvp
+
+
+def _jvp(bkd):
+    """J v for f(x) = sum(x^2): J is 2x^T, so J v = 2 x.v, shape (nqoi, 1)."""
+
+    def jvp(sample, vec):
+        return bkd.reshape(bkd.sum(2.0 * sample * vec), (1, 1))
+
+    return jvp
+
+
+class TestBundleMirrorsEveryCapability:
+    """A capability the evaluator has must survive the adapter.
+
+    The gap this guards is silent: a bundle that omits a field reports
+    ``None``, which is indistinguishable from a model that never had the
+    capability. Nothing raises and no shape is wrong -- the capability
+    just disappears, and a caller falls back to finite differences
+    without ever learning why.
+    """
+
+    def test_directional_fields_are_mirrored(self, bkd):
+        model = _model(
+            bkd,
+            derivatives=Derivatives(
+                jvp=_jvp(bkd),
+                hvp_batch=_hvp_batch(bkd),
+                whvp_batch=_whvp_batch(bkd),
+            ),
+        )
+        d = model.derivatives()
+        assert d.jvp is not None
+        assert d.hvp is not None
+        assert d.hvp_batch is not None
+        assert d.whvp is not None
+        assert d.whvp_batch is not None
+
+    def test_absent_capabilities_stay_absent(self, bkd):
+        """Mirroring must not invent what the evaluator cannot serve."""
+        d = _model(bkd, derivatives=Derivatives()).derivatives()
+        assert d.jvp is None
+        assert d.hvp is None
+        assert d.hvp_batch is None
+        assert d.whvp is None
+        assert d.whvp_batch is None
+
+    def test_hvp_does_not_imply_whvp(self, bkd):
+        """The plain and weighted forms are advertised independently."""
+        d = _model(
+            bkd, derivatives=Derivatives(hvp_batch=_hvp_batch(bkd))
+        ).derivatives()
+        assert d.hvp_batch is not None
+        assert d.whvp_batch is None
+
+
+class TestDirectionalValues:
+    """Directional derivatives come back correct, in the right axes."""
+
+    def test_hvp_batch_shape_and_value(self, bkd):
+        model = _model(
+            bkd, derivatives=Derivatives(hvp_batch=_hvp_batch(bkd))
+        )
+        hvp_batch = model.derivatives().hvp_batch
+        assert hvp_batch is not None
+        X = bkd.array([[1.0, 2.0], [3.0, 4.0]])
+        V = bkd.array([[1.0, 0.0], [0.0, 1.0]])
+        result = hvp_batch(X, V)
+        # sample-first (n, nvars), unlike values and jvps
+        assert result.shape == (2, 2)
+        bkd.assert_allclose(result, bkd.array([[2.0, 0.0], [0.0, 2.0]]))
+
+    def test_hvp_single_transposes_to_column(self, bkd):
+        """The single form is (nvars, 1) where the batch is (n, nvars).
+
+        The axis flip between the two is why the single form is not a
+        pass-through, and a missing transpose would still produce a
+        two-element array when nvars is 2.
+        """
+        model = _model(
+            bkd, derivatives=Derivatives(hvp_batch=_hvp_batch(bkd))
+        )
+        hvp = model.derivatives().hvp
+        assert hvp is not None
+        result = hvp(bkd.array([[1.0], [3.0]]), bkd.array([[5.0], [7.0]]))
+        assert result.shape == (2, 1)
+        bkd.assert_allclose(result, bkd.array([[10.0], [14.0]]))
+
+    def test_whvp_batch_applies_weights(self, bkd):
+        model = _model(
+            bkd, derivatives=Derivatives(whvp_batch=_whvp_batch(bkd))
+        )
+        whvp_batch = model.derivatives().whvp_batch
+        assert whvp_batch is not None
+        X = bkd.array([[1.0, 2.0], [3.0, 4.0]])
+        V = bkd.array([[1.0, 0.0], [0.0, 1.0]])
+        result = whvp_batch(X, V, bkd.array([[0.5]]))
+        # 0.5 * 2 * v = v
+        bkd.assert_allclose(result, bkd.array([[1.0, 0.0], [0.0, 1.0]]))
+
+    def test_jvp_returns_qoi_space_column(self, bkd):
+        """J v lands in QoI space, so it is (nqoi, 1), not (nvars, 1)."""
+        model = _model(bkd, derivatives=Derivatives(jvp=_jvp(bkd)))
+        jvp = model.derivatives().jvp
+        assert jvp is not None
+        result = jvp(bkd.array([[1.0], [3.0]]), bkd.array([[1.0], [0.0]]))
+        assert result.shape == (1, 1)
+        # J = 2x = [2, 6], so J . [1, 0] = 2
+        bkd.assert_allclose(result, bkd.array([[2.0]]))
+
+    def test_hvp_rejects_a_batch(self, bkd):
+        model = _model(
+            bkd, derivatives=Derivatives(hvp_batch=_hvp_batch(bkd))
+        )
+        hvp = model.derivatives().hvp
+        assert hvp is not None
+        with pytest.raises(ValueError, match=r"single sample"):
+            hvp(
+                bkd.array([[1.0, 2.0], [3.0, 4.0]]),
+                bkd.array([[1.0, 0.0], [0.0, 1.0]]),
+            )
+
+    def test_weights_are_rejected_by_the_plain_form(self, bkd):
+        """hvp_batch and whvp_batch are distinct capabilities.
+
+        Accepting weights on the plain form would let a caller believe a
+        weighting was applied when the request never carried one.
+        """
+        model = _model(
+            bkd, derivatives=Derivatives(hvp_batch=_hvp_batch(bkd))
+        )
+        hvp_batch = model.derivatives().hvp_batch
+        assert hvp_batch is not None
+        with pytest.raises(ValueError, match="takes no weights"):
+            hvp_batch(
+                bkd.array([[1.0], [3.0]]),
+                bkd.array([[1.0], [0.0]]),
+                bkd.array([[0.5]]),
+            )

@@ -17,7 +17,7 @@ accessor at construction. A plain function shape would be rejected by
 all of them.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.interface.evaluation.protocols import EvaluatorProtocol
 from pyapprox.interface.evaluation.records import (
@@ -92,6 +92,11 @@ class BlockingModel(Generic[Array]):
         it submits and waits. So a marshalled model is inspected exactly
         like any other objective, and a caller that never intends to
         touch a dispatcher can still get its gradients.
+
+        Every capability the evaluator advertises is mirrored, including
+        the directional forms: a wrapped model that can serve a
+        Hessian-vector product exposes one here rather than appearing to
+        have lost it on the way through.
         """
         return self._derivatives
 
@@ -178,6 +183,129 @@ class _BlockingHessian(Generic[Array]):
         return self._batch(sample)[0]
 
 
+class _BlockingJVP(Generic[Array]):
+    """Submits for a jacobian-vector product and waits.
+
+    The direction rides along in the request rather than being applied
+    to a returned jacobian, because a tangent-linear solve takes the
+    seed as an input. Contracting a materialized jacobian would compute
+    nvars columns to use one.
+    """
+
+    def __init__(self, evaluator: EvaluatorProtocol[Array]) -> None:
+        self._evaluator = evaluator
+
+    def __call__(self, sample: Array, vec: Array) -> Array:
+        _require_single(sample, "jvp", "sample")
+        _require_single(vec, "jvp", "vec")
+        result = self._evaluator.submit(
+            sample, Request(values=False, jvp_vecs=vec)
+        ).collect()
+        _require_complete(result, 1)
+        if result.jvps is None:
+            raise EvaluationFailure(
+                "a jacobian-vector product was requested but none was "
+                "returned"
+            )
+        # jvps are (nqoi, n) -- sample-last -- and one sample was sent,
+        # so this is already the (nqoi, 1) the bundle promises.
+        return result.jvps
+
+
+class _BlockingHVPBatch(Generic[Array]):
+    """Submits for Hessian-vector products and waits.
+
+    Serves both the plain and weighted forms: the two differ only by
+    whether the request carries weights, and the evaluator returns the
+    same ``hvps`` array either way. Splitting them into two classes
+    would duplicate the submit-and-check body to vary one argument.
+    """
+
+    def __init__(
+        self,
+        evaluator: EvaluatorProtocol[Array],
+        weighted: bool,
+    ) -> None:
+        self._evaluator = evaluator
+        self._weighted = weighted
+
+    def _submit(
+        self, samples: Array, vecs: Array, weights: Optional[Array]
+    ) -> Array:
+        result = self._evaluator.submit(
+            samples,
+            Request(values=False, hvp_vecs=vecs, hvp_weights=weights),
+        ).collect()
+        _require_complete(result, int(samples.shape[1]))
+        if result.hvps is None:
+            raise EvaluationFailure(
+                "a Hessian-vector product was requested but none was "
+                "returned"
+            )
+        # hvps are (n, nvars) -- sample-first, unlike values and jvps.
+        return result.hvps
+
+    def __call__(
+        self,
+        samples: Array,
+        vecs: Array,
+        weights: Optional[Array] = None,
+    ) -> Array:
+        if self._weighted and weights is None:
+            raise ValueError(
+                "whvp_batch requires weights of shape (nqoi, 1)"
+            )
+        if not self._weighted and weights is not None:
+            raise ValueError(
+                "hvp_batch takes no weights; use whvp_batch for the "
+                "weighted form"
+            )
+        return self._submit(samples, vecs, weights)
+
+
+class _BlockingHVP(Generic[Array]):
+    """Single-sample Hessian-vector product, plain or weighted.
+
+    The shape convention flips between the batch and single forms,
+    which is why this is not a pass-through: ``hvp_batch`` returns
+    ``(n, nvars)`` with the sample first, while ``hvp`` returns
+    ``(nvars, 1)`` for its one sample.
+    """
+
+    def __init__(
+        self,
+        evaluator: EvaluatorProtocol[Array],
+        weighted: bool,
+    ) -> None:
+        self._batch = _BlockingHVPBatch(evaluator, weighted)
+        self._weighted = weighted
+
+    def __call__(
+        self,
+        sample: Array,
+        vec: Array,
+        weights: Optional[Array] = None,
+    ) -> Array:
+        name = "whvp" if self._weighted else "hvp"
+        _require_single(sample, name, "sample")
+        _require_single(vec, name, "vec")
+        batch = (
+            self._batch(sample, vec, weights)
+            if self._weighted
+            else self._batch(sample, vec)
+        )
+        return batch.T
+
+
+def _require_single(array: Array, method: str, name: str) -> None:
+    """Reject a batch where a single sample is required."""
+    if array.ndim != 2 or array.shape[1] != 1:
+        raise ValueError(
+            f"{method} takes a single {name} of shape (nvars, 1), got "
+            f"{tuple(array.shape)}"
+        )
+
+
 def _blocking_bundle(
     evaluator: EvaluatorProtocol[Array],
 ) -> Derivatives[Array]:
@@ -190,6 +318,9 @@ def _blocking_bundle(
     source = evaluator.derivatives()
     has_jacobian = source.jacobian_batch is not None
     has_hessian = source.hessian_batch is not None
+    has_jvp = source.jvp is not None
+    has_hvp = source.hvp_batch is not None
+    has_whvp = source.whvp_batch is not None
     return Derivatives(
         jacobian=(
             _BlockingJacobian(evaluator) if has_jacobian else None
@@ -200,6 +331,23 @@ def _blocking_bundle(
         hessian=(_BlockingHessian(evaluator) if has_hessian else None),
         hessian_batch=(
             _BlockingHessianBatch(evaluator) if has_hessian else None
+        ),
+        jvp=(_BlockingJVP(evaluator) if has_jvp else None),
+        hvp=(
+            _BlockingHVP(evaluator, weighted=False) if has_hvp else None
+        ),
+        hvp_batch=(
+            _BlockingHVPBatch(evaluator, weighted=False)
+            if has_hvp
+            else None
+        ),
+        whvp=(
+            _BlockingHVP(evaluator, weighted=True) if has_whvp else None
+        ),
+        whvp_batch=(
+            _BlockingHVPBatch(evaluator, weighted=True)
+            if has_whvp
+            else None
         ),
     )
 
