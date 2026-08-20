@@ -501,6 +501,70 @@ class ResultStore(Protocol, Generic[Array]):
 
 
 @runtime_checkable
+class SampleLookup(Protocol, Generic[Array]):
+    """Decides whether a sample has been seen before, and under what key.
+
+    Identity is a modelling decision, not a framework one, so it is
+    stated here as a seam rather than fixed. Two mathematically equal
+    samples can differ in their bytes -- ``0.1 + 0.2`` against ``0.3``,
+    or the same values in float32 and float64 -- and how close counts as
+    the same point depends on the model: two samples a nanometre apart
+    are one evaluation for a coarse mesh and two for a fine one.
+
+    Two methods rather than one key function, because the useful
+    policies need different information. A hashing policy derives a key
+    from the columns alone and answers in constant time. A policy that
+    accepts any previously seen sample within a tolerance has to search
+    what it has already seen, which a bare ``key(column)`` signature
+    cannot express. Both fit this pair.
+
+    **Variadic, because not every quantity is keyed by the sample
+    alone.** A Hessian-vector product is one answer for a *pair*: keying
+    ``hvp(x, v)`` on ``x`` would return the product for whichever
+    direction was asked for first, wrong in a way no shape check
+    catches. So a caller passes every array the answer depends on --
+    sample, direction, weights -- and the policy decides jointly. One
+    protocol rather than a second directional one, because this is the
+    same modelling decision applied to more arrays, and splitting it
+    would let a caller set a tolerance for samples and forget one for
+    directions.
+
+    **Not a cache.** A lookup answers "have I seen this, and what did I
+    call it"; the values themselves live in a
+    :class:`ResultStore`. Keeping them apart means either can be
+    replaced alone -- a nearest-neighbour lookup over an ``.npz`` store,
+    say -- and it keeps a value comparison out of the store's key space.
+    """
+
+    def find(self, *columns: Array) -> Optional[str]:
+        """The key these columns were last remembered under, if any.
+
+        Parameters
+        ----------
+        *columns : Array
+            One or more arrays the answer depends on, each shape
+            ``(nvars, 1)`` for a sample or direction, or ``(nqoi, 1)``
+            for weights. Order is fixed by the caller and must be
+            consistent between ``find`` and ``remember``.
+
+        Returns
+        -------
+        Optional[str]
+            The key, or None if this combination is new to the lookup.
+        """
+        ...
+
+    def remember(self, *columns: Array) -> str:
+        """Record these columns as seen and return the key for them.
+
+        Must be idempotent: calling it again with a combination the
+        lookup already knows returns the same key rather than a second
+        one, or a repeat would be computed and stored twice.
+        """
+        ...
+
+
+@runtime_checkable
 class BatchProtocol(Protocol, Generic[Array]):
     """Work in flight: what can be asked, and how results come back.
 

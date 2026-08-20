@@ -46,6 +46,10 @@ mistake either raises at runtime or silently mispairs. Nor can the
 ``isinstance`` at all.
 """
 
+from pyapprox.interface.evaluation.caching import (
+    CachedObjective,
+    RoundedHashLookup,
+)
 from pyapprox.interface.evaluation.ensemble import (
     Ensemble,
     EnsembleBatch,
@@ -60,6 +64,7 @@ from pyapprox.interface.evaluation.protocols import (
     MarshalError,
     MarshallerProtocol,
     ResultStore,
+    SampleLookup,
 )
 from pyapprox.interface.evaluation.records import (
     ComputeProvenance,
@@ -119,6 +124,10 @@ __all__ = [
     "MarshalError",
     "MarshallerProtocol",
     "ResultStore",
+    "SampleLookup",
+    # Caching -- serving a quantity from a store rather than recomputing
+    "CachedObjective",
+    "RoundedHashLookup",
     # Result stores -- results that outlive the process
     "InMemoryResultStore",
     "NpzResultStore",
