@@ -574,6 +574,27 @@ class Backend(Protocol, Generic[Array]):
     def sort(array: Array, axis: int = -1) -> Array: ...
 
     @staticmethod
+    def quantile(array: Array, level: float, axis: int = 0) -> Array:
+        """Return the ``level`` quantile along ``axis``.
+
+        Parameters
+        ----------
+        array : Array
+            Input array.
+        level : float
+            Quantile level in [0, 1].
+        axis : int
+            Axis to reduce. Defaults to 0, the sample axis of a stack of
+            observations.
+
+        Returns
+        -------
+        Array
+            The quantile, with ``axis`` removed.
+        """
+        ...
+
+    @staticmethod
     def argsort(array: Array, axis: int = -1) -> Array:
         """Return indices that would sort the array.
 

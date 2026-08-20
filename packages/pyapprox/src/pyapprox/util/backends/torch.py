@@ -537,6 +537,14 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
         return torch.sort(array, dim=axis).values
 
     @staticmethod
+    def quantile(
+        array: torch.Tensor, level: float, axis: int = 0
+    ) -> torch.Tensor:
+        return torch.quantile(
+            array, torch.as_tensor(level, dtype=array.dtype), dim=axis
+        )
+
+    @staticmethod
     def argsort(
         array: torch.Tensor, axis: int = -1
     ) -> torch.Tensor:
