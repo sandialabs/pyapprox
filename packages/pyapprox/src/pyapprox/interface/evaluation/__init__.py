@@ -59,6 +59,7 @@ from pyapprox.interface.evaluation.protocols import (
     JobHandle,
     MarshalError,
     MarshallerProtocol,
+    ResultStore,
 )
 from pyapprox.interface.evaluation.records import (
     ComputeProvenance,
@@ -72,6 +73,11 @@ from pyapprox.interface.evaluation.records import (
     Request,
     Resources,
     TimeSource,
+)
+from pyapprox.interface.evaluation.stores import (
+    InMemoryResultStore,
+    NpzResultStore,
+    PickleResultStore,
 )
 from pyapprox.interface.evaluation.subprocess_dispatcher import (
     ShellPayload,
@@ -109,6 +115,11 @@ __all__ = [
     "JobHandle",
     "MarshalError",
     "MarshallerProtocol",
+    "ResultStore",
+    # Result stores -- results that outlive the process
+    "InMemoryResultStore",
+    "NpzResultStore",
+    "PickleResultStore",
     # External solvers
     "Retention",
     "ShellPayload",
