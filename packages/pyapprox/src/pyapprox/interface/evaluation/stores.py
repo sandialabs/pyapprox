@@ -47,21 +47,41 @@ whatever the native format carries that ``values`` does not.
 import os
 import pickle
 import tempfile
-from typing import Dict, Generic, List, Optional, Sequence, Tuple
+from typing import (
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+)
 
 import numpy as np
 from numpy.typing import ArrayLike
 
+from pyapprox.interface.evaluation.protocols import (
+    ResultStore,
+    TaskProtocol,
+)
 from pyapprox.interface.evaluation.records import (
     ComputeProvenance,
     Cost,
     Decoded,
+    Outcome,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
 # Optional Decoded fields that are arrays. Named once so adding a
 # capability upstream is a single edit here rather than four.
 _OPTIONAL_ARRAYS = ("jacobians", "hessians", "jvps", "hvps", "hvp_weights")
+
+# Carried through StoreWriter so it satisfies CompletionHook exactly,
+# rather than erasing the pair to Any and losing the check at the point
+# where a hook is paired with an evaluator.
+Task = TypeVar("Task", bound=TaskProtocol)
+Payload = TypeVar("Payload")
 
 
 class InMemoryResultStore(Generic[Array]):
@@ -292,6 +312,214 @@ class PickleResultStore(Generic[Array]):
             for name in os.listdir(self._directory)
             if name.endswith(".pkl")
         ]
+
+
+class StoreWriter(Generic[Task, Payload, Array]):
+    """Records each finished task in a store as it is collected.
+
+    Built to be passed as an evaluator's ``on_complete`` hook, which
+    fires once per finished task before its scratch is released and
+    carries exactly what a store needs::
+
+        writer = StoreWriter(store, prefix="sweep7")
+        evaluator = Evaluator(marshaller, dispatcher, on_complete=writer)
+
+    Saving here rather than after ``collect`` returns is the difference
+    between a store that survives a crash and one that does not: a batch
+    interrupted half way has already written the tasks that finished.
+
+    Parameters
+    ----------
+    store : ResultStore[Array]
+        Where records are written.
+    prefix : str
+        Namespaces this submission's keys. Keys are formed as
+        ``f"{prefix}:{index}"`` from the batch-local sample indices, so
+        two submissions sharing a prefix share an index space and the
+        later one overwrites -- which is what a resumed run wants, and
+        why the prefix must change when the samples do.
+
+    Notes
+    -----
+    **Writing a record does not make an evaluator consult it.** Nothing
+    here causes work to be skipped: an evaluator with this hook still
+    computes everything it is given. Deciding that a stored key still
+    refers to the sample a caller means is the caller's, because only
+    the caller knows how its samples were built.
+
+    A task covering several samples is stored under one key, formed from
+    the first index it covers. Splitting it per sample would mean
+    re-slicing every array in the record, and a resumed caller reads
+    whole records anyway.
+    """
+
+    def __init__(self, store: ResultStore[Array], prefix: str) -> None:
+        self._store = store
+        self._prefix = prefix
+
+    def store(self) -> ResultStore[Array]:
+        """The store being written to."""
+        return self._store
+
+    def prefix(self) -> str:
+        """The namespace applied to this submission's keys."""
+        return self._prefix
+
+    def key_for(self, index: int) -> str:
+        """The key a sample at batch-local ``index`` is stored under."""
+        return f"{self._prefix}:{index}"
+
+    def __call__(
+        self,
+        outcome: Outcome[Task, Payload],
+        decoded: Optional[Decoded[Array]],
+        cost: Cost,
+    ) -> None:
+        """Record one finished task, if it produced anything."""
+        if decoded is None or not decoded.indices:
+            # A task that failed outright has nothing to record. Storing
+            # a placeholder would make a resumed run treat the key as
+            # known and never retry it.
+            return
+        self._store.save(self.key_for(min(decoded.indices)), decoded, cost)
+
+
+def stored_indices(store: ResultStore[Array], prefix: str) -> Set[int]:
+    """Which sample indices ``store`` already holds under ``prefix``.
+
+    Parameters
+    ----------
+    store : ResultStore[Array]
+        The store to interrogate.
+    prefix : str
+        The namespace a :class:`StoreWriter` was writing under. Keys
+        outside it are ignored, so several sweeps may share a store.
+
+    Returns
+    -------
+    Set[int]
+        Every batch-local index covered by a stored record.
+
+    Notes
+    -----
+    Reads ``indices`` off each record rather than parsing the keys,
+    because **a key names the task that produced a record, not a
+    sample**. Under ``samples_per_task=3`` a six-sample batch stores two
+    records, ``prefix:0`` and ``prefix:3``, and asking whether
+    ``prefix:4`` exists reports a sample missing that is sitting inside
+    the second record. The failure is silent -- a resumed run simply
+    recomputes work it already had, with nothing to indicate why -- and
+    the shortcut is right often enough to survive casual testing, since
+    it is correct whenever a task covers exactly one sample.
+
+    Costs one ``load`` per record. A store whose loads are expensive can
+    implement this more cheaply by knowing its own layout; this is the
+    form that works for any store.
+    """
+    known: Set[int] = set()
+    marker = f"{prefix}:"
+    for key in store.keys():
+        if not key.startswith(marker):
+            continue
+        record = store.load(key)
+        if record is None:
+            # Removed between keys() and load(): treat as absent rather
+            # than failing a resume that would otherwise succeed.
+            continue
+        known.update(record[0].indices)
+    return known
+
+
+def restore_columns(
+    store: ResultStore[Array],
+    prefix: str,
+    nsamples: int,
+    fresh: Array,
+    todo: Sequence[int],
+    bkd: Backend[Array],
+) -> Array:
+    """Rebuild a full ``(nqoi, nsamples)`` array from stored and fresh parts.
+
+    Parameters
+    ----------
+    store : ResultStore[Array]
+        Holds the records written by an earlier attempt.
+    prefix : str
+        The namespace those records were written under.
+    nsamples : int
+        Width of the array to rebuild.
+    fresh : Array
+        Values just computed, shape ``(nqoi, len(todo))``. Column ``j``
+        is sample ``todo[j]``.
+    todo : Sequence[int]
+        The sample indices ``fresh`` covers, in submission order.
+    bkd : Backend[Array]
+        Used to join the columns.
+
+    Returns
+    -------
+    Array
+        Shape ``(nqoi, nsamples)``, column ``i`` being sample ``i``.
+
+    Raises
+    ------
+    ValueError
+        If ``fresh`` is not as wide as ``todo``, or if the stored
+        records and ``todo`` together do not cover every sample.
+
+    Notes
+    -----
+    Exists because getting this wrong produces a **full-length array of
+    plausible numbers with columns in the wrong places**, which no shape
+    check catches and no exception announces. Two mappings have to be
+    right at once: a fresh column is at its position in ``todo`` rather
+    than at its sample index, and a stored column is at its position
+    within its own record rather than at either.
+
+    Deciding *which* samples are stale is still the caller's: this takes
+    the ``todo`` list rather than deriving one, so nothing here judges
+    whether a stored key still refers to the sample the caller means.
+    """
+    if int(fresh.shape[1]) != len(todo):
+        raise ValueError(
+            f"fresh has {int(fresh.shape[1])} columns but todo names "
+            f"{len(todo)} samples; column j of fresh must be sample "
+            "todo[j]"
+        )
+
+    position_in_todo = {index: j for j, index in enumerate(todo)}
+    columns: Dict[int, Array] = {}
+    marker = f"{prefix}:"
+    for key in store.keys():
+        if not key.startswith(marker):
+            continue
+        record = store.load(key)
+        if record is None:
+            continue
+        decoded = record[0]
+        for position, index in enumerate(decoded.indices):
+            if index < nsamples and index not in position_in_todo:
+                columns[index] = decoded.values[:, position : position + 1]
+
+    missing = [
+        i
+        for i in range(nsamples)
+        if i not in columns and i not in position_in_todo
+    ]
+    if missing:
+        raise ValueError(
+            f"samples {missing} are neither stored under {prefix!r} nor "
+            "named in todo, so the result cannot be completed"
+        )
+
+    ordered: List[Array] = []
+    for index in range(nsamples):
+        if index in position_in_todo:
+            j = position_in_todo[index]
+            ordered.append(fresh[:, j : j + 1])
+        else:
+            ordered.append(columns[index])
+    return bkd.hstack(ordered)
 
 
 def _encode_key(key: str) -> str:

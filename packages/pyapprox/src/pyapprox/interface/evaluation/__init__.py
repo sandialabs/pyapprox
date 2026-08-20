@@ -78,6 +78,9 @@ from pyapprox.interface.evaluation.stores import (
     InMemoryResultStore,
     NpzResultStore,
     PickleResultStore,
+    StoreWriter,
+    restore_columns,
+    stored_indices,
 )
 from pyapprox.interface.evaluation.subprocess_dispatcher import (
     ShellPayload,
@@ -120,6 +123,9 @@ __all__ = [
     "InMemoryResultStore",
     "NpzResultStore",
     "PickleResultStore",
+    "StoreWriter",
+    "restore_columns",
+    "stored_indices",
     # External solvers
     "Retention",
     "ShellPayload",
