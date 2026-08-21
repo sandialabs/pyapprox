@@ -39,9 +39,17 @@ from pyapprox.interface.evaluation.records import (
     JobStatus,
 )
 
-#: Simulated work per task. Scheduler jitter is a millisecond or two, so
-#: this leaves an order of magnitude of headroom in the ratios below.
-UNIT = 0.05
+#: Simulated work per task, sized so the signal dominates the noise.
+#:
+#: Jitter is a millisecond or two on an idle developer machine, which
+#: made 0.05 look generous. A shared CI runner is a different regime: a
+#: 0.05 sleep was measured at 0.10 and 0.19 there, so an assertion
+#: written as "under two units" failed while the quantity it exists to
+#: exclude -- a four-unit queue wait -- was never in play. Scheduling
+#: delay is roughly constant rather than proportional, so the fix is a
+#: longer unit rather than looser ratios: at 0.25 the same 50ms of
+#: overhead is a fifth of a unit instead of a whole one.
+UNIT = 0.25
 
 
 @dataclass(frozen=True)
@@ -192,7 +200,9 @@ class TestWorkerSideTiming:
             handles = dispatcher.submit(_tasks(4, delay=UNIT))
             outcomes = [h.outcome() for h in handles]
         for outcome in outcomes:
-            assert outcome.wall_time < UNIT * 2
+            # Generous against a one-unit task, and still far below the
+            # four-unit queue wait this exists to prove is excluded.
+            assert outcome.wall_time < UNIT * 2.5
 
     def test_summed_compute_approximates_the_true_total(self):
         """8 tasks of one unit is 8 units of compute, however queued."""
@@ -201,7 +211,10 @@ class TestWorkerSideTiming:
             handles = dispatcher.submit(_tasks(ntasks, delay=UNIT))
             total = sum(h.outcome().wall_time for h in handles)
         expected = UNIT * ntasks
-        assert 0.7 * expected <= total <= 1.5 * expected
+        # The lower bound is the one that matters: a parent-side stamp
+        # would report roughly 2.5x this, so an upper bound loose enough
+        # to survive per-task overhead still catches it.
+        assert 0.7 * expected <= total <= 2.0 * expected
 
     def test_compute_over_wall_clock_reflects_the_worker_count(self):
         """The ratio a parent-side stamp gets wrong by roughly 2.5x."""

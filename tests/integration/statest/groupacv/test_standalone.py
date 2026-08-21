@@ -2681,7 +2681,15 @@ class TestTreeObjectiveDerivatives:
             WithAutogradJacobian(obj, self._bkd)
         )
         errors = checker.check_derivatives(iterate, verbosity=0)
-        assert checker.error_ratio(errors[0]) <= 2e-6
+        # 5e-6 rather than 2e-6 because this compares an exact autograd
+        # jacobian against finite differences: the ratio measures the
+        # differencing error, not the derivative. That error is
+        # conditioning dependent -- nested and chain at nmodels=4 reach
+        # 2.2e-6 on a CI runner while branching and forest stay under
+        # 2e-6 on the same tree -- so a bound some topologies clear only
+        # by luck of arithmetic ordering tests the platform, not the
+        # code. 5e-6 is used elsewhere in this suite for the same check.
+        assert checker.error_ratio(errors[0]) <= 5e-6
 
     @pytest.mark.parametrize(
         "topology,nmodels",
