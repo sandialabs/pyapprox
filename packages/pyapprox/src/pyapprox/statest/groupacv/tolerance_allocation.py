@@ -73,13 +73,25 @@ def default_tolerance_optimizer() -> "BindableOptimizerProtocol[Array]":
     without it, while a trust region does the reverse. Neither
     dominates, which is why both the solver and the variable scaling
     are caller-replaceable.
+
+    ``maxiter`` is well above what a converged solve needs on any one
+    machine because the iteration count is platform dependent. The
+    objective is flat near its optimum -- it moves in the sixth
+    significant figure while the iterate is still travelling -- so the
+    search direction there is shaped by rounding, and two BLAS
+    implementations take different paths. The same nested estimator
+    converges in 305 iterations on macOS arm64 and 1598 on x86_64
+    Linux, to objectives agreeing to six figures. At 1000 the Linux
+    solve was cut off mid-descent and reported failure despite having
+    found a feasible allocation. Raising the ceiling costs nothing when
+    the solve converges early.
     """
     from pyapprox.optimization.minimize.scipy.slsqp import (
         ScipySLSQPOptimizer,
     )
 
     optimizer: ScipySLSQPOptimizer[Array] = ScipySLSQPOptimizer(
-        maxiter=1000, ftol=1e-10
+        maxiter=2000, ftol=1e-10
     )
     return optimizer
 
