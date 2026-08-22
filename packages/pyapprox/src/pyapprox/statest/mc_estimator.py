@@ -9,10 +9,8 @@ from typing import Any, Callable, Generic, List, Tuple, Union
 
 import numpy as np
 
-from pyapprox.statest.statistics import (
-    MultiOutputStatistic,
-    log_determinant_variance,
-)
+from pyapprox.statest.protocols import EstimableStatistic
+from pyapprox.statest.statistics import log_determinant_variance
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -21,19 +19,19 @@ class MCEstimator(Generic[Array]):
 
     def __init__(
         self,
-        stat: MultiOutputStatistic[Array],
+        stat: EstimableStatistic[Array],
         costs: Union[List[Any], Array],
     ):
         r"""
         Parameters
         ----------
-        stat : MultiOutputStatistic
+        stat : EstimableStatistic
             Object defining what statistic will be calculated
 
         costs : Array (nmodels)
             The relative costs of evaluating each model
         """
-        self._bkd = stat._bkd
+        self._bkd = stat.bkd()
 
         self._stat, self._costs = self._check_inputs(stat, costs)
         self._npartitions = 1
@@ -52,15 +50,18 @@ class MCEstimator(Generic[Array]):
         return log_determinant_variance(self._bkd, est_covariance)
 
     def _check_inputs(
-        self, stat: MultiOutputStatistic[Array], costs: Union[List[Any], Array]
-    ) -> Tuple[MultiOutputStatistic[Array], Array]:
-        if not isinstance(stat, MultiOutputStatistic):
-            raise ValueError("stat must be an instance of MultiOutputStatistic")
+        self, stat: EstimableStatistic[Array], costs: Union[List[Any], Array]
+    ) -> Tuple[EstimableStatistic[Array], Array]:
+        if not isinstance(stat, EstimableStatistic):
+            raise ValueError(
+                "stat must satisfy EstimableStatistic, got "
+                f"{type(stat).__name__}"
+            )
 
         costs = self._bkd.atleast_1d(self._bkd.asarray(costs))
         if costs.ndim != 1:
             raise ValueError("costs is not a 1D iterable")
-        self._nmodels = stat._nmodels
+        self._nmodels = stat.nmodels()
         return stat, costs
 
     def _covariance_from_npartition_samples(self, npartition_samples: Array) -> Array:
@@ -99,7 +100,7 @@ class MCEstimator(Generic[Array]):
 
     def __repr__(self) -> str:
         return "{0}(stat={1}, nqoi={2})".format(
-            self.__class__.__name__, self._stat, self._stat._nqoi
+            self.__class__.__name__, self._stat, self._stat.nqoi()
         )
 
 
@@ -184,7 +185,7 @@ class FittedMCEstimator(Generic[Array]):
         if (values.ndim != 2) or (values.shape[1] != nhf):
             msg = "values has the incorrect shape {0} expected {1}".format(
                 values.shape,
-                (self._stat._nqoi, nhf),
+                (self._stat.nqoi(), nhf),
             )
             raise ValueError(msg)
         return self._stat.sample_estimate(values)
@@ -217,7 +218,7 @@ class FittedMCEstimator(Generic[Array]):
             The bootstrap estimate of the estimator covariance
         """
         nbootstraps = int(nbootstraps)
-        estimator_vals = self._bkd.empty((nbootstraps, self._stat._nqoi))
+        estimator_vals = self._bkd.empty((nbootstraps, self._stat.nqoi()))
         nsamples = values[0].shape[1]
         for kk in range(nbootstraps):
             bootstrapped_indices = self._bkd.array(

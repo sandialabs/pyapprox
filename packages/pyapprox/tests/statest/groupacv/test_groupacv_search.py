@@ -4,6 +4,7 @@ from typing import Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
 from pyapprox.statest.groupacv.search import (
     GroupACVSearch,
@@ -15,7 +16,6 @@ from pyapprox.statest.groupacv.variants import (
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.strategies import AllSubsetsStrategy
 from pyapprox.util.backends.torch import TorchBkd
-
 from tests._helpers.markers import slow_test
 
 

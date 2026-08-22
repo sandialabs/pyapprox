@@ -18,10 +18,8 @@ from typing import (
 import numpy as np
 
 from pyapprox.statest._cv_math import optimal_cv_weights
-from pyapprox.statest.statistics import (
-    MultiOutputStatistic,
-    log_determinant_variance,
-)
+from pyapprox.statest.protocols import CVDiscrepancyStatistic
+from pyapprox.statest.statistics import log_determinant_variance
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -30,11 +28,11 @@ class CVEstimator(Generic[Array]):
 
     def __init__(
         self,
-        stat: MultiOutputStatistic[Array],
+        stat: CVDiscrepancyStatistic[Array],
         costs: Union[List[Any], Array],
         lowfi_stats: Optional[Array] = None,
     ):
-        self._bkd = stat._bkd
+        self._bkd = stat.bkd()
         self._stat, self._costs = self._check_inputs(stat, costs)
         if lowfi_stats is not None:
             if lowfi_stats.shape != (self._nmodels - 1, self._stat.nstats()):
@@ -63,14 +61,17 @@ class CVEstimator(Generic[Array]):
         return log_determinant_variance(self._bkd, est_covariance)
 
     def _check_inputs(
-        self, stat: MultiOutputStatistic[Array], costs: Union[List[Any], Array]
-    ) -> Tuple[MultiOutputStatistic[Array], Array]:
-        if not isinstance(stat, MultiOutputStatistic):
-            raise ValueError("stat must be an instance of MultiOutputStatistic")
+        self, stat: CVDiscrepancyStatistic[Array], costs: Union[List[Any], Array]
+    ) -> Tuple[CVDiscrepancyStatistic[Array], Array]:
+        if not isinstance(stat, CVDiscrepancyStatistic):
+            raise ValueError(
+                "stat must satisfy CVDiscrepancyStatistic, got "
+                f"{type(stat).__name__}"
+            )
         costs = self._bkd.atleast_1d(self._bkd.asarray(costs))
         if costs.ndim != 1:
             raise ValueError("costs is not a 1D iterable")
-        self._nmodels = stat._nmodels
+        self._nmodels = stat.nmodels()
         return stat, costs
 
     def _get_discrepancy_covariances(

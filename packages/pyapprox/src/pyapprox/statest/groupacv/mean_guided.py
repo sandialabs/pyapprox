@@ -179,7 +179,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         """Construct a MultiOutputMean stat sharing the target stat's cov."""
         from pyapprox.statest.statistics import MultiOutputMean
 
-        if self._stat._cov is None:
+        if not self._stat.has_pilot_covariance():
             raise ValueError(
                 "Target stat must have pilot quantities set (call "
                 "set_pilot_quantities first)"
@@ -187,7 +187,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         mean_stat: MultiOutputMean[Array] = MultiOutputMean(
             self._stat.nqoi(), self._bkd
         )
-        mean_stat.set_pilot_quantities(self._stat._cov)
+        mean_stat.set_pilot_quantities(self._stat.pilot_covariance())
         return mean_stat
 
     def _filter_known_quantities(

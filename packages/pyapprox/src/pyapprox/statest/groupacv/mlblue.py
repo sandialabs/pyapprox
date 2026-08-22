@@ -99,7 +99,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         submats = []
         for ii, subset in enumerate(self._subsets):
             Rk = self._restriction_matrices[ii]
-            cov = self._stat._cov
+            cov = self._stat.pilot_covariance()
             if cov is None:
                 raise RuntimeError("Pilot covariance not set on stat")
             submat = self._bkd.multidot(

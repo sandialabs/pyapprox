@@ -689,6 +689,34 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         """
         return self._nqoi
 
+    def nmodels(self) -> int:
+        """The number of models the pilot quantities describe.
+
+        Zero until :meth:`set_pilot_quantities` is called, which is where
+        the count is learned -- it follows from the shape of the pilot
+        covariance rather than being declared at construction.
+        """
+        return self._nmodels
+
+    def pilot_covariance(self) -> Array:
+        """The covariance estimated from the pilot sample.
+
+        Shape ``(nmodels * nqoi, nmodels * nqoi)``. Raises if pilot
+        quantities have not been supplied; use
+        :meth:`has_pilot_covariance` to ask without provoking that.
+        """
+        if self._cov is None:
+            raise ValueError("must call set_pilot_quantities")
+        return self._cov
+
+    def has_pilot_covariance(self) -> bool:
+        """Whether a pilot covariance has been supplied yet.
+
+        For callers that branch on it rather than requiring it -- a
+        question the accessor above cannot answer, since it raises.
+        """
+        return self._cov is not None
+
     @abstractmethod
     def nstats(self) -> int:
         """The number of statistics computed"""
@@ -1025,11 +1053,6 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         n2 = nsamples * nsamples
         n3 = n2 * nsamples
         return -C / n2, 2 * C / n3
-
-    def pilot_covariance(self) -> Array:
-        if self._cov is None:
-            raise ValueError("must call set_pilot_quantities")
-        return self._cov
 
 
 class MultiOutputVariance(MultiOutputStatistic[Array]):

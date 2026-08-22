@@ -1,6 +1,7 @@
 """Unit tests for budget-driven GroupACV allocation."""
 
 import numpy as np
+
 from pyapprox.statest.groupacv import GroupACVEstimatorIS
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationOptimizer
 from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig

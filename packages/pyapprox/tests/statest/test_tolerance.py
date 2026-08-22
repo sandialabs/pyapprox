@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.statest.allocation import CVAllocator, MCAllocator
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.mc_estimator import MCEstimator

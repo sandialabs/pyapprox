@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.statest.acv.allocation import (
     ACVAllocator,
     AnalyticalAllocator,
@@ -15,7 +16,6 @@ from pyapprox.statest.acv.variants import (
     MLMCEstimator,
 )
 from pyapprox.statest.statistics import MultiOutputMean
-
 from tests._helpers.markers import slow_test
 
 

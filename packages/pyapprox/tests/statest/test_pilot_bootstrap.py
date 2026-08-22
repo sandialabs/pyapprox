@@ -21,6 +21,7 @@ would buy flakiness rather than rigor.
 
 import numpy as np
 import pytest
+
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.groupacv import GroupACVEstimatorIS
 from pyapprox.statest.mc_estimator import MCEstimator
@@ -39,7 +40,6 @@ from pyapprox.statest.tolerance import (
     MaxMarginalStandardErrorConstraint,
     MCToleranceAllocator,
 )
-
 from tests._helpers.markers import slow_test
 
 

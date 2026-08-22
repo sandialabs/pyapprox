@@ -397,7 +397,7 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         super().__init__(
             stat,
             costs,
-            recursion_index=stat._bkd.arange(nmodels - 1, dtype=int),
+            recursion_index=stat.bkd().arange(nmodels - 1, dtype=int),
         )
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
@@ -407,17 +407,17 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
     ) -> Tuple[Array, Array]:
         # nsample_ratios returned will be listed in according to
         # self.model_order which is what self.get_rsquared requires
-        if self._stat._cov is None:
+        if not self._stat.has_pilot_covariance():
             raise RuntimeError("must call set_pilot_quantities first")
         if not _check_mfmc_model_costs_and_correlations(
             self._costs,
-            _covariance_to_correlation(self._stat._cov, self._bkd),
+            _covariance_to_correlation(self._stat.pilot_covariance(), self._bkd),
         ):
             raise ValueError("models do not admit a hierarchy")
         nsample_ratios, val = _allocate_samples_mfmc(
-            self._stat._cov[
-                self._opt_qoi :: self._stat._nqoi,
-                self._opt_qoi :: self._stat._nqoi,
+            self._stat.pilot_covariance()[
+                self._opt_qoi :: self._stat.nqoi(),
+                self._opt_qoi :: self._stat.nqoi(),
             ],
             self._costs,
             target_cost,
@@ -482,7 +482,7 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
         super().__init__(
             stat,
             costs,
-            recursion_index=stat._bkd.arange(nmodels - 1),
+            recursion_index=stat.bkd().arange(nmodels - 1),
         )
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
@@ -509,12 +509,12 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
     def _allocate_samples(
         self, target_cost: float,
     ) -> Tuple[Array, Array]:
-        if self._stat._cov is None:
+        if not self._stat.has_pilot_covariance():
             raise RuntimeError("must call set_pilot_quantities first")
         nsample_ratios, val = _allocate_samples_mlmc(
-            self._stat._cov[
-                self._opt_qoi :: self._stat._nqoi,
-                self._opt_qoi :: self._stat._nqoi,
+            self._stat.pilot_covariance()[
+                self._opt_qoi :: self._stat.nqoi(),
+                self._opt_qoi :: self._stat.nqoi(),
             ],
             self._costs,
             target_cost,

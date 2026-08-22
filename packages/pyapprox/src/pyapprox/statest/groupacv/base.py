@@ -24,14 +24,12 @@ from pyapprox.statest.groupacv.utils import (
     _grouped_acv_sigma_block,
     get_model_subsets,
 )
+from pyapprox.statest.protocols import GroupBlockStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
     from pyapprox.statest.groupacv.result import (
         GroupACVAllocationResult,
-    )
-    from pyapprox.statest.statistics import (
-        MultiOutputStatistic,
     )
 
 
@@ -43,7 +41,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     Parameters
     ----------
-    stat : MultiOutputStatistic
+    stat : GroupBlockStatistic
         The statistic object containing covariance information
 
     costs : Array
@@ -65,7 +63,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def __init__(
         self,
-        stat: "MultiOutputStatistic[Array]",
+        stat: GroupBlockStatistic[Array],
         costs: Array,
         reg_blue: float = 0,
         model_subsets: Optional[List[Array]] = None,
@@ -73,22 +71,16 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         use_pseudo_inv: bool = True,
         known_quantities: Optional[Dict[Tuple[int, str], Array]] = None,
     ):
-        from pyapprox.statest.statistics import (
-            MultiOutputMean,
-            MultiOutputMeanAndVariance,
-            MultiOutputVariance,
-        )
-
+        if not isinstance(stat, GroupBlockStatistic):
+            raise ValueError(
+                "stat must satisfy GroupBlockStatistic, got "
+                f"{type(stat).__name__}"
+            )
         self._bkd = stat.bkd()
         self._use_pseudo_inv = use_pseudo_inv
         self._costs = self._bkd.array(costs)
         self._nmodels = len(costs)
         self._reg_blue = reg_blue
-        if not isinstance(
-            stat,
-            (MultiOutputMean, MultiOutputVariance, MultiOutputMeanAndVariance),
-        ):
-            raise ValueError("GroupACV only supports estimation of mean or variance")
         self._stat = stat
 
         if model_subsets is None:
@@ -406,7 +398,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             subset, subset, n_k, n_k, n_k, self._stat
         )
         bkd = self._bkd
-        if bkd.all_bool(sigma_k == 0):
+        if bkd.all_bool(bkd.equal(sigma_k, 0)):
             return bkd.zeros((self._nT_stats, self._nT_stats))
         sigma_k_inv = self._inv(sigma_k)
         R_k = self._restriction_matrices[k]
@@ -421,7 +413,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             subset, subset, n_k, n_k, n_k, self._stat
         )
         bkd = self._bkd
-        if bkd.all_bool(sigma_k == 0):
+        if bkd.all_bool(bkd.equal(sigma_k, 0)):
             block_size = sigma_k.shape[0]
             return bkd.zeros((block_size, self._nT_stats))
         sigma_k_inv = self._inv(sigma_k)

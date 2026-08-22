@@ -76,20 +76,20 @@ def _clone_estimator_for_torch(
     if isinstance(stat, MultiOutputMeanAndVariance):
         clone._stat = MultiOutputMeanAndVariance(nqoi, torch_bkd, tril=stat._tril)
         clone._stat.set_pilot_quantities(
-            _to_torch_double(stat._cov),
+            _to_torch_double(stat.pilot_covariance()),
             _to_torch_double(stat._W),
             _to_torch_double(stat._B),
         )
     elif isinstance(stat, MultiOutputVariance):
         clone._stat = MultiOutputVariance(nqoi, torch_bkd, tril=stat._tril)
         clone._stat.set_pilot_quantities(
-            _to_torch_double(stat._cov),
+            _to_torch_double(stat.pilot_covariance()),
             _to_torch_double(stat._W),
         )
     elif isinstance(stat, MultiOutputMean):
         clone._stat = MultiOutputMean(nqoi, torch_bkd)
         clone._stat.set_pilot_quantities(
-            _to_torch_double(stat._cov),
+            _to_torch_double(stat.pilot_covariance()),
         )
     else:
         raise TypeError(

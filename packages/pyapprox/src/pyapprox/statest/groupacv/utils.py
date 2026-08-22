@@ -5,14 +5,12 @@ allocation matrix construction, and covariance block computation.
 """
 
 from itertools import combinations
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
+from pyapprox.statest.protocols import GroupBlockStatistic
 from pyapprox.util.backends.protocols import Array, Backend
-
-if TYPE_CHECKING:
-    from pyapprox.statest.statistics import MultiOutputStatistic
 
 
 def get_model_subsets(
@@ -271,7 +269,7 @@ def _grouped_acv_sigma_block(
     nsamples_intersect: "int | Array",
     nsamples_subset0: "int | Array",
     nsamples_subset1: "int | Array",
-    stat: "MultiOutputStatistic[Array]",
+    stat: "GroupBlockStatistic[Array]",
 ) -> Array:
     """
     Compute a single block of the grouped ACV covariance matrix.
@@ -293,7 +291,7 @@ def _grouped_acv_sigma_block(
     nsamples_subset1 : int
         Number of samples in subset1
 
-    stat : MultiOutputStatistic
+    stat : GroupBlockStatistic
         The statistic object with covariance information
 
     Returns
@@ -324,7 +322,7 @@ def _grouped_acv_sigma(
     nmodels: int,
     nsamples_intersect: Array,
     subsets: List[Array],
-    stat: "MultiOutputStatistic[Array]",
+    stat: "GroupBlockStatistic[Array]",
 ) -> List[List[Array]]:
     """
     Compute the full grouped ACV covariance matrix as nested lists of blocks.
@@ -340,7 +338,7 @@ def _grouped_acv_sigma(
     subsets : List[Array]
         List of model subsets
 
-    stat : MultiOutputStatistic
+    stat : GroupBlockStatistic
         The statistic object with covariance information
 
     Returns

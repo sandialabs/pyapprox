@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.autograd import WithAutogradJacobian
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.minimize.objective.validation import (

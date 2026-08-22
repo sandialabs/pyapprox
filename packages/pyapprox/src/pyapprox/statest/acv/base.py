@@ -22,10 +22,8 @@ import numpy as np
 
 from pyapprox.statest._cv_math import optimal_cv_weights
 from pyapprox.statest.acv.result import ACVAllocationResult
-from pyapprox.statest.statistics import (
-    MultiOutputStatistic,
-    log_determinant_variance,
-)
+from pyapprox.statest.protocols import ACVDiscrepancyStatistic
+from pyapprox.statest.statistics import log_determinant_variance
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -39,7 +37,7 @@ class ACVEstimator(Generic[Array]):
 
     def __init__(
         self,
-        stat: MultiOutputStatistic[Array],
+        stat: ACVDiscrepancyStatistic[Array],
         costs: Union[List[float], Array],
         recursion_index: Optional[Array] = None,
         npartitions_lower_bound: float = 1e-2,
@@ -49,7 +47,7 @@ class ACVEstimator(Generic[Array]):
 
         Parameters
         ----------
-        stat : MultiOutputStatistic
+        stat : ACVDiscrepancyStatistic
             Object defining what statistic will be calculated
 
         costs : Array (nmodels)
@@ -61,7 +59,7 @@ class ACVEstimator(Generic[Array]):
         npartitions_lower_bound : float
             Lower bound for partition ratios during optimization.
         """
-        self._bkd = stat._bkd
+        self._bkd = stat.bkd()
         self._stat, self._costs = self._check_inputs(stat, costs)
         self._recursion_index: Optional[Array] = None
         self._set_recursion_index(recursion_index)
@@ -82,14 +80,17 @@ class ACVEstimator(Generic[Array]):
         return log_determinant_variance(self._bkd, est_covariance)
 
     def _check_inputs(
-        self, stat: MultiOutputStatistic[Array], costs: Union[List[Any], Array]
-    ) -> Tuple[MultiOutputStatistic[Array], Array]:
-        if not isinstance(stat, MultiOutputStatistic):
-            raise ValueError("stat must be an instance of MultiOutputStatistic")
+        self, stat: ACVDiscrepancyStatistic[Array], costs: Union[List[Any], Array]
+    ) -> Tuple[ACVDiscrepancyStatistic[Array], Array]:
+        if not isinstance(stat, ACVDiscrepancyStatistic):
+            raise ValueError(
+                "stat must satisfy ACVDiscrepancyStatistic, got "
+                f"{type(stat).__name__}"
+            )
         costs = self._bkd.atleast_1d(self._bkd.asarray(costs))
         if costs.ndim != 1:
             raise ValueError("costs is not a 1D iterable")
-        self._nmodels = stat._nmodels
+        self._nmodels = stat.nmodels()
         return stat, costs
 
     def _get_discrepancy_covariances(
