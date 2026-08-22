@@ -36,14 +36,20 @@ class MCEstimator(Generic[Array]):
         self._bkd = stat._bkd
 
         self._stat, self._costs = self._check_inputs(stat, costs)
-        self._optimization_criteria: Callable[[Array], Array] = (
-            lambda var: log_determinant_variance(self._bkd, var)
-        )
         self._npartitions = 1
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    def _optimization_criteria(self, est_covariance: Array) -> Array:
+        """Scalarize an estimator covariance for comparison.
+
+        A method rather than a closure over ``self`` so that the
+        estimator can be pickled, which sending one to another process
+        requires.
+        """
+        return log_determinant_variance(self._bkd, est_covariance)
 
     def _check_inputs(
         self, stat: MultiOutputStatistic[Array], costs: Union[List[Any], Array]
