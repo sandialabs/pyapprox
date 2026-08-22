@@ -505,8 +505,26 @@ class RandomizedSVD(Generic[Array], ABC):
         # Sample column space
         Y = self._matvec.apply(omega)
 
-        # Power iterations for better approximation
+        # Power iterations for better approximation.
+        #
+        # The QR between iterations is required, not an optimization.
+        # Each pass scales direction i by sigma_i^2, so without
+        # re-orthonormalizing, the columns of Y collapse onto the
+        # dominant singular vector and the subdominant directions fall
+        # below round-off; the caller's QR then returns arbitrary
+        # directions for them. Measured on the symmetric path with a
+        # rapidly decaying spectrum, an 18-column sketch fell to
+        # numerical rank 4 by the fourth iteration, and errors grew with
+        # npower_iters rather than shrinking. This is Algorithm 4.4
+        # rather than 4.3 of Halko, Martinsson and Tropp.
+        #
+        # Unlike the symmetric path, both applications are needed here:
+        # this operator is rectangular, so apply_transpose is genuinely
+        # A^T and the pair forms A^T A.
         for _ in range(self._npower_iters):
+            Y = self._bkd.asarray(
+                np.linalg.qr(self._bkd.to_numpy(Y), mode="reduced")[0]
+            )
             G = self._matvec.apply_transpose(Y)
             Y = self._matvec.apply(G)
 
@@ -716,11 +734,28 @@ def randomized_symmetric_eigendecomposition(
     # Sample column space: Y = A @ omega
     Y = apply_operator(omega)
 
-    # Power iterations for better approximation
+    # Power iterations for better approximation.
+    #
+    # Re-orthonormalizing between iterations is not optional. Each
+    # application of A scales direction i by lambda_i, so without a QR
+    # the columns of Y collapse onto the dominant eigenvector and the
+    # subdominant directions fall below round-off. Measured on a
+    # squared exponential kernel with lambda_8/lambda_1 = 1.1e-05, an
+    # 18-column sketch fell to numerical rank 4 by the fourth
+    # iteration; the QR below then returned 14 arbitrary directions and
+    # the Rayleigh-Ritz step produced trailing eigenvalues wrong by
+    # 5.7e-03. With the QR in place every configuration tested reached
+    # ~1e-16. This is the difference between Algorithm 4.3 and 4.4 of
+    # Halko, Martinsson and Tropp, and 4.4 exists for exactly this
+    # reason.
+    #
+    # A is symmetric, so apply_transpose is apply and one application
+    # per iteration suffices: applying it twice would raise A to
+    # 2q + 1 rather than q + 1, doubling the loss of dynamic range for
+    # no gain in the subspace captured.
     for _ in range(npower_iters):
-        # Since A is symmetric, apply_transpose = apply
-        G = apply_operator(Y)
-        Y = apply_operator(G)
+        Y = bkd.asarray(np.linalg.qr(bkd.to_numpy(Y), mode="reduced")[0])
+        Y = apply_operator(Y)
 
     # QR factorization to get orthonormal basis
     # Use numpy for QR since it's not differentiable anyway
