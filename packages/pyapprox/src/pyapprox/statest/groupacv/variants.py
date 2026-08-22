@@ -6,7 +6,7 @@ This module provides concrete implementations of BaseGroupACVEstimator:
     - GroupACVEstimatorTree: Tree-structured nested sampling estimator
 """
 
-from typing import TYPE_CHECKING, Any, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -291,10 +291,10 @@ class GroupACVEstimatorTree(BaseGroupACVEstimator[Array]):
 
         # Depth from the root gives the vertical position, so that sample
         # reuse reads top to bottom; siblings are spread horizontally.
-        depth = {}
+        depth: Dict[int, int] = {}
         for kk, parent in enumerate(self._parents):
             depth[kk] = 0 if parent == -1 else depth[parent] + 1
-        by_depth: dict = {}
+        by_depth: Dict[int, List[int]] = {}
         for kk, dd in depth.items():
             by_depth.setdefault(dd, []).append(kk)
         pos = {}

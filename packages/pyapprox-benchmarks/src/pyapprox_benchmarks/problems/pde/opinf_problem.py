@@ -82,7 +82,7 @@ class PDEOpInfProblem(Generic[Array]):
         basis: GalerkinBasisProtocol[Array],
         prior: DistributionProtocol[Array],
         domain: DomainProtocol[Array],
-        time_config: TimeIntegrationConfig,
+        time_config: TimeIntegrationConfig[Array],
         initial_condition: Array,
         nominal_parameters: Array,
         degree_set: Tuple[int, ...],
@@ -131,7 +131,7 @@ class PDEOpInfProblem(Generic[Array]):
         """Return parameter domain."""
         return self._domain
 
-    def time_config(self) -> TimeIntegrationConfig:
+    def time_config(self) -> TimeIntegrationConfig[Array]:
         """Return the default time integration configuration."""
         return self._time_config
 
