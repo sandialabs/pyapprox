@@ -15,6 +15,8 @@ import math
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
+import numpy as np
+
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.surrogates.kle.utils import (
     adjust_sign_eig,
@@ -31,6 +33,8 @@ from pyapprox.util.linalg.pivoted_cholesky import (
 from pyapprox.util.linalg.randomized import (
     randomized_symmetric_eigendecomposition,
 )
+
+_MACHINE_EPS = float(np.finfo(float).eps)
 
 
 @runtime_checkable
@@ -105,7 +109,8 @@ def finalize_eigenpairs(
     why the step is centralized rather than left to each solver.
 
     The clip needs its own explanation, since zero is not an arbitrary
-    floor and the clip currently does two jobs of unequal merit.
+    floor, and it is paired with a check that separates the two cases
+    it would otherwise conflate.
 
     A covariance operator is positive semi-definite, so its eigenvalues
     are non-negative in exact arithmetic. Finite precision returns small
@@ -116,16 +121,13 @@ def finalize_eigenpairs(
     its basis, so an unclipped negative becomes NaN and propagates into
     every field evaluation. Clipping *that* is correct.
 
-    What the clip also absorbs, less defensibly, is over-requesting.
-    Asking for more terms than the operator's numerical rank yields a
-    tail of near-zero eigenvalues, and clipping turns them into modes
-    that exist in shape but carry no variance -- zero columns in the
-    basis, silently. A caller who asked for 200 terms from a rank-11
-    operator gets 189 of those and no indication. Distinguishing
-    rounding from over-requesting, and from a genuinely indefinite
-    kernel at -1e-8 or worse, is deliberately left alone here: it is a
-    change to established behaviour and belongs in its own commit, not
-    folded into a refactor that is otherwise behaviour-preserving.
+    What the clip must not absorb is over-requesting. Asking for more
+    terms than the operator's numerical rank yields a tail of near-zero
+    eigenvalues, and clipping alone would turn them into modes that
+    exist in shape but carry no variance -- zero columns in the basis,
+    silently. So the clip runs first, to keep genuine rounding from
+    becoming NaN, and :func:`_reject_negligible_terms` then rejects
+    what survives truncation still negligible.
 
     Parameters
     ----------
@@ -152,7 +154,80 @@ def finalize_eigenpairs(
         eig_vecs = eig_vecs / sqrt_weights[:, None]
     eig_vals = bkd.maximum(eig_vals, bkd.asarray([0.0]))
     eig_vals, eig_vecs = sort_eigenpairs(eig_vals, eig_vecs, nterms, bkd)
+    _reject_negligible_terms(eig_vals, bkd)
     return eig_vals, adjust_sign_eig(eig_vecs, bkd)
+
+
+def usable_nterms(eig_vals: Array, bkd: Backend[Array]) -> int:
+    """How many of ``eig_vals`` carry variance rather than rounding.
+
+    Shares its threshold with :func:`_reject_negligible_terms`, so a
+    basis truncated to this many terms is exactly one that passes that
+    check.
+    """
+    largest = bkd.to_float(bkd.max(eig_vals))
+    if largest <= 0.0:
+        return 0
+    nvals = int(eig_vals.shape[0])
+    tolerance = largest * nvals * _MACHINE_EPS
+    return int((bkd.to_numpy(eig_vals) > tolerance).sum())
+
+
+def _reject_negligible_terms(
+    eig_vals: Array, bkd: Backend[Array]
+) -> None:
+    """Refuse a basis containing modes that carry no variance.
+
+    A KLE scales each eigenvector by ``sqrt(eigenvalue)``, so a term
+    whose eigenvalue is zero to machine precision contributes a column
+    of zeros: a mode the caller asked for and did not get. It arises
+    from requesting more terms than the operator supplies, which is
+    easy to do because smooth kernels are severely rank deficient --
+    a squared exponential on 100 points has numerical rank 15 at
+    lengthscale 0.3, so anything past the fifteenth term is empty.
+
+    Note this is a check on the *retained* terms, not on the operator.
+    Rank deficiency itself is normal and not an error; the covariance
+    is positive semi-definite rather than positive definite, and the
+    zeros further down its spectrum are simply not requested. Only a
+    zero that survives truncation means the caller was handed a mode
+    that does not exist.
+
+    Eigenvalues negative by more than rounding are caught here too,
+    under the same message: both mean the requested terms outran what
+    the operator can supply. Genuine rounding on a true zero was
+    measured between -2e-16 and -8e-16 relative across problem sizes
+    200 to 900, within a small factor of machine epsilon, so the
+    ``n * eps`` threshold sits four orders above it.
+    """
+    largest = bkd.to_float(bkd.max(eig_vals))
+    if largest <= 0.0:
+        # Nothing positive to scale the tolerance against, and the
+        # cause differs by sign: all-zero means the operator has no
+        # modes at these points, while a negative maximum means it is
+        # indefinite and so is not a covariance at all.
+        raise ValueError(
+            f"the largest retained eigenvalue is {largest:.3e}, so the "
+            "operator supplies no usable modes at these points"
+            + (
+                "; a negative maximum means it is indefinite rather than "
+                "merely rank deficient"
+                if largest < 0.0
+                else ""
+            )
+        )
+    nvals = int(eig_vals.shape[0])
+    tolerance = largest * nvals * _MACHINE_EPS
+    negligible = int((bkd.to_numpy(eig_vals) <= tolerance).sum())
+    if negligible > 0:
+        raise ValueError(
+            f"{negligible} of the {nvals} requested KLE terms have "
+            f"eigenvalues at or below {tolerance:.3e}, which is rounding "
+            "error rather than variance. Those terms would contribute "
+            "columns of zeros to the basis. Request at most "
+            f"{nvals - negligible} terms, or use a kernel whose spectrum "
+            "decays more slowly."
+        )
 
 
 class _KLEEigenSolver(Generic[Array], ABC):
@@ -384,6 +459,12 @@ class RandomizedEigenSolver(_KLEEigenSolver[Array]):
         Power iterations, which help when eigenvalues decay slowly.
     block_size : int
         Rows of the kernel matrix evaluated per pass.
+    seed : int or None
+        Seeds the random sketch, so two solves of the same problem
+        return the same basis. Pass None to draw from the global RNG
+        instead, which is what a caller wanting independent draws
+        across repeated solves would want; a seeded solver uses a local
+        stream and never perturbs global state.
     """
 
     def __init__(
@@ -392,6 +473,7 @@ class RandomizedEigenSolver(_KLEEigenSolver[Array]):
         noversampling: int = 20,
         npower_iters: int = 2,
         block_size: int = 2048,
+        seed: Optional[int] = 0,
     ):
         super().__init__(bkd)
         if noversampling < 0:
@@ -405,6 +487,11 @@ class RandomizedEigenSolver(_KLEEigenSolver[Array]):
         self._noversampling = int(noversampling)
         self._npower_iters = int(npower_iters)
         self._block_size = int(block_size)
+        self._seed = seed
+
+    def seed(self) -> Optional[int]:
+        """Return the sketch seed, or None for the global RNG."""
+        return self._seed
 
     def _solve_symmetrized(
         self,
@@ -430,6 +517,7 @@ class RandomizedEigenSolver(_KLEEigenSolver[Array]):
             self._bkd,
             noversampling=max(noversampling, 0),
             npower_iters=self._npower_iters,
+            seed=self._seed,
         )
 
 
@@ -483,7 +571,27 @@ class DenseEigenSolver(_KLEEigenSolver[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
+    seed : int or None
+        Seeds the Lanczos start vector, which is used only when
+        ``nterms < N``; the full ``eigh`` path taken otherwise is
+        already deterministic.
+
+        Pass None for ARPACK's own random start, which is *not*
+        reproducible: it draws from a stream numpy's global seed does
+        not reach, so seeding before the call has no effect. Measured
+        on three full-rank matrices, successive unseeded solves agreed
+        on eigenvalues to 5e-15 while individual eigenvectors differed
+        by 4.4e-01 to 8.3e-01 -- not degenerate-subspace rotation, as
+        one was a random SPD matrix with well-separated eigenvalues.
     """
+
+    def __init__(self, bkd: Backend[Array], seed: Optional[int] = 0):
+        super().__init__(bkd)
+        self._seed = seed
+
+    def seed(self) -> Optional[int]:
+        """Return the Lanczos start seed, or None if unseeded."""
+        return self._seed
 
     def _solve_symmetrized(
         self,
@@ -498,4 +606,6 @@ class DenseEigenSolver(_KLEEigenSolver[Array]):
         # sorts and sign-adjusts internally; finalize_eigenpairs repeats
         # both, which is idempotent, and owns the clip that this does not
         # perform.
-        return eigendecomposition_unweighted(kmat, nterms, self._bkd)
+        return eigendecomposition_unweighted(
+            kmat, nterms, self._bkd, seed=self._seed
+        )

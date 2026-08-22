@@ -12,6 +12,8 @@ from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.eigensolvers import (
     DenseEigenSolver,
     KLEEigenSolverProtocol,
+    PivotedCholeskyEigenSolver,
+    RandomizedEigenSolver,
     finalize_eigenpairs,
 )
 from pyapprox.surrogates.kle.utils import (
@@ -206,28 +208,33 @@ class TestFinalizeEigenpairs:
 
         Left unclipped they become NaN when a KLE takes their square
         root to scale the basis, and the NaN reaches every field
-        evaluation.
-
-        .. note::
-            **This test pins behaviour that is scheduled to change, and
-            must be updated rather than preserved.** The clip currently
-            absorbs two different things: rounding on a true zero, which
-            is what this test exercises and is legitimate, and
-            over-requesting more terms than the operator's numerical
-            rank, which it turns into silent zero-variance modes. The
-            planned replacement clips only within a machine-precision
-            tolerance and raises beyond it.
-
-            So do not read a passing test here as evidence that
-            unconditional clipping is intended. Once that change lands,
-            this test should assert the tolerance boundary -- clipped
-            below it, raising above -- not the current
-            accept-anything behaviour.
+        evaluation. Clipping keeps the NaN out, but only where the
+        negative really is rounding: a term at -1e-16 relative is
+        indistinguishable from a zero the caller should not have
+        requested, so it is clipped *and* rejected rather than
+        returned as a zero-variance mode.
         """
         vals = bkd.array([2.0, 1.0, -1e-16])
         vecs = bkd.eye(3)
-        out_vals, _ = finalize_eigenpairs(vals, vecs, None, 3, bkd)
-        assert float(bkd.to_numpy(out_vals).min()) >= 0.0
+        with pytest.raises(ValueError, match="rather than variance"):
+            finalize_eigenpairs(vals, vecs, None, 3, bkd)
+        # Truncating past the negligible term leaves a valid basis, so
+        # the rejection is about the requested count, not the operator.
+        out_vals, _ = finalize_eigenpairs(vals, vecs, None, 2, bkd)
+        assert float(bkd.to_numpy(out_vals).min()) > 0.0
+
+    def test_rejects_indefinite_kernel(self, bkd) -> None:
+        """A negative far past rounding is not a zero to be clipped.
+
+        Clipping it would report a mode carrying no variance for an
+        operator that is not a covariance at all. It raises under the
+        same message as over-requesting: both mean the retained terms
+        outran what the operator supplies.
+        """
+        vals = bkd.array([2.0, 1.0, -1e-2])
+        vecs = bkd.eye(3)
+        with pytest.raises(ValueError, match="rather than variance"):
+            finalize_eigenpairs(vals, vecs, None, 3, bkd)
 
     def test_sorts_descending(self, bkd) -> None:
         vals = bkd.array([0.5, 3.0, 1.0])
@@ -283,3 +290,76 @@ class TestValidation:
             DenseEigenSolver(bkd).solve(
                 kernel, coords, 3, quad_weights=bkd.full((10, 1), 1.0)
             )
+
+
+class TestSeeding:
+    """Two constructions of the same KLE must return the same basis.
+
+    Both solvers with randomness take a seed; the pivoted Cholesky
+    solver takes none, having none to seed.
+    """
+
+    def _kernel_and_coords(self, bkd):
+        from pyapprox.surrogates.kernels.matern import (
+            SquaredExponentialKernel,
+        )
+
+        coords = bkd.array(np.linspace(0.0, 1.0, 120)[None, :])
+        kernel = SquaredExponentialKernel(
+            bkd.full((1,), 0.3), (0.01, 100.0), 1, bkd
+        )
+        return kernel, coords
+
+    def test_dense_solver_is_reproducible_when_seeded(self, bkd) -> None:
+        """The Lanczos path is only deterministic once seeded.
+
+        ARPACK draws its start vector from a stream numpy's global seed
+        does not reach, so seeding before the call has no effect and
+        the conftest reproducibility fixture does nothing here. Only
+        ``nterms < ncoords`` takes that path; requesting every term
+        uses ``eigh`` and was always deterministic.
+        """
+        kernel, coords = self._kernel_and_coords(bkd)
+        first = DenseEigenSolver(bkd, seed=0).solve(kernel, coords, 8)[1]
+        second = DenseEigenSolver(bkd, seed=0).solve(kernel, coords, 8)[1]
+        bkd.assert_allclose(first, second, rtol=0.0, atol=0.0)
+
+    def test_randomized_solver_is_reproducible_when_seeded(
+        self, bkd
+    ) -> None:
+        kernel, coords = self._kernel_and_coords(bkd)
+        first = RandomizedEigenSolver(bkd, seed=0).solve(
+            kernel, coords, 8
+        )[1]
+        second = RandomizedEigenSolver(bkd, seed=0).solve(
+            kernel, coords, 8
+        )[1]
+        bkd.assert_allclose(first, second, rtol=0.0, atol=0.0)
+
+    @pytest.mark.parametrize(
+        "solver_cls", [DenseEigenSolver, RandomizedEigenSolver]
+    )
+    def test_seeded_solver_does_not_touch_the_global_rng(
+        self, bkd, solver_cls
+    ) -> None:
+        """A seeded solver uses a local stream.
+
+        Otherwise seeding for reproducibility would silently advance
+        the caller's own random sequence, making *their* results depend
+        on whether a KLE happened to be built first.
+        """
+        kernel, coords = self._kernel_and_coords(bkd)
+        np.random.seed(0)
+        expected = np.random.rand()
+        np.random.seed(0)
+        solver_cls(bkd, seed=0).solve(kernel, coords, 8)
+        assert np.random.rand() == expected
+
+    def test_pivoted_cholesky_takes_no_seed(self, bkd) -> None:
+        """Greedy pivoting is deterministic, so a seed would mislead.
+
+        Pinning the absence keeps one from being added for symmetry,
+        which would advertise randomness the algorithm does not have.
+        """
+        with pytest.raises(TypeError):
+            PivotedCholeskyEigenSolver(bkd, seed=0)

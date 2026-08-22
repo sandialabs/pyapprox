@@ -668,6 +668,7 @@ def randomized_symmetric_eigendecomposition(
     bkd: Backend[Array],
     noversampling: int = 10,
     npower_iters: int = 1,
+    seed: Optional[int] = None,
 ) -> Tuple[Array, Array]:
     """
     Compute a low-rank eigenvalue decomposition using randomized methods.
@@ -728,8 +729,15 @@ def randomized_symmetric_eigendecomposition(
     """
     nsamples = rank + noversampling
 
-    # Random matrix for sampling column space
-    omega = bkd.asarray(np.random.normal(0, 1, (nvars, nsamples)).astype(np.float64))
+    # Random matrix for sampling column space. A local stream when
+    # seeded, so the result is reproducible without perturbing the
+    # global RNG; global np.random otherwise, matching RandomizedSVD.
+    rng = (
+        np.random.RandomState(seed) if seed is not None else np.random
+    )
+    omega = bkd.asarray(
+        rng.normal(0, 1, (nvars, nsamples)).astype(np.float64)
+    )
 
     # Sample column space: Y = A @ omega
     Y = apply_operator(omega)

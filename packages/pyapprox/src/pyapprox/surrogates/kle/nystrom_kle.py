@@ -13,6 +13,8 @@ eigenpairs computed on a small landmark set.
 import math
 from typing import Callable, Generic, Optional, Tuple, Union
 
+import numpy as np
+
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.surrogates.kle.eigensolvers import (
     PivotedCholeskyEigenSolver,
@@ -418,4 +420,4 @@ def _nystrom_extension(
     return extension, eig_vals, landmark_vecs
 
 
-_MACHINE_EPS = 2.220446049250313e-16
+_MACHINE_EPS = float(np.finfo(float).eps)

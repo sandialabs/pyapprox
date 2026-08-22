@@ -4,7 +4,6 @@ Ports legacy tests from pyapprox/surrogates/affine/tests/test_kle.py.
 """
 
 import numpy as np
-
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
 )
@@ -15,6 +14,7 @@ from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.pca import PrincipalComponentAnalysis
+
 from tests._helpers.markers import slow_test
 
 

@@ -6,7 +6,6 @@ and adds new tests for improved coverage.
 
 import numpy as np
 import pytest
-
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
 )
@@ -288,9 +287,15 @@ class TestMeshKLE:
         result = kle1(coef)
         assert result.shape == (npts, 3)
 
-        # nterms=all (None)
+        # nterms=None resolves to the terms the kernel can supply, not
+        # one per point: a squared exponential at this lengthscale is
+        # rank deficient, so the remaining points contribute modes with
+        # no variance rather than usable ones.
         kle_all = MeshKLE(mesh_coords, kernel, bkd=bkd)
-        assert kle_all.nterms() == npts
+        assert 1 <= kle_all.nterms() < npts
+        # Every retained term carries variance, which is what the count
+        # is chosen to guarantee.
+        assert float(bkd.to_numpy(kle_all.eigenvalues()).min()) > 0.0
 
         # Non-zero mean
         mean = 5.0
@@ -320,3 +325,108 @@ class TestMeshKLE:
         # Wrong nterms
         with pytest.raises(ValueError):
             kle(bkd.array(np.random.randn(5, 2)))
+
+
+class TestMeshKLETermsCarryVariance:
+    """The basis never contains a mode the caller did not get.
+
+    A KLE scales each eigenvector by ``sqrt(eigenvalue)``, so a term
+    whose eigenvalue is zero to machine precision is a column of zeros.
+    Smooth kernels are severely rank deficient, so this is easy to hit
+    by accident rather than a pathological case.
+    """
+
+    def _kernel(self, bkd, lenscale=0.5):
+        return SquaredExponentialKernel(
+            bkd.array([lenscale]), (0.01, 10.0), 1, bkd
+        )
+
+    def test_over_requesting_raises(self, bkd) -> None:
+        """Asking past the numerical rank is refused, not padded."""
+        npts = 40
+        mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
+        with pytest.raises(ValueError, match="rather than variance"):
+            MeshKLE(mesh_coords, self._kernel(bkd), nterms=npts, bkd=bkd)
+
+    def test_error_names_the_usable_count(self, bkd) -> None:
+        """The message must say what to ask for instead.
+
+        An error that only reports failure leaves the caller guessing a
+        smaller number; the usable count is already known here.
+        """
+        npts = 40
+        mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
+        usable = MeshKLE(
+            mesh_coords, self._kernel(bkd), bkd=bkd
+        ).nterms()
+        with pytest.raises(ValueError, match=str(usable)):
+            MeshKLE(mesh_coords, self._kernel(bkd), nterms=npts, bkd=bkd)
+
+    def test_usable_count_is_accepted(self, bkd) -> None:
+        """The count the error suggests must itself be requestable.
+
+        Otherwise the guidance sends the caller into a second failure.
+        """
+        npts = 40
+        mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
+        kernel = self._kernel(bkd)
+        usable = MeshKLE(mesh_coords, kernel, bkd=bkd).nterms()
+        kle = MeshKLE(mesh_coords, kernel, nterms=usable, bkd=bkd)
+        assert kle.nterms() == usable
+        assert float(bkd.to_numpy(kle.eigenvalues()).min()) > 0.0
+        # One more must fail, so the count is the true boundary rather
+        # than merely a safe under-estimate.
+        with pytest.raises(ValueError, match="rather than variance"):
+            MeshKLE(mesh_coords, kernel, nterms=usable + 1, bkd=bkd)
+
+    def test_rougher_kernel_supplies_more_terms(self, bkd) -> None:
+        """The count tracks the kernel, not a fixed cap.
+
+        A shorter lengthscale decays more slowly, so it must yield
+        strictly more usable terms on the same points.
+        """
+        npts = 40
+        mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
+        smooth = MeshKLE(
+            mesh_coords, self._kernel(bkd, 1.0), bkd=bkd
+        ).nterms()
+        rough = MeshKLE(
+            mesh_coords, self._kernel(bkd, 0.1), bkd=bkd
+        ).nterms()
+        assert rough > smooth
+
+    def test_full_rank_kernel_keeps_every_term(self, bkd) -> None:
+        """Truncation is rank driven, so full rank must not truncate.
+
+        An exponential kernel is only continuous, not smooth, and its
+        spectrum stays well clear of machine precision at this size.
+        """
+        npts = 20
+        mesh_coords = bkd.array(np.linspace(0, 1, npts)[None, :])
+        kernel = ExponentialKernel(bkd.array([0.5]), (0.01, 10.0), 1, bkd)
+        kle = MeshKLE(mesh_coords, kernel, bkd=bkd)
+        assert kle.nterms() == npts
+
+    def test_weighted_case_also_truncates(self, bkd) -> None:
+        """Quadrature weights must not bypass the check.
+
+        The weighted path solves a different (symmetrized) operator, so
+        it needs its own rank resolution rather than inheriting the
+        unweighted one.
+        """
+        npts = 40
+        mesh_coords, quad_weights = _gauss_legendre_quad(0, 1, npts, bkd)
+        kernel = self._kernel(bkd)
+        kle = MeshKLE(
+            mesh_coords, kernel, quad_weights=quad_weights, bkd=bkd
+        )
+        assert 1 <= kle.nterms() < npts
+        assert float(bkd.to_numpy(kle.eigenvalues()).min()) > 0.0
+        with pytest.raises(ValueError, match="rather than variance"):
+            MeshKLE(
+                mesh_coords,
+                kernel,
+                nterms=npts,
+                quad_weights=quad_weights,
+                bkd=bkd,
+            )

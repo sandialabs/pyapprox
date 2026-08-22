@@ -8,6 +8,7 @@ from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.surrogates.kle.eigensolvers import (
     DenseEigenSolver,
     KLEEigenSolverProtocol,
+    usable_nterms,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -130,14 +131,40 @@ class MeshKLE(Generic[Array]):
             self._mean_field = mean_field
 
         # Set nterms
-        if nterms is None:
-            nterms = ncoords
-        if nterms > ncoords:
+        if nterms is not None and nterms > ncoords:
             raise ValueError(f"nterms={nterms} exceeds ncoords={ncoords}")
-        self._nterms = nterms
+        self._nterms = (
+            self._usable_nterms() if nterms is None else nterms
+        )
 
         # Compute basis
         self._compute_basis()
+
+    def _usable_nterms(self) -> int:
+        """Terms the kernel can supply at these coordinates.
+
+        ``nterms=None`` used to mean ``ncoords``, which is almost never
+        what a caller wants: smooth kernels are severely rank
+        deficient, so most of those terms carried no variance and
+        entered the basis as columns of zeros. On a squared exponential
+        at lengthscale 0.3 with 60 points, 45 of the 60 were empty.
+
+        Resolving the count needs the whole spectrum but not its
+        eigenvectors, so this is an eigenvalue-only solve rather than a
+        second full decomposition. It runs only when the caller
+        declines to say how many terms they want.
+        """
+        kmat = self._kernel(self._mesh_coords, self._mesh_coords)
+        if self._quad_weights is not None:
+            sqrt_weights = self._bkd.sqrt(self._quad_weights)
+            kmat = (sqrt_weights[:, None] * kmat) * sqrt_weights[None, :]
+        nusable = usable_nterms(self._bkd.eigvalsh(kmat), self._bkd)
+        if nusable < 1:
+            raise ValueError(
+                "the kernel supplies no modes carrying variance at these "
+                "coordinates, so no KLE basis exists"
+            )
+        return nusable
 
     def _compute_basis(self) -> None:
         """Compute the KLE basis from the configured eigensolver.
