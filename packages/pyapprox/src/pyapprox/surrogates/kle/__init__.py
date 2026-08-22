@@ -8,6 +8,7 @@ Key Protocols
 -------------
 - KLEProtocol: Base protocol for KLE implementations
 - ReducibleKLEProtocol: Protocol for KLEs with reduce/expand operations
+- KLEEigenSolverProtocol: How MeshKLE computes its eigenpairs
 
 Key Classes
 -----------
@@ -15,7 +16,17 @@ Key Classes
 - GalerkinKLE: KLE via Galerkin projection (generalized eigenproblem)
 - SPDEMaternKLE: SPDE-based KLE for Matern fields (sparse, O(N) memory)
 - DataDrivenKLE: SVD-based KLE computed from field samples
+- NystromKLE: KLE evaluable away from its collocation points
 - PrincipalComponentAnalysis: PCA for dimensionality reduction
+
+Eigensolvers
+------------
+Injected into MeshKLE to control how the eigenproblem is solved.
+
+- DenseEigenSolver: assembles the kernel matrix; O(N^2) memory
+- PivotedCholeskyEigenSolver: matrix-free, low-rank factorization
+- RandomizedEigenSolver: matrix-free, randomized subspace iteration
+- finalize_eigenpairs: the convention every solver must return
 
 Utilities
 ---------
@@ -29,8 +40,16 @@ Analytical
 
 from .analytical import AnalyticalExponentialKLE1D
 from .data_driven_kle import DataDrivenKLE
+from .eigensolvers import (
+    DenseEigenSolver,
+    KLEEigenSolverProtocol,
+    PivotedCholeskyEigenSolver,
+    RandomizedEigenSolver,
+    finalize_eigenpairs,
+)
 from .galerkin_kle import GalerkinKLE
 from .mesh_kle import MeshKLE
+from .nystrom_kle import NystromKLE, create_nystrom_kle
 from .pca import PrincipalComponentAnalysis
 from .periodic_random_field import PeriodicReiszGaussianRandomField
 from .protocols import (
@@ -47,12 +66,20 @@ __all__ = [
     # Protocols
     "KLEProtocol",
     "ReducibleKLEProtocol",
+    "KLEEigenSolverProtocol",
     # Core
     "MeshKLE",
     "GalerkinKLE",
     "SPDEMaternKLE",
     "DataDrivenKLE",
+    "NystromKLE",
+    "create_nystrom_kle",
     "PrincipalComponentAnalysis",
+    # Eigensolvers
+    "DenseEigenSolver",
+    "PivotedCholeskyEigenSolver",
+    "RandomizedEigenSolver",
+    "finalize_eigenpairs",
     # Periodic random fields
     "PeriodicReiszGaussianRandomField",
     # Utilities

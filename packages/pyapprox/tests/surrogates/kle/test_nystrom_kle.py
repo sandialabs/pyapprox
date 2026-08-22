@@ -27,6 +27,7 @@ from pyapprox.surrogates.kle.nystrom_kle import (
     create_nystrom_kle,
 )
 from pyapprox.surrogates.kle.protocols import KLEProtocol
+from pyapprox.surrogates.kle.utils import adjust_sign_eig
 
 
 def _coords(bkd, npoints=100):
@@ -101,6 +102,127 @@ class TestOutOfSampleEvaluation:
         assert error < 1e-8, (
             f"Mercer reconstruction at out-of-sample points is {error:.2e}; "
             "the extension is not reproducing the covariance"
+        )
+
+    def test_reproduces_the_basis_at_the_landmarks(self, bkd) -> None:
+        """``eigenvectors_at(landmarks)`` must match ``eigenvectors()``.
+
+        Self-consistency at the points the basis was built from. Weaker
+        than the out-of-sample oracles above, since it never leaves the
+        landmark set, but that is exactly what makes it diagnostic: it
+        isolates a failure to the extension formula rather than to the
+        landmark selection, because selection cannot be at fault at the
+        points that were selected.
+
+        Both sides are canonicalized with ``adjust_sign_eig`` first.
+        ``eigenvectors()`` has already been through it while
+        ``eigenvectors_at`` is a plain kernel product that applies no
+        sign convention, and an eigenvector is only defined up to sign.
+        Canonicalizing rather than comparing magnitudes keeps the check
+        strict: a column whose *individual entries* disagree in sign is
+        a wrong eigenvector and still fails, where an elementwise
+        ``abs`` would have accepted it.
+        """
+        coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
+        kle = create_nystrom_kle(
+            kernel, coords, 12, bkd, nlandmarks=60
+        )
+        # adjust_sign_eig mutates its argument, so hand it copies.
+        at_landmarks = adjust_sign_eig(
+            bkd.copy(kle.eigenvectors_at(kle.landmark_coords())), bkd
+        )
+        reference = adjust_sign_eig(bkd.copy(kle.eigenvectors()), bkd)
+        bkd.assert_allclose(
+            at_landmarks, reference, atol=1e-8, rtol=0.0
+        )
+
+    @pytest.mark.parametrize("weighted", [False, True])
+    def test_satisfies_the_eigenvalue_equation(self, bkd, weighted) -> None:
+        r"""The defining equation, where it holds exactly.
+
+        For each retained ``k``, ``K W phi_k = lam_k phi_k``. This
+        validates against the definition rather than against another
+        implementation, so unlike the comparisons with :class:`MeshKLE`
+        it survives a misunderstanding shared by both code paths.
+
+        Posed with ``nlandmarks == npoints``, because that is the only
+        configuration in which the residual is expected at round-off:
+        Nystrom with fewer landmarks *approximates* the full operator,
+        and the residual then measures that approximation rather than
+        correctness. Measured at 60 of 100 landmarks it sits near 1e-04
+        and shrinks as landmarks are added, which is the convergence
+        already covered by :class:`TestConvergesInLandmarks`.
+
+        Taking all the points therefore does double duty: it is the
+        exactness oracle for the extension, and the operator it pins is
+        the full one rather than a subset.
+
+        The equation is posed on the whole collocation set, since that
+        is the operator the eigenpairs belong to -- the basis is
+        orthonormal under ``W`` there (``Phi^T W Phi = I``), not
+        Euclidean-orthonormal on the landmark subset.
+        """
+        npoints = 60
+        coords = _coords(bkd, npoints)
+        kernel = _full_rank_kernel(bkd)
+        weights = _weights(bkd, npoints)
+        kwargs = {"quad_weights": weights} if weighted else {}
+        kle = create_nystrom_kle(
+            kernel, coords, 8, bkd, nlandmarks=npoints, **kwargs
+        )
+        kmat = bkd.to_numpy(kernel(coords, coords))
+        wts = bkd.to_numpy(weights) if weighted else np.ones(npoints)
+        phi = bkd.to_numpy(kle.eigenvectors_at(coords))
+        lam = bkd.to_numpy(kle.eigenvalues())
+        # The two assertions cover each other's blind spot, so neither
+        # is redundant. The eigenvalue equation is invariant to column
+        # scaling -- K (c phi) = lam (c phi) for any c -- so scaling a
+        # column by 1 + 1e-6 leaves the residual at 1.4e-14, unchanged
+        # from the correct basis. That mutation moves the Gram error to
+        # 2.0e-06. Conversely the residual catches sign flips within a
+        # column (1.7e-01) and swapped columns (1.2e-01), which leave
+        # an orthonormal basis orthonormal.
+        gram = phi.T @ (wts[:, None] * phi)
+        assert np.abs(gram - np.eye(lam.shape[0])).max() < 1e-10
+        residual = (kmat * wts[None, :]) @ phi - phi * lam[None, :]
+        relative = np.abs(residual).max(axis=0) / lam
+        assert relative.max() < 1e-8, (
+            f"eigenvalue equation residual {relative.max():.2e}; "
+            "the eigenpairs do not satisfy K W phi = lam phi"
+        )
+
+    def test_second_moment_matches_the_spectrum(self, bkd) -> None:
+        r"""``Var[field(x)] = sigma^2 sum_k lam_k phi_k(x)^2``.
+
+        Exercises the sampling path, which every other oracle here
+        leaves untested: they all read the basis directly, so a fault in
+        ``evaluate_at``'s assembly of the field from coefficients would
+        not show up in any of them.
+
+        Compared against the spectrum rather than against ``C(x, x)``,
+        since at finite ``nterms`` the truncated expansion is not meant
+        to reach the kernel -- that gap is truncation, not error, and
+        asserting it would test the wrong thing.
+        """
+        rng = np.random.RandomState(0)
+        coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
+        sigma, nterms = 2.0, 10
+        kle = create_nystrom_kle(
+            kernel, coords, nterms, bkd, nlandmarks=60, sigma=sigma
+        )
+        query = _out_of_sample(bkd)
+        nsamples = 40000
+        coef = bkd.array(rng.standard_normal((nterms, nsamples)))
+        fields = bkd.to_numpy(kle.evaluate_at(query, coef))
+        empirical = fields.var(axis=1)
+        basis = bkd.to_numpy(kle.eigenvectors_at(query))
+        eigvals = bkd.to_numpy(kle.eigenvalues())
+        predicted = sigma**2 * (basis**2 * eigvals[None, :]).sum(axis=1)
+        # Monte Carlo over 40k standard normal draws: the sampling error
+        # on a variance is O(sqrt(2/nsamples)) ~ 0.7% relative.
+        relative = np.abs(empirical - predicted).max() / predicted.max()
+        assert relative < 0.05, (
+            f"empirical variance differs from the spectrum by {relative:.2e}"
         )
 
     def test_evaluate_at_returns_field_values(self, bkd) -> None:

@@ -12,6 +12,7 @@ internally.
 """
 
 import math
+import warnings
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
@@ -35,6 +36,12 @@ from pyapprox.util.linalg.randomized import (
 )
 
 _MACHINE_EPS = float(np.finfo(float).eps)
+
+# Dense assembly above roughly this size is what a matrix-free solver
+# exists to avoid, so warn rather than let it be discovered as a
+# MemoryError. Two GB is comfortably survivable on a workstation while
+# being far past what anyone assembles on purpose.
+_DENSE_WARN_BYTES = 2.0 * 1024**3
 
 
 @runtime_checkable
@@ -445,9 +452,37 @@ class RandomizedEigenSolver(_KLEEigenSolver[Array]):
 
     Applies the kernel matrix to a block of random vectors through
     :class:`KernelMatVecOperator`, so the matrix is never formed. Costs
-    ``(2 + npower_iters)`` passes of ``N^2`` kernel evaluations, far
-    more than pivoted Cholesky at large ``N``, but degrades more
-    gracefully when the spectrum decays slowly.
+    ``(2 + npower_iters)`` passes of ``N^2`` kernel evaluations (one to
+    build the sketch, one per power iteration, one to form the
+    projected operator), far more than pivoted Cholesky at large ``N``.
+
+    How fast the spectrum decays decides whether power iterations are
+    needed. A rapidly decaying one is the easy case, essentially
+    converged without them; a slowly decaying one improves by roughly
+    an order of magnitude per iteration.
+
+    Measured on 200 equispaced points in 1D at lengthscale 0.3, with
+    ``nterms=10``, ``noversampling=20`` and ``seed=0``, reporting
+    ``max|V V^T - V_ref V_ref^T|`` against :class:`DenseEigenSolver`
+    (a projector distance, so it is invariant to sign and to rotation
+    within the subspace):
+
+    ==============  ===================  ===========
+    npower_iters    squared exponential  exponential
+    ==============  ===================  ===========
+    0               1.1e-10              8.7e-03
+    1               2.4e-11              6.5e-04
+    2               2.3e-11              7.1e-05
+    4               2.5e-11              5.5e-07
+    ==============  ===================  ===========
+
+    The squared exponential column is flat because that spectrum is
+    numerically rank deficient well inside 10 terms, so there is
+    nothing left for the iterations to resolve. Treat the figures as
+    the shape of the dependence at one configuration rather than as a
+    guarantee: the useful reading is that ``npower_iters`` is the knob
+    for a slowly decaying spectrum, which is also where this solver is
+    weakest relative to pivoted Cholesky rather than strongest.
 
     Parameters
     ----------
@@ -593,6 +628,37 @@ class DenseEigenSolver(_KLEEigenSolver[Array]):
         """Return the Lanczos start seed, or None if unseeded."""
         return self._seed
 
+    def _warn_if_large(self, coords: Array) -> None:
+        """Warn before assembling a kernel matrix that will not fit.
+
+        This solver is the default, so the callers who most need a
+        matrix-free one are exactly those who get dense assembly unless
+        they know to ask. The warning names the alternatives.
+
+        The threshold is on estimated bytes rather than on ``N``,
+        because no threshold on ``N`` separates the cases: at float64,
+        ``N = 10_000`` is 800 MB and fine while ``N = 40_000`` is
+        12.8 GB and is not. The item size is taken from the coordinates
+        rather than assumed, so a float32 problem is judged at its own
+        cost rather than at double its size.
+        """
+        npoints = int(coords.shape[1])
+        # to_numpy purely to read the dtype -- it is normally reserved
+        # for plotting because it breaks the autograd graph, which no
+        # warning threshold participates in. One element, not the whole
+        # array, since a large coords is the case that gets here.
+        itemsize = self._bkd.to_numpy(coords[:, :1]).dtype.itemsize
+        nbytes = float(npoints) ** 2 * float(itemsize)
+        if nbytes <= _DENSE_WARN_BYTES:
+            return
+        warnings.warn(
+            f"Assembling a dense {npoints}x{npoints} kernel matrix needs "
+            f"about {nbytes / 1024**3:.1f} GB. PivotedCholeskyEigenSolver "
+            "and RandomizedEigenSolver never form the matrix; pass one as "
+            "MeshKLE's eigensolver to avoid this.",
+            stacklevel=2,
+        )
+
     def _solve_symmetrized(
         self,
         kernel: KernelProtocol[Array],
@@ -600,6 +666,7 @@ class DenseEigenSolver(_KLEEigenSolver[Array]):
         nterms: int,
         sqrt_weights: Optional[Array],
     ) -> Tuple[Array, Array]:
+        self._warn_if_large(coords)
         kmat = kernel(coords, coords)
         if sqrt_weights is not None:
             kmat = (sqrt_weights[:, None] * kmat) * sqrt_weights[None, :]

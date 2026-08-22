@@ -6,10 +6,13 @@ un-weighted, non-negative, descending, deterministically signed -- since
 that is what the matrix-free solvers will be checked against next.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.eigensolvers import (
+    _DENSE_WARN_BYTES,
     DenseEigenSolver,
     KLEEigenSolverProtocol,
     PivotedCholeskyEigenSolver,
@@ -125,42 +128,84 @@ class TestConvention:
         bkd.assert_allclose(first_vecs, second_vecs, rtol=0.0, atol=0.0)
 
     def test_partial_solves_span_the_same_subspace(self, bkd) -> None:
-        """A partial solve reproduces its *span*, not its columns.
+        """A partial solve reproduces its span, seeded or not.
 
-        .. warning::
-            This documents undesirable behaviour rather than endorsing
-            it. Requesting fewer terms than points routes through
-            Lanczos (``scipy eigsh``), which ARPACK seeds from an
-            internal random vector that numpy's global seed does not
-            reach -- so the conftest reproducibility fixture has no
-            effect, and **two identical constructions of the same KLE
-            return bases differing by O(1)**.
+        The span is a weaker invariant than the columns, and the seeded
+        default now reproduces the columns exactly
+        (``test_partial_solves_are_reproducible``). It is tested
+        separately because it is the property that survives *without*
+        the seed: an unseeded solver still spans the same subspace, so a
+        caller who opts out of reproducibility keeps a meaningful
+        guarantee rather than none.
 
-            Measured on three full-rank 40x40 matrices, eigenvectors
-            differed between successive calls by 4.4e-01 to 8.3e-01
-            while eigenvalues agreed to 5e-15. That includes a random
-            SPD matrix with well-separated eigenvalues
-            (``lambda_8 / lambda_1 = 0.61``), which disproves an earlier
-            hypothesis that this was rotation within a degenerate
-            subspace: there is no degeneracy there to rotate in. It is
-            the random start.
-
-            The consequence for callers is that a stored KLE basis will
-            not reproduce column-wise against a recomputed one, so
-            comparisons must be made at subspace level until this is
-            fixed. ``test_fixed_start_vector_is_reproducible`` pins the
-            fix; adopting it changes the basis for every existing
-            partial-solve caller and so belongs in its own commit.
-
-        The invariant available today is the span, checked through the
-        projector, which is invariant to both rotation and sign.
+        Checked through the projector, which is invariant to both
+        rotation within the subspace and to sign.
         """
         coords, kernel = _setup(bkd)
-        solver = DenseEigenSolver(bkd)
+        solver = DenseEigenSolver(bkd, seed=None)
         _, first = solver.solve(kernel, coords, 8)
         _, second = solver.solve(kernel, coords, 8)
         bkd.assert_allclose(
             first @ first.T, second @ second.T, atol=1e-8, rtol=0.0
+        )
+
+    def test_partial_solves_are_reproducible(self, bkd) -> None:
+        """The seeded default reproduces columns, not merely the span.
+
+        Requesting fewer terms than points routes through Lanczos
+        (``scipy eigsh``), which ARPACK seeds from an internal random
+        vector that numpy's global seed does not reach -- so the
+        conftest reproducibility fixture has no effect on it and the
+        seed must be passed explicitly as ``v0``.
+
+        Before that was done, two identical constructions of the same
+        KLE returned bases differing by O(1): measured on three
+        full-rank 40x40 matrices, eigenvectors differed between
+        successive calls by 4.4e-01 to 8.3e-01 while eigenvalues agreed
+        to 5e-15. That included a random SPD matrix with well-separated
+        eigenvalues (``lambda_8 / lambda_1 = 0.61``), so it was the
+        random start rather than rotation within a degenerate subspace.
+
+        Exact equality is the assertion because identical input and an
+        identical start vector make the computation deterministic;
+        anything looser would let the defect back in unnoticed.
+        """
+        coords, kernel = _setup(bkd)
+        solver = DenseEigenSolver(bkd)
+        first_vals, first_vecs = solver.solve(kernel, coords, 8)
+        second_vals, second_vecs = solver.solve(kernel, coords, 8)
+        bkd.assert_allclose(first_vals, second_vals, rtol=0.0, atol=0.0)
+        bkd.assert_allclose(first_vecs, second_vecs, rtol=0.0, atol=0.0)
+
+    def test_separate_solver_instances_agree(self, bkd) -> None:
+        """Reproducibility must not depend on reusing one solver.
+
+        The realistic case is two constructions in different processes
+        or runs, so the seed has to live on the solver's configuration
+        rather than in state accumulated across calls.
+        """
+        coords, kernel = _setup(bkd)
+        _, first = DenseEigenSolver(bkd).solve(kernel, coords, 8)
+        _, second = DenseEigenSolver(bkd).solve(kernel, coords, 8)
+        bkd.assert_allclose(first, second, rtol=0.0, atol=0.0)
+
+    def test_different_seeds_agree_on_the_subspace(self, bkd) -> None:
+        """Changing the seed must move nothing that is not arbitrary.
+
+        The start vector is an implementation detail of the iteration,
+        so two seeds must reach the same eigenvalues and the same
+        subspace; only the choice among equivalent bases may differ.
+        """
+        coords, kernel = _setup(bkd)
+        vals_a, vecs_a = DenseEigenSolver(bkd, seed=0).solve(
+            kernel, coords, 8
+        )
+        vals_b, vecs_b = DenseEigenSolver(bkd, seed=12345).solve(
+            kernel, coords, 8
+        )
+        bkd.assert_allclose(vals_a, vals_b, rtol=1e-10, atol=1e-12)
+        bkd.assert_allclose(
+            vecs_a @ vecs_a.T, vecs_b @ vecs_b.T, atol=1e-8, rtol=0.0
         )
 
     def test_fixed_start_vector_is_reproducible(self, numpy_bkd) -> None:
@@ -193,6 +238,74 @@ class TestConvention:
         assert np.abs(
             np.sort(first[0])[::-1] - reference
         ).max() / reference[0] < 1e-12
+
+
+class TestDenseMemoryWarning:
+    """Dense assembly announces itself before it becomes a MemoryError.
+
+    This solver is the default, so the callers who most need a
+    matrix-free one are exactly those who get dense assembly unless
+    they know to ask.
+    """
+
+    def _threshold_npoints(self, itemsize=8):
+        """Smallest N whose dense matrix exceeds the threshold."""
+        return int((_DENSE_WARN_BYTES / itemsize) ** 0.5) + 1
+
+    def test_small_problems_are_silent(self, bkd) -> None:
+        """The warning must not fire for problems that are fine.
+
+        A warning on routine sizes would be trained away, and every
+        existing caller is well under the threshold.
+        """
+        coords, kernel = _setup(bkd)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            DenseEigenSolver(bkd).solve(kernel, coords, 8)
+        assert [str(w.message) for w in caught] == []
+
+    def test_large_problems_warn(self, bkd) -> None:
+        """Past the threshold the caller is told, and told what to do.
+
+        The check is called directly rather than through ``solve``: the
+        point is the size at which it fires, and actually assembling
+        that matrix is what the warning exists to prevent.
+        """
+        npoints = self._threshold_npoints()
+        coords = bkd.zeros((1, npoints))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            DenseEigenSolver(bkd)._warn_if_large(coords)
+        assert len(caught) == 1
+        message = str(caught[0].message)
+        # Naming the alternatives is the point; a warning that only says
+        # "this is large" leaves the caller with nowhere to go.
+        assert "PivotedCholeskyEigenSolver" in message
+        assert "RandomizedEigenSolver" in message
+        assert str(npoints) in message
+
+    def test_just_below_the_threshold_is_silent(self, bkd) -> None:
+        """The boundary is a real boundary, not approximately one."""
+        coords = bkd.zeros((1, self._threshold_npoints() - 2))
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            DenseEigenSolver(bkd)._warn_if_large(coords)
+        assert [str(w.message) for w in caught] == []
+
+    @pytest.mark.parametrize(
+        "solver_cls", [PivotedCholeskyEigenSolver, RandomizedEigenSolver]
+    )
+    def test_matrix_free_solvers_never_warn(self, bkd, solver_cls) -> None:
+        """The warning belongs to dense assembly, not to size.
+
+        A matrix-free solver at the same size is the recommended
+        action, so warning there would contradict the advice.
+        """
+        coords, kernel = _setup(bkd)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            solver_cls(bkd).solve(kernel, coords, 8)
+        assert [str(w.message) for w in caught] == []
 
 
 class TestFinalizeEigenpairs:
