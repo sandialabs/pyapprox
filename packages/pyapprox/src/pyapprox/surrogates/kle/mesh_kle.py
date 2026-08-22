@@ -5,9 +5,9 @@ from typing import Generic, Optional, Union
 import numpy as np
 
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
-from pyapprox.surrogates.kle.utils import (
-    eigendecomposition_unweighted,
-    eigendecomposition_weighted,
+from pyapprox.surrogates.kle.eigensolvers import (
+    DenseEigenSolver,
+    KLEEigenSolverProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -60,16 +60,27 @@ class MeshKLE(Generic[Array]):
         If True, return exp(mean + basis @ coef) instead of
         mean + basis @ coef.
     nterms : int or None
-        Number of KLE terms. None uses all mesh points. When
-        nterms < ncoords, a partial eigensolve (scipy eigsh) is used
-        for O(N*k) cost instead of O(N^3). This converts to NumPy
-        internally, so the Torch autograd graph is not preserved
-        through the eigendecomposition. This is acceptable because
-        KLE basis construction is a one-time setup cost.
+        Number of KLE terms. None uses all mesh points. Under the
+        default solver, nterms < ncoords takes a partial eigensolve
+        (scipy eigsh) costing O(N*k) instead of O(N^3). That converts
+        to NumPy internally, so the Torch autograd graph is not
+        preserved through the eigendecomposition, which is acceptable
+        because KLE basis construction is a one-time setup cost.
     quad_weights : Array or None, shape (ncoords,)
         Quadrature weights for weighted eigendecomposition.  Should be
         provided whenever the collocation points come from a
         non-uniform discretization (FEM nodes, quadrature points, etc.).
+    eigensolver : KLEEigenSolverProtocol or None
+        How the eigenpairs are computed. Defaults to
+        :class:`DenseEigenSolver`, which assembles the kernel matrix and
+        so costs O(N^2) memory -- the ceiling on problem size.
+        :class:`PivotedCholeskyEigenSolver` and
+        :class:`RandomizedEigenSolver` never form the matrix and lift
+        that ceiling.
+
+        The default is dense so that existing callers are unaffected.
+        That does mean the users who most need a matrix-free solver are
+        the ones who get dense assembly unless they know to ask.
     bkd : Backend[Array]
         Computational backend.
     """
@@ -83,6 +94,7 @@ class MeshKLE(Generic[Array]):
         use_log: bool = False,
         nterms: Optional[int] = None,
         quad_weights: Optional[Array] = None,
+        eigensolver: Optional[KLEEigenSolverProtocol[Array]] = None,
         bkd: Backend[Array] = None,
     ):
         if bkd is None:
@@ -91,6 +103,16 @@ class MeshKLE(Generic[Array]):
             raise TypeError(
                 f"kernel must satisfy KernelProtocol, got {type(kernel).__name__}"
             )
+        if eigensolver is not None and not isinstance(
+            eigensolver, KLEEigenSolverProtocol
+        ):
+            raise TypeError(
+                "eigensolver must satisfy KLEEigenSolverProtocol, got "
+                f"{type(eigensolver).__name__}"
+            )
+        self._eigensolver: KLEEigenSolverProtocol[Array] = (
+            eigensolver if eigensolver is not None else DenseEigenSolver(bkd)
+        )
         self._bkd = bkd
         self._mesh_coords = mesh_coords
         self._kernel = kernel
@@ -118,20 +140,20 @@ class MeshKLE(Generic[Array]):
         self._compute_basis()
 
     def _compute_basis(self) -> None:
-        """Compute the KLE basis via eigendecomposition of the kernel matrix."""
-        # Build kernel matrix using the kernel's __call__
-        K = self._kernel(self._mesh_coords, self._mesh_coords)
+        """Compute the KLE basis from the configured eigensolver.
 
-        if self._quad_weights is None:
-            eig_vals, eig_vecs = eigendecomposition_unweighted(
-                K, self._nterms, self._bkd
-            )
-        else:
-            eig_vals, eig_vecs = eigendecomposition_weighted(
-                K, self._quad_weights, self._nterms, self._bkd
-            )
-
-        eig_vals = self._bkd.maximum(eig_vals, self._bkd.asarray([0.0]))
+        The weighted and unweighted cases are no longer distinguished
+        here: the solver takes the quadrature weights and returns
+        eigenpairs already in the unweighted convention, so the
+        un-weighting, clipping, sorting and sign fixing happen once in
+        one place rather than being re-derived per call site.
+        """
+        eig_vals, eig_vecs = self._eigensolver.solve(
+            self._kernel,
+            self._mesh_coords,
+            self._nterms,
+            quad_weights=self._quad_weights,
+        )
         self._sqrt_eig_vals = self._bkd.sqrt(eig_vals)
         self._unweighted_eig_vecs = eig_vecs
         # Pre-multiply by sqrt(eigenvalues) and sigma

@@ -21,6 +21,7 @@ from pyapprox.surrogates.kle.eigensolvers import (
     PivotedCholeskyEigenSolver,
     RandomizedEigenSolver,
 )
+from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 
 
 def _coords(bkd, npoints=120):
@@ -268,3 +269,98 @@ class TestValidation:
     def test_rejects_negative_power_iterations(self, bkd) -> None:
         with pytest.raises(ValueError, match="npower_iters"):
             RandomizedEigenSolver(bkd, npower_iters=-1)
+
+
+class TestMeshKLEAcceptsASolver:
+    """The wiring: MeshKLE takes a solver, and the default is unchanged.
+
+    The evidence that the default did not move is the existing
+    test_mesh_kle.py suite passing unmodified; these cover what that
+    suite cannot see, namely that an injected solver is actually used
+    and produces the same field.
+    """
+
+    def _kle(self, bkd, eigensolver=None, **kwargs):
+        return MeshKLE(
+            _coords(bkd),
+            _smooth_kernel(bkd),
+            nterms=8,
+            eigensolver=eigensolver,
+            bkd=bkd,
+            **kwargs,
+        )
+
+    @pytest.mark.parametrize(
+        "solver",
+        [
+            lambda bkd: PivotedCholeskyEigenSolver(bkd, rank_multiplier=15.0),
+            lambda bkd: RandomizedEigenSolver(bkd, npower_iters=4),
+        ],
+        ids=["pivoted", "randomized"],
+    )
+    def test_matrix_free_solver_reproduces_the_default(
+        self, bkd, solver
+    ) -> None:
+        """An injected solver must give the same basis as the default.
+
+        Compared through the assembled basis rather than the raw
+        eigenvectors, since that is what a caller consumes: MeshKLE
+        scales the eigenvectors by sqrt(eigenvalue) and sigma, so an
+        error in either would show here.
+        """
+        default = self._kle(bkd)
+        injected = self._kle(bkd, eigensolver=solver(bkd))
+        lhs = default.eigenvectors()
+        rhs = injected.eigenvectors()
+        # subspaces, since near-degenerate eigenvalues leave individual
+        # eigenvectors undetermined
+        bkd.assert_allclose(
+            lhs @ lhs.T, rhs @ rhs.T, atol=1e-6, rtol=0.0
+        )
+
+    def test_injected_solver_is_used(self, bkd) -> None:
+        """A solver that refuses must reach the caller as a failure.
+
+        Without this, passing a solver could silently fall back to the
+        default and every numerical test would still agree.
+        """
+
+        class _Refuses:
+            def solve(self, kernel, coords, nterms, quad_weights=None):
+                raise RuntimeError("injected solver was called")
+
+        with pytest.raises(RuntimeError, match="injected solver was called"):
+            self._kle(bkd, eigensolver=_Refuses())
+
+    def test_weighted_case_reaches_the_solver(self, bkd) -> None:
+        """Quadrature weights must be forwarded, not dropped.
+
+        MeshKLE no longer branches on quad_weights, so a wiring error
+        that failed to pass them would silently produce an unweighted
+        basis of the right shape.
+        """
+        received = {}
+
+        class _Recording:
+            def __init__(self, inner):
+                self._inner = inner
+
+            def solve(self, kernel, coords, nterms, quad_weights=None):
+                received["weights"] = quad_weights
+                return self._inner.solve(
+                    kernel, coords, nterms, quad_weights=quad_weights
+                )
+
+        weights = _weights(bkd)
+        self._kle(
+            bkd,
+            eigensolver=_Recording(DenseEigenSolver(bkd)),
+            quad_weights=weights,
+        )
+        assert received["weights"] is not None
+        bkd.assert_allclose(received["weights"], weights, rtol=1e-14)
+
+    def test_rejects_a_non_solver(self, bkd) -> None:
+        """Checked at the boundary, per the protocol conventions."""
+        with pytest.raises(TypeError, match="KLEEigenSolverProtocol"):
+            self._kle(bkd, eigensolver="not a solver")
