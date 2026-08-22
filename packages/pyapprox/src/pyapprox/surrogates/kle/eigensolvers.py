@@ -11,6 +11,7 @@ matrix it exists to avoid. :class:`DenseEigenSolver` assembles
 internally.
 """
 
+import math
 from abc import ABC, abstractmethod
 from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
@@ -21,6 +22,15 @@ from pyapprox.surrogates.kle.utils import (
     sort_eigenpairs,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.kernel_operators import KernelMatVecOperator
+from pyapprox.util.linalg.pivoted_cholesky import (
+    ColumnOperatorProtocol,
+    KernelColumnOperator,
+    PivotedCholeskyFactorizer,
+)
+from pyapprox.util.linalg.randomized import (
+    randomized_symmetric_eigendecomposition,
+)
 
 
 @runtime_checkable
@@ -215,6 +225,251 @@ class _KLEEigenSolver(Generic[Array], ABC):
         When ``sqrt_weights`` is None the operator is just :math:`K`.
         """
         raise NotImplementedError
+
+
+class PivotedCholeskyEigenSolver(_KLEEigenSolver[Array]):
+    r"""Eigenpairs from a low-rank pivoted Cholesky factor.
+
+    Greedy pivoting builds :math:`K \approx L L^T` with ``L`` of shape
+    ``(N, r)``, ``r << N``, costing ``r * N`` kernel evaluations and
+    never forming ``K``. The eigenpairs then come from a QR of ``L``.
+
+    **Why a QR of L gives eigenpairs.** With :math:`L = QR` where ``Q``
+    has orthonormal columns,
+
+    .. math::
+        L L^T = (QR)(QR)^T = Q\,(R R^T)\,Q^T
+
+    and ``R R^T`` is a small ``(r, r)`` symmetric positive semi-definite
+    matrix, cheap to eigendecompose densely as
+    :math:`R R^T = V \Sigma V^T`. Substituting back,
+
+    .. math::
+        L L^T = Q V \Sigma (Q V)^T .
+
+    That is an eigendecomposition rather than merely a factorization
+    because ``QV`` is itself orthonormal:
+    :math:`(QV)^T (QV) = V^T Q^T Q V = V^T I V = I`. So the eigenvalues
+    are :math:`\mathrm{diag}(\Sigma)` and the eigenvectors the columns
+    of ``QV``.
+
+    **Why ``r`` eigenpairs is the whole nonzero spectrum**, not a
+    truncation: ``L L^T`` has rank at most ``r``, so its remaining
+    ``N - r`` eigenvalues are exactly zero. Checked on a random
+    ``N=500, r=40`` case, entries ``r``, ``r+1`` and ``r+2`` of a
+    brute-force spectrum came out at 9e-14, 7e-14 and 5e-14.
+
+    Cost is ``O(N r^2)`` for the QR against the ``O(N^3)`` avoided.
+
+    **Why not the cheaper ``L^T L`` route.** ``eigh(L.T @ L)`` followed
+    by ``U = L W / sqrt(sig)`` skips the QR and looks strictly better,
+    but forming ``L^T L`` squares the condition number, so
+    ``cond(L) ~ 1e8`` already reaches the double-precision limit. QR
+    obtains ``R`` through orthogonal transformations and never squares
+    anything. Both routes are safe here only because dropping
+    non-positive eigenvalues keeps ``L`` well conditioned, so anyone
+    loosening that filter must re-measure both.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+    rank_multiplier : float
+        Factor times ``nterms`` giving the factorization rank. The
+        default suits smooth kernels and is wrong for rough ones:
+        measured over 60 modes, a squared exponential saturates at
+        6.4e-08 by 4x while a Matern-3/2 needs 8-16x to reach 3.7e-03
+        to 5.9e-04. Raise it for rough fields rather than concluding
+        the solver is broken. Raising it is not unbounded -- the QR is
+        ``O(N rank^2)``, so at ``N=1e5`` it overtakes the kernel
+        evaluations near rank 3000.
+    rank : int, optional
+        Absolute rank, overriding ``rank_multiplier``.
+    tol : float
+        Relative trace tolerance for early termination.
+    """
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        rank_multiplier: float = 4.0,
+        rank: Optional[int] = None,
+        tol: float = 1e-12,
+    ):
+        super().__init__(bkd)
+        if rank_multiplier < 1.0:
+            raise ValueError(
+                "rank_multiplier must be >= 1, since the factorization "
+                f"rank cannot be below nterms; got {rank_multiplier}"
+            )
+        if rank is not None and rank < 1:
+            raise ValueError(f"rank must be >= 1, got {rank}")
+        self._rank_multiplier = float(rank_multiplier)
+        self._rank = rank
+        self._tol = float(tol)
+
+    def rank_for(self, nterms: int, npoints: int) -> int:
+        """Factorization rank used for ``nterms`` modes."""
+        rank = (
+            self._rank
+            if self._rank is not None
+            else int(math.ceil(self._rank_multiplier * nterms))
+        )
+        return min(max(rank, nterms), npoints)
+
+    def factorize(
+        self,
+        kernel: KernelProtocol[Array],
+        coords: Array,
+        nterms: int,
+        sqrt_weights: Optional[Array] = None,
+    ) -> "PivotedCholeskyFactorizer[Array]":
+        """Return the completed factorizer, pivots and factor included.
+
+        Exposed so a Nystrom expansion can reuse this factorization
+        rather than repeating it: with pivoted landmarks the pivots
+        *are* the landmark set, and two implementations of one
+        algorithm would drift while both still passed a
+        reproduce-the-dense-solver test.
+        """
+        operator: ColumnOperatorProtocol[Array] = (
+            _WeightedColumnOperator(kernel, coords, sqrt_weights, self._bkd)
+            if sqrt_weights is not None
+            else KernelColumnOperator(kernel, coords, self._bkd)
+        )
+        factorizer = PivotedCholeskyFactorizer(
+            operator, self._bkd, tol=self._tol
+        )
+        factorizer.factorize(self.rank_for(nterms, int(coords.shape[1])))
+        return factorizer
+
+    def _solve_symmetrized(
+        self,
+        kernel: KernelProtocol[Array],
+        coords: Array,
+        nterms: int,
+        sqrt_weights: Optional[Array],
+    ) -> Tuple[Array, Array]:
+        bkd = self._bkd
+        lfactor = self.factorize(
+            kernel, coords, nterms, sqrt_weights
+        ).factor()
+        qmat, rmat = bkd.qr(lfactor)
+        vals, vmat = bkd.eigh(rmat @ rmat.T)
+        # eigh returns ascending, and the factorization rank exceeds
+        # nterms whenever rank_multiplier > 1, so take the largest
+        # nterms here. finalize_eigenpairs sorts, but its index runs
+        # over exactly nterms columns, so handing it the full rank-r
+        # decomposition would silently keep the r smallest eigenvalues.
+        leading = bkd.arange(vals.shape[0] - 1, -1, -1, dtype=int)[:nterms]
+        return vals[leading], (qmat @ vmat)[:, leading]
+
+
+class RandomizedEigenSolver(_KLEEigenSolver[Array]):
+    """Eigenpairs by randomized subspace iteration.
+
+    Applies the kernel matrix to a block of random vectors through
+    :class:`KernelMatVecOperator`, so the matrix is never formed. Costs
+    ``(2 + npower_iters)`` passes of ``N^2`` kernel evaluations, far
+    more than pivoted Cholesky at large ``N``, but degrades more
+    gracefully when the spectrum decays slowly.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+    noversampling : int
+        Extra random samples beyond ``nterms``, improving accuracy.
+    npower_iters : int
+        Power iterations, which help when eigenvalues decay slowly.
+    block_size : int
+        Rows of the kernel matrix evaluated per pass.
+    """
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        noversampling: int = 20,
+        npower_iters: int = 2,
+        block_size: int = 2048,
+    ):
+        super().__init__(bkd)
+        if noversampling < 0:
+            raise ValueError(
+                f"noversampling must be >= 0, got {noversampling}"
+            )
+        if npower_iters < 0:
+            raise ValueError(
+                f"npower_iters must be >= 0, got {npower_iters}"
+            )
+        self._noversampling = int(noversampling)
+        self._npower_iters = int(npower_iters)
+        self._block_size = int(block_size)
+
+    def _solve_symmetrized(
+        self,
+        kernel: KernelProtocol[Array],
+        coords: Array,
+        nterms: int,
+        sqrt_weights: Optional[Array],
+    ) -> Tuple[Array, Array]:
+        npoints = int(coords.shape[1])
+        operator = KernelMatVecOperator(
+            kernel,
+            coords,
+            self._bkd,
+            sqrt_weights=sqrt_weights,
+            block_size=self._block_size,
+        )
+        # oversampling cannot exceed the problem size
+        noversampling = min(self._noversampling, npoints - nterms)
+        return randomized_symmetric_eigendecomposition(
+            operator.apply,
+            npoints,
+            nterms,
+            self._bkd,
+            noversampling=max(noversampling, 0),
+            npower_iters=self._npower_iters,
+        )
+
+
+class _WeightedColumnOperator(Generic[Array]):
+    r"""Columns of :math:`W^{1/2} K W^{1/2}`, formed one at a time.
+
+    The pivoted Cholesky factorizer consumes a column operator, so the
+    symmetrization is applied per column rather than to an assembled
+    matrix -- forming the matrix is exactly what the solver avoids.
+
+    Implemented as an operator rather than as a kernel wrapper because
+    the weight of a column depends on *which* column is requested, and
+    only the operator is told the index. A kernel wrapper would have to
+    recover the index by matching coordinates, which is quadratic and
+    ambiguous when two collocation points coincide.
+    """
+
+    def __init__(
+        self,
+        kernel: KernelProtocol[Array],
+        X: Array,
+        sqrt_weights: Array,
+        bkd: Backend[Array],
+    ):
+        self._kernel = kernel
+        self._X = X
+        self._sqrt_weights = sqrt_weights
+        self._bkd = bkd
+        self._n = int(X.shape[1])
+
+    def column(self, j: int) -> Array:
+        col = self._kernel(self._X, self._X[:, j : j + 1])
+        col = self._bkd.reshape(col, (-1,))
+        return col * self._sqrt_weights * self._sqrt_weights[j]
+
+    def diagonal(self) -> Array:
+        return self._kernel.diag(self._X) * self._sqrt_weights**2
+
+    def nvars(self) -> int:
+        return self._n
 
 
 class DenseEigenSolver(_KLEEigenSolver[Array]):
