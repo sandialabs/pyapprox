@@ -786,7 +786,34 @@ class TorchBkd(Backend[torch.Tensor]):  # Specify torch.Tensor type
     def cdist(
         XA: torch.Tensor, XB: torch.Tensor, p: float = 2.0
     ) -> torch.Tensor:
-        return torch.cdist(XA, XB, p)
+        if p != 2.0:
+            return torch.cdist(XA, XB, p)
+        # torch defaults to use_mm_for_euclid_dist_if_necessary, which
+        # switches to the ||a||^2 + ||b||^2 - 2a.b identity once either
+        # input has more than 25 rows. The torch documentation states
+        # that the switch happens but gives no rationale for it, and
+        # does not mention its two consequences.
+        #
+        # The identity loses accuracy to cancellation, and because the
+        # switch depends on the row count, the same pair of points gets
+        # different distances according to how many points accompany
+        # them. Measured on 37 points in 2D after scaling by a
+        # lengthscale, a 7-row block disagreed with the matching rows of
+        # the full call by 2.1e-08 in float64; the direct formula agrees
+        # bit for bit. Blockwise kernel evaluation depends on that
+        # consistency -- the pivoted Cholesky column operator and the
+        # matrix-free matvec operator both assemble a matrix from pieces
+        # and use it in place of the whole.
+        #
+        # Nor is the default faster for the shapes this library uses.
+        # Measured on CPU, the direct path ran at 0.6x the default at
+        # n=5000 in 2D and 0.5x at n=2000, with a 1.7x penalty only at
+        # n=500 in 10D and parity by n=5000. The mm identity needs a
+        # high enough dimension for its GEMM to repay the extra norm
+        # passes, and spatial coordinates are 1-3D.
+        return torch.cdist(
+            XA, XB, p, compute_mode="donot_use_mm_for_euclid_dist"
+        )
 
     @staticmethod
     def tril(array: torch.Tensor, k: int = 0) -> torch.Tensor:

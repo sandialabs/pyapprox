@@ -186,3 +186,68 @@ class TestDtypePredicates:
             bkd.array([1.0, 2.0]), dtype=bkd.complex_dtype()
         )
         assert not bkd.is_floating_dtype(complex_array)
+
+
+class TestCdistShapeConsistency:
+    """Distances must not depend on how many points are passed at once.
+
+    torch.cdist switches to a matrix-multiply identity above 25 rows,
+    which is accurate enough in isolation but makes the result depend on
+    the batch size: the same pair of points gets different distances
+    according to how many points accompany them. Blockwise kernel
+    evaluation assembles a matrix from pieces and uses it in place of
+    the whole, so that inconsistency is a correctness bug rather than a
+    tolerance question.
+    """
+
+    def test_block_matches_corresponding_rows(self, bkd):
+        """A slice of the inputs must give a slice of the output.
+
+        The block is deliberately below torch's 25-row threshold while
+        the full call is above it, so the two take different internal
+        paths. Without the compute_mode override this differs by ~2e-08
+        in float64.
+        """
+        import numpy as np
+
+        np.random.seed(0)
+        pts = bkd.array(np.random.uniform(0.0, 1.0, (37, 2)))
+        # scaling by a lengthscale is what pushes the values into the
+        # range where the identity's cancellation shows up
+        scaled = pts / bkd.full((2,), 0.4)
+        full = bkd.cdist(scaled, scaled)
+        block = bkd.cdist(scaled[7:14], scaled)
+        bkd.assert_allclose(block, full[7:14], rtol=1e-14)
+
+    def test_every_block_matches(self, bkd):
+        """Not just one lucky offset."""
+        import numpy as np
+
+        np.random.seed(0)
+        pts = bkd.array(np.random.uniform(0.0, 1.0, (37, 2)))
+        scaled = pts / bkd.full((2,), 0.4)
+        full = bkd.cdist(scaled, scaled)
+        for start in range(0, 37, 7):
+            stop = min(start + 7, 37)
+            bkd.assert_allclose(
+                bkd.cdist(scaled[start:stop], scaled),
+                full[start:stop],
+                rtol=1e-14,
+            )
+
+    def test_symmetric_and_zero_diagonal(self, bkd):
+        """Properties the mm identity can violate through cancellation.
+
+        Squaring and subtracting can leave a small negative under the
+        square root on the diagonal, where the true distance is exactly
+        zero.
+        """
+        import numpy as np
+
+        np.random.seed(0)
+        pts = bkd.array(np.random.uniform(0.0, 1.0, (37, 2)))
+        dists = bkd.cdist(pts, pts)
+        bkd.assert_allclose(dists, dists.T, rtol=1e-14)
+        bkd.assert_allclose(
+            bkd.diag(dists), bkd.full((37,), 0.0), atol=1e-15, rtol=0.0
+        )
