@@ -642,6 +642,20 @@ def _nqoi_nqoisq_subproblem(
     return B_new
 
 
+def _ncovariance_stats(nqoi: int, tril: bool) -> int:
+    """Number of distinct covariance entries estimated for ``nqoi`` QoIs.
+
+    Determined entirely by the number of quantities of interest and
+    whether only the lower triangle is kept, both fixed at construction.
+    No pilot data enters, so this is answerable before any is supplied --
+    which is why the statistics that report it need no pilot quantities
+    to do so.
+    """
+    if tril:
+        return nqoi * (nqoi + 1) // 2
+    return nqoi**2
+
+
 def log_determinant_variance(bkd: Backend[Array], variance: Array) -> Array:
     eigvals = bkd.eigh(variance)[0]
     return bkd.sum(bkd.log(eigvals[eigvals > 1e-14]))
@@ -1093,11 +1107,15 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         self._hf_delta_idx = self._lf_delta_idx[: self.nstats()]
 
     def nstats(self) -> int:
-        if self._tril_idx_flat is None:
-            if self._tril:
-                return self._nqoi * (self._nqoi + 1) // 2
-            return self._nqoi ** 2
-        return self._tril_idx_flat.shape[0]  # self.nqoi() ** 2
+        ncov = _ncovariance_stats(self.nqoi(), self._tril)
+        if self._tril_idx_flat is not None and (
+            self._tril_idx_flat.shape[0] != ncov
+        ):
+            raise RuntimeError(
+                f"pilot quantities imply {self._tril_idx_flat.shape[0]} "
+                f"covariance statistics but nqoi and tril imply {ncov}"
+            )
+        return ncov
 
     def stat_slot_indices(self, stat_name: str) -> List[int]:
         if stat_name == "variance":
@@ -1427,9 +1445,15 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         self._hf_delta_idx = self._lf_delta_idx[: self.nstats()]
 
     def nstats(self) -> int:
-        if self._tril_idx_flat is None:
-            raise RuntimeError("Must call set_pilot_quantities() first")
-        return self.nqoi() + self._tril_idx_flat.shape[0]
+        ncov = _ncovariance_stats(self.nqoi(), self._tril)
+        if self._tril_idx_flat is not None and (
+            self._tril_idx_flat.shape[0] != ncov
+        ):
+            raise RuntimeError(
+                f"pilot quantities imply {self._tril_idx_flat.shape[0]} "
+                f"covariance statistics but nqoi and tril imply {ncov}"
+            )
+        return self.nqoi() + ncov
 
     def stat_slot_indices(self, stat_name: str) -> List[int]:
         if stat_name == "mean":

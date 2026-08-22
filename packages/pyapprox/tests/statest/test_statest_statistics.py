@@ -361,7 +361,10 @@ class TestMultiOutputMeanAndVariance:
         )
 
     def test_min_nsamples(self, bkd) -> None:
-        """Test min_nsamples returns 2 (variance component needs n*(n-1) denominator)."""
+        """Test min_nsamples returns 2.
+
+        The variance component needs an n*(n-1) denominator.
+        """
         stat = MultiOutputMeanAndVariance(2, bkd)
         bkd.assert_allclose(
             bkd.asarray([stat.min_nsamples()]), bkd.asarray([2])
@@ -445,6 +448,51 @@ class TestMultiOutputMeanAndVariance:
         bkd.assert_allclose(
             bkd.asarray([subset_stat._B.shape[0], subset_stat._B.shape[1]]),
             bkd.asarray([nsub * nqoi, nsub * nqoi**2]),
+        )
+
+
+class TestNstatsIsAnsweredBeforePilotQuantities:
+    """How many statistics there are is fixed at construction.
+
+    It follows from the number of quantities of interest and whether
+    only the lower triangle is kept, both given to the constructor. No
+    pilot data enters, so asking early is a legitimate question -- and
+    ``CVEstimator`` does ask, from its own ``__init__``.
+    """
+
+    @pytest.mark.parametrize("tril", [True, False])
+    @pytest.mark.parametrize("nqoi", [1, 3])
+    def test_unchanged_across_the_transition(self, bkd, nqoi, tril) -> None:
+        """The count before must equal the count after.
+
+        Two derivations that have to agree is what allowed them to
+        disagree; this pins the agreement.
+        """
+        nmodels = 2
+        stat = MultiOutputMeanAndVariance(nqoi, bkd, tril=tril)
+        before = stat.nstats()
+        stat.set_pilot_quantities(
+            bkd.eye(nmodels * nqoi),
+            bkd.eye(nmodels * nqoi**2),
+            bkd.zeros((nmodels * nqoi, nmodels * nqoi**2)),
+        )
+        bkd.assert_allclose(
+            bkd.asarray([stat.nstats()]), bkd.asarray([before])
+        )
+
+    @pytest.mark.parametrize("tril", [True, False])
+    @pytest.mark.parametrize("nqoi", [1, 2, 4])
+    def test_mean_and_variance_is_the_sum_of_its_parts(
+        self, bkd, nqoi, tril
+    ) -> None:
+        """Pins the relation between the three classes, not the numbers."""
+        combined = MultiOutputMeanAndVariance(nqoi, bkd, tril=tril).nstats()
+        separate = (
+            MultiOutputMean(nqoi, bkd).nstats()
+            + MultiOutputVariance(nqoi, bkd, tril=tril).nstats()
+        )
+        bkd.assert_allclose(
+            bkd.asarray([combined]), bkd.asarray([separate])
         )
 
 
