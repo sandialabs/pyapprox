@@ -69,6 +69,26 @@ class KLEProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def mean_field(self) -> Array:
+        """Return the mean field.
+
+        Part of the contract because the expansion is defined about a
+        mean: ``f(x) = mean(x) + sum_i ...``. A KLE without one is a
+        KLE with a zero mean, not a KLE of a different kind, so every
+        implementation can answer this.
+
+        Implementations that evaluate at arbitrary points hold the mean
+        as a scalar or callable rather than an array. They report it
+        here at the same points as ``eigenvectors()``, so the two agree
+        on where the field is being described.
+
+        Returns
+        -------
+        Array, shape (ncoords,)
+            Mean field at the points the basis is given at.
+        """
+        ...
+
 
 @runtime_checkable
 class ReducibleKLEProtocol(Protocol, Generic[Array]):

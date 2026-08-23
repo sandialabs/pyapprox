@@ -17,7 +17,12 @@ Key Classes
 - SPDEMaternKLE: SPDE-based KLE for Matern fields (sparse, O(N) memory)
 - DataDrivenKLE: SVD-based KLE computed from field samples
 - NystromKLE: KLE evaluable away from its collocation points
+- PrecomputedKLE: KLE built from an already-computed basis
 - PrincipalComponentAnalysis: PCA for dimensionality reduction
+
+Persistence
+-----------
+- save_kle / load_kle: store a basis and reload it without re-solving
 
 Eigensolvers
 ------------
@@ -48,9 +53,11 @@ from .eigensolvers import (
     finalize_eigenpairs,
 )
 from .galerkin_kle import GalerkinKLE
+from .io import load_kle, save_kle
 from .mesh_kle import MeshKLE
 from .nystrom_kle import NystromKLE, create_nystrom_kle
 from .pca import PrincipalComponentAnalysis
+from .precomputed_kle import PrecomputedKLE
 from .periodic_random_field import PeriodicReiszGaussianRandomField
 from .protocols import (
     KLEProtocol,
@@ -74,7 +81,11 @@ __all__ = [
     "DataDrivenKLE",
     "NystromKLE",
     "create_nystrom_kle",
+    "PrecomputedKLE",
     "PrincipalComponentAnalysis",
+    # Persistence
+    "save_kle",
+    "load_kle",
     # Eigensolvers
     "DenseEigenSolver",
     "PivotedCholeskyEigenSolver",
