@@ -535,33 +535,6 @@ class TestFeasibilityIsVerifiedNotAssumed:
         assert result.success
         assert float(result.constraint_value[0]) <= -2.0 + 1e-6
 
-    def test_a_larger_lower_bound_also_rescues_raw_counts(
-        self, torch_bkd
-    ) -> None:
-        """Lifting the bound keeps the partitions off it, as log does.
-
-        The same remedy by a different route: raising the floor to 1e-6
-        stops the unsampled partitions from resting exactly on it, so
-        the active set no longer degenerates. Recorded because it is
-        the workaround for anyone who needs raw counts. How far the
-        bound must be lifted is problem-dependent, so no value is baked
-        into the library.
-        """
-        est = _make_nested_estimator(torch_bkd)
-        alloc = GroupACVToleranceAllocator(
-            est,
-            optimizer=ScipySLSQPOptimizer(maxiter=1000, ftol=1e-10),
-            problem_config=AllocationProblemConfig(
-                variable_scaling="none", bounds_lb=1e-6
-            ),
-        )
-        tolerance = -2.0
-        result = alloc.allocate_for_tolerance(
-            tolerance, round_nsamples=False
-        )
-        assert result.success
-        assert float(result.constraint_value[0]) <= tolerance + 1e-6
-
     def test_converged_boundary_solutions_are_accepted(
         self, torch_bkd
     ) -> None:

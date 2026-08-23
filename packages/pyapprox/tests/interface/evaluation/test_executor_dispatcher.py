@@ -131,13 +131,26 @@ class TestSubmitDoesNotBlock:
             assert all(h.done() for h in handles)
 
     def test_progress_can_be_observed_mid_flight(self):
-        """Some done, some not -- the state a blocking call cannot show."""
+        """Some done, some not -- the state a blocking call cannot show.
+
+        Waits for the first task rather than sleeping a fixed span. A
+        sleep long enough to guarantee one completion on a contended
+        runner is also long enough to risk all four finishing, so the
+        window this test needs cannot be chosen in advance. Polling for
+        the lower bound and asserting the upper one turns a race into a
+        condition: the last task runs four units, so it cannot have
+        finished while the first has only just done so.
+        """
         with thread_dispatcher(_run, concurrency=2) as dispatcher:
             handles = dispatcher.submit(
                 [_Task(indices=[i], value=i, delay=UNIT * (i + 1))
                  for i in range(4)]
             )
-            time.sleep(UNIT * 1.5)
+            deadline = time.perf_counter() + UNIT * 12
+            while time.perf_counter() < deadline:
+                if any(h.done() for h in handles):
+                    break
+                time.sleep(UNIT / 20)
             ndone = sum(1 for h in handles if h.done())
             assert 0 < ndone < 4
 
