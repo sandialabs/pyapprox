@@ -310,9 +310,16 @@ class TestAdaptiveAnisotropicRecovery:
         test_pts = joint.rvs(20)
         bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-10)
 
-        # Verify no over-refinement
+        # Verify no over-refinement. Ask for the *selected* subspaces:
+        # result.indices also carries the candidate frontier, which sits
+        # a level beyond whatever was selected and so is always one
+        # level past the bound below. The allowance is +1 because a
+        # downward-closed selected set must contain one probe beyond
+        # the required set in each direction -- that probe is how the
+        # fitter learns the direction is exhausted. Anything further is
+        # work the target function did not require.
         required_sg = compute_required_sg_subspaces(pce_indices, growth, bkd)
-        selected_sg = result.indices
+        selected_sg = fitter.get_selected_indices()
         nvars = selected_sg.shape[0]
 
         max_required = bkd.asarray(
@@ -328,6 +335,36 @@ class TestAdaptiveAnisotropicRecovery:
                 sel_level = int(bkd.to_numpy(sel_idx[d]))
                 max_req = int(bkd.to_numpy(max_required[d]))
                 assert sel_level <= max_req + 1, f"Over-refinement in dim {d}"
+
+        # The per-dimension bound above is necessary but not sufficient:
+        # a fitter selecting the whole box up to max_req + 1 in every
+        # dimension would satisfy it while doing far more work than the
+        # target needs. Count the subspaces as well. Everything required
+        # must be selected, and beyond that only the probes that prove a
+        # direction exhausted -- at most one per dimension, since a
+        # single probe in each is enough to read a zero surplus there.
+        selected_set = {
+            tuple(
+                int(v)
+                for v in bkd.to_numpy(selected_sg[:, j])
+            )
+            for j in range(selected_sg.shape[1])
+        }
+        required_set = {
+            tuple(
+                int(v)
+                for v in bkd.to_numpy(required_sg[:, j])
+            )
+            for j in range(required_sg.shape[1])
+        }
+        missing = required_set - selected_set
+        assert not missing, f"Required subspaces not selected: {sorted(missing)}"
+        extra = selected_set - required_set
+        assert len(extra) <= nvars, (
+            f"Selected {len(extra)} subspaces beyond the required "
+            f"{len(required_set)}, more than one probe per dimension: "
+            f"{sorted(extra)}"
+        )
 
 
 # =============================================================================
