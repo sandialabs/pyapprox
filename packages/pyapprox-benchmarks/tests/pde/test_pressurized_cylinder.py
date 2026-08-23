@@ -1,25 +1,22 @@
 """Integration tests for the 2D pressurized cylinder forward UQ problems."""
 
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
-)
 import numpy as np
 import pytest
-
-from pyapprox_benchmarks.pde.pressurized_cylinder import (
-    build_hyperelastic_pressurized_cylinder_2d,
-    build_pressurized_cylinder_2d,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.interface.functions.protocols import (
+from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox_benchmarks.pde.pressurized_cylinder import (
+    build_hyperelastic_pressurized_cylinder_2d,
+    build_pressurized_cylinder_2d,
+)
+
 from tests._helpers.markers import slow_test, slower_test, slowest_test
 
 
@@ -45,11 +42,16 @@ def _make_problem(
 
 def _check_jacobian(bkd, fwd, num_kle_terms=2):
     """Helper: run DerivativeChecker on a forward model."""
+    # Read the capability from the bundle rather than reaching for a
+    # method. Absence is None there, so a model without an analytical
+    # jacobian reports that instead of raising AttributeError.
+    jacobian = fwd.derivatives().jacobian
+    assert jacobian is not None
     wrapper = FunctionWithJacobianFromCallable(
         nqoi=fwd.nqoi(),
         nvars=fwd.nvars(),
         fun=fwd,
-        jacobian=fwd.jacobian,
+        jacobian=jacobian,
         bkd=bkd,
     )
     checker = DerivativeChecker(wrapper)
@@ -157,8 +159,7 @@ class TestPressurizedCylinder2D:
         prob = self._cached_probs["outer_radial_displacement"]
         fwd = prob.function()
         assert isinstance(fwd, FunctionProtocol)
-        assert isinstance(fwd, FunctionProtocol)
-        assert callable(fwd.jacobian)
+        assert callable(fwd.derivatives().jacobian)
 
     # --- Convergence (non-default params, builds fresh) ---
 
@@ -234,11 +235,13 @@ def _make_hyperelastic_problem(
 
 def _check_hyperelastic_jacobian(bkd, fwd, num_kle_terms=2):
     """Helper: run DerivativeChecker on a hyperelastic forward model."""
+    jacobian = fwd.derivatives().jacobian
+    assert jacobian is not None
     wrapper = FunctionWithJacobianFromCallable(
         nqoi=fwd.nqoi(),
         nvars=fwd.nvars(),
         fun=fwd,
-        jacobian=fwd.jacobian,
+        jacobian=jacobian,
         bkd=bkd,
     )
     checker = DerivativeChecker(wrapper)

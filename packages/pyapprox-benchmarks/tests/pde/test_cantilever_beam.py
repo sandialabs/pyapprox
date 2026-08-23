@@ -428,7 +428,9 @@ class TestFEMvsAnalytical:
         )
 
         sample = bkd.asarray([[20000.0], [5000.0]])
-        jac = model.jacobian(sample)
+        jacobian = model.derivatives().jacobian
+        assert jacobian is not None
+        jac = jacobian(sample)
         assert jac.shape == (3, 2)
 
         checker = DerivativeChecker(model)
