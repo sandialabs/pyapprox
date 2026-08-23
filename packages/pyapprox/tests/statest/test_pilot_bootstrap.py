@@ -71,12 +71,12 @@ def _mc_budget_samples(bkd, pilot_values, tolerance, nbootstraps):
     """Bootstrap the Monte Carlo budget for a standard-error tolerance."""
     costs = bkd.array([1.0])
     solver = SampleCountBudgetSolver(
+        lambda: MultiOutputMean(1, bkd),
         lambda stat: MCToleranceAllocator(MCEstimator(stat, costs)),
         MaxMarginalStandardErrorConstraint(tolerance, bkd),
     )
     return bootstrap_budget_from_pilot(
         ResampledPilotValues(pilot_values, bkd),
-        lambda: MultiOutputMean(1, bkd),
         solver,
         bkd,
         nbootstraps=nbootstraps,
@@ -280,12 +280,12 @@ class TestBudgetBootstrap:
         bkd = numpy_bkd
         costs = bkd.array([4.0, 2.0, 1.0])
         solver = SampleCountBudgetSolver(
+            lambda: MultiOutputMean(1, bkd),
             lambda stat: CVToleranceAllocator(CVEstimator(stat, costs)),
             MaxMarginalStandardErrorConstraint(0.05, bkd),
         )
         samples = bootstrap_budget_from_pilot(
             ResampledPilotValues(_pilot_values(bkd, npilot=150), bkd),
-            lambda: MultiOutputMean(1, bkd),
             solver,
             bkd,
             nbootstraps=20,
@@ -357,12 +357,11 @@ class TestBootstrapSamples:
         bkd = numpy_bkd
 
         class _AlwaysFails:
-            def solve(self, statistic):
+            def solve(self, replicate):
                 raise RuntimeError("unreachable")
 
         samples = bootstrap_budget_from_pilot(
             ResampledPilotValues(_pilot_values(bkd, nmodels=1), bkd),
-            lambda: MultiOutputMean(1, bkd),
             _AlwaysFails(),
             bkd,
             nbootstraps=7,

@@ -27,6 +27,13 @@ replicate needs a *fresh* statistic and, for the budget direction, a
 fresh allocator: reusing one instance would mean mutating the pilot
 quantities of an object mid-loop and restoring them afterwards. Taking
 factories keeps every replicate independent by construction.
+
+Nothing here holds a statistic. Replicates arrive as arrays and the
+caller's solver turns them into whatever it needs, so this module never
+has to describe a statistic's type -- which it could only do narrowly,
+having no use for one beyond passing it along. That narrowing is what
+would strand a caller wanting to build an estimator from the same
+object, so the statistic simply never leaves the caller.
 """
 
 from typing import (
@@ -43,6 +50,7 @@ from typing import (
 
 import numpy as np
 
+from pyapprox.statest.protocols import ResamplableStatistic
 from pyapprox.util.backends.protocols import (
     Array,
     Array_co,
@@ -55,39 +63,30 @@ if TYPE_CHECKING:
 
 
 @runtime_checkable
-class PilotStatisticProtocol(Protocol[Array]):
-    """The pilot round trip: values in, pilot quantities set."""
-
-    def compute_pilot_quantities(
-        self, pilot_values: List[Array]
-    ) -> Tuple[Array, ...]:
-        ...
-
-    def set_pilot_quantities(self, *args: Array) -> None:
-        ...
-
-
-@runtime_checkable
 class BudgetSolverProtocol(Protocol[Array]):
-    """Solves one replicate for the cost of meeting a requirement.
+    """Prices one replicate of pilot values.
 
-    Narrower than an allocator: it reports only what the bootstrap
-    reads, a cost and the allocation that achieved it. The shipped
-    allocators disagree on their return type -- the Monte Carlo and
-    control variate ones report cost through a method, the group one
-    through an attribute, and they signal failure differently. Rather
-    than force one shape on them, which would change a public return
-    type as a side effect of adding bootstrapping, each family adapts
-    to this protocol through a small wrapper below.
+    Takes the replicate itself rather than a statistic built from it,
+    which keeps this module out of the business of statistics
+    altogether. The caller knows which statistic and which estimator it
+    wants; it builds both here, where their concrete types are still
+    known, and returns only the two numbers the bootstrap accumulates.
+
+    Narrower than an allocator: it reports only a cost and the
+    allocation that achieved it. The shipped allocators disagree on
+    their return type -- the Monte Carlo and control variate ones report
+    cost through a method, the group one through an attribute, and they
+    signal failure differently. Rather than force one shape on them,
+    which would change a public return type as a side effect of adding
+    bootstrapping, each family adapts to this protocol through a small
+    wrapper below.
 
     An implementation signals an unreachable requirement by raising
     ``ValueError`` or ``RuntimeError``; the loop counts that replicate
     as a failure.
     """
 
-    def solve(
-        self, statistic: "PilotStatisticProtocol[Array]"
-    ) -> Tuple[float, Array]:
+    def solve(self, replicate: List[Array]) -> Tuple[float, Array]:
         """Return ``(cost, allocation)`` for one replicate."""
         ...
 
@@ -107,22 +106,38 @@ class SampleCountBudgetSolver(Generic[Array]):
     allocator returns an estimator object because that is its normal
     contract, and this adapter reads the cost and the sample counts off
     it and discards the rest.
+
+    Parameters
+    ----------
+    statistic_factory : callable
+        Returns a fresh statistic per replicate. A factory rather than
+        an instance because each replicate needs its own pilot
+        quantities; reusing one would mean mutating it mid-loop.
+    allocator_factory : callable
+        Maps that statistic to an allocator. Written by the caller,
+        which is what lets it use the concrete statistic type it just
+        produced rather than whatever this module could say about it.
+    constraint : ToleranceConstraintProtocol
+        The accuracy requirement to allocate against.
     """
 
     def __init__(
         self,
+        statistic_factory: Callable[[], ResamplableStatistic[Array]],
         allocator_factory: Callable[
-            ["PilotStatisticProtocol[Array]"],
-            "_SampleCountAllocator[Array]",
+            [ResamplableStatistic[Array]], "_SampleCountAllocator[Array]"
         ],
         constraint: "ToleranceConstraintProtocol[Array]",
     ):
+        self._statistic_factory = statistic_factory
         self._allocator_factory = allocator_factory
         self._constraint = constraint
 
-    def solve(
-        self, statistic: "PilotStatisticProtocol[Array]"
-    ) -> Tuple[float, Array]:
+    def solve(self, replicate: List[Array]) -> Tuple[float, Array]:
+        statistic = self._statistic_factory()
+        statistic.set_pilot_quantities(
+            *statistic.compute_pilot_quantities(replicate)
+        )
         fitted = self._allocator_factory(statistic).allocate_for_tolerance(
             self._constraint
         )
@@ -144,20 +159,23 @@ class PartitionBudgetSolver(Generic[Array]):
 
     def __init__(
         self,
+        statistic_factory: Callable[[], ResamplableStatistic[Array]],
         allocator_factory: Callable[
-            ["PilotStatisticProtocol[Array]"],
-            "_PartitionAllocator[Array]",
+            [ResamplableStatistic[Array]], "_PartitionAllocator[Array]"
         ],
         constraint: "ToleranceConstraintProtocol[Array]",
         round_nsamples: bool = True,
     ):
+        self._statistic_factory = statistic_factory
         self._allocator_factory = allocator_factory
         self._constraint = constraint
         self._round_nsamples = round_nsamples
 
-    def solve(
-        self, statistic: "PilotStatisticProtocol[Array]"
-    ) -> Tuple[float, Array]:
+    def solve(self, replicate: List[Array]) -> Tuple[float, Array]:
+        statistic = self._statistic_factory()
+        statistic.set_pilot_quantities(
+            *statistic.compute_pilot_quantities(replicate)
+        )
         result = self._allocator_factory(statistic).allocate_for_tolerance(
             self._constraint, round_nsamples=self._round_nsamples
         )
@@ -423,18 +441,22 @@ class BootstrapSamples(Generic[Array]):
 
 def _bootstrap_pilot_loop(
     pilot: PilotReplicateProtocol[Array],
-    statistic_factory: Callable[[], PilotStatisticProtocol[Array]],
-    evaluate: Callable[
-        [PilotStatisticProtocol[Array]], Tuple[Array, Optional[Array]]
-    ],
+    evaluate: Callable[[List[Array]], Tuple[Array, Optional[Array]]],
     nbootstraps: int,
     bkd: Backend[Array],
 ) -> BootstrapSamples[Array]:
-    """Draw replicates, refresh the statistic, evaluate, collect.
+    """Draw replicates, evaluate, collect.
 
     The shared body of both public functions. They differ only in
     ``evaluate``, which returns the quantity of interest and, optionally,
     the allocation that produced it.
+
+    Deliberately knows nothing about statistics. Drawing replicates,
+    checking their shape and counting the failures is bookkeeping over
+    arrays; what a replicate *means* belongs to the caller, and passing
+    a statistic through here would mean describing a type this module
+    has no stake in -- narrowing it on the way in and leaving the caller
+    unable to recover it on the way out.
     """
     if nbootstraps < 1:
         raise ValueError(f"nbootstraps must be >= 1, got {nbootstraps}")
@@ -456,10 +478,8 @@ def _bootstrap_pilot_loop(
                     f"{npilot}. Replicates must all be the size the "
                     "bootstrap is estimating the distribution at."
                 )
-        stat = statistic_factory()
-        stat.set_pilot_quantities(*stat.compute_pilot_quantities(replicate))
         try:
-            value, allocation = evaluate(stat)
+            value, allocation = evaluate(replicate)
         except (ValueError, RuntimeError, np.linalg.LinAlgError):
             nfailures += 1
             continue
@@ -484,7 +504,6 @@ def _bootstrap_pilot_loop(
 
 def bootstrap_budget_from_pilot(
     pilot: PilotReplicateProtocol[Array],
-    statistic_factory: Callable[[], PilotStatisticProtocol[Array]],
     solver: BudgetSolverProtocol[Array],
     bkd: Backend[Array],
     nbootstraps: int = 1000,
@@ -500,15 +519,12 @@ def bootstrap_budget_from_pilot(
     ----------
     pilot : PilotReplicateProtocol
         Supplies replicate pilot values.
-    statistic_factory : callable
-        Returns a fresh statistic of the right type per replicate.
-    allocator_factory : callable
-        Maps a statistic to an allocator exposing
-        Solves one replicate, carrying the accuracy requirement and the
-        allocator it applies to. Use :class:`SampleCountBudgetSolver`
-        for the Monte Carlo and control variate allocators and
-        :class:`PartitionBudgetSolver` for the group allocator; this
-        function does not branch on which.
+    solver : BudgetSolverProtocol
+        Prices one replicate, carrying the statistic it builds, the
+        accuracy requirement and the allocator it applies to. Use
+        :class:`SampleCountBudgetSolver` for the Monte Carlo and control
+        variate allocators and :class:`PartitionBudgetSolver` for the
+        group allocator; this function does not branch on which.
     bkd : Backend
     nbootstraps : int
 
@@ -519,22 +535,18 @@ def bootstrap_budget_from_pilot(
         proved unreachable counted as failures.
     """
 
-    def _evaluate(
-        stat: PilotStatisticProtocol[Array],
-    ) -> Tuple[Array, Optional[Array]]:
-        cost, allocation = solver.solve(stat)
+    def _evaluate(replicate: List[Array]) -> Tuple[Array, Optional[Array]]:
+        cost, allocation = solver.solve(replicate)
         return bkd.array([cost]), allocation
 
-    return _bootstrap_pilot_loop(
-        pilot, statistic_factory, _evaluate, nbootstraps, bkd
-    )
+    return _bootstrap_pilot_loop(pilot, _evaluate, nbootstraps, bkd)
 
 
 def bootstrap_covariance_from_pilot(
     pilot: PilotReplicateProtocol[Array],
-    statistic_factory: Callable[[], PilotStatisticProtocol[Array]],
+    statistic_factory: Callable[[], ResamplableStatistic[Array]],
     estimator_factory: Callable[
-        [PilotStatisticProtocol[Array]], CovarianceEstimatorProtocol[Array]
+        [ResamplableStatistic[Array]], CovarianceEstimatorProtocol[Array]
     ],
     npartition_samples: Array,
     bkd: Backend[Array],
@@ -569,16 +581,16 @@ def bootstrap_covariance_from_pilot(
     """
     nps_float = bkd.asarray(npartition_samples, dtype=bkd.double_dtype())
 
-    def _evaluate(
-        stat: PilotStatisticProtocol[Array],
-    ) -> Tuple[Array, Optional[Array]]:
-        estimator = estimator_factory(stat)
+    def _evaluate(replicate: List[Array]) -> Tuple[Array, Optional[Array]]:
+        statistic = statistic_factory()
+        statistic.set_pilot_quantities(
+            *statistic.compute_pilot_quantities(replicate)
+        )
+        estimator = estimator_factory(statistic)
         covariance = estimator.covariance_at_npartition_samples(nps_float)
         return covariance, None
 
-    return _bootstrap_pilot_loop(
-        pilot, statistic_factory, _evaluate, nbootstraps, bkd
-    )
+    return _bootstrap_pilot_loop(pilot, _evaluate, nbootstraps, bkd)
 
 
 __all__: Sequence[str] = [
@@ -587,7 +599,6 @@ __all__: Sequence[str] = [
     "CovarianceEstimatorProtocol",
     "PartitionBudgetSolver",
     "PilotReplicateProtocol",
-    "PilotStatisticProtocol",
     "ResampledPilotValues",
     "SampleCountBudgetSolver",
     "bootstrap_budget_from_pilot",
