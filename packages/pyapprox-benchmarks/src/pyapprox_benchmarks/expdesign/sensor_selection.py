@@ -47,7 +47,6 @@ def select_maximin_locations(
         )
 
     feasible_nodes = nodes[:, feasible_idx]  # (ndim, nfeasible)
-    nfeasible = feasible_nodes.shape[1]
 
     # Start with the node closest to the centroid
     centroid = feasible_nodes.mean(axis=1, keepdims=True)  # (ndim, 1)

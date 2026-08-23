@@ -19,7 +19,13 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      - run: ruff check packages/pyapprox/src/pyapprox/
+      # Both source trees. Linting only pyapprox let 20 findings
+      # accumulate in pyapprox-benchmarks unnoticed, since nothing was
+      # checking it.
+      - run: >
+          ruff check
+          packages/pyapprox/src/pyapprox/
+          packages/pyapprox-benchmarks/src/
 
   mypy:
     runs-on: ubuntu-latest

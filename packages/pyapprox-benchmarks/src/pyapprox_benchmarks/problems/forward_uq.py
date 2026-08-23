@@ -6,10 +6,9 @@ Domain (prior support) is reachable via the prior.
 
 from typing import Generic, TypeVar
 
+from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.protocols import Array
-
-from pyapprox.interface.functions.protocols import FunctionProtocol
 
 F = TypeVar("F", bound=FunctionProtocol)  # type: ignore[type-arg]
 

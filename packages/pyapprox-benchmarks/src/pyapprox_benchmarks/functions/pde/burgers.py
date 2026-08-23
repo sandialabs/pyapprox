@@ -11,12 +11,11 @@ with no boundary lift.
 
 from typing import Any, Callable, Optional
 
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 
 
 def build_periodic_line_basis(

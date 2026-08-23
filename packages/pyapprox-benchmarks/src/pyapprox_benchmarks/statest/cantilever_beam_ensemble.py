@@ -95,7 +95,6 @@ class CantileverBeamEnsembleProblem(Generic[Array]):
         n_jobs: int = -1,
     ) -> None:
         from pyapprox.interface.functions.timing import timed
-
         from pyapprox.interface.parallel import make_parallel
 
         self._bkd = bkd
