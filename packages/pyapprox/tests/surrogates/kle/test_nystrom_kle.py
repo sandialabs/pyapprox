@@ -27,7 +27,6 @@ from pyapprox.surrogates.kle.nystrom_kle import (
     create_nystrom_kle,
 )
 from pyapprox.surrogates.kle.protocols import KLEProtocol
-from pyapprox.surrogates.kle.utils import adjust_sign_eig
 
 
 def _coords(bkd, npoints=100):
@@ -114,27 +113,59 @@ class TestOutOfSampleEvaluation:
         landmark selection, because selection cannot be at fault at the
         points that were selected.
 
-        Both sides are canonicalized with ``adjust_sign_eig`` first.
-        ``eigenvectors()`` has already been through it while
-        ``eigenvectors_at`` is a plain kernel product that applies no
-        sign convention, and an eigenvector is only defined up to sign.
-        Canonicalizing rather than comparing magnitudes keeps the check
-        strict: a column whose *individual entries* disagree in sign is
-        a wrong eigenvector and still fails, where an elementwise
-        ``abs`` would have accepted it.
+        Compared directly, signs included. The two must be the *same
+        basis*, not merely the same up to per-column sign: the sign
+        convention is applied to the extension matrix as well as the
+        landmark basis, so both paths share one.
+
+        An earlier version of this test canonicalized both sides with
+        ``adjust_sign_eig`` before comparing, which passed while four
+        of six columns were negated between the two paths. That is the
+        defect below, and accommodating it here is what hid it.
         """
         coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
         kle = create_nystrom_kle(
             kernel, coords, 12, bkd, nlandmarks=60
         )
-        # adjust_sign_eig mutates its argument, so hand it copies.
-        at_landmarks = adjust_sign_eig(
-            bkd.copy(kle.eigenvectors_at(kle.landmark_coords())), bkd
-        )
-        reference = adjust_sign_eig(bkd.copy(kle.eigenvectors()), bkd)
         bkd.assert_allclose(
-            at_landmarks, reference, atol=1e-8, rtol=0.0
+            kle.eigenvectors_at(kle.landmark_coords()),
+            kle.eigenvectors(),
+            atol=1e-8,
+            rtol=0.0,
         )
+
+    def test_call_agrees_with_the_public_accessors(self, bkd) -> None:
+        """The basis reported must be the basis used.
+
+        ``eigenvectors()`` returned the sign-canonicalized landmark
+        basis while ``__call__`` went through ``eigenvectors_at``,
+        which had no sign convention -- so a caller who read the
+        accessors to reproduce a realization got a different field.
+        Measured at 4.63 maximum difference, with matching shapes and
+        matching column norms, so nothing about the output looked
+        wrong.
+        """
+        coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
+        kle = create_nystrom_kle(kernel, coords, 6, bkd, nlandmarks=40)
+        coef = bkd.array(np.random.RandomState(0).standard_normal((6, 3)))
+        implied = kle.mean_field()[:, None] + (
+            kle.eigenvectors() * bkd.sqrt(kle.eigenvalues())
+        ) @ coef
+        bkd.assert_allclose(kle(coef), implied, atol=1e-12, rtol=0.0)
+
+    def test_mean_field_matches_mean_field_at_landmarks(self, bkd) -> None:
+        """The no-argument accessor reports where the basis is."""
+        coords, kernel = _coords(bkd), _low_rank_kernel(bkd)
+        kle = create_nystrom_kle(
+            kernel, coords, 6, bkd, nlandmarks=40, mean_field=2.5
+        )
+        bkd.assert_allclose(
+            kle.mean_field(),
+            kle.mean_field_at(kle.landmark_coords()),
+            rtol=0.0,
+            atol=0.0,
+        )
+        assert kle.mean_field().shape == (kle.eigenvectors().shape[0],)
 
     @pytest.mark.parametrize("weighted", [False, True])
     def test_satisfies_the_eigenvalue_equation(self, bkd, weighted) -> None:

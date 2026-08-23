@@ -220,12 +220,24 @@ class NystromKLE(Generic[Array]):
                 f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}"
             )
         basis = self.weighted_eigenvectors_at(coords)
-        mean = self._mean_at(coords)
+        mean = self.mean_field_at(coords)
         if self._use_log:
             return self._bkd.exp(mean[:, None] + basis @ coef)
         return mean[:, None] + basis @ coef
 
-    def _mean_at(self, coords: Array) -> Array:
+    def mean_field(self) -> Array:
+        """Mean field at the landmarks, shape ``(m,)``.
+
+        Every KLE has a mean; this one holds it as a scalar or a
+        callable rather than an array, because it evaluates at
+        arbitrary points and an array would be tied to one point set.
+        Reported at the landmarks, matching ``eigenvectors()`` and
+        ``__call__``, so the three agree on where "here" is.
+        Use :meth:`mean_field_at` for anywhere else.
+        """
+        return self.mean_field_at(self._landmark_coords)
+
+    def mean_field_at(self, coords: Array) -> Array:
         """Mean field at ``coords``, shape ``(npts,)``."""
         npts = int(coords.shape[1])
         if callable(self._mean_field):
@@ -414,9 +426,33 @@ def _nystrom_extension(
     )
 
     landmark_vecs = kernel(landmark_coords, landmark_coords) @ extension
+    raw_landmark_vecs = landmark_vecs
     eig_vals, landmark_vecs = finalize_eigenpairs(
         sig, landmark_vecs, None, nterms, bkd
     )
+    # finalize_eigenpairs canonicalizes signs, but it sees only the
+    # landmark basis -- the extension matrix that produces the basis
+    # everywhere else is untouched by it. Left there, the same object
+    # reports one basis from eigenvectors() and computes with another
+    # from eigenvectors_at(): measured, four of six columns came back
+    # negated, so a caller reading the basis to reproduce a realization
+    # got a different field with no error and matching column norms.
+    #
+    # Carry the same flips into the extension, so every basis this
+    # object produces shares one convention. The relation is pure
+    # per-column sign -- verified to a residual of exactly 0.0 -- so
+    # recovering it by projection is exact rather than a fit.
+    column_signs = bkd.sign(
+        bkd.sum(landmark_vecs * raw_landmark_vecs, axis=0)
+    )
+    # A zero column cannot indicate a sign; leave it as it is rather
+    # than multiplying the extension by zero.
+    column_signs = bkd.where(
+        bkd.equal(column_signs, 0.0),
+        bkd.full(column_signs.shape, 1.0),
+        column_signs,
+    )
+    extension = extension * column_signs[None, :]
     return extension, eig_vals, landmark_vecs
 
 
