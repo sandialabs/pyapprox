@@ -12,14 +12,9 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pytest
 import torch
-
-from pyapprox_benchmarks.statest import (
-    MultiOutputEnsembleBenchmark,
-    PolynomialEnsembleBenchmark,
-)
+from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.search import ACVSearch
 from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
-from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.variants import (
     ACVEstimator,
     GISEstimator,
@@ -29,7 +24,7 @@ from pyapprox.statest.acv.variants import (
     MLMCEstimator,
 )
 from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
-from pyapprox.statest.mc_estimator import FittedMCEstimator, MCEstimator
+from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest.statistics import (
     MultiOutputMean,
     MultiOutputMeanAndVariance,
@@ -37,8 +32,13 @@ from pyapprox.statest.statistics import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.torch import TorchBkd
-from tests._helpers.markers import slow_test, slower_test
+from pyapprox_benchmarks.statest import (
+    MultiOutputEnsembleBenchmark,
+    PolynomialEnsembleBenchmark,
+)
+
 from tests._helpers.acv_utils import allocate_with_allocator
+from tests._helpers.markers import slow_test, slower_test
 
 # Helper functions for setting up test subproblems
 
@@ -51,7 +51,7 @@ multioutput_stats = {
 
 
 def _get_pilot_quantities_for_stat_type(
-    benchmark: "MultiOutputModelEnsemble",
+    benchmark: MultiOutputEnsembleBenchmark,
     stat_type: str,
     model_idx: List[int],
     qoi_idx: List[int],
@@ -262,18 +262,19 @@ def numerically_compute_estimator_variance(
     hf_covar_numer = bkd.cov(Q, ddof=1, rowvar=False)
     if isinstance(est, FittedACVEstimator):
         nps = est.npartition_samples()
-        template = est._template
     elif isinstance(est, FittedCVEstimator):
         nps = est._npartition_samples
-        template = est._template
     else:
         nps = est.nsamples_per_model()
-        template = est._template
     hf_covar = est._stat.high_fidelity_estimator_covariance(nps[0])
 
-    # Estimator covariance
+    # Estimator covariance. Every fitted estimator already holds the
+    # covariance at the counts it allocated, so ask it rather than
+    # recomputing one: _covariance_from_npartition_samples belongs to
+    # the continuous relaxation the optimizer searches and requires
+    # float counts, while an allocation's counts are integers.
     covar_numer = bkd.cov(est_vals, ddof=1, rowvar=False)
-    covar = template._covariance_from_npartition_samples(nps)
+    covar = est.covariance()
 
     if not return_all:
         return hf_covar_numer, hf_covar, covar_numer, covar
