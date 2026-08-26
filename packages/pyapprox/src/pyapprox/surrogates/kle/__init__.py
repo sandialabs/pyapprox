@@ -57,8 +57,8 @@ from .io import load_kle, save_kle
 from .mesh_kle import MeshKLE
 from .nystrom_kle import NystromKLE, create_nystrom_kle
 from .pca import PrincipalComponentAnalysis
-from .precomputed_kle import PrecomputedKLE
 from .periodic_random_field import PeriodicReiszGaussianRandomField
+from .precomputed_kle import PrecomputedKLE
 from .protocols import (
     KLEProtocol,
     ReducibleKLEProtocol,
