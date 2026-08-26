@@ -96,7 +96,12 @@ class TestLagrangeDispatchPickle:
         expected_jac = basis.jacobian_batch(samples)
 
         restored = pickle.loads(pickle.dumps(basis))
-        bkd.assert_allclose(restored(samples), expected_vals, rtol=1e-14)
+        # Pickling is exact, so the two sides differ only in how their
+        # kernels execute. The torch impls are compiled, and a compiled
+        # kernel that exceeds dynamo's recompile limit falls back to
+        # eager, which contracts in a different order; 1e-14 is tight
+        # enough that the resulting last-bit disagreement fails the test.
+        bkd.assert_allclose(restored(samples), expected_vals, rtol=1e-12)
         bkd.assert_allclose(
-            restored.jacobian_batch(samples), expected_jac, rtol=1e-14
+            restored.jacobian_batch(samples), expected_jac, rtol=1e-12
         )
