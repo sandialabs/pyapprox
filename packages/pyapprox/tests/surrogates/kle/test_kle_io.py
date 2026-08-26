@@ -221,10 +221,15 @@ class TestLoadedObject:
         numpy_bkd = NumpyBkd()
         as_numpy = load_kle(path, numpy_bkd)
         coef = np.random.RandomState(0).standard_normal((5, 3))
-        np.testing.assert_allclose(
+        # Both sides reconstruct from the same stored eigenpairs, but the
+        # two backends reach the matmul through different BLAS libraries,
+        # which contract in different orders. The last bit of a float64
+        # therefore need not agree: 1e-14 is close enough to machine
+        # epsilon that it fails on some platforms and not others.
+        numpy_bkd.assert_allclose(
             bkd.to_numpy(native(bkd.array(coef))),
             numpy_bkd.to_numpy(as_numpy(numpy_bkd.array(coef))),
-            rtol=1e-14,
+            rtol=1e-12,
         )
 
 
