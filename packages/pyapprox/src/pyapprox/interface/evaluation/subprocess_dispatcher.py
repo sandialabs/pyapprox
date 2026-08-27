@@ -223,6 +223,7 @@ class SubprocessJobHandle(Generic[Payload]):
                     workdir=self._task.workdir, returncode=returncode
                 ),
                 wall_time=elapsed,
+                started=self._started,
                 resources=self._task.resources,
             )
             return
@@ -239,6 +240,7 @@ class SubprocessJobHandle(Generic[Payload]):
             indices=self._task.indices,
             status=JobStatus.FAILED,
             wall_time=elapsed,
+            started=self._started,
             resources=self._task.resources,
             detail=detail,
         )
@@ -262,6 +264,7 @@ class SubprocessJobHandle(Generic[Payload]):
             indices=self._task.indices,
             status=JobStatus.TIMED_OUT,
             wall_time=time.perf_counter() - self._started,
+            started=self._started,
             resources=self._task.resources,
             detail=f"exceeded walltime of {limit}s",
         )
@@ -351,6 +354,7 @@ class SubprocessJobHandle(Generic[Payload]):
                 indices=self._task.indices,
                 status=JobStatus.CANCELLED,
                 wall_time=elapsed,
+                started=self._started,
                 resources=self._task.resources,
                 detail="terminated while running",
             )

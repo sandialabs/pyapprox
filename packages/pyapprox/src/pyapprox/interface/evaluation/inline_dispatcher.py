@@ -105,6 +105,7 @@ class InlineJobHandle(Generic[Task, Payload]):
                 indices=self._indices,
                 status=JobStatus.FAILED,
                 wall_time=time.perf_counter() - start,
+                started=start,
                 resources=self._resources,
                 detail=f"{type(exc).__name__}: {exc}",
             )
@@ -115,6 +116,7 @@ class InlineJobHandle(Generic[Task, Payload]):
                 status=JobStatus.SUCCEEDED,
                 payload=payload,
                 wall_time=time.perf_counter() - start,
+                started=start,
                 resources=self._resources,
             )
         return self._outcome

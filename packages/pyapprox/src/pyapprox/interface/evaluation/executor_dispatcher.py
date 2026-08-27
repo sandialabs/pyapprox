@@ -50,7 +50,13 @@ Payload = TypeVar("Payload")
 
 @dataclass(frozen=True)
 class TimedResult(Generic[Payload]):
-    """What a worker produced, and how long it took *in the worker*."""
+    """What a worker produced, and how long it took *in the worker*.
+
+    A duration rather than a pair of timestamps, because that is what
+    survives the trip out of a worker process: ``perf_counter`` origins
+    are per-process and cannot be compared across one, while an
+    interval means the same thing wherever it was measured.
+    """
 
     payload: Payload
     wall_time: float
@@ -70,10 +76,11 @@ class _TimedCall(Generic[Task, Payload]):
         self._run = run
 
     def __call__(self, task: Task) -> TimedResult[Payload]:
-        start = time.perf_counter()
+        picked_up = time.perf_counter()
         payload = self._run(task)
         return TimedResult(
-            payload=payload, wall_time=time.perf_counter() - start
+            payload=payload,
+            wall_time=time.perf_counter() - picked_up,
         )
 
 
@@ -89,6 +96,22 @@ class ExecutorJobHandle(Generic[Task, Payload]):
         self._task = task
         self._future = future
         self._resources = Resources() if resources is None else resources
+        self._finished: Optional[float] = None
+        # Stamped as each future completes rather than when the caller
+        # gets round to reading it. Reading the clock in `outcome()`
+        # instead dates every job in a batch to the moment collection
+        # reached it: with four jobs two at a time, all four then appear
+        # to have finished together, their derived starts collapse onto
+        # one origin, and the ledger reports a single job's duration for
+        # the whole batch. The callback runs in the driver process --
+        # for a process pool, on the thread that reaps results -- so the
+        # clock it reads is the one the ledger unions on.
+        future.add_done_callback(self._stamp_finish)
+
+    def _stamp_finish(self, _future: "Future[TimedResult[Payload]]") -> None:
+        """Record when this job finished, on the driver's clock."""
+        if self._finished is None:
+            self._finished = time.perf_counter()
 
     def done(self) -> bool:
         """Whether the job has finished, without consuming anything."""
@@ -136,6 +159,17 @@ class ExecutorJobHandle(Generic[Task, Payload]):
             status=JobStatus.SUCCEEDED,
             payload=timed.payload,
             wall_time=timed.wall_time,
+            # The worker's own start cannot be used: perf_counter is
+            # comparable only within a process, so origins stamped in
+            # separate workers cannot be ordered against each other. A
+            # duration crosses the boundary intact, so subtracting it
+            # from the driver-side finish lands the start on the
+            # driver's clock -- the one the ledger unions on.
+            started=(
+                None
+                if self._finished is None
+                else self._finished - timed.wall_time
+            ),
             resources=self._resources,
         )
 

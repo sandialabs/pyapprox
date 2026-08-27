@@ -224,7 +224,12 @@ class Batch(Generic[Array, Task, Payload]):
             # scheduler the whole queue wait -- while a solver reporting
             # its own runtime is timing the work itself.
             cost = _outcome_cost(outcome, decoded)
-            self._ledger.add(cost)
+            # The start is what lets the ledger tell overlapping jobs
+            # from consecutive ones. Without it every span anchors at
+            # zero, they all overlap, and the wall-clock total collapses
+            # to the longest single job -- understating a concurrent
+            # batch and, equally, refusing to sum a serial one.
+            self._ledger.add(cost, start=outcome.started)
 
             if decoded is None:
                 target = (

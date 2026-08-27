@@ -489,6 +489,29 @@ class Outcome(Generic[Task, Payload]):
         marshaller that reads a runtime out of the solver's own output,
         or a dispatcher reading a scheduler's accounting, replaces both
         the figure and this label.
+    started : float, optional
+        When this job began, on **the driver's** ``perf_counter``
+        clock. ``wall_time`` says how long a job took;
+        :class:`CostLedger` needs to know *when* to tell overlapping
+        jobs from consecutive ones, and a duration alone cannot.
+
+        Must be on the driver's clock, not a worker's.
+        ``perf_counter`` is comparable only within one process, so
+        origins stamped in separate workers cannot be ordered against
+        each other and a union built from them would be meaningless. A
+        dispatcher that times inside a worker recovers this by
+        subtracting ``wall_time`` from the moment it *observed*
+        completion, which is on its own clock; the duration crossing
+        the process boundary is clock-independent and so survives the
+        trip.
+
+        Not the submit time either: for any batch larger than the pool
+        most jobs wait before running, and treating submission as the
+        start would report every job in a batch as beginning at once.
+
+        ``None`` when unknown -- a failure that never ran, or a
+        timeout -- and the ledger then falls back to anchoring the span
+        at zero.
     resources : Resources
         What the job asked of the machine. Carried on the outcome as
         well as the task because cost is computed from it, and because a
@@ -505,6 +528,7 @@ class Outcome(Generic[Task, Payload]):
     payload: Optional[Payload] = None
     wall_time: float = 0.0
     time_source: TimeSource = TimeSource.WRAPPER
+    started: Optional[float] = None
     resources: Resources = field(default_factory=Resources)
     detail: Optional[str] = None
 
@@ -515,6 +539,12 @@ class Outcome(Generic[Task, Payload]):
             raise ValueError(
                 f"wall_time must be non-negative, got {self.wall_time}"
             )
+        # No sign check on started: perf_counter's origin is arbitrary
+        # and may be negative on some platforms. Only differences
+        # between its readings are meaningful, which is all the ledger
+        # uses it for.
+        if self.started is not None and not isfinite(self.started):
+            raise ValueError(f"started must be finite, got {self.started}")
         if self.status is JobStatus.SUCCEEDED and self.payload is None:
             raise ValueError("a SUCCEEDED outcome must carry a payload")
 
