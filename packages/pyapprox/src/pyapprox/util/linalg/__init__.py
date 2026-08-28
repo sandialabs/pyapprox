@@ -6,6 +6,13 @@ from pyapprox.util.linalg.cholesky_factor import (
 from pyapprox.util.linalg.indexing import (
     extract_submatrix,
 )
+from pyapprox.util.linalg.inner_product import (
+    DiagonalInnerProduct,
+    EuclideanInnerProduct,
+    InnerProductProtocol,
+    MassInnerProduct,
+    m_orthonormality_drift,
+)
 from pyapprox.util.linalg.pivoted_lu import (
     PivotedLUFactorizer,
     get_final_pivots_from_sequential_pivots,
@@ -58,6 +65,12 @@ __all__ = [
     # Sparse dispatch
     "solve_maybe_sparse",
     "sparse_or_dense_solve",
+    # Inner products (the metric a projection is taken in)
+    "InnerProductProtocol",
+    "EuclideanInnerProduct",
+    "DiagonalInnerProduct",
+    "MassInnerProduct",
+    "m_orthonormality_drift",
     # Randomized
     "MatVecOperator",
     "SymmetricMatVecOperator",

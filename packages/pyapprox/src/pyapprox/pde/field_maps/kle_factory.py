@@ -232,6 +232,14 @@ def create_fem_nystrom_nodes_kle(
     Uses the mesh nodal coordinates as collocation points and lumped mass
     matrix row sums as quadrature weights for the Nystrom method.
 
+    TODO: collapse with ``create_fem_nystrom_quadrature_kle``. The two differ
+    only in which coordinates and weights they read off the skfem basis --
+    nodes plus lumped mass row sums here, quadrature points plus ``basis.dx``
+    there -- and the Nystrom eigenproblem does not distinguish the two cases:
+    both are a point set with weights. One coordinate-extraction helper
+    feeding a single builder would remove the duplication. Deferred because
+    it changes this module's public API and so touches its ``pde`` callers.
+
     Parameters
     ----------
     skfem_basis : skfem CellBasis
@@ -284,6 +292,9 @@ def create_fem_nystrom_quadrature_kle(
     Eigenvectors have shape ``(nelems * nquad, nterms)``. For use
     with FEM physics, reshape to ``(nelems, nquad, nterms)`` or
     ``(nelems, nquad)`` per sample.
+
+    TODO: collapse with ``create_fem_nystrom_nodes_kle``; see the note there.
+    The two are the same mathematics over different point sets.
 
     Parameters
     ----------
