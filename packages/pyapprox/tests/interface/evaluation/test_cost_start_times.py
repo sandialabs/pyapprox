@@ -142,8 +142,19 @@ class TestLedgerSeesConcurrency:
         total = ledger.total()
         # The union tracks the elapsed time, which is about two naps.
         assert total.wall_clock == pytest.approx(elapsed, rel=0.5)
-        # Four naps of compute happened regardless of the overlap.
-        assert total.compute == pytest.approx(4 * NAP, rel=0.6)
+        # Four naps of compute happened regardless of the overlap. Two
+        # workers ran them two deep, so the sum is about twice the
+        # elapsed time -- stated against the clock rather than against
+        # ``4 * NAP``, because a loaded machine oversleeps and the
+        # ledger reports what the jobs really took.
+        #
+        # The bounds are deliberately lopsided. Billing too little is
+        # the defect this pins, and no amount of contention causes it,
+        # so the lower bound stays tight enough to catch a batch that
+        # dropped a job. Overshoot is what a busy runner produces, so
+        # the upper bound is loose.
+        assert total.compute > 1.5 * elapsed
+        assert total.compute < 3.0 * elapsed
         # And the two measures genuinely differ: the defect made them
         # agree by collapsing wall clock onto the longest job.
         assert total.compute > total.wall_clock
