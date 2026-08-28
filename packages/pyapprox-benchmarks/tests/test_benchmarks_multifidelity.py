@@ -1,12 +1,11 @@
 """Tests for multifidelity benchmark functions and benchmarks."""
 
 import pytest
-
+from pyapprox.interface.functions.protocols.function import (
+    FunctionProtocol,
+)
 from pyapprox_benchmarks.functions.multifidelity.polynomial_ensemble import (
     PolynomialModelFunction,
-)
-from pyapprox_benchmarks.statest.statistics_mixin import (
-    MultifidelityStatisticsMixin,
 )
 from pyapprox_benchmarks.statest import (
     BraninEnsembleProblem,
@@ -15,8 +14,8 @@ from pyapprox_benchmarks.statest import (
     PolynomialEnsembleBenchmark,
     TunableEnsembleBenchmark,
 )
-from pyapprox.interface.functions.protocols.function import (
-    FunctionProtocol,
+from pyapprox_benchmarks.statest.statistics_mixin import (
+    MultifidelityStatisticsMixin,
 )
 
 
@@ -314,6 +313,44 @@ class TestPSDMultiOutputEnsembleBenchmark:
         psd_cov = psd.ensemble_covariance()
         diff = bkd.max(bkd.abs(regular_cov - psd_cov))
         assert bkd.to_numpy(diff) > 0.01
+
+    @staticmethod
+    def _joint_moment_min_eig(bkd, bm):
+        """Smallest eigenvalue of the stacked (mean, variance) deviation
+        covariance ``[[cov, B], [B^T, W]]``.
+
+        ``cov``, ``W`` and ``B`` are the second, fourth and third moments of
+        one distribution, so this assembled matrix is the covariance of the
+        random vector ``[f - E[f]; kron(f - E[f]) - E[...]]`` and must be
+        PSD. It is negative only if the three quantities were integrated
+        against different quadrature rules -- i.e. treated as moments of
+        different measures.
+        """
+        cov = bm.covariance_matrix()
+        W = bm.covariance_of_centered_values_kronecker_product()
+        B = bm.covariance_of_mean_and_variance_estimators()
+        M = bkd.block([[cov, B], [B.T, W]])
+        return bkd.eigvalsh(0.5 * (M + M.T))[0]
+
+    def test_pilot_quantities_are_jointly_consistent(self, bkd) -> None:
+        """cov, W and B share one quadrature rule, so their joint moment
+        matrix is PSD. A per-quantity degree (the bug this guards) drives
+        the smallest eigenvalue to about -1e-3."""
+        bm = MultiOutputEnsembleBenchmark(bkd, psd=True)
+        assert bkd.to_float(self._joint_moment_min_eig(bkd, bm)) > -1e-10
+
+    def test_quad_npts_is_shared_and_configurable(self, bkd) -> None:
+        """The degree is a single user knob: it flows to every pilot
+        quantity (so a different degree changes the numbers) while keeping
+        them mutually consistent."""
+        bm = MultiOutputEnsembleBenchmark(bkd, psd=True, quad_npts=30)
+        assert bkd.to_float(self._joint_moment_min_eig(bkd, bm)) > -1e-10
+
+        default = MultiOutputEnsembleBenchmark(bkd, psd=True)
+        cov_diff = bkd.max(
+            bkd.abs(bm.covariance_matrix() - default.covariance_matrix())
+        )
+        assert bkd.to_float(cov_diff) > 0.0
 
 
 class TestTunableEnsembleBenchmark:

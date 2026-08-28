@@ -34,6 +34,11 @@ class MultiOutputEnsembleBenchmark(
         Computational backend.
     psd : bool
         Use PSD variant with numerical statistics (default False).
+    quad_npts : int
+        Gauss quadrature degree shared by every numerically-computed pilot
+        quantity (``cov``, ``W``, ``B``, ``means``). One shared rule keeps
+        the quantities mutually consistent as moments of a single measure;
+        see :class:`MultifidelityStatisticsMixin` (default 50).
 
     Reference
     ---------
@@ -45,9 +50,11 @@ class MultiOutputEnsembleBenchmark(
         self,
         bkd: Backend[Array],
         psd: bool = False,
+        quad_npts: int = 50,
     ) -> None:
         self._bkd = bkd
         self._psd = psd
+        self._quad_npts = quad_npts
         self._nmodels = 3
         self._nqoi = 3
 
@@ -210,7 +217,7 @@ class MultiOutputEnsembleBenchmark(
             base_model = self._models[m_idx]
 
             def make_submodel(
-                model: MultiOutputModelFunction[Array], qoi: List[int],
+                model: Callable[[Array], Array], qoi: List[int],
             ) -> Callable[[Array], Array]:
                 def submodel(samples: Array) -> Array:
                     full_output = model(samples)

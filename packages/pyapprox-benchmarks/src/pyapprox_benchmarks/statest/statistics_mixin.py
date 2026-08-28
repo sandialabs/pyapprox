@@ -40,13 +40,24 @@ class MultifidelityStatisticsMixin(Generic[Array]):
     _nmodels: int
     _nqoi: int
 
-    def _get_quadrature_rule(self, npts: int = 21) -> Tuple[Array, Array]:
+    # Shared quadrature degree for every pilot quantity. Configurable by the
+    # subclass (see the ``quad_npts`` constructor argument), but the mean
+    # (``cov``), variance (``W``) and mean-variance (``B``) quantities are
+    # all forced onto this one rule -- callers cannot pick a per-quantity
+    # degree. A Gauss rule is a discrete measure (nodes carrying the positive
+    # quadrature weights as unequal point masses), so quantities from one
+    # rule are the moments of one distribution and are mutually consistent.
+    # Mixing degrees makes them moments of different measures, which need not
+    # be jointly realizable, and the assembled joint mean-and-variance
+    # covariance then loses its positive semidefiniteness.
+    _quad_npts: int = 50
+
+    def _get_quadrature_rule(self) -> Tuple[Array, Array]:
         """Get Gauss quadrature points and weights on [0, 1].
 
-        Parameters
-        ----------
-        npts : int
-            Number of quadrature points.
+        Always uses the shared ``_quad_npts`` degree so every pilot
+        quantity is integrated against one common rule; there is
+        deliberately no per-call degree override.
 
         Returns
         -------
@@ -61,7 +72,7 @@ class MultifidelityStatisticsMixin(Generic[Array]):
         # Create Gauss basis factory from marginal
         factories = create_basis_factories([marginal], self._bkd, "gauss")
         basis = factories[0].create_basis()
-        basis.set_nterms(npts)
+        basis.set_nterms(self._quad_npts)
 
         # Get quadrature points and weights in physical domain [0, 1]
         # points: (1, npts), weights: (npts, 1)
@@ -196,7 +207,7 @@ class MultifidelityStatisticsMixin(Generic[Array]):
         Array
             Covariance matrix of shape (nmodels*nqoi, nmodels*nqoi).
         """
-        quadx, quadw = self._get_quadrature_rule(npts=50)
+        quadx, quadw = self._get_quadrature_rule()
 
         # Compute means
         nflat = self._nmodels * self._nqoi
