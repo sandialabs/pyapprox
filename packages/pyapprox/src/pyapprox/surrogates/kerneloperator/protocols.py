@@ -2,8 +2,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generic, Optional, Protocol, Tuple, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
+from pyapprox.surrogates.kernels.multioutput.protocols import (
+    MultiOutputKernelProtocol,
+)
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
@@ -13,6 +25,13 @@ if TYPE_CHECKING:
     from pyapprox.optimization.minimize.protocols import (
         BindableOptimizerProtocol,
     )
+
+# A kernel accepted by the operator-learning entry points. The two
+# protocols are kept distinct rather than merged because they declare
+# different interfaces, and dispatch is order-sensitive: multi-output
+# kernels may also structurally satisfy KernelProtocol, so they must be
+# tested first.
+KernelLike = Union[MultiOutputKernelProtocol[Array], KernelProtocol[Array]]
 
 
 @runtime_checkable

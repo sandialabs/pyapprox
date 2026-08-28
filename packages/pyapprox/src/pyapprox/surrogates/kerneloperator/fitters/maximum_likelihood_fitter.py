@@ -9,6 +9,7 @@ from pyapprox.surrogates.kerneloperator.fitters.results import (
 )
 from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
+    KernelLike,
 )
 from pyapprox.surrogates.kerneloperator.regressors.factory import (
     make_latent_regressor,
@@ -43,8 +44,8 @@ class KernelOperatorMaximumLikelihoodFitter(Generic[Array]):
     output_encoder_factories : List[Callable]
         Factories for output encoders.
         Signature: (data: Array, bkd: Backend) -> FunctionEncoderProtocol.
-    kernel : object
-        Scalar kernel or MultiOutputKernelProtocol.
+    kernel : KernelLike[Array]
+        Kernel satisfying KernelProtocol or MultiOutputKernelProtocol.
     nugget : float
         Nugget for numerical stability.
     optimizer : BindableOptimizerProtocol or None
@@ -64,7 +65,7 @@ class KernelOperatorMaximumLikelihoodFitter(Generic[Array]):
                 [Array, Backend[Array]], FunctionEncoderProtocol[Array]
             ]
         ],
-        kernel: object,
+        kernel: KernelLike[Array],
         nugget: float = 1e-6,
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
     ) -> None:

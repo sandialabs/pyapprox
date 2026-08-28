@@ -25,7 +25,7 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import (
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
@@ -48,7 +48,7 @@ class ExactGaussianProcess(Generic[Array]):
 
     Parameters
     ----------
-    kernel : Kernel[Array]
+    kernel : KernelProtocol[Array]
         Covariance kernel function.
     nvars : int
         Number of input variables (dimensions).
@@ -131,7 +131,7 @@ class ExactGaussianProcess(Generic[Array]):
 
     def __init__(
         self,
-        kernel: Kernel[Array],
+        kernel: KernelProtocol[Array],
         nvars: int,
         bkd: Backend[Array],
         mean_function: Optional[MeanFunction[Array]] = None,
@@ -217,7 +217,7 @@ class ExactGaussianProcess(Generic[Array]):
         """Return the backend."""
         return self._bkd
 
-    def kernel(self) -> Kernel[Array]:
+    def kernel(self) -> KernelProtocol[Array]:
         """Return the covariance kernel."""
         return self._kernel
 

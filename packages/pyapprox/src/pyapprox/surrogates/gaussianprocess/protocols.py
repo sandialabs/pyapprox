@@ -15,7 +15,7 @@ from pyapprox.surrogates.gaussianprocess.input_transform import (
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
@@ -43,13 +43,13 @@ class GaussianProcessProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def kernel(self) -> Kernel[Array]:
+    def kernel(self) -> KernelProtocol[Array]:
         """
         Return the covariance kernel function.
 
         Returns
         -------
-        Kernel[Array]
+        KernelProtocol[Array]
             The kernel instance defining the covariance structure.
         """
         ...

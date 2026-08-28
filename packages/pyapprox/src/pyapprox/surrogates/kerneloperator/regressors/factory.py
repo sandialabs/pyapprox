@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pyapprox.surrogates.kerneloperator.protocols import (
+    KernelLike,
     LatentRegressorProtocol,
 )
 from pyapprox.surrogates.kerneloperator.regressors.multioutput_kernel import (
@@ -19,7 +20,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 def make_latent_regressor(
-    kernel: object,
+    kernel: KernelLike[Array],
     ncodes_in: int,
     ncodes_out: int,
     bkd: Backend[Array],
@@ -35,8 +36,8 @@ def make_latent_regressor(
 
     Parameters
     ----------
-    kernel
-        Scalar Kernel or MultiOutputKernelProtocol.
+    kernel : KernelLike[Array]
+        Kernel satisfying KernelProtocol or MultiOutputKernelProtocol.
     ncodes_in : int
         Number of input codes.
     ncodes_out : int

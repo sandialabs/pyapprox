@@ -11,6 +11,8 @@ from pyapprox.surrogates.gaussianprocess.exact import (
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,
 )
+from pyapprox.surrogates.gaussianprocess.mean_functions import MeanFunction
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
@@ -31,7 +33,7 @@ class ScalarKernelLatentRegressor(Generic[Array]):
 
     Parameters
     ----------
-    kernel : Kernel[Array]
+    kernel : KernelProtocol[Array]
         Scalar kernel with nvars == ncodes_in.
     ncodes_in : int
         Number of input codes.
@@ -41,21 +43,21 @@ class ScalarKernelLatentRegressor(Generic[Array]):
         Computational backend.
     nugget : float
         Nugget for numerical stability.
-    mean_function : optional
-        Mean function for the GP.
+    mean_function : MeanFunction[Array], optional
+        Mean function for the GP. Defaults to a zero mean.
     """
 
     def __init__(
         self,
-        kernel: object,
+        kernel: KernelProtocol[Array],
         ncodes_in: int,
         ncodes_out: int,
         bkd: Backend[Array],
         nugget: float = 1e-6,
-        mean_function: object = None,
+        mean_function: Optional[MeanFunction[Array]] = None,
     ) -> None:
         self._gp = ExactGaussianProcess(
-            kernel, ncodes_in, bkd, mean_function, nugget  # type: ignore[arg-type]
+            kernel, ncodes_in, bkd, mean_function, nugget
         )
         self._ncodes_in = ncodes_in
         self._ncodes_out = ncodes_out
