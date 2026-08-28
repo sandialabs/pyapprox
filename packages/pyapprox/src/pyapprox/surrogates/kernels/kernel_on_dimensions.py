@@ -10,6 +10,7 @@ from pyapprox.surrogates.kernels.base import (
     KernelInputHVP,
     KernelInputJacobian,
 )
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.hyperparameter.hyperparameter_list import (
     HyperParameterList,
@@ -25,7 +26,7 @@ class KernelOnDimensions(Kernel[Array], Generic[Array]):
 
     Parameters
     ----------
-    kernel : Kernel[Array]
+    kernel : KernelProtocol[Array]
         Inner kernel. Must have nvars() == len(dims).
     dims : List[int]
         Indices of dimensions to extract.
@@ -35,7 +36,7 @@ class KernelOnDimensions(Kernel[Array], Generic[Array]):
 
     def __init__(
         self,
-        kernel: Kernel[Array],
+        kernel: KernelProtocol[Array],
         dims: List[int],
         total_nvars: int,
     ) -> None:
@@ -90,7 +91,7 @@ class KernelOnDimensions(Kernel[Array], Generic[Array]):
         """Return the dimension indices this kernel operates on."""
         return list(self._dims)
 
-    def inner_kernel(self) -> Kernel[Array]:
+    def inner_kernel(self) -> KernelProtocol[Array]:
         """Return the wrapped inner kernel."""
         return self._kernel
 

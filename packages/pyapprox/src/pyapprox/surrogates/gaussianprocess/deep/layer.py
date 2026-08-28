@@ -25,7 +25,7 @@ from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     MeanFunction,
 )
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameter, HyperParameterList
 
@@ -44,7 +44,7 @@ class DGPLayer(Generic[Array]):
 
     Parameters
     ----------
-    kernel : Kernel[Array]
+    kernel : KernelProtocol[Array]
         Covariance kernel.
     mean_function : MeanFunction[Array]
         Prior mean function.
@@ -65,7 +65,7 @@ class DGPLayer(Generic[Array]):
 
     def __init__(
         self,
-        kernel: Kernel[Array],
+        kernel: KernelProtocol[Array],
         mean_function: MeanFunction[Array],
         inducing_points: InducingPoints[Array],
         variational_dist: GaussianVariationalDistribution[Array],
@@ -74,9 +74,10 @@ class DGPLayer(Generic[Array]):
         nugget: float = 1e-6,
         input_builder: Optional[InputBuilder[Array]] = None,
     ) -> None:
-        if not isinstance(kernel, Kernel):
+        if not isinstance(kernel, KernelProtocol):
             raise TypeError(
-                f"kernel must be a Kernel instance, got {type(kernel).__name__}"
+                f"kernel must satisfy KernelProtocol, "
+                f"got {type(kernel).__name__}"
             )
         if not isinstance(mean_function, MeanFunction):
             raise TypeError(
@@ -100,7 +101,7 @@ class DGPLayer(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def kernel(self) -> Kernel[Array]:
+    def kernel(self) -> KernelProtocol[Array]:
         return self._kernel
 
     def mean_function(self) -> MeanFunction[Array]:

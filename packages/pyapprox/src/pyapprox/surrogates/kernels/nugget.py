@@ -28,7 +28,7 @@ class NuggetKernel(Kernel[Array], Generic[Array]):
 
     Parameters
     ----------
-    kernel : Kernel[Array]
+    kernel : KernelProtocol[Array]
         Inner kernel to wrap.
     nugget : float
         Nugget value added to diagonal entries.

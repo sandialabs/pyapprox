@@ -37,7 +37,7 @@ def validate_separable_kernel(kernel: KernelProtocol[Array]) -> None:
 
     Parameters
     ----------
-    kernel : Kernel[Array]
+    kernel : KernelProtocol[Array]
         The kernel to validate.
 
     Raises

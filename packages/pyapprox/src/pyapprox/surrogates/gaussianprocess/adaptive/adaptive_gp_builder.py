@@ -18,7 +18,7 @@ from pyapprox.surrogates.gaussianprocess.input_transform import (
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -31,7 +31,7 @@ class AdaptiveGPBuilder(Generic[Array]):
 
     Parameters
     ----------
-    kernel : Kernel[Array]
+    kernel : KernelProtocol[Array]
         Covariance kernel used when creating each new GP.
     sampler : AdaptiveSamplerProtocol[Array]
         Adaptive sampler operating in scaled space.
@@ -47,7 +47,7 @@ class AdaptiveGPBuilder(Generic[Array]):
 
     def __init__(
         self,
-        kernel: Kernel[Array],
+        kernel: KernelProtocol[Array],
         sampler: AdaptiveSamplerProtocol[Array],
         bkd: Backend[Array],
         input_transform: Optional[InputAffineTransformProtocol[Array]] = None,

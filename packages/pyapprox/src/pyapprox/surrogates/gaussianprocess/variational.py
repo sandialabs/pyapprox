@@ -38,7 +38,7 @@ from pyapprox.surrogates.gaussianprocess.mean_functions import (
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputAffineTransformProtocol,
 )
-from pyapprox.surrogates.kernels.base import Kernel
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import HyperParameterList
@@ -61,7 +61,7 @@ class VariationalGaussianProcess(Generic[Array]):
 
     Parameters
     ----------
-    kernel : Kernel[Array]
+    kernel : KernelProtocol[Array]
         Covariance kernel (must NOT be a SumKernel — noise is managed
         by the likelihood).
     nvars : int
@@ -80,7 +80,7 @@ class VariationalGaussianProcess(Generic[Array]):
 
     def __init__(
         self,
-        kernel: Kernel[Array],
+        kernel: KernelProtocol[Array],
         nvars: int,
         inducing_points: InducingPoints[Array],
         likelihood: GaussianLikelihood[Array],
@@ -148,7 +148,7 @@ class VariationalGaussianProcess(Generic[Array]):
         """Return the backend."""
         return self._bkd
 
-    def kernel(self) -> Kernel[Array]:
+    def kernel(self) -> KernelProtocol[Array]:
         """Return the covariance kernel."""
         return self._kernel
 
