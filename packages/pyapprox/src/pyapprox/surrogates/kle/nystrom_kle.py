@@ -151,6 +151,14 @@ class NystromKLE(Generic[Array]):
         """Return the landmark points, shape ``(ndim, m)``."""
         return self._landmark_coords
 
+    def sigma(self) -> float:
+        """Return the standard deviation scaling applied to the basis."""
+        return self._sigma
+
+    def use_log(self) -> bool:
+        """Whether realizations are exponentiated."""
+        return self._use_log
+
     def extension(self) -> Array:
         """The ``(m, nterms)`` matrix ``T`` behind :meth:`eigenvectors_at`.
 

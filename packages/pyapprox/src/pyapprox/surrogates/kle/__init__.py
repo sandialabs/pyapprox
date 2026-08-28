@@ -27,6 +27,12 @@ Persistence
   keeping the extension matrix so the reload still evaluates at new
   points rather than only where it was stored
 
+Multifidelity
+-------------
+- nystrom_kle_on_mesh / nystrom_kles_on_meshes: extend one Nystrom basis
+  to other meshes, so every fidelity expands the same field from the same
+  coefficients instead of each solving its own eigenproblem
+
 Eigensolvers
 ------------
 Injected into MeshKLE to control how the eigenproblem is solved.
@@ -58,6 +64,7 @@ from .eigensolvers import (
 from .galerkin_kle import GalerkinKLE
 from .io import load_kle, load_nystrom_kle, save_kle, save_nystrom_kle
 from .mesh_kle import MeshKLE
+from .multifidelity import nystrom_kle_on_mesh, nystrom_kles_on_meshes
 from .nystrom_kle import NystromKLE, create_nystrom_kle
 from .pca import PrincipalComponentAnalysis
 from .periodic_random_field import PeriodicReiszGaussianRandomField
@@ -91,6 +98,9 @@ __all__ = [
     "load_kle",
     "save_nystrom_kle",
     "load_nystrom_kle",
+    # Multifidelity
+    "nystrom_kle_on_mesh",
+    "nystrom_kles_on_meshes",
     # Eigensolvers
     "DenseEigenSolver",
     "PivotedCholeskyEigenSolver",
