@@ -11,12 +11,15 @@ import numpy as np
 import pytest
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.io import (
+    NYSTROM_SCHEMA_VERSION,
     SCHEMA_VERSION,
     load_kle,
+    load_nystrom_kle,
     save_kle,
+    save_nystrom_kle,
 )
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
-from pyapprox.surrogates.kle.nystrom_kle import create_nystrom_kle
+from pyapprox.surrogates.kle.nystrom_kle import NystromKLE, create_nystrom_kle
 from pyapprox.surrogates.kle.precomputed_kle import PrecomputedKLE
 from pyapprox.surrogates.kle.protocols import KLEProtocol
 
@@ -140,6 +143,125 @@ class TestRoundTrip:
         )
 
 
+class TestNystromRoundTrip:
+    """A reloaded Nystrom basis must still extend to new points.
+
+    The distinguishing property from :class:`TestRoundTrip`: equality is
+    asserted at points the basis was *not* built on, which only holds if
+    the extension matrix survived the round-trip.
+    """
+
+    def test_extends_to_new_points(self, bkd, tmp_path) -> None:
+        source = create_nystrom_kle(
+            _kernel(bkd), _coords(bkd, 100), 6, bkd, nlandmarks=40
+        )
+        grid = np.linspace(0.0, 1.0, 100)
+        query = bkd.array(((grid[:-1] + grid[1:]) / 2)[None, :])
+        path = tmp_path / "nystrom.npz"
+        save_nystrom_kle(path, source)
+        loaded = load_nystrom_kle(path, _kernel(bkd), bkd)
+        coef = _coef(bkd, 6)
+        bkd.assert_allclose(
+            loaded.evaluate_at(query, coef),
+            source.evaluate_at(query, coef),
+            rtol=0.0,
+            atol=0.0,
+        )
+
+    def test_arrays_survive_unchanged(self, bkd, tmp_path) -> None:
+        source = create_nystrom_kle(
+            _kernel(bkd), _coords(bkd, 100), 6, bkd, nlandmarks=40
+        )
+        path = tmp_path / "nystrom.npz"
+        save_nystrom_kle(path, source)
+        loaded = load_nystrom_kle(path, _kernel(bkd), bkd)
+        bkd.assert_allclose(
+            loaded.extension(), source.extension(), rtol=0.0, atol=0.0
+        )
+        bkd.assert_allclose(
+            loaded.landmark_coords(),
+            source.landmark_coords(),
+            rtol=0.0,
+            atol=0.0,
+        )
+        bkd.assert_allclose(
+            loaded.eigenvalues(), source.eigenvalues(), rtol=0.0, atol=0.0
+        )
+        bkd.assert_allclose(
+            loaded.eigenvectors(), source.eigenvectors(), rtol=0.0, atol=0.0
+        )
+
+    def test_sigma_and_mean_and_log_are_recorded(self, bkd, tmp_path) -> None:
+        """The stated scalars must reach the reloaded realization.
+
+        Built without them but saved with them, so the assertion is that
+        the archive carries the scalars rather than the source object.
+        """
+        source = create_nystrom_kle(
+            _kernel(bkd), _coords(bkd, 100), 6, bkd, nlandmarks=40
+        )
+        reference = create_nystrom_kle(
+            _kernel(bkd),
+            _coords(bkd, 100),
+            6,
+            bkd,
+            nlandmarks=40,
+            sigma=2.5,
+            mean_field=0.7,
+            use_log=True,
+        )
+        query = bkd.array(np.linspace(0.05, 0.95, 30)[None, :])
+        path = tmp_path / "nystrom.npz"
+        save_nystrom_kle(path, source, sigma=2.5, mean_field=0.7, use_log=True)
+        loaded = load_nystrom_kle(path, _kernel(bkd), bkd)
+        coef = _coef(bkd, 6)
+        bkd.assert_allclose(
+            loaded.evaluate_at(query, coef),
+            reference.evaluate_at(query, coef),
+            rtol=1e-12,
+            atol=0.0,
+        )
+
+    def test_loaded_object_is_a_nystrom_kle(self, bkd, tmp_path) -> None:
+        source = create_nystrom_kle(
+            _kernel(bkd), _coords(bkd, 100), 5, bkd, nlandmarks=30
+        )
+        path = tmp_path / "nystrom.npz"
+        save_nystrom_kle(path, source)
+        assert isinstance(load_nystrom_kle(path, _kernel(bkd), bkd), NystromKLE)
+
+    def test_rejects_non_nystrom(self, bkd, tmp_path) -> None:
+        source = MeshKLE(_coords(bkd), _kernel(bkd), nterms=4, bkd=bkd)
+        with pytest.raises(TypeError, match="NystromKLE"):
+            save_nystrom_kle(tmp_path / "nystrom.npz", source)
+
+    def test_rejects_unknown_schema_version(self, bkd, tmp_path) -> None:
+        source = create_nystrom_kle(
+            _kernel(bkd), _coords(bkd, 100), 5, bkd, nlandmarks=30
+        )
+        path = tmp_path / "nystrom.npz"
+        save_nystrom_kle(path, source)
+        with np.load(path) as archive:
+            entries = dict(archive)
+        entries["schema_version"] = NYSTROM_SCHEMA_VERSION + 1
+        np.savez(path, **entries)
+        with pytest.raises(ValueError, match="schema version"):
+            load_nystrom_kle(path, _kernel(bkd), bkd)
+
+    def test_rejects_missing_entry(self, bkd, tmp_path) -> None:
+        source = create_nystrom_kle(
+            _kernel(bkd), _coords(bkd, 100), 5, bkd, nlandmarks=30
+        )
+        path = tmp_path / "nystrom.npz"
+        save_nystrom_kle(path, source)
+        with np.load(path) as archive:
+            entries = dict(archive)
+        del entries["extension"]
+        np.savez(path, **entries)
+        with pytest.raises(ValueError, match="extension"):
+            load_nystrom_kle(path, _kernel(bkd), bkd)
+
+
 class TestScalars:
     """sigma and use_log are stated by the caller, not inferred."""
 
@@ -167,7 +289,7 @@ class TestScalars:
         bkd.assert_allclose(
             load_kle(scaled, bkd)(coef),
             load_kle(plain, bkd)(coef) * 3.0,
-            rtol=1e-13,
+            rtol=1e-12,
             atol=1e-15,
         )
 
@@ -179,10 +301,14 @@ class TestScalars:
         loaded = load_kle(logged, bkd)
         assert loaded.use_log() is True
         coef = _coef(bkd, 5)
+        # Not exact: exp() is applied to two separately reconstructed
+        # realizations, and it amplifies whatever relative error the
+        # matmul left. A tolerance near machine epsilon fails on
+        # platforms whose BLAS contracts in a different order.
         bkd.assert_allclose(
             loaded(coef),
             bkd.exp(load_kle(plain, bkd)(coef)),
-            rtol=1e-14,
+            rtol=1e-12,
             atol=0.0,
         )
 

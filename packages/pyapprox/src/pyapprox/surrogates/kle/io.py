@@ -24,6 +24,8 @@ from typing import Any, Union
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.surrogates.kernels.protocols import KernelProtocol
+from pyapprox.surrogates.kle.nystrom_kle import NystromKLE
 from pyapprox.surrogates.kle.precomputed_kle import PrecomputedKLE
 from pyapprox.surrogates.kle.protocols import KLEProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -33,6 +35,11 @@ from pyapprox.util.backends.protocols import Array, Backend
 # reported, rather than read as though it were the current format and
 # producing wrong numbers.
 SCHEMA_VERSION = 1
+
+# Independent of SCHEMA_VERSION: the Nystrom archive stores a different
+# set of arrays (landmarks + extension, not an evaluated basis), so its
+# format versions on its own timeline.
+NYSTROM_SCHEMA_VERSION = 1
 
 PathLike = Union[str, "os.PathLike[str]"]
 
@@ -195,6 +202,188 @@ def load_kle(path: PathLike, bkd: Backend[Array]) -> PrecomputedKLE[Array]:
         bkd.asarray(stored.eigenvectors),
         bkd.asarray(stored.mean_field),
         sigma=stored.sigma,
+        use_log=stored.use_log,
+        bkd=bkd,
+    )
+
+
+@dataclass(frozen=True)
+class _StoredNystromKLE:
+    """The on-disk form of a Nystrom basis.
+
+    Unlike :class:`_StoredKLE`, which stores a basis frozen at a point
+    set, this stores the ingredients of an *extensible* one: the
+    landmarks, the extension matrix, and the landmark eigenpairs. With
+    the kernel supplied at load time these reconstruct a
+    :class:`~pyapprox.surrogates.kle.nystrom_kle.NystromKLE` that can
+    still evaluate anywhere -- which is the whole reason to persist a
+    Nystrom KLE rather than a :class:`PrecomputedKLE` snapshot of it.
+
+    The kernel is deliberately absent: it is a live object, not an
+    array, and every consumer already builds it as an injected
+    dependency. Storing kernel hyperparameters here would fix a kernel
+    *type* into the format; taking the kernel at load keeps the archive
+    kernel-agnostic and the class layout out of the file.
+    """
+
+    landmark_coords: NDArray[np.floating[Any]]
+    extension: NDArray[np.floating[Any]]
+    eigenvalues: NDArray[np.floating[Any]]
+    eigenvectors: NDArray[np.floating[Any]]
+    sigma: float
+    mean_field: float
+    use_log: bool
+    schema_version: int = NYSTROM_SCHEMA_VERSION
+
+    def to_npz(self, path: PathLike) -> None:
+        """Write every field as an entry of a ``.npz`` archive."""
+        np.savez(path, **asdict(self))
+
+    @classmethod
+    def from_npz(cls, path: PathLike) -> "_StoredNystromKLE":
+        """Read an archive back, checking it before trusting it."""
+        with np.load(path) as archive:
+            present = set(archive.files)
+            if "schema_version" not in present:
+                raise ValueError(
+                    f"{path} has no schema_version entry, so it was not "
+                    "written by save_nystrom_kle"
+                )
+            stored = int(archive["schema_version"])
+            if stored != NYSTROM_SCHEMA_VERSION:
+                raise ValueError(
+                    f"{path} was written with Nystrom KLE schema version "
+                    f"{stored}, but this version of PyApprox reads version "
+                    f"{NYSTROM_SCHEMA_VERSION}. The stored arrays cannot be "
+                    "interpreted safely."
+                )
+            missing = {f.name for f in fields(cls)} - present
+            if missing:
+                raise ValueError(
+                    f"{path} is missing required entries: "
+                    f"{', '.join(sorted(missing))}"
+                )
+            return cls(
+                landmark_coords=archive["landmark_coords"],
+                extension=archive["extension"],
+                eigenvalues=archive["eigenvalues"],
+                eigenvectors=archive["eigenvectors"],
+                sigma=float(archive["sigma"]),
+                mean_field=float(archive["mean_field"]),
+                use_log=bool(archive["use_log"]),
+                schema_version=stored,
+            )
+
+
+def save_nystrom_kle(
+    path: PathLike,
+    kle: NystromKLE[Array],
+    sigma: float = 1.0,
+    mean_field: float = 0.0,
+    use_log: bool = False,
+) -> None:
+    """Write a Nystrom basis to a ``.npz`` archive, extension included.
+
+    Stores what :meth:`~pyapprox.surrogates.kle.nystrom_kle.NystromKLE.eigenvectors_at`
+    needs -- the landmarks, the extension matrix ``T``, and the landmark
+    eigenpairs -- so a reload can evaluate the basis at *new* points
+    without repeating the eigensolve. This is the persistent form of the
+    expensive build: solve once, then extend to any mesh later.
+
+    ``sigma``, ``mean_field``, and ``use_log`` are stated by the caller
+    for the reason :func:`save_kle` states its scalars: they scale and
+    transform a realization rather than being part of the basis, and
+    inferring them off whichever accessor exists is how a build-time
+    value silently disagrees with the stored one. ``mean_field`` must be
+    a scalar here; a callable mean is not serializable and has no place
+    in a portable archive.
+
+    Parameters
+    ----------
+    path : str or PathLike
+        Destination. ``.npz`` is appended by numpy if absent.
+    kle : NystromKLE[Array]
+        The basis to store. Must be a
+        :class:`~pyapprox.surrogates.kle.nystrom_kle.NystromKLE`; a
+        frozen :class:`PrecomputedKLE` has no extension to store and is
+        the job of :func:`save_kle`.
+    sigma : float
+        Standard deviation scaling to record with the basis.
+    mean_field : float
+        The scalar mean recorded with the basis.
+    use_log : bool
+        Whether realizations from this basis are exponentiated.
+
+    Raises
+    ------
+    TypeError
+        If ``kle`` is not a
+        :class:`~pyapprox.surrogates.kle.nystrom_kle.NystromKLE`.
+    """
+    if not isinstance(kle, NystromKLE):
+        raise TypeError(
+            f"kle must be a NystromKLE, got {type(kle).__name__}. A basis "
+            "already frozen at a point set is saved with save_kle."
+        )
+    bkd = kle.bkd()
+    _StoredNystromKLE(
+        landmark_coords=bkd.to_numpy(kle.landmark_coords()),
+        extension=bkd.to_numpy(kle.extension()),
+        eigenvalues=bkd.to_numpy(kle.eigenvalues()),
+        eigenvectors=bkd.to_numpy(kle.eigenvectors()),
+        sigma=float(sigma),
+        mean_field=float(mean_field),
+        use_log=bool(use_log),
+    ).to_npz(path)
+
+
+def load_nystrom_kle(
+    path: PathLike,
+    kernel: KernelProtocol[Array],
+    bkd: Backend[Array],
+) -> NystromKLE[Array]:
+    """Read a basis written by :func:`save_nystrom_kle`.
+
+    Returns a fully extensible
+    :class:`~pyapprox.surrogates.kle.nystrom_kle.NystromKLE`: unlike
+    :func:`load_kle`, which returns a basis frozen at its stored points,
+    the reload here can evaluate at arbitrary new points because the
+    extension matrix travelled with it.
+
+    Parameters
+    ----------
+    path : str or PathLike
+        A ``.npz`` archive written by :func:`save_nystrom_kle`.
+    kernel : KernelProtocol[Array]
+        The covariance kernel the basis was built with. It is not stored
+        (see :class:`_StoredNystromKLE`); pass the same kernel used to
+        build the basis, or its extension will be wrong.
+    bkd : Backend[Array]
+        Backend the returned arrays are created under. The archive is
+        backend-neutral, so a basis saved from one backend loads into
+        another.
+
+    Returns
+    -------
+    NystromKLE[Array]
+        A basis that evaluates identically to the one saved and can be
+        extended to new points.
+
+    Raises
+    ------
+    ValueError
+        If the archive was written by an incompatible schema version,
+        or is missing an array the format requires.
+    """
+    stored = _StoredNystromKLE.from_npz(path)
+    return NystromKLE(
+        kernel,
+        bkd.asarray(stored.landmark_coords),
+        bkd.asarray(stored.extension),
+        bkd.asarray(stored.eigenvalues),
+        bkd.asarray(stored.eigenvectors),
+        sigma=stored.sigma,
+        mean_field=stored.mean_field,
         use_log=stored.use_log,
         bkd=bkd,
     )

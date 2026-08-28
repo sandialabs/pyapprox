@@ -23,6 +23,9 @@ Key Classes
 Persistence
 -----------
 - save_kle / load_kle: store a basis and reload it without re-solving
+- save_nystrom_kle / load_nystrom_kle: the same for a Nystrom basis,
+  keeping the extension matrix so the reload still evaluates at new
+  points rather than only where it was stored
 
 Eigensolvers
 ------------
@@ -53,7 +56,7 @@ from .eigensolvers import (
     finalize_eigenpairs,
 )
 from .galerkin_kle import GalerkinKLE
-from .io import load_kle, save_kle
+from .io import load_kle, load_nystrom_kle, save_kle, save_nystrom_kle
 from .mesh_kle import MeshKLE
 from .nystrom_kle import NystromKLE, create_nystrom_kle
 from .pca import PrincipalComponentAnalysis
@@ -86,6 +89,8 @@ __all__ = [
     # Persistence
     "save_kle",
     "load_kle",
+    "save_nystrom_kle",
+    "load_nystrom_kle",
     # Eigensolvers
     "DenseEigenSolver",
     "PivotedCholeskyEigenSolver",

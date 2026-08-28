@@ -151,6 +151,20 @@ class NystromKLE(Generic[Array]):
         """Return the landmark points, shape ``(ndim, m)``."""
         return self._landmark_coords
 
+    def extension(self) -> Array:
+        """The ``(m, nterms)`` matrix ``T`` behind :meth:`eigenvectors_at`.
+
+        Exposed so the basis can be persisted and re-evaluated at new
+        points later without repeating the eigensolve: ``T`` together
+        with the landmarks and the kernel is the whole of what
+        :meth:`eigenvectors_at` needs (``phi(x) = C(x, S) T``). It is
+        the one piece of that state with no other accessor -- the
+        landmarks, eigenvalues, and landmark basis already have theirs
+        -- so storing it is what lets ``save_nystrom_kle`` round-trip an
+        *extensible* basis rather than one frozen at a point set.
+        """
+        return self._extension
+
     def __call__(self, coef: Array) -> Array:
         """Evaluate the field at the landmarks.
 
