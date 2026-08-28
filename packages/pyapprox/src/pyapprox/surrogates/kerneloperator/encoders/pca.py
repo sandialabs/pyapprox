@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Generic, Optional
 
+from pyapprox.surrogates.kle.utils import adjust_sign_eig
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -138,5 +139,11 @@ class PCAFunctionEncoder(Generic[Array]):
                 "must be provided"
             )
 
-        basis = U[:, :n]
+        # The SVD fixes each singular vector only up to sign, so the same
+        # data can yield oppositely-signed modes on different LAPACK
+        # builds -- and did yield different signs here than through
+        # DataDrivenKLE, which has always canonicalized. Anything that
+        # compares bases across entry points, or stores one and reloads
+        # it, needs the two to agree.
+        basis = adjust_sign_eig(bkd.copy(U[:, :n]), bkd)
         return cls(basis, mean, bkd)

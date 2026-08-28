@@ -1,8 +1,4 @@
-"""Tests for MeshKLE.
-
-Ports all relevant legacy tests from pyapprox/surrogates/affine/tests/test_kle.py
-and adds new tests for improved coverage.
-"""
+"""Tests for MeshKLE."""
 
 import numpy as np
 import pytest
@@ -69,9 +65,7 @@ def _trapezoid_rule(lb, ub, npts):
 class TestMeshKLE:
 
     def test_mesh_kle_1D_exponential(self, bkd) -> None:
-        """Port of legacy test_mesh_kle_1D.
-
-        Creates MeshKLE with ExponentialKernel and compares eigenvalues
+        """Creates MeshKLE with ExponentialKernel and compares eigenvalues
         against analytical KLE1D. Also checks basis orthonormality
         with quadrature weights.
         """
@@ -130,9 +124,7 @@ class TestMeshKLE:
         )
 
     def test_mesh_kle_1D_discretization_independence(self, bkd) -> None:
-        """Port of legacy test_mesh_kle_1D_discretization.
-
-        Tests that two different mesh resolutions with trapezoid rule
+        """Tests that two different mesh resolutions with trapezoid rule
         give the same eigenvalues.
         """
         level1, level2 = 6, 8

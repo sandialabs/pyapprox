@@ -7,7 +7,6 @@ random fields as truncated eigenfunction expansions.
 Key Protocols
 -------------
 - KLEProtocol: Base protocol for KLE implementations
-- ReducibleKLEProtocol: Protocol for KLEs with reduce/expand operations
 - KLEEigenSolverProtocol: How MeshKLE computes its eigenpairs
 
 Key Classes
@@ -18,7 +17,6 @@ Key Classes
 - DataDrivenKLE: SVD-based KLE computed from field samples
 - NystromKLE: KLE evaluable away from its collocation points
 - PrecomputedKLE: KLE built from an already-computed basis
-- PrincipalComponentAnalysis: PCA for dimensionality reduction
 
 Persistence
 -----------
@@ -66,13 +64,9 @@ from .io import load_kle, load_nystrom_kle, save_kle, save_nystrom_kle
 from .mesh_kle import MeshKLE
 from .multifidelity import nystrom_kle_on_mesh, nystrom_kles_on_meshes
 from .nystrom_kle import NystromKLE, create_nystrom_kle
-from .pca import PrincipalComponentAnalysis
 from .periodic_random_field import PeriodicReiszGaussianRandomField
 from .precomputed_kle import PrecomputedKLE
-from .protocols import (
-    KLEProtocol,
-    ReducibleKLEProtocol,
-)
+from .protocols import KLEProtocol
 from .spde_kle import SPDEMaternKLE
 from .utils import (
     adjust_sign_eig,
@@ -82,7 +76,6 @@ from .utils import (
 __all__ = [
     # Protocols
     "KLEProtocol",
-    "ReducibleKLEProtocol",
     "KLEEigenSolverProtocol",
     # Core
     "MeshKLE",
@@ -92,7 +85,6 @@ __all__ = [
     "NystromKLE",
     "create_nystrom_kle",
     "PrecomputedKLE",
-    "PrincipalComponentAnalysis",
     # Persistence
     "save_kle",
     "load_kle",

@@ -88,38 +88,3 @@ class KLEProtocol(Protocol, Generic[Array]):
             Mean field at the points the basis is given at.
         """
         ...
-
-
-@runtime_checkable
-class ReducibleKLEProtocol(Protocol, Generic[Array]):
-    """Protocol for KLEs that support state reduction and expansion."""
-
-    def reduce_state(self, state: Array) -> Array:
-        """Project a full-order state onto the reduced basis.
-
-        Parameters
-        ----------
-        state : Array
-            Full-order state to be reduced.
-
-        Returns
-        -------
-        Array
-            Reduced-order state.
-        """
-        ...
-
-    def expand_reduced_state(self, reduced_state: Array) -> Array:
-        """Expand a reduced-order state back to full-order.
-
-        Parameters
-        ----------
-        reduced_state : Array
-            Reduced-order state.
-
-        Returns
-        -------
-        Array
-            Full-order state.
-        """
-        ...

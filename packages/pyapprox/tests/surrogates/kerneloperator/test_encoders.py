@@ -9,6 +9,7 @@ from pyapprox.surrogates.kerneloperator.encoders.pca import (
 from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
 )
+from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 
 
 class TestIdentityFunctionEncoder:
@@ -49,6 +50,36 @@ class TestPCAFunctionEncoder:
         enc = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=3)
         assert enc.ncodes() == 3
         assert enc.ngrid() == 20
+
+    def test_basis_sign_is_canonical(self, bkd) -> None:
+        """The SVD fixes each mode only up to sign.
+
+        Without canonicalization the same data yields oppositely-signed
+        modes across LAPACK builds, and disagrees with the basis
+        DataDrivenKLE produces from the same snapshots. The convention is
+        the one adjust_sign_eig applies: the largest-magnitude entry of
+        the first row selects a column whose entries are then made
+        positive.
+        """
+        data = self._make_low_rank_data(bkd)
+        basis = PCAFunctionEncoder.fit_from_data(
+            data, bkd, ncodes=3
+        ).basis()
+        idx = bkd.argmax(bkd.abs(basis[0, :]))
+        assert bool(bkd.all_bool(basis[idx, :] > 0.0))
+
+    def test_sign_matches_data_driven_kle(self, bkd) -> None:
+        """Two entry points, one basis: the defect this convention fixes."""
+        data = self._make_low_rank_data(bkd)
+        centered = data - bkd.reshape(
+            bkd.mean(data, axis=1), (data.shape[0], 1)
+        )
+        kle = DataDrivenKLE(centered, 0.0, False, 3, None, bkd=bkd)
+        bkd.assert_allclose(
+            PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=3).basis(),
+            kle.eigenvectors(),
+            rtol=1e-10,
+        )
 
     def test_fit_from_data_variance_fraction(self, bkd) -> None:
         data = self._make_low_rank_data(bkd)
