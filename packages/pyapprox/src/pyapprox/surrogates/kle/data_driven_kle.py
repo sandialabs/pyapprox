@@ -4,50 +4,25 @@ from typing import Generic, Optional, Union
 
 import numpy as np
 
-from pyapprox.surrogates.kle.utils import adjust_sign_eig
+from pyapprox.surrogates.kle.snapshot_eigensolvers import (
+    SnapshotEigenSolverProtocol,
+    default_snapshot_eigensolver,
+)
 from pyapprox.util.backends.protocols import Array, Backend
-
-_MACHINE_EPS = float(np.finfo(np.float64).eps)
-
-
-def _reject_negligible_singular_values(
-    retained: Array, spectrum: Array, bkd: Backend[Array]
-) -> None:
-    """Refuse a basis whose trailing modes carry no variance.
-
-    Mirrors the check ``eigensolvers`` applies to a kernel spectrum, for
-    the reason that motivates it there: a KLE scales each vector by
-    ``sqrt(eigenvalue)``, so a term whose singular value is zero to
-    machine precision contributes a column of zeros -- a mode the caller
-    asked for and did not get.
-
-    For snapshot data the usual cause is centering. Subtracting the
-    sample mean makes the columns linearly dependent, dropping the rank
-    to ``nsamples - 1``, so a caller who centers and then asks for
-    ``nsamples`` terms gets a silent empty mode. That cannot be caught
-    by counting arguments, since this class is handed a matrix without
-    being told whether it was centered; the spectrum reports it.
-    """
-    largest = bkd.to_float(bkd.max(spectrum))
-    if largest <= 0.0:
-        raise ValueError(
-            "field_samples has no variance: every singular value is zero"
-        )
-    tolerance = largest * int(spectrum.shape[0]) * _MACHINE_EPS
-    nusable = int((bkd.to_numpy(retained) > tolerance).sum())
-    if nusable < int(retained.shape[0]):
-        raise ValueError(
-            f"nterms={int(retained.shape[0])} exceeds the numerical rank "
-            f"of field_samples ({nusable}); the trailing terms would be "
-            "zero columns. Centered data has rank at most nsamples - 1."
-        )
+from pyapprox.util.linalg.inner_product import (
+    DiagonalInnerProduct,
+    InnerProductProtocol,
+)
 
 
 class DataDrivenKLE(Generic[Array]):
     """Karhunen-Loève Expansion computed from field sample data.
 
-    Uses SVD of the (optionally weighted) field samples for numerical
-    stability, rather than eigendecomposition of the sample covariance.
+    Decomposes the field samples directly rather than forming a sample
+    covariance and eigendecomposing that, which would square the
+    condition number. How the decomposition is done is the injected
+    eigensolver's business; what stays here is the sample-covariance
+    scaling, which needs to know these columns are samples.
 
     Parameters
     ----------
@@ -60,9 +35,20 @@ class DataDrivenKLE(Generic[Array]):
     nterms : int or None
         Number of KLE terms. None uses min(ncoords, nsamples).
     quad_weights : Array or None, shape (ncoords,)
-        Quadrature weights for weighted SVD.
+        Quadrature weights, the diagonal of the metric the basis is
+        orthonormal in. Cannot be combined with ``metric``, which says
+        the same thing more generally.
     bkd : Backend[Array]
         Computational backend.
+    metric : InnerProductProtocol, optional
+        The inner product the eigenvectors are orthonormal in. Prefer
+        this to ``quad_weights``: an assembled FEM mass matrix is a
+        metric that no vector of weights can express.
+    eigensolver : SnapshotEigenSolverProtocol, optional
+        How the basis is extracted. Defaults to the solver matching the
+        metric -- the SVD when it is diagonal, the method of snapshots
+        otherwise -- mirroring the seam ``MeshKLE`` offers for the
+        kernel-driven case.
     """
 
     def __init__(
@@ -73,6 +59,8 @@ class DataDrivenKLE(Generic[Array]):
         nterms: Optional[int] = None,
         quad_weights: Optional[Array] = None,
         bkd: Backend[Array] = None,
+        metric: Optional[InnerProductProtocol[Array]] = None,
+        eigensolver: Optional[SnapshotEigenSolverProtocol[Array]] = None,
     ):
         if bkd is None:
             raise ValueError("bkd must be provided")
@@ -83,6 +71,25 @@ class DataDrivenKLE(Generic[Array]):
         if quad_weights is not None and quad_weights.ndim != 1:
             raise ValueError(f"quad_weights must be 1D, got ndim={quad_weights.ndim}")
 
+        # quad_weights is the diagonal special case of metric. Promote it
+        # rather than carrying two representations of one concept; both
+        # at once would leave which of them the basis honors ambiguous.
+        if quad_weights is not None and metric is not None:
+            raise ValueError(
+                "pass either quad_weights or metric, not both: "
+                "quad_weights is the diagonal case of metric, and "
+                "supplying both leaves it undefined which the basis is "
+                "orthonormal in"
+            )
+        if quad_weights is not None:
+            metric = DiagonalInnerProduct(quad_weights, bkd)
+        self._metric = metric
+        self._eigensolver = (
+            default_snapshot_eigensolver(bkd, metric)
+            if eigensolver is None
+            else eigensolver
+        )
+
         # Set mean field
         ncoords = field_samples.shape[0]
         if np.isscalar(mean_field):
@@ -91,15 +98,14 @@ class DataDrivenKLE(Generic[Array]):
             self._mean_field = mean_field
 
         # Set nterms. The binding limit is the rank of the sample matrix,
-        # min(ncoords, nsamples), not ncoords alone: a thin SVD returns
-        # only that many singular vectors, so asking for more silently
-        # yields columns of zeros -- modes the caller asked for and did
-        # not get, scaled by a zero singular value. Callers who centered
-        # their data before passing it lose one further term, since
-        # subtracting the sample mean makes the columns linearly
-        # dependent; that is checked below against the spectrum rather
-        # than assumed here, because this class cannot see whether
-        # centering happened.
+        # min(ncoords, nsamples), not ncoords alone: no decomposition
+        # yields more than that many nonzero modes, so asking for more
+        # returns columns of zeros -- modes the caller asked for and did
+        # not get. Callers who centered their data lose one further
+        # term, since subtracting the sample mean makes the columns
+        # linearly dependent. That one is left to the solver's spectrum
+        # check rather than counted here, because this class is handed a
+        # matrix without being told whether it was centered.
         nsamples = int(field_samples.shape[1])
         max_nterms = min(int(ncoords), nsamples)
         if nterms is None:
@@ -114,40 +120,30 @@ class DataDrivenKLE(Generic[Array]):
             raise ValueError(f"nterms={nterms} must be positive")
         self._nterms = nterms
 
-        # Compute basis via SVD
         self._compute_basis()
 
     def _compute_basis(self) -> None:
-        """Compute KLE basis using SVD of (weighted) field samples.
+        """Extract the basis through the injected eigensolver.
 
-        SVD-based approach is more numerically stable than computing
-        the covariance matrix then taking its eigendecomposition.
+        The decomposition itself lives in the solver, which is what lets
+        a caller who cannot symmetrize -- an assembled FEM mass matrix
+        has no cheap square root -- swap in the method of snapshots
+        without this class knowing. What stays here is the KLE's own
+        convention: the sample-covariance scaling, which depends on
+        knowing these are samples rather than an arbitrary matrix.
 
-        C = A^T A / (n-1)  (sample covariance)
-        A = U S V^T  =>  C = V S^2 V^T / (n-1)
-        So eigenvalues of C are S^2/(n-1) and eigenvectors are V.
+        C = A A^T / (n-1)  (sample covariance)
+        A = U S V^T  =>  C = U S^2 U^T / (n-1)
+        so the eigenvalues of C are S^2/(n-1) and its eigenvectors U.
         """
         bkd = self._bkd
-        if self._quad_weights is None:
-            field_samples = self._field_samples
-        else:
-            sqrt_weights = bkd.sqrt(self._quad_weights)
-            field_samples = sqrt_weights[:, None] * self._field_samples
-
-        # Thin SVD. Only min(ncoords, nsamples) left vectors can have a
-        # nonzero singular value, and Vh is discarded, so the full
-        # decomposition's (nsamples, nsamples) Vh is pure waste -- and it
-        # dominates for the usual snapshot shape of few coordinates and
-        # many samples: 4.4s against 0.15s at (65, 10000).
-        U, S, _Vh = bkd.svd(field_samples, full_matrices=False)
-        eig_vecs = adjust_sign_eig(U[:, : self._nterms], bkd)
-
-        if self._quad_weights is not None:
-            sqrt_weights = bkd.sqrt(self._quad_weights)
-            eig_vecs = (1.0 / sqrt_weights[:, None]) * eig_vecs
-
-        self._singular_values = S[: self._nterms]
-        _reject_negligible_singular_values(self._singular_values, S, bkd)
+        eig_vals, eig_vecs = self._eigensolver.solve(
+            self._field_samples, self._nterms, self._metric
+        )
+        # Solvers return eigenvalues of A A^T, so the singular values
+        # are their square roots. Clipped to zero inside
+        # finalize_eigenpairs, so the sqrt cannot produce NaN.
+        self._singular_values = bkd.sqrt(eig_vals)
 
         # The two spectra this class reports differ by exactly this
         # factor, and this is the only place it is applied:

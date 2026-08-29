@@ -40,6 +40,17 @@ Injected into MeshKLE to control how the eigenproblem is solved.
 - RandomizedEigenSolver: matrix-free, randomized subspace iteration
 - finalize_eigenpairs: the convention every solver must return
 
+Snapshot eigensolvers
+---------------------
+The same seam for DataDrivenKLE, where the covariance is a snapshot
+matrix rather than a kernel. Which one applies is decided by the metric,
+not by the caller.
+
+- SVDSnapshotSolver: thin SVD; needs a diagonal metric, more accurate
+- MethodOfSnapshotsSolver: Gram eigendecomposition; any SPD metric,
+  never factorizes it
+- default_snapshot_eigensolver: picks between them
+
 Utilities
 ---------
 - adjust_sign_eig: Ensure sign consistency of eigenvectors
@@ -67,6 +78,12 @@ from .nystrom_kle import NystromKLE, create_nystrom_kle
 from .periodic_random_field import PeriodicReiszGaussianRandomField
 from .precomputed_kle import PrecomputedKLE
 from .protocols import KLEProtocol
+from .snapshot_eigensolvers import (
+    MethodOfSnapshotsSolver,
+    SnapshotEigenSolverProtocol,
+    SVDSnapshotSolver,
+    default_snapshot_eigensolver,
+)
 from .spde_kle import SPDEMaternKLE
 from .utils import (
     adjust_sign_eig,
@@ -98,6 +115,11 @@ __all__ = [
     "PivotedCholeskyEigenSolver",
     "RandomizedEigenSolver",
     "finalize_eigenpairs",
+    # Snapshot eigensolvers
+    "SnapshotEigenSolverProtocol",
+    "SVDSnapshotSolver",
+    "MethodOfSnapshotsSolver",
+    "default_snapshot_eigensolver",
     # Periodic random fields
     "PeriodicReiszGaussianRandomField",
     # Utilities

@@ -11,6 +11,15 @@ from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
+from pyapprox.surrogates.kle.snapshot_eigensolvers import (
+    MethodOfSnapshotsSolver,
+    SVDSnapshotSolver,
+)
+from pyapprox.util.linalg.inner_product import (
+    DiagonalInnerProduct,
+    MassInnerProduct,
+)
+from scipy.sparse import diags
 
 from tests._helpers.markers import slow_test
 
@@ -145,12 +154,19 @@ class TestTermValidation:
         assert kle.nterms() == 6
 
     def test_rejects_centered_data_at_full_sample_count(self, bkd) -> None:
-        """Centering costs one term, which only the spectrum reveals."""
+        """Centering costs one term, which only the spectrum reveals.
+
+        Counting arguments cannot catch this: the class is handed a
+        matrix without being told whether a mean was removed, so the
+        rank drop from nsamples to nsamples - 1 shows up only in the
+        eigenvalues. Rejected by the same shared check that guards the
+        kernel-driven solvers.
+        """
         data = self._data(bkd)
         centered = data - bkd.reshape(
             bkd.mean(data, axis=1), (data.shape[0], 1)
         )
-        with pytest.raises(ValueError, match="numerical rank"):
+        with pytest.raises(ValueError, match="rounding error"):
             DataDrivenKLE(centered, nterms=6, bkd=bkd)
 
     def test_accepts_centered_data_one_term_lower(self, bkd) -> None:
@@ -161,7 +177,7 @@ class TestTermValidation:
         assert DataDrivenKLE(centered, nterms=5, bkd=bkd).nterms() == 5
 
     def test_rejects_constant_data(self, bkd) -> None:
-        with pytest.raises(ValueError, match="no variance"):
+        with pytest.raises(ValueError, match="no usable modes"):
             DataDrivenKLE(bkd.zeros((10, 6)), nterms=1, bkd=bkd)
 
 
@@ -220,6 +236,82 @@ class TestSampleConvergence:
 
         rate = float(np.polyfit(np.log(counts), np.log(errors), 1)[0])
         assert -0.52 < rate < -0.48, f"rate {rate} is not ~-0.5: {errors}"
+
+
+class TestEigensolverInjection:
+    """Parity with MeshKLE: how the basis is computed is swappable.
+
+    Without this seam a caller whose metric has no cheap square root --
+    an assembled FEM mass matrix -- could not use this class at all,
+    because the decomposition was written inline.
+    """
+
+    def _data(self, bkd, ncoords=12, nsamples=8):
+        return bkd.asarray(np.random.rand(ncoords, nsamples))
+
+    def test_injected_solver_matches_the_default(self, bkd) -> None:
+        data = self._data(bkd)
+        default = DataDrivenKLE(data, nterms=4, bkd=bkd)
+        injected = DataDrivenKLE(
+            data, nterms=4, bkd=bkd, eigensolver=SVDSnapshotSolver(bkd)
+        )
+        bkd.assert_allclose(
+            injected.eigenvalues(), default.eigenvalues(), rtol=1e-12
+        )
+
+    def test_the_two_solvers_give_the_same_kle(self, bkd) -> None:
+        """Swapping the algorithm must not change the field."""
+        data = self._data(bkd)
+        svd = DataDrivenKLE(
+            data, nterms=4, bkd=bkd, eigensolver=SVDSnapshotSolver(bkd)
+        )
+        gram = DataDrivenKLE(
+            data, nterms=4, bkd=bkd,
+            eigensolver=MethodOfSnapshotsSolver(bkd),
+        )
+        bkd.assert_allclose(
+            gram.eigenvalues(), svd.eigenvalues(), rtol=1e-8
+        )
+        coef = bkd.asarray(np.random.rand(4, 3))
+        bkd.assert_allclose(gram(coef), svd(coef), rtol=1e-6, atol=1e-8)
+
+    def test_metric_and_quad_weights_agree(self, bkd) -> None:
+        """quad_weights is the diagonal special case of metric."""
+        data = self._data(bkd)
+        weights = bkd.asarray(np.linspace(0.5, 2.0, 12))
+        by_weights = DataDrivenKLE(
+            data, nterms=4, quad_weights=weights, bkd=bkd
+        )
+        by_metric = DataDrivenKLE(
+            data, nterms=4, bkd=bkd,
+            metric=DiagonalInnerProduct(weights, bkd),
+        )
+        bkd.assert_allclose(
+            by_metric.eigenvectors(), by_weights.eigenvectors(), rtol=1e-12
+        )
+
+    def test_rejects_both_metric_and_quad_weights(self, bkd) -> None:
+        weights = bkd.ones((12,))
+        with pytest.raises(ValueError, match="not both"):
+            DataDrivenKLE(
+                self._data(bkd), nterms=4, quad_weights=weights, bkd=bkd,
+                metric=DiagonalInnerProduct(weights, bkd),
+            )
+
+    def test_sparse_metric_works_through_the_gram_solver(self, bkd) -> None:
+        """The case the inline SVD could not serve at all."""
+        data = self._data(bkd)
+        weights = np.linspace(0.5, 2.0, 12)
+        kle = DataDrivenKLE(
+            data, nterms=4, bkd=bkd,
+            metric=MassInnerProduct(diags(weights), bkd),
+        )
+        by_diagonal = DataDrivenKLE(
+            data, nterms=4, quad_weights=bkd.asarray(weights), bkd=bkd
+        )
+        bkd.assert_allclose(
+            kle.eigenvalues(), by_diagonal.eigenvalues(), rtol=1e-8
+        )
 
 
 class TestSpectrumConventions:
