@@ -1,7 +1,9 @@
 """Tests for index generation module."""
 
-import pytest
+import itertools
 
+import numpy as np
+import pytest
 from pyapprox.surrogates.affine.indices.admissibility import (
     CompositeCriteria,
     Max1DLevelsCriteria,
@@ -22,6 +24,7 @@ from pyapprox.surrogates.affine.indices.growth_rules import (
     inverse_growth_rule,
 )
 from pyapprox.surrogates.affine.indices.utils import (
+    anisotropy_penalties_from_importance,
     compute_downward_closure,
     compute_hyperbolic_indices,
     compute_hyperbolic_level_indices,
@@ -129,6 +132,130 @@ class TestHyperbolicIndices:
                 has_zero = True
                 break
         assert has_zero
+
+
+class TestAnisotropicHyperbolicIndices:
+    """Test the penalties argument of the hyperbolic index generators."""
+
+    @staticmethod
+    def _brute_force(nvars, max_level, pnorm, np_penalties):
+        """Enumerate the admissible set directly from the definition."""
+        gamma = np_penalties / np_penalties.min()
+        # Penalties are at least one after normalization, so no
+        # admissible index exceeds max_level in any single dimension.
+        ranges = [range(max_level + 1)] * nvars
+        keep = []
+        for candidate in itertools.product(*ranges):
+            arr = np.asarray(candidate, dtype=float)
+            norm = np.sum((gamma * arr) ** pnorm) ** (1.0 / pnorm)
+            if norm <= max_level + 1e-8:
+                keep.append(candidate)
+        return sorted(keep)
+
+    @staticmethod
+    def _as_sorted_tuples(indices, bkd):
+        return sorted(tuple(int(v) for v in col) for col in bkd.to_numpy(indices).T)
+
+    @pytest.mark.parametrize("pnorm", [0.5, 1.0, 2.0])
+    def test_uniform_penalties_match_isotropic(self, bkd, pnorm):
+        """Uniform penalties reproduce the isotropic set exactly."""
+        penalties = bkd.asarray([1.0, 1.0, 1.0])
+        expected = compute_hyperbolic_indices(3, 3, pnorm, bkd)
+        actual = compute_hyperbolic_indices(
+            3, 3, pnorm, bkd, penalties=penalties
+        )
+        assert self._as_sorted_tuples(actual, bkd) == self._as_sorted_tuples(
+            expected, bkd
+        )
+
+    def test_scale_invariance(self, bkd):
+        """Only penalty ratios matter; overall scale is normalized away."""
+        small = compute_hyperbolic_indices(
+            2, 4, 1.0, bkd, penalties=bkd.asarray([1.0, 2.0])
+        )
+        large = compute_hyperbolic_indices(
+            2, 4, 1.0, bkd, penalties=bkd.asarray([4.0, 8.0])
+        )
+        assert self._as_sorted_tuples(small, bkd) == self._as_sorted_tuples(
+            large, bkd
+        )
+
+    @pytest.mark.parametrize("pnorm", [0.5, 1.0, 2.0])
+    def test_matches_brute_force(self, bkd, pnorm):
+        """Generated set matches direct enumeration of the definition."""
+        np_penalties = np.asarray([1.0, 3.0, 2.0])
+        penalties = bkd.asarray([1.0, 3.0, 2.0])
+        actual = compute_hyperbolic_indices(
+            3, 3, pnorm, bkd, penalties=penalties
+        )
+        expected = self._brute_force(3, 3, pnorm, np_penalties)
+        assert self._as_sorted_tuples(actual, bkd) == expected
+
+    @pytest.mark.parametrize("pnorm", [0.5, 1.0, 2.0])
+    def test_subset_of_isotropic(self, bkd, pnorm):
+        """Normalized penalties make the anisotropic set a subset."""
+        penalties = bkd.asarray([1.0, 4.0, 2.0])
+        aniso = self._as_sorted_tuples(
+            compute_hyperbolic_indices(3, 3, pnorm, bkd, penalties=penalties),
+            bkd,
+        )
+        iso = self._as_sorted_tuples(
+            compute_hyperbolic_indices(3, 3, pnorm, bkd), bkd
+        )
+        assert set(aniso) <= set(iso)
+
+    def test_large_penalty_suppresses_dimension(self, bkd):
+        """A dimension penalized far above the others gets no terms."""
+        penalties = bkd.asarray([1.0, 100.0])
+        indices = compute_hyperbolic_indices(
+            2, 2, 1.0, bkd, penalties=penalties
+        )
+        second_row = bkd.to_numpy(indices)[1]
+        assert second_row.max() == 0
+
+    def test_wrong_penalty_shape_raises(self, bkd):
+        with pytest.raises(ValueError, match="wrong shape"):
+            compute_hyperbolic_indices(
+                3, 2, 1.0, bkd, penalties=bkd.asarray([1.0, 1.0])
+            )
+
+    def test_nonpositive_penalty_raises(self, bkd):
+        with pytest.raises(ValueError, match="strictly positive"):
+            compute_hyperbolic_indices(
+                2, 2, 1.0, bkd, penalties=bkd.asarray([1.0, 0.0])
+            )
+
+
+class TestAnisotropyPenaltiesFromImportance:
+    """Test the importance-to-penalty adapter."""
+
+    def test_most_important_gets_unit_penalty(self, bkd):
+        """The largest importance maps to the smallest penalty."""
+        penalties = anisotropy_penalties_from_importance(
+            bkd.asarray([4.0, 2.0, 1.0]), bkd
+        )
+        bkd.assert_allclose(penalties, bkd.asarray([1.0, 2.0, 4.0]))
+
+    def test_decaying_eigenvalues_resolve_leading_dimensions(self, bkd):
+        """KLE-style decaying eigenvalues give the leading dims more terms."""
+        eigenvalues = bkd.asarray([1.0, 0.5, 0.1])
+        penalties = anisotropy_penalties_from_importance(eigenvalues, bkd)
+        indices = compute_hyperbolic_indices(
+            3, 4, 1.0, bkd, penalties=penalties
+        )
+        max_degrees = bkd.to_numpy(indices).max(axis=1)
+        assert max_degrees[0] > max_degrees[1] > max_degrees[2]
+
+    def test_uniform_importance_is_isotropic(self, bkd):
+        """Equal importance yields equal penalties."""
+        penalties = anisotropy_penalties_from_importance(
+            bkd.asarray([3.0, 3.0]), bkd
+        )
+        bkd.assert_allclose(penalties, bkd.asarray([1.0, 1.0]))
+
+    def test_nonpositive_importance_raises(self, bkd):
+        with pytest.raises(ValueError, match="strictly positive"):
+            anisotropy_penalties_from_importance(bkd.asarray([1.0, 0.0]), bkd)
 
 
 class TestSortIndices:
