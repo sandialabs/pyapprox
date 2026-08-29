@@ -21,7 +21,15 @@ Multi-index protocols:
     - MultiIndexBasisProtocol - for bases with multi-index structure
 """
 
-from typing import TYPE_CHECKING, Generic, List, Protocol, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 if TYPE_CHECKING:
     from pyapprox.surrogates.affine.protocols.basis1d import Basis1DProtocol
@@ -261,6 +269,42 @@ class TensorProductBasisProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
+class QuadratureBasisProtocol(Protocol, Generic[Array]):
+    """Protocol for bases exposing per-dimension quadrature and bases.
+
+    Separating a multivariate basis into its univariate factors is what
+    lets a product measure be sampled one dimension at a time, as
+    induced sampling does.
+    """
+
+    def univariate_quadrature(
+        self, dim: int, npoints: Optional[int] = None
+    ) -> Tuple[Array, Array]:
+        """Return a Gauss rule for one dimension.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension index.
+        npoints : int, optional
+            Number of quadrature points. Defaults to the current number
+            of terms in that dimension.
+
+        Returns
+        -------
+        points : Array
+            Quadrature points. Shape: (1, npoints)
+        weights : Array
+            Quadrature weights. Shape: (npoints, 1)
+        """
+        ...
+
+    def get_univariate_basis(self, dim: int) -> "Basis1DProtocol[Array]":
+        """Return the univariate basis for a dimension."""
+        ...
+
+
+@runtime_checkable
 class EvaluableMultiIndexBasisProtocol(
     BasisProtocol[Array],
     MultiIndexBasisProtocol[Array],
@@ -273,6 +317,23 @@ class EvaluableMultiIndexBasisProtocol(
     `MultiIndexBasisProtocol` supplies the index set. Consumers that
     both evaluate a basis and replace its indices — an adaptive fitter,
     say — need the two together.
+    """
+
+    pass
+
+
+@runtime_checkable
+class SampleableMultiIndexBasisProtocol(
+    EvaluableMultiIndexBasisProtocol[Array],
+    QuadratureBasisProtocol[Array],
+    Protocol,
+    Generic[Array],
+):
+    """Multi-index basis whose induced measure can be sampled.
+
+    Induced sampling draws each coordinate from a univariate
+    conditional, so it needs the per-dimension bases and quadrature
+    rules on top of evaluation and the index set.
     """
 
     pass
