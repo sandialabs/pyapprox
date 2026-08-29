@@ -10,28 +10,65 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 def adjust_sign_eig(U: Array, bkd: Backend[Array]) -> Array:
-    """Ensure uniqueness of eigenvalue decomposition.
+    """Fix the sign each eigenvector is otherwise free to choose.
 
-    Adjusts signs so the largest-magnitude entry in the first row of U
-    is positive. This ensures consistent sign convention across platforms.
+    An eigenvector is determined only up to scale: if ``A v = lambda v``
+    then ``A (-v) = lambda (-v)``, so a unit-norm eigenvector is one of
+    ``+v`` or ``-v`` and LAPACK's choice between them is not portable.
+    Every quantity a KLE reports is invariant under the flip -- the
+    eigenvalues, the orthonormality, the spectral reconstruction and
+    hence the covariance of the field -- so fixing a convention costs
+    nothing and makes bases comparable across platforms, entry points
+    and stored archives.
+
+    **Each column is decided by itself**, by making its
+    largest-magnitude entry positive. Both properties matter:
+
+    *Per column*, because the sign of one eigenvector says nothing about
+    another. A rule that lets column ``j`` depend on the other columns
+    is not stable under truncation, so canonicalizing ten modes and
+    keeping three would disagree with canonicalizing three -- and then
+    two callers requesting different term counts from identical data get
+    different-signed bases, which is the inconsistency this exists to
+    remove.
+
+    *Largest magnitude*, because that entry's sign is the one furthest
+    from rounding error. Deciding on the first entry instead fails
+    whenever a mode has a node at the start of the domain, which
+    Dirichlet conditions make routine: the value is near zero and its
+    sign is noise. Deciding on the sum fails harder, being exactly zero
+    for every antisymmetric mode.
+
+    Ties are common rather than pathological -- KLE eigenfunctions are
+    symmetric or antisymmetric about the domain centre, so their extreme
+    values match at both ends -- and are broken by taking the lowest
+    index, which keeps the result deterministic and backend-independent.
+    A zero column has no sign to fix and is left alone.
 
     Parameters
     ----------
     U : Array, shape (M, K)
-        Eigenvectors as columns.
+        Eigenvectors as columns. Modified in place and returned.
     bkd : Backend[Array]
         Computational backend.
 
     Returns
     -------
     Array, shape (M, K)
-        Sign-adjusted eigenvectors.
+        The same array, with each column's sign canonicalized.
     """
-    idx = bkd.argmax(bkd.abs(U[0, :]))
-    s = bkd.sign(U[idx, :])
-    II = bkd.where(bkd.equal(s, 0.0))[0]
-    s[II] = 1.0
-    U *= s
+    if U.ndim != 2:
+        raise ValueError(f"U must be 2D (M, K), got ndim={U.ndim}")
+    # argmax over each column, ties resolved to the lowest row index by
+    # both backends, so the pivot entry is a property of that column
+    # alone and survives truncation of any other.
+    pivots = bkd.argmax(bkd.abs(U), axis=0)
+    pivot_vals = bkd.get_diagonal(U[pivots, :])
+    signs = bkd.sign(pivot_vals)
+    # sign() is 0 for a zero column, which would erase it rather than
+    # flip it; such a column has no orientation to canonicalize.
+    signs = bkd.where(bkd.equal(signs, 0.0), bkd.full(signs.shape, 1.0), signs)
+    U *= signs
     return U
 
 
