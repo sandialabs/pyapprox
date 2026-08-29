@@ -38,7 +38,7 @@ def _identity_factory(ngrid):
 
 def _pca_factory(ncodes):
     def factory(data, bkd):
-        return PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=ncodes)
+        return PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=ncodes)
     return factory
 
 

@@ -50,6 +50,7 @@ from abc import ABC, abstractmethod
 from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
 from pyapprox.surrogates.kle.eigensolvers import finalize_eigenpairs
+from pyapprox.surrogates.kle.truncation import by_numerical_rank
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import InnerProductProtocol
 
@@ -71,7 +72,7 @@ class SnapshotEigenSolverProtocol(Protocol, Generic[Array]):
     def solve(
         self,
         snapshots: Array,
-        nterms: int,
+        nterms: Optional[int] = None,
         metric: Optional[InnerProductProtocol[Array]] = None,
     ) -> Tuple[Array, Array]:
         r"""Return the leading ``nterms`` eigenpairs.
@@ -83,8 +84,16 @@ class SnapshotEigenSolverProtocol(Protocol, Generic[Array]):
             business: this is a decomposition of whatever matrix it is
             handed, and a solver cannot tell whether a mean was already
             removed.
-        nterms : int
-            Number of eigenpairs to keep.
+        nterms : int, optional
+            Number of eigenpairs to keep. None keeps every mode carrying
+            variance, which is the numerical rank.
+
+            Passing a count buys no computation -- both solvers form the
+            whole spectrum either way, and the count only decides where
+            it is cut and whether over-requesting is an error. So a
+            caller who must see the spectrum before choosing, as one
+            truncating by variance fraction does, should omit it and
+            slice the result rather than decompose twice.
         metric : InnerProductProtocol, optional
             The inner product the eigenvectors are orthonormal in. None
             means Euclidean.
@@ -115,7 +124,7 @@ class _SnapshotEigenSolver(Generic[Array], ABC):
     def solve(
         self,
         snapshots: Array,
-        nterms: int,
+        nterms: Optional[int] = None,
         metric: Optional[InnerProductProtocol[Array]] = None,
     ) -> Tuple[Array, Array]:
         if snapshots.ndim != 2:
@@ -124,15 +133,16 @@ class _SnapshotEigenSolver(Generic[Array], ABC):
                 f"ndim={snapshots.ndim}"
             )
         nstates, nsamples = (int(s) for s in snapshots.shape)
-        if nterms < 1:
-            raise ValueError(f"nterms={nterms} must be positive")
-        max_nterms = min(nstates, nsamples)
-        if nterms > max_nterms:
-            raise ValueError(
-                f"nterms={nterms} exceeds the rank of the snapshot "
-                f"matrix, min(nstates={nstates}, nsamples={nsamples})"
-                f"={max_nterms}"
-            )
+        if nterms is not None:
+            if nterms < 1:
+                raise ValueError(f"nterms={nterms} must be positive")
+            max_nterms = min(nstates, nsamples)
+            if nterms > max_nterms:
+                raise ValueError(
+                    f"nterms={nterms} exceeds the rank of the snapshot "
+                    f"matrix, min(nstates={nstates}, nsamples={nsamples})"
+                    f"={max_nterms}"
+                )
         if metric is not None and metric.nstates() != nstates:
             raise ValueError(
                 f"metric is defined on {metric.nstates()} states but "
@@ -144,7 +154,7 @@ class _SnapshotEigenSolver(Generic[Array], ABC):
     def _solve(
         self,
         snapshots: Array,
-        nterms: int,
+        nterms: Optional[int],
         metric: Optional[InnerProductProtocol[Array]],
     ) -> Tuple[Array, Array]:
         """Compute eigenpairs; arguments already validated."""
@@ -166,7 +176,7 @@ class SVDSnapshotSolver(_SnapshotEigenSolver[Array]):
     def _solve(
         self,
         snapshots: Array,
-        nterms: int,
+        nterms: Optional[int],
         metric: Optional[InnerProductProtocol[Array]],
     ) -> Tuple[Array, Array]:
         bkd = self._bkd
@@ -191,8 +201,11 @@ class SVDSnapshotSolver(_SnapshotEigenSolver[Array]):
         # nonzero singular value, and the right factor is discarded, so
         # the full form builds an (nsamples, nsamples) block for nothing.
         eig_vecs, svals, _ = bkd.svd(snapshots, full_matrices=False)
+        eig_vals = svals**2
+        if nterms is None:
+            nterms = max(1, by_numerical_rank(eig_vals, bkd))
         return finalize_eigenpairs(
-            svals**2, eig_vecs, sqrt_weights, nterms, bkd
+            eig_vals, eig_vecs, sqrt_weights, nterms, bkd
         )
 
 
@@ -218,7 +231,7 @@ class MethodOfSnapshotsSolver(_SnapshotEigenSolver[Array]):
     def _solve(
         self,
         snapshots: Array,
-        nterms: int,
+        nterms: Optional[int],
         metric: Optional[InnerProductProtocol[Array]],
     ) -> Tuple[Array, Array]:
         bkd = self._bkd
@@ -240,6 +253,8 @@ class MethodOfSnapshotsSolver(_SnapshotEigenSolver[Array]):
         gram_vals = bkd.flip(gram_vals, axis=(0,))
         gram_vecs = bkd.flip(gram_vecs, axis=(1,))
         gram_vals = bkd.maximum(gram_vals, bkd.asarray([0.0]))
+        if nterms is None:
+            nterms = max(1, by_numerical_rank(gram_vals, bkd))
 
         kept_vals = gram_vals[:nterms]
         kept_vecs = gram_vecs[:, :nterms]

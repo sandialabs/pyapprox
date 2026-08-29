@@ -15,8 +15,8 @@ from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 class TestIdentityFunctionEncoder:
     def test_ncodes_equals_ngrid(self, bkd) -> None:
         enc = IdentityFunctionEncoder(10, bkd)
-        assert enc.ncodes() == 10
-        assert enc.ngrid() == 10
+        assert enc.latent_dim() == 10
+        assert enc.full_dim() == 10
 
     def test_encode_decode_roundtrip(self, bkd) -> None:
         np.random.seed(42)
@@ -47,26 +47,29 @@ class TestPCAFunctionEncoder:
 
     def test_fit_from_data_ncodes(self, bkd) -> None:
         data = self._make_low_rank_data(bkd)
-        enc = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=3)
-        assert enc.ncodes() == 3
-        assert enc.ngrid() == 20
+        enc = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=3)
+        assert enc.latent_dim() == 3
+        assert enc.full_dim() == 20
 
     def test_basis_sign_is_canonical(self, bkd) -> None:
         """The SVD fixes each mode only up to sign.
 
         Without canonicalization the same data yields oppositely-signed
         modes across LAPACK builds, and disagrees with the basis
-        DataDrivenKLE produces from the same snapshots. The convention is
-        the one adjust_sign_eig applies: the largest-magnitude entry of
-        the first row selects a column whose entries are then made
-        positive.
+        DataDrivenKLE produces from the same snapshots. The convention
+        adjust_sign_eig applies makes each column's largest-magnitude
+        entry positive; test_sign_convention.py covers the rule itself.
         """
         data = self._make_low_rank_data(bkd)
         basis = PCAFunctionEncoder.fit_from_data(
-            data, bkd, ncodes=3
+            data, bkd, latent_dim=3
         ).basis()
-        idx = bkd.argmax(bkd.abs(basis[0, :]))
-        assert bool(bkd.all_bool(basis[idx, :] > 0.0))
+        arr = np.asarray(bkd.to_numpy(basis))
+        pivots = [
+            arr[int(np.argmax(np.abs(arr[:, j]))), j]
+            for j in range(arr.shape[1])
+        ]
+        assert all(p > 0.0 for p in pivots)
 
     def test_sign_matches_data_driven_kle(self, bkd) -> None:
         """Two entry points, one basis: the defect this convention fixes."""
@@ -76,7 +79,7 @@ class TestPCAFunctionEncoder:
         )
         kle = DataDrivenKLE(centered, 0.0, False, 3, None, bkd=bkd)
         bkd.assert_allclose(
-            PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=3).basis(),
+            PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=3).basis(),
             kle.eigenvectors(),
             rtol=1e-10,
         )
@@ -86,7 +89,7 @@ class TestPCAFunctionEncoder:
         enc = PCAFunctionEncoder.fit_from_data(
             data, bkd, variance_fraction=0.99
         )
-        assert 1 <= enc.ncodes() <= 15
+        assert 1 <= enc.latent_dim() <= 15
 
     def test_fit_from_data_requires_exactly_one(self, bkd) -> None:
         """Raised by the shared truncation policy, not by this class."""
@@ -95,31 +98,43 @@ class TestPCAFunctionEncoder:
             PCAFunctionEncoder.fit_from_data(data, bkd)
         with pytest.raises(ValueError, match="exactly one"):
             PCAFunctionEncoder.fit_from_data(
-                data, bkd, ncodes=3, variance_fraction=0.9
+                data, bkd, latent_dim=3, variance_fraction=0.9
             )
 
     def test_encode_decode_shapes(self, bkd) -> None:
         data = self._make_low_rank_data(bkd)
-        enc = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=5)
+        enc = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=5)
         codes = enc.encode(data)
         assert codes.shape == (5, 15)
         recovered = enc.decode(codes)
         assert recovered.shape == (20, 15)
 
     def test_roundtrip_full_rank(self, bkd) -> None:
-        """With ncodes == min(ngrid, N), roundtrip is near-exact."""
+        """Keeping every mode that exists reconstructs exactly.
+
+        Centered data has rank N - 1, not N: subtracting the sample mean
+        makes the columns linearly dependent. Asking for N modes used to
+        return a column of zeros and still round-trip, which is why the
+        shortfall went unnoticed; it is now an error.
+        """
         np.random.seed(42)
         ngrid, N = 10, 8
         data = bkd.array(np.random.randn(ngrid, N))
-        enc = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=N)
+        enc = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=N - 1)
         recovered = enc.decode(enc.encode(data))
         bkd.assert_allclose(recovered, data, atol=1e-10)
+
+    def test_rejects_more_modes_than_centering_leaves(self, bkd) -> None:
+        np.random.seed(42)
+        data = bkd.array(np.random.randn(10, 8))
+        with pytest.raises(ValueError, match="exceeds the 7 modes"):
+            PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=8)
 
     def test_roundtrip_truncated_reduces_error(self, bkd) -> None:
         """More codes gives better reconstruction."""
         data = self._make_low_rank_data(bkd, ngrid=20, N=15, rank=5)
-        enc3 = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=3)
-        enc5 = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=5)
+        enc3 = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=3)
+        enc5 = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=5)
         err3 = float(bkd.to_numpy(
             bkd.sum((enc3.decode(enc3.encode(data)) - data) ** 2)
         ))
@@ -131,7 +146,7 @@ class TestPCAFunctionEncoder:
     def test_decode_std_zero_codes(self, bkd) -> None:
         """decode_std of zero codes should be zero."""
         data = self._make_low_rank_data(bkd)
-        enc = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=3)
+        enc = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=3)
         codes = bkd.array(np.zeros((3, 1)))
         decoded_std = enc.decode_std(codes)
         bkd.assert_allclose(decoded_std, bkd.zeros((20, 1)), atol=1e-14)
@@ -140,7 +155,7 @@ class TestPCAFunctionEncoder:
         """decode_std output must be non-negative for non-negative input."""
         np.random.seed(42)
         data = self._make_low_rank_data(bkd)
-        enc = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=5)
+        enc = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=5)
         std_codes = bkd.array(np.abs(np.random.randn(5, 10)))
         result = enc.decode_std(std_codes)
         assert bkd.all_bool(result >= 0)
@@ -169,10 +184,10 @@ class TestPCAFunctionEncoder:
         basis = bkd.array(Q)
         mean = bkd.array(np.random.randn(ngrid, 1))
         enc = PCAFunctionEncoder(basis, mean, bkd)
-        assert enc.ncodes() == ncodes
-        assert enc.ngrid() == ngrid
+        assert enc.latent_dim() == ncodes
+        assert enc.full_dim() == ngrid
 
     def test_protocol_compliance(self, bkd) -> None:
         data = self._make_low_rank_data(bkd)
-        enc = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=3)
+        enc = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=3)
         assert isinstance(enc, FunctionEncoderProtocol)

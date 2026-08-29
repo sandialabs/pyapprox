@@ -121,8 +121,8 @@ class KernelOperatorMaximumLikelihoodFitter(Generic[Array]):
             axis=0,
         )
 
-        ncodes_in = sum(enc.ncodes() for enc in input_encoders)
-        ncodes_out = sum(enc.ncodes() for enc in output_encoders)
+        ncodes_in = sum(enc.latent_dim() for enc in input_encoders)
+        ncodes_out = sum(enc.latent_dim() for enc in output_encoders)
         regressor = make_latent_regressor(
             self._kernel, ncodes_in, ncodes_out, self._bkd, self._nugget
         )

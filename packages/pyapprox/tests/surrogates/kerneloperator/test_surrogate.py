@@ -51,8 +51,8 @@ class TestKernelOperatorSurrogate:
         np.random.seed(42)
         ngrid, N, ncodes = 20, 15, 5
         data = bkd.array(np.random.randn(ngrid, N))
-        enc_in = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=ncodes)
-        enc_out = PCAFunctionEncoder.fit_from_data(data, bkd, ncodes=ncodes)
+        enc_in = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=ncodes)
+        enc_out = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=ncodes)
         kernel = Matern52Kernel(
             [1.0] * ncodes, (0.1, 10.0), ncodes, bkd
         )

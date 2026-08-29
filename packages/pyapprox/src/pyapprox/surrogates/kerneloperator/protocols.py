@@ -17,27 +17,54 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class FunctionEncoderProtocol(Protocol, Generic[Array]):
-    """Bidirectional map between function grid samples and code space."""
+    """Bidirectional map between a function's samples and a latent space.
+
+    ``full_dim`` and ``latent_dim`` name the two dimensions, matching
+    the reduction vocabulary used elsewhere. They are the same
+    quantities a KLE calls ``ncoords`` and ``nterms``; the neutral names
+    are used here because an encoder need not be defined on a mesh.
+    """
 
     def bkd(self) -> Backend[Array]:
         ...
 
-    def ncodes(self) -> int:
+    def full_dim(self) -> int:
         ...
 
-    def ngrid(self) -> int:
+    def latent_dim(self) -> int:
         ...
 
-    def encode(self, f_grid: Array) -> Array:
-        """Encode grid values to codes. (ngrid, N) -> (ncodes, N)."""
+    def encode(self, samples: Array) -> Array:
+        """Full to latent. (full_dim, N) -> (latent_dim, N)."""
         ...
 
-    def decode(self, codes: Array) -> Array:
-        """Decode codes to grid values. (ncodes, N) -> (ngrid, N)."""
+    def decode(self, latents: Array) -> Array:
+        """Latent to full. (latent_dim, N) -> (full_dim, N)."""
         ...
 
-    def decode_std(self, std_codes: Array) -> Array:
-        """Decode std codes without mean shift. (ncodes, N) -> (ngrid, N)."""
+
+@runtime_checkable
+class StdDecodingEncoderProtocol(FunctionEncoderProtocol[Array], Protocol):
+    """An encoder that can also propagate a standard deviation.
+
+    Separate from :class:`FunctionEncoderProtocol` because not every
+    encoder can honestly provide it. The linear propagation
+    ``sqrt(P^2 sigma^2)`` assumes the decoder is linear *and* that the
+    latent coordinates are uncorrelated; a decoder with a nonlinear
+    correction term makes the first assumption false rather than
+    approximate, so such an encoder should decline to implement this
+    rather than return a number that looks like a standard deviation
+    and is not one.
+
+    Only ``predict_std`` needs it. Ordinary prediction does not, so an
+    encoder without it remains usable for everything else.
+    """
+
+    def decode_std(self, std_latents: Array) -> Array:
+        """Propagate latent std to full space, without the mean shift.
+
+        ``(latent_dim, N) -> (full_dim, N)``.
+        """
         ...
 
 

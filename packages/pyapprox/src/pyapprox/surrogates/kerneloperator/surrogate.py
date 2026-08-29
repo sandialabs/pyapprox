@@ -8,6 +8,7 @@ from typing import Generic, List, Union
 from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
     LatentRegressorProtocol,
+    StdDecodingEncoderProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -36,17 +37,18 @@ class KernelOperatorSurrogate(Generic[Array]):
         output_encoders: List[FunctionEncoderProtocol[Array]],
         latent_regressor: LatentRegressorProtocol[Array],
     ) -> None:
-        total_in = sum(enc.ncodes() for enc in input_encoders)
-        total_out = sum(enc.ncodes() for enc in output_encoders)
+        total_in = sum(enc.latent_dim() for enc in input_encoders)
+        total_out = sum(enc.latent_dim() for enc in output_encoders)
         if total_in != latent_regressor.ncodes_in():
             raise ValueError(
-                f"Sum of input encoder ncodes ({total_in}) must equal "
+                f"Sum of input encoder latent_dim ({total_in}) must equal "
                 f"regressor ncodes_in ({latent_regressor.ncodes_in()})"
             )
         if total_out != latent_regressor.ncodes_out():
             raise ValueError(
-                f"Sum of output encoder ncodes ({total_out}) must equal "
-                f"regressor ncodes_out ({latent_regressor.ncodes_out()})"
+                f"Sum of output encoder latent_dim ({total_out}) must "
+                f"equal regressor ncodes_out "
+                f"({latent_regressor.ncodes_out()})"
             )
         self._input_encoders = input_encoders
         self._output_encoders = output_encoders
@@ -78,7 +80,7 @@ class KernelOperatorSurrogate(Generic[Array]):
         results = []
         offset = 0
         for enc in self._output_encoders:
-            nc = enc.ncodes()
+            nc = enc.latent_dim()
             results.append(enc.decode(V[offset : offset + nc, :]))
             offset += nc
         return results
@@ -87,7 +89,16 @@ class KernelOperatorSurrogate(Generic[Array]):
         results = []
         offset = 0
         for enc in self._output_encoders:
-            nc = enc.ncodes()
+            nc = enc.latent_dim()
+            if not isinstance(enc, StdDecodingEncoderProtocol):
+                raise TypeError(
+                    f"{type(enc).__name__} does not propagate a standard "
+                    "deviation, so predict_std is unavailable. Ordinary "
+                    "predict works: an encoder declines decode_std when "
+                    "linear propagation would misdescribe its decoder, "
+                    "rather than returning a number that is not a "
+                    "standard deviation."
+                )
             results.append(enc.decode_std(V_std[offset : offset + nc, :]))
             offset += nc
         return results
