@@ -153,6 +153,21 @@ class PrecomputedKLE(Generic[Array]):
         """Return the eigenvalues, shape ``(nterms,)``."""
         return self._eig_vals
 
+    def singular_values(self) -> Array:
+        r"""Return ``sqrt(eigenvalues)``, shape ``(nterms,)``.
+
+        The same spectrum on the scale a POD energy fraction is taken
+        on. Offered beside :meth:`eigenvalues` so which convention a
+        caller gets does not depend on which class they reached for --
+        the eigenvalues are variances and weigh a KLE truncation, the
+        singular values are amplitudes.
+
+        Note this class stores no sample count, so unlike
+        ``DataDrivenKLE`` there is no ``1/(n-1)`` between the two: it is
+        handed a basis and a spectrum, not the data they came from.
+        """
+        return self._bkd.sqrt(self._eig_vals)
+
     def eigenvectors(self) -> Array:
         """Unweighted eigenvectors, shape ``(npoints, nterms)``."""
         return self._unweighted_eig_vecs

@@ -25,6 +25,13 @@ Persistence
   keeping the extension matrix so the reload still evaluates at new
   points rather than only where it was stored
 
+Reduction
+---------
+- KLEEncoder: the same basis read as a reduction rather than as an
+  expansion, so a KLE can be used where an encoder is wanted. Composed
+  rather than folded into the KLE classes, because a lognormal
+  expansion has no linear inverse and so simply has no encoder.
+
 Multifidelity
 -------------
 - nystrom_kle_on_mesh / nystrom_kles_on_meshes: extend one Nystrom basis
@@ -79,6 +86,7 @@ from .eigensolvers import (
     RandomizedEigenSolver,
     finalize_eigenpairs,
 )
+from .encoder import KLEEncoder
 from .galerkin_kle import GalerkinKLE
 from .io import load_kle, load_nystrom_kle, save_kle, save_nystrom_kle
 from .mesh_kle import MeshKLE
@@ -118,6 +126,8 @@ __all__ = [
     "NystromKLE",
     "create_nystrom_kle",
     "PrecomputedKLE",
+    # Reduction
+    "KLEEncoder",
     # Persistence
     "save_kle",
     "load_kle",
