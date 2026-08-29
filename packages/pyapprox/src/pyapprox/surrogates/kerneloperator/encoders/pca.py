@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Generic, Optional
 
+from pyapprox.surrogates.kle.truncation import resolve_nterms
 from pyapprox.surrogates.kle.utils import adjust_sign_eig
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -104,11 +105,6 @@ class PCAFunctionEncoder(Generic[Array]):
         PCAFunctionEncoder
             Fitted encoder.
         """
-        if (ncodes is None) == (variance_fraction is None):
-            raise ValueError(
-                "Exactly one of ncodes or variance_fraction must be provided"
-            )
-
         if center:
             mean = bkd.mean(f_grid_data, axis=1)
             mean = bkd.reshape(mean, (mean.shape[0], 1))
@@ -119,25 +115,12 @@ class PCAFunctionEncoder(Generic[Array]):
 
         U, S, _Vh = bkd.svd(centered, full_matrices=False)
 
-        if ncodes is not None:
-            n = ncodes
-        elif variance_fraction is not None:
-            cumvar = bkd.cumsum(S * S)
-            total_var = cumvar[-1]
-            ratios = cumvar / total_var
-            n = 1
-            for ii in range(len(S)):
-                ratio_val = float(bkd.to_numpy(ratios[ii]))
-                if ratio_val >= variance_fraction:
-                    n = ii + 1
-                    break
-            else:
-                n = len(S)
-        else:
-            raise ValueError(
-                "Exactly one of ncodes or variance_fraction "
-                "must be provided"
-            )
+        # Squared, because a variance fraction is of energy: the
+        # singular values are the square roots of the eigenvalues, and
+        # a fraction taken on them would silently keep too few modes.
+        n = resolve_nterms(
+            S**2, bkd, nterms=ncodes, variance_fraction=variance_fraction
+        )
 
         # The SVD fixes each singular vector only up to sign, so the same
         # data can yield oppositely-signed modes on different LAPACK

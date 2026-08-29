@@ -51,6 +51,15 @@ not by the caller.
   never factorizes it
 - default_snapshot_eigensolver: picks between them
 
+Truncation
+----------
+How many modes of a spectrum to keep. Shared with the encoders, so a
+variance fraction means the same thing at every entry point.
+
+- by_count / by_variance_fraction / by_numerical_rank
+- by_eigenvalue_floor: a caller-set floor, stricter than machine epsilon
+- resolve_nterms: the exactly-one-of rule for the two caller-facing ones
+
 Utilities
 ---------
 - adjust_sign_eig: Ensure sign consistency of eigenvectors
@@ -85,6 +94,13 @@ from .snapshot_eigensolvers import (
     default_snapshot_eigensolver,
 )
 from .spde_kle import SPDEMaternKLE
+from .truncation import (
+    by_count,
+    by_eigenvalue_floor,
+    by_numerical_rank,
+    by_variance_fraction,
+    resolve_nterms,
+)
 from .utils import (
     adjust_sign_eig,
     sort_eigenpairs,
@@ -120,6 +136,12 @@ __all__ = [
     "SVDSnapshotSolver",
     "MethodOfSnapshotsSolver",
     "default_snapshot_eigensolver",
+    # Truncation
+    "by_count",
+    "by_variance_fraction",
+    "by_numerical_rank",
+    "by_eigenvalue_floor",
+    "resolve_nterms",
     # Periodic random fields
     "PeriodicReiszGaussianRandomField",
     # Utilities

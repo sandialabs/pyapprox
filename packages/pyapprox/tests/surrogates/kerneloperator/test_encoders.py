@@ -89,10 +89,11 @@ class TestPCAFunctionEncoder:
         assert 1 <= enc.ncodes() <= 15
 
     def test_fit_from_data_requires_exactly_one(self, bkd) -> None:
+        """Raised by the shared truncation policy, not by this class."""
         data = self._make_low_rank_data(bkd)
-        with pytest.raises(ValueError, match="Exactly one"):
+        with pytest.raises(ValueError, match="exactly one"):
             PCAFunctionEncoder.fit_from_data(data, bkd)
-        with pytest.raises(ValueError, match="Exactly one"):
+        with pytest.raises(ValueError, match="exactly one"):
             PCAFunctionEncoder.fit_from_data(
                 data, bkd, ncodes=3, variance_fraction=0.9
             )

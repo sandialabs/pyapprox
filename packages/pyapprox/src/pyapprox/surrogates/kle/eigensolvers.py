@@ -19,6 +19,7 @@ from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 import numpy as np
 
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
+from pyapprox.surrogates.kle.truncation import by_numerical_rank
 from pyapprox.surrogates.kle.utils import (
     adjust_sign_eig,
     eigendecomposition_unweighted,
@@ -170,14 +171,12 @@ def usable_nterms(eig_vals: Array, bkd: Backend[Array]) -> int:
 
     Shares its threshold with :func:`_reject_negligible_terms`, so a
     basis truncated to this many terms is exactly one that passes that
-    check.
+    check. Kept as a name here because callers reach for it through the
+    eigensolvers; the policy itself is
+    :func:`~pyapprox.surrogates.kle.truncation.by_numerical_rank`,
+    alongside the other truncation rules.
     """
-    largest = bkd.to_float(bkd.max(eig_vals))
-    if largest <= 0.0:
-        return 0
-    nvals = int(eig_vals.shape[0])
-    tolerance = largest * nvals * _MACHINE_EPS
-    return int((bkd.to_numpy(eig_vals) > tolerance).sum())
+    return by_numerical_rank(eig_vals, bkd)
 
 
 def _reject_negligible_terms(
