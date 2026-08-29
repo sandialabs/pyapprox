@@ -17,7 +17,7 @@ Growth rule protocols:
 
 from typing import Generic, Optional, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, Array_co, Backend
 
 
 @runtime_checkable
@@ -195,12 +195,16 @@ class IndexGrowthRuleProtocol(Protocol):
 
 
 @runtime_checkable
-class IndexSequenceProtocol(Protocol, Generic[Array]):
+class IndexSequenceProtocol(Protocol, Generic[Array_co]):
     """Maps an integer level to a multi-index set.
 
     Implementations produce index sets of shape ``(nvars, nterms)`` for
     a given level, suitable for sweeping over candidate index sets in
     cross-validation or model selection.
+
+    The array parameter is covariant because it appears only in return
+    position, so a sequence producing a more specific array type is
+    usable wherever one producing a more general type is expected.
 
     Methods
     -------
@@ -208,7 +212,7 @@ class IndexSequenceProtocol(Protocol, Generic[Array]):
         Return the multi-index set for the given level.
     """
 
-    def __call__(self, level: int) -> Array:
+    def __call__(self, level: int) -> Array_co:
         """Return the multi-index set for the given level.
 
         Parameters

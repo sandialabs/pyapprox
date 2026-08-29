@@ -260,6 +260,24 @@ class TensorProductBasisProtocol(Protocol, Generic[Array]):
 # Combined protocols for common patterns
 
 
+@runtime_checkable
+class EvaluableMultiIndexBasisProtocol(
+    BasisProtocol[Array],
+    MultiIndexBasisProtocol[Array],
+    Protocol,
+    Generic[Array],
+):
+    """Multi-index basis that can also be evaluated.
+
+    `BasisProtocol` supplies evaluation and `nterms`, while
+    `MultiIndexBasisProtocol` supplies the index set. Consumers that
+    both evaluate a basis and replace its indices — an adaptive fitter,
+    say — need the two together.
+    """
+
+    pass
+
+
 class MultiIndexBasisWithJacobianProtocol(
     BasisWithJacobianProtocol[Array],
     MultiIndexBasisProtocol[Array],
