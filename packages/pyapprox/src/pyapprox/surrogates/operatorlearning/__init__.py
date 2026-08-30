@@ -17,18 +17,26 @@ from pyapprox.surrogates.operatorlearning.encoders import (
     ProductFieldEncoder,
     orthonormalize_basis,
 )
+from pyapprox.surrogates.operatorlearning.fitters import (
+    OperatorFitResult,
+    WeightedLeastSquaresOperatorFitter,
+)
 from pyapprox.surrogates.operatorlearning.protocols import (
     FieldEncoderProtocol,
     IsometricEncoderProtocol,
 )
+from pyapprox.surrogates.operatorlearning.surrogate import OperatorSurrogate
 
 __all__ = [
     "FieldEncoderProtocol",
     "GramProjectionEncoder",
     "IdentityFieldEncoder",
     "IsometricEncoderProtocol",
+    "OperatorFitResult",
+    "OperatorSurrogate",
     "ProductFieldEncoder",
     "SeparableOperatorBasis",
+    "WeightedLeastSquaresOperatorFitter",
     "bochner_error",
     "check_orthonormality",
     "christoffel_integral",
