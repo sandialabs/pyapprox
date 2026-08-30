@@ -2,6 +2,7 @@
 
 from typing import Generic, List, Union
 
+from pyapprox.pde.field_maps.protocol import validate_params_1d
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -56,6 +57,7 @@ class BasisExpansion(Generic[Array]):
 
     def __call__(self, params_1d: Array) -> Array:
         """Evaluate field map. Must NOT use float() -- called in Jacobian chain."""
+        validate_params_1d(params_1d, self.nvars())
         result = self._base_field
         for i in range(self.nvars()):
             result = result + params_1d[i] * self._basis_funs[i]

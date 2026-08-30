@@ -2,6 +2,7 @@
 
 from typing import Generic
 
+from pyapprox.pde.field_maps.protocol import validate_params_1d
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -43,6 +44,7 @@ class MeshKLEFieldMap(Generic[Array]):
 
     def __call__(self, params_1d: Array) -> Array:
         """Evaluate field: mean_field + W @ params. Preserves autograd."""
+        validate_params_1d(params_1d, self.nvars())
         return self._mean_field + self._bkd.dot(self._W, params_1d)
 
     def jacobian(self, params_1d: Array) -> Array:

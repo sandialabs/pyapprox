@@ -2,6 +2,7 @@
 
 from typing import Generic
 
+from pyapprox.pde.field_maps.protocol import validate_params_1d
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -37,6 +38,7 @@ class ScalarAmplitude(Generic[Array]):
 
     def __call__(self, params_1d: Array) -> Array:
         """Evaluate field map. Uses array slice to preserve autograd."""
+        validate_params_1d(params_1d, self.nvars())
         return params_1d[0:1] * self._base_field
 
     def jacobian(self, params_1d: Array) -> Array:

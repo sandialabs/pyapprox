@@ -630,3 +630,64 @@ class TestFixedPoissonRatioLameMap:
         wrong_len = FixedPoissonRatioLameMap(inner, 0.3, npts, bkd)
         with pytest.raises(ValueError, match="DOFs"):
             wrong_len(bkd.array([0.1, 0.2]))
+
+
+class TestParameterShapeValidation:
+    """A column of parameters must raise rather than broadcast.
+
+    Field maps take a bare 1-D vector while most of the library takes a
+    ``(nvars, 1)`` column, so the column is the natural mistake. Left
+    unchecked it is silent: ``mean_field + W @ params`` broadcasts a
+    ``(npts,)`` mean against a ``(npts, 1)`` product into a
+    ``(npts, npts)`` matrix whose entries are all finite and plausible.
+    The error then surfaces somewhere else entirely, as a coefficient
+    that reads zero where it is indexed.
+    """
+
+    def _mesh_kle_map(self, bkd, npts=6, nvars=3):
+        rng = np.random.RandomState(0)
+        return MeshKLEFieldMap(
+            bkd,
+            bkd.zeros((npts,)),
+            bkd.array(rng.standard_normal((npts, nvars))),
+        )
+
+    def test_accepts_a_1d_vector(self, bkd) -> None:
+        field_map = self._mesh_kle_map(bkd)
+        assert field_map(bkd.ones((3,))).shape == (6,)
+
+    def test_rejects_a_column(self, bkd) -> None:
+        field_map = self._mesh_kle_map(bkd)
+        with pytest.raises(ValueError, match="must be 1D"):
+            field_map(bkd.ones((3, 1)))
+
+    def test_rejects_the_wrong_length(self, bkd) -> None:
+        field_map = self._mesh_kle_map(bkd)
+        with pytest.raises(ValueError, match="entries but this"):
+            field_map(bkd.ones((5,)))
+
+    def test_a_column_would_otherwise_return_a_square_field(
+        self, bkd
+    ) -> None:
+        """What the check prevents, shown explicitly: the bad shape is
+        square and finite, which is why nothing downstream notices."""
+        rng = np.random.RandomState(0)
+        weights = np.asarray(bkd.to_numpy(bkd.array(
+            rng.standard_normal((6, 3))
+        )))
+        unchecked = np.zeros(6) + weights @ np.ones((3, 1))
+        assert unchecked.shape == (6, 6)
+
+    def test_scalar_amplitude_rejects_a_column(self, bkd) -> None:
+        field_map = ScalarAmplitude(bkd, bkd.ones((4,)))
+        assert field_map(bkd.ones((1,))).shape == (4,)
+        with pytest.raises(ValueError, match="must be 1D"):
+            field_map(bkd.ones((1, 1)))
+
+    def test_basis_expansion_rejects_a_column(self, bkd) -> None:
+        field_map = BasisExpansion(
+            bkd, 0.0, [bkd.ones((4,)), bkd.ones((4,))]
+        )
+        assert field_map(bkd.ones((2,))).shape == (4,)
+        with pytest.raises(ValueError, match="must be 1D"):
+            field_map(bkd.ones((2, 1)))

@@ -76,3 +76,46 @@ def field_map_has_hvp(field_map: FieldMapProtocol[Array]) -> bool:
     if isinstance(field_map, GuardedHVPFieldMapProtocol):
         return field_map.has_hvp()
     return isinstance(field_map, FieldMapWithHVPProtocol)
+
+
+def validate_params_1d(params_1d: Array, nvars: int) -> None:
+    """Reject a parameter vector that is not 1D of length ``nvars``.
+
+    Field maps take a 1-D vector, unlike most of the library, where a
+    sample is a ``(nvars, 1)`` column. That makes the column the natural
+    mistake, and an unchecked one is silent: a map evaluating
+    ``mean_field + W @ params`` broadcasts a ``(npts,)`` mean against a
+    ``(npts, 1)`` product and returns a ``(npts, npts)`` matrix. Every
+    value in it is finite and plausible, so the error surfaces far away
+    -- as a coefficient that appears to be zero somewhere it is indexed,
+    or as a solve that quietly uses the wrong field.
+
+    Called at the top of ``__call__`` rather than left to each map,
+    since the failure mode is shared and the check costs two
+    comparisons.
+
+    Parameters
+    ----------
+    params_1d : Array
+        The parameter vector to check.
+    nvars : int
+        The number of parameters the map expects.
+
+    Raises
+    ------
+    ValueError
+        If ``params_1d`` is not 1D, or its length is not ``nvars``.
+    """
+    if params_1d.ndim != 1:
+        raise ValueError(
+            f"params must be 1D with shape ({nvars},), got ndim="
+            f"{params_1d.ndim} with shape {tuple(params_1d.shape)}. A "
+            "field map takes a bare parameter vector rather than the "
+            "(nvars, 1) column used elsewhere; passing a column "
+            "broadcasts into a square field instead of raising."
+        )
+    if int(params_1d.shape[0]) != nvars:
+        raise ValueError(
+            f"params has {int(params_1d.shape[0])} entries but this "
+            f"field map takes {nvars}"
+        )
