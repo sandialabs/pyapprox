@@ -66,25 +66,30 @@ def christoffel_function(
 
 @dataclass(frozen=True)
 class WeightedSample(Generic[Array]):
-    """Coefficients drawn from a sampling measure, with their weights.
+    """Points drawn from a sampling measure, with their weights.
 
     A frozen value object holding the two together, because a weight
     only means anything alongside the sample it was computed for.
 
+    The points are whatever the basis is a basis of. For a polynomial
+    chaos fit they are realizations of the input variables; for
+    operator learning they are coefficients of an input field. The
+    sampler draws from a measure and does not know which.
+
     Attributes
     ----------
-    coefs : Array
-        Input coefficients. Shape: (nvars, nsamples)
+    samples : Array
+        Drawn points. Shape: (nvars, nsamples)
     weights : Array
         Least-squares weights :math:`w_i`. Shape: (nsamples,)
     """
 
-    coefs: Array
+    samples: Array
     weights: Array
 
 
 class MonteCarloSampler(Generic[Array]):
-    r"""Draw coefficients from the reference measure itself.
+    r"""Draw samples from the reference measure itself.
 
     The sampling measure equals the reference measure, so
     :math:`d\rho/d\mu \equiv 1` and the weights are one. Unbiased, and
@@ -95,7 +100,7 @@ class MonteCarloSampler(Generic[Array]):
     Parameters
     ----------
     rho : IndependentJoint[Array]
-        The reference measure on input coefficients.
+        The reference measure the samples are drawn against.
     bkd : Backend[Array]
         Computational backend.
     """
@@ -117,7 +122,7 @@ class MonteCarloSampler(Generic[Array]):
         return self._rho
 
     def __call__(self, nsamples: int) -> WeightedSample[Array]:
-        """Draw coefficients with unit weights.
+        """Draw samples with unit weights.
 
         Parameters
         ----------
@@ -127,7 +132,7 @@ class MonteCarloSampler(Generic[Array]):
         Returns
         -------
         WeightedSample
-            Coefficients (nvars, nsamples) and unit weights (nsamples,).
+            Samples (nvars, nsamples) and unit weights (nsamples,).
         """
         if nsamples < 1:
             raise ValueError(f"nsamples must be positive, got {nsamples}")
@@ -137,7 +142,7 @@ class MonteCarloSampler(Generic[Array]):
 
 
 class InducedSampler(Generic[Array]):
-    r"""Draw coefficients from the induced measure of a basis.
+    r"""Draw samples from the induced measure of a basis.
 
     The induced measure is the mixture
 
@@ -279,7 +284,7 @@ class InducedSampler(Generic[Array]):
         return self._bkd.asarray(np_nodes[indices])
 
     def __call__(self, nsamples: int) -> WeightedSample[Array]:
-        r"""Draw coefficients from the induced measure with their weights.
+        r"""Draw samples from the induced measure with their weights.
 
         Parameters
         ----------
@@ -289,7 +294,7 @@ class InducedSampler(Generic[Array]):
         Returns
         -------
         WeightedSample
-            Coefficients (nvars, nsamples) and weights
+            Samples (nvars, nsamples) and weights
             :math:`1/k_\Lambda` (nsamples,).
         """
         if nsamples < 1:
@@ -307,6 +312,6 @@ class InducedSampler(Generic[Array]):
             self._sample_dimension(dim, selected_indices[dim])
             for dim in range(indices.shape[0])
         ]
-        coefs = self._bkd.stack(coords, axis=0)
-        christoffel = christoffel_function(self._basis, coefs, self._bkd)
-        return WeightedSample(coefs, 1.0 / christoffel)
+        samples = self._bkd.stack(coords, axis=0)
+        christoffel = christoffel_function(self._basis, samples, self._bkd)
+        return WeightedSample(samples, 1.0 / christoffel)

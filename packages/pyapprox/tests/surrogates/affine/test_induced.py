@@ -50,7 +50,7 @@ class TestMonteCarloSampler:
     def test_shapes(self, bkd: Backend) -> None:
         _, rho = _setup(bkd, 2, 2)
         sample = MonteCarloSampler(rho, bkd)(50)
-        assert sample.coefs.shape == (2, 50)
+        assert sample.samples.shape == (2, 50)
         assert sample.weights.shape == (50,)
 
     def test_weights_are_one(self, bkd: Backend) -> None:
@@ -61,7 +61,7 @@ class TestMonteCarloSampler:
 
     def test_samples_lie_in_domain(self, bkd: Backend) -> None:
         _, rho = _setup(bkd, 2, 2)
-        coefs = MonteCarloSampler(rho, bkd)(200).coefs
+        coefs = MonteCarloSampler(rho, bkd)(200).samples
         assert bool(bkd.min(coefs) >= -1.0)
         assert bool(bkd.max(coefs) <= 1.0)
 
@@ -83,19 +83,19 @@ class TestInducedSampler:
     def test_shapes(self, bkd: Backend) -> None:
         basis, rho = _setup(bkd, 2, 3)
         sample = InducedSampler(basis, rho, bkd, nquad=50)(60)
-        assert sample.coefs.shape == (2, 60)
+        assert sample.samples.shape == (2, 60)
         assert sample.weights.shape == (60,)
 
     def test_weight_is_reciprocal_christoffel(self, bkd: Backend) -> None:
         """The weight is drho/dmu = 1 / k_Lambda, not k_Lambda."""
         basis, rho = _setup(bkd, 2, 3)
         sample = InducedSampler(basis, rho, bkd, nquad=50)(40)
-        expected = 1.0 / christoffel_function(basis, sample.coefs, bkd)
+        expected = 1.0 / christoffel_function(basis, sample.samples, bkd)
         bkd.assert_allclose(sample.weights, expected, rtol=1e-13)
 
     def test_samples_lie_in_domain(self, bkd: Backend) -> None:
         basis, rho = _setup(bkd, 2, 3)
-        coefs = InducedSampler(basis, rho, bkd, nquad=50)(200).coefs
+        coefs = InducedSampler(basis, rho, bkd, nquad=50)(200).samples
         assert bool(bkd.min(coefs) >= -1.0)
         assert bool(bkd.max(coefs) <= 1.0)
 
@@ -111,7 +111,7 @@ class TestInducedSampler:
         """Return ||G - I||_inf for a fresh sample of the given size."""
         sample = sampler(nsamples)
         weights = 1.0 / sample.weights if invert else sample.weights
-        gram = weighted_gram(basis(sample.coefs), weights, bkd)
+        gram = weighted_gram(basis(sample.samples), weights, bkd)
         identity = bkd.eye(basis.nterms())
         return float(bkd.max(bkd.abs(gram - identity)))
 
@@ -180,9 +180,9 @@ class TestInducedSampler:
                 (
                     nterms,
                     gram_condition_number(
-                        basis(induced.coefs), induced.weights, bkd
+                        basis(induced.samples), induced.weights, bkd
                     ),
-                    gram_condition_number(basis(mc.coefs), mc.weights, bkd),
+                    gram_condition_number(basis(mc.samples), mc.weights, bkd),
                 )
             )
         return rows
@@ -241,7 +241,7 @@ class TestInducedSampler:
         For Legendre degree one on [-1, 1], p_1(x)^2 rho(x) = 3x^2/2,
         so the CDF is (x^3 + 1) / 2.
         """
-        coefs = sampler(nsamples).coefs
+        coefs = sampler(nsamples).samples
         samples = np.sort(bkd.to_numpy(coefs)[0])
         empirical = np.arange(1, samples.size + 1) / samples.size
         analytic = (samples**3 + 1.0) / 2.0
@@ -288,7 +288,7 @@ class TestInducedSampler:
         sampler = InducedSampler(basis, rho, bkd, nquad=50)
         basis.set_indices(compute_hyperbolic_indices(2, 3, 1.0, bkd))
         sample = sampler(20)
-        expected = 1.0 / christoffel_function(basis, sample.coefs, bkd)
+        expected = 1.0 / christoffel_function(basis, sample.samples, bkd)
         bkd.assert_allclose(sample.weights, expected, rtol=1e-13)
 
     def test_rejects_non_basis(self, bkd: Backend) -> None:
