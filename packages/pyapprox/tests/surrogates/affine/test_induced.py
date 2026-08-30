@@ -32,6 +32,7 @@ from pyapprox.surrogates.affine.induced import (
 from pyapprox.surrogates.affine.univariate.factory import create_bases_1d
 from pyapprox.surrogates.operatorlearning import (
     gram_condition_number,
+    sample_complexity,
     weighted_gram,
 )
 from pyapprox.util.backends.protocols import Backend
@@ -159,27 +160,79 @@ class TestInducedSampler:
         assert fine > coarse / 2.0
         assert fine > 0.5
 
-    def test_better_conditioned_than_monte_carlo(
+    @staticmethod
+    def _sweep_conditioning(bkd: Backend, levels: range) -> Any:
+        """Return (nterms, induced cond, MC cond) at each level.
+
+        Each level is sampled at the count the theory prescribes for
+        that basis size, so the sweep tests the claim the bound makes
+        rather than an arbitrary sample count.
+        """
+        rows = []
+        for level in levels:
+            basis, rho = _setup(bkd, 2, level)
+            nterms = basis.nterms()
+            nsamples = sample_complexity(nterms, 0.5, 0.5)
+
+            induced = InducedSampler(basis, rho, bkd, nquad=300)(nsamples)
+            mc = MonteCarloSampler(rho, bkd)(nsamples)
+            rows.append(
+                (
+                    nterms,
+                    gram_condition_number(
+                        basis(induced.coefs), induced.weights, bkd
+                    ),
+                    gram_condition_number(basis(mc.coefs), mc.weights, bkd),
+                )
+            )
+        return rows
+
+    def test_induced_conditioning_stays_bounded(
         self, numpy_bkd: Backend
     ) -> None:
-        """T8 in miniature: induced sampling wins where MC struggles.
+        """T8: conditioning does not grow with the basis.
 
-        At a sample count near the basis size, the induced Gram stays
-        usable while the Monte Carlo one degrades.
+        Sampling at the prescribed count keeps the weighted Gram close
+        to the identity however large the basis, which is the property
+        the whole method rests on. Measured across a twelvefold growth
+        in basis size the condition number stays near two, so a bound
+        of three leaves room for sampling noise without being vacuous.
         """
         np.random.seed(0)
-        basis, rho = _setup(numpy_bkd, 2, 6)
-        nsamples = 3 * basis.nterms()
+        rows = self._sweep_conditioning(numpy_bkd, range(1, 8))
+        for nterms, induced_cond, _ in rows:
+            assert induced_cond < 3.0, (
+                f"induced conditioning {induced_cond:.3f} exceeded the "
+                f"bound at nterms={nterms}"
+            )
 
-        induced = InducedSampler(basis, rho, numpy_bkd, nquad=300)(nsamples)
-        induced_cond = gram_condition_number(
-            basis(induced.coefs), induced.weights, numpy_bkd
-        )
-        mc = MonteCarloSampler(rho, numpy_bkd)(nsamples)
-        mc_cond = gram_condition_number(
-            basis(mc.coefs), mc.weights, numpy_bkd
-        )
-        assert induced_cond < mc_cond
+    def test_induced_conditioning_does_not_trend_upward(
+        self, numpy_bkd: Backend
+    ) -> None:
+        """T8: the bound holds because conditioning is flat, not slow.
+
+        A method that degraded gently would satisfy a fixed bound over
+        a short sweep while still failing at scale, so the largest
+        basis must be no worse than the smallest.
+        """
+        np.random.seed(0)
+        rows = self._sweep_conditioning(numpy_bkd, range(1, 8))
+        assert rows[-1][1] < 1.5 * rows[0][1]
+
+    def test_monte_carlo_degrades_as_the_basis_grows(
+        self, numpy_bkd: Backend
+    ) -> None:
+        """T8: the comparison induced sampling exists to win.
+
+        Monte Carlo is competitive for a small basis — it is slightly
+        better at the smallest size here — and degrades from there, so
+        the claim is about growth rather than about being worse
+        everywhere.
+        """
+        np.random.seed(0)
+        rows = self._sweep_conditioning(numpy_bkd, range(1, 8))
+        assert rows[-1][2] > 3.0 * rows[0][2]
+        assert rows[-1][2] > 2.0 * rows[-1][1]
 
     @staticmethod
     def _cdf_deviation(sampler: Any, nsamples: int, bkd: Backend) -> float:
