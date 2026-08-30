@@ -1,13 +1,25 @@
 r"""Reading a KLE basis as a reduction rather than as an expansion.
 
-A KLE and a PCA encoder hold the same three things -- a basis, a mean,
-and the metric the basis is orthonormal in -- and differ in the question
-they answer. The generative reading asks what field a coefficient vector
-produces; the reductive reading asks what coordinates best describe a
-given field. :class:`KLEEncoder` supplies the second over any object
-satisfying ``KLEProtocol``, so a basis solved once can be used either
-way without being rebuilt, and an encoder can be persisted by
-``save_kle`` because what is stored is still a KLE.
+A KLE and a PCA encoder hold the same basis, mean and spectrum, and
+traverse them in opposite directions.
+
+The expansion runs coefficients to field,
+
+.. math:: f = \bar{f} + \sum_i \sqrt{\lambda_i}\, \phi_i z_i,
+
+where :math:`z` is standardized -- mean zero, unit variance -- so the
+:math:`\sqrt{\lambda}` scaling is what gives a realization its
+covariance. The encoder runs field to coordinates and back,
+
+.. math:: z = V^T M (f - \bar{f}), \qquad f = V z + \bar{f},
+
+where :math:`z` is a coordinate rather than a standardized variable, so
+the basis is used unweighted and no :math:`\sqrt{\lambda}` appears.
+
+:class:`KLEEncoder` supplies the second over any object satisfying
+``KLEProtocol``, so a basis solved once can be used either way without
+being rebuilt, and an encoder can be persisted by ``save_kle`` because
+what is stored is still a KLE.
 
 **Composition rather than more methods on the KLE.** The two readings do
 not always coincide: a KLE may exponentiate its expansion, and then its
@@ -23,7 +35,11 @@ The basis is shared rather than copied, so the two views cannot drift.
 
 from typing import Generic, Optional, Protocol, runtime_checkable
 
+from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.protocols import KLEProtocol
+from pyapprox.surrogates.kle.snapshot_eigensolvers import (
+    SnapshotEigenSolverProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import InnerProductProtocol
 
@@ -196,3 +212,68 @@ class KLEEncoder(Generic[Array]):
             f"{self.__class__.__name__}(full_dim={self.full_dim()}, "
             f"latent_dim={self.latent_dim()})"
         )
+
+
+def fit_kle_encoder(
+    samples: Array,
+    bkd: Backend[Array],
+    latent_dim: Optional[int] = None,
+    variance_fraction: Optional[float] = None,
+    center: bool = True,
+    metric: Optional[InnerProductProtocol[Array]] = None,
+    eigensolver: Optional[SnapshotEigenSolverProtocol[Array]] = None,
+) -> KLEEncoder[Array]:
+    """Build an encoder from snapshots in one call.
+
+    Convenience over ``KLEEncoder(DataDrivenKLE(...))``, which is the
+    common case and is otherwise two steps. Deliberately a function
+    rather than a fitter class: the three things that genuinely vary
+    here -- the metric, the eigensolver, and the truncation policy --
+    are already injectable abstractions, so a fitter would have nothing
+    left to choose between. Given those, the basis is determined rather
+    than estimated, which is what separates this from the coefficient
+    fitters elsewhere in ``surrogates``.
+
+    Centering defaults to True here, unlike ``DataDrivenKLE``: a
+    reduction is almost always taken about the data's mean, while an
+    expansion may be taken about anything.
+
+    Parameters
+    ----------
+    samples : Array
+        Shape ``(full_dim, nsamples)``, one snapshot per column.
+    bkd : Backend[Array]
+        Computational backend.
+    latent_dim : int, optional
+        Number of modes to keep. Exclusive with ``variance_fraction``;
+        with neither, every mode carrying variance is kept.
+    variance_fraction : float, optional
+        Keep the fewest modes carrying this fraction of the variance.
+    center : bool
+        Subtract the sample mean before decomposing.
+    metric : InnerProductProtocol, optional
+        The inner product the basis is orthonormal in, and the one
+        ``encode`` projects with. None means Euclidean, which biases the
+        basis toward wherever a non-uniform mesh is refined.
+    eigensolver : SnapshotEigenSolverProtocol, optional
+        How the basis is extracted. Defaults to the solver matching the
+        metric.
+
+    Returns
+    -------
+    KLEEncoder[Array]
+        Wrapping the fitted expansion, reachable through
+        :meth:`KLEEncoder.kle` and storable with ``save_kle``.
+    """
+    return KLEEncoder(
+        DataDrivenKLE(
+            samples,
+            nterms=latent_dim,
+            variance_fraction=variance_fraction,
+            center=center,
+            metric=metric,
+            eigensolver=eigensolver,
+            bkd=bkd,
+        ),
+        metric,
+    )

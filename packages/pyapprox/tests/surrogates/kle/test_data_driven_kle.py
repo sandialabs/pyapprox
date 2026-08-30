@@ -134,11 +134,11 @@ class TestTermValidation:
         return bkd.asarray(np.random.rand(ncoords, nsamples))
 
     def test_rejects_more_terms_than_samples(self, bkd) -> None:
-        with pytest.raises(ValueError, match="rank of the sample matrix"):
+        with pytest.raises(ValueError, match="exceeds the .* modes"):
             DataDrivenKLE(self._data(bkd), nterms=7, bkd=bkd)
 
     def test_rejects_more_terms_than_coords(self, bkd) -> None:
-        with pytest.raises(ValueError, match="rank of the sample matrix"):
+        with pytest.raises(ValueError, match="exceeds the .* modes"):
             DataDrivenKLE(
                 self._data(bkd, ncoords=4, nsamples=20), nterms=5, bkd=bkd
             )
@@ -156,17 +156,17 @@ class TestTermValidation:
     def test_rejects_centered_data_at_full_sample_count(self, bkd) -> None:
         """Centering costs one term, which only the spectrum reveals.
 
-        Counting arguments cannot catch this: the class is handed a
-        matrix without being told whether a mean was removed, so the
-        rank drop from nsamples to nsamples - 1 shows up only in the
-        eigenvalues. Rejected by the same shared check that guards the
-        kernel-driven solvers.
+        Counting arguments cannot catch this: data centered by the
+        caller arrives as an ordinary matrix, so the rank drop from
+        nsamples to nsamples - 1 shows up only in the eigenvalues. The
+        shared truncation policy sees it, and reports the count that
+        actually exists rather than a bound computed from the shape.
         """
         data = self._data(bkd)
         centered = data - bkd.reshape(
             bkd.mean(data, axis=1), (data.shape[0], 1)
         )
-        with pytest.raises(ValueError, match="rounding error"):
+        with pytest.raises(ValueError, match="exceeds the .* modes"):
             DataDrivenKLE(centered, nterms=6, bkd=bkd)
 
     def test_accepts_centered_data_one_term_lower(self, bkd) -> None:
@@ -179,6 +179,87 @@ class TestTermValidation:
     def test_rejects_constant_data(self, bkd) -> None:
         with pytest.raises(ValueError, match="no usable modes"):
             DataDrivenKLE(bkd.zeros((10, 6)), nterms=1, bkd=bkd)
+
+
+class TestTruncationArguments:
+    """The truncation policies, reachable from the constructor.
+
+    A caller wanting a variance fraction asks for one here rather than
+    computing a count themselves, and centering is an argument rather
+    than an obligation to subtract the mean before calling.
+    """
+
+    def _data(self, bkd, ncoords=10, nsamples=8):
+        rng = np.random.RandomState(0)
+        return bkd.asarray(rng.standard_normal((ncoords, nsamples)))
+
+    def test_variance_fraction_keeps_fewer_modes_than_the_rank(
+        self, bkd
+    ) -> None:
+        data = self._data(bkd)
+        full = DataDrivenKLE(data, bkd=bkd).nterms()
+        partial = DataDrivenKLE(
+            data, variance_fraction=0.5, bkd=bkd
+        ).nterms()
+        assert 1 <= partial < full
+
+    def test_variance_fraction_is_monotone(self, bkd) -> None:
+        data = self._data(bkd)
+        counts = [
+            DataDrivenKLE(data, variance_fraction=f, bkd=bkd).nterms()
+            for f in (0.3, 0.6, 0.9)
+        ]
+        assert counts[0] <= counts[1] <= counts[2]
+
+    def test_rejects_nterms_with_variance_fraction(self, bkd) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            DataDrivenKLE(
+                self._data(bkd), nterms=3, variance_fraction=0.9, bkd=bkd
+            )
+
+    def test_center_subtracts_the_sample_mean(self, bkd) -> None:
+        data = self._data(bkd)
+        kle = DataDrivenKLE(data, center=True, bkd=bkd)
+        bkd.assert_allclose(
+            kle.mean_field(), bkd.mean(data, axis=1), rtol=1e-12
+        )
+
+    def test_center_matches_centering_by_hand(self, bkd) -> None:
+        """The argument is a convenience, not a different computation."""
+        data = self._data(bkd)
+        mean = bkd.mean(data, axis=1)
+        by_hand = DataDrivenKLE(
+            data - mean[:, None], mean, nterms=4, bkd=bkd
+        )
+        by_arg = DataDrivenKLE(data, nterms=4, center=True, bkd=bkd)
+        bkd.assert_allclose(
+            by_arg.eigenvectors(), by_hand.eigenvectors(), rtol=1e-12
+        )
+        bkd.assert_allclose(
+            by_arg.eigenvalues(), by_hand.eigenvalues(), rtol=1e-12
+        )
+
+    def test_center_costs_one_mode(self, bkd) -> None:
+        """Subtracting the mean makes the columns linearly dependent."""
+        data = self._data(bkd)
+        assert (
+            DataDrivenKLE(data, center=True, bkd=bkd).nterms()
+            == DataDrivenKLE(data, bkd=bkd).nterms() - 1
+        )
+
+    def test_rejects_center_with_an_explicit_mean(self, bkd) -> None:
+        with pytest.raises(ValueError, match="not both"):
+            DataDrivenKLE(
+                self._data(bkd), 3.0, center=True, bkd=bkd
+            )
+
+    def test_centered_realizations_are_about_the_mean(self, bkd) -> None:
+        data = self._data(bkd)
+        kle = DataDrivenKLE(data, nterms=3, center=True, bkd=bkd)
+        zeros = bkd.zeros((3, 1))
+        bkd.assert_allclose(
+            kle(zeros)[:, 0], bkd.mean(data, axis=1), rtol=1e-12
+        )
 
 
 class TestSampleConvergence:

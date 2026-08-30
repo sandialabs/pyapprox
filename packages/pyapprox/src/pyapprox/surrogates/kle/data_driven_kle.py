@@ -2,12 +2,11 @@
 
 from typing import Generic, Optional, Union
 
-import numpy as np
-
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     SnapshotEigenSolverProtocol,
     default_snapshot_eigensolver,
 )
+from pyapprox.surrogates.kle.truncation import resolve_nterms
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
@@ -33,7 +32,9 @@ class DataDrivenKLE(Generic[Array]):
     use_log : bool
         If True, return exp(mean + basis @ coef).
     nterms : int or None
-        Number of KLE terms. None uses min(ncoords, nsamples).
+        Number of KLE terms. Cannot be combined with
+        ``variance_fraction``; when neither is given, every mode
+        carrying variance is kept.
     quad_weights : Array or None, shape (ncoords,)
         Quadrature weights, the diagonal of the metric the basis is
         orthonormal in. Cannot be combined with ``metric``, which says
@@ -49,6 +50,17 @@ class DataDrivenKLE(Generic[Array]):
         metric -- the SVD when it is diagonal, the method of snapshots
         otherwise -- mirroring the seam ``MeshKLE`` offers for the
         kernel-driven case.
+    variance_fraction : float, optional
+        Keep the fewest modes carrying this fraction of the total
+        variance, instead of a fixed ``nterms``. The two are alternative
+        answers to one question, so giving both is an error.
+    center : bool
+        Subtract the sample mean before decomposing, and report it as
+        the mean field. The default of False decomposes the samples as
+        given, which is uncentered POD; that was previously the only
+        behaviour, leaving centering an unstated obligation on the
+        caller. Cannot be combined with an explicit ``mean_field``: both
+        say what the expansion is taken about.
     """
 
     def __init__(
@@ -61,10 +73,24 @@ class DataDrivenKLE(Generic[Array]):
         bkd: Backend[Array] = None,
         metric: Optional[InnerProductProtocol[Array]] = None,
         eigensolver: Optional[SnapshotEigenSolverProtocol[Array]] = None,
+        variance_fraction: Optional[float] = None,
+        center: bool = False,
     ):
         if bkd is None:
             raise ValueError("bkd must be provided")
         self._bkd = bkd
+        sample_mean: Optional[Array] = None
+        if center:
+            if not (
+                isinstance(mean_field, float) and mean_field == 0.0
+            ):
+                raise ValueError(
+                    "pass either center=True or an explicit mean_field, "
+                    "not both: each states what the expansion is taken "
+                    "about, and together they leave that undefined"
+                )
+            sample_mean = bkd.mean(field_samples, axis=1)
+            field_samples = field_samples - sample_mean[:, None]
         self._field_samples = field_samples
         self._use_log = use_log
         self._quad_weights = quad_weights
@@ -90,39 +116,34 @@ class DataDrivenKLE(Generic[Array]):
             else eigensolver
         )
 
-        # Set mean field
+        # Set mean field. isinstance narrows the Union where a numpy
+        # scalar check does not, so the scalar branch is known to be
+        # multiplying by a number rather than by anything the annotation
+        # admits.
         ncoords = field_samples.shape[0]
-        if np.isscalar(mean_field):
-            self._mean_field = bkd.full((ncoords,), 1) * mean_field
+        if sample_mean is not None:
+            self._mean_field: Array = sample_mean
+        elif isinstance(mean_field, (int, float)):
+            self._mean_field = bkd.full((ncoords,), float(mean_field))
         else:
             self._mean_field = mean_field
 
-        # Set nterms. The binding limit is the rank of the sample matrix,
-        # min(ncoords, nsamples), not ncoords alone: no decomposition
-        # yields more than that many nonzero modes, so asking for more
-        # returns columns of zeros -- modes the caller asked for and did
-        # not get. Callers who centered their data lose one further
-        # term, since subtracting the sample mean makes the columns
-        # linearly dependent. That one is left to the solver's spectrum
-        # check rather than counted here, because this class is handed a
-        # matrix without being told whether it was centered.
-        nsamples = int(field_samples.shape[1])
-        max_nterms = min(int(ncoords), nsamples)
-        if nterms is None:
-            nterms = max_nterms
-        if nterms > max_nterms:
+        if nterms is not None and variance_fraction is not None:
             raise ValueError(
-                f"nterms={nterms} exceeds the rank of the sample matrix, "
-                f"min(ncoords={ncoords}, nsamples={nsamples})="
-                f"{max_nterms}"
+                "pass either nterms or variance_fraction, not both: they "
+                "are two answers to one question and giving both leaves "
+                "it undefined which truncates"
             )
-        if nterms < 1:
-            raise ValueError(f"nterms={nterms} must be positive")
-        self._nterms = nterms
+        # The count cannot be settled before the spectrum when it is a
+        # variance fraction, and the decomposition yields the whole
+        # spectrum anyway, so both cases are resolved after the solve.
+        self._compute_basis(nterms, variance_fraction)
 
-        self._compute_basis()
-
-    def _compute_basis(self) -> None:
+    def _compute_basis(
+        self,
+        nterms: Optional[int],
+        variance_fraction: Optional[float],
+    ) -> None:
         """Extract the basis through the injected eigensolver.
 
         The decomposition itself lives in the solver, which is what lets
@@ -137,9 +158,25 @@ class DataDrivenKLE(Generic[Array]):
         so the eigenvalues of C are S^2/(n-1) and its eigenvectors U.
         """
         bkd = self._bkd
+        # Solve for every mode carrying variance, then truncate. The
+        # solver forms the whole spectrum regardless, so a count given
+        # up front would save nothing and a variance fraction could not
+        # be answered at all without a second decomposition.
         eig_vals, eig_vecs = self._eigensolver.solve(
-            self._field_samples, self._nterms, self._metric
+            self._field_samples, None, self._metric
         )
+        if nterms is None and variance_fraction is None:
+            self._nterms = int(eig_vals.shape[0])
+        else:
+            self._nterms = resolve_nterms(
+                eig_vals,
+                bkd,
+                nterms=nterms,
+                variance_fraction=variance_fraction,
+            )
+        eig_vals = eig_vals[: self._nterms]
+        eig_vecs = eig_vecs[:, : self._nterms]
+
         # Solvers return eigenvalues of A A^T, so the singular values
         # are their square roots. Clipped to zero inside
         # finalize_eigenpairs, so the sqrt cannot produce NaN.

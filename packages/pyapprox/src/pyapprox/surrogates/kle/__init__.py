@@ -31,6 +31,8 @@ Reduction
   expansion, so a KLE can be used where an encoder is wanted. Composed
   rather than folded into the KLE classes, because a lognormal
   expansion has no linear inverse and so simply has no encoder.
+- fit_kle_encoder: build one from snapshots in a single call, with the
+  metric, eigensolver and truncation policy all still injectable.
 
 Multifidelity
 -------------
@@ -86,7 +88,7 @@ from .eigensolvers import (
     RandomizedEigenSolver,
     finalize_eigenpairs,
 )
-from .encoder import KLEEncoder
+from .encoder import KLEEncoder, fit_kle_encoder
 from .galerkin_kle import GalerkinKLE
 from .io import load_kle, load_nystrom_kle, save_kle, save_nystrom_kle
 from .mesh_kle import MeshKLE
@@ -128,6 +130,7 @@ __all__ = [
     "PrecomputedKLE",
     # Reduction
     "KLEEncoder",
+    "fit_kle_encoder",
     # Persistence
     "save_kle",
     "load_kle",

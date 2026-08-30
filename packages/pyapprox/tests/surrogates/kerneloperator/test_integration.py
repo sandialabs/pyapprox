@@ -14,9 +14,6 @@ from pyapprox.surrogates.gaussianprocess.gp_loss import (
 from pyapprox.surrogates.kerneloperator.encoders.identity import (
     IdentityFunctionEncoder,
 )
-from pyapprox.surrogates.kerneloperator.encoders.pca import (
-    PCAFunctionEncoder,
-)
 from pyapprox.surrogates.kerneloperator.fitters.maximum_likelihood_fitter import (
     KernelOperatorMaximumLikelihoodFitter,
 )
@@ -28,6 +25,7 @@ from pyapprox.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.surrogates.kernels.multioutput.independent import (
     IndependentMultiOutputKernel,
 )
+from pyapprox.surrogates.kle.encoder import fit_kle_encoder
 
 
 def _identity_factory(ngrid):
@@ -38,7 +36,7 @@ def _identity_factory(ngrid):
 
 def _pca_factory(ncodes):
     def factory(data, bkd):
-        return PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=ncodes)
+        return fit_kle_encoder(data, bkd, latent_dim=ncodes)
     return factory
 
 

@@ -162,9 +162,7 @@ via the multi-RHS shortcut covered in
 
 ```{python}
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.surrogates.kerneloperator.encoders import (
-    PCAFunctionEncoder,
-)
+from pyapprox.surrogates.kle import fit_kle_encoder
 from pyapprox.surrogates.kerneloperator.fitters import (
     KernelOperatorMaximumLikelihoodFitter,
 )
@@ -172,7 +170,7 @@ from pyapprox.surrogates.kerneloperator.fitters import (
 
 def make_pca_factory(ncodes):
     def factory(data, bkd):
-        return PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=ncodes)
+        return fit_kle_encoder(data, bkd, latent_dim=ncodes)
     return factory
 
 
@@ -428,7 +426,7 @@ scales that adapt to each block automatically.
 
 4. The decoder pushes code-space standard deviations to grid-space standard
    deviations under an *uncorrelated codes* assumption (see the docstring of
-   `PCAFunctionEncoder.decode_std`). Construct an artificial test case where
+   `KLEEncoder.decode_std`). Construct an artificial test case where
    the assumption is violated (use a non-diagonal multi-output kernel) and
    inspect whether the calibration diagram still passes.
 

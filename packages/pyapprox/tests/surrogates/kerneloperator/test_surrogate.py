@@ -3,9 +3,6 @@ import pytest
 from pyapprox.surrogates.kerneloperator.encoders.identity import (
     IdentityFunctionEncoder,
 )
-from pyapprox.surrogates.kerneloperator.encoders.pca import (
-    PCAFunctionEncoder,
-)
 from pyapprox.surrogates.kerneloperator.regressors.scalar_kernel import (
     ScalarKernelLatentRegressor,
 )
@@ -13,6 +10,7 @@ from pyapprox.surrogates.kerneloperator.surrogate import (
     KernelOperatorSurrogate,
 )
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.surrogates.kle.encoder import fit_kle_encoder
 
 
 class TestKernelOperatorSurrogate:
@@ -51,8 +49,8 @@ class TestKernelOperatorSurrogate:
         np.random.seed(42)
         ngrid, N, ncodes = 20, 15, 5
         data = bkd.array(np.random.randn(ngrid, N))
-        enc_in = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=ncodes)
-        enc_out = PCAFunctionEncoder.fit_from_data(data, bkd, latent_dim=ncodes)
+        enc_in = fit_kle_encoder(data, bkd, latent_dim=ncodes)
+        enc_out = fit_kle_encoder(data, bkd, latent_dim=ncodes)
         kernel = Matern52Kernel(
             [1.0] * ncodes, (0.1, 10.0), ncodes, bkd
         )

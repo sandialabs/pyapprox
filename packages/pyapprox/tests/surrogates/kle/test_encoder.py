@@ -14,11 +14,16 @@ from pyapprox.surrogates.kerneloperator.protocols import (
     StdDecodingEncoderProtocol,
 )
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
-from pyapprox.surrogates.kle.encoder import KLEEncoder
+from pyapprox.surrogates.kle.encoder import KLEEncoder, fit_kle_encoder
 from pyapprox.surrogates.kle.precomputed_kle import PrecomputedKLE
+from pyapprox.surrogates.kle.protocols import KLEProtocol
+from pyapprox.surrogates.kle.snapshot_eigensolvers import (
+    MethodOfSnapshotsSolver,
+)
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     EuclideanInnerProduct,
+    m_orthonormality_drift,
 )
 
 
@@ -161,6 +166,68 @@ class TestLognormalHasNoEncoder:
         assert KLEEncoder(linear).latent_dim() == kle.nterms()
 
 
+class TestDecodeStd:
+    """Variance propagation, and the assumption it rests on."""
+
+    def _from_arrays(self, bkd, nstates=10, nterms=3):
+        """An encoder over a basis given directly rather than fitted.
+
+        The route for a basis that arrives as arrays -- reloaded, or
+        computed elsewhere -- and the reason KLEEncoder needs no second
+        constructor: PrecomputedKLE already is that adapter.
+        """
+        rng = np.random.RandomState(42)
+        q, _ = np.linalg.qr(rng.standard_normal((nstates, nterms)))
+        return q, KLEEncoder(
+            PrecomputedKLE(
+                bkd.ones((nterms,)),
+                bkd.array(q),
+                bkd.zeros((nstates,)),
+                bkd=bkd,
+            )
+        )
+
+    def test_matches_explicit_variance_propagation(self, bkd) -> None:
+        q, enc = self._from_arrays(bkd)
+        rng = np.random.RandomState(7)
+        std_np = np.abs(rng.standard_normal((3, 5)))
+        bkd.assert_allclose(
+            enc.decode_std(bkd.array(std_np)),
+            bkd.array(np.sqrt((q**2) @ (std_np**2))),
+            atol=1e-12,
+        )
+
+    def test_zero_std_decodes_to_zero(self, bkd) -> None:
+        _, enc = self._from_arrays(bkd)
+        bkd.assert_allclose(
+            enc.decode_std(bkd.zeros((3, 1))), bkd.zeros((10, 1)),
+            atol=1e-14,
+        )
+
+    def test_is_nonnegative(self, bkd) -> None:
+        _, enc = self._from_arrays(bkd)
+        rng = np.random.RandomState(7)
+        std = bkd.array(np.abs(rng.standard_normal((3, 5))))
+        assert bool(bkd.all_bool(enc.decode_std(std) >= 0.0))
+
+    def test_carries_no_mean_shift(self, bkd) -> None:
+        """A standard deviation is a spread, not a location, so the
+        mean must not enter -- unlike decode."""
+        rng = np.random.RandomState(42)
+        q, _ = np.linalg.qr(rng.standard_normal((10, 3)))
+        std = bkd.array(np.abs(rng.standard_normal((3, 4))))
+        results = []
+        for mean_value in (0.0, 5.0):
+            kle = PrecomputedKLE(
+                bkd.ones((3,)),
+                bkd.array(q),
+                bkd.full((10,), mean_value),
+                bkd=bkd,
+            )
+            results.append(KLEEncoder(kle).decode_std(std))
+        bkd.assert_allclose(results[0], results[1], atol=0.0)
+
+
 class TestSharesRatherThanCopies:
     def test_basis_is_the_wrapped_one(self, bkd) -> None:
         kle = _kle(bkd)
@@ -171,6 +238,68 @@ class TestSharesRatherThanCopies:
     def test_wrapped_kle_is_reachable(self, bkd) -> None:
         kle = _kle(bkd)
         assert KLEEncoder(kle).kle() is kle
+
+
+class TestFitKLEEncoder:
+    """The one-call path, and the seams it leaves injectable."""
+
+    def _data(self, bkd, nstates=12, nsamples=8):
+        rng = np.random.RandomState(0)
+        return bkd.array(rng.standard_normal((nstates, nsamples)))
+
+    def test_matches_building_the_two_steps_by_hand(self, bkd) -> None:
+        """A convenience, not a different computation."""
+        data = self._data(bkd)
+        by_hand = KLEEncoder(
+            DataDrivenKLE(data, nterms=4, center=True, bkd=bkd)
+        )
+        bkd.assert_allclose(
+            fit_kle_encoder(data, bkd, latent_dim=4).basis(),
+            by_hand.basis(),
+            rtol=1e-12,
+        )
+
+    def test_truncates_by_variance_fraction(self, bkd) -> None:
+        data = self._data(bkd)
+        assert (
+            fit_kle_encoder(data, bkd, variance_fraction=0.5).latent_dim()
+            < fit_kle_encoder(data, bkd).latent_dim()
+        )
+
+    def test_centers_by_default(self, bkd) -> None:
+        """Unlike DataDrivenKLE: a reduction is almost always taken
+        about the data's mean, while an expansion may be about anything."""
+        data = self._data(bkd)
+        enc = fit_kle_encoder(data, bkd, latent_dim=3)
+        bkd.assert_allclose(
+            enc.mean()[:, 0], bkd.mean(data, axis=1), rtol=1e-12
+        )
+
+    def test_metric_reaches_the_basis(self, bkd) -> None:
+        """The gap that made a separate weighted encoder necessary."""
+        data = self._data(bkd)
+        weights = bkd.asarray(np.linspace(0.5, 2.0, 12))
+        metric = DiagonalInnerProduct(weights, bkd)
+        enc = fit_kle_encoder(data, bkd, latent_dim=3, metric=metric)
+        assert m_orthonormality_drift(enc.basis(), metric, bkd) < 1e-10
+        assert enc.metric() is metric
+
+    def test_eigensolver_is_injectable(self, bkd) -> None:
+        """Solver choice was unreachable through the old encoder."""
+        data = self._data(bkd)
+        default = fit_kle_encoder(data, bkd, latent_dim=3)
+        gram = fit_kle_encoder(
+            data, bkd, latent_dim=3,
+            eigensolver=MethodOfSnapshotsSolver(bkd),
+        )
+        bkd.assert_allclose(
+            gram.basis(), default.basis(), rtol=1e-6, atol=1e-8
+        )
+
+    def test_result_is_still_a_kle(self, bkd) -> None:
+        """What makes the encoder storable by save_kle."""
+        enc = fit_kle_encoder(self._data(bkd), bkd, latent_dim=3)
+        assert isinstance(enc.kle(), KLEProtocol)
 
 
 class TestPrecomputedSpectrum:
