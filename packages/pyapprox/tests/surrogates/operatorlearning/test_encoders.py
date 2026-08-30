@@ -4,11 +4,6 @@ from typing import Any, List
 
 import numpy as np
 import pytest
-from pyapprox.ode.mass_matrix import (
-    ConstantDenseMassMatrix,
-    DiagonalMassMatrix,
-    IdentityMassMatrix,
-)
 from pyapprox.surrogates.operatorlearning import (
     FieldEncoderProtocol,
     GramProjectionEncoder,
@@ -17,6 +12,12 @@ from pyapprox.surrogates.operatorlearning import (
     orthonormalize_basis,
 )
 from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.linalg.inner_product import (
+    DiagonalInnerProduct,
+    EuclideanInnerProduct,
+    MassInnerProduct,
+)
+from scipy.sparse import csr_matrix
 
 
 def _fourier_basis(bkd: Backend, ngrid: int, ncodes: int) -> Any:
@@ -31,9 +32,9 @@ def _fourier_basis(bkd: Backend, ngrid: int, ncodes: int) -> Any:
     return bkd.asarray(basis)
 
 
-def _uniform_mass(bkd: Backend, ngrid: int) -> DiagonalMassMatrix:
-    """Diagonal mass for the uniform rule that makes _fourier_basis orthonormal."""
-    return DiagonalMassMatrix(bkd.full((ngrid,), 1.0 / (ngrid + 1)), bkd)
+def _uniform_inner_product(bkd: Backend, ngrid: int) -> DiagonalInnerProduct:
+    """Inner product making _fourier_basis orthonormal on the grid."""
+    return DiagonalInnerProduct(bkd.full((ngrid,), 1.0 / (ngrid + 1)), bkd)
 
 
 class TestIdentityFieldEncoder:
@@ -44,8 +45,8 @@ class TestIdentityFieldEncoder:
 
     def test_dimensions(self, bkd: Backend) -> None:
         encoder = IdentityFieldEncoder(5, bkd)
-        assert encoder.ncodes() == 5
-        assert encoder.ngrid() == 5
+        assert encoder.latent_dim() == 5
+        assert encoder.full_dim() == 5
 
     def test_is_isometry_default(self, bkd: Backend) -> None:
         assert IdentityFieldEncoder(3, bkd).is_isometry()
@@ -64,7 +65,7 @@ class TestGramProjectionEncoder:
         """f = sum_j c_j psi_j encodes back to c."""
         ngrid, ncodes = 64, 5
         basis = _fourier_basis(bkd, ngrid, ncodes)
-        encoder = GramProjectionEncoder(basis, _uniform_mass(bkd, ngrid), bkd)
+        encoder = GramProjectionEncoder(basis, _uniform_inner_product(bkd, ngrid), bkd)
         coefs = bkd.asarray([[1.0], [-2.0], [0.5], [3.0], [-0.25]])
         f = encoder.decode(coefs)
         bkd.assert_allclose(encoder.encode(f), coefs, atol=1e-13)
@@ -72,7 +73,7 @@ class TestGramProjectionEncoder:
     def test_roundtrip_in_span(self, bkd: Backend) -> None:
         ngrid, ncodes = 64, 4
         basis = _fourier_basis(bkd, ngrid, ncodes)
-        encoder = GramProjectionEncoder(basis, _uniform_mass(bkd, ngrid), bkd)
+        encoder = GramProjectionEncoder(basis, _uniform_inner_product(bkd, ngrid), bkd)
         coefs = bkd.asarray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]])
         f = encoder.decode(coefs)
         bkd.assert_allclose(encoder.encode(f), coefs, atol=1e-13)
@@ -81,11 +82,11 @@ class TestGramProjectionEncoder:
         """||f||_Y == ||encode(f)||_2 for an orthonormal basis."""
         ngrid, ncodes = 64, 5
         basis = _fourier_basis(bkd, ngrid, ncodes)
-        mass = _uniform_mass(bkd, ngrid)
-        encoder = GramProjectionEncoder(basis, mass, bkd)
+        inner = _uniform_inner_product(bkd, ngrid)
+        encoder = GramProjectionEncoder(basis, inner, bkd)
         coefs = bkd.asarray([[1.0], [-2.0], [0.5], [3.0], [-0.25]])
         f = encoder.decode(coefs)
-        y_norm_sq = bkd.sum(f * mass.apply(f))
+        y_norm_sq = bkd.sum(f * inner.apply(f))
         code_norm_sq = bkd.sum(encoder.encode(f) ** 2)
         bkd.assert_allclose(
             bkd.asarray([y_norm_sq]), bkd.asarray([code_norm_sq]), rtol=1e-12
@@ -94,15 +95,15 @@ class TestGramProjectionEncoder:
     def test_gram_is_identity_for_orthonormal_basis(self, bkd: Backend) -> None:
         ngrid, ncodes = 64, 4
         basis = _fourier_basis(bkd, ngrid, ncodes)
-        encoder = GramProjectionEncoder(basis, _uniform_mass(bkd, ngrid), bkd)
-        bkd.assert_allclose(encoder.gram(), bkd.eye(ncodes), atol=1e-13)
+        encoder = GramProjectionEncoder(basis, _uniform_inner_product(bkd, ngrid), bkd)
+        assert encoder.orthonormality_drift() < 1e-13
         assert encoder.is_isometry()
 
     def test_non_orthonormal_basis_reports_not_isometry(self, bkd: Backend) -> None:
         """A merely independent basis must not claim to be an isometry."""
         basis = bkd.asarray([[1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
         encoder = GramProjectionEncoder(
-            basis, IdentityMassMatrix(3, bkd), bkd
+            basis, EuclideanInnerProduct(3, bkd), bkd
         )
         assert not encoder.is_isometry()
 
@@ -115,10 +116,10 @@ class TestGramProjectionEncoder:
         ngrid, ncodes = 32, 3
         basis = _fourier_basis(bkd, ngrid, ncodes)
         assert GramProjectionEncoder(
-            basis, _uniform_mass(bkd, ngrid), bkd
+            basis, _uniform_inner_product(bkd, ngrid), bkd
         ).is_isometry()
         assert not GramProjectionEncoder(
-            basis, IdentityMassMatrix(ngrid, bkd), bkd
+            basis, EuclideanInnerProduct(ngrid, bkd), bkd
         ).is_isometry()
 
     def test_nondiagonal_mass_is_used_exactly(self, bkd: Backend) -> None:
@@ -128,7 +129,7 @@ class TestGramProjectionEncoder:
         )
         basis = bkd.asarray([[1.0], [0.0], [0.0]])
         encoder = GramProjectionEncoder(
-            basis, ConstantDenseMassMatrix(dense, bkd), bkd
+            basis, MassInnerProduct(csr_matrix(bkd.to_numpy(dense)), bkd), bkd
         )
         f = bkd.asarray([[0.0], [1.0], [0.0]])
         # psi^T M f picks out M[0, 1] = 0.5; a lumped mass would give 0.
@@ -137,32 +138,32 @@ class TestGramProjectionEncoder:
     def test_rejects_1d_basis(self, bkd: Backend) -> None:
         with pytest.raises(ValueError, match="must be 2D"):
             GramProjectionEncoder(
-                bkd.asarray([1.0, 2.0]), IdentityMassMatrix(2, bkd), bkd
+                bkd.asarray([1.0, 2.0]), EuclideanInnerProduct(2, bkd), bkd
             )
 
-    def test_rejects_non_mass_matrix(self, bkd: Backend) -> None:
-        with pytest.raises(TypeError, match="MassMatrixProtocol"):
+    def test_rejects_non_inner_product(self, bkd: Backend) -> None:
+        with pytest.raises(TypeError, match="InnerProductProtocol"):
             GramProjectionEncoder(
                 bkd.asarray([[1.0], [0.0]]), "not_a_mass", bkd
             )
 
     def test_rejects_wrong_encode_shape(self, bkd: Backend) -> None:
         encoder = GramProjectionEncoder(
-            bkd.asarray([[1.0], [0.0]]), IdentityMassMatrix(2, bkd), bkd
+            bkd.asarray([[1.0], [0.0]]), EuclideanInnerProduct(2, bkd), bkd
         )
         with pytest.raises(ValueError, match="leading dimension"):
             encoder.encode(bkd.asarray([[1.0], [2.0], [3.0]]))
 
     def test_rejects_wrong_decode_shape(self, bkd: Backend) -> None:
         encoder = GramProjectionEncoder(
-            bkd.asarray([[1.0], [0.0]]), IdentityMassMatrix(2, bkd), bkd
+            bkd.asarray([[1.0], [0.0]]), EuclideanInnerProduct(2, bkd), bkd
         )
         with pytest.raises(ValueError, match="leading dimension"):
             encoder.decode(bkd.asarray([[1.0], [2.0]]))
 
     def test_satisfies_protocol(self, bkd: Backend) -> None:
         encoder = GramProjectionEncoder(
-            bkd.asarray([[1.0], [0.0]]), IdentityMassMatrix(2, bkd), bkd
+            bkd.asarray([[1.0], [0.0]]), EuclideanInnerProduct(2, bkd), bkd
         )
         assert isinstance(encoder, FieldEncoderProtocol)
 
@@ -170,31 +171,31 @@ class TestGramProjectionEncoder:
 class TestOrthonormalizeBasis:
     def test_makes_gram_identity(self, bkd: Backend) -> None:
         basis = bkd.asarray([[1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
-        mass = IdentityMassMatrix(3, bkd)
-        ortho = orthonormalize_basis(basis, mass, bkd)
-        encoder = GramProjectionEncoder(ortho, mass, bkd)
-        bkd.assert_allclose(encoder.gram(), bkd.eye(2), atol=1e-13)
+        inner = EuclideanInnerProduct(3, bkd)
+        ortho = orthonormalize_basis(basis, inner, bkd)
+        encoder = GramProjectionEncoder(ortho, inner, bkd)
+        assert encoder.orthonormality_drift() < 1e-13
         assert encoder.is_isometry()
 
     def test_preserves_span(self, bkd: Backend) -> None:
         """Orthonormalizing changes the basis but not the space it spans."""
         basis = bkd.asarray([[1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
-        mass = IdentityMassMatrix(3, bkd)
-        ortho = orthonormalize_basis(basis, mass, bkd)
+        inner = EuclideanInnerProduct(3, bkd)
+        ortho = orthonormalize_basis(basis, inner, bkd)
         # Any field in the span round-trips exactly through the new basis.
         f = bkd.dot(basis, bkd.asarray([[2.0], [-1.0]]))
-        encoder = GramProjectionEncoder(ortho, mass, bkd)
+        encoder = GramProjectionEncoder(ortho, inner, bkd)
         bkd.assert_allclose(encoder.decode(encoder.encode(f)), f, atol=1e-13)
 
     def test_nondiagonal_mass(self, bkd: Backend) -> None:
         dense = bkd.asarray(
             [[2.0, 0.5, 0.0], [0.5, 2.0, 0.5], [0.0, 0.5, 2.0]]
         )
-        mass = ConstantDenseMassMatrix(dense, bkd)
+        inner = MassInnerProduct(csr_matrix(bkd.to_numpy(dense)), bkd)
         basis = bkd.asarray([[1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
-        ortho = orthonormalize_basis(basis, mass, bkd)
-        encoder = GramProjectionEncoder(ortho, mass, bkd)
-        bkd.assert_allclose(encoder.gram(), bkd.eye(2), atol=1e-13)
+        ortho = orthonormalize_basis(basis, inner, bkd)
+        encoder = GramProjectionEncoder(ortho, inner, bkd)
+        assert encoder.orthonormality_drift() < 1e-13
 
 
 class TestProductFieldEncoder:
@@ -203,8 +204,8 @@ class TestProductFieldEncoder:
 
     def test_dimensions_sum(self, bkd: Backend) -> None:
         product = ProductFieldEncoder(self._parts(bkd), bkd)
-        assert product.ncodes() == 5
-        assert product.ngrid() == 5
+        assert product.latent_dim() == 5
+        assert product.full_dim() == 5
         assert product.nfields() == 2
 
     def test_roundtrip(self, bkd: Backend) -> None:
@@ -263,11 +264,11 @@ class TestProductFieldEncoder:
         """A product may mix encoder types."""
         ngrid, ncodes = 32, 3
         gram = GramProjectionEncoder(
-            _fourier_basis(bkd, ngrid, ncodes), _uniform_mass(bkd, ngrid), bkd
+            _fourier_basis(bkd, ngrid, ncodes), _uniform_inner_product(bkd, ngrid), bkd
         )
         product = ProductFieldEncoder([gram, IdentityFieldEncoder(2, bkd)], bkd)
-        assert product.ncodes() == ncodes + 2
-        assert product.ngrid() == ngrid + 2
+        assert product.latent_dim() == ncodes + 2
+        assert product.full_dim() == ngrid + 2
         assert product.is_isometry()
 
     def test_rejects_empty(self, bkd: Backend) -> None:

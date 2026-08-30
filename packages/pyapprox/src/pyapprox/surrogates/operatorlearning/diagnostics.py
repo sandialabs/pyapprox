@@ -134,49 +134,6 @@ def sample_complexity(nterms: int, delta: float, epsilon: float) -> int:
     )
 
 
-def check_orthonormality(
-    basis_values: Array,
-    quadrature_weights: Array,
-    bkd: Backend[Array],
-) -> float:
-    r"""Return how far a basis is from orthonormal under a quadrature rule.
-
-    .. math::
-
-        \left\| \sum_k w_k\, p_i(x_k) p_j(x_k) - \delta_{ij}
-        \right\|_\infty
-
-    Uses an exact rule rather than samples, so it isolates whether the
-    basis is orthonormal under the *reference measure* from whether a
-    particular sample happens to be well conditioned.
-
-    Parameters
-    ----------
-    basis_values : Array
-        Basis at the quadrature points. Shape: (nquad, nterms)
-    quadrature_weights : Array
-        Quadrature weights summing to one. Shape: (nquad,)
-    bkd : Backend[Array]
-        Computational backend.
-
-    Returns
-    -------
-    float
-        The largest deviation from the identity.
-    """
-    nquad = basis_values.shape[0]
-    if quadrature_weights.shape != (nquad,):
-        raise ValueError(
-            f"quadrature_weights has wrong shape "
-            f"{quadrature_weights.shape}, expected ({nquad},)"
-        )
-    gram = bkd.dot(
-        basis_values.T, quadrature_weights[:, None] * basis_values
-    )
-    nterms = basis_values.shape[1]
-    return float(bkd.max(bkd.abs(gram - bkd.eye(nterms))))
-
-
 def christoffel_integral(
     basis_values: Array,
     quadrature_weights: Array,

@@ -62,15 +62,15 @@ class OperatorSurrogate(Generic[Array]):
                 "the Bochner error of the fields. Use "
                 "orthonormalize_basis to correct the output basis."
             )
-        if expansion.nqoi() != output_encoder.ncodes():
+        if expansion.nqoi() != output_encoder.latent_dim():
             raise ValueError(
                 f"expansion has nqoi {expansion.nqoi()} but "
-                f"output_encoder has {output_encoder.ncodes()} codes"
+                f"output_encoder has {output_encoder.latent_dim()} codes"
             )
-        if expansion.nvars() != input_encoder.ncodes():
+        if expansion.nvars() != input_encoder.latent_dim():
             raise ValueError(
                 f"expansion has nvars {expansion.nvars()} but "
-                f"input_encoder has {input_encoder.ncodes()} codes"
+                f"input_encoder has {input_encoder.latent_dim()} codes"
             )
         self._input_encoder = input_encoder
         self._output_encoder = output_encoder
@@ -153,6 +153,6 @@ class OperatorSurrogate(Generic[Array]):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"ncodes_in={self._input_encoder.ncodes()}, "
-            f"ncodes_out={self._output_encoder.ncodes()})"
+            f"ncodes_in={self._input_encoder.latent_dim()}, "
+            f"ncodes_out={self._output_encoder.latent_dim()})"
         )

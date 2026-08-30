@@ -13,13 +13,16 @@ from pyapprox.surrogates.affine.indices.utils import (
 from pyapprox.surrogates.affine.univariate.factory import create_bases_1d
 from pyapprox.surrogates.operatorlearning import (
     bochner_error,
-    check_orthonormality,
     christoffel_integral,
     gram_condition_number,
     sample_complexity,
     weighted_gram,
 )
 from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.linalg.inner_product import (
+    DiagonalInnerProduct,
+    m_orthonormality_drift,
+)
 
 
 def _legendre_basis(bkd: Backend, nvars: int, max_level: int) -> Any:
@@ -138,15 +141,19 @@ class TestSampleComplexity:
             sample_complexity(0, 0.5, 0.5)
 
 
-class TestCheckOrthonormality:
+class TestOrthonormalityDrift:
+    """T2, through the shared metric utility rather than a local copy."""
+
     def test_orthonormal_basis_under_exact_quadrature(
         self, bkd: Backend
     ) -> None:
         """T2: E_rho[p_i p_j] = delta_ij by tensor Gauss."""
         basis = _legendre_basis(bkd, 2, 3)
         points, weights = _tensor_quadrature(bkd, basis, 6)
-        deviation = check_orthonormality(basis(points), weights, bkd)
-        assert deviation < 1e-12
+        drift = m_orthonormality_drift(
+            basis(points), DiagonalInnerProduct(weights, bkd), bkd
+        )
+        assert drift < 1e-12
 
     def test_detects_non_orthonormal_basis(self, bkd: Backend) -> None:
         """A monomial-like basis is not orthonormal under the measure."""
@@ -154,13 +161,10 @@ class TestCheckOrthonormality:
             [[1.0, 1.0], [1.0, 2.0], [1.0, 3.0], [1.0, 4.0]]
         )
         weights = bkd.full((4,), 0.25)
-        assert check_orthonormality(basis_values, weights, bkd) > 0.1
-
-    def test_rejects_wrong_weight_shape(self, bkd: Backend) -> None:
-        with pytest.raises(ValueError, match="wrong shape"):
-            check_orthonormality(
-                bkd.asarray([[1.0], [1.0]]), bkd.ones((3,)), bkd
-            )
+        drift = m_orthonormality_drift(
+            basis_values, DiagonalInnerProduct(weights, bkd), bkd
+        )
+        assert drift > 0.1
 
 
 class TestChristoffelIntegral:

@@ -5,25 +5,24 @@ basis. For an *output* encoder the map must be an isometry, since the
 least-squares fit minimizes the Euclidean norm of coefficient residuals
 and that equals the Bochner error only when norms are preserved.
 
-TODO(layering): the Y-inner-product is taken as a MassMatrixProtocol
-imported from pyapprox.ode. A mass matrix is pure linear algebra, not
-an ODE concept, and util.linalg already owns the sparse dispatch that
-ode.mass_matrix itself calls, so util.linalg is the natural home. The
-move touches ode/, pde/ and surrogates/dynamical_systems/, so it is
-deferred to its own change. The import direction is at least sound:
-surrogates already depends on ode elsewhere and ode never imports
-surrogates.
+The Y-inner-product is an ``InnerProductProtocol`` from ``util.linalg``,
+the same object empirical bases are built in, so a basis and the metric
+it was orthonormalized against travel together rather than being two
+arguments a caller may mismatch.
 """
 
 from __future__ import annotations
 
 from typing import Generic, List, Optional, Sequence
 
-from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.surrogates.operatorlearning.protocols import (
     FieldEncoderProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.inner_product import (
+    InnerProductProtocol,
+    m_orthonormality_drift,
+)
 
 
 class IdentityFieldEncoder(Generic[Array]):
@@ -55,20 +54,20 @@ class IdentityFieldEncoder(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def ncodes(self) -> int:
+    def latent_dim(self) -> int:
         """Return the number of coefficients."""
         return self._ngrid
 
-    def ngrid(self) -> int:
+    def full_dim(self) -> int:
         """Return the number of grid points."""
         return self._ngrid
 
     def encode(self, f_grid: Array) -> Array:
-        """Encode grid values to coefficients. (ngrid, N) -> (ncodes, N)."""
+        """Encode grid values to coefficients. (full_dim, N) -> (latent_dim, N)."""
         return f_grid
 
     def decode(self, codes: Array) -> Array:
-        """Decode coefficients to grid values. (ncodes, N) -> (ngrid, N)."""
+        """Decode coefficients to grid values. (latent_dim, N) -> (full_dim, N)."""
         return codes
 
     def is_isometry(self) -> bool:
@@ -94,9 +93,9 @@ class GramProjectionEncoder(Generic[Array]):
     silently lumped to its diagonal. Lumping would corrupt both the
     projection and the orthonormality check, leaving ``is_isometry()``
     true for a basis that is not one under the real inner product. Pass
-    :class:`DiagonalMassMatrix` for a quadrature rule,
-    :class:`ConstantSparseMassMatrix` for an assembled FE mass matrix,
-    or :class:`IdentityMassMatrix` for the Euclidean case.
+    :class:`DiagonalInnerProduct` for a quadrature rule,
+    :class:`MassInnerProduct` for an assembled FE mass matrix, or
+    :class:`EuclideanInnerProduct` for the unweighted case.
 
     Orthonormality is checked at construction rather than assumed, so a
     basis that is merely linearly independent is reported as
@@ -107,20 +106,20 @@ class GramProjectionEncoder(Generic[Array]):
     ----------
     basis_values : Array
         Basis functions at the grid points, :math:`\psi_j(x_k)`.
-        Shape: (ngrid, ncodes)
-    mass_matrix : MassMatrixProtocol[Array]
-        The Y-inner-product operator :math:`M`, acting on (ngrid, N).
+        Shape: (full_dim, latent_dim)
+    inner_product : InnerProductProtocol[Array]
+        The Y-inner-product :math:`M`, acting on (full_dim, N).
     bkd : Backend[Array]
         Computational backend.
     orthonormality_tol : float
-        Tolerance on :math:`\|\Psi^T M \Psi - I\|_\infty` below which
-        the encoder reports itself an isometry.
+        Tolerance on :math:`\|\Psi^T M \Psi - I\|_F` below which the
+        encoder reports itself an isometry.
     """
 
     def __init__(
         self,
         basis_values: Array,
-        mass_matrix: MassMatrixProtocol[Array],
+        inner_product: InnerProductProtocol[Array],
         bkd: Backend[Array],
         orthonormality_tol: float = 1e-10,
     ) -> None:
@@ -128,67 +127,58 @@ class GramProjectionEncoder(Generic[Array]):
             raise ValueError(
                 f"basis_values must be 2D, got shape {basis_values.shape}"
             )
-        if not isinstance(mass_matrix, MassMatrixProtocol):
+        if not isinstance(inner_product, InnerProductProtocol):
             raise TypeError(
-                f"mass_matrix must satisfy MassMatrixProtocol, got "
-                f"{type(mass_matrix).__name__}"
+                f"inner_product must satisfy InnerProductProtocol, got "
+                f"{type(inner_product).__name__}"
             )
         self._basis_values = basis_values
-        self._mass = mass_matrix
+        self._inner_product = inner_product
         self._bkd = bkd
-        self._gram = self._compute_gram()
-        self._is_isometry = bool(
-            bkd.max(bkd.abs(self._gram - bkd.eye(self.ncodes())))
-            < orthonormality_tol
-        )
-
-    def _compute_gram(self) -> Array:
-        """Return the Gram matrix Psi^T M Psi. Shape: (ncodes, ncodes)."""
-        return self._bkd.dot(
-            self._basis_values.T, self._mass.apply(self._basis_values)
-        )
+        self._drift = m_orthonormality_drift(basis_values, inner_product, bkd)
+        self._is_isometry = self._drift < orthonormality_tol
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
 
-    def ncodes(self) -> int:
+    def latent_dim(self) -> int:
         """Return the number of coefficients."""
         return int(self._basis_values.shape[1])
 
-    def ngrid(self) -> int:
+    def full_dim(self) -> int:
         """Return the number of grid points."""
         return int(self._basis_values.shape[0])
 
     def basis_values(self) -> Array:
-        """Return the basis at the grid points. (ngrid, ncodes)."""
+        """Return the basis at the grid points. (full_dim, latent_dim)."""
         return self._basis_values
 
-    def mass_matrix(self) -> MassMatrixProtocol[Array]:
-        """Return the Y-inner-product operator."""
-        return self._mass
+    def inner_product(self) -> InnerProductProtocol[Array]:
+        """Return the Y-inner-product."""
+        return self._inner_product
 
-    def gram(self) -> Array:
-        """Return the Gram matrix Psi^T M Psi. (ncodes, ncodes)."""
-        return self._gram
+    def orthonormality_drift(self) -> float:
+        r"""Return :math:`\|\Psi^T M \Psi - I\|_F`, zero for an isometry."""
+        return self._drift
 
     def encode(self, f_grid: Array) -> Array:
-        """Encode grid values to coefficients. (ngrid, N) -> (ncodes, N)."""
-        if f_grid.shape[0] != self.ngrid():
+        """Encode grid values to coefficients. (full_dim, N) -> (latent_dim, N)."""
+        if f_grid.shape[0] != self.full_dim():
             raise ValueError(
                 f"f_grid has wrong leading dimension {f_grid.shape[0]}, "
-                f"expected {self.ngrid()}"
+                f"expected {self.full_dim()}"
             )
         return self._bkd.dot(
-            self._basis_values.T, self._mass.apply(f_grid)
+            self._basis_values.T, self._inner_product.apply(f_grid)
         )
 
     def decode(self, codes: Array) -> Array:
-        """Decode coefficients to grid values. (ncodes, N) -> (ngrid, N)."""
-        if codes.shape[0] != self.ncodes():
+        """Decode coefficients to grid values. (latent_dim, N) -> (full_dim, N)."""
+        if codes.shape[0] != self.latent_dim():
             raise ValueError(
                 f"codes has wrong leading dimension {codes.shape[0]}, "
-                f"expected {self.ncodes()}"
+                f"expected {self.latent_dim()}"
             )
         return self._bkd.dot(self._basis_values, codes)
 
@@ -199,7 +189,7 @@ class GramProjectionEncoder(Generic[Array]):
 
 def orthonormalize_basis(
     basis_values: Array,
-    mass_matrix: MassMatrixProtocol[Array],
+    inner_product: InnerProductProtocol[Array],
     bkd: Backend[Array],
 ) -> Array:
     r"""Orthonormalize a basis under an inner product operator.
@@ -215,25 +205,25 @@ def orthonormalize_basis(
     orthonormal.
 
     The factorized Gram is only (ncodes, ncodes), so this stays cheap
-    however fine the grid; ``mass_matrix`` may be sparse. The basis
-    itself is a dense (ngrid, ncodes) array, which bounds ngrid by
+    however fine the grid; ``inner_product`` may be sparse. The basis
+    itself is a dense (full_dim, latent_dim) array, which bounds ngrid by
     what fits in memory.
 
     Parameters
     ----------
     basis_values : Array
-        Basis at the grid points. Shape: (ngrid, ncodes)
-    mass_matrix : MassMatrixProtocol[Array]
-        The Y-inner-product operator :math:`M`.
+        Basis at the grid points. Shape: (full_dim, latent_dim)
+    inner_product : InnerProductProtocol[Array]
+        The Y-inner-product :math:`M`.
     bkd : Backend[Array]
         Computational backend.
 
     Returns
     -------
     Array
-        Orthonormalized basis values. Shape: (ngrid, ncodes)
+        Orthonormalized basis values. Shape: (full_dim, latent_dim)
     """
-    gram = bkd.dot(basis_values.T, mass_matrix.apply(basis_values))
+    gram = bkd.dot(basis_values.T, inner_product.apply(basis_values))
     factor = bkd.cholesky(gram)
     return bkd.solve_triangular(factor, basis_values.T, lower=True).T
 
@@ -310,13 +300,13 @@ class ProductFieldEncoder(Generic[Array]):
         """Return the per-field encoders."""
         return list(self._encoders)
 
-    def ncodes(self) -> int:
+    def latent_dim(self) -> int:
         """Return the total number of coefficients across fields."""
-        return sum(encoder.ncodes() for encoder in self._encoders)
+        return sum(encoder.latent_dim() for encoder in self._encoders)
 
-    def ngrid(self) -> int:
+    def full_dim(self) -> int:
         """Return the total number of grid points across fields."""
-        return sum(encoder.ngrid() for encoder in self._encoders)
+        return sum(encoder.full_dim() for encoder in self._encoders)
 
     def _scale(self, index: int) -> Optional[Array]:
         """Return the amplitude applied to field ``index``, if any."""
@@ -325,19 +315,19 @@ class ProductFieldEncoder(Generic[Array]):
         return self._sqrt_scalings[index]
 
     def encode(self, f_grid: Array) -> Array:
-        """Encode stacked grid values. (ngrid, N) -> (ncodes, N).
+        """Encode stacked grid values. (full_dim, N) -> (latent_dim, N).
 
         Fields are stacked in encoder order along the first axis.
         """
-        if f_grid.shape[0] != self.ngrid():
+        if f_grid.shape[0] != self.full_dim():
             raise ValueError(
                 f"f_grid has wrong leading dimension {f_grid.shape[0]}, "
-                f"expected {self.ngrid()}"
+                f"expected {self.full_dim()}"
             )
         blocks = []
         offset = 0
         for index, encoder in enumerate(self._encoders):
-            size = encoder.ngrid()
+            size = encoder.full_dim()
             codes = encoder.encode(f_grid[offset : offset + size])
             scale = self._scale(index)
             blocks.append(codes if scale is None else scale * codes)
@@ -345,16 +335,16 @@ class ProductFieldEncoder(Generic[Array]):
         return self._bkd.concatenate(blocks, axis=0)
 
     def decode(self, codes: Array) -> Array:
-        """Decode stacked coefficients. (ncodes, N) -> (ngrid, N)."""
-        if codes.shape[0] != self.ncodes():
+        """Decode stacked coefficients. (latent_dim, N) -> (full_dim, N)."""
+        if codes.shape[0] != self.latent_dim():
             raise ValueError(
                 f"codes has wrong leading dimension {codes.shape[0]}, "
-                f"expected {self.ncodes()}"
+                f"expected {self.latent_dim()}"
             )
         blocks = []
         offset = 0
         for index, encoder in enumerate(self._encoders):
-            size = encoder.ncodes()
+            size = encoder.latent_dim()
             block = codes[offset : offset + size]
             scale = self._scale(index)
             blocks.append(

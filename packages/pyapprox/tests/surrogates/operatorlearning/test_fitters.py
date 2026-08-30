@@ -9,7 +9,6 @@ from typing import Any, Tuple
 
 import numpy as np
 import pytest
-from pyapprox.ode.mass_matrix import DiagonalMassMatrix
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis.orthonormal_poly import (
     OrthonormalPolynomialBasis,
@@ -29,6 +28,7 @@ from pyapprox.surrogates.operatorlearning import (
     bochner_error,
 )
 from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.linalg.inner_product import DiagonalInnerProduct
 
 
 def _expansion(
@@ -89,7 +89,7 @@ def _sine_encoder(bkd: Backend, ngrid: int, ncodes: int) -> Any:
     x = np.linspace(0.0, 1.0, ngrid + 2)[1:-1]
     modes = np.arange(1, ncodes + 1)
     sine = np.sqrt(2.0) * np.sin(np.outer(x, modes) * np.pi)
-    mass = DiagonalMassMatrix(bkd.full((ngrid,), 1.0 / (ngrid + 1)), bkd)
+    mass = DiagonalInnerProduct(bkd.full((ngrid,), 1.0 / (ngrid + 1)), bkd)
     return GramProjectionEncoder(bkd.asarray(sine), mass, bkd)
 
 

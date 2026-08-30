@@ -19,7 +19,6 @@ from typing import Any, Tuple
 
 import numpy as np
 import pytest
-from pyapprox.ode.mass_matrix import DiagonalMassMatrix
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import TransformedMesh1D
@@ -47,6 +46,7 @@ from pyapprox.surrogates.operatorlearning import (
     sample_complexity,
 )
 from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.linalg.inner_product import DiagonalInnerProduct
 
 NMODES = 5
 # Clenshaw-Curtis needs 2^l + 1 points, and its nodes then coincide
@@ -118,7 +118,7 @@ def _sine_encoder(bkd: Backend, nodes: Any, nmodes: int) -> Any:
 
     return GramProjectionEncoder(
         bkd.asarray(raw),
-        DiagonalMassMatrix(bkd.asarray(weights), bkd),
+        DiagonalInnerProduct(bkd.asarray(weights), bkd),
         bkd,
     )
 

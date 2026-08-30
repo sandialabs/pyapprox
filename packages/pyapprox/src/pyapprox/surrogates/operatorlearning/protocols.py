@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Generic, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.surrogates.kerneloperator.protocols import (
+    FunctionEncoderProtocol,
+)
+from pyapprox.util.backends.protocols import Array
 
 
 @runtime_checkable
@@ -35,33 +38,17 @@ class IsometricEncoderProtocol(Protocol):
 
 
 @runtime_checkable
-class FieldEncoderProtocol(Protocol, Generic[Array]):
-    """Bidirectional map between field values on a grid and coefficients.
+class FieldEncoderProtocol(
+    FunctionEncoderProtocol[Array], Protocol, Generic[Array]
+):
+    """A function encoder that also reports whether it is an isometry.
 
-    Structurally identical to
-    :class:`pyapprox.surrogates.kerneloperator.protocols.FunctionEncoderProtocol`
-    with :class:`IsometricEncoderProtocol` folded in, so encoders from
-    either module satisfy it.
+    Least-squares operator learning needs the encoding and decoding
+    that :class:`FunctionEncoderProtocol` already declares, plus the
+    isometry property, so it composes the two rather than restating
+    them. Any encoder written for kernel operator learning satisfies
+    this as soon as it can answer :meth:`is_isometry`.
     """
-
-    def bkd(self) -> Backend[Array]:
-        ...
-
-    def ncodes(self) -> int:
-        """Return the number of coefficients."""
-        ...
-
-    def ngrid(self) -> int:
-        """Return the number of grid points."""
-        ...
-
-    def encode(self, f_grid: Array) -> Array:
-        """Encode grid values to coefficients. (ngrid, N) -> (ncodes, N)."""
-        ...
-
-    def decode(self, codes: Array) -> Array:
-        """Decode coefficients to grid values. (ncodes, N) -> (ngrid, N)."""
-        ...
 
     def is_isometry(self) -> bool:
         """Return whether encoding preserves the Y-norm."""
