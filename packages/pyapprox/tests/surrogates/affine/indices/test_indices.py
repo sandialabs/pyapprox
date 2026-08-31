@@ -30,6 +30,7 @@ from pyapprox.surrogates.affine.indices.utils import (
     compute_hyperbolic_level_indices,
     hash_index,
     indices_pnorm,
+    restrict_indices_to_leading_vars,
     sort_indices_lexiographically,
 )
 from pyapprox.surrogates.affine.protocols.index import (
@@ -952,3 +953,96 @@ class TestIndexSequenceProtocolCheckable:
                 return None
 
         assert isinstance(DummySeq(), IndexSequenceProtocol)
+
+
+class TestRestrictIndicesToLeadingVars:
+    """Test restrict_indices_to_leading_vars function."""
+
+    def test_drops_unsupported_indices(self, bkd):
+        """An index with a nonzero trailing entry has no counterpart."""
+        # Columns (1,1,0) and (0,0,1); only the first is supported on
+        # the leading two variables.
+        indices = bkd.asarray(
+            [[1, 0], [1, 0], [0, 1]], dtype=bkd.int64_dtype()
+        )
+        restricted = restrict_indices_to_leading_vars(indices, 2, bkd)
+        assert restricted.shape == (2, 1)
+        expected = bkd.asarray([[1], [1]], dtype=bkd.int64_dtype())
+        bkd.assert_allclose(restricted, expected)
+
+    def test_keeps_everything_when_nvars_unchanged(self, bkd):
+        indices = bkd.asarray([[2, 1], [0, 1]], dtype=bkd.int64_dtype())
+        restricted = restrict_indices_to_leading_vars(indices, 2, bkd)
+        bkd.assert_allclose(restricted, indices)
+
+    def test_restricting_to_zero_vars(self, bkd):
+        """Only the constant index survives a restriction to no variables."""
+        indices = bkd.asarray([[0, 1], [0, 0]], dtype=bkd.int64_dtype())
+        restricted = restrict_indices_to_leading_vars(indices, 0, bkd)
+        assert restricted.shape == (0, 1)
+
+    @pytest.mark.parametrize("nvars", [-1, 3])
+    def test_rejects_out_of_range_nvars(self, bkd, nvars):
+        indices = bkd.asarray([[1], [1]], dtype=bkd.int64_dtype())
+        with pytest.raises(ValueError):
+            restrict_indices_to_leading_vars(indices, nvars, bkd)
+
+    @pytest.mark.parametrize(
+        "nvars_full,nvars,level", [(4, 2, 2), (4, 3, 3), (5, 2, 3), (5, 4, 2)]
+    )
+    def test_restriction_of_degree_band_is_the_smaller_band(
+        self, bkd, nvars_full, nvars, level
+    ):
+        """Restricting a total-degree band reproduces the smaller band.
+
+        This is the property the greedy manifold construction relies on:
+        the trial index set at a lower dimension is the restriction of the
+        full one, so selection and the final fit use the same terms.
+        """
+        full = compute_hyperbolic_level_indices(nvars_full, level, 1.0, bkd)
+        restricted = restrict_indices_to_leading_vars(full, nvars, bkd)
+        direct = compute_hyperbolic_level_indices(nvars, level, 1.0, bkd)
+        bkd.assert_allclose(
+            sort_indices_lexiographically(restricted, bkd),
+            sort_indices_lexiographically(direct, bkd),
+        )
+
+    def test_no_duplicates_on_downward_closed_set(self, bkd):
+        """Restriction never maps two indices onto the same one.
+
+        Truncating rows would: (2,1,1) and (2,1,3) both become (2,1).
+        Dropping the unsupported columns instead keeps the surviving
+        indices distinct, so no term is counted twice.
+        """
+        closure = compute_downward_closure(
+            bkd.asarray([[2], [1], [3]], dtype=bkd.int64_dtype()), bkd
+        )
+        restricted = restrict_indices_to_leading_vars(closure, 2, bkd)
+        columns = [
+            tuple(
+                int(bkd.to_numpy(restricted[i, j]))
+                for i in range(restricted.shape[0])
+            )
+            for j in range(restricted.shape[1])
+        ]
+        assert len(columns) == len(set(columns))
+
+    def test_restriction_stays_downward_closed(self, bkd):
+        """A downward-closed set restricts to a downward-closed set."""
+        closure = compute_downward_closure(
+            bkd.asarray([[2], [1], [2]], dtype=bkd.int64_dtype()), bkd
+        )
+        restricted = restrict_indices_to_leading_vars(closure, 2, bkd)
+        present = {
+            tuple(
+                int(bkd.to_numpy(restricted[i, j]))
+                for i in range(restricted.shape[0])
+            )
+            for j in range(restricted.shape[1])
+        }
+        for index in present:
+            for dim in range(len(index)):
+                if index[dim] > 0:
+                    predecessor = list(index)
+                    predecessor[dim] -= 1
+                    assert tuple(predecessor) in present

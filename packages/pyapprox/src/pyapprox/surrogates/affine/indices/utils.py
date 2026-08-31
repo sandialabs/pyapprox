@@ -374,3 +374,63 @@ def compute_downward_closure(indices: Array, bkd: Backend[Array]) -> Array:
 
     # Sort lexicographically for consistent output
     return sort_indices_lexiographically(result, bkd)
+
+
+def restrict_indices_to_leading_vars(
+    indices: Array, nvars: int, bkd: Backend[Array]
+) -> Array:
+    """Restrict a multi-index set to its first ``nvars`` dimensions.
+
+    Keeps the indices supported entirely on dimensions ``0..nvars-1`` --
+    those whose trailing entries are all zero -- and drops the trailing
+    rows. An index with a nonzero trailing entry names a variable the
+    smaller set does not have, so it has no counterpart there and is
+    removed rather than projected: truncating it instead would map
+    distinct indices onto the same one and count a term twice.
+
+    On a downward-closed set the result is exactly the set of indices the
+    leading variables support, and is itself downward closed. For a total
+    degree band this recovers the band on ``nvars`` variables, so
+    restricting the degree-2 indices of 4 variables to 2 gives precisely
+    the degree-2 indices of 2 variables.
+
+    Parameters
+    ----------
+    indices : Array
+        Multi-indices to restrict. Shape: (nvars_full, nindices)
+    nvars : int
+        Number of leading dimensions to keep. Must satisfy
+        ``0 <= nvars <= indices.shape[0]``.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Array
+        The restricted indices. Shape: (nvars, nkept)
+
+    Examples
+    --------
+    >>> from pyapprox.util.backends.numpy import NumpyBkd
+    >>> bkd = NumpyBkd()
+    >>> # (1,1) is supported on the first 2 vars; (0,0,1) is not.
+    >>> indices = bkd.asarray([[1, 0], [1, 0], [0, 1]])
+    >>> restricted = restrict_indices_to_leading_vars(indices, 2, bkd)
+    >>> restricted.shape[1]  # only the first column survives
+    1
+    """
+    nvars_full = indices.shape[0]
+    if not 0 <= nvars <= nvars_full:
+        raise ValueError(
+            f"nvars ({nvars}) must be between 0 and the number of "
+            f"dimensions of indices ({nvars_full})"
+        )
+    index_matrix = np.asarray(bkd.to_numpy(indices)).astype(int)
+    kept = [
+        column
+        for column in range(index_matrix.shape[1])
+        if not np.any(index_matrix[nvars:, column] > 0)
+    ]
+    return bkd.asarray(
+        index_matrix[:nvars, :][:, kept], dtype=bkd.int64_dtype()
+    )

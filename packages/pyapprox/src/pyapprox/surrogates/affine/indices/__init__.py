@@ -56,6 +56,7 @@ from pyapprox.surrogates.affine.indices.utils import (
     compute_hyperbolic_level_indices,
     hash_index,
     indices_pnorm,
+    restrict_indices_to_leading_vars,
     sort_indices_lexiographically,
 )
 
@@ -68,6 +69,7 @@ __all__ = [
     "argsort_indices_lexiographically",
     "indices_pnorm",
     "compute_downward_closure",
+    "restrict_indices_to_leading_vars",
     # Admissibility criteria
     "AdmissibilityCriteria",
     "AlwaysAdmissible",
