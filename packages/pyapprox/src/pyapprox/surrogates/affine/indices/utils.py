@@ -388,11 +388,22 @@ def restrict_indices_to_leading_vars(
     removed rather than projected: truncating it instead would map
     distinct indices onto the same one and count a term twice.
 
-    On a downward-closed set the result is exactly the set of indices the
-    leading variables support, and is itself downward closed. For a total
-    degree band this recovers the band on ``nvars`` variables, so
-    restricting the degree-2 indices of 4 variables to 2 gives precisely
-    the degree-2 indices of 2 variables.
+    The restriction is well defined exactly when the surviving indices
+    stay distinct, which is checked rather than assumed: two indices
+    collapsing onto one would silently count a term twice. Duplicates
+    cannot arise from dropping the trailing rows of columns that are
+    already zero there, so this holds for every index set met in
+    practice, and the check is a guard rather than an expected path.
+
+    Downward-closed sets satisfy it, and so does a total-degree band,
+    which is *not* downward closed -- ``(1,0,1)`` belongs to the degree-2
+    band while ``(0,0,1)`` does not. Closure is sufficient but not
+    necessary: what the argument needs is only that the survivors have
+    all-zero tails, so distinct columns stay distinct. On a downward-
+    closed set the result is again downward closed; on a degree band it
+    is the band on ``nvars`` variables, so restricting the degree-2
+    indices of 4 variables to 2 gives precisely the degree-2 indices of
+    2 variables.
 
     Parameters
     ----------
@@ -408,6 +419,12 @@ def restrict_indices_to_leading_vars(
     -------
     Array
         The restricted indices. Shape: (nvars, nkept)
+
+    Raises
+    ------
+    ValueError
+        If ``nvars`` is out of range, or if the restriction would
+        produce duplicate indices.
 
     Examples
     --------
@@ -431,6 +448,17 @@ def restrict_indices_to_leading_vars(
         for column in range(index_matrix.shape[1])
         if not np.any(index_matrix[nvars:, column] > 0)
     ]
-    return bkd.asarray(
-        index_matrix[:nvars, :][:, kept], dtype=bkd.int64_dtype()
-    )
+    restricted = index_matrix[:nvars, :][:, kept]
+    # Enforce the precondition rather than trusting the caller's index
+    # set to have it. A collapse here would not fail loudly downstream:
+    # it would duplicate a term, making a fitted basis rank deficient
+    # and its Gram singular, far from the cause.
+    columns = [tuple(column) for column in restricted.T.tolist()]
+    if len(columns) != len(set(columns)):
+        raise ValueError(
+            f"restricting to {nvars} of {nvars_full} variables produced "
+            "duplicate indices, which would count a term twice. The "
+            "index set has two indices agreeing on the leading "
+            f"{nvars} variables and both supported there."
+        )
+    return bkd.asarray(restricted, dtype=bkd.int64_dtype())

@@ -1046,3 +1046,42 @@ class TestRestrictIndicesToLeadingVars:
                     predecessor = list(index)
                     predecessor[dim] -= 1
                     assert tuple(predecessor) in present
+
+    def test_degree_band_is_not_downward_closed(self, bkd) -> None:
+        """The band restricts correctly despite failing closure.
+
+        Closure is sufficient for the restriction to be well defined,
+        not necessary: a total-degree band contains (1,0,1) but not its
+        predecessor (0,0,1), yet its survivors still have all-zero tails
+        and so stay distinct.
+        """
+        band = compute_hyperbolic_level_indices(3, 2, 1.0, bkd)
+        present = {
+            tuple(int(bkd.to_numpy(band[i, j])) for i in range(3))
+            for j in range(band.shape[1])
+        }
+        assert (1, 0, 1) in present
+        assert (0, 0, 1) not in present
+        restricted = restrict_indices_to_leading_vars(band, 2, bkd)
+        bkd.assert_allclose(
+            sort_indices_lexiographically(restricted, bkd),
+            sort_indices_lexiographically(
+                compute_hyperbolic_level_indices(2, 2, 1.0, bkd), bkd
+            ),
+        )
+
+    def test_rejects_a_restriction_that_would_duplicate(self, bkd) -> None:
+        """A collapse is refused rather than silently counting twice.
+
+        Two indices agreeing on the leading variables and both supported
+        there cannot arise from a downward-closed set or a degree band,
+        but the guard exists because the failure would otherwise surface
+        only as a singular Gram far downstream.
+        """
+        # Columns (1,0) and (1,0) padded differently: both are supported
+        # on variable 0 alone, so both survive and collide.
+        indices = bkd.asarray(
+            [[1, 1], [0, 0]], dtype=bkd.int64_dtype()
+        )
+        with pytest.raises(ValueError, match="duplicate indices"):
+            restrict_indices_to_leading_vars(indices, 1, bkd)
