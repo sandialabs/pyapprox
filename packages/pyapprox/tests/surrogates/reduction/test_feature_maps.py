@@ -245,3 +245,30 @@ class TestFeatureMapAutograd:
             torch_bkd.assert_allclose(
                 auto[:, i, :, i], analytic[:, :, i], rtol=1e-10
             )
+
+
+class TestEmptyFeatureMap:
+    """An empty index set is a map with no terms, not an error.
+
+    A manifold with no correction is a legitimate configuration -- it is
+    plain PCA -- and the scoring code reaches it whenever a trial subspace
+    supports none of the requested monomials.
+    """
+
+    def _empty(self, bkd, nreduced=2):
+        return SparseMonomialFeatureMap(
+            bkd.asarray(np.zeros((nreduced, 0), dtype=int)), bkd
+        )
+
+    def test_nterms_is_zero(self, bkd) -> None:
+        assert self._empty(bkd).nterms() == 0
+
+    def test_call_returns_no_rows(self, bkd) -> None:
+        fm = self._empty(bkd)
+        z = bkd.array(np.random.RandomState(0).uniform(-1, 1, (2, 5)))
+        assert fm(z).shape == (0, 5)
+
+    def test_jacobian_returns_no_rows(self, bkd) -> None:
+        fm = self._empty(bkd)
+        z = bkd.array(np.random.RandomState(0).uniform(-1, 1, (2, 5)))
+        assert fm.jacobian(z).shape == (0, 2, 5)

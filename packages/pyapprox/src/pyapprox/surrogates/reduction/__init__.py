@@ -15,6 +15,11 @@ Key Classes
 -----------
 - MonomialFeatureMap: monomials of selected total degrees
 - SparseMonomialFeatureMap: monomials over an arbitrary multi-index set
+- ManifoldScorer: scores trial bases and fits the correction weights
+
+Utilities
+---------
+- center_and_decompose: center snapshots and take their thin SVD
 """
 
 from pyapprox.surrogates.reduction.feature_maps import (
@@ -24,11 +29,17 @@ from pyapprox.surrogates.reduction.feature_maps import (
     SparseMonomialFeatureMap,
     build_feature_map,
 )
+from pyapprox.surrogates.reduction.manifold_scoring import (
+    ManifoldScorer,
+    center_and_decompose,
+)
 
 __all__ = [
     "DifferentiableFeatureMap",
     "FeatureMap",
+    "ManifoldScorer",
     "MonomialFeatureMap",
     "SparseMonomialFeatureMap",
     "build_feature_map",
+    "center_and_decompose",
 ]

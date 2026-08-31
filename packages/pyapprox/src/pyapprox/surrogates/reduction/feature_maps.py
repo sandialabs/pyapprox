@@ -137,6 +137,11 @@ class _MultiIndexFeatureMap(Generic[Array]):
         bkd = self._bkd
         r, k = codes.shape
         indices = self._indices_int
+        if self.nterms() == 0:
+            # An empty index set is a legitimate map with no correction
+            # terms, not an error: stacking nothing has no shape, so the
+            # empty result is built directly.
+            return bkd.zeros((0, k))
         terms: List[Array] = []
         for a in range(self.nterms()):
             term = bkd.full((k,), 1.0)
@@ -152,6 +157,8 @@ class _MultiIndexFeatureMap(Generic[Array]):
         bkd = self._bkd
         r, k = codes.shape
         indices = self._indices_int
+        if self.nterms() == 0:
+            return bkd.zeros((0, r, k))
         zero = bkd.full((k,), 0.0)
         rows: List[Array] = []
         for a in range(self.nterms()):
