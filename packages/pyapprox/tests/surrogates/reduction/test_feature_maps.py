@@ -53,9 +53,31 @@ class TestMonomialFeatureMap:
         degrees = bkd.to_numpy(bkd.sum(fm.indices(), axis=0)).astype(int)
         assert np.all(degrees == 2)
 
-    def test_rejects_low_degree(self, bkd) -> None:
-        with pytest.raises(ValueError):
-            build_feature_map(2, bkd, degrees=(1, 2))
+    def test_default_includes_the_low_degrees(self, bkd) -> None:
+        # r=2 up to quadratic: 1 constant + 2 linear + 3 quadratic = 6.
+        # The low degrees are not redundant with the decoder's own
+        # constant and linear parts, which act outside the complement
+        # the correction is fitted in.
+        fm = build_feature_map(2, bkd)
+        assert fm.degrees() == (0, 1, 2)
+        assert fm.nterms() == 6
+        degrees = bkd.to_numpy(bkd.sum(fm.indices(), axis=0)).astype(int)
+        assert sorted(degrees.tolist()) == [0, 1, 1, 2, 2, 2]
+
+    def test_bare_band_remains_available(self, bkd) -> None:
+        # The paper's Eq. (5) states the correction over quadratics
+        # alone, so the band stays reachable even though it is not the
+        # default and is not downward closed.
+        fm = build_feature_map(2, bkd, degrees=(2,))
+        assert fm.nterms() == 3
+
+    def test_rejects_negative_degree(self, bkd) -> None:
+        with pytest.raises(ValueError, match="non-negative"):
+            build_feature_map(2, bkd, degrees=(-1, 2))
+
+    def test_rejects_repeated_degree(self, bkd) -> None:
+        with pytest.raises(ValueError, match="distinct"):
+            build_feature_map(2, bkd, degrees=(2, 2))
 
     def test_accessors(self, bkd) -> None:
         fm = build_feature_map(3, bkd, degrees=(2, 3))
@@ -125,6 +147,9 @@ class TestFeatureMapProtocols:
 
             def nterms(self) -> int:
                 return 1
+
+            def indices(self):
+                return bkd.asarray(np.array([[2], [0]]))
 
             def __call__(self, codes):
                 return codes[:1, :] ** 2

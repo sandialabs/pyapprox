@@ -6,10 +6,13 @@ distinguishes a quadratic manifold from a cubic (or higher-order) one: the
 greedy basis selection, weight-matrix fit, and decoder are all agnostic to
 which monomials :math:`h` produces.
 
-The correction term in the decoder :math:`g(z) = V z + W h(z)` only needs
-the nonlinear monomials, so feature maps here exclude the constant (degree
-0) and linear (degree 1) terms, which the linear part :math:`V z` already
-represents.
+Feature maps here include the constant and linear monomials by default.
+It is tempting to exclude them on the grounds that the decoder
+:math:`g(z) = \\mu + V z + W h(z)` already has a constant and a linear
+term, but :math:`W` is fitted to the residual :math:`s - P_V s`, which
+lies in the orthogonal complement of the basis, where neither
+:math:`\\mu` nor :math:`V z` reaches. See :class:`MonomialFeatureMap`
+for the measurements.
 
 Evaluating features and differentiating them are separate contracts.
 :class:`FeatureMap` requires only evaluation, which is all a linear encoder
@@ -45,6 +48,18 @@ class FeatureMap(Protocol[Array]):
 
     def nterms(self) -> int:
         """Number of features ``p`` produced."""
+        ...
+
+    def indices(self) -> Array:
+        """The multi-index set defining the features, shape (r, p).
+
+        Required because a construction working at a sequence of
+        increasing dimensions needs the terms a smaller subspace
+        supports, which is the index set restricted to those variables
+        (:func:`~pyapprox.surrogates.affine.indices.restrict_indices_to_leading_vars`).
+        Deriving them from the parameters that generated the set instead
+        would only work for maps built that way.
+        """
         ...
 
     def __call__(self, codes: Array) -> Array:
@@ -182,20 +197,41 @@ class _MultiIndexFeatureMap(Generic[Array]):
 
 
 class MonomialFeatureMap(_MultiIndexFeatureMap[Array], Generic[Array]):
-    """Monomial features of selected total degrees.
+    """Monomials of the requested total degrees.
 
     Uses ``compute_hyperbolic_level_indices`` (with pnorm=1.0, the level
     equals the total degree) to enumerate exactly the monomials of each
-    requested degree.  ``degrees=(2,)`` gives the quadratic feature map of
-    Eq. (5) in Schwerdtner & Peherstorfer (2024); ``degrees=(2, 3)`` adds
-    cubic correction terms; arbitrary higher orders follow the same pattern.
+    requested degree. ``degrees=(0, 1, 2)`` -- the default -- gives every
+    monomial up to quadratic; adding 3 extends it to cubic.
+
+    **Include degrees 0 and 1 unless there is a specific reason not to.**
+    The tempting argument for a bare ``degrees=(2,)`` band is that a
+    manifold decoder ``mu + V z + W h(z)`` already carries a constant in
+    ``mu`` and a linear term in ``V z``. That argument does not survive
+    contact with what ``W`` is fitted to: the residual ``s - P_V s``,
+    which lies in the orthogonal complement of the basis. ``mu`` was
+    subtracted before that projection and ``V z`` spans the complement's
+    orthogonal, so neither reaches the constant and linear parts of the
+    residual, and a degree-2 band leaves them unrepresented. Centering
+    guarantees a constant part is present, since the sample mean removes
+    ``E[h(z)]`` from the data but not from the features. Measured on
+    snapshots built to the decoder's own form, latent dimension 2:
+    a degree-2 band recovers 2.1x the linear reconstruction error, adding
+    degree 0 recovers 7.5x, and the full downward-closed set 167x.
+
+    A pure degree band is also not downward closed for more than one
+    variable -- it holds ``(1, 0, 1)`` but not ``(0, 0, 1)`` -- which puts
+    it outside the class of index sets the rest of the library is built
+    around. It remains available because the band is what the source
+    paper's Eq. (5) states, and because restricting it to fewer variables
+    is still well defined.
     """
 
     def __init__(
         self,
         nreduced: int,
         bkd: Backend[Array],
-        degrees: Sequence[int] = (2,),
+        degrees: Sequence[int] = (0, 1, 2),
     ) -> None:
         """
         Parameters
@@ -205,15 +241,22 @@ class MonomialFeatureMap(_MultiIndexFeatureMap[Array], Generic[Array]):
         bkd : Backend
             Computational backend.
         degrees : sequence of int
-            Total degrees of monomials to include.  Must all be >= 2
-            (degree 0 and 1 are represented by the linear decoder part).
+            Total degrees of monomials to include. Defaults to every
+            degree up to quadratic, which is downward closed. Omitting
+            the low degrees is allowed but costs accuracy; see the class
+            docstring.
         """
         checked_degrees = tuple(int(d) for d in degrees)
-        if any(d < 2 for d in checked_degrees):
+        if any(d < 0 for d in checked_degrees):
             raise ValueError(
-                "feature-map degrees must be >= 2; the constant and linear "
-                f"terms are covered by the linear decoder. Got "
+                f"feature-map degrees must be non-negative, got "
                 f"{checked_degrees}."
+            )
+        if len(set(checked_degrees)) != len(checked_degrees):
+            raise ValueError(
+                f"feature-map degrees must be distinct, got "
+                f"{checked_degrees}; a repeated degree would enumerate "
+                "the same monomials twice."
             )
         self._degrees = checked_degrees
         indices = self._build_indices(nreduced, checked_degrees, bkd)
@@ -301,7 +344,7 @@ class SparseMonomialFeatureMap(_MultiIndexFeatureMap[Array], Generic[Array]):
 
 
 def build_feature_map(
-    nreduced: int, bkd: Backend[Array], degrees: Sequence[int] = (2,)
+    nreduced: int, bkd: Backend[Array], degrees: Sequence[int] = (0, 1, 2)
 ) -> MonomialFeatureMap[Array]:
     """Construct a monomial feature map.
 
