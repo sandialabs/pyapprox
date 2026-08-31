@@ -162,9 +162,11 @@ class DataDrivenKLE(Generic[Array]):
         # solver forms the whole spectrum regardless, so a count given
         # up front would save nothing and a variance fraction could not
         # be answered at all without a second decomposition.
-        eig_vals, eig_vecs = self._eigensolver.solve(
+        decomposition = self._eigensolver.solve(
             self._field_samples, None, self._metric
         )
+        eig_vals = decomposition.eigenvalues
+        eig_vecs = decomposition.eigenvectors
         if nterms is None and variance_fraction is None:
             self._nterms = int(eig_vals.shape[0])
         else:

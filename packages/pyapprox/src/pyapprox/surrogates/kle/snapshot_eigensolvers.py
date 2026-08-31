@@ -47,12 +47,91 @@ machinery.
 """
 
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
+from dataclasses import dataclass
+from typing import (
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
+
+import numpy as np
 
 from pyapprox.surrogates.kle.eigensolvers import finalize_eigenpairs
 from pyapprox.surrogates.kle.truncation import by_numerical_rank
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import InnerProductProtocol
+
+
+def _match_columns(
+    raw: Array, finalized: Array, bkd: Backend[Array]
+) -> Tuple[List[int], Array]:
+    """Recover the permutation and signs relating two column sets.
+
+    ``finalized[:, j]`` is ``signs[j] * raw[:, order[j]]``. Used to
+    carry the sorting and sign convention applied to one factor of a
+    decomposition over to the other, without re-deriving the rules that
+    produced it -- which would leave two implementations free to drift
+    apart, and the drift would be silent.
+
+    Matching is by inner product: the columns are orthonormal, so the
+    partner of a finalized column is the raw column whose inner product
+    with it has magnitude one, and the sign of that inner product is the
+    flip that was applied.
+    """
+    products = bkd.to_numpy(bkd.dot(finalized.T, raw))
+    order: List[int] = []
+    signs = np.empty(products.shape[0])
+    for j in range(products.shape[0]):
+        match = int(np.argmax(np.abs(products[j, :])))
+        order.append(match)
+        signs[j] = 1.0 if products[j, match] >= 0.0 else -1.0
+    return order, bkd.asarray(signs)
+
+
+@dataclass(frozen=True)
+class SnapshotDecomposition(Generic[Array]):
+    r"""What decomposing a snapshot matrix yields.
+
+    The three pieces are one object rather than three returns because
+    they are only meaningful together. An eigenvector's sign is free in
+    isolation, but flipping it changes the coordinates the snapshots
+    have in that direction, so a caller handed the two separately could
+    hold a consistent-looking pair that no longer reconstructs the data.
+    Bundling them lets the sign convention be applied to both at once.
+
+    Attributes
+    ----------
+    eigenvalues : Array
+        Shape ``(nterms,)``, descending and non-negative. Eigenvalues of
+        ``S S^T M``, without the ``1/(n-1)`` that would make them a
+        sample covariance -- that convention belongs to the KLE, which
+        knows whether its input was centered.
+    eigenvectors : Array
+        Shape ``(nstates, nterms)``, metric-orthonormal.
+    coordinates : Array
+        Shape ``(nterms, nsamples)``. Each snapshot expressed in the
+        basis: ``coordinates[a, n]`` is the component of snapshot ``n``
+        along ``eigenvectors[:, a]``, so
+        ``eigenvectors @ coordinates`` reconstructs the input to the
+        retained rank. Equal to ``diag(s) Psi^T`` for the thin SVD
+        ``S = Phi diag(s) Psi^T``.
+
+        Carried rather than left to the caller to recompute as
+        ``eigenvectors.T @ snapshots``, which costs an
+        ``(nterms, nstates, nsamples)`` product that both solvers have
+        already done the work for.
+    """
+
+    eigenvalues: Array
+    eigenvectors: Array
+    coordinates: Array
+
+    def nterms(self) -> int:
+        """Number of retained modes."""
+        return int(self.eigenvalues.shape[0])
 
 
 @runtime_checkable
@@ -74,8 +153,8 @@ class SnapshotEigenSolverProtocol(Protocol, Generic[Array]):
         snapshots: Array,
         nterms: Optional[int] = None,
         metric: Optional[InnerProductProtocol[Array]] = None,
-    ) -> Tuple[Array, Array]:
-        r"""Return the leading ``nterms`` eigenpairs.
+    ) -> SnapshotDecomposition[Array]:
+        r"""Return the leading ``nterms`` eigenpairs and coordinates.
 
         Parameters
         ----------
@@ -100,13 +179,9 @@ class SnapshotEigenSolverProtocol(Protocol, Generic[Array]):
 
         Returns
         -------
-        eig_vals : Array
-            Shape ``(nterms,)``, descending, non-negative. Eigenvalues
-            of ``S S^T M``, without the ``1/(n-1)`` that would make them
-            a sample covariance -- that convention belongs to the KLE,
-            which knows whether its input was centered.
-        eig_vecs : Array
-            Shape ``(nstates, nterms)``, metric-orthonormal.
+        SnapshotDecomposition
+            The eigenvalues, the metric-orthonormal basis, and the
+            snapshot coordinates in that basis.
         """
         ...
 
@@ -126,7 +201,7 @@ class _SnapshotEigenSolver(Generic[Array], ABC):
         snapshots: Array,
         nterms: Optional[int] = None,
         metric: Optional[InnerProductProtocol[Array]] = None,
-    ) -> Tuple[Array, Array]:
+    ) -> SnapshotDecomposition[Array]:
         if snapshots.ndim != 2:
             raise ValueError(
                 "snapshots must be 2D (nstates, nsamples), got "
@@ -156,8 +231,42 @@ class _SnapshotEigenSolver(Generic[Array], ABC):
         snapshots: Array,
         nterms: Optional[int],
         metric: Optional[InnerProductProtocol[Array]],
-    ) -> Tuple[Array, Array]:
-        """Compute eigenpairs; arguments already validated."""
+    ) -> SnapshotDecomposition[Array]:
+        """Compute the decomposition; arguments already validated."""
+
+    def _finalize(
+        self,
+        eig_vals: Array,
+        eig_vecs: Array,
+        raw_coordinates: Array,
+        sqrt_weights: Optional[Array],
+        nterms: int,
+    ) -> SnapshotDecomposition[Array]:
+        """Apply the convention to both factors at once.
+
+        ``finalize_eigenpairs`` sorts, truncates and signs the
+        eigenvectors. The coordinates are the other half of the same
+        factorization, so they must be permuted and signed identically:
+        a flip applied to one and not the other leaves a pair that no
+        longer reconstructs the snapshots. The permutation is recovered
+        by matching finalized eigenvectors against the raw ones rather
+        than duplicating the sort's tie-breaking rule, which would be a
+        second place for the two to disagree.
+        """
+        bkd = self._bkd
+        vals, vecs = finalize_eigenpairs(
+            eig_vals, eig_vecs, sqrt_weights, nterms, bkd
+        )
+        # finalize_eigenpairs un-weights the vectors before signing, so
+        # compare in the same convention the raw ones are already in.
+        unweighted_raw = (
+            eig_vecs
+            if sqrt_weights is None
+            else eig_vecs / sqrt_weights[:, None]
+        )
+        order, signs = _match_columns(unweighted_raw, vecs, bkd)
+        coordinates = raw_coordinates[order, :] * signs[:, None]
+        return SnapshotDecomposition(vals, vecs, coordinates)
 
 
 class SVDSnapshotSolver(_SnapshotEigenSolver[Array]):
@@ -178,7 +287,7 @@ class SVDSnapshotSolver(_SnapshotEigenSolver[Array]):
         snapshots: Array,
         nterms: Optional[int],
         metric: Optional[InnerProductProtocol[Array]],
-    ) -> Tuple[Array, Array]:
+    ) -> SnapshotDecomposition[Array]:
         bkd = self._bkd
         sqrt_weights: Optional[Array] = None
         if metric is not None:
@@ -198,14 +307,20 @@ class SVDSnapshotSolver(_SnapshotEigenSolver[Array]):
             snapshots = sqrt_weights[:, None] * snapshots
 
         # Thin: only min(nstates, nsamples) left vectors can have a
-        # nonzero singular value, and the right factor is discarded, so
-        # the full form builds an (nsamples, nsamples) block for nothing.
-        eig_vecs, svals, _ = bkd.svd(snapshots, full_matrices=False)
+        # nonzero singular value, so the full form would build an
+        # (nsamples, nsamples) block whose extra columns pair with zero
+        # singular values.
+        eig_vecs, svals, right_factor = bkd.svd(
+            snapshots, full_matrices=False
+        )
         eig_vals = svals**2
         if nterms is None:
             nterms = max(1, by_numerical_rank(eig_vals, bkd))
-        return finalize_eigenpairs(
-            eig_vals, eig_vecs, sqrt_weights, nterms, bkd
+        # diag(s) Psi^T: the snapshot coordinates in the basis, in the
+        # solver's own (pre-convention) column order.
+        raw_coordinates = svals[:, None] * right_factor
+        return self._finalize(
+            eig_vals, eig_vecs, raw_coordinates, sqrt_weights, nterms
         )
 
 
@@ -233,7 +348,7 @@ class MethodOfSnapshotsSolver(_SnapshotEigenSolver[Array]):
         snapshots: Array,
         nterms: Optional[int],
         metric: Optional[InnerProductProtocol[Array]],
-    ) -> Tuple[Array, Array]:
+    ) -> SnapshotDecomposition[Array]:
         bkd = self._bkd
         weighted = (
             snapshots if metric is None else metric.apply(snapshots)
@@ -268,7 +383,14 @@ class MethodOfSnapshotsSolver(_SnapshotEigenSolver[Array]):
         # V = S Q / sqrt(lambda) is M-orthonormal:
         # V^T M V = diag(1/sqrt(l)) Q^T (S^T M S) Q diag(1/sqrt(l)) = I.
         basis = bkd.dot(snapshots, kept_vecs) / bkd.sqrt(kept_vals)
-        return finalize_eigenpairs(kept_vals, basis, None, nterms, bkd)
+        # The Gram eigenvectors are the right singular factor: for
+        # S = Phi diag(s) Psi^T the Gram S^T M S has eigenvectors Psi and
+        # eigenvalues s^2, so the coordinates diag(s) Psi^T are
+        # sqrt(lambda) Q^T -- already computed, not a second pass.
+        raw_coordinates = bkd.sqrt(kept_vals)[:, None] * kept_vecs.T
+        return self._finalize(
+            kept_vals, basis, raw_coordinates, None, nterms
+        )
 
 
 def default_snapshot_eigensolver(

@@ -57,6 +57,39 @@ def adjust_sign_eig(U: Array, bkd: Backend[Array]) -> Array:
     Array, shape (M, K)
         The same array, with each column's sign canonicalized.
     """
+    return eigenvector_signs(U, bkd)[0]
+
+
+def eigenvector_signs(
+    U: Array, bkd: Backend[Array]
+) -> Tuple[Array, Array]:
+    """Canonicalize column signs, and report the signs applied.
+
+    The same operation as :func:`adjust_sign_eig`, which delegates here,
+    but returning the sign vector as well as the signed array.
+
+    A caller holding a second factor of the same decomposition needs
+    this. Flipping the sign of an eigenvector is only free when nothing
+    else is paired with it: for a factorization ``A = U S V^T`` the
+    flip must be applied to the matching column of ``V`` too, or the
+    factors no longer reconstruct ``A``. Returning the signs lets that
+    caller apply them rather than re-deriving a rule that must agree
+    with this one exactly.
+
+    Parameters
+    ----------
+    U : Array, shape (M, K)
+        Eigenvectors as columns.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    U : Array, shape (M, K)
+        The same array, with each column's sign canonicalized.
+    signs : Array, shape (K,)
+        The sign applied to each column, ``+1`` or ``-1``.
+    """
     if U.ndim != 2:
         raise ValueError(f"U must be 2D (M, K), got ndim={U.ndim}")
     # argmax over each column, ties resolved to the lowest row index by
@@ -69,7 +102,7 @@ def adjust_sign_eig(U: Array, bkd: Backend[Array]) -> Array:
     # flip it; such a column has no orientation to canonicalize.
     signs = bkd.where(bkd.equal(signs, 0.0), bkd.full(signs.shape, 1.0), signs)
     U *= signs
-    return U
+    return U, signs
 
 
 def sort_eigenpairs(
