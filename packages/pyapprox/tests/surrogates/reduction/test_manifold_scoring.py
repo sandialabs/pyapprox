@@ -10,6 +10,9 @@ candidate sweep to scoring each candidate independently.
 
 import numpy as np
 import pytest
+from pyapprox.surrogates.kle.snapshot_eigensolvers import (
+    MethodOfSnapshotsSolver,
+)
 from pyapprox.surrogates.reduction.feature_maps import (
     MonomialFeatureMap,
     SparseMonomialFeatureMap,
@@ -18,6 +21,8 @@ from pyapprox.surrogates.reduction.manifold_scoring import (
     ManifoldScorer,
     center_and_decompose,
 )
+from pyapprox.util.linalg.inner_product import MassInnerProduct
+from scipy.sparse import diags
 
 
 def _coords(rank, nsnapshots, seed, bkd):
@@ -31,40 +36,71 @@ def _indices(nreduced, bkd, degrees=(2,)):
 
 
 class TestCenterAndDecompose:
-    """The SVD factors and the centering convention."""
+    """The decomposition and the centering convention."""
 
-    def test_factors_reproduce_centered_data(self, bkd):
+    def test_factors_reproduce_centered_data(self, bkd) -> None:
         data = bkd.array(np.random.RandomState(0).normal(size=(20, 50)))
-        centered, mean, phi, svals, psi_t = center_and_decompose(data, bkd)
+        centered, mean, decomposition = center_and_decompose(data, bkd)
         bkd.assert_allclose(centered, data - mean)
-        reconstructed = bkd.dot(phi * svals, psi_t)
-        bkd.assert_allclose(reconstructed, centered, atol=1e-10)
-
-    def test_uncentered_keeps_a_zero_mean(self, bkd):
-        data = bkd.array(np.random.RandomState(1).normal(size=(10, 30)))
-        centered, mean, _, _, _ = center_and_decompose(
-            data, bkd, center=False
+        bkd.assert_allclose(
+            decomposition.eigenvectors @ decomposition.coordinates,
+            centered,
+            atol=1e-10,
         )
+
+    def test_uncentered_keeps_a_zero_mean(self, bkd) -> None:
+        data = bkd.array(np.random.RandomState(1).normal(size=(10, 30)))
+        centered, mean, _ = center_and_decompose(data, bkd, center=False)
         bkd.assert_allclose(mean, bkd.zeros((10, 1)))
         bkd.assert_allclose(centered, data)
 
-    def test_supplied_mean_is_used_as_is(self, bkd):
+    def test_supplied_mean_is_used_as_is(self, bkd) -> None:
         data = bkd.array(np.random.RandomState(2).normal(size=(10, 30)))
         supplied = bkd.array(np.arange(10, dtype=float))
-        centered, mean, _, _, _ = center_and_decompose(
-            data, bkd, mean=supplied
-        )
+        centered, mean, _ = center_and_decompose(data, bkd, mean=supplied)
         assert mean.shape == (10, 1)
         bkd.assert_allclose(centered, data - bkd.reshape(supplied, (10, 1)))
 
-    def test_precomputed_svd_is_reused(self, bkd):
+    def test_precomputed_decomposition_is_reused(self, bkd) -> None:
         data = bkd.array(np.random.RandomState(3).normal(size=(12, 40)))
-        _, mean, phi, svals, psi_t = center_and_decompose(data, bkd)
+        _, mean, decomposition = center_and_decompose(data, bkd)
         again = center_and_decompose(
-            data, bkd, precomputed_svd=(phi, svals, psi_t, mean)
+            data, bkd, precomputed=(mean, decomposition)
         )
-        bkd.assert_allclose(again[2], phi)
-        bkd.assert_allclose(again[3], svals)
+        assert again[2] is decomposition
+        bkd.assert_allclose(again[1], mean)
+
+    def test_injected_solver_is_used(self, bkd) -> None:
+        # The seam the inline SVD did not offer: a caller whose metric
+        # cannot be symmetrized supplies the method of snapshots.
+        data = bkd.array(np.random.RandomState(4).normal(size=(15, 25)))
+        centered, _, decomposition = center_and_decompose(
+            data, bkd, eigensolver=MethodOfSnapshotsSolver(bkd)
+        )
+        bkd.assert_allclose(
+            decomposition.eigenvectors @ decomposition.coordinates,
+            centered,
+            atol=1e-10,
+        )
+
+    def test_metric_selects_a_solver_that_can_honor_it(self, bkd) -> None:
+        # A non-diagonal metric has no cheap square root, so the default
+        # must route to the Gram route rather than fail.
+        data = bkd.array(np.random.RandomState(5).normal(size=(12, 20)))
+        weights = np.linspace(0.5, 2.0, 12)
+        metric = MassInnerProduct(diags(weights), bkd)
+        centered, _, decomposition = center_and_decompose(
+            data, bkd, metric=metric
+        )
+        basis = decomposition.eigenvectors
+        bkd.assert_allclose(
+            bkd.dot(basis.T, metric.apply(basis)),
+            bkd.eye(decomposition.nterms()),
+            atol=1e-9,
+        )
+        bkd.assert_allclose(
+            basis @ decomposition.coordinates, centered, atol=1e-10
+        )
 
 
 class TestObjectiveMatchesBruteForce:

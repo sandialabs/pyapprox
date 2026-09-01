@@ -14,6 +14,9 @@ from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
     StdDecodingEncoderProtocol,
 )
+from pyapprox.surrogates.kle.snapshot_eigensolvers import (
+    MethodOfSnapshotsSolver,
+)
 from pyapprox.surrogates.reduction.feature_maps import (
     MonomialFeatureMap,
     SparseMonomialFeatureMap,
@@ -31,6 +34,11 @@ from pyapprox.surrogates.reduction.protocols import (
     is_manifold_decoder,
     is_self_jacobian_decoder,
 )
+from pyapprox.util.linalg.inner_product import (
+    DiagonalInnerProduct,
+    MassInnerProduct,
+)
+from scipy.sparse import diags
 
 
 def _curved_data(bkd, nstates=25, nsnapshots=80, seed=0, curvature=0.3):
@@ -461,3 +469,62 @@ class TestBuildFromTrajectories:
         )
         bkd.assert_allclose(built.basis(), direct.basis())
         bkd.assert_allclose(built.weights(), direct.weights())
+
+
+class TestMetric:
+    """Reducing under an inner product other than the Euclidean one.
+
+    A mesh-weighted metric makes the reduction measure error in the
+    field norm rather than in one that happens to weight every node
+    equally. Reaching it needs the eigensolver seam: a sparse mass
+    matrix has no cheap square root, so the basis must come from the
+    Gram route, which an inline SVD could not offer.
+    """
+
+    def _weights(self, nstates=25):
+        return np.linspace(0.5, 2.0, nstates)
+
+    def test_diagonal_metric_gives_an_orthonormal_basis(self, bkd) -> None:
+        data = _curved_data(bkd)
+        weights = self._weights()
+        metric = DiagonalInnerProduct(bkd.array(weights), bkd)
+        encoder = MonomialManifoldEncoder.fit_from_data(
+            data, bkd, latent_dim=2, metric=metric
+        )
+        basis = encoder.basis()
+        bkd.assert_allclose(
+            bkd.dot(basis.T, metric.apply(basis)), bkd.eye(2), atol=1e-10
+        )
+
+    def test_sparse_mass_metric_is_accepted(self, bkd) -> None:
+        # The case with no cheap square root: the default solver must
+        # route to the method of snapshots rather than refuse.
+        data = _curved_data(bkd)
+        weights = self._weights()
+        metric = MassInnerProduct(diags(weights), bkd)
+        encoder = MonomialManifoldEncoder.fit_from_data(
+            data, bkd, latent_dim=2, metric=metric
+        )
+        basis = encoder.basis()
+        bkd.assert_allclose(
+            bkd.dot(basis.T, metric.apply(basis)), bkd.eye(2), atol=1e-9
+        )
+
+    def test_metric_still_reconstructs(self, bkd) -> None:
+        data = _curved_data(bkd)
+        metric = DiagonalInnerProduct(bkd.array(self._weights()), bkd)
+        encoder = MonomialManifoldEncoder.fit_from_data(
+            data, bkd, latent_dim=2, metric=metric, gamma=1e-10
+        )
+        assert _relative_error(bkd, encoder, data) < 2e-3
+
+    def test_injected_solver_is_used(self, bkd) -> None:
+        data = _curved_data(bkd)
+        encoder = MonomialManifoldEncoder.fit_from_data(
+            data,
+            bkd,
+            latent_dim=2,
+            eigensolver=MethodOfSnapshotsSolver(bkd),
+            gamma=1e-10,
+        )
+        assert _relative_error(bkd, encoder, data) < 2e-3

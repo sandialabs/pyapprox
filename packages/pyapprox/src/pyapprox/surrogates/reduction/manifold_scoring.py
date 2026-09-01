@@ -38,26 +38,42 @@ import numpy.typing as npt
 from pyapprox.surrogates.affine.indices import (
     restrict_indices_to_leading_vars,
 )
+from pyapprox.surrogates.kle.snapshot_eigensolvers import (
+    SnapshotDecomposition,
+    SnapshotEigenSolverProtocol,
+    default_snapshot_eigensolver,
+)
 from pyapprox.surrogates.reduction.feature_maps import FeatureMap
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.inner_product import InnerProductProtocol
 
 
 def center_and_decompose(
     snapshots: Array,
     bkd: Backend[Array],
     center: bool = True,
-    precomputed_svd: Optional[
-        Tuple[Array, Array, Array, Array]
+    precomputed: Optional[
+        Tuple[Array, SnapshotDecomposition[Array]]
     ] = None,
     mean: Optional[Array] = None,
-) -> Tuple[Array, Array, Array, Array, Array]:
-    """Center the snapshot matrix and return its (cached or fresh) thin SVD.
+    metric: Optional[InnerProductProtocol[Array]] = None,
+    eigensolver: Optional[SnapshotEigenSolverProtocol[Array]] = None,
+) -> Tuple[Array, Array, SnapshotDecomposition[Array]]:
+    """Center the snapshot matrix and extract a basis from it.
 
-    The thin SVD is the dominant cost of manifold construction and is
-    shared by every method and reduced dimension at a given training set,
-    so callers may compute it once and inject it via
-    ``precomputed_svd = (phi, svals, psi_t, mean)`` to skip recomputation.
-    The injected ``mean`` is used as-is, so the caller is responsible for
+    The decomposition is delegated to a
+    :class:`~pyapprox.surrogates.kle.SnapshotEigenSolverProtocol`, the
+    same seam the data-driven KLE uses, rather than being an inline SVD.
+    That is what lets a caller who cannot symmetrize -- an assembled FEM
+    mass matrix has no cheap square root -- supply the method of
+    snapshots instead, and it keeps one implementation of the sign and
+    ordering conventions rather than two.
+
+    The decomposition is the dominant cost of manifold construction and
+    is shared by every reduced dimension at a given training set, so
+    callers may compute it once and inject it via
+    ``precomputed = (mean, decomposition)`` to skip recomputation. The
+    injected mean is used as-is, so the caller is responsible for
     centering consistently with ``center``.
 
     Snapshot selection is handled by the caller: pass a non-redundant
@@ -68,8 +84,8 @@ def center_and_decompose(
     which shifts the affine manifold off the data center. To avoid this,
     compute the mean over the full pre-selection data and pass it via
     ``mean``; the subset is then centered by the unbiased mean before the
-    SVD. Leave ``mean`` as ``None`` to center by the mean of ``snapshots``
-    itself, the usual centered PCA.
+    decomposition. Leave ``mean`` as ``None`` to center by the mean of
+    ``snapshots`` itself, the usual centered PCA.
 
     Parameters
     ----------
@@ -78,11 +94,18 @@ def center_and_decompose(
     bkd : Backend
         Computational backend.
     center : bool
-        Subtract the mean before the SVD.
-    precomputed_svd : tuple, optional
-        ``(phi, svals, psi_t, mean)`` to reuse instead of recomputing.
+        Subtract the mean before decomposing.
+    precomputed : tuple, optional
+        ``(mean, decomposition)`` to reuse instead of recomputing.
     mean : Array, optional
         Mean used for centering. Shape: (nstates,) or (nstates, 1).
+    metric : InnerProductProtocol, optional
+        The inner product the basis is orthonormal in. None is
+        Euclidean.
+    eigensolver : SnapshotEigenSolverProtocol, optional
+        How the basis is extracted. Defaults to the solver matching the
+        metric -- the SVD when it is diagonal, the method of snapshots
+        otherwise.
 
     Returns
     -------
@@ -90,26 +113,13 @@ def center_and_decompose(
         ``snapshots - mean``. Shape: (nstates, nsnapshots).
     mean : Array
         Shape: (nstates, 1).
-    phi, svals, psi_t : Array
-        Thin SVD factors of ``centered``, so that
-        ``centered = phi diag(svals) psi_t``.
-
-    Notes
-    -----
-    TODO: this duplicates the centering and thin SVD that
-    :class:`~pyapprox.surrogates.kle.DataDrivenKLE` performs. Collapsing
-    the two is blocked on the right singular factor: the scorer needs
-    ``psi_t`` to build snapshot coordinates, and the KLE exposes only the
-    left factor and the spectrum. Retargeting onto it would also supply
-    the metric this function lacks. Doing so requires checking the
-    conventions that were free to drift while the right factor was
-    discarded -- per-column sign flips break ``A = U S V^T`` unless
-    applied to both factors, and the eigenvalue scaling and truncation
-    must match across the two.
+    decomposition : SnapshotDecomposition
+        The basis of ``centered``, its spectrum, and the coordinates of
+        each snapshot in that basis.
     """
-    if precomputed_svd is not None:
-        phi, svals, psi_t, mean = precomputed_svd
-        return snapshots - mean, mean, phi, svals, psi_t
+    if precomputed is not None:
+        mean, decomposition = precomputed
+        return snapshots - mean, mean, decomposition
 
     if mean is not None:
         mean = bkd.reshape(mean, (mean.shape[0], 1))
@@ -120,8 +130,12 @@ def center_and_decompose(
     else:
         mean = bkd.zeros((snapshots.shape[0], 1))
     centered = snapshots - mean
-    phi, svals, psi_t = bkd.svd(centered, full_matrices=False)
-    return centered, mean, phi, svals, psi_t
+    solver = (
+        default_snapshot_eigensolver(bkd, metric)
+        if eigensolver is None
+        else eigensolver
+    )
+    return centered, mean, solver.solve(centered, None, metric)
 
 
 class ManifoldScorer(Generic[Array]):

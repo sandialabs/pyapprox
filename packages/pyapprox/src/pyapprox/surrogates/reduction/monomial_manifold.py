@@ -78,15 +78,20 @@ adds the one whose inclusion -- after fitting the optimal correction for
 the enlarged subspace -- minimizes the reconstruction error. The leading
 singular vectors are therefore not necessarily selected: the method picks
 the directions the feature map can correct most efficiently. The repeated
-inner least-squares solves are made cheap by reusing a single SVD of the
-snapshot matrix, so each candidate evaluation scales with the number of
-snapshots rather than the ambient dimension (Section 3.2).
+inner least-squares solves are made cheap by reusing a single
+decomposition of the snapshot matrix, so each candidate evaluation
+scales with the number of snapshots rather than the ambient dimension
+(Section 3.2).
 """
 
 from __future__ import annotations
 
 from typing import Generic, List, Optional, Sequence, Tuple
 
+from pyapprox.surrogates.kle.snapshot_eigensolvers import (
+    SnapshotDecomposition,
+    SnapshotEigenSolverProtocol,
+)
 from pyapprox.surrogates.reduction.feature_maps import (
     DifferentiableFeatureMap,
     MonomialFeatureMap,
@@ -96,6 +101,7 @@ from pyapprox.surrogates.reduction.manifold_scoring import (
     center_and_decompose,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.inner_product import InnerProductProtocol
 
 
 class MonomialManifoldEncoder(Generic[Array]):
@@ -258,9 +264,11 @@ class MonomialManifoldEncoder(Generic[Array]):
         ncandidates: Optional[int] = None,
         candidate_factor: int = 10,
         center: bool = True,
-        precomputed_svd: Optional[
-            Tuple[Array, Array, Array, Array]
+        precomputed: Optional[
+            Tuple[Array, SnapshotDecomposition[Array]]
         ] = None,
+        metric: Optional[InnerProductProtocol[Array]] = None,
+        eigensolver: Optional[SnapshotEigenSolverProtocol[Array]] = None,
         validation_data: Optional[Array] = None,
         gamma_grid: Optional[Sequence[float]] = None,
         mean: Optional[Array] = None,
@@ -301,12 +309,20 @@ class MonomialManifoldEncoder(Generic[Array]):
         candidate_factor : int
             Multiplier for the default pool size. The paper uses 10.
         center : bool
-            Subtract the snapshot mean before the SVD.
-        precomputed_svd : tuple, optional
-            ``(phi, svals, psi_t, mean)`` to reuse instead of recomputing
-            the thin SVD, which is the dominant cost and is shared across
-            methods and dimensions at a fixed training set. The caller
-            must have centered consistently with ``center``.
+            Subtract the snapshot mean before decomposing.
+        precomputed : tuple, optional
+            ``(mean, decomposition)`` to reuse instead of recomputing
+            the decomposition, which is the dominant cost and is shared
+            across methods and dimensions at a fixed training set. The
+            caller must have centered consistently with ``center``.
+        metric : InnerProductProtocol, optional
+            The inner product the basis is orthonormal in. None is
+            Euclidean. A mesh-weighted metric makes the reduction
+            measure error in the field norm rather than in a norm that
+            happens to weight every node equally.
+        eigensolver : SnapshotEigenSolverProtocol, optional
+            How the basis is extracted. Defaults to the solver matching
+            the metric.
         validation_data : Array, optional
             Shape: (full_dim, M). Held-out snapshots used to select
             ``gamma`` from ``gamma_grid``. Required if ``gamma_grid`` is
@@ -320,7 +336,7 @@ class MonomialManifoldEncoder(Generic[Array]):
             Computed from ``snapshots`` if None. Pass the mean of the
             full data when ``snapshots`` is a deliberately extremal
             subset, whose own mean is a biased centroid. Ignored when
-            ``precomputed_svd`` carries its own mean.
+            ``precomputed`` carries its own mean.
 
         Returns
         -------
@@ -338,14 +354,16 @@ class MonomialManifoldEncoder(Generic[Array]):
 
         # One SVD of the snapshot matrix, reused throughout (Section 3.2),
         # or injected by the caller to share it across methods.
-        centered, mean, phi, svals, psi_t = center_and_decompose(
+        centered, mean, decomposition = center_and_decompose(
             snapshots,
             bkd,
             center=center,
-            precomputed_svd=precomputed_svd,
+            precomputed=precomputed,
             mean=mean,
+            metric=metric,
+            eigensolver=eigensolver,
         )
-        rank = int(svals.shape[0])
+        rank = decomposition.nterms()
 
         if ncandidates is None:
             ncandidates = candidate_factor * latent_dim
@@ -356,16 +374,16 @@ class MonomialManifoldEncoder(Generic[Array]):
                 f"pool size ({ncandidates})"
             )
 
-        # Coordinates of every snapshot in the full left-singular basis,
-        # reused for every candidate evaluation (Section 3.2):
-        # coords[a, n] = phi_a^T centered_n = svals_a * psi_t[a, n].
-        coords = bkd.reshape(svals, (rank, 1)) * psi_t
-        scorer = ManifoldScorer(coords, gamma, bkd)
+        # Every snapshot's coordinates in the full basis, reused for
+        # every candidate evaluation (Section 3.2). Carried by the
+        # decomposition rather than recomputed, so the basis and the
+        # coordinates cannot disagree about a column's sign.
+        scorer = ManifoldScorer(decomposition.coordinates, gamma, bkd)
 
         selected = cls._greedy_select(
             scorer, feature_map, latent_dim, ncandidates
         )
-        basis = phi[:, selected]
+        basis = decomposition.eigenvectors[:, selected]
 
         if gamma_grid is not None:
             if validation_data is None:
@@ -439,7 +457,11 @@ def build_monomial_manifold_encoder(
     gamma: float = 1e-6,
     ncandidates: Optional[int] = None,
     center: bool = True,
-    precomputed_svd: Optional[Tuple[Array, Array, Array, Array]] = None,
+    precomputed: Optional[
+        Tuple[Array, SnapshotDecomposition[Array]]
+    ] = None,
+    metric: Optional[InnerProductProtocol[Array]] = None,
+    eigensolver: Optional[SnapshotEigenSolverProtocol[Array]] = None,
     validation_data: Optional[Array] = None,
     gamma_grid: Optional[Sequence[float]] = None,
     mean: Optional[Array] = None,
@@ -472,7 +494,9 @@ def build_monomial_manifold_encoder(
         gamma=gamma,
         ncandidates=ncandidates,
         center=center,
-        precomputed_svd=precomputed_svd,
+        precomputed=precomputed,
+        metric=metric,
+        eigensolver=eigensolver,
         validation_data=validation_data,
         gamma_grid=gamma_grid,
         mean=mean,
