@@ -859,6 +859,18 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         consumers such as hyper-reduction can extract per-element
         contributions without changing the global assembly path.
 
+        **A form is not checked for ellipticity.** Assembling through
+        the physics rejects a non-positive diffusivity, because an
+        operator that changes character where the coefficient dips
+        negative returns a plausible field rather than failing. A form
+        carries no such promise, and callers rely on that: the stiffness
+        is *linear* in the diffusivity, so a caller decomposing a
+        positive coefficient into a basis assembles one form per basis
+        function, and those are individually sign-indefinite even though
+        their weighted sum is positive. Ellipticity is a property of the
+        assembled sum, which such a caller must check itself. Do not
+        route a solve through this to evade the check.
+
         Parameters
         ----------
         time : float
