@@ -140,24 +140,42 @@ class TestLedgerSeesConcurrency:
             evaluator.submit(bkd.ones((1, 4))).collect()
             elapsed = time.perf_counter() - started
         total = ledger.total()
-        # The union tracks the elapsed time, which is about two naps.
+        # The union tracks the elapsed time however much the pool
+        # actually overlapped, so this holds whether the runner granted
+        # two workers or serialized them.
         assert total.wall_clock == pytest.approx(elapsed, rel=0.5)
-        # Four naps of compute happened regardless of the overlap. Two
-        # workers ran them two deep, so the sum is about twice the
-        # elapsed time -- stated against the clock rather than against
-        # ``4 * NAP``, because a loaded machine oversleeps and the
-        # ledger reports what the jobs really took.
+        # Four naps of compute happened regardless of the overlap:
+        # compute sums per-job durations and never consults the
+        # driver's clock. Bounding it against the jobs rather than
+        # against ``elapsed`` is what keeps this honest. Whether the
+        # ratio of compute to elapsed reaches two is a fact about the
+        # runner, not about the ledger, so the earlier
+        # ``compute > 1.5 * elapsed`` form failed on contended macOS
+        # runners while the ledger under test was correct.
         #
-        # The bounds are deliberately lopsided. Billing too little is
-        # the defect this pins, and no amount of contention causes it,
-        # so the lower bound stays tight enough to catch a batch that
-        # dropped a job. Overshoot is what a busy runner produces, so
-        # the upper bound is loose.
-        assert total.compute > 1.5 * elapsed
-        assert total.compute < 3.0 * elapsed
-        # And the two measures genuinely differ: the defect made them
-        # agree by collapsing wall clock onto the longest job.
-        assert total.compute > total.wall_clock
+        # The bounds stay lopsided. Billing too little is the defect
+        # this pins and contention cannot cause it, so the lower bound
+        # is tight enough to catch a batch that dropped a job.
+        # Oversleeping is what a busy runner produces, so the upper
+        # bound is loose.
+        assert total.compute > 3.5 * NAP
+        # The upper bound counts jobs rather than seconds. A contended
+        # runner oversleeps -- one CI failure recorded four 0.05s naps
+        # taking 0.72s between them -- so any ceiling expressed in
+        # multiples of NAP eventually trips on a slow machine while the
+        # ledger is correct. What cannot exceed four jobs' worth of
+        # time, however slow each job is, is the sum of four spans that
+        # each fit inside the batch: double counting is the defect this
+        # guards, and it would report more than the whole batch took.
+        assert total.compute <= 4.0 * elapsed
+        # The two measures diverge whenever the jobs really did overlap,
+        # which is what the defect destroyed by collapsing wall clock
+        # onto the longest job. Overlap is the runner's to grant, so
+        # this is asserted where it occurred rather than demanded: a
+        # serialized batch legitimately reports the two as equal, and
+        # failing then would test the machine instead of the ledger.
+        if total.wall_clock < 3.5 * NAP:
+            assert total.compute > total.wall_clock
 
     def test_concurrent_wall_clock_exceeds_one_job(self, bkd) -> None:
         """The specific number the defect produced.
