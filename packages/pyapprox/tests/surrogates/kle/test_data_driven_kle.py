@@ -261,6 +261,78 @@ class TestTruncationArguments:
             kle(zeros)[:, 0], bkd.mean(data, axis=1), rtol=1e-12
         )
 
+    def test_center_by_subtracts_the_field_given(self, bkd) -> None:
+        data = self._data(bkd)
+        field = bkd.array(np.linspace(0.5, 1.5, data.shape[0]))
+        kle = DataDrivenKLE(data, center_by=field, bkd=bkd)
+        bkd.assert_allclose(kle.mean_field(), field, rtol=1e-12)
+
+    def test_center_by_matches_centering_by_hand(self, bkd) -> None:
+        """Same computation, with the subtraction done for the caller."""
+        data = self._data(bkd)
+        field = bkd.array(np.linspace(0.5, 1.5, data.shape[0]))
+        by_hand = DataDrivenKLE(
+            data - field[:, None], field, nterms=4, bkd=bkd
+        )
+        by_arg = DataDrivenKLE(data, nterms=4, center_by=field, bkd=bkd)
+        bkd.assert_allclose(
+            by_arg.eigenvectors(), by_hand.eigenvectors(), rtol=1e-12
+        )
+        bkd.assert_allclose(
+            by_arg.eigenvalues(), by_hand.eigenvalues(), rtol=1e-12
+        )
+
+    def test_center_by_accepts_a_column(self, bkd) -> None:
+        data = self._data(bkd)
+        field = bkd.array(np.linspace(0.5, 1.5, data.shape[0]))
+        column = bkd.reshape(field, (data.shape[0], 1))
+        bkd.assert_allclose(
+            DataDrivenKLE(data, center_by=column, bkd=bkd).mean_field(),
+            field,
+            rtol=1e-12,
+        )
+
+    def test_center_by_realizations_are_about_that_field(self, bkd) -> None:
+        data = self._data(bkd)
+        field = bkd.array(np.linspace(0.5, 1.5, data.shape[0]))
+        kle = DataDrivenKLE(data, nterms=3, center_by=field, bkd=bkd)
+        bkd.assert_allclose(
+            kle(bkd.zeros((3, 1)))[:, 0], field, rtol=1e-12
+        )
+
+    def test_center_by_differs_from_the_sample_mean(self, bkd) -> None:
+        """The point of the argument: a mean the data does not supply."""
+        data = self._data(bkd)
+        field = bkd.array(np.linspace(0.5, 1.5, data.shape[0]))
+        by_field = DataDrivenKLE(data, nterms=3, center_by=field, bkd=bkd)
+        by_sample = DataDrivenKLE(data, nterms=3, center=True, bkd=bkd)
+        difference = float(
+            bkd.to_numpy(
+                bkd.sum(bkd.abs(by_field.mean_field() - by_sample.mean_field()))
+            )
+        )
+        assert difference > 1e-6
+
+    def test_rejects_center_by_with_center(self, bkd) -> None:
+        data = self._data(bkd)
+        with pytest.raises(ValueError, match="not both"):
+            DataDrivenKLE(
+                data,
+                center=True,
+                center_by=bkd.zeros((data.shape[0],)),
+                bkd=bkd,
+            )
+
+    def test_rejects_center_by_with_an_explicit_mean(self, bkd) -> None:
+        data = self._data(bkd)
+        with pytest.raises(ValueError, match="not both"):
+            DataDrivenKLE(
+                data,
+                3.0,
+                center_by=bkd.zeros((data.shape[0],)),
+                bkd=bkd,
+            )
+
 
 class TestSampleConvergence:
     """The estimated spectrum must converge to the operator's own.

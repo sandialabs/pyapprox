@@ -61,6 +61,19 @@ class DataDrivenKLE(Generic[Array]):
         behaviour, leaving centering an unstated obligation on the
         caller. Cannot be combined with an explicit ``mean_field``: both
         say what the expansion is taken about.
+    center_by : Array, optional
+        Shape ``(ncoords,)`` or ``(ncoords, 1)``. Subtract this field
+        rather than the sample mean, and report it as the mean field.
+
+        For when the sample mean of ``field_samples`` is not the field
+        to expand about -- samples drawn to cover a parameter space
+        rather than to represent a distribution have a mean that is an
+        artifact of the design. Passing an already-centered matrix with
+        ``mean_field`` set does the same thing, but leaves the
+        subtraction to the caller and so lets the two disagree.
+
+        Mutually exclusive with both ``center`` and ``mean_field``: all
+        three answer what the expansion is taken about.
     """
 
     def __init__(
@@ -75,21 +88,42 @@ class DataDrivenKLE(Generic[Array]):
         eigensolver: Optional[SnapshotEigenSolverProtocol[Array]] = None,
         variance_fraction: Optional[float] = None,
         center: bool = False,
+        center_by: Optional[Array] = None,
     ):
         if bkd is None:
             raise ValueError("bkd must be provided")
         self._bkd = bkd
+        explicit_mean_field = not (
+            isinstance(mean_field, float) and mean_field == 0.0
+        )
+        if center and center_by is not None:
+            raise ValueError(
+                "pass either center=True or center_by, not both: "
+                "center takes the sample mean while center_by takes the "
+                "field given, and together they leave it undefined which "
+                "is subtracted"
+            )
+        if center_by is not None and explicit_mean_field:
+            raise ValueError(
+                "pass either center_by or mean_field, not both: "
+                "center_by subtracts the field and reports it as the "
+                "mean field, so supplying mean_field as well leaves it "
+                "undefined what the expansion is taken about"
+            )
         sample_mean: Optional[Array] = None
         if center:
-            if not (
-                isinstance(mean_field, float) and mean_field == 0.0
-            ):
+            if explicit_mean_field:
                 raise ValueError(
                     "pass either center=True or an explicit mean_field, "
                     "not both: each states what the expansion is taken "
                     "about, and together they leave that undefined"
                 )
             sample_mean = bkd.mean(field_samples, axis=1)
+            field_samples = field_samples - sample_mean[:, None]
+        elif center_by is not None:
+            sample_mean = bkd.reshape(
+                center_by, (int(center_by.shape[0]),)
+            )
             field_samples = field_samples - sample_mean[:, None]
         self._field_samples = field_samples
         self._use_log = use_log
