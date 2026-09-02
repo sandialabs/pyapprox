@@ -414,19 +414,162 @@ class TestWorkingDirectories:
 
     def test_a_missing_link_source_is_reported(
         self, solver, tmp_path, numpy_bkd
-    ):
+    ) -> None:
+        """At construction, not per sample after ``submit``.
+
+        A typo in a mesh path is one mistake; discovering it once per
+        sample, on every rank, after an allocation has started, is the
+        expensive way to be told.
+        """
+        with pytest.raises(ValueError, match="does not exist"):
+            TextFileMarshaller(
+                command=[sys.executable, str(solver)],
+                bkd=numpy_bkd,
+                nvars=2,
+                nqoi=1,
+                scratch_root=str(tmp_path / "scratch"),
+                link_files=[str(tmp_path / "absent.dat")],
+            )
+
+    def test_an_unreadable_link_source_is_reported(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Existing is not enough; the symlink has to be followable."""
+        mesh = tmp_path / "mesh.dat"
+        mesh.write_text("nodes\n")
+        mesh.chmod(0o000)
+        try:
+            with pytest.raises(ValueError, match="not readable"):
+                TextFileMarshaller(
+                    command=[sys.executable, str(solver)],
+                    bkd=numpy_bkd,
+                    nvars=2,
+                    nqoi=1,
+                    scratch_root=str(tmp_path / "scratch"),
+                    link_files=[str(mesh)],
+                )
+        finally:
+            mesh.chmod(0o600)
+
+    def test_an_unusable_scratch_root_is_reported(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        readonly = tmp_path / "readonly"
+        readonly.mkdir()
+        readonly.chmod(0o500)
+        try:
+            with pytest.raises(ValueError, match="not usable"):
+                TextFileMarshaller(
+                    command=[sys.executable, str(solver)],
+                    bkd=numpy_bkd,
+                    nvars=2,
+                    nqoi=1,
+                    scratch_root=str(readonly / "scratch"),
+                )
+        finally:
+            readonly.chmod(0o700)
+
+    def test_the_probe_leaves_nothing_behind(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """An ensemble rebuilt per iteration constructs many of these."""
+        scratch = tmp_path / "scratch"
+        for _ in range(3):
+            TextFileMarshaller(
+                command=[sys.executable, str(solver)],
+                bkd=numpy_bkd,
+                nvars=2,
+                nqoi=1,
+                scratch_root=str(scratch),
+            )
+        assert list(scratch.iterdir()) == []
+
+    def test_the_per_sample_check_remains_as_a_backstop(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """A file can be deleted between construction and dispatch."""
+        mesh = tmp_path / "mesh.dat"
+        mesh.write_text("nodes\n")
         marshaller = TextFileMarshaller(
             command=[sys.executable, str(solver)],
             bkd=numpy_bkd,
             nvars=2,
             nqoi=1,
             scratch_root=str(tmp_path / "scratch"),
-            link_files=[str(tmp_path / "absent.dat")],
+            link_files=[str(mesh)],
         )
+        mesh.unlink()
         with pytest.raises(MarshalError, match="does not exist"):
             marshaller.tasks(
                 numpy_bkd.ones((2, 1)), [0], Request.values_only()
             )
+
+
+class TestLogOutput:
+    """The marshaller picks the location; the dispatcher routes to it."""
+
+    def test_off_by_default(self, solver, tmp_path, numpy_bkd) -> None:
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        tasks = marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        assert tasks[0].stdout_path is None
+        assert tasks[0].stderr_path is None
+
+    def test_paths_land_inside_the_working_directory(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, log_output=True
+        )
+        tasks = marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        task = tasks[0]
+        assert task.stdout_path == os.path.join(
+            task.workdir, "solver.stdout"
+        )
+        assert task.stderr_path == os.path.join(
+            task.workdir, "solver.stderr"
+        )
+
+    def test_a_retained_failure_keeps_its_explanation(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """``ON_FAILURE`` otherwise keeps evidence without the evidence."""
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="fail",
+            retention=Retention.ON_FAILURE,
+            log_output=True,
+        )
+        ev.submit(_columns(numpy_bkd, 4)).collect()
+        kept = list((tmp_path / "scratch").glob("sample-*"))
+        assert kept
+        logged = [
+            (directory / "solver.stderr").read_text()
+            for directory in kept
+        ]
+        assert any("matrix is singular" in text for text in logged)
+
+    def test_the_filenames_are_configurable(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            log_output=True,
+            stdout_filename="out.txt",
+            stderr_filename="err.txt",
+        )
+        tasks = marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        assert tasks[0].stdout_path.endswith("out.txt")
+        assert tasks[0].stderr_path.endswith("err.txt")
 
 
 class TestRetention:

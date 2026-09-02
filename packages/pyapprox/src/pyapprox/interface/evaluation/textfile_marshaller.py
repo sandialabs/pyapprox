@@ -36,9 +36,11 @@ anything running in parallel, and an exception before changing back
 leaves every later relative path resolving somewhere unintended.
 """
 
+import os
 import shutil
+import tempfile
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
 from typing import (
@@ -70,6 +72,12 @@ from pyapprox.util.backends.protocols import Array, Backend
 #: What the solver reads and writes, relative to its working directory.
 DEFAULT_PARAMS_FILENAME = "params.in"
 DEFAULT_RESULTS_FILENAME = "results.out"
+
+#: Where a solver's own output goes when ``log_output`` is on. Named by
+#: the framework rather than the solver, so a code that writes its own
+#: ``stdout.log`` is not silently overwritten.
+DEFAULT_STDOUT_FILENAME = "solver.stdout"
+DEFAULT_STDERR_FILENAME = "solver.stderr"
 
 #: How many numbers one sample's worth of each quantity holds, and the
 #: shape it takes in a :class:`Decoded`, keyed by derivative-bundle
@@ -189,6 +197,15 @@ class TextFileMarshaller(Generic[Array]):
         What one solve needs from the machine.
     params_filename, results_filename : str
         What the solver reads and writes, relative to its directory.
+    log_output : bool
+        Send each child's stdout and stderr to files in its working
+        directory instead of discarding stdout and piping stderr. Off by
+        default, since it writes two files per sample. Worth turning on
+        whenever a directory is retained for diagnosis: stderr otherwise
+        survives only as its last line, stdout not at all, and a job
+        killed on walltime reports nothing about itself.
+    stdout_filename, stderr_filename : str
+        Names for those files, relative to the working directory.
     """
 
     def __init__(
@@ -203,6 +220,9 @@ class TextFileMarshaller(Generic[Array]):
         resources: Optional[Resources] = None,
         params_filename: str = DEFAULT_PARAMS_FILENAME,
         results_filename: str = DEFAULT_RESULTS_FILENAME,
+        log_output: bool = False,
+        stdout_filename: str = DEFAULT_STDOUT_FILENAME,
+        stderr_filename: str = DEFAULT_STDERR_FILENAME,
     ) -> None:
         if not command:
             raise ValueError("command must not be empty")
@@ -224,6 +244,11 @@ class TextFileMarshaller(Generic[Array]):
         )
         self._params_filename = params_filename
         self._results_filename = results_filename
+        self._log_output = log_output
+        self._stdout_filename = stdout_filename
+        self._stderr_filename = stderr_filename
+        self._check_link_files()
+        self._check_scratch_root()
         # How many tasks still expect each working directory to exist.
         #
         # A directory belongs to a *sample*, but ``release`` is called
@@ -238,6 +263,51 @@ class TextFileMarshaller(Generic[Array]):
         # a retained-on-failure directory is kept when any of the tasks
         # sharing it failed rather than only the last to be released.
         self._failed_dirs: Set[str] = set()
+
+    def _check_link_files(self) -> None:
+        """Refuse unusable link sources before any job is built.
+
+        ``_prepare`` checks the same thing, but per sample and after
+        ``submit`` -- so a typo in a mesh path is discovered once per
+        sample rather than once, and on a scheduler every rank discovers
+        it independently after the allocation has started. The per-sample
+        check stays as a backstop, since a file can be deleted between
+        construction and dispatch; this one is what makes the common case
+        cheap to diagnose.
+
+        ``ValueError`` rather than ``MarshalError``: nothing has been
+        marshalled yet, and a bad argument to a constructor is what
+        ``ValueError`` is for.
+        """
+        for source in self._link_files:
+            if not source.exists():
+                raise ValueError(
+                    f"cannot link {source}: it does not exist"
+                )
+            if not os.access(source, os.R_OK):
+                raise ValueError(f"cannot link {source}: it is not readable")
+
+    def _check_scratch_root(self) -> None:
+        """Refuse a scratch root that cannot hold working directories.
+
+        Probed by creating and removing a directory rather than by
+        testing permission bits, which answer a different question on a
+        read-only mount, over NFS with root-squash, or under an ACL.
+
+        The probe is removed again and no run directory is claimed, so
+        constructing a marshaller still leaves nothing behind -- a
+        constructed-and-unused marshaller is common enough (an ensemble
+        rebuilt per iteration) that a residue per construction would be
+        its own problem.
+        """
+        try:
+            self._scratch_root.mkdir(parents=True, exist_ok=True)
+            probe = Path(tempfile.mkdtemp(dir=self._scratch_root))
+        except OSError as exc:
+            raise ValueError(
+                f"scratch_root {self._scratch_root} is not usable: {exc}"
+            ) from exc
+        probe.rmdir()
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -312,10 +382,36 @@ class TextFileMarshaller(Generic[Array]):
             self.write_inputs(
                 layout, samples[:, position : position + 1], index, request
             )
-            commands = list(self.commands_for(layout, index, request))
+            commands = [
+                self._with_logs(task)
+                for task in self.commands_for(layout, index, request)
+            ]
             self._outstanding[str(layout.workdir)] = len(commands)
             built.extend(commands)
         return built
+
+    def _with_logs(self, task: ShellTask) -> ShellTask:
+        """Point a task's output at files inside its working directory.
+
+        Applied here rather than in :meth:`commands_for` so that every
+        subclass gets it without knowing about it, and so a subclass
+        that deliberately set its own paths keeps them.
+
+        Several tasks may share one directory -- a solver invoked once
+        for values and again for a jacobian -- so the files are opened
+        for append and both invocations accumulate into one log rather
+        than the second erasing the first.
+        """
+        if not self._log_output:
+            return task
+        if task.stdout_path is not None or task.stderr_path is not None:
+            return task
+        workdir = Path(task.workdir)
+        return replace(
+            task,
+            stdout_path=str(workdir / self._stdout_filename),
+            stderr_path=str(workdir / self._stderr_filename),
+        )
 
     def write_inputs(
         self,
