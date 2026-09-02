@@ -42,11 +42,20 @@ finished batch collects without sleeping.
 
 **Two settings that look similar and are not.** Where a child's stdout
 and stderr go -- discarded, piped, or written to a file -- is a property
-of the process, so this dispatcher decides it. Whether the framework
+of the process, so this dispatcher routes it. Whether the framework
 itself announces "launched task 3" is a property of the library, and
 belongs to logging configuration. Only the first is settled here; a
 single knob covering both would mean something different for every
 dispatcher, since a thread pool has no child output to route at all.
+
+**Routing is not choosing.** The task names the log paths and this
+dispatcher opens them; it still reads no format and parses nothing. The
+split matters because the marshaller owns the working directory and
+knows what else is written there, while only the forking process can
+own a descriptor. Redirecting to a file also removes a hazard that
+piping carries: a pipe holds about 64 KB before it blocks, and nothing
+drains it until the child exits, so a solver chatty on stderr deadlocks
+against a reader that is waiting for it to finish.
 """
 
 import os
@@ -61,6 +70,7 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Tuple,
     TypeVar,
 )
 
@@ -79,6 +89,33 @@ Payload = TypeVar("Payload")
 #: processes that take minutes. Small enough that a short test is not
 #: dominated by it.
 DEFAULT_POLL_INTERVAL = 0.01
+
+
+#: How much of a log file to read back for ``Outcome.detail``.
+#:
+#: A diverging solver's output is routinely gigabytes, so the tail is
+#: sought rather than the file read. Comfortably more than the one line
+#: that ends up in the detail, and small enough to be free.
+DETAIL_TAIL_BYTES = 8192
+
+
+def _tail(path: str, nbytes: int = DETAIL_TAIL_BYTES) -> bytes:
+    """The last ``nbytes`` of a file, or empty if it cannot be read.
+
+    Seeks from the end rather than reading the whole file: filling a
+    one-line detail must not depend on the size of what the solver
+    wrote. A partial multi-byte character at the cut is possible, which
+    is why the caller decodes with ``errors="replace"``.
+    """
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.seek(max(0, handle.tell() - nbytes), os.SEEK_SET)
+            return handle.read()
+    except OSError:
+        # A detail is a convenience; failing to read it must not turn a
+        # finished job into an unreportable one.
+        return b""
 
 
 @dataclass(frozen=True)
@@ -101,6 +138,14 @@ class ShellTask:
     env : Mapping[str, str], optional
         Extra environment variables for the child, merged over the
         parent's. ``None`` inherits unchanged.
+    stdout_path : str, optional
+        Where to send the child's stdout. ``None`` discards it. The
+        marshaller chooses the location because it owns the working
+        directory and knows what else is written there; the dispatcher
+        only routes the descriptor.
+    stderr_path : str, optional
+        Where to send the child's stderr. ``None`` keeps it piped, and
+        its last line becomes ``Outcome.detail``.
     """
 
     indices: Sequence[int]
@@ -108,6 +153,8 @@ class ShellTask:
     workdir: str
     resources: Resources = field(default_factory=Resources)
     env: Optional[Dict[str, str]] = None
+    stdout_path: Optional[str] = None
+    stderr_path: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -166,12 +213,23 @@ class SubprocessJobHandle(Generic[Payload]):
         if self._task.env is not None:
             env = {**os.environ, **self._task.env}
         try:
+            stdout, stderr = self._open_logs()
+        except OSError as exc:
+            self._outcome = Outcome(
+                task=self._task,
+                indices=self._task.indices,
+                status=JobStatus.FAILED,
+                resources=self._task.resources,
+                detail=f"could not open log file: {exc}",
+            )
+            return
+        try:
             self._process = subprocess.Popen(
                 list(self._task.argv),
                 cwd=self._task.workdir,
                 env=env,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
+                stdout=stdout,
+                stderr=stderr,
                 # Its own process group, so cancelling can signal the
                 # whole tree. A solver that spawns children of its own
                 # would otherwise leave them running after the parent
@@ -188,6 +246,46 @@ class SubprocessJobHandle(Generic[Payload]):
                 resources=self._task.resources,
                 detail=f"could not start: {exc}",
             )
+        finally:
+            # The child holds its own duplicates once forked, so the
+            # parent's copies are dead weight -- and leaking one per
+            # sample would exhaust the descriptor table on a sweep long
+            # before the sweep finished.
+            for handle in (stdout, stderr):
+                if handle >= 0:
+                    os.close(handle)
+
+    def _open_logs(self) -> Tuple[int, int]:
+        """Resolve where the child's output goes.
+
+        Opened here rather than in the marshaller because a descriptor
+        is not picklable and must belong to the process that forks. The
+        *path* is the marshaller's decision; only the ``open`` is the
+        dispatcher's, which is what "never opens a file" was protecting
+        -- reading a format, not routing a stream.
+
+        Appends rather than truncates, so a relaunched task adds to the
+        record instead of erasing it.
+        """
+        task = self._task
+        # Negative values are ``subprocess``'s own sentinels (DEVNULL,
+        # PIPE); a real descriptor is non-negative, which is what tells
+        # the two apart when deciding whether to close.
+        stdout: int = subprocess.DEVNULL
+        stderr: int = subprocess.PIPE
+        if task.stdout_path is not None:
+            stdout = os.open(
+                task.stdout_path,
+                os.O_WRONLY | os.O_CREAT | os.O_APPEND,
+                0o644,
+            )
+        if task.stderr_path is not None:
+            stderr = os.open(
+                task.stderr_path,
+                os.O_WRONLY | os.O_CREAT | os.O_APPEND,
+                0o644,
+            )
+        return stdout, stderr
 
     def poll(self) -> None:
         """Reap the child if it has finished. Never blocks."""
@@ -209,6 +307,8 @@ class SubprocessJobHandle(Generic[Payload]):
         if process.stderr is not None:
             stderr = process.stderr.read()
             process.stderr.close()
+        elif self._task.stderr_path is not None:
+            stderr = _tail(self._task.stderr_path)
         elapsed = (
             0.0
             if self._started is None
@@ -259,6 +359,20 @@ class SubprocessJobHandle(Generic[Payload]):
         if time.perf_counter() - self._started < limit:
             return
         self._terminate()
+        detail = f"exceeded walltime of {limit}s"
+        # Where the solver got to before it was killed, when it was
+        # writing somewhere seekable. A piped stderr is closed unread by
+        # ``_terminate`` and cannot supply this, which is why a timeout
+        # is otherwise the one failure that reports nothing about
+        # itself.
+        if self._task.stderr_path is not None:
+            message = (
+                _tail(self._task.stderr_path)
+                .decode("utf-8", errors="replace")
+                .strip()
+            )
+            if message:
+                detail = f"{detail}: {message.splitlines()[-1]}"
         self._outcome = Outcome(
             task=self._task,
             indices=self._task.indices,
@@ -266,7 +380,7 @@ class SubprocessJobHandle(Generic[Payload]):
             wall_time=time.perf_counter() - self._started,
             started=self._started,
             resources=self._task.resources,
-            detail=f"exceeded walltime of {limit}s",
+            detail=detail,
         )
 
     def _terminate(self) -> None:
