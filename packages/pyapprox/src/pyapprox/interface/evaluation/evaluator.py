@@ -22,6 +22,7 @@ The completion hook is the one seam for durable writing: crash-safe
 recording needs task-completion timing, and only this class sees it.
 """
 
+import logging
 import time
 from math import ceil
 from typing import (
@@ -59,6 +60,11 @@ from pyapprox.util.backends.protocols import Array, Backend
 Task = TypeVar("Task", bound=TaskProtocol)
 Payload = TypeVar("Payload")
 
+#: Where cleanup failures go. A library announcing its own progress is
+#: logging configuration's business rather than an argument, and a
+#: failure that must not end the batch still has to be visible somewhere.
+_LOGGER = logging.getLogger(__name__)
+
 #: Called once per finished task, before ``release``. ``Decoded`` is
 #: ``None`` when the task did not produce usable output.
 CompletionHook = Callable[
@@ -78,6 +84,13 @@ class Batch(Generic[Array, Task, Payload]):
     serializes its own calls; the returned-index set is ordinary mutable
     state. What is guaranteed regardless of call order is that no index
     is returned twice, because that set is the arbiter.
+
+    **Collection outlives its collaborators' failures.** A raising
+    completion hook or ``release`` is logged and the batch carries on.
+    Both run per task inside the harvest loop, so propagating would
+    strand every handle behind the failure -- unreleased, uncharged and
+    missing from the result -- which loses far more than the one task
+    that actually broke.
     """
 
     def __init__(
@@ -105,12 +118,30 @@ class Batch(Generic[Array, Task, Payload]):
         self._on_complete = on_complete
         self._pending: List[JobHandle[Task, Payload]] = list(handles)
         self._returned: set[int] = set()
+        # Every index this batch has returned, successes included, and
+        # cumulative across calls. Each ``EvalResult`` covers one harvest
+        # of a stream, so a caller looping on ``collect_ready`` ends up
+        # holding several disjoint partial maps and no whole one. This is
+        # the whole one.
+        self._statuses: Dict[int, JobStatus] = {}
         self._nsucceeded = 0
         self._nfailed = 0
 
     def nsubmitted(self) -> int:
         """How many samples this batch was submitted with."""
         return self._nsubmitted
+
+    def statuses(self) -> Dict[int, JobStatus]:
+        """How every returned index ended, cumulative across calls.
+
+        A copy, so a caller cannot rewrite the batch's own record of
+        what happened. Indices still outstanding are simply absent:
+        their absence is the question ``progress`` answers, and
+        inventing an ``OUTSTANDING`` entry for them would make "was
+        this index returned" a comparison against a sentinel rather
+        than a membership test.
+        """
+        return dict(self._statuses)
 
     def progress(self) -> EvalProgress:
         """Counts and cost so far, without consuming or waiting.
@@ -257,6 +288,7 @@ class Batch(Generic[Array, Task, Payload]):
                 for _, idx in fresh:
                     self._returned.add(idx)
                     succeeded.append(idx)
+                    statuses[idx] = JobStatus.SUCCEEDED
                     self._nsucceeded += 1
                 if fresh:
                     # Tag each piece with the batch index of its first
@@ -307,9 +339,39 @@ class Batch(Generic[Array, Task, Payload]):
                     statuses[idx] = JobStatus.FAILED
                     self._nfailed += 1
 
+            # Neither of these may take the batch down with it. Both run
+            # once per finished task, inside the loop that also removes
+            # handles from ``_pending`` -- so an exception escaping here
+            # abandons every handle after this one: never released,
+            # never charged, and absent from the result the caller gets
+            # back. A hook writing to a full disk, or a marshaller whose
+            # cleanup hits a read-only scratch, would turn one failed
+            # sample into a lost batch. Logged rather than swallowed
+            # silently, because a store that never wrote is a fact its
+            # owner needs.
             if self._on_complete is not None:
-                self._on_complete(outcome, decoded, cost)
-            self._marshaller.release(outcome)
+                try:
+                    self._on_complete(outcome, decoded, cost)
+                except Exception:
+                    _LOGGER.exception(
+                        "completion hook failed for indices %s; "
+                        "continuing with the rest of the batch",
+                        list(outcome.indices),
+                    )
+            try:
+                self._marshaller.release(outcome)
+            except Exception:
+                _LOGGER.exception(
+                    "release failed for indices %s; its working "
+                    "directory may survive",
+                    list(outcome.indices),
+                )
+
+        # Accumulated once here rather than at each of the three sites
+        # that write ``statuses``, so a branch added later cannot forget
+        # to. The streaming contract makes these disjoint: an index is
+        # returned once, so no key is ever overwritten.
+        self._statuses.update(statuses)
 
         return self._assemble(
             succeeded,

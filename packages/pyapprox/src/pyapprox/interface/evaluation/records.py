@@ -916,8 +916,11 @@ class EvalResult(Generic[Array]):
         Indices stopped or never started, including timeouts. Says
         nothing about the parameter point.
     statuses : Mapping[int, JobStatus]
-        Per-index outcome, for a caller that needs to tell a timeout
-        from a cancellation without re-deriving it.
+        Per-index outcome for the indices *this* result returned,
+        successes included, for a caller that needs to tell a timeout
+        from a cancellation without re-deriving it. One harvest of a
+        stream, not the whole batch: a caller collecting in a loop gets
+        a disjoint map per call, and ``Batch.statuses`` is the union.
     cost : Cost
         What this portion of the batch spent, including its failures.
     jacobians : Array, optional

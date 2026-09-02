@@ -12,6 +12,7 @@ where NumPy and Torch diverge, and they occur on the failure and partial
 paths.
 """
 
+import logging
 import time
 
 import pytest
@@ -355,6 +356,66 @@ class TestStreamingContract:
         assert total == 6
 
 
+class TestCumulativeStatuses:
+    """The whole-batch view that a per-harvest result cannot give.
+
+    ``EvalResult.statuses`` covers one harvest, so a caller streaming
+    with ``collect_ready`` holds several disjoint partial maps and no
+    complete one.
+    """
+
+    def test_successes_are_recorded_not_only_failures(self, bkd) -> None:
+        batch = _build(bkd, samples_per_task=1).submit(_columns(bkd, 3))
+        batch.collect()
+        assert batch.statuses() == {
+            0: JobStatus.SUCCEEDED,
+            1: JobStatus.SUCCEEDED,
+            2: JobStatus.SUCCEEDED,
+        }
+
+    def test_the_result_also_carries_its_own_successes(self, bkd) -> None:
+        """The per-harvest map is no longer failure-only either."""
+        result = _build(bkd, samples_per_task=1).submit(
+            _columns(bkd, 2)
+        ).collect()
+        assert result.statuses == {
+            0: JobStatus.SUCCEEDED,
+            1: JobStatus.SUCCEEDED,
+        }
+
+    def test_it_accumulates_across_streaming_calls(self, bkd) -> None:
+        batch = _build(bkd, samples_per_task=1).submit(_columns(bkd, 6))
+        for _ in range(3):
+            batch.collect_ready()
+        batch.collect()
+        assert len(batch.statuses()) == 6
+        assert set(batch.statuses()) == {0, 1, 2, 3, 4, 5}
+
+    def test_outstanding_indices_are_absent(self, bkd) -> None:
+        batch = _build(bkd, samples_per_task=1).submit(_columns(bkd, 4))
+        assert batch.statuses() == {}
+
+    def test_a_failure_keeps_its_own_status(self, bkd) -> None:
+        def explodes(samples):
+            raise RuntimeError("diverged")
+
+        batch = _build(bkd, fn=explodes, samples_per_task=1).submit(
+            _columns(bkd, 2)
+        )
+        batch.collect()
+        assert batch.statuses() == {
+            0: JobStatus.FAILED,
+            1: JobStatus.FAILED,
+        }
+
+    def test_the_map_is_a_copy(self, bkd) -> None:
+        """A caller must not be able to rewrite the batch's record."""
+        batch = _build(bkd, samples_per_task=1).submit(_columns(bkd, 2))
+        batch.collect()
+        batch.statuses()[0] = JobStatus.CANCELLED
+        assert batch.statuses()[0] is JobStatus.SUCCEEDED
+
+
 class TestProgress:
     def test_progress_completes_after_collect(self, bkd):
         batch = _build(bkd).submit(bkd.ones((2, 4)))
@@ -487,3 +548,95 @@ class TestCompletionHook:
         assert outcome.status is JobStatus.SUCCEEDED
         assert decoded is not None
         assert cost.compute >= 0.0
+
+
+class TestCollaboratorFailuresDoNotEndTheBatch:
+    """A hook or a release that raises costs its own task, not the run.
+
+    Both are called per task inside the harvest loop, which is also
+    where handles leave ``_pending``. Propagating would abandon every
+    handle after the failure: never released, never charged, and absent
+    from the returned result.
+    """
+
+    def _marshaller(self, bkd, **kwargs):
+        return CallableMarshaller(
+            lambda X: bkd.sum(X * X, axis=0)[None, :],
+            bkd,
+            nvars=2,
+            nqoi=1,
+            samples_per_task=1,
+            **kwargs,
+        )
+
+    def test_a_raising_hook_still_yields_every_sample(self, bkd) -> None:
+        marshaller = self._marshaller(bkd)
+
+        def explodes(outcome, decoded, cost):
+            raise RuntimeError("the store is full")
+
+        ev = Evaluator(
+            marshaller,
+            InlineDispatcher(marshaller.run),
+            on_complete=explodes,
+        )
+        result = ev.submit(_columns(bkd, 3)).collect()
+        assert result.nsucceeded() == 3
+        assert result.values.shape == (1, 3)
+
+    def test_a_raising_hook_does_not_skip_release(self, bkd) -> None:
+        """The failure must not cascade into the next collaborator."""
+        released = []
+        marshaller = self._marshaller(bkd)
+        original = marshaller.release
+
+        def watch(outcome):
+            released.append(outcome)
+            original(outcome)
+
+        marshaller.release = watch
+
+        def explodes(outcome, decoded, cost):
+            raise RuntimeError("the store is full")
+
+        ev = Evaluator(
+            marshaller,
+            InlineDispatcher(marshaller.run),
+            on_complete=explodes,
+        )
+        ev.submit(_columns(bkd, 3)).collect()
+        assert len(released) == 3
+
+    def test_a_raising_release_still_yields_every_sample(
+        self, bkd
+    ) -> None:
+        marshaller = self._marshaller(bkd)
+
+        def explodes(outcome):
+            raise OSError("scratch is read-only")
+
+        marshaller.release = explodes
+        ev = Evaluator(marshaller, InlineDispatcher(marshaller.run))
+        result = ev.submit(_columns(bkd, 3)).collect()
+        assert result.nsucceeded() == 3
+
+    def test_the_failure_is_logged_rather_than_swallowed(
+        self, bkd, caplog
+    ) -> None:
+        """Silence would leave an unwritten store undiscoverable."""
+        marshaller = self._marshaller(bkd)
+
+        def explodes(outcome, decoded, cost):
+            raise RuntimeError("the store is full")
+
+        ev = Evaluator(
+            marshaller,
+            InlineDispatcher(marshaller.run),
+            on_complete=explodes,
+        )
+        with caplog.at_level(
+            logging.ERROR, logger="pyapprox.interface.evaluation.evaluator"
+        ):
+            ev.submit(_columns(bkd, 2)).collect()
+        assert "completion hook failed" in caplog.text
+        assert "the store is full" in caplog.text
