@@ -406,7 +406,13 @@ class TestSharedDirectoryLifetime:
     """
 
     def _scratch(self, tmp_path):
-        return list((tmp_path / "scratch").glob("sample-*"))
+        """Sample directories, wherever the run/submission levels put them.
+
+        Globbing the scratch root directly would match nothing now that
+        samples live under ``<run>/sub-NNN/``, and the assertions that
+        expect an empty list would pass without testing anything.
+        """
+        return list((tmp_path / "scratch").glob("*/sub-*/sample-*"))
 
     def test_a_shared_directory_outlives_its_first_task(
         self, solver, tmp_path, numpy_bkd
@@ -487,7 +493,7 @@ class TestInheritedBehaviourIsUnchanged:
         ev.submit(
             numpy_bkd.ones((2, 2)), Request(jacobians=True)
         ).collect()
-        assert list((tmp_path / "scratch").glob("sample-*")) == []
+        assert list((tmp_path / "scratch").glob("*/sub-*/sample-*")) == []
 
     def test_failures_are_still_per_sample(
         self, solver, tmp_path, numpy_bkd

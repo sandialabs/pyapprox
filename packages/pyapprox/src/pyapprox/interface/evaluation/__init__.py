@@ -65,6 +65,7 @@ from pyapprox.interface.evaluation.protocols import (
     MarshallerProtocol,
     ResultStore,
     SampleLookup,
+    SubmissionAware,
 )
 from pyapprox.interface.evaluation.records import (
     ComputeProvenance,
@@ -93,6 +94,7 @@ from pyapprox.interface.evaluation.subprocess_dispatcher import (
     SubprocessDispatcher,
 )
 from pyapprox.interface.evaluation.textfile_marshaller import (
+    OnExisting,
     Retention,
     TextFileMarshaller,
 )
@@ -123,6 +125,8 @@ __all__ = [
     "JobHandle",
     "MarshalError",
     "MarshallerProtocol",
+    "OnExisting",
+    "SubmissionAware",
     "ResultStore",
     "SampleLookup",
     # Caching -- serving a quantity from a store rather than recomputing

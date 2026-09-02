@@ -41,6 +41,7 @@ from pyapprox.interface.evaluation.protocols import (
     JobHandle,
     MarshalError,
     MarshallerProtocol,
+    SubmissionAware,
     TaskProtocol,
 )
 from pyapprox.interface.evaluation.records import (
@@ -525,6 +526,12 @@ class Evaluator(Generic[Array, Task, Payload]):
 
         nsamples = int(samples.shape[1])
         started = time.perf_counter()
+        # After validation, so a rejected submission opens nothing, and
+        # before the chunk loop, because a chunk boundary is not a
+        # submission boundary -- ``tasks`` is called once per chunk and
+        # cannot tell the difference from inside.
+        if isinstance(self._marshaller, SubmissionAware):
+            self._marshaller.begin_submission()
         tasks: List[Task] = []
         for lo, hi in _chunks(
             nsamples,

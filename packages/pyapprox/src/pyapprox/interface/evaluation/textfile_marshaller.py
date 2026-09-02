@@ -13,10 +13,16 @@ command runs, so the directory must exist before dispatch sees the task.
 Assigning them to dispatch would also be dishonest, since a thread pool
 or an HTTP client has no working directory at all.
 
-**Directories are named with a random component**, not a counter. A
-counter is shared mutable state: two marshallers pointed at one parent
-directory, or a run resumed after a crash, would reuse names and one
-solver would overwrite another's inputs.
+**Directories are scoped by run and submission**, as
+``<run_id>/sub-NNN/sample-NNNNNN``. The sample number alone will not do:
+it is a column in the submitted batch, so it restarts at zero every
+time, and one marshaller is submitted to many times. Without the
+submission level a second submission would rebuild the first's paths and
+overwrite its inputs. The run level is what makes a sweep quotable --
+"gather from run 20260902T143011Z-3f9b21c40a17" is an instruction
+someone can act on a month later -- and gives its directories one name
+to archive or delete. Names are zero-padded so they sort numerically as
+text.
 
 **Retention has two axes, not one.** Whether a scratch directory
 survives, and whether a summary artifact is written, are separate
@@ -36,7 +42,9 @@ anything running in parallel, and an exception before changing back
 leaves every later relative path resolving somewhere unintended.
 """
 
+import datetime
 import os
+import re
 import shutil
 import tempfile
 import uuid
@@ -78,6 +86,74 @@ DEFAULT_RESULTS_FILENAME = "results.out"
 #: ``stdout.log`` is not silently overwritten.
 DEFAULT_STDOUT_FILENAME = "solver.stdout"
 DEFAULT_STDERR_FILENAME = "solver.stderr"
+
+#: What a caller-supplied ``run_id`` may contain. A run id becomes a
+#: path component, so ``../..`` would escape the scratch root and
+#: ``a/b`` would nest silently.
+_RUN_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]+")
+
+#: How many times to retry an auto-generated run id before giving up.
+#:
+#: A collision on an id the library invented is not the caller's
+#: mistake, so it retries rather than raising. Bounded because a
+#: scratch root that refuses every mkdir must not spin.
+_RUN_ID_ATTEMPTS = 5
+
+#: Digits in the zero-padded directory names.
+#:
+#: Padded so names sort numerically as text: ``sample-10`` before
+#: ``sample-2`` is the trap ``protocols.py`` documents for output
+#: listings, and it is cheaper to remove at the source than to require
+#: every consumer to sort by a parsed integer.
+_SUBMISSION_DIGITS = 3
+_SAMPLE_DIGITS = 6
+
+
+def _generate_run_id() -> str:
+    """A run id that sorts by time and does not collide.
+
+    Twelve hex digits rather than four: ranks starting in the same
+    second are a birthday problem, and four digits collide about 7% of
+    the time at 100 ranks and 26% at 200. Four extra characters in a
+    string written down once cost nothing.
+    """
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y%m%dT%H%M%SZ"
+    )
+    return f"{stamp}-{uuid.uuid4().hex[:12]}"
+
+
+def _highest_submission(run_dir: Path) -> int:
+    """The largest ``sub-NNN`` ordinal present, or -1 if there is none.
+
+    Read back from the directory so a resumed run continues after what
+    is already there. Unparseable names are ignored rather than
+    refused: the run directory is also where the manifest lives, and a
+    user may well have left something beside it.
+    """
+    highest = -1
+    for entry in run_dir.iterdir():
+        matched = re.fullmatch(r"sub-(\d+)", entry.name)
+        if matched is not None and entry.is_dir():
+            highest = max(highest, int(matched.group(1)))
+    return highest
+
+
+class OnExisting(Enum):
+    """What to do when a named run directory is already there.
+
+    Only consulted for a ``run_id`` the caller supplied. An
+    auto-generated id that collides is retried with fresh entropy
+    instead, because that collision says nothing about the caller's
+    intent.
+    """
+
+    #: Refuse, before any job is built.
+    ERROR = "error"
+    #: Reuse the directory, continuing after its existing submissions.
+    RESUME = "resume"
+    #: Leave it alone and allocate a fresh id.
+    NEW = "new"
 
 #: How many numbers one sample's worth of each quantity holds, and the
 #: shape it takes in a :class:`Decoded`, keyed by derivative-bundle
@@ -206,6 +282,15 @@ class TextFileMarshaller(Generic[Array]):
         killed on walltime reports nothing about itself.
     stdout_filename, stderr_filename : str
         Names for those files, relative to the working directory.
+    run_id : str, optional
+        Names this run's directory under ``scratch_root``. Generated
+        from the time and some entropy when omitted. Worth supplying
+        when a run has to be found again later, since a name chosen by
+        the caller is one they can quote; must match
+        ``[A-Za-z0-9._-]+``, because it becomes a path component.
+    on_existing : OnExisting
+        What to do when a supplied ``run_id`` is already there. Ignored
+        for a generated id, which is simply retried on collision.
     """
 
     def __init__(
@@ -223,6 +308,8 @@ class TextFileMarshaller(Generic[Array]):
         log_output: bool = False,
         stdout_filename: str = DEFAULT_STDOUT_FILENAME,
         stderr_filename: str = DEFAULT_STDERR_FILENAME,
+        run_id: Optional[str] = None,
+        on_existing: OnExisting = OnExisting.ERROR,
     ) -> None:
         if not command:
             raise ValueError("command must not be empty")
@@ -247,6 +334,32 @@ class TextFileMarshaller(Generic[Array]):
         self._log_output = log_output
         self._stdout_filename = stdout_filename
         self._stderr_filename = stderr_filename
+        # ``.`` and ``..`` match the pattern -- the dot is legal inside a
+        # name -- and both are traversal, so they are excluded by name
+        # rather than by the character class.
+        if run_id is not None and (
+            not _RUN_ID_PATTERN.fullmatch(run_id) or run_id in (".", "..")
+        ):
+            raise ValueError(
+                f"run_id {run_id!r} must match [A-Za-z0-9._-]+ and be "
+                "neither '.' nor '..'; it becomes a directory name, so a "
+                "separator would nest it and '..' would escape the "
+                "scratch root"
+            )
+        self._requested_run_id = run_id
+        self._on_existing = on_existing
+        # Claimed at the first ``tasks``, not here. Creating it now would
+        # give the constructor a filesystem side effect and leave a
+        # directory behind for every marshaller that is built and never
+        # used -- an ensemble rebuilt per iteration builds one per model
+        # per iteration. Nothing is lost: ``submit`` builds every task
+        # before dispatching any, so a failure at the first ``tasks``
+        # still precedes every solver launch.
+        self._run_dir: Optional[Path] = None
+        # -1 rather than 0 because ``begin_submission`` increments before
+        # use, and because "no submission has begun" has to be
+        # distinguishable from "the first one has".
+        self._submission = -1
         self._check_link_files()
         self._check_scratch_root()
         # How many tasks still expect each working directory to exist.
@@ -308,6 +421,86 @@ class TextFileMarshaller(Generic[Array]):
                 f"scratch_root {self._scratch_root} is not usable: {exc}"
             ) from exc
         probe.rmdir()
+
+    def _claim_run_dir(self) -> Path:
+        """Create the directory this run's samples live under.
+
+        ``mkdir(exist_ok=False)`` is the claim: it creates or raises, in
+        one operation. Checking for the name first and then creating it
+        is check-then-act, and two array-job ranks starting in the same
+        second would both see nothing and both proceed.
+
+        An auto-generated id that collides is retried with fresh
+        entropy, because the library invented that id and a collision
+        says nothing about what the caller asked for. Retrying also
+        covers a quirk of NFS: a retransmitted MKDIR can return EEXIST
+        to the client whose original request actually succeeded, so a
+        legitimate first creator can see a collision that never
+        happened.
+        """
+        if self._requested_run_id is not None:
+            return self._claim_named_run_dir(self._requested_run_id)
+        for _ in range(_RUN_ID_ATTEMPTS):
+            candidate = self._scratch_root / _generate_run_id()
+            try:
+                candidate.mkdir(parents=True, exist_ok=False)
+            except FileExistsError:
+                continue
+            return candidate
+        raise MarshalError(
+            f"could not claim a run directory under {self._scratch_root} "
+            f"after {_RUN_ID_ATTEMPTS} attempts"
+        )
+
+    def _claim_named_run_dir(self, run_id: str) -> Path:
+        """Claim a directory for an id the caller chose."""
+        candidate = self._scratch_root / run_id
+        try:
+            candidate.mkdir(parents=True, exist_ok=False)
+        except FileExistsError:
+            if self._on_existing is OnExisting.RESUME:
+                return candidate
+            if self._on_existing is OnExisting.NEW:
+                self._requested_run_id = None
+                return self._claim_run_dir()
+            raise MarshalError(
+                f"run directory {candidate} already exists; pass "
+                "on_existing=OnExisting.RESUME to continue it or "
+                "OnExisting.NEW to allocate a fresh id"
+            ) from None
+        return candidate
+
+    def run_dir(self) -> Optional[str]:
+        """Where this run's directories live, once one has been claimed.
+
+        ``None`` until the first submission, since nothing is created
+        before then.
+        """
+        return None if self._run_dir is None else str(self._run_dir)
+
+    def begin_submission(self) -> None:
+        """Start a new submission, giving its samples their own level.
+
+        Batch-local indices restart at zero on every submission, so
+        without this a second submission would rebuild the same
+        ``sample-NNNNNN`` paths -- overwriting the first submission's
+        inputs, and corrupting the refcount that decides when a
+        directory may be deleted, since that is keyed by path.
+
+        The ordinal is recovered from the directory rather than kept
+        only in memory, so a resumed run continues after the
+        submissions already there instead of overwriting ``sub-000``.
+        The directory is the record; a counter in a file would be a
+        second one to keep in step.
+        """
+        if self._run_dir is None:
+            self._run_dir = self._claim_run_dir()
+            self._submission = _highest_submission(self._run_dir)
+        self._submission += 1
+        (self._run_dir / self._submission_name()).mkdir(exist_ok=True)
+
+    def _submission_name(self) -> str:
+        return f"sub-{self._submission:0{_SUBMISSION_DIGITS}d}"
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -576,14 +769,32 @@ class TextFileMarshaller(Generic[Array]):
     def _prepare(self, index: int) -> _Layout:
         """Make a working directory and link whatever it needs.
 
-        The name carries a random component rather than a counter: a
-        counter is shared mutable state, so two marshallers writing
-        under one root, or a run resumed after a crash, would collide
-        and one solve would overwrite another's inputs.
+        The path is ``<run>/sub-NNN/sample-NNNNNN``, deterministic
+        rather than randomized. What keeps it unique is the submission
+        level, since the index alone restarts at zero on every
+        submission; what makes it worth having is that a name a person
+        can predict is a name they can be told to look in a month
+        later.
+
+        Called once per *sample*, not once per task. Several
+        invocations may share this directory -- a solver run once for
+        values and again for a jacobian reads the inputs written here
+        exactly once -- so preparing per task would give each quantity
+        its own directory and its own copy of the inputs.
         """
-        self._scratch_root.mkdir(parents=True, exist_ok=True)
-        workdir = self._scratch_root / f"sample-{index}-{uuid.uuid4().hex[:8]}"
-        workdir.mkdir()
+        if self._run_dir is None:
+            # A marshaller driven directly, without an evaluator to
+            # announce the submission. One submission is the honest
+            # reading of it.
+            self.begin_submission()
+        if self._run_dir is None:
+            raise MarshalError("no run directory could be claimed")
+        workdir = (
+            self._run_dir
+            / self._submission_name()
+            / f"sample-{index:0{_SAMPLE_DIGITS}d}"
+        )
+        workdir.mkdir(parents=True)
         for source in self._link_files:
             if not source.exists():
                 raise MarshalError(

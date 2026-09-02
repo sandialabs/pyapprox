@@ -21,12 +21,14 @@ import os
 import sys
 import textwrap
 import time
+from pathlib import Path
 
 import pytest
 from pyapprox.interface.evaluation.evaluator import Evaluator
 from pyapprox.interface.evaluation.protocols import (
     MarshalError,
     MarshallerProtocol,
+    SubmissionAware,
     TaskProtocol,
 )
 from pyapprox.interface.evaluation.records import (
@@ -39,6 +41,7 @@ from pyapprox.interface.evaluation.subprocess_dispatcher import (
     SubprocessDispatcher,
 )
 from pyapprox.interface.evaluation.textfile_marshaller import (
+    OnExisting,
     Retention,
     TextFileMarshaller,
 )
@@ -505,6 +508,165 @@ class TestWorkingDirectories:
             )
 
 
+class TestRunAndSubmissionLayout:
+    """Directories are scoped by run and submission, not by index alone.
+
+    A sample number is a column in the submitted batch, so it restarts
+    at zero every time. One marshaller is submitted to many times --
+    ``BlockingModel`` submits on every call -- so the submission level
+    is what keeps the second submission from rebuilding the first's
+    paths.
+    """
+
+    def _run_dirs(self, tmp_path):
+        return sorted((tmp_path / "scratch").iterdir())
+
+    def test_a_sample_lands_under_run_and_submission(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        tasks = marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        workdir = Path(tasks[0].workdir)
+        assert workdir.name == "sample-000000"
+        assert workdir.parent.name == "sub-000"
+        assert workdir.parent.parent == Path(marshaller.run_dir())
+
+    def test_names_are_padded_so_they_sort_as_text(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """``sample-10`` before ``sample-2`` is the trap being avoided."""
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        tasks = marshaller.tasks(
+            numpy_bkd.ones((2, 11)), list(range(11)), Request.values_only()
+        )
+        names = [Path(task.workdir).name for task in tasks]
+        assert names == sorted(names)
+        assert names[-1] == "sample-000010"
+
+    def test_two_submissions_do_not_collide(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The behavior the submission level exists for.
+
+        Both submissions number their columns from zero, so without a
+        submission level the second would rebuild the first's paths.
+        """
+        marshaller, ev = _evaluator(solver, tmp_path, numpy_bkd)
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        run = Path(marshaller.run_dir())
+        assert sorted(p.name for p in run.iterdir()) == [
+            "sub-000",
+            "sub-001",
+        ]
+
+    def test_a_second_submission_does_not_overwrite_the_first(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Distinct paths, so no solve reads another's inputs."""
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        marshaller.begin_submission()
+        first = marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        marshaller.begin_submission()
+        second = marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        assert first[0].workdir != second[0].workdir
+        assert Path(first[0].workdir).exists()
+        assert Path(second[0].workdir).exists()
+
+    def test_the_run_directory_is_not_claimed_at_construction(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """An ensemble rebuilt per iteration constructs many of these."""
+        scratch = tmp_path / "scratch"
+        for _ in range(3):
+            marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+            assert marshaller.run_dir() is None
+        assert list(scratch.iterdir()) == []
+
+    def test_a_named_run_id_is_used_verbatim(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, run_id="sweep-a"
+        )
+        marshaller.begin_submission()
+        assert Path(marshaller.run_dir()).name == "sweep-a"
+
+    @pytest.mark.parametrize(
+        "bad", ["../escape", "a/b", "..", "with space", ""]
+    )
+    def test_a_run_id_that_is_not_a_safe_name_is_refused(
+        self, solver, tmp_path, numpy_bkd, bad
+    ) -> None:
+        """It becomes a path component, so traversal must not reach it."""
+        with pytest.raises(ValueError, match="run_id"):
+            _marshaller(solver, tmp_path, numpy_bkd, run_id=bad)
+
+    def test_an_existing_run_id_is_refused_by_default(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        (tmp_path / "scratch" / "sweep-a").mkdir(parents=True)
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, run_id="sweep-a"
+        )
+        with pytest.raises(MarshalError, match="already exists"):
+            marshaller.begin_submission()
+
+    def test_resume_continues_after_existing_submissions(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The ordinal is read from the directory, not held in memory.
+
+        A resumed process starts a fresh marshaller, so an in-memory
+        counter would restart at zero and overwrite ``sub-000``.
+        """
+        run = tmp_path / "scratch" / "sweep-a"
+        (run / "sub-000").mkdir(parents=True)
+        (run / "sub-001").mkdir()
+        marshaller = _marshaller(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            run_id="sweep-a",
+            on_existing=OnExisting.RESUME,
+        )
+        marshaller.begin_submission()
+        tasks = marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        assert Path(tasks[0].workdir).parent.name == "sub-002"
+
+    def test_new_allocates_a_fresh_id_beside_the_existing_one(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        (tmp_path / "scratch" / "sweep-a").mkdir(parents=True)
+        marshaller = _marshaller(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            run_id="sweep-a",
+            on_existing=OnExisting.NEW,
+        )
+        marshaller.begin_submission()
+        assert Path(marshaller.run_dir()).name != "sweep-a"
+        assert (tmp_path / "scratch" / "sweep-a").exists()
+
+    def test_the_marshaller_declares_it_is_submission_aware(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        assert isinstance(
+            _marshaller(solver, tmp_path, numpy_bkd), SubmissionAware
+        )
+
+
 class TestLogOutput:
     """The marshaller picks the location; the dispatcher routes to it."""
 
@@ -546,7 +708,7 @@ class TestLogOutput:
             log_output=True,
         )
         ev.submit(_columns(numpy_bkd, 4)).collect()
-        kept = list((tmp_path / "scratch").glob("sample-*"))
+        kept = list((tmp_path / "scratch").glob("*/sub-*/sample-*"))
         assert kept
         logged = [
             (directory / "solver.stderr").read_text()
@@ -574,7 +736,13 @@ class TestLogOutput:
 
 class TestRetention:
     def _scratch(self, tmp_path):
-        return list((tmp_path / "scratch").glob("sample-*"))
+        """Sample directories, wherever the run/submission levels put them.
+
+        Globbing the scratch root directly would match nothing now that
+        samples live under ``<run>/sub-NNN/``, and the assertions that
+        expect an empty list would pass without testing anything.
+        """
+        return list((tmp_path / "scratch").glob("*/sub-*/sample-*"))
 
     def test_never_discards_everything(
         self, solver, tmp_path, numpy_bkd

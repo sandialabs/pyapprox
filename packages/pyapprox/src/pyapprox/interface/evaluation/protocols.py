@@ -428,6 +428,38 @@ class MarshallerProtocol(Protocol, Generic[Array, Task, Payload]):
 
 
 @runtime_checkable
+class SubmissionAware(Protocol):
+    """A marshaller that needs to know when one submission ends.
+
+    Optional, and separate from :class:`MarshallerProtocol` because
+    almost nothing needs it: an evaluator calls
+    :meth:`~MarshallerProtocol.tasks` once per *chunk*, and a marshaller
+    holding no per-submission state cannot tell chunks apart and does
+    not care.
+
+    A marshaller that names anything after a batch-local index does
+    care, because those indices restart at zero on every submission. One
+    marshaller is submitted to many times -- an optimizer driving
+    ``BlockingModel`` submits on every call -- so ``sample-000012``
+    means a different sample each time, and a name built from it alone
+    collides.
+
+    **Explicit rather than inferred.** A marshaller could try to notice
+    that index zero came round again, but a chunk boundary and a
+    submission boundary are not distinguishable from inside ``tasks``,
+    and a submission of one sample looks like neither. The evaluator is
+    the only place that knows, so it says so.
+
+    Implementations must tolerate being called and never used: a
+    submission that raises during validation still opened one.
+    """
+
+    def begin_submission(self) -> None:
+        """Called once per ``submit``, before any task is built."""
+        ...
+
+
+@runtime_checkable
 class ResultStore(Protocol, Generic[Array]):
     """Somewhere finished results survive the process that produced them.
 
