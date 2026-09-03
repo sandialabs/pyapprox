@@ -50,6 +50,15 @@ from pyapprox.interface.evaluation.caching import (
     CachedObjective,
     RoundedHashLookup,
 )
+from pyapprox.interface.evaluation.collection import (
+    DEFAULT_SKIP,
+    OutputCollectorProtocol,
+    OutputSpec,
+    SpecCollector,
+    TransferMode,
+    TransferResult,
+    gather_into,
+)
 from pyapprox.interface.evaluation.ensemble import (
     Ensemble,
     EnsembleBatch,
@@ -154,4 +163,12 @@ __all__ = [
     "RUN_DONE_FILENAME",
     "ManifestWriter",
     "read_records",
+    # Output collection -- getting a solver's own files off scratch
+    "DEFAULT_SKIP",
+    "OutputCollectorProtocol",
+    "OutputSpec",
+    "SpecCollector",
+    "TransferMode",
+    "TransferResult",
+    "gather_into",
 ]
