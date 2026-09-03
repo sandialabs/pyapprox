@@ -53,7 +53,9 @@ from pyapprox.interface.evaluation.collection import (
 )
 from pyapprox.interface.evaluation.evaluator import Evaluator
 from pyapprox.interface.evaluation.manifest import (
+    KIND_PREPARED,
     KIND_RELEASED,
+    prepared_record,
     read_records,
 )
 from pyapprox.interface.evaluation.protocols import MarshalError
@@ -509,6 +511,31 @@ class TestManifestWithSeveralInvocations:
             if record["kind"] == KIND_RELEASED
         ]
 
+    def test_three_invocations_produce_one_prepared_record(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The directory belongs to the sample, not to the task.
+
+        ``_prepare`` runs once per sample and ``commands_for`` after it,
+        so all three invocations share one directory and one copy of the
+        inputs written into it. Preparing per task would give each
+        quantity its own directory, and the second invocation would find
+        no ``direction.in`` where it expected one.
+        """
+        marshaller, ev = _evaluator(solver, tmp_path, numpy_bkd)
+        vecs = numpy_bkd.array([[1.0], [3.0]])
+        ev.submit(
+            numpy_bkd.ones((2, 1)),
+            Request(values=True, jacobians=True, hvp_vecs=vecs),
+        ).collect()
+        prepared = [
+            record
+            for record in read_records(marshaller.manifest_path())
+            if record["kind"] == KIND_PREPARED
+        ]
+        assert len(prepared) == 1
+        assert prepared[0]["workdir"] == "sub-000/sample-000000"
+
     def test_three_invocations_produce_one_release_record(
         self, solver, tmp_path, numpy_bkd
     ) -> None:
@@ -740,6 +767,121 @@ class TestReconcilingSeveralInvocations:
             os.path.basename(path) for path in report.gathered[0]
         )
         assert names == ["hvp.out", "jacobian.out", "results.out"]
+
+
+class TestTheSeamBetweenTheTwoDirectoryRegimes:
+    """One request shares a directory; two requests do not.
+
+    Both are settled behavior rather than choices made here, and the
+    difference is worth a test because a user hits it directly. Asking
+    for values and a jacobian *together* gives one directory and one
+    solve. Asking for values now and a jacobian later gives two
+    directories in two submissions, and the sample is solved from
+    scratch the second time -- the directory from the first is gone, or
+    at best unrelated.
+
+    The uuid used to hide this. With deterministic names the two
+    submissions are plainly visible, and plainly unlinked: nothing in
+    the manifest says the two records concern the same parameter point,
+    because nothing in the marshaller knows that. Only the caller does.
+    """
+
+    def _prepared(self, marshaller):
+        return [
+            record
+            for record in read_records(marshaller.manifest_path())
+            if record["kind"] == KIND_PREPARED
+        ]
+
+    def test_one_request_yields_one_directory(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        ev.submit(
+            numpy_bkd.ones((2, 1)),
+            Request(values=True, jacobians=True),
+        ).collect()
+        assert len(self._prepared(marshaller)) == 1
+
+    def test_two_requests_yield_two_directories(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The same point, asked about twice, is solved twice."""
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        sample = numpy_bkd.ones((2, 1))
+        ev.submit(sample, Request(values=True)).collect()
+        ev.submit(sample, Request(values=True, jacobians=True)).collect()
+
+        prepared = self._prepared(marshaller)
+        assert len(prepared) == 2
+        # Different submissions, and both call their sample index 0 --
+        # which is why the submission level exists.
+        assert [r["submission"] for r in prepared] == [0, 1]
+        assert [r["index"] for r in prepared] == [0, 0]
+        assert prepared[0]["workdir"] != prepared[1]["workdir"]
+
+    def test_nothing_links_the_two_records_by_itself(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """A join needs a key the caller supplies.
+
+        Batch-local indices cannot do it: both submissions number their
+        columns from zero, so index 0 in one is unrelated to index 0 in
+        the other. Reconciling their union without a key would report
+        the first submission's sample as unexplained forever.
+        """
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        sample = numpy_bkd.ones((2, 1))
+        ev.submit(sample, Request(values=True)).collect()
+        ev.submit(sample, Request(values=True, jacobians=True)).collect()
+
+        prepared = self._prepared(marshaller)
+        assert all("key" not in record for record in prepared)
+        # The record carries one when a caller supplies it, which is
+        # the only thing that can join the two.
+        assert "key" in prepared_record(
+            submission=0, index=0, workdir="w", key="sweep:7"
+        )
+
+    def test_the_second_solve_does_not_read_the_first_inputs(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Both directories exist, with their own inputs."""
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        sample = numpy_bkd.ones((2, 1))
+        ev.submit(sample, Request(values=True)).collect()
+        ev.submit(sample, Request(values=True, jacobians=True)).collect()
+
+        run = Path(marshaller.run_dir())
+        for record in self._prepared(marshaller):
+            assert (run / record["workdir"] / "params.in").exists()
+
+    def test_both_submissions_reconcile_independently(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Neither is an anomaly merely for being a second attempt."""
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        sample = numpy_bkd.ones((2, 1))
+        ev.submit(sample, Request(values=True)).collect()
+        batch = ev.submit(sample, Request(values=True, jacobians=True))
+        batch.collect()
+        report = reconcile(
+            marshaller.run_dir(),
+            collector=SpecCollector(
+                [OutputSpec("results.out", required=True)], skip=()
+            ),
+        )
+        assert report.ok()
 
 
 class TestInheritedBehaviourIsUnchanged:

@@ -786,6 +786,79 @@ class TestReconciliation:
         kinds = {a.index: a.kind for a in report.anomalies}
         assert kinds == {7: AnomalyKind.NEVER_PREPARED}
 
+    def test_two_submissions_using_one_index_are_not_a_duplicate(
+        self, tmp_path
+    ) -> None:
+        """Indices are batch-local and restart at zero.
+
+        One marshaller submitted twice produces two samples numbered 0,
+        in different directories, doing different work. Keying by index
+        alone would report every second submission as a duplicate --
+        and two submissions through one marshaller is ordinary, not an
+        edge case.
+        """
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0)
+        for relative, submission in (("sub-001/sample-000000", 1),):
+            workdir = run / relative
+            workdir.mkdir(parents=True)
+            (workdir / "out.fld").write_text("payload")
+            writer.append(
+                prepared_record(
+                    submission=submission, index=0, workdir=relative
+                )
+            )
+            writer.append(
+                released_record(
+                    submission=submission,
+                    index=0,
+                    workdir=relative,
+                    status="SUCCEEDED",
+                    any_failed=False,
+                    tasks=[task_record("SUCCEEDED", None, 1.0)],
+                    retained=True,
+                )
+            )
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.ok()
+        assert report.ok_indices == (0,)
+
+    def test_an_anomaly_in_either_submission_still_surfaces(
+        self, tmp_path
+    ) -> None:
+        """A later clean run must not paper over an earlier problem."""
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        # Submission 0 wrote no field file; submission 1 did.
+        self._sample(run, writer, 0, files=("results.out",))
+        relative = "sub-001/sample-000000"
+        (run / relative).mkdir(parents=True)
+        (run / relative / "out.fld").write_text("payload")
+        writer.append(
+            prepared_record(submission=1, index=0, workdir=relative)
+        )
+        writer.append(
+            released_record(
+                submission=1,
+                index=0,
+                workdir=relative,
+                status="SUCCEEDED",
+                any_failed=False,
+                tasks=[task_record("SUCCEEDED", None, 1.0)],
+                retained=True,
+            )
+        )
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert not report.ok()
+        assert report.anomalies[0].kind is AnomalyKind.NO_OUTPUT
+
     def test_a_duplicate_release_is_flagged(self, tmp_path) -> None:
         run, writer = self._run(tmp_path)
         self._header(writer, run)

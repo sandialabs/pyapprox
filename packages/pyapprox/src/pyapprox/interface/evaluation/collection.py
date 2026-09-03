@@ -560,25 +560,44 @@ def reconcile(
         and the output check cannot fire.
     """
     run = Path(run_dir)
-    prepared: Dict[int, Dict[str, object]] = {}
-    released: Dict[int, List[Dict[str, object]]] = {}
+    # Keyed by (submission, index), never by index alone. Indices are
+    # batch-local and restart at zero, so one marshaller submitted twice
+    # produces two samples numbered 0 -- distinct work in distinct
+    # directories, which keying by index would report as a duplicate.
+    prepared: Dict[Tuple[int, int], Dict[str, object]] = {}
+    released: Dict[Tuple[int, int], List[Dict[str, object]]] = {}
     retention = ""
 
     for record in stream_records(run_dir):
         kind = record.get("kind")
         if kind == KIND_RUN:
             retention = str(record.get("retention", ""))
-        elif kind == KIND_PREPARED:
-            index = record.get("index")
-            if isinstance(index, int):
-                prepared[index] = record
-        elif kind == KIND_RELEASED:
-            index = record.get("index")
-            if isinstance(index, int):
-                released.setdefault(index, []).append(record)
+            continue
+        if kind not in (KIND_PREPARED, KIND_RELEASED):
+            continue
+        key = _sample_key(record)
+        if key is None:
+            continue
+        if kind == KIND_PREPARED:
+            prepared[key] = record
+        else:
+            released.setdefault(key, []).append(record)
 
     report = _Reconciler(run, prepared, released, retention, collector)
     return report.run(statuses)
+
+
+def _sample_key(record: Mapping[str, object]) -> Optional[Tuple[int, int]]:
+    """A record's ``(submission, index)``, or ``None`` if malformed.
+
+    Records written before submissions were recorded, or edited by
+    hand, fall back to submission zero rather than being dropped.
+    """
+    index = record.get("index")
+    if not isinstance(index, int):
+        return None
+    submission = record.get("submission")
+    return (submission if isinstance(submission, int) else 0, index)
 
 
 class _Reconciler:
@@ -594,8 +613,8 @@ class _Reconciler:
     def __init__(
         self,
         run: Path,
-        prepared: Dict[int, Dict[str, object]],
-        released: Dict[int, List[Dict[str, object]]],
+        prepared: Dict[Tuple[int, int], Dict[str, object]],
+        released: Dict[Tuple[int, int], List[Dict[str, object]]],
         retention: str,
         collector: Optional[OutputCollectorProtocol],
     ) -> None:
@@ -614,8 +633,15 @@ class _Reconciler:
         partial: Dict[int, str] = {}
         anomalies: List[Anomaly] = []
 
-        for index in self._indices(statuses):
-            verdict, detail = self._verdict(index, statuses)
+        # Judged per (submission, index) but reported per index, which
+        # is what a caller holds: they submitted columns, not
+        # submissions. A sample asked about twice therefore contributes
+        # two verdicts under one index, and the worse one has to win --
+        # otherwise a later clean resubmission would paper over an
+        # earlier anomaly that is still true of the run.
+        for key in self._keys(statuses):
+            index = key[1]
+            verdict, detail = self._verdict(key, statuses)
             if isinstance(verdict, AnomalyKind):
                 anomalies.append(Anomaly(index, verdict, detail))
             elif verdict == "partial":
@@ -625,34 +651,50 @@ class _Reconciler:
                 retryable.append(index)
             elif verdict == "explained":
                 explained[index] = detail
-            else:
+            elif index not in partial and index not in explained:
                 ok.append(index)
 
+        flagged = (
+            {anomaly.index for anomaly in anomalies}
+            | set(partial)
+            | set(explained)
+        )
         return CollectionReport(
             run_id=self._run.name,
-            ok_indices=tuple(sorted(ok)),
+            ok_indices=tuple(
+                sorted({index for index in ok if index not in flagged})
+            ),
             explained=dict(explained),
-            retryable=tuple(sorted(retryable)),
+            retryable=tuple(sorted(set(retryable))),
             partial=dict(partial),
             anomalies=tuple(anomalies),
         )
 
-    def _indices(
+    def _keys(
         self, statuses: Optional[Mapping[int, JobStatus]]
-    ) -> List[int]:
-        """Every index worth judging, from records and caller alike."""
+    ) -> List[Tuple[int, int]]:
+        """Every sample worth judging, from records and caller alike.
+
+        A status map is keyed by index alone -- it comes from one batch,
+        which knows nothing of submissions -- so an index it names that
+        no record mentions is attributed to submission zero purely to
+        give it a key.
+        """
         known = set(self._prepared) | set(self._released)
         if statuses is not None:
-            known |= set(statuses)
+            seen = {index for _, index in known}
+            known |= {
+                (0, index) for index in statuses if index not in seen
+            }
         return sorted(known)
 
     def _verdict(
         self,
-        index: int,
+        key: Tuple[int, int],
         statuses: Optional[Mapping[int, JobStatus]],
     ) -> Tuple[object, str]:
         """One sample's verdict, first matching rule winning."""
-        records = self._released.get(index, [])
+        records = self._released.get(key, [])
 
         # Two release records for one sample. Only reachable through a
         # bug or a hand-edited manifest, and worth saying plainly
@@ -663,7 +705,7 @@ class _Reconciler:
         # Submitted, and no record mentions it: nothing ever built it a
         # directory. Needs the caller's status map, since a marshaller
         # never learns how many samples a batch held.
-        if index not in self._prepared and not records:
+        if key not in self._prepared and not records:
             return (
                 AnomalyKind.NEVER_PREPARED,
                 "submitted, but no record mentions it",
