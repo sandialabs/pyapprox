@@ -56,6 +56,11 @@ from pyapprox.interface.evaluation.ensemble import (
     EnsembleProgress,
     ModelId,
 )
+from pyapprox.interface.evaluation.manifest import (
+    RUN_DONE_FILENAME,
+    ManifestWriter,
+    read_records,
+)
 from pyapprox.interface.evaluation.protocols import (
     BatchProtocol,
     DispatcherProtocol,
@@ -125,10 +130,9 @@ __all__ = [
     "JobHandle",
     "MarshalError",
     "MarshallerProtocol",
-    "OnExisting",
-    "SubmissionAware",
     "ResultStore",
     "SampleLookup",
+    "SubmissionAware",
     # Caching -- serving a quantity from a store rather than recomputing
     "CachedObjective",
     "RoundedHashLookup",
@@ -140,9 +144,14 @@ __all__ = [
     "restore_columns",
     "stored_indices",
     # External solvers
+    "OnExisting",
     "Retention",
     "ShellPayload",
     "ShellTask",
     "SubprocessDispatcher",
     "TextFileMarshaller",
+    # Run manifests -- what happened to each working directory
+    "RUN_DONE_FILENAME",
+    "ManifestWriter",
+    "read_records",
 ]

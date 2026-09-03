@@ -44,6 +44,10 @@ from typing import Sequence
 
 import pytest
 from pyapprox.interface.evaluation.evaluator import Evaluator
+from pyapprox.interface.evaluation.manifest import (
+    KIND_RELEASED,
+    read_records,
+)
 from pyapprox.interface.evaluation.protocols import MarshalError
 from pyapprox.interface.evaluation.records import (
     Decoded,
@@ -473,6 +477,89 @@ class TestSharedDirectoryLifetime:
             numpy_bkd.ones((2, 1)), Request(values=True, jacobians=True)
         ).collect()
         assert len(self._scratch(tmp_path)) == 1
+
+
+class TestManifestWithSeveralInvocations:
+    """One directory, several tasks, one record.
+
+    ``release`` fires per task, so the naive write gives a
+    three-invocation sample three release lines -- which a reader can
+    only see as a duplicate -- and lets whichever task finished last
+    decide what the run says happened.
+    """
+
+    def _released(self, marshaller):
+        return [
+            record
+            for record in read_records(marshaller.manifest_path())
+            if record["kind"] == KIND_RELEASED
+        ]
+
+    def test_three_invocations_produce_one_release_record(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(solver, tmp_path, numpy_bkd)
+        vecs = numpy_bkd.array([[1.0], [3.0]])
+        ev.submit(
+            numpy_bkd.ones((2, 1)),
+            Request(values=True, jacobians=True, hvp_vecs=vecs),
+        ).collect()
+        released = self._released(marshaller)
+        assert len(released) == 1
+        assert len(released[0]["tasks"]) == 3
+
+    def test_each_invocation_keeps_its_own_outcome(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(solver, tmp_path, numpy_bkd)
+        ev.submit(
+            numpy_bkd.ones((2, 1)),
+            Request(values=True, jacobians=True),
+        ).collect()
+        tasks = self._released(marshaller)[0]["tasks"]
+        assert [task["status"] for task in tasks] == [
+            "SUCCEEDED",
+            "SUCCEEDED",
+        ]
+
+    def test_a_failure_in_one_invocation_marks_the_sample(
+        self, tmp_path, numpy_bkd
+    ) -> None:
+        """Status is derived, not whichever task finished last.
+
+        The values invocation succeeds and the jacobian one does not, so
+        an identical run must not be able to record SUCCEEDED merely
+        because the values task happened to finish second.
+        """
+        partial = tmp_path / "partial_solver.py"
+        partial.write_text(
+            textwrap.dedent(SOLVER).replace(
+                'elif mode == "jacobian":',
+                'elif mode == "jacobian":\n    sys.exit(3)\nelif False:',
+            )
+        )
+        marshaller = DerivativeMarshaller(
+            partial,
+            bkd=numpy_bkd,
+            nvars=2,
+            nqoi=1,
+            scratch_root=str(tmp_path / "scratch"),
+            retention=Retention.ON_FAILURE,
+        )
+        ev = Evaluator(marshaller, SubprocessDispatcher(concurrency=2))
+        ev.submit(
+            numpy_bkd.ones((2, 1)), Request(values=True, jacobians=True)
+        ).collect()
+        record = self._released(marshaller)[0]
+        assert record["any_failed"] is True
+        assert record["status"] == "FAILED"
+        assert record["retained"] is True
+        # Both invocations are visible, so "which part failed" is
+        # answerable rather than collapsed into one word.
+        assert sorted(task["status"] for task in record["tasks"]) == [
+            "FAILED",
+            "SUCCEEDED",
+        ]
 
 
 class TestInheritedBehaviourIsUnchanged:

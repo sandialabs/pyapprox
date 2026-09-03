@@ -62,6 +62,15 @@ from typing import (
     Tuple,
 )
 
+from pyapprox.interface.evaluation.manifest import (
+    RUN_DONE_FILENAME,
+    ManifestWriter,
+    manifest_filename,
+    prepared_record,
+    released_record,
+    run_record,
+    task_record,
+)
 from pyapprox.interface.evaluation.protocols import MarshalError
 from pyapprox.interface.evaluation.records import (
     Decoded,
@@ -137,6 +146,40 @@ def _highest_submission(run_dir: Path) -> int:
         if matched is not None and entry.is_dir():
             highest = max(highest, int(matched.group(1)))
     return highest
+
+
+def _derived_status(
+    tasks: Sequence[Dict[str, object]],
+    failed: bool,
+    outcome: Outcome[ShellTask, ShellPayload],
+) -> str:
+    """One word for a directory that may have had several invocations.
+
+    A derivation rather than the last outcome to arrive: ``release``
+    fires per task, so the final call sees one status, and an identical
+    run could record ``SUCCEEDED`` or ``FAILED`` for the same sample
+    depending on which invocation finished first.
+
+    Retryable failures are reported as themselves. The difference
+    between "this parameter point is bad" and "resubmit this" is the
+    whole reason ``JobStatus`` distinguishes them, and collapsing a
+    timeout into ``FAILED`` here would throw that away.
+    """
+    if not failed:
+        return JobStatus.SUCCEEDED.name
+    statuses = [
+        str(task["status"])
+        for task in tasks
+        if task["status"] != JobStatus.SUCCEEDED.name
+    ]
+    if not statuses:
+        return outcome.status.name
+    # A plain failure is the stronger statement: a sample with one
+    # timed-out invocation and one that failed outright is not
+    # retryable, because rerunning it would meet the same failure.
+    if JobStatus.FAILED.name in statuses:
+        return JobStatus.FAILED.name
+    return statuses[0]
 
 
 class OnExisting(Enum):
@@ -360,6 +403,15 @@ class TextFileMarshaller(Generic[Array]):
         # use, and because "no submission has begun" has to be
         # distinguishable from "the first one has".
         self._submission = -1
+        self._manifest: Optional[ManifestWriter] = None
+        # Which submission each directory belongs to, and what its tasks
+        # reported. Both are needed at release, which sees only a path:
+        # the submission because the record names it, and the outcomes
+        # because a shared directory's status is an aggregate rather
+        # than whichever invocation finished last.
+        self._dir_submission: Dict[str, int] = {}
+        self._dir_index: Dict[str, int] = {}
+        self._dir_tasks: Dict[str, List[Dict[str, object]]] = {}
         self._check_link_files()
         self._check_scratch_root()
         # How many tasks still expect each working directory to exist.
@@ -496,8 +548,59 @@ class TextFileMarshaller(Generic[Array]):
         if self._run_dir is None:
             self._run_dir = self._claim_run_dir()
             self._submission = _highest_submission(self._run_dir)
+            self._open_manifest(self._run_dir)
         self._submission += 1
         (self._run_dir / self._submission_name()).mkdir(exist_ok=True)
+
+    def _open_manifest(self, run_dir: Path) -> None:
+        """Start this process's manifest and write its header.
+
+        Once per process rather than once per run: a resumed run gets a
+        second file, so which settings applied to which records is never
+        ambiguous.
+        """
+        self._manifest = ManifestWriter(
+            str(run_dir / manifest_filename())
+        )
+        self._manifest.append(
+            run_record(
+                run_id=run_dir.name,
+                retention=self._retention.value,
+                command=self._command,
+                link_files=[str(path) for path in self._link_files],
+                created=datetime.datetime.now(
+                    datetime.timezone.utc
+                ).isoformat(),
+            )
+        )
+
+    def manifest_path(self) -> Optional[str]:
+        """This process's manifest file, once a run has begun."""
+        return None if self._manifest is None else self._manifest.path()
+
+    def mark_run_done(self) -> None:
+        """Record that nothing further will be written to this run.
+
+        Called by whoever knows the work is finished, because nothing
+        here does: a marshaller sees tasks and releases, never a batch,
+        and adding a completion call to ``MarshallerProtocol`` would
+        oblige every implementation to have a notion of "done" that an
+        HTTP or in-process marshaller has no use for.
+
+        Its absence is not an error. A run killed by a wall-clock limit
+        never marks itself, which is exactly the state a later reader
+        wants to be warned about -- so the marker means "complete", and
+        nothing else claims to.
+        """
+        if self._run_dir is None:
+            return
+        marker = self._run_dir / RUN_DONE_FILENAME
+        try:
+            marker.touch(exist_ok=True)
+        except OSError:
+            # Same rule as the manifest: a note about the run must not
+            # be able to fail the run.
+            pass
 
     def _submission_name(self) -> str:
         return f"sub-{self._submission:0{_SUBMISSION_DIGITS}d}"
@@ -579,9 +682,80 @@ class TextFileMarshaller(Generic[Array]):
                 self._with_logs(task)
                 for task in self.commands_for(layout, index, request)
             ]
-            self._outstanding[str(layout.workdir)] = len(commands)
+            key = str(layout.workdir)
+            self._outstanding[key] = len(commands)
+            self._record_prepared(key, index, layout)
             built.extend(commands)
         return built
+
+    def _record_prepared(
+        self, key: str, index: int, layout: _Layout
+    ) -> None:
+        """Note that a directory exists, and remember what release needs.
+
+        Written here rather than only at release because the two say
+        different things. An error preparing a later sample leaves this
+        one created, registered and never released; without this line it
+        would be indistinguishable from a sample that was never created
+        at all.
+        """
+        self._dir_submission[key] = self._submission
+        self._dir_index[key] = index
+        self._dir_tasks[key] = []
+        if self._manifest is None:
+            return
+        self._manifest.append(
+            prepared_record(
+                submission=self._submission,
+                index=index,
+                workdir=self._relative_workdir(layout.workdir),
+            )
+        )
+
+    def _record_released(
+        self,
+        key: str,
+        outcome: Outcome[ShellTask, ShellPayload],
+        failed: bool,
+        retained: bool,
+    ) -> None:
+        """Write the directory's one release record and forget it.
+
+        The bookkeeping is dropped whether or not a manifest is being
+        written, so a long run does not accumulate a dict entry per
+        sample for the whole of it.
+        """
+        tasks = self._dir_tasks.pop(key, [])
+        submission = self._dir_submission.pop(key, self._submission)
+        index = self._dir_index.pop(key, -1)
+        if self._manifest is None:
+            return
+        self._manifest.append(
+            released_record(
+                submission=submission,
+                index=index,
+                workdir=self._relative_workdir(Path(key)),
+                status=_derived_status(tasks, failed, outcome),
+                any_failed=failed,
+                tasks=tasks,
+                retained=retained,
+            )
+        )
+
+    def _relative_workdir(self, workdir: Path) -> str:
+        """A directory's path relative to the run it belongs to.
+
+        Absolute paths stop meaning anything the moment a run is
+        archived, copied to a workstation, or read from a node that
+        mounts the filesystem somewhere else -- which is exactly when a
+        manifest gets read.
+        """
+        if self._run_dir is None:
+            return str(workdir)
+        try:
+            return str(workdir.relative_to(self._run_dir))
+        except ValueError:
+            return str(workdir)
 
     def _with_logs(self, task: ShellTask) -> ShellTask:
         """Point a task's output at files inside its working directory.
@@ -885,6 +1059,18 @@ class TextFileMarshaller(Generic[Array]):
         misses the second and raises on the first.
         """
         key = outcome.task.workdir
+        # Every invocation's own outcome, kept because the record is
+        # written once for the directory: a sample solved for values and
+        # again for a jacobian has two, and reporting only the last to
+        # finish would let completion order decide what the run says
+        # happened.
+        self._dir_tasks.setdefault(key, []).append(
+            task_record(
+                status=outcome.status.name,
+                detail=outcome.detail,
+                wall_time=outcome.wall_time,
+            )
+        )
         remaining = self._outstanding.get(key, 1) - 1
         if remaining > 0:
             # Another task still needs this directory. Any failure it
@@ -901,6 +1087,11 @@ class TextFileMarshaller(Generic[Array]):
             or outcome.status is not JobStatus.SUCCEEDED
         )
         self._failed_dirs.discard(key)
+
+        retained = self._retention is Retention.ALWAYS or (
+            self._retention is Retention.ON_FAILURE and failed
+        )
+        self._record_released(key, outcome, failed, retained)
 
         if self._retention is Retention.ALWAYS:
             return

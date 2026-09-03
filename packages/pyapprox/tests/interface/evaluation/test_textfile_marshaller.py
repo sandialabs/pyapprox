@@ -25,6 +25,13 @@ from pathlib import Path
 
 import pytest
 from pyapprox.interface.evaluation.evaluator import Evaluator
+from pyapprox.interface.evaluation.manifest import (
+    KIND_PREPARED,
+    KIND_RELEASED,
+    KIND_RUN,
+    RUN_DONE_FILENAME,
+    read_records,
+)
 from pyapprox.interface.evaluation.protocols import (
     MarshalError,
     MarshallerProtocol,
@@ -557,7 +564,10 @@ class TestRunAndSubmissionLayout:
         ev.submit(_columns(numpy_bkd, 2)).collect()
         ev.submit(_columns(numpy_bkd, 2)).collect()
         run = Path(marshaller.run_dir())
-        assert sorted(p.name for p in run.iterdir()) == [
+        # By name, not by listing the directory: the manifest lives here
+        # too, so "what submissions are there" is a question about
+        # sub-* rather than about everything present.
+        assert sorted(p.name for p in run.glob("sub-*")) == [
             "sub-000",
             "sub-001",
         ]
@@ -665,6 +675,147 @@ class TestRunAndSubmissionLayout:
         assert isinstance(
             _marshaller(solver, tmp_path, numpy_bkd), SubmissionAware
         )
+
+
+class TestManifest:
+    """What the run recorded about itself, as it ran."""
+
+    def _records(self, marshaller, kind=None):
+        records = read_records(marshaller.manifest_path())
+        if kind is None:
+            return records
+        return [r for r in records if r["kind"] == kind]
+
+    def test_a_header_is_written_when_the_run_begins(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, retention=Retention.NEVER
+        )
+        marshaller.begin_submission()
+        header = self._records(marshaller, KIND_RUN)[0]
+        assert header["run_id"] == Path(marshaller.run_dir()).name
+        assert header["retention"] == "never"
+        assert header["command"][0] == sys.executable
+
+    def test_the_manifest_lives_in_the_run_directory(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        marshaller.begin_submission()
+        assert (
+            Path(marshaller.manifest_path()).parent
+            == Path(marshaller.run_dir())
+        )
+
+    def test_there_is_no_manifest_before_a_run_begins(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        assert marshaller.manifest_path() is None
+
+    def test_every_prepared_directory_is_recorded(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        marshaller.tasks(
+            numpy_bkd.ones((2, 3)), [0, 1, 2], Request.values_only()
+        )
+        prepared = self._records(marshaller, KIND_PREPARED)
+        assert [r["index"] for r in prepared] == [0, 1, 2]
+
+    def test_workdirs_are_recorded_relative_to_the_run(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """An absolute path stops meaning anything once a run moves."""
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        record = self._records(marshaller, KIND_PREPARED)[0]
+        assert record["workdir"] == "sub-000/sample-000000"
+
+    def test_a_finished_sample_gets_one_release_record(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.NEVER
+        )
+        ev.submit(_columns(numpy_bkd, 3)).collect()
+        released = self._records(marshaller, KIND_RELEASED)
+        assert len(released) == 3
+        assert all(r["status"] == "SUCCEEDED" for r in released)
+        assert all(r["any_failed"] is False for r in released)
+
+    def test_a_failure_is_recorded_with_its_detail(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, mode="fail"
+        )
+        ev.submit(_columns(numpy_bkd, 4)).collect()
+        failed = [
+            r
+            for r in self._records(marshaller, KIND_RELEASED)
+            if r["any_failed"]
+        ]
+        assert failed
+        assert failed[0]["status"] == "FAILED"
+        assert "singular" in failed[0]["tasks"][0]["detail"]
+
+    def test_retention_is_recorded_per_directory(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """So a reader who finds nothing can tell policy from loss."""
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.NEVER
+        )
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        released = self._records(marshaller, KIND_RELEASED)
+        assert all(r["retained"] is False for r in released)
+
+    def test_a_prepared_sample_that_never_released_keeps_its_record(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The distinction the two record kinds exist for.
+
+        A directory built and never harvested must not read the same as
+        a sample that was never created.
+        """
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        marshaller.tasks(
+            numpy_bkd.ones((2, 2)), [0, 1], Request.values_only()
+        )
+        assert len(self._records(marshaller, KIND_PREPARED)) == 2
+        assert self._records(marshaller, KIND_RELEASED) == []
+
+    def test_a_run_can_be_marked_done(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(solver, tmp_path, numpy_bkd)
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        assert not (
+            Path(marshaller.run_dir()) / RUN_DONE_FILENAME
+        ).exists()
+        marshaller.mark_run_done()
+        assert (Path(marshaller.run_dir()) / RUN_DONE_FILENAME).exists()
+
+    def test_marking_a_run_that_never_began_is_harmless(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        _marshaller(solver, tmp_path, numpy_bkd).mark_run_done()
+
+    def test_a_second_submission_is_recorded_under_its_own_ordinal(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(solver, tmp_path, numpy_bkd)
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        prepared = self._records(marshaller, KIND_PREPARED)
+        assert sorted({r["submission"] for r in prepared}) == [0, 1]
+        # Same indices, different directories -- which is the whole
+        # point of the submission level.
+        assert len({r["workdir"] for r in prepared}) == 4
 
 
 class TestLogOutput:
