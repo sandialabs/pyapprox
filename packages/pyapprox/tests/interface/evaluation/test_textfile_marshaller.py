@@ -25,9 +25,11 @@ from pathlib import Path
 
 import pytest
 from pyapprox.interface.evaluation.collection import (
+    AnomalyKind,
     OutputSpec,
     SpecCollector,
     gather_run,
+    reconcile,
 )
 from pyapprox.interface.evaluation.evaluator import Evaluator
 from pyapprox.interface.evaluation.manifest import (
@@ -943,6 +945,111 @@ class TestDeferredGathering:
         )
         assert sorted(report.missing) == [0, 1, 2]
         assert report.gathered == {}
+
+
+class TestReconcilingARealRun:
+    """The invariant, checked against a run a real solver produced."""
+
+    def test_a_clean_run_reconciles(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.ALWAYS,
+        )
+        batch = ev.submit(_columns(numpy_bkd, 3))
+        batch.collect()
+        report = reconcile(
+            marshaller.run_dir(),
+            statuses=batch.statuses(),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.ok()
+        assert report.ok_indices == (0, 1, 2)
+
+    def test_a_solver_that_exits_zero_writing_nothing_is_caught(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The case this whole feature exists for.
+
+        ``silent`` mode writes results.out for some samples and exits
+        zero without it for others -- and the values decoder is what
+        turns the missing scalar into a failure. What no other check
+        can see is the sample that wrote its scalar and no field file,
+        which is what the required spec catches here.
+        """
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="ok",
+            retention=Retention.ALWAYS,
+        )
+        batch = ev.submit(_columns(numpy_bkd, 3))
+        batch.collect()
+        # The solver wrote results.out and no field file, so every
+        # sample succeeded and every one is missing its output.
+        report = reconcile(
+            marshaller.run_dir(),
+            statuses=batch.statuses(),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert not report.ok()
+        assert {a.kind for a in report.anomalies} == {
+            AnomalyKind.NO_OUTPUT
+        }
+        assert len(report.anomalies) == 3
+
+    def test_a_genuinely_failed_sample_is_explained(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """A failure is evidence, not an anomaly."""
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="fail",
+            retention=Retention.ALWAYS,
+        )
+        batch = ev.submit(_columns(numpy_bkd, 4))
+        batch.collect()
+        report = reconcile(
+            marshaller.run_dir(),
+            statuses=batch.statuses(),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.explained
+        assert all(
+            a.kind is AnomalyKind.NO_OUTPUT for a in report.anomalies
+        )
+
+    def test_retention_never_leaves_a_reconcilable_record(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Every directory is gone, and none of it is alarming.
+
+        The manifest is the only remaining trace the samples existed,
+        which is exactly what it is for.
+        """
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+        )
+        batch = ev.submit(_columns(numpy_bkd, 3))
+        batch.collect()
+        report = reconcile(
+            marshaller.run_dir(),
+            statuses=batch.statuses(),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.ok()
+        assert len(report.explained) == 3
 
 
 class TestLogOutput:

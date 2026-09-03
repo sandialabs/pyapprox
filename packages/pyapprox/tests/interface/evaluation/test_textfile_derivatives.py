@@ -37,12 +37,20 @@ finite differences, which would only agree to a few digits and need a
 step-size tolerance. An exact answer is the stronger check.
 """
 
+import os
 import sys
 import textwrap
 from pathlib import Path
 from typing import Sequence
 
 import pytest
+from pyapprox.interface.evaluation.collection import (
+    AnomalyKind,
+    OutputSpec,
+    SpecCollector,
+    gather_run,
+    reconcile,
+)
 from pyapprox.interface.evaluation.evaluator import Evaluator
 from pyapprox.interface.evaluation.manifest import (
     KIND_RELEASED,
@@ -241,14 +249,20 @@ def solver(tmp_path):
     return path
 
 
-def _evaluator(solver, tmp_path, numpy_bkd, concurrency=2):
+def _evaluator(
+    solver,
+    tmp_path,
+    numpy_bkd,
+    concurrency=2,
+    retention=Retention.NEVER,
+):
     marshaller = DerivativeMarshaller(
         solver,
         bkd=numpy_bkd,
         nvars=2,
         nqoi=1,
         scratch_root=str(tmp_path / "scratch"),
-        retention=Retention.NEVER,
+        retention=retention,
     )
     return marshaller, Evaluator(
         marshaller, SubprocessDispatcher(concurrency=concurrency)
@@ -525,11 +539,14 @@ class TestManifestWithSeveralInvocations:
     def test_a_failure_in_one_invocation_marks_the_sample(
         self, tmp_path, numpy_bkd
     ) -> None:
-        """Status is derived, not whichever task finished last.
+        """Status is derived, and agrees with what the caller was told.
 
-        The values invocation succeeds and the jacobian one does not, so
-        an identical run must not be able to record SUCCEEDED merely
-        because the values task happened to finish second.
+        The values invocation succeeds and the jacobian one does not.
+        Success is per quantity, so the evaluator reports this sample
+        SUCCEEDED and puts it in ``succeeded`` -- a manifest recording
+        FAILED would contradict the result handed back. ``any_failed``
+        and the per-task list carry what actually went wrong, and
+        neither depends on which invocation finished first.
         """
         partial = tmp_path / "partial_solver.py"
         partial.write_text(
@@ -552,7 +569,10 @@ class TestManifestWithSeveralInvocations:
         ).collect()
         record = self._released(marshaller)[0]
         assert record["any_failed"] is True
-        assert record["status"] == "FAILED"
+        # SUCCEEDED, matching what the evaluator reported: the values
+        # invocation produced its quantity. The failure is not hidden --
+        # any_failed and the task list below carry it.
+        assert record["status"] == "SUCCEEDED"
         assert record["retained"] is True
         # Both invocations are visible, so "which part failed" is
         # answerable rather than collapsed into one word.
@@ -560,6 +580,166 @@ class TestManifestWithSeveralInvocations:
             "FAILED",
             "SUCCEEDED",
         ]
+
+
+class TestTheManifestAgreesWithTheResult:
+    """One sample must not be SUCCEEDED in one place and FAILED in another.
+
+    The evaluator reports success per quantity, so a sample whose
+    values decoded lands in ``succeeded`` even when its jacobian
+    invocation failed. A manifest calling the same sample FAILED would
+    make the run's own record contradict what the caller was handed,
+    and reconciliation -- which reads the manifest and takes the
+    caller's statuses -- would see the two disagree.
+    """
+
+    def test_status_matches_what_the_batch_reported(
+        self, tmp_path, numpy_bkd
+    ) -> None:
+        partial = tmp_path / "partial_solver.py"
+        partial.write_text(
+            textwrap.dedent(SOLVER).replace(
+                'elif mode == "jacobian":',
+                'elif mode == "jacobian":\n    sys.exit(3)\nelif False:',
+            )
+        )
+        marshaller = DerivativeMarshaller(
+            partial,
+            bkd=numpy_bkd,
+            nvars=2,
+            nqoi=1,
+            scratch_root=str(tmp_path / "scratch"),
+            retention=Retention.ALWAYS,
+        )
+        ev = Evaluator(marshaller, SubprocessDispatcher(concurrency=2))
+        batch = ev.submit(
+            numpy_bkd.ones((2, 1)), Request(values=True, jacobians=True)
+        )
+        batch.collect()
+        record = [
+            r
+            for r in read_records(marshaller.manifest_path())
+            if r["kind"] == KIND_RELEASED
+        ][0]
+        assert record["status"] == batch.statuses()[0].name
+
+
+class TestReconcilingSeveralInvocations:
+    """A partly-failed sample must not read as one that wrote nothing.
+
+    Success is per quantity. A sample whose values succeeded and whose
+    jacobian failed is legitimately missing that quantity's file, so
+    checking the required-output rule before the partial-failure rule
+    would report every such sample as a solver that exited zero having
+    written nothing -- the exact false positive that would make the
+    check untrustworthy on any run asking for derivatives.
+    """
+
+    def _partial_solver(self, tmp_path):
+        """A solver whose jacobian invocation fails."""
+        path = tmp_path / "partial_solver.py"
+        path.write_text(
+            textwrap.dedent(SOLVER).replace(
+                'elif mode == "jacobian":',
+                'elif mode == "jacobian":\n    sys.exit(3)\nelif False:',
+            )
+        )
+        return path
+
+    def test_a_partial_sample_is_reported_as_partial(
+        self, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = DerivativeMarshaller(
+            self._partial_solver(tmp_path),
+            bkd=numpy_bkd,
+            nvars=2,
+            nqoi=1,
+            scratch_root=str(tmp_path / "scratch"),
+            retention=Retention.ALWAYS,
+        )
+        ev = Evaluator(marshaller, SubprocessDispatcher(concurrency=2))
+        batch = ev.submit(
+            numpy_bkd.ones((2, 1)), Request(values=True, jacobians=True)
+        )
+        batch.collect()
+        report = reconcile(
+            marshaller.run_dir(),
+            statuses=batch.statuses(),
+            collector=SpecCollector(
+                [OutputSpec("jacobian.out", required=True)]
+            ),
+        )
+        assert report.ok()
+        assert 0 in report.partial
+        assert not any(
+            a.kind is AnomalyKind.NO_OUTPUT for a in report.anomalies
+        )
+
+    def test_a_fully_successful_run_still_reconciles(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The rule above must not excuse everything."""
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        batch = ev.submit(
+            numpy_bkd.ones((2, 2)), Request(values=True, jacobians=True)
+        )
+        batch.collect()
+        report = reconcile(
+            marshaller.run_dir(),
+            statuses=batch.statuses(),
+            collector=SpecCollector(
+                [OutputSpec("jacobian.out", required=True)]
+            ),
+        )
+        assert report.ok()
+        assert report.partial == {}
+        assert sorted(report.ok_indices) == [0, 1]
+
+    def test_a_missing_output_is_still_caught_for_derivatives(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Row 7 excuses a partial sample, not a silent one."""
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        batch = ev.submit(
+            numpy_bkd.ones((2, 2)), Request(values=True, jacobians=True)
+        )
+        batch.collect()
+        report = reconcile(
+            marshaller.run_dir(),
+            statuses=batch.statuses(),
+            collector=SpecCollector([OutputSpec("*.nope", required=True)]),
+        )
+        assert not report.ok()
+        assert all(
+            a.kind is AnomalyKind.NO_OUTPUT for a in report.anomalies
+        )
+
+    def test_gathering_a_shared_directory_does_not_double_count(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Three invocations, one directory, gathered once."""
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, retention=Retention.ALWAYS
+        )
+        vecs = numpy_bkd.array([[1.0], [3.0]])
+        ev.submit(
+            numpy_bkd.ones((2, 1)),
+            Request(values=True, jacobians=True, hvp_vecs=vecs),
+        ).collect()
+        report = gather_run(
+            marshaller.run_dir(),
+            SpecCollector([OutputSpec("*.out")], skip=("params.in",)),
+            str(tmp_path / "archive"),
+        )
+        assert sorted(report.gathered) == [0]
+        names = sorted(
+            os.path.basename(path) for path in report.gathered[0]
+        )
+        assert names == ["hvp.out", "jacobian.out", "results.out"]
 
 
 class TestInheritedBehaviourIsUnchanged:

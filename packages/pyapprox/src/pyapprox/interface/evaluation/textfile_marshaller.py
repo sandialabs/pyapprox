@@ -160,6 +160,14 @@ def _derived_status(
     run could record ``SUCCEEDED`` or ``FAILED`` for the same sample
     depending on which invocation finished first.
 
+    **Success is per quantity**, so a sample is only failed when no
+    invocation succeeded. One that computed its values and failed to
+    compute its jacobian succeeded at what it could: the evaluator puts
+    that index in ``succeeded`` and reports it ``SUCCEEDED``, and a
+    manifest saying ``FAILED`` for the same sample would make the record
+    disagree with the result the caller was handed. ``any_failed`` and
+    the per-task list are what carry the rest.
+
     Retryable failures are reported as themselves. The difference
     between "this parameter point is bad" and "resubmit this" is the
     whole reason ``JobStatus`` distinguishes them, and collapsing a
@@ -167,19 +175,22 @@ def _derived_status(
     """
     if not failed:
         return JobStatus.SUCCEEDED.name
-    statuses = [
-        str(task["status"])
-        for task in tasks
-        if task["status"] != JobStatus.SUCCEEDED.name
+    statuses = [str(task["status"]) for task in tasks]
+    if any(status == JobStatus.SUCCEEDED.name for status in statuses):
+        return JobStatus.SUCCEEDED.name
+    unsuccessful = [
+        status
+        for status in statuses
+        if status != JobStatus.SUCCEEDED.name
     ]
-    if not statuses:
+    if not unsuccessful:
         return outcome.status.name
     # A plain failure is the stronger statement: a sample with one
     # timed-out invocation and one that failed outright is not
     # retryable, because rerunning it would meet the same failure.
-    if JobStatus.FAILED.name in statuses:
+    if JobStatus.FAILED.name in unsuccessful:
         return JobStatus.FAILED.name
-    return statuses[0]
+    return unsuccessful[0]
 
 
 class OnExisting(Enum):

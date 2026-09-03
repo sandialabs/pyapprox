@@ -22,20 +22,26 @@ import shutil
 import pytest
 from pyapprox.interface.evaluation.collection import (
     DEFAULT_SKIP,
+    AnomalyKind,
+    CollectionError,
     OutputCollectorProtocol,
     OutputSpec,
     SpecCollector,
     TransferMode,
     gather_into,
     gather_run,
+    reconcile,
 )
 from pyapprox.interface.evaluation.manifest import (
     RUN_DONE_FILENAME,
     ManifestWriter,
     prepared_record,
+    released_record,
     run_record,
     stream_records,
+    task_record,
 )
+from pyapprox.interface.evaluation.records import JobStatus
 
 
 @pytest.fixture
@@ -562,6 +568,289 @@ class TestGatheringAWholeRun:
         hold the whole sweep in memory to move one file at a time.
         """
         assert inspect.isgeneratorfunction(stream_records)
+
+
+class TestReconciliation:
+    """Either a sample produced its output, or it was excused.
+
+    Checked against what the run recorded, never against a directory
+    listing: a listing cannot tell "the solver wrote nothing" from "the
+    pattern did not match", and cannot see a sample whose directory
+    retention has already removed.
+    """
+
+    def _run(self, tmp_path):
+        run = tmp_path / "scratch" / "20260903T120000Z-feedfacecafe"
+        run.mkdir(parents=True)
+        return run, ManifestWriter(str(run / "manifest.host.1.jsonl"))
+
+    def _header(self, writer, run, retention="always"):
+        writer.append(
+            run_record(
+                run_id=run.name,
+                retention=retention,
+                command=["solver"],
+                link_files=[],
+                created="2026-09-03T12:00:00Z",
+            )
+        )
+
+    def _sample(
+        self,
+        run,
+        writer,
+        index,
+        status="SUCCEEDED",
+        any_failed=False,
+        retained=True,
+        files=("out.fld",),
+        make_dir=True,
+        release=True,
+    ):
+        relative = f"sub-000/sample-{index:06d}"
+        if make_dir:
+            workdir = run / relative
+            workdir.mkdir(parents=True)
+            for name in files:
+                (workdir / name).write_text("payload")
+        writer.append(
+            prepared_record(submission=0, index=index, workdir=relative)
+        )
+        if release:
+            writer.append(
+                released_record(
+                    submission=0,
+                    index=index,
+                    workdir=relative,
+                    status=status,
+                    any_failed=any_failed,
+                    tasks=[task_record(status, None, 1.0)],
+                    retained=retained,
+                )
+            )
+
+    def test_a_sample_that_produced_its_output_is_ok(
+        self, tmp_path
+    ) -> None:
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0)
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.ok_indices == (0,)
+        assert report.ok()
+
+    def test_a_solver_that_exited_zero_and_wrote_nothing(
+        self, tmp_path
+    ) -> None:
+        """The case the whole feature exists for.
+
+        An mpirun line skipped in a batch script, or a write that failed
+        on a full filesystem: the scalar is there, results.out parses,
+        and nothing anywhere else ever notices.
+        """
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0, files=("results.out",))
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert not report.ok()
+        assert report.anomalies[0].kind is AnomalyKind.NO_OUTPUT
+        assert report.anomalies[0].index == 0
+
+    def test_no_required_spec_means_the_check_cannot_fire(
+        self, tmp_path
+    ) -> None:
+        """Nothing mandatory, so nothing to be missing."""
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0, files=("results.out",))
+        report = reconcile(
+            str(run), collector=SpecCollector([OutputSpec("*.fld")])
+        )
+        assert report.ok()
+
+    def test_a_failed_sample_is_explained_not_flagged(
+        self, tmp_path
+    ) -> None:
+        """The run said it failed; no output is expected."""
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(
+            run, writer, 0, status="FAILED", any_failed=True, files=()
+        )
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.ok()
+        assert 0 in report.explained
+
+    @pytest.mark.parametrize("status", ["TIMED_OUT", "CANCELLED"])
+    def test_a_retryable_failure_is_reported_separately(
+        self, tmp_path, status
+    ) -> None:
+        """Resubmit this, versus this parameter point is bad."""
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(
+            run, writer, 0, status=status, any_failed=True, files=()
+        )
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.retryable == (0,)
+        assert report.ok()
+
+    def test_a_plain_failure_is_not_retryable(self, tmp_path) -> None:
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(
+            run, writer, 0, status="FAILED", any_failed=True, files=()
+        )
+        report = reconcile(str(run))
+        assert report.retryable == ()
+
+    def test_a_partial_sample_is_not_reported_as_writing_nothing(
+        self, tmp_path
+    ) -> None:
+        """Row ordering, and the reason it matters.
+
+        Success is per quantity, so a sample whose values succeeded and
+        whose jacobian failed is legitimately missing that quantity's
+        file. Checking the output rule first would flag every
+        partially-failed derivative sample as a solver that wrote
+        nothing.
+        """
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(
+            run,
+            writer,
+            0,
+            status="SUCCEEDED",
+            any_failed=True,
+            files=("results.out",),
+        )
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.ok()
+        assert 0 in report.partial
+
+    def test_a_directory_removed_by_retention_is_explained(
+        self, tmp_path
+    ) -> None:
+        run, writer = self._run(tmp_path)
+        self._header(writer, run, retention="never")
+        self._sample(run, writer, 0, retained=False, make_dir=False)
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert report.ok()
+        assert "retention" in report.explained[0]
+
+    def test_a_directory_that_should_have_been_kept_and_is_gone(
+        self, tmp_path
+    ) -> None:
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0, retained=True, make_dir=False)
+        report = reconcile(str(run))
+        assert report.anomalies[0].kind is AnomalyKind.VANISHED
+
+    def test_prepared_but_never_released(self, tmp_path) -> None:
+        """The run stopped in between, so the directory is still there."""
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0, release=False)
+        report = reconcile(str(run))
+        assert report.anomalies[0].kind is AnomalyKind.NEVER_RELEASED
+
+    def test_submitted_but_never_prepared(self, tmp_path) -> None:
+        """Needs the caller's statuses; the manifest cannot know."""
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0)
+        report = reconcile(
+            str(run),
+            statuses={0: JobStatus.SUCCEEDED, 7: JobStatus.SUCCEEDED},
+        )
+        kinds = {a.index: a.kind for a in report.anomalies}
+        assert kinds == {7: AnomalyKind.NEVER_PREPARED}
+
+    def test_a_duplicate_release_is_flagged(self, tmp_path) -> None:
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0)
+        writer.append(
+            released_record(
+                submission=0,
+                index=0,
+                workdir="sub-000/sample-000000",
+                status="SUCCEEDED",
+                any_failed=False,
+                tasks=[],
+                retained=True,
+            )
+        )
+        report = reconcile(str(run))
+        assert report.anomalies[0].kind is AnomalyKind.DUPLICATE
+
+    def test_reconciliation_copies_nothing(self, tmp_path) -> None:
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0)
+        before = sorted(p.name for p in (run).rglob("*"))
+        reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert sorted(p.name for p in (run).rglob("*")) == before
+
+    def test_anomalies_are_returned_not_raised(self, tmp_path) -> None:
+        """1994 good samples and a list beats a traceback."""
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        for index in range(4):
+            self._sample(
+                run,
+                writer,
+                index,
+                files=("out.fld",) if index else ("results.out",),
+            )
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        assert len(report.anomalies) == 1
+        assert report.ok_indices == (1, 2, 3)
+
+    def test_raise_if_anomalous_is_available(self, tmp_path) -> None:
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0, files=("results.out",))
+        report = reconcile(
+            str(run),
+            collector=SpecCollector([OutputSpec("*.fld", required=True)]),
+        )
+        with pytest.raises(CollectionError, match="no_output"):
+            report.raise_if_anomalous()
+
+    def test_raise_if_anomalous_is_silent_when_clean(
+        self, tmp_path
+    ) -> None:
+        run, writer = self._run(tmp_path)
+        self._header(writer, run)
+        self._sample(run, writer, 0)
+        reconcile(str(run)).raise_if_anomalous()
 
 
 class TestTheCollectorIsAProtocol:

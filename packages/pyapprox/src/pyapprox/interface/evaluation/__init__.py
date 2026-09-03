@@ -52,6 +52,10 @@ from pyapprox.interface.evaluation.caching import (
 )
 from pyapprox.interface.evaluation.collection import (
     DEFAULT_SKIP,
+    Anomaly,
+    AnomalyKind,
+    CollectionError,
+    CollectionReport,
     GatherReport,
     OutputCollectorProtocol,
     OutputSpec,
@@ -60,6 +64,7 @@ from pyapprox.interface.evaluation.collection import (
     TransferResult,
     gather_into,
     gather_run,
+    reconcile,
 )
 from pyapprox.interface.evaluation.ensemble import (
     Ensemble,
@@ -167,6 +172,10 @@ __all__ = [
     "read_records",
     # Output collection -- getting a solver's own files off scratch
     "DEFAULT_SKIP",
+    "Anomaly",
+    "AnomalyKind",
+    "CollectionError",
+    "CollectionReport",
     "GatherReport",
     "OutputCollectorProtocol",
     "OutputSpec",
@@ -175,4 +184,5 @@ __all__ = [
     "TransferResult",
     "gather_into",
     "gather_run",
+    "reconcile",
 ]

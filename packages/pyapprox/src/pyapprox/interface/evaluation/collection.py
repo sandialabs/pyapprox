@@ -7,9 +7,15 @@ run a different functional over the same solutions, or find out why
 sample 47 diverged, has to locate the directories by hand -- and by then
 retention may have removed them.
 
-This module is the primitive: one live directory, some patterns, a
-destination. Nothing here knows about runs, manifests or batches, and
-nothing here is generic in ``Array`` -- these are files.
+Three layers, each built on the one before. :func:`gather_into` takes a
+single live directory; :func:`gather_run` takes a whole run from its
+directory alone, days later; :func:`reconcile` copies nothing and asks
+whether every sample either produced what it should have or was excused.
+
+Nothing here is generic in ``Array`` -- these are files, and a report
+about files. The one thing that would drag genericity in is taking an
+``EvalResult``; reconciliation takes a plain mapping of statuses
+instead.
 
 **No format is privileged.** Selection is by glob and by an injected
 collector; nothing here parses, validates or even opens a matched file,
@@ -53,9 +59,12 @@ from typing import (
 
 from pyapprox.interface.evaluation.manifest import (
     KIND_PREPARED,
+    KIND_RELEASED,
+    KIND_RUN,
     is_run_complete,
     stream_records,
 )
+from pyapprox.interface.evaluation.records import JobStatus
 
 #: Files the framework itself puts in a working directory.
 #:
@@ -426,6 +435,300 @@ def gather_run(
         nbytes=nbytes,
         complete=is_run_complete(run_dir),
     )
+
+
+class AnomalyKind(Enum):
+    """Why one sample did not satisfy the invariant."""
+
+    #: A required spec matched nothing though the sample succeeded. The
+    #: case this whole feature exists for.
+    NO_OUTPUT = "no_output"
+    #: The manifest recorded the directory and it is gone, with no
+    #: retention setting that explains it.
+    VANISHED = "vanished"
+    #: Prepared and never released: the run stopped between building
+    #: the directory and finishing with it, so it is still there.
+    NEVER_RELEASED = "never_released"
+    #: Two release records for one directory.
+    DUPLICATE = "duplicate"
+    #: A status map says the index was submitted and no record mentions
+    #: it, so nothing ever built it a directory.
+    NEVER_PREPARED = "never_prepared"
+
+
+@dataclass(frozen=True)
+class Anomaly:
+    """One sample that did not satisfy the invariant."""
+
+    index: int
+    kind: AnomalyKind
+    detail: str
+
+    def __str__(self) -> str:
+        return f"sample {self.index}: {self.kind.value} ({self.detail})"
+
+
+class CollectionError(RuntimeError):
+    """A reconciliation found anomalies and the caller wanted a raise."""
+
+
+@dataclass(frozen=True)
+class CollectionReport:
+    """What a run's directories say about themselves.
+
+    Attributes
+    ----------
+    run_id : str
+        The run reconciled.
+    ok_indices : Sequence[int]
+        Samples that satisfied the invariant.
+    explained : Mapping[int, str]
+        Samples that produced no output for a reason the record gives:
+        the job failed, was cancelled, timed out, or its directory was
+        removed by the retention policy in force.
+    retryable : Sequence[int]
+        Explained samples whose failure says nothing about the parameter
+        point -- a timeout or a cancellation. Separate because that is
+        the difference between "resubmit this" and "this point is bad".
+    partial : Mapping[int, str]
+        Samples reported as succeeded whose own record shows some
+        invocation failed. Their outputs may legitimately be incomplete.
+    anomalies : Sequence[Anomaly]
+        Everything the record does not explain.
+    """
+
+    run_id: str
+    ok_indices: Sequence[int] = field(default_factory=tuple)
+    explained: Mapping[int, str] = field(default_factory=dict)
+    retryable: Sequence[int] = field(default_factory=tuple)
+    partial: Mapping[int, str] = field(default_factory=dict)
+    anomalies: Sequence[Anomaly] = field(default_factory=tuple)
+
+    def ok(self) -> bool:
+        """Whether every sample was accounted for."""
+        return not self.anomalies
+
+    def raise_if_anomalous(self) -> None:
+        """Raise :class:`CollectionError` if anything was unexplained.
+
+        Available rather than automatic. Someone reconciling two
+        thousand samples with six bad ones wants the list and the other
+        1994, not a traceback; a script that must not proceed on partial
+        data asks for this explicitly.
+        """
+        if not self.anomalies:
+            return
+        listed = "\n".join(f"  {anomaly}" for anomaly in self.anomalies)
+        raise CollectionError(
+            f"run {self.run_id} has {len(self.anomalies)} "
+            f"unexplained sample(s):\n{listed}"
+        )
+
+
+def reconcile(
+    run_dir: str,
+    statuses: Optional[Mapping[int, JobStatus]] = None,
+    collector: Optional[OutputCollectorProtocol] = None,
+) -> CollectionReport:
+    """Check that every sample either produced its output or was excused.
+
+    The invariant, stated for the multi-quantity case:
+
+        Either index ``i`` produced every required output, or ``i`` was
+        reported as not having succeeded for the quantity that would
+        have written it.
+
+    Checked against what the run recorded, **never against a directory
+    listing**. A listing cannot tell "the solver wrote nothing" from
+    "the pattern did not match", and it cannot see a sample whose
+    directory retention has already removed.
+
+    Copies nothing.
+
+    Parameters
+    ----------
+    run_dir : str
+        The run to check.
+    statuses : Mapping[int, JobStatus], optional
+        What the caller knows about each index, from
+        ``Batch.statuses()``. Supplying it adds one check the manifest
+        alone cannot make -- that an index submitted was ever prepared
+        -- because a marshaller never learns how many samples a batch
+        held.
+    collector : OutputCollectorProtocol, optional
+        Supplies the required specs. Without one, nothing is required
+        and the output check cannot fire.
+    """
+    run = Path(run_dir)
+    prepared: Dict[int, Dict[str, object]] = {}
+    released: Dict[int, List[Dict[str, object]]] = {}
+    retention = ""
+
+    for record in stream_records(run_dir):
+        kind = record.get("kind")
+        if kind == KIND_RUN:
+            retention = str(record.get("retention", ""))
+        elif kind == KIND_PREPARED:
+            index = record.get("index")
+            if isinstance(index, int):
+                prepared[index] = record
+        elif kind == KIND_RELEASED:
+            index = record.get("index")
+            if isinstance(index, int):
+                released.setdefault(index, []).append(record)
+
+    report = _Reconciler(run, prepared, released, retention, collector)
+    return report.run(statuses)
+
+
+class _Reconciler:
+    """Applies the decision procedure to one run's records.
+
+    The rows are **ordered and first-match-wins**, which a flat table
+    cannot express: they overlap. A succeeded sample under a retention
+    policy of ``never`` whose required output was never collected
+    matches both "missing required output" and "directory absent", and
+    only one of those is the useful thing to say.
+    """
+
+    def __init__(
+        self,
+        run: Path,
+        prepared: Dict[int, Dict[str, object]],
+        released: Dict[int, List[Dict[str, object]]],
+        retention: str,
+        collector: Optional[OutputCollectorProtocol],
+    ) -> None:
+        self._run = run
+        self._prepared = prepared
+        self._released = released
+        self._retention = retention
+        self._collector = collector
+
+    def run(
+        self, statuses: Optional[Mapping[int, JobStatus]]
+    ) -> CollectionReport:
+        ok: List[int] = []
+        explained: Dict[int, str] = {}
+        retryable: List[int] = []
+        partial: Dict[int, str] = {}
+        anomalies: List[Anomaly] = []
+
+        for index in self._indices(statuses):
+            verdict, detail = self._verdict(index, statuses)
+            if isinstance(verdict, AnomalyKind):
+                anomalies.append(Anomaly(index, verdict, detail))
+            elif verdict == "partial":
+                partial[index] = detail
+            elif verdict == "retryable":
+                explained[index] = detail
+                retryable.append(index)
+            elif verdict == "explained":
+                explained[index] = detail
+            else:
+                ok.append(index)
+
+        return CollectionReport(
+            run_id=self._run.name,
+            ok_indices=tuple(sorted(ok)),
+            explained=dict(explained),
+            retryable=tuple(sorted(retryable)),
+            partial=dict(partial),
+            anomalies=tuple(anomalies),
+        )
+
+    def _indices(
+        self, statuses: Optional[Mapping[int, JobStatus]]
+    ) -> List[int]:
+        """Every index worth judging, from records and caller alike."""
+        known = set(self._prepared) | set(self._released)
+        if statuses is not None:
+            known |= set(statuses)
+        return sorted(known)
+
+    def _verdict(
+        self,
+        index: int,
+        statuses: Optional[Mapping[int, JobStatus]],
+    ) -> Tuple[object, str]:
+        """One sample's verdict, first matching rule winning."""
+        records = self._released.get(index, [])
+
+        # Two release records for one sample. Only reachable through a
+        # bug or a hand-edited manifest, and worth saying plainly
+        # rather than letting one silently win.
+        if len(records) > 1:
+            return AnomalyKind.DUPLICATE, f"{len(records)} release records"
+
+        # Submitted, and no record mentions it: nothing ever built it a
+        # directory. Needs the caller's status map, since a marshaller
+        # never learns how many samples a batch held.
+        if index not in self._prepared and not records:
+            return (
+                AnomalyKind.NEVER_PREPARED,
+                "submitted, but no record mentions it",
+            )
+
+        # Prepared and never released. The run stopped in between, so
+        # the directory is still there and worth looking inside.
+        if not records:
+            return (
+                AnomalyKind.NEVER_RELEASED,
+                "prepared, never released; the directory should remain",
+            )
+
+        record = records[0]
+        status = str(record.get("status", ""))
+        any_failed = bool(record.get("any_failed"))
+
+        # A failure is the evidence case, not an anomaly: the run said
+        # this sample did not succeed, so no output is expected.
+        if status in _RETRYABLE_STATUSES:
+            return "retryable", f"job {status.lower()}"
+        if status not in ("", JobStatus.SUCCEEDED.name):
+            return "explained", f"job {status.lower()}"
+
+        # Succeeded overall, but some invocation did not. Checked
+        # BEFORE the output rule: success is per quantity, so a sample
+        # whose jacobian failed is legitimately missing that quantity's
+        # file, and calling that "the solver wrote nothing" would flag
+        # every partially-failed derivative sample in the run.
+        if any_failed:
+            return "partial", "succeeded, but an invocation failed"
+
+        workdir = self._run / str(record.get("workdir", ""))
+        if not workdir.is_dir():
+            if bool(record.get("retained")) is False:
+                return (
+                    "explained",
+                    f"removed by retention policy {self._retention!r}",
+                )
+            return (
+                AnomalyKind.VANISHED,
+                "recorded as retained, but the directory is gone",
+            )
+
+        unmatched = self._unmatched_required(workdir)
+        if unmatched:
+            patterns = ", ".join(spec.pattern for spec in unmatched)
+            return (
+                AnomalyKind.NO_OUTPUT,
+                f"succeeded but matched no {patterns}",
+            )
+        return "ok", ""
+
+    def _unmatched_required(self, workdir: Path) -> List[OutputSpec]:
+        """Required specs this directory did not satisfy."""
+        if not isinstance(self._collector, SpecCollector):
+            return []
+        return self._collector.unmatched_required(workdir)
+
+
+#: Statuses whose failure says nothing about the parameter point.
+_RETRYABLE_STATUSES = (
+    JobStatus.TIMED_OUT.name,
+    JobStatus.CANCELLED.name,
+)
 
 
 def _planned(
