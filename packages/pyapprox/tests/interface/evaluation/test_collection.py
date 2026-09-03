@@ -15,7 +15,9 @@ assertion of that, so the fixtures elsewhere can use a stand-in
 extension without implying one.
 """
 
+import inspect
 import os
+import shutil
 
 import pytest
 from pyapprox.interface.evaluation.collection import (
@@ -25,6 +27,14 @@ from pyapprox.interface.evaluation.collection import (
     SpecCollector,
     TransferMode,
     gather_into,
+    gather_run,
+)
+from pyapprox.interface.evaluation.manifest import (
+    RUN_DONE_FILENAME,
+    ManifestWriter,
+    prepared_record,
+    run_record,
+    stream_records,
 )
 
 
@@ -364,6 +374,194 @@ class TestNoFormatIsPrivileged:
         assert (
             tmp_path / "dest" / "binary.dat"
         ).read_bytes() == b"\x00\xff\xfe not text"
+
+
+class TestGatheringAWholeRun:
+    """The deferred case: a run directory, and nothing else alive.
+
+    No evaluator, no marshaller, no process that produced it. These
+    build the run directory by hand for the same reason the rest of the
+    module does -- what is under test is reading a manifest and walking
+    to the directories it names.
+    """
+
+    def _run(self, tmp_path, nsamples=2, submission=0, done=True):
+        run = tmp_path / "scratch" / "20260903T101500Z-abc123def456"
+        writer = ManifestWriter(str(run / "manifest.host.1.jsonl"))
+        run.mkdir(parents=True, exist_ok=True)
+        writer.append(
+            run_record(
+                run_id=run.name,
+                retention="always",
+                command=["solver"],
+                link_files=[],
+                created="2026-09-03T10:15:00Z",
+            )
+        )
+        for index in range(nsamples):
+            relative = f"sub-{submission:03d}/sample-{index:06d}"
+            workdir = run / relative
+            workdir.mkdir(parents=True)
+            (workdir / "out.fld").write_text(f"sample {index}")
+            (workdir / "params.in").write_text("inputs")
+            writer.append(
+                prepared_record(
+                    submission=submission, index=index, workdir=relative
+                )
+            )
+        if done:
+            (run / RUN_DONE_FILENAME).touch()
+        return run
+
+    def test_every_recorded_directory_is_gathered(
+        self, tmp_path
+    ) -> None:
+        run = self._run(tmp_path, nsamples=3)
+        report = gather_run(
+            str(run),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "dest"),
+        )
+        assert sorted(report.gathered) == [0, 1, 2]
+        assert report.nfiles() == 3
+        assert report.ok()
+
+    def test_the_destination_keeps_run_and_submission_levels(
+        self, tmp_path
+    ) -> None:
+        """Two submissions both number from zero; they must stay apart."""
+        run = self._run(tmp_path, nsamples=1)
+        dest = tmp_path / "dest"
+        gather_run(
+            str(run), SpecCollector([OutputSpec("*.fld")]), str(dest)
+        )
+        assert (
+            dest / run.name / "sub-000" / "sample-000000" / "out.fld"
+        ).exists()
+
+    def test_content_reaches_the_destination(self, tmp_path) -> None:
+        run = self._run(tmp_path, nsamples=2)
+        dest = tmp_path / "dest"
+        gather_run(
+            str(run), SpecCollector([OutputSpec("*.fld")]), str(dest)
+        )
+        landed = dest / run.name / "sub-000" / "sample-000001" / "out.fld"
+        assert landed.read_text() == "sample 1"
+
+    def test_framework_inputs_are_still_skipped(self, tmp_path) -> None:
+        run = self._run(tmp_path, nsamples=1)
+        report = gather_run(
+            str(run),
+            SpecCollector([OutputSpec("*")]),
+            str(tmp_path / "dest"),
+        )
+        names = {os.path.basename(p) for p in report.gathered[0]}
+        assert "params.in" not in names
+
+    def test_indices_restrict_what_is_gathered(self, tmp_path) -> None:
+        run = self._run(tmp_path, nsamples=4)
+        report = gather_run(
+            str(run),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "dest"),
+            indices=[1, 3],
+        )
+        assert sorted(report.gathered) == [1, 3]
+
+    def test_a_recorded_directory_that_is_gone_is_reported(
+        self, tmp_path
+    ) -> None:
+        """Retention may explain it; gathering cannot say on its own."""
+        run = self._run(tmp_path, nsamples=2)
+        shutil.rmtree(run / "sub-000" / "sample-000001")
+        report = gather_run(
+            str(run),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "dest"),
+        )
+        assert report.missing == (1,)
+        assert sorted(report.gathered) == [0]
+
+    def test_several_submissions_are_all_gathered(
+        self, tmp_path
+    ) -> None:
+        run = self._run(tmp_path, nsamples=2, submission=0)
+        self._run(tmp_path, nsamples=2, submission=1)
+        dest = tmp_path / "dest"
+        gather_run(
+            str(run), SpecCollector([OutputSpec("*.fld")]), str(dest)
+        )
+        assert (dest / run.name / "sub-000" / "sample-000000").exists()
+        assert (dest / run.name / "sub-001" / "sample-000000").exists()
+
+    def test_several_manifests_are_all_read(self, tmp_path) -> None:
+        """Each writing process has its own file; a resume adds one."""
+        run = self._run(tmp_path, nsamples=1)
+        second = ManifestWriter(str(run / "manifest.host.2.jsonl"))
+        relative = "sub-001/sample-000000"
+        (run / relative).mkdir(parents=True)
+        (run / relative / "out.fld").write_text("from the resume")
+        second.append(
+            prepared_record(submission=1, index=0, workdir=relative)
+        )
+        report = gather_run(
+            str(run),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "dest"),
+        )
+        assert report.nfiles() == 2
+
+    def test_an_unfinished_run_is_flagged(self, tmp_path) -> None:
+        """Gathering a live run may race writes still in progress."""
+        run = self._run(tmp_path, nsamples=1, done=False)
+        report = gather_run(
+            str(run),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "dest"),
+        )
+        assert report.complete is False
+
+    def test_a_finished_run_is_not_flagged(self, tmp_path) -> None:
+        run = self._run(tmp_path, nsamples=1, done=True)
+        report = gather_run(
+            str(run),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "dest"),
+        )
+        assert report.complete is True
+
+    def test_move_drains_the_run(self, tmp_path) -> None:
+        run = self._run(tmp_path, nsamples=2)
+        gather_run(
+            str(run),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "dest"),
+            mode=TransferMode.MOVE,
+        )
+        assert list(run.rglob("*.fld")) == []
+
+    def test_an_empty_run_directory_yields_nothing(
+        self, tmp_path
+    ) -> None:
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        report = gather_run(
+            str(empty),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "dest"),
+        )
+        assert report.gathered == {}
+        assert report.ok()
+
+    def test_the_manifest_is_streamed_not_materialized(
+        self, tmp_path
+    ) -> None:
+        """A large sweep records one line per sample.
+
+        Building an index-to-record map before copying anything would
+        hold the whole sweep in memory to move one file at a time.
+        """
+        assert inspect.isgeneratorfunction(stream_records)
 
 
 class TestTheCollectorIsAProtocol:

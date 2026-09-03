@@ -38,7 +38,7 @@ nothing about numbers.
 import json
 import os
 import socket
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 #: The most one record may occupy, in bytes.
 #:
@@ -288,6 +288,68 @@ def task_record(
     }
 
 
+def manifest_paths(run_dir: str) -> List[str]:
+    """Every manifest file in a run directory, in a stable order.
+
+    A glob rather than one known name, because each writing process has
+    its own file: a resumed run, or a second array-job rank, adds one
+    rather than appending to the first.
+    """
+    try:
+        entries = sorted(os.listdir(run_dir))
+    except OSError:
+        return []
+    return [
+        os.path.join(run_dir, name)
+        for name in entries
+        if name.startswith("manifest.") and name.endswith(".jsonl")
+    ]
+
+
+def stream_records(run_dir: str) -> Iterator[Dict[str, Any]]:
+    """Every record from every manifest in a run, one at a time.
+
+    A generator rather than a list because a large sweep's manifests
+    hold a record per sample, and a caller that only wants to act on
+    each in turn should not need all of them resident at once. Callers
+    that must index across records build only what they need.
+    """
+    for path in manifest_paths(run_dir):
+        yield from iter_records(path)
+
+
+def iter_records(path: str) -> Iterator[Dict[str, Any]]:
+    """Complete records from one manifest file, one at a time.
+
+    A trailing partial line -- a run killed mid-write -- ends the
+    iteration rather than raising, which is the property the
+    line-delimited format exists to provide.
+    """
+    try:
+        handle = open(path, "r", encoding="utf-8")
+    except OSError:
+        return
+    with handle:
+        for line in handle:
+            if not line.endswith("\n"):
+                return
+            try:
+                parsed = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(parsed, dict):
+                yield parsed
+
+
+def is_run_complete(run_dir: str) -> bool:
+    """Whether the run said it had finished.
+
+    Absence is the interesting case: a run killed by a wall-clock limit
+    never marks itself, so gathering from it may catch partial writes.
+    """
+    return os.path.exists(os.path.join(run_dir, RUN_DONE_FILENAME))
+
+
 def read_records(path: str) -> List[Dict[str, Any]]:
     """Every complete record in one manifest file.
 
@@ -295,18 +357,4 @@ def read_records(path: str) -> List[Dict[str, Any]]:
     rather than raising: reading up to the last complete record is the
     property the line-delimited format exists to provide.
     """
-    records: List[Dict[str, Any]] = []
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            for line in handle:
-                if not line.endswith("\n"):
-                    break
-                try:
-                    parsed = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(parsed, dict):
-                    records.append(parsed)
-    except OSError:
-        return records
-    return records
+    return list(iter_records(path))

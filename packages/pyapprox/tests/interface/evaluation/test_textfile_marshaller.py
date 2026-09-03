@@ -24,6 +24,11 @@ import time
 from pathlib import Path
 
 import pytest
+from pyapprox.interface.evaluation.collection import (
+    OutputSpec,
+    SpecCollector,
+    gather_run,
+)
 from pyapprox.interface.evaluation.evaluator import Evaluator
 from pyapprox.interface.evaluation.manifest import (
     KIND_PREPARED,
@@ -85,6 +90,10 @@ if mode == "wrongcount":
 if mode == "needsmesh" and not Path("mesh.dat").exists():
     sys.stderr.write("mesh.dat missing\\n")
     sys.exit(4)
+if mode == "writesfield":
+    # A field file beside the scalar, which is what a real solver
+    # leaves behind and what nothing but collection ever looks at.
+    Path("out.fld").write_text("field for sample %d\\n" % int(values[0]))
 
 Path("results.out").write_text(repr(sum(v * v for v in values)) + "\\n")
 '''
@@ -816,6 +825,124 @@ class TestManifest:
         # Same indices, different directories -- which is the whole
         # point of the submission level.
         assert len({r["workdir"] for r in prepared}) == 4
+
+
+class TestDeferredGathering:
+    """A real run, gathered afterwards from nothing but its directory.
+
+    The case the whole feature exists for. Everything the gathering
+    needs is on disk: no evaluator, no marshaller, no live process --
+    only the run directory and the manifest inside it.
+    """
+
+    def test_a_finished_run_can_be_gathered_from_its_directory_alone(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.ALWAYS,
+        )
+        ev.submit(_columns(numpy_bkd, 3)).collect()
+        marshaller.mark_run_done()
+        run_dir = marshaller.run_dir()
+
+        # Everything below uses only the path -- the marshaller is done.
+        report = gather_run(
+            run_dir,
+            SpecCollector([OutputSpec("*.fld", required=True)]),
+            str(tmp_path / "archive"),
+        )
+        assert report.complete is True
+        assert sorted(report.gathered) == [0, 1, 2]
+        assert report.ok()
+
+    def test_gathered_content_is_what_the_solver_wrote(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.ALWAYS,
+        )
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        report = gather_run(
+            marshaller.run_dir(),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "archive"),
+        )
+        landed = Path(report.gathered[0][0])
+        assert landed.read_text().strip() == "field for sample 0"
+
+    def test_a_linked_mesh_is_not_gathered_once_per_sample(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The trap that would multiply a shared file by nsamples."""
+        mesh = tmp_path / "mesh.fld"
+        mesh.write_text("shared mesh")
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.ALWAYS,
+            link_files=[str(mesh)],
+        )
+        ev.submit(_columns(numpy_bkd, 3)).collect()
+        report = gather_run(
+            marshaller.run_dir(),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "archive"),
+        )
+        names = {
+            os.path.basename(path)
+            for paths in report.gathered.values()
+            for path in paths
+        }
+        assert names == {"out.fld"}
+
+    def test_a_run_killed_before_finishing_is_flagged(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """No marker, so a reader knows it may be racing live writes."""
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.ALWAYS,
+        )
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        report = gather_run(
+            marshaller.run_dir(),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "archive"),
+        )
+        assert report.complete is False
+
+    def test_directories_removed_by_retention_are_reported_missing(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Under NEVER the manifest is the only trace they existed."""
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+        )
+        ev.submit(_columns(numpy_bkd, 3)).collect()
+        report = gather_run(
+            marshaller.run_dir(),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "archive"),
+        )
+        assert sorted(report.missing) == [0, 1, 2]
+        assert report.gathered == {}
 
 
 class TestLogOutput:

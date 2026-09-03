@@ -52,12 +52,14 @@ from pyapprox.interface.evaluation.caching import (
 )
 from pyapprox.interface.evaluation.collection import (
     DEFAULT_SKIP,
+    GatherReport,
     OutputCollectorProtocol,
     OutputSpec,
     SpecCollector,
     TransferMode,
     TransferResult,
     gather_into,
+    gather_run,
 )
 from pyapprox.interface.evaluation.ensemble import (
     Ensemble,
@@ -165,10 +167,12 @@ __all__ = [
     "read_records",
     # Output collection -- getting a solver's own files off scratch
     "DEFAULT_SKIP",
+    "GatherReport",
     "OutputCollectorProtocol",
     "OutputSpec",
     "SpecCollector",
     "TransferMode",
     "TransferResult",
     "gather_into",
+    "gather_run",
 ]

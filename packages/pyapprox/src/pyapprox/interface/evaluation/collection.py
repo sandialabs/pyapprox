@@ -39,14 +39,22 @@ from enum import Enum
 from pathlib import Path
 from typing import (
     Callable,
+    Dict,
     Iterable,
     List,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
     Set,
     Tuple,
     runtime_checkable,
+)
+
+from pyapprox.interface.evaluation.manifest import (
+    KIND_PREPARED,
+    is_run_complete,
+    stream_records,
 )
 
 #: Files the framework itself puts in a working directory.
@@ -288,6 +296,135 @@ def gather_into(
         nbytes=nbytes,
         failures=tuple(failures),
         fellback=tuple(fellback),
+    )
+
+
+@dataclass(frozen=True)
+class GatherReport:
+    """What a whole run yielded.
+
+    Attributes
+    ----------
+    run_id : str
+        The run gathered from.
+    gathered : Mapping[int, Sequence[str]]
+        Destination paths per sample index. Destinations rather than
+        sources, which is the only choice that still means anything
+        under :attr:`TransferMode.MOVE`.
+    missing : Sequence[int]
+        Indices whose directory the manifest recorded but which is no
+        longer on disk. Expected under a retention policy that removed
+        them; :func:`reconcile` is what decides whether that is alarming.
+    failures : Sequence[Tuple[str, str]]
+        Per-file failures, as ``(source, reason)``.
+    nbytes : int
+        Total bytes transferred.
+    complete : bool
+        Whether the run had marked itself finished. ``False`` means
+        gathering may have raced writes still in progress.
+    """
+
+    run_id: str
+    gathered: Mapping[int, Sequence[str]] = field(default_factory=dict)
+    missing: Sequence[int] = field(default_factory=tuple)
+    failures: Sequence[Tuple[str, str]] = field(default_factory=tuple)
+    nbytes: int = 0
+    complete: bool = True
+
+    def nfiles(self) -> int:
+        """How many files were transferred."""
+        return sum(len(paths) for paths in self.gathered.values())
+
+    def ok(self) -> bool:
+        """Whether every file transferred."""
+        return not self.failures
+
+
+def gather_run(
+    run_dir: str,
+    collector: OutputCollectorProtocol,
+    dest: str,
+    mode: TransferMode = TransferMode.COPY,
+    indices: Optional[Sequence[int]] = None,
+    overwrite: bool = False,
+) -> GatherReport:
+    """Gather every directory a run's manifests recorded.
+
+    The deferred case, and the one that motivated all of this: it needs
+    no evaluator, no marshaller and no live process, so a different
+    session or a shell script a week later can run it. What it needs is
+    the run directory, which is why directories are named rather than
+    randomized.
+
+    The manifests are **streamed**. A large sweep records one line per
+    sample, and building an index-to-record map before doing any work
+    would hold the whole sweep in memory to copy one file at a time.
+
+    Sample directories are recreated under ``dest/<run_id>/`` with their
+    submission and sample levels intact, so two submissions that both
+    number their samples from zero stay apart at the destination exactly
+    as they do at the source.
+
+    Parameters
+    ----------
+    run_dir : str
+        A run directory, as named by the marshaller that wrote it.
+    collector : OutputCollectorProtocol
+        Decides what to take from each directory.
+    dest : str
+        Where the gathered tree is written.
+    mode : TransferMode
+        How each file gets there.
+    indices : Sequence[int], optional
+        Restrict to these sample indices. ``None`` gathers everything.
+    overwrite : bool
+        Whether existing destination files may be replaced.
+    """
+    if not isinstance(collector, OutputCollectorProtocol):
+        raise TypeError(
+            "collector must satisfy OutputCollectorProtocol, got "
+            f"{type(collector).__name__}"
+        )
+    run = Path(run_dir)
+    wanted = None if indices is None else set(indices)
+    gathered: Dict[int, List[str]] = {}
+    missing: List[int] = []
+    failures: List[Tuple[str, str]] = []
+    nbytes = 0
+
+    for record in stream_records(run_dir):
+        if record.get("kind") != KIND_PREPARED:
+            continue
+        index = record.get("index")
+        relative = record.get("workdir")
+        if not isinstance(index, int) or not isinstance(relative, str):
+            continue
+        if wanted is not None and index not in wanted:
+            continue
+        workdir = run / relative
+        if not workdir.is_dir():
+            # Recorded but gone. Retention may explain it, and only a
+            # reconciliation against recorded status can say.
+            missing.append(index)
+            continue
+        result = gather_into(
+            str(workdir),
+            collector,
+            str(Path(dest) / run.name / relative),
+            mode=mode,
+            overwrite=overwrite,
+        )
+        gathered.setdefault(index, []).extend(result.paths)
+        failures.extend(result.failures)
+        nbytes += result.nbytes
+
+    return GatherReport(
+        run_id=run.name,
+        gathered={index: tuple(paths) for index, paths in gathered.items()},
+        missing=tuple(missing),
+        failures=tuple(failures),
+        nbytes=nbytes,
+        complete=is_run_complete(run_dir),
     )
 
 
