@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import Generic
 
-from pyapprox.surrogates.affine.expansions.pce import (
-    PolynomialChaosExpansion,
-)
 from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
 )
 from pyapprox.surrogates.operatorlearning.protocols import (
     FieldEncoderProtocol,
+    LatentMapProtocol,
+    is_multi_index,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -19,8 +18,13 @@ from pyapprox.util.backends.protocols import Array, Backend
 class OperatorSurrogate(Generic[Array]):
     r"""Approximates an operator :math:`G : U \to V` between field spaces.
 
-    Encodes an input field to coefficients, maps those through a
-    polynomial expansion, and decodes the result to an output field.
+    Encodes an input field to coefficients, maps those through a latent
+    map, and decodes the result to an output field.
+
+    The latent map is any :class:`LatentMapProtocol` -- a polynomial
+    chaos expansion, a neural network, a function train. Which one is
+    chosen decides how the surrogate is *fitted*, not how it evaluates,
+    so the forward path here is the same three steps either way.
 
     Multiple input or output fields are handled by passing a
     :class:`ProductFieldEncoder`, so this class always sees exactly one
@@ -39,9 +43,10 @@ class OperatorSurrogate(Generic[Array]):
         Maps output fields to the coefficients the expansion predicts.
         Must be an isometry, or the least-squares error the fit
         minimizes is not the Bochner error of the fields.
-    expansion : PolynomialChaosExpansion[Array]
-        The fitted expansion, with ``nqoi`` equal to the number of
-        output coefficients.
+    latent_map : LatentMapProtocol[Array]
+        The fitted map from input codes to output codes, with ``nqoi``
+        equal to the number of output coefficients and ``nvars`` to the
+        number of input ones.
     bkd : Backend[Array]
         Computational backend.
     """
@@ -50,9 +55,14 @@ class OperatorSurrogate(Generic[Array]):
         self,
         input_encoder: FunctionEncoderProtocol[Array],
         output_encoder: FieldEncoderProtocol[Array],
-        expansion: PolynomialChaosExpansion[Array],
+        latent_map: LatentMapProtocol[Array],
         bkd: Backend[Array],
     ) -> None:
+        if not isinstance(latent_map, LatentMapProtocol):
+            raise TypeError(
+                f"latent_map must satisfy LatentMapProtocol, got "
+                f"{type(latent_map).__name__}"
+            )
         if not isinstance(input_encoder, FunctionEncoderProtocol):
             raise TypeError(
                 f"input_encoder must satisfy FunctionEncoderProtocol, "
@@ -70,19 +80,19 @@ class OperatorSurrogate(Generic[Array]):
                 "the Bochner error of the fields. Use "
                 "orthonormalize_basis to correct the output basis."
             )
-        if expansion.nqoi() != output_encoder.latent_dim():
+        if latent_map.nqoi() != output_encoder.latent_dim():
             raise ValueError(
-                f"expansion has nqoi {expansion.nqoi()} but "
+                f"latent_map has nqoi {latent_map.nqoi()} but "
                 f"output_encoder has {output_encoder.latent_dim()} codes"
             )
-        if expansion.nvars() != input_encoder.latent_dim():
+        if latent_map.nvars() != input_encoder.latent_dim():
             raise ValueError(
-                f"expansion has nvars {expansion.nvars()} but "
+                f"latent_map has nvars {latent_map.nvars()} but "
                 f"input_encoder has {input_encoder.latent_dim()} codes"
             )
         self._input_encoder = input_encoder
         self._output_encoder = output_encoder
-        self._expansion = expansion
+        self._latent_map = latent_map
         self._bkd = bkd
 
     def bkd(self) -> Backend[Array]:
@@ -97,13 +107,28 @@ class OperatorSurrogate(Generic[Array]):
         """Return the output encoder."""
         return self._output_encoder
 
-    def expansion(self) -> PolynomialChaosExpansion[Array]:
-        """Return the underlying expansion."""
-        return self._expansion
+    def latent_map(self) -> LatentMapProtocol[Array]:
+        """Return the map from input codes to output codes."""
+        return self._latent_map
 
     def indices(self) -> Array:
-        """Return the index set. Shape: (nvars, nterms)."""
-        return self._expansion.get_indices()
+        """Return the index set. Shape: (nvars, nterms).
+
+        Raises
+        ------
+        TypeError
+            If the latent map has no multi-index basis. A neural
+            network or a function train has none, so the question has
+            no answer rather than an empty one.
+        """
+        latent_map = self._latent_map
+        if not is_multi_index(latent_map):
+            raise TypeError(
+                f"indices requires a latent map with a multi-index "
+                f"basis, satisfying MultiIndexLatentMapProtocol, but "
+                f"{type(latent_map).__name__} has no index set."
+            )
+        return latent_map.get_indices()
 
     def is_affine(self) -> bool:
         r"""Return whether the surrogate is affine in its input coefficients.
@@ -119,6 +144,14 @@ class OperatorSurrogate(Generic[Array]):
         nonzero response to zero input is ordinary, and
         :meth:`OperatorFitResult.operator_matrix` keeps :math:`A` and
         :math:`b` separate so neither can be read as the other.
+
+        Raises
+        ------
+        TypeError
+            Via :meth:`indices`, if the latent map has no multi-index
+            basis. Affineness is read off the index set, so a map
+            without one cannot answer -- note this is different from
+            answering False, which asserts the map *is* nonlinear.
         """
         return bool(
             self._bkd.all_bool(self._bkd.sum(self.indices(), axis=0) <= 1)
@@ -140,7 +173,7 @@ class OperatorSurrogate(Generic[Array]):
         Array
             Output coefficients. Shape: (ncodes_out, nsamples)
         """
-        return self._expansion(coefs)
+        return self._latent_map(coefs)
 
     def __call__(self, fields: Array) -> Array:
         """Map input fields to output fields.

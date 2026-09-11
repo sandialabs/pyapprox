@@ -1,12 +1,18 @@
 r"""Weighted least-squares fitting of an operator surrogate.
 
-Once fields are encoded the fit is a vector-valued polynomial chaos
-expansion: the input coefficients are its samples, the output
-coefficients its quantities of interest, and :math:`C` its coefficient
-array of shape ``(nterms, nqoi)``. So the fitter holds an expansion
-rather than reimplementing one, and takes the same
-``fit(expansion, samples, values)`` shape as its siblings in
+Once fields are encoded the fit is a vector-valued regression: the
+input coefficients are its samples, the output coefficients its
+quantities of interest, and :math:`C` its coefficient array of shape
+``(nterms, nqoi)``. So the fitter holds a latent map rather than
+reimplementing one, and takes the same
+``fit(latent_map, samples, values)`` shape as its siblings in
 ``affine/expansions/fitters``.
+
+This fitter solves one linear least squares problem, which is possible
+only when the map is linear in its parameters -- hence
+``LinearInParamsLatentMapProtocol`` rather than the bare
+``LatentMapProtocol``. A neural latent map satisfies the latter and not
+the former, and wants a gradient-based fitter instead.
 
 The design matrix reaches the solver intact. ``LinearSystemSolver``
 applies :math:`\sqrt{w}` to both it and the right-hand side and then
@@ -20,9 +26,6 @@ from __future__ import annotations
 from typing import Generic, Optional
 
 from pyapprox.optimization.linear import LeastSquaresSolver
-from pyapprox.surrogates.affine.expansions.pce import (
-    PolynomialChaosExpansion,
-)
 from pyapprox.surrogates.affine.protocols.solver import (
     LinearSystemSolverProtocol,
     WeightedSolverProtocol,
@@ -32,6 +35,9 @@ from pyapprox.surrogates.kerneloperator.protocols import (
 )
 from pyapprox.surrogates.operatorlearning.protocols import (
     FieldEncoderProtocol,
+    LinearInParamsLatentMapProtocol,
+    is_linear_in_params,
+    is_multi_index,
 )
 from pyapprox.surrogates.operatorlearning.surrogate import OperatorSurrogate
 from pyapprox.util.backends.protocols import Array, Backend
@@ -69,7 +75,25 @@ class OperatorFitResult(Generic[Array]):
         return self._surrogate.bkd()
 
     def _require_affine(self) -> Array:
-        """Return the per-index total degrees of an affine surrogate."""
+        """Return the per-index total degrees of an affine surrogate.
+
+        Raises
+        ------
+        TypeError
+            If the latent map has no multi-index basis, so affineness
+            is not a question it can answer.
+        ValueError
+            If it has one and some index exceeds first order.
+        """
+        latent_map = self._surrogate.latent_map()
+        if not is_multi_index(latent_map):
+            raise TypeError(
+                f"operator_matrix and intercept describe an affine map "
+                f"through its index set, which "
+                f"{type(latent_map).__name__} does not have. Only a "
+                f"latent map satisfying MultiIndexLatentMapProtocol can "
+                f"be asked."
+            )
         if not self._surrogate.is_affine():
             raise ValueError(
                 "operator_matrix and intercept are defined only when no "
@@ -204,7 +228,7 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
 
     def fit(
         self,
-        expansion: PolynomialChaosExpansion[Array],
+        latent_map: LinearInParamsLatentMapProtocol[Array],
         input_fields: Array,
         output_fields: Array,
         weights: Optional[Array] = None,
@@ -215,8 +239,8 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
 
         Parameters
         ----------
-        expansion : PolynomialChaosExpansion[Array]
-            The expansion to fit, carrying the basis and index set.
+        latent_map : LinearInParamsLatentMapProtocol[Array]
+            The map to fit, carrying the basis it is linear in.
         input_fields : Array
             Realizations of the input field on its grid.
             Shape: (ngrid_in, nsamples)
@@ -233,7 +257,7 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
             The fitted surrogate and its coefficients.
         """
         return self.fit_encoded(
-            expansion,
+            latent_map,
             self._input_encoder.encode(input_fields),
             self._output_encoder.encode(output_fields),
             weights=weights,
@@ -241,7 +265,7 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
 
     def fit_encoded(
         self,
-        expansion: PolynomialChaosExpansion[Array],
+        latent_map: LinearInParamsLatentMapProtocol[Array],
         coefs_in: Array,
         coefs_out: Array,
         weights: Optional[Array] = None,
@@ -255,8 +279,8 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
 
         Parameters
         ----------
-        expansion : PolynomialChaosExpansion[Array]
-            The expansion to fit, carrying the basis and index set.
+        latent_map : LinearInParamsLatentMapProtocol[Array]
+            The map to fit, carrying the basis it is linear in.
         coefs_in : Array
             Encoded input realizations, one column per realization.
             Shape: (ncodes_in, nsamples)
@@ -274,6 +298,15 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
         OperatorFitResult
             The fitted surrogate and its coefficients.
         """
+        if not is_linear_in_params(latent_map):
+            raise TypeError(
+                f"{type(self).__name__} solves one linear least squares "
+                f"problem, which needs a latent map linear in its "
+                f"parameters -- satisfying "
+                f"LinearInParamsLatentMapProtocol, so that basis_matrix "
+                f"and with_params exist. {type(latent_map).__name__} is "
+                f"not, so fit it with a gradient-based fitter instead."
+            )
         if coefs_out.ndim != 2:
             raise ValueError(
                 f"coefs_out must be 2D with shape (ncodes_out, nsamples), "
@@ -301,12 +334,12 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
                 )
             self._solver.set_weights(weights)
 
-        basis_matrix = expansion.basis_matrix(coefs_in)
+        basis_matrix = latent_map.basis_matrix(coefs_in)
         params = self._solver.solve(basis_matrix, coefs_out.T)
         surrogate = OperatorSurrogate(
             self._input_encoder,
             self._output_encoder,
-            expansion.with_params(params),
+            latent_map.with_params(params),
             self._bkd,
         )
         return OperatorFitResult(surrogate, params)

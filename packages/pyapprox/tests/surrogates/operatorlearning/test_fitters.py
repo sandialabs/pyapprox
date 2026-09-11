@@ -24,6 +24,9 @@ from pyapprox.surrogates.kle.encoder import fit_kle_encoder
 from pyapprox.surrogates.operatorlearning import (
     GramProjectionEncoder,
     IdentityFieldEncoder,
+    LatentMapProtocol,
+    LinearInParamsLatentMapProtocol,
+    MultiIndexLatentMapProtocol,
     OperatorSurrogate,
     WeightedLeastSquaresOperatorFitter,
     bochner_error,
@@ -431,6 +434,116 @@ class TestFitFromFields:
         numpy_bkd.assert_allclose(
             from_fields.params(), from_coefs.params(), atol=1e-10
         )
+
+
+class _DenseLatentMap:
+    """A latent map with no basis and no index set.
+
+    Stands in for the neural and function-train maps this package will
+    grow: it evaluates, reports its widths, and can answer nothing
+    structural about itself.
+    """
+
+    def __init__(self, matrix, bkd: Backend) -> None:
+        self._matrix = matrix
+        self._bkd = bkd
+
+    def nvars(self) -> int:
+        return int(self._matrix.shape[1])
+
+    def nqoi(self) -> int:
+        return int(self._matrix.shape[0])
+
+    def __call__(self, coefs):
+        return self._bkd.dot(self._matrix, coefs)
+
+
+class TestWideningToNonExpansionLatentMaps:
+    """A latent map need not be a polynomial expansion.
+
+    The surrogate's forward path is encode, map, decode, and none of
+    those steps cares what the map is. What *does* care is asked for
+    explicitly and refuses when it cannot be answered.
+    """
+
+    def _map(self, bkd: Backend, nqoi: int = 3, nvars: int = 2):
+        rng = np.random.RandomState(0)
+        return _DenseLatentMap(
+            bkd.asarray(rng.standard_normal((nqoi, nvars))), bkd
+        )
+
+    def test_satisfies_the_minimal_protocol_only(self, bkd: Backend) -> None:
+        latent_map = self._map(bkd)
+        assert isinstance(latent_map, LatentMapProtocol)
+        assert not isinstance(latent_map, LinearInParamsLatentMapProtocol)
+        assert not isinstance(latent_map, MultiIndexLatentMapProtocol)
+
+    def test_evaluates_through_the_surrogate(self, bkd: Backend) -> None:
+        surrogate = OperatorSurrogate(
+            IdentityFieldEncoder(2, bkd),
+            IdentityFieldEncoder(3, bkd),
+            self._map(bkd),
+            bkd,
+        )
+        fields = bkd.asarray(np.random.uniform(-1.0, 1.0, (2, 7)))
+        assert surrogate(fields).shape == (3, 7)
+
+    def test_width_validation_still_applies(self, bkd: Backend) -> None:
+        with pytest.raises(ValueError, match="nqoi"):
+            OperatorSurrogate(
+                IdentityFieldEncoder(2, bkd),
+                IdentityFieldEncoder(5, bkd),
+                self._map(bkd),
+                bkd,
+            )
+
+    def test_rejects_a_non_latent_map(self, bkd: Backend) -> None:
+        with pytest.raises(TypeError, match="LatentMapProtocol"):
+            OperatorSurrogate(
+                IdentityFieldEncoder(2, bkd),
+                IdentityFieldEncoder(3, bkd),
+                "not_a_latent_map",
+                bkd,
+            )
+
+    def test_indices_refuses_without_an_index_set(
+        self, bkd: Backend
+    ) -> None:
+        surrogate = OperatorSurrogate(
+            IdentityFieldEncoder(2, bkd),
+            IdentityFieldEncoder(3, bkd),
+            self._map(bkd),
+            bkd,
+        )
+        with pytest.raises(TypeError, match="MultiIndexLatentMapProtocol"):
+            surrogate.indices()
+
+    def test_is_affine_refuses_rather_than_answering_false(
+        self, bkd: Backend
+    ) -> None:
+        """Refusing and answering False are different claims.
+
+        False asserts the map is nonlinear; this map may well be linear,
+        it simply has no index set to read that from.
+        """
+        surrogate = OperatorSurrogate(
+            IdentityFieldEncoder(2, bkd),
+            IdentityFieldEncoder(3, bkd),
+            self._map(bkd),
+            bkd,
+        )
+        with pytest.raises(TypeError, match="MultiIndexLatentMapProtocol"):
+            surrogate.is_affine()
+
+    def test_least_squares_fitter_refuses_it(self, bkd: Backend) -> None:
+        """It has no basis_matrix, so there is no linear system to solve."""
+        fitter = _identity_fitter(bkd, 2, 3)
+        coefs_in = bkd.asarray(np.random.uniform(-1.0, 1.0, (2, 20)))
+        coefs_out = bkd.asarray(np.random.uniform(-1.0, 1.0, (3, 20)))
+        with pytest.raises(
+            TypeError, match="LinearInParamsLatentMapProtocol"
+        ):
+            fitter.fit_encoded(self._map(bkd), coefs_in, coefs_out)
 
 
 class TestOperatorSurrogate:

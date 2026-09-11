@@ -23,6 +23,9 @@ from pyapprox.surrogates.operatorlearning.fitters import (
 from pyapprox.surrogates.operatorlearning.protocols import (
     FieldEncoderProtocol,
     IsometricEncoderProtocol,
+    LatentMapProtocol,
+    LinearInParamsLatentMapProtocol,
+    MultiIndexLatentMapProtocol,
 )
 from pyapprox.surrogates.operatorlearning.surrogate import OperatorSurrogate
 
@@ -31,6 +34,9 @@ __all__ = [
     "GramProjectionEncoder",
     "IdentityFieldEncoder",
     "IsometricEncoderProtocol",
+    "LatentMapProtocol",
+    "LinearInParamsLatentMapProtocol",
+    "MultiIndexLatentMapProtocol",
     "OperatorFitResult",
     "OperatorSurrogate",
     "ProductFieldEncoder",
