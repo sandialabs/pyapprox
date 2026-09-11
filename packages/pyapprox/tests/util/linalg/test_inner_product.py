@@ -184,3 +184,82 @@ class TestRejects:
     def test_euclidean_rejects_nonpositive_nstates(self, bkd) -> None:
         with pytest.raises(ValueError, match="must be positive"):
             EuclideanInnerProduct(0, bkd)
+
+
+class TestGradientsUnderTorch:
+    r"""The metric must differentiate correctly with respect to its argument.
+
+    ``M`` is constant data and is never differentiated, but ``norm`` and
+    ``dot`` are differentiated with respect to ``x``, and
+
+    .. math:: \frac{\partial \|x\|_M}{\partial x} = \frac{Mx}{\|x\|_M}
+
+    needs ``M`` in the graph as a constant operator. Detaching it drops
+    one of the two equal contributions of the quadratic form, which
+    halves the gradient while leaving it live -- so a test that only
+    asserts the graph exists passes on the broken version. These assert
+    the value against the closed form instead.
+    """
+
+    def _setup(self, torch_bkd, matrix):
+        ip = MassInnerProduct(matrix, torch_bkd)
+        x = torch_bkd.asarray(
+            np.array([[1.0], [2.0], [-3.0]])
+        ).requires_grad_(True)
+        return ip, x
+
+    def _expected_norm_grad(self, matrix, x_np):
+        mx = matrix @ x_np
+        return mx / np.sqrt((x_np * mx).sum(axis=0))
+
+    def test_norm_gradient_matches_closed_form_diagonal(
+        self, torch_bkd
+    ) -> None:
+        matrix = diags([2.0, 3.0, 4.0])
+        ip, x = self._setup(torch_bkd, matrix)
+        ip.norm(x).sum().backward()
+        x_np = np.array([[1.0], [2.0], [-3.0]])
+        torch_bkd.assert_allclose(
+            x.grad,
+            torch_bkd.asarray(self._expected_norm_grad(matrix, x_np)),
+            rtol=1e-12,
+        )
+
+    def test_norm_gradient_matches_closed_form_nondiagonal(
+        self, torch_bkd
+    ) -> None:
+        # Off-diagonal coupling: a transposed or lumped M would pass a
+        # diagonal-only check but fail here.
+        dense = np.array(
+            [[4.0, 1.0, 0.0], [1.0, 3.0, 0.5], [0.0, 0.5, 2.0]]
+        )
+        matrix = csr_matrix(dense)
+        ip, x = self._setup(torch_bkd, matrix)
+        ip.norm(x).sum().backward()
+        x_np = np.array([[1.0], [2.0], [-3.0]])
+        torch_bkd.assert_allclose(
+            x.grad,
+            torch_bkd.asarray(self._expected_norm_grad(dense, x_np)),
+            rtol=1e-12,
+        )
+
+    def test_dot_gradient_matches_closed_form(self, torch_bkd) -> None:
+        # d/dx (x^T M y) = M y, independent of x.
+        matrix = diags([2.0, 3.0, 4.0])
+        ip, x = self._setup(torch_bkd, matrix)
+        y = torch_bkd.asarray(np.array([[1.0], [0.0], [1.0]]))
+        ip.dot(x, y).sum().backward()
+        torch_bkd.assert_allclose(
+            x.grad,
+            torch_bkd.asarray(matrix @ np.array([[1.0], [0.0], [1.0]])),
+            rtol=1e-12,
+        )
+
+    def test_norm_gradient_is_live(self, torch_bkd) -> None:
+        """The weaker property, kept because it localizes a failure.
+
+        If this fails the graph is severed outright; if it passes while
+        the value checks fail, the graph is live and wrong.
+        """
+        ip, x = self._setup(torch_bkd, diags([2.0, 3.0, 4.0]))
+        assert torch_bkd.tracks_gradient(ip.norm(x))

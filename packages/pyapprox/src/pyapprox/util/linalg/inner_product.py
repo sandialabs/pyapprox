@@ -202,6 +202,21 @@ class MassInnerProduct(Generic[Array]):
     Galerkin assembly, where it is constant data rather than something
     differentiated through.
 
+    :meth:`dot` and :meth:`norm` are the exception, and the distinction
+    is worth stating because it is easy to get backwards. Those
+    differentiate with respect to their *argument*, not with respect to
+    :math:`M`, and
+
+    .. math:: \frac{\partial \|x\|_M}{\partial x} = \frac{Mx}{\|x\|_M}
+
+    needs :math:`M` in the graph as a constant operator. Detaching a
+    constant does not make the derivative with respect to the variable
+    correct: in the quadratic form :math:`x^T M x` the variable appears
+    twice, so severing one occurrence halves the gradient while leaving
+    it live. They therefore multiply through a cached torch view of the
+    same matrix when the backend is torch. ``M`` is still never
+    differentiated, and the numpy path is unchanged.
+
     Parameters
     ----------
     matrix : scipy sparse matrix
@@ -227,6 +242,10 @@ class MassInnerProduct(Generic[Array]):
         self._matrix = matrix
         self._bkd = bkd
         self._lu: Optional[SuperLU] = None
+        # Built on first use rather than in __init__: most callers never
+        # differentiate through the metric, and the conversion costs a
+        # COO round trip.
+        self._torch_matrix: Optional[Any] = None
 
     def nstates(self) -> int:
         return int(self._matrix.shape[0])
@@ -239,14 +258,44 @@ class MassInnerProduct(Generic[Array]):
         """Return the sparse weight matrix."""
         return self._matrix
 
+    def _apply_preserving_graph(self, x: Array) -> Array:
+        """Return ``M x``, keeping ``x`` attached to the autograd graph.
+
+        Falls back to :meth:`apply` for any backend but torch, where the
+        round trip through numpy is not a graph break because there is
+        no graph.
+        """
+        if not self._bkd.tracks_gradient(x):
+            return self.apply(x)
+        import torch
+
+        if self._torch_matrix is None:
+            coo = self._matrix.tocoo()
+            indices = torch.stack(
+                (
+                    torch.as_tensor(coo.row, dtype=torch.int64),
+                    torch.as_tensor(coo.col, dtype=torch.int64),
+                )
+            )
+            self._torch_matrix = torch.sparse_coo_tensor(
+                indices,
+                torch.as_tensor(coo.data, dtype=x.dtype),
+                coo.shape,
+            ).coalesce()
+        # asarray rather than array: the latter detaches, which would
+        # reintroduce the very break this method exists to avoid.
+        return self._bkd.asarray(torch.sparse.mm(self._torch_matrix, x))
+
     def apply(self, x: Array) -> Array:
         return self._bkd.asarray(self._matrix @ self._bkd.to_numpy(x))
 
     def dot(self, x: Array, y: Array) -> Array:
-        return self._bkd.dot(x.T, self.apply(y))
+        return self._bkd.dot(x.T, self._apply_preserving_graph(y))
 
     def norm(self, x: Array) -> Array:
-        return self._bkd.sqrt(self._bkd.sum(x * self.apply(x), axis=0))
+        return self._bkd.sqrt(
+            self._bkd.sum(x * self._apply_preserving_graph(x), axis=0)
+        )
 
     def is_diagonal(self) -> bool:
         return False
