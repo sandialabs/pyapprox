@@ -170,10 +170,31 @@ class MonomialManifoldEncoder(Generic[Array]):
         return int(self._basis.shape[1])
 
     def encode(self, samples: Array) -> Array:
-        """Full to latent, ``z = V^T (s - mu)``.
+        r"""Full to latent, ``z = V^T (s - mu)``.
 
         ``(full_dim, N) -> (latent_dim, N)``. Linear even though the
         decoder is not, so the time derivative maps exactly.
+
+        **The projection is deliberately metric-free**, even when
+        ``fit_from_data`` was given a ``metric``. That metric selects
+        :math:`V` through the eigensolver and then stops: the correction
+        weights :math:`W` are fitted against
+        :math:`z = V^T S_c` with no :math:`M`
+        (:meth:`~pyapprox.surrogates.reduction.manifold_scoring.ManifoldScorer.fit_weights`),
+        so the encoder must use the same coordinates the correction was
+        fitted in. Applying :math:`M` here alone would desynchronize the
+        two and degrade reconstruction, not improve it.
+
+        This reads like an inconsistency with
+        :class:`~pyapprox.surrogates.kle.encoder.KLEEncoder`, whose
+        encode is :math:`V^T M (f - \bar{f})`, and the difference is
+        real: there the basis is the whole model, so the projection must
+        be the :math:`M`-orthogonal one; here the basis is half of it.
+
+        One consequence for downstream fitting: ``decode(encode(s))`` is
+        not the :math:`M`-closest point on the manifold to :math:`s`, so
+        a fit measuring error in :math:`\|\cdot\|_M` is improved by a
+        better latent map, never by "fixing" this projection.
         """
         return self._bkd.dot(self._basis.T, samples - self._mean)
 
@@ -316,10 +337,13 @@ class MonomialManifoldEncoder(Generic[Array]):
             across methods and dimensions at a fixed training set. The
             caller must have centered consistently with ``center``.
         metric : InnerProductProtocol, optional
-            The inner product the basis is orthonormal in. None is
-            Euclidean. A mesh-weighted metric makes the reduction
-            measure error in the field norm rather than in a norm that
-            happens to weight every node equally.
+            The inner product the basis is orthonormal in, used to
+            *select* it. None is Euclidean. A mesh-weighted metric makes
+            the reduction measure error in the field norm rather than in
+            a norm that happens to weight every node equally. It is not
+            retained on the encoder and does not enter
+            :meth:`MonomialManifoldEncoder.encode`, which projects with
+            ``V^T`` alone -- see that method for why.
         eigensolver : SnapshotEigenSolverProtocol, optional
             How the basis is extracted. Defaults to the solver matching
             the metric.
