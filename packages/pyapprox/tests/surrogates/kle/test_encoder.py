@@ -20,6 +20,9 @@ from pyapprox.surrogates.kle.protocols import KLEProtocol
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     MethodOfSnapshotsSolver,
 )
+from pyapprox.surrogates.operatorlearning.protocols import (
+    FieldEncoderProtocol,
+)
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     EuclideanInnerProduct,
@@ -44,6 +47,15 @@ class TestProtocolConformance:
         enc = KLEEncoder(_kle(bkd))
         assert isinstance(enc, FunctionEncoderProtocol)
         assert isinstance(enc, StdDecodingEncoderProtocol)
+
+    def test_satisfies_the_field_encoder_protocol(self, bkd) -> None:
+        """The one that lets it into an operator surrogate.
+
+        Without ``is_isometry`` this encoder was structurally excluded
+        from least-squares operator learning despite being the canonical
+        basis for it.
+        """
+        assert isinstance(KLEEncoder(_kle(bkd)), FieldEncoderProtocol)
 
     def test_dimensions_come_from_the_basis(self, bkd) -> None:
         enc = KLEEncoder(_kle(bkd, nterms=3))
@@ -238,6 +250,85 @@ class TestSharesRatherThanCopies:
     def test_wrapped_kle_is_reachable(self, bkd) -> None:
         kle = _kle(bkd)
         assert KLEEncoder(kle).kle() is kle
+
+
+class TestIsometry:
+    r"""Whether a coefficient residual may be read as a field error.
+
+    The property is computed from the basis and the metric rather than
+    asserted, because ``KLEProtocol`` promises nothing about
+    orthonormality and the encoder may be handed a metric the basis was
+    not built in.
+    """
+
+    def test_m_pod_basis_is_an_isometry(self, bkd) -> None:
+        weights = bkd.array(np.linspace(0.5, 3.0, 12))
+        metric = DiagonalInnerProduct(weights, bkd)
+        enc = fit_kle_encoder(
+            _centered(bkd), bkd, latent_dim=4, metric=metric
+        )
+        assert enc.is_isometry()
+        assert enc.orthonormality_drift() < 1e-12
+
+    def test_euclidean_basis_is_an_isometry(self, bkd) -> None:
+        assert KLEEncoder(_kle(bkd)).is_isometry()
+
+    def test_arbitrary_basis_is_not(self, bkd) -> None:
+        """A PrecomputedKLE may hold any array at all."""
+        rng = np.random.RandomState(3)
+        kle = PrecomputedKLE(
+            bkd.array(np.array([4.0, 3.0, 2.0])),
+            bkd.array(rng.standard_normal((12, 3))),
+            bkd.array(np.zeros(12)),
+            1.0,
+            False,
+            bkd,
+        )
+        enc = KLEEncoder(kle)
+        assert not enc.is_isometry()
+        assert enc.orthonormality_drift() > 1.0
+
+    def test_mismatched_metric_is_not_an_isometry(self, bkd) -> None:
+        """The failure the class docstring warns about, made detectable.
+
+        A basis built Euclidean and paired with a weighted metric is not
+        orthonormal in that metric, so encode is not a projection. Before
+        ``is_isometry`` nothing reported this.
+        """
+        weights = bkd.array(np.linspace(0.5, 3.0, 12))
+        enc = KLEEncoder(_kle(bkd), DiagonalInnerProduct(weights, bkd))
+        assert not enc.is_isometry()
+
+    def test_tolerance_is_honored(self, bkd) -> None:
+        rng = np.random.RandomState(3)
+        kle = PrecomputedKLE(
+            bkd.array(np.array([4.0, 3.0, 2.0])),
+            bkd.array(rng.standard_normal((12, 3))),
+            bkd.array(np.zeros(12)),
+            1.0,
+            False,
+            bkd,
+        )
+        assert KLEEncoder(kle, orthonormality_tol=1e3).is_isometry()
+
+    def test_agrees_with_the_shared_drift_helper(self, bkd) -> None:
+        """The encoder reports what ``m_orthonormality_drift`` computes.
+
+        Pinned because the value must not drift from the free function
+        that the sibling encoder and the KLE tests both use; one
+        definition of orthonormality, checked the same way everywhere.
+        """
+        weights = bkd.array(np.linspace(0.5, 3.0, 12))
+        metric = DiagonalInnerProduct(weights, bkd)
+        enc = fit_kle_encoder(
+            _centered(bkd), bkd, latent_dim=4, metric=metric
+        )
+        bkd.assert_allclose(
+            bkd.asarray([enc.orthonormality_drift()]),
+            bkd.asarray(
+                [m_orthonormality_drift(enc.basis(), metric, bkd)]
+            ),
+        )
 
 
 class TestFitKLEEncoder:

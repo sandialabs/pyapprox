@@ -41,7 +41,11 @@ from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     SnapshotEigenSolverProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from pyapprox.util.linalg.inner_product import InnerProductProtocol
+from pyapprox.util.linalg.inner_product import (
+    EuclideanInnerProduct,
+    InnerProductProtocol,
+    m_orthonormality_drift,
+)
 
 
 @runtime_checkable
@@ -81,6 +85,13 @@ class KLEEncoder(Generic[Array]):
         other than a projection: it stops being idempotent and stops
         returning the nearest point in the subspace, with no error, so
         it must be the metric the basis was *built* in.
+        :meth:`is_isometry` is the check for this, and answers False
+        when the pairing is wrong.
+    orthonormality_tol : float
+        Tolerance on :math:`\|V^T M V - I\|_F` below which
+        :meth:`is_isometry` reports True. Named to match
+        :class:`~pyapprox.surrogates.operatorlearning.encoders.GramProjectionEncoder`,
+        which takes the same argument for the same purpose.
 
     Raises
     ------
@@ -97,6 +108,7 @@ class KLEEncoder(Generic[Array]):
         self,
         kle: KLEProtocol[Array],
         metric: Optional[InnerProductProtocol[Array]] = None,
+        orthonormality_tol: float = 1e-10,
     ) -> None:
         if not isinstance(kle, KLEProtocol):
             raise TypeError(
@@ -118,6 +130,13 @@ class KLEEncoder(Generic[Array]):
         self._kle = kle
         self._metric = metric
         self._bkd = kle.bkd()
+        self._orthonormality_tol = orthonormality_tol
+        drift_metric = (
+            EuclideanInnerProduct(int(basis.shape[0]), self._bkd)
+            if metric is None
+            else metric
+        )
+        self._drift = m_orthonormality_drift(basis, drift_metric, self._bkd)
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -130,6 +149,42 @@ class KLEEncoder(Generic[Array]):
     def metric(self) -> Optional[InnerProductProtocol[Array]]:
         """Return the inner product the basis is orthonormal in."""
         return self._metric
+
+    def orthonormality_drift(self) -> float:
+        r"""Return :math:`\|V^T M V - I\|_F`, zero for an isometry.
+
+        Computed once at construction, matching
+        :class:`~pyapprox.surrogates.operatorlearning.encoders.GramProjectionEncoder`.
+        A KLE's basis is fixed at its own construction -- no class here
+        exposes a setter, and extending a Nystrom basis to new points
+        yields a new expansion rather than mutating one -- so there is
+        nothing for a cached value to go stale against.
+        """
+        return self._drift
+
+    def is_isometry(self) -> bool:
+        r"""Whether encoding preserves the norm the basis was built in.
+
+        True when :math:`V^T M V = I` to within the constructor's
+        ``orthonormality_tol``, which makes
+        :math:`\|f - \bar{f}\|_M = \|z\|_2` and lets a consumer treat a
+        coefficient residual as a field error.
+
+        Computed rather than assumed. ``KLEProtocol`` promises nothing
+        about orthonormality -- :class:`PrecomputedKLE` accepts any
+        array, :meth:`NystromKLE.eigenvectors_at` extends a basis to
+        points where orthonormality need not survive, and a basis built
+        in one metric may be handed another here. Returning True on the
+        strength of the usual case would be a lie in exactly the
+        situations this method exists to detect.
+
+        What the protocol does not promise is mutability either, and no
+        KLE in this package exposes a basis setter, so the answer is
+        computed once at construction. An implementation that recomputed
+        its basis would already make ``full_dim`` and ``mean`` shift
+        under a caller; this method is not where that would be caught.
+        """
+        return self.orthonormality_drift() < self._orthonormality_tol
 
     def full_dim(self) -> int:
         """Dimension of the space the basis lives in."""
