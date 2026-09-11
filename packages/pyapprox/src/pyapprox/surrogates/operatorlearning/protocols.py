@@ -39,7 +39,10 @@ class IsometricEncoderProtocol(Protocol):
 
 @runtime_checkable
 class FieldEncoderProtocol(
-    FunctionEncoderProtocol[Array], Protocol, Generic[Array]
+    FunctionEncoderProtocol[Array],
+    IsometricEncoderProtocol,
+    Protocol,
+    Generic[Array],
 ):
     """A function encoder that also reports whether it is an isometry.
 
@@ -48,8 +51,11 @@ class FieldEncoderProtocol(
     isometry property, so it composes the two rather than restating
     them. Any encoder written for kernel operator learning satisfies
     this as soon as it can answer :meth:`is_isometry`.
-    """
 
-    def is_isometry(self) -> bool:
-        """Return whether encoding preserves the Y-norm."""
-        ...
+    The isometry half is inherited from
+    :class:`IsometricEncoderProtocol` rather than redeclared. Redeclaring
+    it left that protocol with no consumer and no relationship to this
+    one, so the two were free to drift apart -- which is the failure
+    composition exists to prevent, and the reason the sentence above was
+    true of the intent and not of the code.
+    """
