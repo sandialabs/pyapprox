@@ -27,6 +27,9 @@ from pyapprox.surrogates.affine.protocols.solver import (
     LinearSystemSolverProtocol,
     WeightedSolverProtocol,
 )
+from pyapprox.surrogates.kerneloperator.protocols import (
+    FunctionEncoderProtocol,
+)
 from pyapprox.surrogates.operatorlearning.protocols import (
     FieldEncoderProtocol,
 )
@@ -153,9 +156,10 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
 
     Parameters
     ----------
-    input_encoder : FieldEncoderProtocol[Array]
+    input_encoder : FunctionEncoderProtocol[Array]
         Maps input fields to the coefficients the expansion takes as
-        its variables.
+        its variables. The weaker protocol: the isometry matters only
+        on the output side, and this encoder's answer is never read.
     output_encoder : FieldEncoderProtocol[Array]
         Maps output fields to the coefficients it predicts. Must be an
         isometry.
@@ -168,20 +172,21 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
 
     def __init__(
         self,
-        input_encoder: FieldEncoderProtocol[Array],
+        input_encoder: FunctionEncoderProtocol[Array],
         output_encoder: FieldEncoderProtocol[Array],
         bkd: Backend[Array],
         solver: Optional[LinearSystemSolverProtocol[Array]] = None,
     ) -> None:
-        for name, encoder in (
-            ("input_encoder", input_encoder),
-            ("output_encoder", output_encoder),
-        ):
-            if not isinstance(encoder, FieldEncoderProtocol):
-                raise TypeError(
-                    f"{name} must satisfy FieldEncoderProtocol, got "
-                    f"{type(encoder).__name__}"
-                )
+        if not isinstance(input_encoder, FunctionEncoderProtocol):
+            raise TypeError(
+                f"input_encoder must satisfy FunctionEncoderProtocol, "
+                f"got {type(input_encoder).__name__}"
+            )
+        if not isinstance(output_encoder, FieldEncoderProtocol):
+            raise TypeError(
+                f"output_encoder must satisfy FieldEncoderProtocol, got "
+                f"{type(output_encoder).__name__}"
+            )
         self._input_encoder = input_encoder
         self._output_encoder = output_encoder
         self._bkd = bkd

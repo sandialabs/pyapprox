@@ -7,6 +7,9 @@ from typing import Generic
 from pyapprox.surrogates.affine.expansions.pce import (
     PolynomialChaosExpansion,
 )
+from pyapprox.surrogates.kerneloperator.protocols import (
+    FunctionEncoderProtocol,
+)
 from pyapprox.surrogates.operatorlearning.protocols import (
     FieldEncoderProtocol,
 )
@@ -25,9 +28,13 @@ class OperatorSurrogate(Generic[Array]):
 
     Parameters
     ----------
-    input_encoder : FieldEncoderProtocol[Array]
+    input_encoder : FunctionEncoderProtocol[Array]
         Maps input fields to the coefficients the expansion takes as
-        its variables.
+        its variables. Deliberately the weaker protocol: the isometry
+        is a property of the *output* side, where a coefficient
+        residual stands in for a field error, and nothing here ever
+        reads ``is_isometry`` on this encoder. Requiring it would
+        exclude encoders that are otherwise perfectly usable as inputs.
     output_encoder : FieldEncoderProtocol[Array]
         Maps output fields to the coefficients the expansion predicts.
         Must be an isometry, or the least-squares error the fit
@@ -41,20 +48,21 @@ class OperatorSurrogate(Generic[Array]):
 
     def __init__(
         self,
-        input_encoder: FieldEncoderProtocol[Array],
+        input_encoder: FunctionEncoderProtocol[Array],
         output_encoder: FieldEncoderProtocol[Array],
         expansion: PolynomialChaosExpansion[Array],
         bkd: Backend[Array],
     ) -> None:
-        for name, encoder in (
-            ("input_encoder", input_encoder),
-            ("output_encoder", output_encoder),
-        ):
-            if not isinstance(encoder, FieldEncoderProtocol):
-                raise TypeError(
-                    f"{name} must satisfy FieldEncoderProtocol, got "
-                    f"{type(encoder).__name__}"
-                )
+        if not isinstance(input_encoder, FunctionEncoderProtocol):
+            raise TypeError(
+                f"input_encoder must satisfy FunctionEncoderProtocol, "
+                f"got {type(input_encoder).__name__}"
+            )
+        if not isinstance(output_encoder, FieldEncoderProtocol):
+            raise TypeError(
+                f"output_encoder must satisfy FieldEncoderProtocol, got "
+                f"{type(output_encoder).__name__}"
+            )
         if not output_encoder.is_isometry():
             raise ValueError(
                 "output_encoder must be an isometry, otherwise the "
@@ -81,7 +89,7 @@ class OperatorSurrogate(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def input_encoder(self) -> FieldEncoderProtocol[Array]:
+    def input_encoder(self) -> FunctionEncoderProtocol[Array]:
         """Return the input encoder."""
         return self._input_encoder
 

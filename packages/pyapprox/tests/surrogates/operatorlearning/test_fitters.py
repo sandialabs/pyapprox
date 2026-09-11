@@ -20,6 +20,7 @@ from pyapprox.surrogates.affine.indices.utils import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate.factory import create_bases_1d
+from pyapprox.surrogates.kle.encoder import fit_kle_encoder
 from pyapprox.surrogates.operatorlearning import (
     GramProjectionEncoder,
     IdentityFieldEncoder,
@@ -345,10 +346,16 @@ class TestWeightedLeastSquaresOperatorFitter:
                 expansion, coefs_in, bkd.zeros((3, 10)), weights=bkd.ones((9,))
             )
 
-    def test_rejects_non_encoder(self, bkd: Backend) -> None:
-        with pytest.raises(TypeError, match="FieldEncoderProtocol"):
+    def test_rejects_non_encoder_input(self, bkd: Backend) -> None:
+        with pytest.raises(TypeError, match="FunctionEncoderProtocol"):
             WeightedLeastSquaresOperatorFitter(
                 "not_an_encoder", IdentityFieldEncoder(3, bkd), bkd
+            )
+
+    def test_rejects_non_encoder_output(self, bkd: Backend) -> None:
+        with pytest.raises(TypeError, match="FieldEncoderProtocol"):
+            WeightedLeastSquaresOperatorFitter(
+                IdentityFieldEncoder(2, bkd), "not_an_encoder", bkd
             )
 
 
@@ -449,6 +456,49 @@ class TestOperatorSurrogate:
                 bkd,
             )
 
+    def test_accepts_a_kle_encoder_on_both_sides(
+        self, bkd: Backend
+    ) -> None:
+        """A KLE basis is the canonical encoder for this surrogate.
+
+        It was structurally excluded until ``KLEEncoder`` could answer
+        ``is_isometry``, which is the gap this pairing closes. Centering
+        is the reason to want it: the reachable set becomes the affine
+        ``{mean + V z}`` rather than the linear ``{V z}``.
+        """
+        rng = np.random.RandomState(0)
+        enc_in = fit_kle_encoder(
+            bkd.asarray(rng.standard_normal((10, 40))), bkd, latent_dim=3
+        )
+        enc_out = fit_kle_encoder(
+            bkd.asarray(rng.standard_normal((8, 40))), bkd, latent_dim=2
+        )
+        surrogate = OperatorSurrogate(
+            enc_in, enc_out, _expansion(bkd, 3, 2, 2), bkd
+        )
+        fields = bkd.asarray(rng.standard_normal((10, 5)))
+        assert surrogate(fields).shape == (8, 5)
+
+    def test_accepts_a_non_isometric_input_encoder(
+        self, bkd: Backend
+    ) -> None:
+        """The isometry is an output-side property only.
+
+        Nothing reads ``is_isometry`` on the input encoder, so demanding
+        it would exclude usable encoders for a guarantee this side never
+        offers. Asserted alongside the output-side rejection above so
+        the asymmetry reads as deliberate.
+        """
+        expansion = _expansion(bkd, 2, 2, 3)
+        surrogate = OperatorSurrogate(
+            IdentityFieldEncoder(2, bkd, is_isometry=False),
+            IdentityFieldEncoder(3, bkd),
+            expansion,
+            bkd,
+        )
+        fields = bkd.asarray(np.random.uniform(-1.0, 1.0, (2, 7)))
+        assert surrogate(fields).shape == (3, 7)
+
     def test_rejects_output_code_mismatch(self, bkd: Backend) -> None:
         expansion = _expansion(bkd, 2, 2, 3)
         with pytest.raises(ValueError, match="nqoi"):
@@ -469,9 +519,16 @@ class TestOperatorSurrogate:
                 bkd,
             )
 
-    def test_rejects_non_encoder(self, bkd: Backend) -> None:
+    def test_rejects_non_encoder_input(self, bkd: Backend) -> None:
+        expansion = _expansion(bkd, 2, 2, 3)
+        with pytest.raises(TypeError, match="FunctionEncoderProtocol"):
+            OperatorSurrogate(
+                "not_an_encoder", IdentityFieldEncoder(3, bkd), expansion, bkd
+            )
+
+    def test_rejects_non_encoder_output(self, bkd: Backend) -> None:
         expansion = _expansion(bkd, 2, 2, 3)
         with pytest.raises(TypeError, match="FieldEncoderProtocol"):
             OperatorSurrogate(
-                "not_an_encoder", IdentityFieldEncoder(3, bkd), expansion, bkd
+                IdentityFieldEncoder(2, bkd), "not_an_encoder", expansion, bkd
             )
