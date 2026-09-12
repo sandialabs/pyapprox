@@ -1,4 +1,11 @@
-"""Least-squares operator learning between function spaces."""
+"""Least-squares operator learning between function spaces.
+
+``MLPLatentMap`` is deliberately **not** re-exported here. It is an
+``nn.Module``, so importing it eagerly would put torch's 2.1s import cost
+on every numpy-only caller who touches this package. Import it from
+``pyapprox.surrogates.operatorlearning.latent_maps``, as the flow-matching
+velocity fields are imported from their own module for the same reason.
+"""
 
 from pyapprox.surrogates.operatorlearning.basis import (
     SeparableOperatorBasis,
