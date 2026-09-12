@@ -37,11 +37,15 @@ of this package.
 from __future__ import annotations
 
 import copy
-from typing import Generic, List, Optional, Union, cast
+from typing import Generic, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import torch
 
+from pyapprox.surrogates.operatorlearning.fitters import (
+    IterativeOperatorFitResult,
+    OptimizerStageResult,
+)
 from pyapprox.surrogates.operatorlearning.latent_maps.torch_optimizers import (
     ChainedTorchOptimizer,
     TorchOptimizerSpecProtocol,
@@ -92,12 +96,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
     optimizer : TorchOptimizerSpecProtocol or ChainedTorchOptimizer
         Which optimizer to run, and how it is configured. Defaults to
         Adam followed by an L-BFGS polish, which is better than either
-        alone: Adam is cheap and tolerant of a poor start but has no
-        line search, so near an exact fit -- where the gradient is
-        numerical noise -- it keeps taking full-sized steps and drifts
-        back away from the optimum. Measured on a problem with an exact
-        solution, Adam alone reaches a loss of 5e-03 while the polish
-        then takes it to 1e-18.
+        alone -- see :func:`torch_adam_then_lbfgs`.
 
         A spec rather than a built optimizer because the parameters it
         must attach to belong to a copy this fitter makes, which the
@@ -114,7 +113,18 @@ class TorchGradientLatentMapFitter(Generic[Array]):
         Fit against a non-isometric output encoder anyway, accepting the
         coefficient residual as an approximation of the field error.
     seed : int, optional
-        Seeds the batch permutation, for a reproducible fit.
+        Seeds **both** generators, which is worth stating because this
+        package otherwise draws from numpy alone. The batch permutation
+        is numpy's, but a network's initial weights come from torch's
+        RNG, and for a non-convex fit the starting point usually matters
+        more than the batch order -- seeding numpy only would leave the
+        fit irreproducible in the way that counts.
+
+        Note the weights are drawn when the latent map is *constructed*,
+        not here, so a caller who wants end-to-end reproducibility
+        should seed before building the map as well. This seeds at fit
+        time so that a given fitter, handed a given map, behaves the
+        same way twice.
     """
 
     def __init__(
@@ -170,7 +180,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
         input_fields: Array,
         output_fields: Array,
         weights: Optional[Array] = None,
-    ) -> OperatorSurrogate[Array]:
+    ) -> IterativeOperatorFitResult[Array]:
         """Fit from realizations of the input and output fields.
 
         Encodes both, then delegates to :meth:`fit_encoded`.
@@ -188,7 +198,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
         coefs_in: Array,
         coefs_out: Array,
         weights: Optional[Array] = None,
-    ) -> OperatorSurrogate[Array]:
+    ) -> IterativeOperatorFitResult[Array]:
         """Fit from coefficients that are already encoded.
 
         Parameters
@@ -206,8 +216,11 @@ class TorchGradientLatentMapFitter(Generic[Array]):
 
         Returns
         -------
-        OperatorSurrogate[Array]
-            Wrapping the trained copy.
+        IterativeOperatorFitResult[Array]
+            The trained copy inside a surrogate, plus a record of how
+            each optimizer stage terminated -- which is what says
+            whether a remaining error is the model's limit or the
+            iteration budget's.
         """
         require_coefficient_error_is_field_error(
             self._output_encoder,
@@ -237,7 +250,10 @@ class TorchGradientLatentMapFitter(Generic[Array]):
             )
 
         if self._seed is not None:
+            # Both generators, because this package draws from numpy
+            # while torch draws the thing that matters most to a fit.
             np.random.seed(self._seed)
+            torch.manual_seed(self._seed)
 
         fitted = copy.deepcopy(latent_map)
         parameters = list(fitted.parameters())
@@ -258,7 +274,7 @@ class TorchGradientLatentMapFitter(Generic[Array]):
         tensor_weights = (
             None if weights is None else torch.as_tensor(weights)
         )
-        for stage in self._stages:
+        records = [
             self._run_stage(
                 stage,
                 torch_map,
@@ -267,9 +283,17 @@ class TorchGradientLatentMapFitter(Generic[Array]):
                 tensor_out,
                 tensor_weights,
             )
+            for stage in self._stages
+        ]
 
-        return OperatorSurrogate(
-            self._input_encoder, self._output_encoder, fitted, self._bkd
+        return IterativeOperatorFitResult(
+            OperatorSurrogate(
+                self._input_encoder,
+                self._output_encoder,
+                fitted,
+                self._bkd,
+            ),
+            records,
         )
 
     def _run_stage(
@@ -280,8 +304,8 @@ class TorchGradientLatentMapFitter(Generic[Array]):
         coefs_in: torch.Tensor,
         coefs_out: torch.Tensor,
         weights: Optional[torch.Tensor],
-    ) -> None:
-        """Run one optimizer to completion, in place.
+    ) -> OptimizerStageResult:
+        """Run one optimizer to completion, in place, and report how.
 
         Every torch optimizer takes a closure, so the same loop drives a
         first-order method and a quasi-Newton one; what differs is how
@@ -323,3 +347,46 @@ class TorchGradientLatentMapFitter(Generic[Array]):
             # torch types step's closure as returning float while every
             # optimizer in fact takes the loss tensor it backpropagated.
             optimizer.step(closure)  # type: ignore[arg-type]
+
+        # Re-evaluate rather than keep what step returned. That value is
+        # the closure's *first* evaluation, so it predates the step -- and
+        # an L-BFGS stage runs its whole inner loop inside one step call,
+        # which made the reported loss wrong by orders of magnitude. This
+        # costs one forward pass per stage and is the number a caller is
+        # actually asking for.
+        with torch.no_grad():
+            final = _weighted_squared_error(
+                torch.as_tensor(fitted(coefs_in)), coefs_out, weights
+            )
+
+        return OptimizerStageResult(
+            type(optimizer).__name__,
+            float(final),
+            *self._iterations_taken(optimizer, stage),
+        )
+
+    def _iterations_taken(
+        self,
+        optimizer: torch.optim.Optimizer,
+        stage: TorchOptimizerSpecProtocol,
+    ) -> Tuple[int, int]:
+        """Return (taken, budget) for a finished stage.
+
+        The one torch-specific part of reporting termination, which is
+        why it is here rather than on the result. Quasi-Newton methods
+        keep an iteration count in their per-parameter state and stop
+        early on a tolerance; first-order methods have no convergence
+        test at all, so for them the count *is* the budget -- reported
+        honestly rather than as a spurious success.
+        """
+        budget = stage.nsteps()
+        state = optimizer.state.get(
+            optimizer.param_groups[0]["params"][0], {}
+        )
+        taken = state.get("n_iter")
+        if taken is None:
+            return budget, budget
+        # An inner-iteration optimizer is driven by one outer step, so
+        # its budget is max_iter rather than the loop count.
+        inner_budget = optimizer.param_groups[0].get("max_iter", budget)
+        return int(taken), int(inner_budget)

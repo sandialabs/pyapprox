@@ -59,7 +59,15 @@ class TorchAdamOptions(TypedDict, total=False):
 
 
 class TorchLBFGSOptions(TypedDict, total=False):
-    """L-BFGS's tunable arguments, beyond iteration count and tolerance."""
+    """L-BFGS's tunable arguments, beyond iteration count and tolerance.
+
+    ``history_size`` is the one worth knowing about: it trades accuracy
+    against time almost linearly, since the two-loop recursion runs over
+    the stored history on every iteration. Most of an L-BFGS stage's
+    wall time is that recursion rather than the network, so shrinking it
+    is the lever for a faster fit -- and ``torch.compile`` is not, as it
+    compiles the model and leaves the optimizer's own work untouched.
+    """
 
     max_eval: Optional[int]
     history_size: int
@@ -179,17 +187,28 @@ def torch_adam(
 
 
 def torch_lbfgs(
-    nsteps: int = 100,
-    tol: float = 1e-15,
+    nsteps: int = 2000,
+    tol: float = 1e-5,
+    step_tol: float = 1e-9,
     **options: Unpack[TorchLBFGSOptions],
 ) -> TorchOptimizerSpec:
     """Spec for L-BFGS with a strong-Wolfe line search, the usual polish.
 
     Converges an already-close fit far tighter than more first-order
-    steps can: measured on a problem with an exact solution, Adam alone
-    stalls near 5e-03 while a hundred L-BFGS iterations reach 1e-18. It
-    needs the full sample, and ``nsteps`` here is ``max_iter``, so the
-    driving loop calls ``step`` once.
+    steps can, because the line search lets it shorten a step instead of
+    overshooting. It needs the full sample, and ``nsteps`` here is
+    ``max_iter``, so the driving loop calls ``step`` once.
+
+    ``tol`` is the gradient tolerance, ``step_tol`` the step-size one.
+    They are separate because they fail in opposite directions. A
+    network approximating a target it cannot represent exactly settles
+    at a *nonzero* gradient, so a ``tol`` below that floor is never met
+    and the run spends its whole budget; ``1e-5`` is the usual working
+    value for an MLP, and tightening it suits only a problem the map can
+    represent exactly. ``step_tol`` instead compares successive step
+    sizes, which are small early on for reasons that have nothing to do
+    with convergence, so setting it as loosely as ``tol`` stops the run
+    almost immediately and far from a minimum. It stays small.
     """
     options.setdefault("line_search_fn", "strong_wolfe")
     return TorchOptimizerSpec(
@@ -198,7 +217,7 @@ def torch_lbfgs(
         needs_full_sample=True,
         max_iter=nsteps,
         tolerance_grad=tol,
-        tolerance_change=tol,
+        tolerance_change=step_tol,
         **options,
     )
 
@@ -240,15 +259,36 @@ class ChainedTorchOptimizer:
 
 def torch_adam_then_lbfgs(
     learning_rate: float = 1e-2,
-    nepochs: int = 1000,
-    npolish_iterations: int = 100,
+    nepochs: int = 2000,
+    npolish_iterations: int = 2000,
     **options: Unpack[TorchAdamOptions],
 ) -> ChainedTorchOptimizer:
-    """The default: Adam to get close, L-BFGS to finish.
+    """The default: Adam to find a basin, then L-BFGS to solve it.
 
     Named because it is the combination worth reaching for by default,
     not because the two are inseparable -- either stage alone is a valid
     spec.
+
+    **Neither stage substitutes for the other.** Adam is cheap and
+    tolerant of a poor start; L-BFGS has a line search, so from a decent
+    starting point it drops the loss by orders of magnitude in a handful
+    of iterations, where more first-order steps would crawl. Built from
+    a poor starting point instead, its curvature estimate is unusable
+    and it stops early at a bad answer -- which no tolerance or budget
+    rescues, so the first stage is not optional.
+
+    Do not read the split as "Adam gets close, L-BFGS gets exact". The
+    polish stops on ``step_tol`` once its steps stop changing, which on
+    a well-conditioned problem can leave it short of the accuracy a
+    longer first stage would have reached on its own. Which stage limits
+    the result is problem-dependent, and the stage records are how to
+    find out rather than guess.
+
+    Equal budgets by default, since which stage binds is
+    problem-dependent. The stage records on the fit result say which it
+    was: an L-BFGS stage that exhausted its iterations wants a larger
+    ``npolish_iterations``, while one that converged quickly to a poor
+    loss wants a larger ``nepochs``.
     """
     return ChainedTorchOptimizer(
         [

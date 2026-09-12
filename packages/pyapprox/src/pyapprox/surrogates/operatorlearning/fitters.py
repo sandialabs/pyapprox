@@ -23,7 +23,7 @@ folded into normal equations.
 
 from __future__ import annotations
 
-from typing import Generic, Optional
+from typing import Generic, List, Optional, Sequence
 
 from pyapprox.optimization.linear import LeastSquaresSolver
 from pyapprox.surrogates.affine.protocols.solver import (
@@ -162,6 +162,158 @@ class OperatorFitResult(Generic[Array]):
         if constant.shape[0] == 0:
             return None
         return bkd.flatten(constant)
+
+
+class OptimizerStageResult:
+    """How one stage of an iterative fit ended.
+
+    Backend-agnostic on purpose: an iteration count, an objective value
+    and a budget describe any iterative optimizer, whether it is driven
+    by torch, scipy or an alternating least-squares sweep. Only the code
+    that *reads* these numbers off a particular optimizer is specific to
+    it, and that belongs with the fitter.
+
+    Parameters
+    ----------
+    name : str
+        The optimizer's name, for the message.
+    loss : float
+        The objective after this stage.
+    niterations : int
+        Iterations actually taken.
+    maxiterations : int
+        The budget it was given.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        loss: float,
+        niterations: int,
+        maxiterations: int,
+    ) -> None:
+        self._name = name
+        self._loss = loss
+        self._niterations = niterations
+        self._maxiterations = maxiterations
+
+    def name(self) -> str:
+        """Return the optimizer's name."""
+        return self._name
+
+    def fun(self) -> float:
+        """Return the objective value after this stage."""
+        return self._loss
+
+    def niterations(self) -> int:
+        """Return the iterations taken."""
+        return self._niterations
+
+    def maxiterations(self) -> int:
+        """Return the iteration budget."""
+        return self._maxiterations
+
+    def exhausted_budget(self) -> bool:
+        """Whether the stage stopped because it ran out of iterations.
+
+        The distinction that decides what to do next, and the reason
+        this class exists. A stage that converged has nothing more to
+        give, so a large remaining error points at the model or the
+        data; one that used its whole budget points at the budget, and
+        raising it is the cheap thing to try first. Without this a
+        caller cannot tell those apart and is left tuning blind.
+
+        A method with no convergence test reports True whenever it runs
+        to its limit, which is honest: it stopped because it was told
+        to, not because it was finished.
+        """
+        return self._niterations >= self._maxiterations
+
+    def message(self) -> str:
+        """Return a human-readable termination reason."""
+        if self.exhausted_budget():
+            return (
+                f"{self._name} used its full budget of "
+                f"{self._maxiterations} iterations, so the fit may "
+                f"improve with more"
+            )
+        return (
+            f"{self._name} converged after {self._niterations} of "
+            f"{self._maxiterations} iterations"
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}({self._name}, "
+            f"fun={self._loss:.3e}, niterations={self._niterations})"
+        )
+
+
+class IterativeOperatorFitResult(Generic[Array]):
+    """A fitted surrogate and the record of how an iterative fit reached it.
+
+    The counterpart to :class:`OperatorFitResult` for fits that descend
+    rather than solve. That one carries ``params``, which is meaningful
+    because a closed-form solve produces one coefficient array; this one
+    carries per-stage termination records instead, because what an
+    iterative fit leaves a caller needing to know is whether it
+    finished.
+
+    Mirrors the ``fun``/``success``/``message`` shape of
+    :class:`~pyapprox.optimization.minimize.result_protocol.OptimizerResultProtocol`.
+    ``optima`` is deliberately absent: it returns a solution as one
+    array, and the parameters here may be many arrays of different
+    shapes. The fitted map on the surrogate is the answer to that
+    question.
+
+    Parameters
+    ----------
+    surrogate : OperatorSurrogate[Array]
+        The fitted surrogate.
+    stages : sequence of OptimizerStageResult
+        One per stage, in the order they ran.
+    """
+
+    def __init__(
+        self,
+        surrogate: OperatorSurrogate[Array],
+        stages: Sequence[OptimizerStageResult],
+    ) -> None:
+        if not stages:
+            raise ValueError("stages must not be empty")
+        self._surrogate = surrogate
+        self._stages = list(stages)
+
+    def surrogate(self) -> OperatorSurrogate[Array]:
+        """Return the fitted surrogate."""
+        return self._surrogate
+
+    def stages(self) -> List[OptimizerStageResult]:
+        """Return the per-stage records, in order."""
+        return list(self._stages)
+
+    def fun(self) -> float:
+        """Return the objective value at the end of the fit."""
+        return self._stages[-1].fun()
+
+    def success(self) -> bool:
+        """Whether the final stage converged rather than ran out.
+
+        Read off the last stage because that is what settled the answer.
+        An earlier stage exhausting its budget is ordinary -- a
+        first-order stage is usually there to get close, not to finish.
+        """
+        return not self._stages[-1].exhausted_budget()
+
+    def message(self) -> str:
+        """Return a termination reason covering every stage."""
+        return "; ".join(stage.message() for stage in self._stages)
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(fun={self.fun():.3e}, "
+            f"success={self.success()})"
+        )
 
 
 class WeightedLeastSquaresOperatorFitter(Generic[Array]):
