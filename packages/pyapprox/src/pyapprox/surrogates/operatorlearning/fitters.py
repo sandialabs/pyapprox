@@ -38,6 +38,7 @@ from pyapprox.surrogates.operatorlearning.protocols import (
     LinearInParamsLatentMapProtocol,
     is_linear_in_params,
     is_multi_index,
+    require_coefficient_error_is_field_error,
 )
 from pyapprox.surrogates.operatorlearning.surrogate import OperatorSurrogate
 from pyapprox.util.backends.protocols import Array, Backend
@@ -186,12 +187,19 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
         on the output side, and this encoder's answer is never read.
     output_encoder : FieldEncoderProtocol[Array]
         Maps output fields to the coefficients it predicts. Must be an
-        isometry.
+        isometry unless ``allow_proxy``, since the residual this
+        minimizes is a field error only then.
     bkd : Backend[Array]
         Computational backend.
     solver : LinearSystemSolverProtocol[Array], optional
         The linear solver. Defaults to unregularized least squares.
         Must satisfy ``WeightedSolverProtocol`` if weights are used.
+    allow_proxy : bool
+        Fit against a non-isometric output encoder anyway, accepting
+        the coefficient residual as an approximation of the field
+        error. Often reasonable -- over a polynomial manifold it is the
+        cheap fit, and usually a good one -- but it is no longer a
+        guarantee, so it is opted into rather than assumed.
     """
 
     def __init__(
@@ -200,6 +208,7 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
         output_encoder: FieldEncoderProtocol[Array],
         bkd: Backend[Array],
         solver: Optional[LinearSystemSolverProtocol[Array]] = None,
+        allow_proxy: bool = False,
     ) -> None:
         if not isinstance(input_encoder, FunctionEncoderProtocol):
             raise TypeError(
@@ -213,6 +222,7 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
             )
         self._input_encoder = input_encoder
         self._output_encoder = output_encoder
+        self._allow_proxy = allow_proxy
         self._bkd = bkd
         self._solver = (
             LeastSquaresSolver(bkd) if solver is None else solver
@@ -298,6 +308,12 @@ class WeightedLeastSquaresOperatorFitter(Generic[Array]):
         OperatorFitResult
             The fitted surrogate and its coefficients.
         """
+        require_coefficient_error_is_field_error(
+            self._output_encoder,
+            f"{type(self).__name__} minimizes a coefficient residual, "
+            f"which",
+            self._allow_proxy,
+        )
         if not is_linear_in_params(latent_map):
             raise TypeError(
                 f"{type(self).__name__} solves one linear least squares "

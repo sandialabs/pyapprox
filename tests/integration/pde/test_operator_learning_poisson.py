@@ -182,9 +182,7 @@ class TestPoissonOperatorLearning:
         truth = numpy_bkd.dot(operator, forcings)
 
         predicted = result.surrogate()(forcings)
-        error = bochner_error(
-            encoder.encode(predicted), encoder.encode(truth), numpy_bkd
-        )
+        error = bochner_error(encoder, predicted, truth, numpy_bkd)
         assert error < 1e-8
 
     def test_operator_matrix_is_diagonal(self, numpy_bkd: Backend) -> None:
@@ -297,12 +295,12 @@ class TestPoissonOperatorLearning:
             np.random.uniform(-1.0, 1.0, (NMODES, 20))
         )
         forcings = encoder.decode(held_out)
-        truth_codes = encoder.encode(numpy_bkd.dot(operator, forcings))
-        predicted_codes = encoder.encode(result.surrogate()(forcings))
+        truth = numpy_bkd.dot(operator, forcings)
+        predicted = result.surrogate()(forcings)
 
-        fitted = bochner_error(predicted_codes, truth_codes, numpy_bkd)
+        fitted = bochner_error(encoder, predicted, truth, numpy_bkd)
         trivial = bochner_error(
-            numpy_bkd.zeros(truth_codes.shape), truth_codes, numpy_bkd
+            encoder, numpy_bkd.zeros(truth.shape), truth, numpy_bkd
         )
         assert trivial == pytest.approx(1.0)
         assert fitted < 1e-6 * trivial

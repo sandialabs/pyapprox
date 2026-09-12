@@ -12,8 +12,10 @@ from pyapprox.surrogates.affine.indices.utils import (
 )
 from pyapprox.surrogates.affine.univariate.factory import create_bases_1d
 from pyapprox.surrogates.operatorlearning import (
+    IdentityFieldEncoder,
     bochner_error,
     christoffel_integral,
+    coefficient_error,
     gram_condition_number,
     sample_complexity,
     weighted_gram,
@@ -186,31 +188,101 @@ class TestChristoffelIntegral:
 
 
 class TestBochnerError:
+    """The error in the field norm, which the name asserts.
+
+    These pass an ``IdentityFieldEncoder``, whose coefficients *are* the
+    grid values under the Euclidean norm -- the encoder that makes the
+    identity hold trivially, so the arithmetic can be checked in
+    isolation from any basis.
+    """
+
+    def _identity(self, bkd: Backend, ngrid: int) -> IdentityFieldEncoder:
+        return IdentityFieldEncoder(ngrid, bkd)
+
     def test_zero_for_exact_match(self, bkd: Backend) -> None:
         reference = bkd.asarray([[1.0, 2.0], [3.0, 4.0]])
-        assert bochner_error(reference, reference, bkd) == pytest.approx(0.0)
+        assert bochner_error(
+            self._identity(bkd, 2), reference, reference, bkd
+        ) == pytest.approx(0.0)
 
     def test_relative_scaling(self, bkd: Backend) -> None:
         """Doubling both prediction error and reference leaves it unchanged."""
+        encoder = self._identity(bkd, 1)
         reference = bkd.asarray([[3.0, 4.0]])
         predicted = bkd.asarray([[3.0, 0.0]])
-        single = bochner_error(predicted, reference, bkd)
-        doubled = bochner_error(2 * predicted, 2 * reference, bkd)
+        single = bochner_error(encoder, predicted, reference, bkd)
+        doubled = bochner_error(
+            encoder, 2 * predicted, 2 * reference, bkd
+        )
         assert single == pytest.approx(doubled)
 
     def test_matches_hand_computation(self, bkd: Backend) -> None:
         reference = bkd.asarray([[3.0], [4.0]])
         predicted = bkd.asarray([[0.0], [0.0]])
-        assert bochner_error(predicted, reference, bkd) == pytest.approx(1.0)
+        assert bochner_error(
+            self._identity(bkd, 2), predicted, reference, bkd
+        ) == pytest.approx(1.0)
 
     def test_rejects_shape_mismatch(self, bkd: Backend) -> None:
         with pytest.raises(ValueError, match="does not match"):
             bochner_error(
-                bkd.asarray([[1.0]]), bkd.asarray([[1.0], [2.0]]), bkd
+                self._identity(bkd, 1),
+                bkd.asarray([[1.0]]),
+                bkd.asarray([[1.0], [2.0]]),
+                bkd,
             )
 
     def test_rejects_zero_reference(self, bkd: Backend) -> None:
         with pytest.raises(ValueError, match="all zero"):
             bochner_error(
-                bkd.asarray([[1.0]]), bkd.zeros((1, 1)), bkd
+                self._identity(bkd, 1),
+                bkd.asarray([[1.0]]),
+                bkd.zeros((1, 1)),
+                bkd,
             )
+
+    def test_refuses_a_non_isometric_encoder(self, bkd: Backend) -> None:
+        """The precondition the old signature could state but not check.
+
+        Taking raw coefficients left the function unable to see the
+        encoder whose isometry its result depends on, so the condition
+        lived only in the docstring.
+        """
+        reference = bkd.asarray([[3.0], [4.0]])
+        with pytest.raises(ValueError, match="isometry"):
+            bochner_error(
+                IdentityFieldEncoder(2, bkd, is_isometry=False),
+                reference,
+                reference,
+                bkd,
+            )
+
+class TestCoefficientError:
+    """The same ratio, named for what it is rather than what it equals."""
+
+    def test_accepts_a_non_isometric_encoder(self, bkd: Backend) -> None:
+        reference = bkd.asarray([[3.0], [4.0]])
+        predicted = bkd.asarray([[0.0], [0.0]])
+        assert coefficient_error(
+            IdentityFieldEncoder(2, bkd, is_isometry=False),
+            predicted,
+            reference,
+            bkd,
+        ) == pytest.approx(1.0)
+
+    def test_agrees_with_bochner_error_under_an_isometry(
+        self, bkd: Backend
+    ) -> None:
+        """Where both are defined they are the same number.
+
+        That is the whole content of the isometry condition, and it is
+        why the split is a naming fix rather than a change of behavior.
+        """
+        encoder = IdentityFieldEncoder(2, bkd)
+        reference = bkd.asarray([[3.0], [4.0]])
+        predicted = bkd.asarray([[1.0], [2.0]])
+        assert coefficient_error(
+            encoder, predicted, reference, bkd
+        ) == pytest.approx(
+            bochner_error(encoder, predicted, reference, bkd)
+        )

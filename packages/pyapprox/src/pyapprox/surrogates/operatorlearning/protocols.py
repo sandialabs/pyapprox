@@ -176,3 +176,56 @@ def is_multi_index(
 ) -> TypeGuard[MultiIndexLatentMapProtocol[Array]]:
     """Whether ``latent_map`` has a multi-index basis to interrogate."""
     return isinstance(latent_map, MultiIndexLatentMapProtocol)
+
+
+def require_coefficient_error_is_field_error(
+    encoder: IsometricEncoderProtocol,
+    context: str,
+    allow_proxy: bool = False,
+) -> None:
+    r"""Refuse to read a coefficient residual as a field error.
+
+    The precondition belongs to whoever *interprets* the residual, not
+    to whoever holds the encoder. A surrogate that encodes, maps and
+    decodes measures nothing and needs no isometry; a fitter minimizing
+    :math:`\|\hat c - c\|_2` and a diagnostic reporting that norm as a
+    field error both do. Declared once here so the three consumers
+    cannot drift apart, and so the requirement is stated where its
+    reason lives.
+
+    Parameters
+    ----------
+    encoder : IsometricEncoderProtocol
+        The output encoder whose coefficients are being compared.
+    context : str
+        What is being attempted, used to open the error message.
+    allow_proxy : bool
+        Accept a non-isometric encoder, treating the coefficient
+        residual as an approximation of the field error rather than as
+        equal to it. For a nonlinear manifold the gap is the correction
+        term the encoder cannot see, and it is not generally small.
+
+        Passed by a *fitter*, where minimizing an approximate objective
+        is a legitimate choice the caller makes -- the cheap fit over a
+        manifold, often a good one. Not passed by a diagnostic that
+        names a quantity: :func:`bochner_error` has no such flag,
+        because reporting the coefficient ratio under that name would
+        misname the result. The asymmetry is deliberate; minimizing a
+        proxy and mislabelling a number are different acts.
+
+    Raises
+    ------
+    ValueError
+        If the encoder is not an isometry and ``allow_proxy`` is False.
+    """
+    if allow_proxy or encoder.is_isometry():
+        return
+    raise ValueError(
+        f"{context} compares coefficients, and that equals the error "
+        f"in the field norm only when the output encoder is an "
+        f"isometry. {type(encoder).__name__} reports that it is not, "
+        f"so the number would not measure what it appears to. Use "
+        f"orthonormalize_basis to correct the basis, or pass "
+        f"allow_proxy=True to accept the coefficient residual as an "
+        f"approximation."
+    )

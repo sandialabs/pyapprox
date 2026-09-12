@@ -40,9 +40,13 @@ class OperatorSurrogate(Generic[Array]):
         reads ``is_isometry`` on this encoder. Requiring it would
         exclude encoders that are otherwise perfectly usable as inputs.
     output_encoder : FieldEncoderProtocol[Array]
-        Maps output fields to the coefficients the expansion predicts.
-        Must be an isometry, or the least-squares error the fit
-        minimizes is not the Bochner error of the fields.
+        Maps output fields to the coefficients the latent map predicts.
+        Not required to be an isometry: this class encodes, maps and
+        decodes, and measures nothing, so the property has nothing to
+        govern here. The fitters that minimize a coefficient residual
+        and the diagnostics that report one as a field error check it
+        instead, which is where it is load bearing. A manifold encoder
+        is therefore usable here and refused there.
     latent_map : LatentMapProtocol[Array]
         The fitted map from input codes to output codes, with ``nqoi``
         equal to the number of output coefficients and ``nvars`` to the
@@ -72,13 +76,6 @@ class OperatorSurrogate(Generic[Array]):
             raise TypeError(
                 f"output_encoder must satisfy FieldEncoderProtocol, got "
                 f"{type(output_encoder).__name__}"
-            )
-        if not output_encoder.is_isometry():
-            raise ValueError(
-                "output_encoder must be an isometry, otherwise the "
-                "coefficient residuals the fit minimizes do not measure "
-                "the Bochner error of the fields. Use "
-                "orthonormalize_basis to correct the output basis."
             )
         if latent_map.nqoi() != output_encoder.latent_dim():
             raise ValueError(

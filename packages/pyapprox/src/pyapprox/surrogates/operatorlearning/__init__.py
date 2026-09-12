@@ -6,6 +6,7 @@ from pyapprox.surrogates.operatorlearning.basis import (
 from pyapprox.surrogates.operatorlearning.diagnostics import (
     bochner_error,
     christoffel_integral,
+    coefficient_error,
     gram_condition_number,
     sample_complexity,
     weighted_gram,
@@ -44,6 +45,7 @@ __all__ = [
     "WeightedLeastSquaresOperatorFitter",
     "bochner_error",
     "christoffel_integral",
+    "coefficient_error",
     "gram_condition_number",
     "orthonormalize_basis",
     "sample_complexity",

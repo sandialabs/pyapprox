@@ -11,6 +11,13 @@ from __future__ import annotations
 import math
 from typing import Optional
 
+from pyapprox.surrogates.kerneloperator.protocols import (
+    FunctionEncoderProtocol,
+)
+from pyapprox.surrogates.operatorlearning.protocols import (
+    FieldEncoderProtocol,
+    require_coefficient_error_is_field_error,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -166,43 +173,98 @@ def christoffel_integral(
     return float(bkd.sum(quadrature_weights * christoffel))
 
 
-def bochner_error(
-    predicted: Array,
-    reference: Array,
+def coefficient_error(
+    encoder: FunctionEncoderProtocol[Array],
+    predicted_fields: Array,
+    reference_fields: Array,
     bkd: Backend[Array],
 ) -> float:
-    r"""Return the relative Bochner error between coefficient sets.
+    r"""Return the relative error between two field sets, in coefficients.
 
     .. math::
 
         \frac{\left(\sum_i \|c^i - \tilde c^i\|_2^2\right)^{1/2}}
              {\left(\sum_i \|c^i\|_2^2\right)^{1/2}}
 
-    Equals the relative error in the Bochner norm of the fields only
-    when the output encoder is an isometry, which is the reason
-    encoders declare that property.
+    on the coefficients ``encoder`` produces. Defined for any encoder,
+    and it *approximates* the error in the field norm -- exactly when
+    the encoder is an isometry, approximately otherwise, with a gap
+    nothing here bounds. Use :func:`bochner_error` when the equality is
+    the point; use this when a cheap comparison in the encoder's own
+    coordinates is what is wanted, such as monitoring a fit over a
+    nonlinear manifold.
 
     Parameters
     ----------
-    predicted : Array
-        Predicted output coefficients. Shape: (noutputs, nsamples)
-    reference : Array
-        Reference output coefficients. Shape: (noutputs, nsamples)
+    encoder : FunctionEncoderProtocol[Array]
+        The output encoder whose coefficients define the comparison.
+    predicted_fields : Array
+        Predicted output fields. Shape: (ngrid_out, nsamples)
+    reference_fields : Array
+        Reference output fields. Shape: (ngrid_out, nsamples)
     bkd : Backend[Array]
         Computational backend.
 
     Returns
     -------
     float
-        The relative error.
+        The relative coefficient error.
     """
-    if predicted.shape != reference.shape:
+    if predicted_fields.shape != reference_fields.shape:
         raise ValueError(
-            f"predicted shape {predicted.shape} does not match "
-            f"reference shape {reference.shape}"
+            f"predicted shape {predicted_fields.shape} does not match "
+            f"reference shape {reference_fields.shape}"
         )
+    predicted = encoder.encode(predicted_fields)
+    reference = encoder.encode(reference_fields)
     numerator = float(bkd.sqrt(bkd.sum((predicted - reference) ** 2)))
     denominator = float(bkd.sqrt(bkd.sum(reference**2)))
     if denominator == 0.0:
         raise ValueError("reference coefficients are all zero")
     return numerator / denominator
+
+
+def bochner_error(
+    encoder: FieldEncoderProtocol[Array],
+    predicted_fields: Array,
+    reference_fields: Array,
+    bkd: Backend[Array],
+) -> float:
+    r"""Return the relative error in the Bochner norm of the fields.
+
+    Computes :func:`coefficient_error` and asserts the condition under
+    which that number *is* the Bochner error: the encoder must be an
+    isometry, so that :math:`\|f\|_Y = \|\mathrm{encode}(f)\|_2`.
+
+    **No opt-out.** The name states which quantity is returned, so
+    returning the coefficient ratio for a non-isometric encoder would
+    be reporting one thing under the name of another -- and silently,
+    since the two agree closely in the easy cases and diverge exactly
+    where it matters. A caller who wants the ratio anyway should ask
+    :func:`coefficient_error` for it by name, which is honest about
+    approximating rather than equalling.
+
+    Parameters
+    ----------
+    encoder : FieldEncoderProtocol[Array]
+        The output encoder, which must report itself an isometry.
+    predicted_fields : Array
+        Predicted output fields. Shape: (ngrid_out, nsamples)
+    reference_fields : Array
+        Reference output fields. Shape: (ngrid_out, nsamples)
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    float
+        The relative Bochner error.
+
+    Raises
+    ------
+    ValueError
+        If the encoder is not an isometry, if the shapes disagree, or
+        if the reference is identically zero.
+    """
+    require_coefficient_error_is_field_error(encoder, "bochner_error")
+    return coefficient_error(encoder, predicted_fields, reference_fields, bkd)

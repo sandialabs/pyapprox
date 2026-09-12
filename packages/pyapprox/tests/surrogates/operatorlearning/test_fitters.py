@@ -361,6 +361,48 @@ class TestWeightedLeastSquaresOperatorFitter:
                 IdentityFieldEncoder(2, bkd), "not_an_encoder", bkd
             )
 
+    def test_rejects_non_isometric_output_encoder(self, bkd: Backend) -> None:
+        """The Bochner identity fails silently without this check.
+
+        Relocated here from the surrogate's constructor: this fitter is
+        what minimizes the coefficient residual, so it is what depends
+        on that residual being a field error.
+        """
+        fitter = WeightedLeastSquaresOperatorFitter(
+            IdentityFieldEncoder(2, bkd),
+            IdentityFieldEncoder(3, bkd, is_isometry=False),
+            bkd,
+        )
+        coefs_in = bkd.asarray(np.random.uniform(-1.0, 1.0, (2, 20)))
+        coefs_out = bkd.asarray(np.random.uniform(-1.0, 1.0, (3, 20)))
+        with pytest.raises(ValueError, match="isometry"):
+            fitter.fit_encoded(
+                _expansion(bkd, 2, 2, 3), coefs_in, coefs_out
+            )
+
+    def test_allow_proxy_fits_against_a_non_isometric_encoder(
+        self, bkd: Backend
+    ) -> None:
+        """Minimizing an approximate objective is the caller's choice.
+
+        Over a nonlinear manifold the coefficient residual is the cheap
+        fit and usually a good one, so it is opted into rather than
+        forbidden -- unlike bochner_error, which names a quantity and so
+        has no such flag.
+        """
+        fitter = WeightedLeastSquaresOperatorFitter(
+            IdentityFieldEncoder(2, bkd),
+            IdentityFieldEncoder(3, bkd, is_isometry=False),
+            bkd,
+            allow_proxy=True,
+        )
+        coefs_in = bkd.asarray(np.random.uniform(-1.0, 1.0, (2, 20)))
+        coefs_out = bkd.asarray(np.random.uniform(-1.0, 1.0, (3, 20)))
+        result = fitter.fit_encoded(
+            _expansion(bkd, 2, 2, 3), coefs_in, coefs_out
+        )
+        assert result.surrogate()(coefs_in).shape == (3, 20)
+
 
 class TestFitFromFields:
     """End-to-end fits from field realizations, not coefficients."""
@@ -404,9 +446,7 @@ class TestFitFromFields:
 
         predicted_fields = result.surrogate()(input_fields)
         error = bochner_error(
-            encoder.encode(predicted_fields),
-            encoder.encode(output_fields),
-            numpy_bkd,
+            encoder, predicted_fields, output_fields, numpy_bkd
         )
         assert error < 1e-10
 
@@ -558,16 +598,25 @@ class TestOperatorSurrogate:
         fields = bkd.asarray(np.random.uniform(-1.0, 1.0, (2, 7)))
         assert surrogate(fields).shape == (3, 7)
 
-    def test_rejects_non_isometric_output_encoder(self, bkd: Backend) -> None:
-        """The Bochner identity fails silently without this check."""
-        expansion = _expansion(bkd, 2, 2, 3)
-        with pytest.raises(ValueError, match="isometry"):
-            OperatorSurrogate(
-                IdentityFieldEncoder(2, bkd),
-                IdentityFieldEncoder(3, bkd, is_isometry=False),
-                expansion,
-                bkd,
-            )
+    def test_accepts_a_non_isometric_output_encoder(
+        self, bkd: Backend
+    ) -> None:
+        """The surrogate measures nothing, so the isometry is not its concern.
+
+        It encodes, maps and decodes. The fitters that minimize a
+        coefficient residual check the property instead -- see
+        TestWeightedLeastSquaresOperatorFitter -- which is what makes a
+        nonlinear manifold encoder usable for prediction and refused for
+        a least-squares fit.
+        """
+        surrogate = OperatorSurrogate(
+            IdentityFieldEncoder(2, bkd),
+            IdentityFieldEncoder(3, bkd, is_isometry=False),
+            _expansion(bkd, 2, 2, 3),
+            bkd,
+        )
+        fields = bkd.asarray(np.random.uniform(-1.0, 1.0, (2, 7)))
+        assert surrogate(fields).shape == (3, 7)
 
     def test_accepts_a_kle_encoder_on_both_sides(
         self, bkd: Backend
