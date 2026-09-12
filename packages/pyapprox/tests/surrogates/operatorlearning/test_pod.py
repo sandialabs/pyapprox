@@ -1,24 +1,41 @@
 r"""Building a POD basis over a domain, and the ways it goes wrong quietly.
 
-There is no ``pod_encoder`` wrapper: a basis over a domain is
-``fit_kle_encoder(snapshots, domain.bkd(), latent_dim=...,
-metric=domain.inner_product())``, and a wrapper around that would add a
-name without adding content. What needs testing is not the call but the
-two properties nobody can see by reading it -- that the basis is optimal
-in the *metric* rather than in the Euclidean norm, and that composing
-several fields does not starve one of them.
+A basis over a domain is ``fit_kle_encoder(snapshots, domain.bkd(),
+latent_dim=..., metric=domain.inner_product())``. What needs testing is
+not that call but the properties nobody can see by reading it: that the
+basis is optimal in the *metric* rather than in the Euclidean norm, that
+composing several fields does not starve one of them, and that a
+polynomial manifold beats it where a linear subspace is the wrong model.
 """
 
 import numpy as np
 import pytest
+from pyapprox.probability import UniformMarginal
+from pyapprox.surrogates.affine.basis.orthonormal_poly import (
+    OrthonormalPolynomialBasis,
+)
+from pyapprox.surrogates.affine.expansions.pce import (
+    PolynomialChaosExpansion,
+)
+from pyapprox.surrogates.affine.indices.utils import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.surrogates.affine.univariate.factory import create_bases_1d
 from pyapprox.surrogates.kle.encoder import fit_kle_encoder
 from pyapprox.surrogates.operatorlearning import (
     FieldEncoderProtocol,
     GramProjectionEncoder,
+    IdentityFieldEncoder,
+    OperatorSurrogate,
     ProductFieldEncoder,
+    bochner_error,
+    coefficient_error,
     orthonormalize_basis,
 )
 from pyapprox.surrogates.operatorlearning.domains import UniformGridDomain
+from pyapprox.surrogates.reduction.monomial_manifold import (
+    MonomialManifoldEncoder,
+)
 from pyapprox.util.backends.protocols import Backend
 
 
@@ -375,3 +392,197 @@ class TestMultiFieldComposition:
             d_small.inner_product().nstates()
             != d_large.inner_product().nstates()
         )
+
+
+def _travelling_front(bkd: Backend, domain, nsamples: int):
+    r"""Snapshots of a front at varying position.
+
+    The canonical case a linear subspace approximates badly. The family
+    is one-parameter, so it lies on a *curve* in field space, but that
+    curve is not close to any low-dimensional linear subspace: shifting
+    a sharp profile mixes every Fourier mode. This is the Kolmogorov
+    :math:`n`-width barrier, and escaping it is the whole reason to want
+    a nonlinear manifold rather than more POD modes.
+    """
+    rng = np.random.RandomState(0)
+    x = np.asarray(bkd.to_numpy(domain.sample_points()[0]))
+    positions = rng.uniform(0.2, 0.8, nsamples)
+    return bkd.asarray(
+        np.array([np.tanh((x - p) / 0.08) for p in positions]).T
+    )
+
+
+class TestManifoldEncoderAlongsidePOD:
+    r"""A polynomial manifold is a fixed basis too, and a better one here.
+
+    Two properties, both invisible from the call site. That the
+    nonlinear correction earns its cost -- it must beat POD at equal
+    latent dimension on data a linear subspace approximates badly. And
+    that such an encoder is usable by an operator surrogate for
+    prediction while being refused by the consumers that read a
+    coefficient residual as a field error. The asymmetry is exercised
+    elsewhere with an ``IdentityFieldEncoder`` declaring itself
+    non-isometric, which shows the guards fire but not that a real
+    manifold encoder reaches them.
+    """
+
+    def _domain(self, bkd: Backend):
+        return UniformGridDomain(
+            [bkd.asarray(np.linspace(0.0, 1.0, 40))], bkd
+        )
+
+    def _relative_error(self, encoder, snapshots, domain) -> float:
+        bkd = domain.bkd()
+        metric = domain.inner_product()
+        residual = encoder.decode(encoder.encode(snapshots)) - snapshots
+        return float(
+            bkd.sqrt(
+                bkd.sum(residual * metric.apply(residual))
+                / bkd.sum(snapshots * metric.apply(snapshots))
+            )
+        )
+
+    @pytest.mark.parametrize("latent_dim", [1, 2, 3])
+    def test_beats_pod_at_equal_latent_dim(
+        self, numpy_bkd: Backend, latent_dim: int
+    ) -> None:
+        """The claim that justifies the nonlinear correction at all.
+
+        Compared against POD on the same data at the same latent
+        dimension, so the bound is POD's own error rather than a
+        threshold: whatever the front's sharpness makes it. Parametrized
+        because the margin should *grow* with latent_dim -- the
+        correction reaches directions the linear subspace cannot -- and a
+        regression that only held at one width would be suspect.
+        """
+        bkd = numpy_bkd
+        domain = self._domain(bkd)
+        snapshots = _travelling_front(bkd, domain, 80)
+        pod = fit_kle_encoder(
+            snapshots,
+            bkd,
+            latent_dim=latent_dim,
+            metric=domain.inner_product(),
+        )
+        manifold = MonomialManifoldEncoder.fit_from_data(
+            snapshots,
+            bkd,
+            latent_dim=latent_dim,
+            metric=domain.inner_product(),
+        )
+        assert self._relative_error(
+            manifold, snapshots, domain
+        ) < self._relative_error(pod, snapshots, domain)
+
+    @pytest.mark.parametrize(
+        "degrees,expected_order", [((0, 1), 1), ((0, 1, 2), 2)]
+    )
+    def test_degree_sets_the_convergence_order(
+        self, numpy_bkd: Backend, degrees, expected_order: int
+    ) -> None:
+        r"""A degree-:math:`d` correction converges at order :math:`d`.
+
+        The decoder :math:`\mu + Vz + Wh(z)` is a Taylor expansion in the
+        latent coordinate, so shrinking the coordinate's range by two
+        should shrink the error by :math:`2^d`. Measured on data that
+        lies *exactly* on a cubic manifold in one coordinate, so the only
+        error is the truncation of :math:`h`.
+
+        This is a stronger claim than beating POD, and it is the one that
+        says the feature map is doing what its degree advertises rather
+        than merely adding parameters. A cubic correction is excluded
+        from the parametrization because it reproduces this data
+        identically -- the error then measures the solve, not a rate.
+        """
+        bkd = numpy_bkd
+        domain = UniformGridDomain(
+            [bkd.asarray(np.linspace(0.0, 1.0, 30))], bkd
+        )
+        x = np.asarray(bkd.to_numpy(domain.sample_points()[0]))
+        shapes = [np.sin(k * np.pi * x) for k in (1, 2, 3)]
+
+        def error_at(half_width: float) -> float:
+            coords = np.linspace(-half_width, half_width, 60)
+            snapshots = bkd.asarray(
+                np.array(
+                    [
+                        shapes[0] * c + shapes[1] * c**2 + shapes[2] * c**3
+                        for c in coords
+                    ]
+                ).T
+            )
+            encoder = MonomialManifoldEncoder.fit_from_data(
+                snapshots,
+                bkd,
+                latent_dim=1,
+                degrees=degrees,
+                gamma=1e-14,
+                center=False,
+                metric=domain.inner_product(),
+            )
+            return self._relative_error(encoder, snapshots, domain)
+
+        coarse, fine = error_at(0.2), error_at(0.1)
+        observed = np.log2(coarse / fine)
+        # Within half an order, which separates order 1 from order 2
+        # without demanding an asymptotic constant.
+        assert abs(observed - expected_order) < 0.5
+
+    def test_reports_itself_non_isometric(
+        self, numpy_bkd: Backend
+    ) -> None:
+        """Honestly, which is what makes the guards below possible.
+
+        The correction ``W h(z)`` means a coefficient distance is not a
+        field distance, so the encoder says so rather than leaving a
+        consumer to discover it.
+        """
+        bkd = numpy_bkd
+        domain = self._domain(bkd)
+        manifold = MonomialManifoldEncoder.fit_from_data(
+            _travelling_front(bkd, domain, 40),
+            bkd,
+            latent_dim=2,
+            metric=domain.inner_product(),
+        )
+        assert not manifold.is_isometry()
+        assert isinstance(manifold, FieldEncoderProtocol)
+
+    def test_usable_for_prediction_and_refused_for_measurement(
+        self, numpy_bkd: Backend
+    ) -> None:
+        """The split W1.9 exists for, on a real manifold encoder.
+
+        A surrogate composes encode, map and decode and measures
+        nothing, so it accepts this encoder. ``bochner_error`` names a
+        quantity that needs the isometry, so it refuses.
+        ``coefficient_error`` is honest about approximating, so it works.
+        """
+        bkd = numpy_bkd
+        domain = self._domain(bkd)
+        snapshots = _travelling_front(bkd, domain, 60)
+        manifold = MonomialManifoldEncoder.fit_from_data(
+            snapshots, bkd, latent_dim=2, metric=domain.inner_product()
+        )
+        surrogate = OperatorSurrogate(
+            IdentityFieldEncoder(2, bkd),
+            manifold,
+            _expansion(bkd, 2, 2, 2),
+            bkd,
+        )
+        codes = bkd.asarray(np.random.uniform(-1.0, 1.0, (2, 5)))
+        assert surrogate(codes).shape == (40, 5)
+
+        with pytest.raises(ValueError, match="isometry"):
+            bochner_error(manifold, snapshots, snapshots, bkd)
+        assert coefficient_error(
+            manifold, snapshots, snapshots, bkd
+        ) == pytest.approx(0.0)
+
+
+def _expansion(bkd: Backend, nvars: int, max_level: int, noutputs: int):
+    """Legendre expansion, for the surrogate the manifold decodes for."""
+    marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(nvars)]
+    basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
+    basis.set_indices(compute_hyperbolic_indices(nvars, max_level, 1.0, bkd))
+    return PolynomialChaosExpansion(basis, bkd, nqoi=noutputs)
