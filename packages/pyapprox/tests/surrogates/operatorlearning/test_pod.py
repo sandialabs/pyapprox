@@ -551,7 +551,7 @@ class TestManifoldEncoderAlongsidePOD:
     def test_usable_for_prediction_and_refused_for_measurement(
         self, numpy_bkd: Backend
     ) -> None:
-        """The split W1.9 exists for, on a real manifold encoder.
+        """Prediction and measurement ask different things of an encoder.
 
         A surrogate composes encode, map and decode and measures
         nothing, so it accepts this encoder. ``bochner_error`` names a

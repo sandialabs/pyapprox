@@ -10,6 +10,7 @@ graph makes a fit run, change nothing and report nothing.
 import numpy as np
 import pytest
 import torch
+from pyapprox.interface.functions.derivative_checks.base import JVPChecker
 from pyapprox.surrogates.operatorlearning import (
     IdentityFieldEncoder,
     LatentMapProtocol,
@@ -20,6 +21,47 @@ from pyapprox.surrogates.operatorlearning import (
 from pyapprox.surrogates.operatorlearning.latent_maps import MLPLatentMap
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
+
+
+class _AutogradJVPView:
+    """Exposes a latent map's autograd jvp for finite-difference checking.
+
+    ``JVPChecker`` needs ``bkd``, ``nvars``, ``__call__`` and ``jvp`` --
+    not a ``Derivatives`` bundle -- so the checker can be pointed at
+    autograd itself without the production class declaring derivatives
+    it has no consumer for. Lives in the test because that is where the
+    need is: nothing in the library differentiates a latent map with
+    respect to its *inputs*.
+    """
+
+    def __init__(self, latent_map) -> None:
+        self._latent_map = latent_map
+
+    def bkd(self) -> Backend:
+        return self._latent_map.bkd()
+
+    def nvars(self) -> int:
+        return self._latent_map.nvars()
+
+    def nqoi(self) -> int:
+        return self._latent_map.nqoi()
+
+    def __call__(self, sample):
+        return self._latent_map(sample)
+
+    def jvp(self, sample, direction):
+        """Return ``J(sample) @ direction`` from autograd.
+
+        Uses ``jvp`` rather than a full Jacobian so the check exercises
+        the same forward-mode path a consumer would, and so the cost
+        stays linear in the output width.
+        """
+        _, tangent = torch.autograd.functional.jvp(
+            lambda z: self._latent_map(z),
+            sample,
+            direction,
+        )
+        return tangent
 
 
 class TestProtocolLevel:
@@ -109,15 +151,16 @@ class TestAutogradLiveness:
         assert len(parameters) == 6
         assert all(p.grad is not None for p in parameters)
 
-    def test_gradient_wrt_input_matches_autograd_jacobian(
+    def test_affine_jacobian_is_the_weight_matrix(
         self, torch_bkd: Backend
     ) -> None:
-        """The value, not merely the presence, of the gradient.
+        """A closed-form check, available only in the degenerate case.
 
-        A live graph can still be wrong -- W0.7 was exactly that. For an
-        affine map the Jacobian is the weight matrix, which is known in
-        closed form, so this compares against it rather than against a
-        tolerance.
+        With no hidden layers the map is affine and its Jacobian *is* the
+        weight matrix, so this compares against an exactly known value.
+        Cheap and sharp, but it says nothing about a network with an
+        activation in it -- which is what the finite-difference check
+        below is for.
         """
         latent_map = MLPLatentMap(3, 2, [], torch_bkd)
         weight = next(latent_map.parameters())
@@ -126,6 +169,41 @@ class TestAutogradLiveness:
             lambda z: latent_map(z)[:, 0], codes
         )[:, :, 0]
         torch_bkd.assert_allclose(jacobian, weight, rtol=1e-12)
+
+    @pytest.mark.parametrize("activation", ["tanh", "silu"])
+    def test_nonlinear_jacobian_against_finite_differences(
+        self, torch_bkd: Backend, activation: str
+    ) -> None:
+        r"""The gradient of a *nonlinear* network, checked by the repo's tool.
+
+        ``tracks_gradient`` answers "is there a graph" and
+        ``grad is not None`` answers "did something arrive". Neither
+        answers "is it right", and a live graph carrying a value wrong by
+        a constant factor is a failure this repository has seen. For an
+        affine map the closed form above suffices; with an activation
+        there is none, so this validates autograd against finite
+        differences through ``JVPChecker``.
+
+        ReLU is excluded deliberately. It is piecewise linear, so the
+        finite-difference sweep straddles a kink and the error ratio
+        comes back ``nan`` -- which would pass a ``<=`` assertion while
+        checking nothing at all. A smooth activation is what makes the
+        comparison meaningful.
+        """
+        latent_map = MLPLatentMap(
+            3, 2, [6, 6], torch_bkd, activation=activation
+        )
+        checker = JVPChecker(_AutogradJVPView(latent_map), "J")
+        sample = torch_bkd.asarray(np.random.uniform(0.3, 0.7, (3, 1)))
+        errors = checker.check(sample)
+        ratio = float(torch_bkd.min(errors) / torch_bkd.max(errors))
+        assert np.isfinite(ratio)
+        # Measured 9e-7 to 1.7e-6 across activations and draws. Kept
+        # tight rather than set to a midpoint against the failing case:
+        # a derivative wrong by a few percent would pass a loose bound
+        # and is exactly what this should catch.
+        assert ratio < 3e-6
+
 
 
 class TestBackendPolicy:
