@@ -1,15 +1,15 @@
 r"""Domains a fixed-basis operator surrogate can be built over.
 
-Two, both supplying a metric, neither importing a PDE solver. Limited to
-what this package's own consumers call: a POD basis needs
-``inner_product`` and nothing else, and nothing in the fixed-basis path
-evaluates away from its sample points.
+One, because one is what has a consumer. A POD basis needs a backend and
+a metric, and a caller who already holds both needs nothing from this
+module -- they satisfy :class:`MetricSpaceProtocol` by having two
+methods, and it is structural, so neither side imports the other.
 
-A caller with a mesh, a spectral basis or a scattered point cloud
-implements :class:`MetricSpaceProtocol` -- two methods -- on their own
-object, or adds :class:`OffGridEvaluatorProtocol` alongside it when they
-have an interpolation rule worth sharing. Both are structural, so
-neither side imports the other.
+What :class:`UniformGridDomain` adds is the quadrature: trapezoid
+weights over a tensor-product grid, which is what makes the inner
+product approximate an integral rather than a sum. That is the whole
+content, and it is why a time axis or an image needs no PDE solver to
+serve as a domain here.
 """
 
 from __future__ import annotations
@@ -23,79 +23,6 @@ from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     InnerProductProtocol,
 )
-
-
-class FixedSampleDomain(Generic[Array]):
-    """Values tabulated at fixed sites, with a metric.
-
-    The honest representation of data that exists where it was measured
-    or computed and nowhere else: snapshots on someone else's mesh, a
-    table of recorded values. A POD basis over this domain is usable at
-    its own sites.
-
-    Satisfies :class:`MetricSpaceProtocol`, and not
-    :class:`OffGridEvaluatorProtocol` -- it has no interpolation rule
-    and so does not implement one in order to raise from it. It still
-    reports ``sample_points``, because knowing where the values sit is
-    useful even when nothing can be done between those points.
-
-    Parameters
-    ----------
-    sample_points : Array
-        Shape: (ndim, nsites).
-    inner_product : InnerProductProtocol[Array]
-        The metric on field values, defined on ``nsites`` states.
-    bkd : Backend[Array]
-        Computational backend.
-    """
-
-    def __init__(
-        self,
-        sample_points: Array,
-        inner_product: InnerProductProtocol[Array],
-        bkd: Backend[Array],
-    ) -> None:
-        if sample_points.ndim != 2:
-            raise ValueError(
-                f"sample_points must be 2D (ndim, nsites), got shape "
-                f"{sample_points.shape}"
-            )
-        nsites = int(sample_points.shape[1])
-        if inner_product.nstates() != nsites:
-            raise ValueError(
-                f"inner_product is defined on "
-                f"{inner_product.nstates()} states but there are "
-                f"{nsites} sample points"
-            )
-        self._sample_points = sample_points
-        self._inner_product = inner_product
-        self._bkd = bkd
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        return self._bkd
-
-    def ndim(self) -> int:
-        """Spatial dimension of the sample points."""
-        return int(self._sample_points.shape[0])
-
-    def nsites(self) -> int:
-        """Number of points values are tabulated at."""
-        return int(self._sample_points.shape[1])
-
-    def sample_points(self) -> Array:
-        """Return the tabulation points. Shape: (ndim, nsites)."""
-        return self._sample_points
-
-    def inner_product(self) -> InnerProductProtocol[Array]:
-        """Return the metric on field values."""
-        return self._inner_product
-
-    def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}(ndim={self.ndim()}, "
-            f"nsites={self.nsites()})"
-        )
 
 
 class UniformGridDomain(Generic[Array]):

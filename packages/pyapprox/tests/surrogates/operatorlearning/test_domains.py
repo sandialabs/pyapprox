@@ -11,7 +11,6 @@ flag.
 import numpy as np
 import pytest
 from pyapprox.surrogates.operatorlearning.domains import (
-    FixedSampleDomain,
     MetricSpaceProtocol,
     OffGridEvaluatorProtocol,
     UniformGridDomain,
@@ -34,29 +33,33 @@ class TestProtocolConformance:
         domain = UniformGridDomain([_axis(bkd, 0.0, 1.0, 5)], bkd)
         assert isinstance(domain, MetricSpaceProtocol)
 
-    def test_fixed_sample_is_a_metric_space(self, bkd: Backend) -> None:
-        domain = FixedSampleDomain(
-            bkd.zeros((2, 6)), EuclideanInnerProduct(6, bkd), bkd
-        )
-        assert isinstance(domain, MetricSpaceProtocol)
+    def test_a_callers_own_object_satisfies_it(self, bkd: Backend) -> None:
+        """Two methods, and no import in either direction.
 
-    @pytest.mark.parametrize("which", ["grid", "fixed"])
-    def test_neither_evaluates_off_grid(
-        self, bkd: Backend, which: str
-    ) -> None:
+        This is why the module ships one domain rather than several: a
+        caller who already holds a mesh and its quadrature weights needs
+        no class from here. The protocol is structural, so their object
+        is a domain by having the methods.
+        """
+
+        class MeshDomain:
+            def bkd(self):
+                return bkd
+
+            def inner_product(self):
+                return EuclideanInnerProduct(6, bkd)
+
+        assert isinstance(MeshDomain(), MetricSpaceProtocol)
+
+    def test_does_not_evaluate_off_grid(self, bkd: Backend) -> None:
         """Absence of the capability is absence of the methods.
 
         Nothing in the fixed-basis path evaluates away from its sample
-        points, so no domain here implements the rule. A consumer asks
-        the protocol rather than reading a boolean, and gets False
-        because the methods are genuinely not there.
+        points, so this domain implements no interpolation rule. A
+        consumer asks the protocol rather than reading a boolean, and
+        gets False because the methods are genuinely not there.
         """
-        if which == "grid":
-            domain = UniformGridDomain([_axis(bkd, 0.0, 1.0, 5)], bkd)
-        else:
-            domain = FixedSampleDomain(
-                bkd.zeros((2, 6)), EuclideanInnerProduct(6, bkd), bkd
-            )
+        domain = UniformGridDomain([_axis(bkd, 0.0, 1.0, 5)], bkd)
         assert not isinstance(domain, OffGridEvaluatorProtocol)
         assert not hasattr(domain, "interpolate")
 
@@ -169,17 +172,6 @@ class TestRejects:
                 EuclideanInnerProduct(4, bkd),
             )
 
-    def test_fixed_rejects_1d_points(self, bkd: Backend) -> None:
-        with pytest.raises(ValueError, match="must be 2D"):
-            FixedSampleDomain(
-                bkd.zeros((6,)), EuclideanInnerProduct(6, bkd), bkd
-            )
-
-    def test_fixed_rejects_mismatched_metric(self, bkd: Backend) -> None:
-        with pytest.raises(ValueError, match="defined on"):
-            FixedSampleDomain(
-                bkd.zeros((2, 6)), EuclideanInnerProduct(5, bkd), bkd
-            )
 
 
 class TestSuppliedMetric:
