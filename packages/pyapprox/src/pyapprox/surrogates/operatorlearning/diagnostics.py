@@ -19,6 +19,7 @@ from pyapprox.surrogates.operatorlearning.protocols import (
     require_coefficient_error_is_field_error,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.inner_product import InnerProductProtocol
 
 
 def weighted_gram(
@@ -268,3 +269,89 @@ def bochner_error(
     """
     require_coefficient_error_is_field_error(encoder, "bochner_error")
     return coefficient_error(encoder, predicted_fields, reference_fields, bkd)
+
+
+def field_error(
+    metric: InnerProductProtocol[Array],
+    predicted_fields: Array,
+    reference_fields: Array,
+    bkd: Backend[Array],
+) -> float:
+    r"""Return the relative error of two field sets, in the field norm.
+
+    .. math::
+
+        \frac{\left(\sum_i \|u^i - \tilde u^i\|_M^2\right)^{1/2}}
+             {\left(\sum_i \|u^i\|_M^2\right)^{1/2}},
+        \qquad \|v\|_M = \sqrt{v^T M v}
+
+    measured on the fields as given, with no encode step. Three
+    consequences separate this from :func:`coefficient_error` and
+    :func:`bochner_error`, and together they are why it exists.
+
+    It is **valid for any encoder, or none**, because it never round
+    trips through one. Over a nonlinear manifold the decoder is not an
+    isometry and a coefficient residual bounds nothing, so this is the
+    only measure there that means what its name says. The coefficient
+    number stays useful as a cheap proxy, and the ratio of the two is the
+    empirical size of the gap between them.
+
+    It measures the **full field, including any mean** a decoder adds
+    back. A centering encoder subtracts the mean before projecting, so a
+    coefficient residual describes only the fluctuation; where the mean
+    carries most of the energy the two differ by a large factor, and the
+    full-field number is the one the operator-learning literature
+    reports.
+
+    It weights by :math:`M` rather than counting nodes equally, which on
+    a graded grid is not a refinement but the difference between a
+    physical quantity and a grid artifact: for a unit-length domain
+    :math:`\|1\|_M = 1`, while the Euclidean norm of the same field is
+    :math:`\sqrt{n_{\mathrm{nodes}}}`. An error concentrated where nodes
+    happen to be dense is overstated accordingly -- measured at 0.036
+    against 0.013 on a quadratically graded grid.
+
+    Samples aggregate in quadrature rather than as a mean of per-sample
+    ratios, which would be dominated by whichever sample has the
+    smallest norm.
+
+    Parameters
+    ----------
+    metric : InnerProductProtocol[Array]
+        The field-space inner product, typically
+        ``domain.inner_product()``. Sparse FEM mass matrices are
+        supported and keep the autograd graph.
+    predicted_fields : Array
+        Predicted output fields. Shape: (ngrid_out, nsamples)
+    reference_fields : Array
+        Reference output fields. Shape: (ngrid_out, nsamples)
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    float
+        The relative field-space error.
+
+    Raises
+    ------
+    ValueError
+        If the shapes disagree, if they do not match the metric, or if
+        the reference is identically zero.
+    """
+    if predicted_fields.shape != reference_fields.shape:
+        raise ValueError(
+            f"predicted shape {predicted_fields.shape} does not match "
+            f"reference shape {reference_fields.shape}"
+        )
+    if int(reference_fields.shape[0]) != metric.nstates():
+        raise ValueError(
+            f"fields have {int(reference_fields.shape[0])} rows but the "
+            f"metric acts on {metric.nstates()} states"
+        )
+    residual = metric.norm(predicted_fields - reference_fields)
+    reference = metric.norm(reference_fields)
+    denominator = float(bkd.sqrt(bkd.sum(reference**2)))
+    if denominator == 0.0:
+        raise ValueError("reference fields are all zero")
+    return float(bkd.sqrt(bkd.sum(residual**2))) / denominator

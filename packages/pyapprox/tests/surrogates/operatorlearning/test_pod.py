@@ -28,8 +28,10 @@ from pyapprox.surrogates.operatorlearning import (
     IdentityFieldEncoder,
     OperatorSurrogate,
     ProductFieldEncoder,
+    WeightedLeastSquaresOperatorFitter,
     bochner_error,
     coefficient_error,
+    field_error,
     orthonormalize_basis,
 )
 from pyapprox.surrogates.operatorlearning.domains import UniformGridDomain
@@ -586,3 +588,139 @@ def _expansion(bkd: Backend, nvars: int, max_level: int, noutputs: int):
     basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
     basis.set_indices(compute_hyperbolic_indices(nvars, max_level, 1.0, bkd))
     return PolynomialChaosExpansion(basis, bkd, nqoi=noutputs)
+
+
+def _front_position_operator(bkd: Backend, domain, nsamples: int, seed: int):
+    r"""The operator taking a front's position to the front itself.
+
+    A one-parameter family, so the latent map is a scalar function and a
+    polynomial expansion fits it in closed form -- no network, no
+    iteration, milliseconds. That keeps the tests below about the
+    *encoder* being compared, which is what they are for: a gradient-
+    trained latent map would add an optimizer's convergence to every
+    number and obscure it.
+
+    The fields still lie along a curve that no low-dimensional subspace
+    approximates well, which is the property the comparison needs.
+    """
+    rng = np.random.RandomState(seed)
+    positions = rng.uniform(0.25, 0.75, nsamples)
+    x = np.asarray(bkd.to_numpy(domain.sample_points()[0]))
+    fields = bkd.asarray(
+        np.array([np.tanh((x - p) / 0.08) for p in positions]).T
+    )
+    return bkd.asarray(positions[None, :]), fields
+
+
+def _scalar_expansion(bkd: Backend, degree: int, noutputs: int):
+    """Expansion in the single front-position parameter."""
+    marginals = [UniformMarginal(0.25, 0.75, bkd)]
+    basis = OrthonormalPolynomialBasis(create_bases_1d(marginals, bkd), bkd)
+    basis.set_indices(compute_hyperbolic_indices(1, degree, 1.0, bkd))
+    return PolynomialChaosExpansion(basis, bkd, nqoi=noutputs)
+
+
+class TestOperatorSurrogateOverAManifold:
+    r"""Fitting through a nonlinear encoder, and measuring it honestly.
+
+    The reconstruction tests above show the manifold represents this data
+    better than a subspace. Whether that survives an *operator fit* is a
+    separate question, because the latent map has to learn the map in the
+    manifold's coordinates, which are not orthonormal and which the
+    correction ``W h(z)`` distorts.
+
+    Errors are measured in the field norm. The residual the fitter
+    minimizes is in coefficients, which over a manifold is a proxy
+    accepted deliberately rather than an equality, so the measurement has
+    to come from somewhere the isometry is not assumed.
+    """
+
+    def _domain(self, bkd: Backend):
+        return UniformGridDomain(
+            [bkd.asarray(np.linspace(0.0, 1.0, 60))], bkd
+        )
+
+    def _fit(self, bkd: Backend, encoder, positions, fields):
+        """Closed-form least squares through the given output encoder."""
+        fitter = WeightedLeastSquaresOperatorFitter(
+            IdentityFieldEncoder(1, bkd),
+            encoder,
+            bkd,
+            # The residual minimized is in coefficients, which over a
+            # manifold is a proxy for the field error rather than equal
+            # to it. Accepted deliberately here; the tests measure the
+            # field error separately rather than trusting the proxy.
+            allow_proxy=True,
+        )
+        return fitter.fit_encoded(
+            _scalar_expansion(bkd, 8, encoder.latent_dim()),
+            positions,
+            encoder.encode(fields),
+        ).surrogate()
+
+    @pytest.mark.parametrize("latent_dim", [1, 2, 3])
+    def test_beats_pod_at_equal_latent_dim(
+        self, numpy_bkd: Backend, latent_dim: int
+    ) -> None:
+        """The claim that justifies a nonlinear encoder in a surrogate.
+
+        Measured in the field norm on held-out positions, against POD on
+        the same data at the same latent dimension, so the bound is POD's
+        own error rather than a threshold.
+
+        A factor of two is asserted rather than the measured 2.1x to
+        12.3x: the margin is real at every width but not monotone in
+        latent_dim, so pinning its size would pin an accident of this
+        front's sharpness.
+        """
+        bkd = numpy_bkd
+        domain = self._domain(bkd)
+        metric = domain.inner_product()
+        train_p, train_f = _front_position_operator(bkd, domain, 120, 0)
+        test_p, test_f = _front_position_operator(bkd, domain, 120, 7)
+
+        pod = fit_kle_encoder(
+            train_f, bkd, latent_dim=latent_dim, metric=metric
+        )
+        manifold = MonomialManifoldEncoder.fit_from_data(
+            train_f, bkd, latent_dim=latent_dim, metric=metric
+        )
+
+        def field_err(encoder) -> float:
+            surrogate = self._fit(bkd, encoder, train_p, train_f)
+            return field_error(metric, surrogate(test_p), test_f, bkd)
+
+        assert field_err(manifold) < field_err(pod) / 2.0
+
+    def test_the_field_error_is_available_where_bochner_error_is_not(
+        self, numpy_bkd: Backend
+    ) -> None:
+        """The measurement a manifold fit needs, and can have.
+
+        ``bochner_error`` refuses this encoder, correctly: its name
+        asserts an equality that a non-isometric decoder breaks. That
+        refusal would leave a manifold surrogate unmeasurable if it were
+        the only field-space measure, which is why ``field_error``
+        exists -- it reads the fields directly, so the isometry never
+        enters.
+
+        Asserted as a usable number on a fit that should be good: a
+        one-parameter family through a degree-8 expansion, where the
+        remaining error is the manifold's representation of the front
+        rather than anything the fit got wrong.
+        """
+        bkd = numpy_bkd
+        domain = self._domain(bkd)
+        metric = domain.inner_product()
+        train_p, train_f = _front_position_operator(bkd, domain, 120, 0)
+        test_p, test_f = _front_position_operator(bkd, domain, 120, 7)
+
+        manifold = MonomialManifoldEncoder.fit_from_data(
+            train_f, bkd, latent_dim=3, metric=metric
+        )
+        surrogate = self._fit(bkd, manifold, train_p, train_f)
+        predicted = surrogate(test_p)
+
+        with pytest.raises(ValueError, match="isometry"):
+            bochner_error(manifold, predicted, test_f, bkd)
+        assert field_error(metric, predicted, test_f, bkd) < 0.01

@@ -16,6 +16,7 @@ from pyapprox.surrogates.operatorlearning import (
     bochner_error,
     christoffel_integral,
     coefficient_error,
+    field_error,
     gram_condition_number,
     sample_complexity,
     weighted_gram,
@@ -23,6 +24,7 @@ from pyapprox.surrogates.operatorlearning import (
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
+    EuclideanInnerProduct,
     m_orthonormality_drift,
 )
 
@@ -286,3 +288,137 @@ class TestCoefficientError:
         ) == pytest.approx(
             bochner_error(encoder, predicted, reference, bkd)
         )
+
+
+def _graded_grid(bkd: Backend, nnodes: int = 41) -> Any:
+    """A quadratically graded axis and its trapezoid weights.
+
+    Nodes bunch near zero, so the quadrature weight of a node varies by
+    more than an order of magnitude across the grid. On a uniform grid
+    every metric agrees up to a constant and none of the distinctions
+    below are visible.
+    """
+    nodes = [(i / (nnodes - 1)) ** 2 for i in range(nnodes)]
+    # Trapezoid weights: each node carries half of every interval it
+    # touches, so the interior sums two halves and the ends only one.
+    weights = [0.0] * nnodes
+    for i in range(nnodes - 1):
+        half = 0.5 * (nodes[i + 1] - nodes[i])
+        weights[i] += half
+        weights[i + 1] += half
+    return bkd.asarray(nodes), DiagonalInnerProduct(
+        bkd.asarray(weights), bkd
+    )
+
+
+class TestFieldError:
+    r"""The error in the field norm, which is a different number.
+
+    Three things separate it from the coefficient ratio, and each is a
+    way the coefficient ratio misleads if read as a field error: the
+    quadrature weighting, the mean a centering encoder removes, and
+    validity over a non-isometric decoder.
+    """
+
+    def test_matches_hand_computation(self, bkd: Backend) -> None:
+        r"""A case small enough to evaluate :math:`\sqrt{v^T M v}` by hand.
+
+        Weights (1, 2, 1) and a residual of (1, 1, 1) against a
+        reference of (2, 0, 0), so the ratio is
+        :math:`\sqrt{4}/\sqrt{4} = 1`.
+        """
+        metric = DiagonalInnerProduct(bkd.asarray([1.0, 2.0, 1.0]), bkd)
+        reference = bkd.asarray([[2.0], [0.0], [0.0]])
+        predicted = bkd.asarray([[3.0], [1.0], [1.0]])
+        assert field_error(
+            metric, predicted, reference, bkd
+        ) == pytest.approx(1.0)
+
+    def test_weights_by_the_metric_not_the_node_count(
+        self, bkd: Backend
+    ) -> None:
+        """The distinction that makes it a physical quantity.
+
+        An error living entirely in the refined region is overstated by
+        a norm that counts every node equally, because that region holds
+        many nodes carrying little of the domain. Asserted as a
+        substantial disagreement rather than a specific factor, which
+        would pin the grid.
+        """
+        x, metric = _graded_grid(bkd)
+        nnodes = int(x.shape[0])
+        euclidean = EuclideanInnerProduct(nnodes, bkd)
+        reference = bkd.reshape(bkd.sin(3.14159265 * x), (nnodes, 1))
+        bump = bkd.asarray(
+            [[0.05] if i < 8 else [0.0] for i in range(nnodes)]
+        )
+        predicted = reference + bump
+
+        weighted = field_error(metric, predicted, reference, bkd)
+        unweighted = field_error(euclidean, predicted, reference, bkd)
+        assert unweighted > 2.0 * weighted
+
+    def test_differs_from_the_coefficient_error_when_the_mean_dominates(
+        self, bkd: Backend
+    ) -> None:
+        """The Darcy-shaped case, and the reason the two must stay distinct.
+
+        A field with a large constant offset and a small fluctuation
+        about it -- the shape a diffusion coefficient has. A centering
+        encoder projects only the fluctuation, so a coefficient residual
+        is relative to that fluctuation, while the field error is
+        relative to the whole field including the offset. The same
+        absolute discrepancy therefore reads as a much larger relative
+        number in coefficients.
+
+        Asserting the two *agree* here would be asserting the confusion
+        this function exists to remove.
+        """
+        nnodes = 32
+        metric = DiagonalInnerProduct(
+            bkd.full((nnodes,), 1.0 / nnodes), bkd
+        )
+        # Mean 10, fluctuation O(0.1): the mean carries ~99% of the energy.
+        mean = bkd.full((nnodes, 1), 10.0)
+        fluctuation = bkd.reshape(
+            bkd.asarray(
+                [0.1 * (-1.0) ** i for i in range(nnodes)]
+            ),
+            (nnodes, 1),
+        )
+        reference = mean + fluctuation
+        predicted = mean + 0.5 * fluctuation
+
+        field = field_error(metric, predicted, reference, bkd)
+        # What a centering encoder sees: the fluctuation alone.
+        centered = field_error(
+            metric, 0.5 * fluctuation, fluctuation, bkd
+        )
+        assert centered == pytest.approx(0.5)
+        assert field < 0.01
+        assert centered > 40.0 * field
+
+    def test_rejects_shape_mismatch(self, bkd: Backend) -> None:
+        metric = DiagonalInnerProduct(bkd.full((2,), 1.0), bkd)
+        with pytest.raises(ValueError, match="does not match"):
+            field_error(
+                metric,
+                bkd.asarray([[1.0], [2.0]]),
+                bkd.asarray([[1.0, 2.0], [3.0, 4.0]]),
+                bkd,
+            )
+
+    def test_rejects_fields_the_metric_cannot_measure(
+        self, bkd: Backend
+    ) -> None:
+        """A silent wrong answer otherwise, since both are still 2-D."""
+        metric = DiagonalInnerProduct(bkd.full((3,), 1.0), bkd)
+        fields = bkd.asarray([[1.0], [2.0]])
+        with pytest.raises(ValueError, match="metric acts on"):
+            field_error(metric, fields, fields, bkd)
+
+    def test_rejects_zero_reference(self, bkd: Backend) -> None:
+        metric = DiagonalInnerProduct(bkd.full((2,), 1.0), bkd)
+        zeros = bkd.asarray([[0.0], [0.0]])
+        with pytest.raises(ValueError, match="all zero"):
+            field_error(metric, bkd.asarray([[1.0], [1.0]]), zeros, bkd)
