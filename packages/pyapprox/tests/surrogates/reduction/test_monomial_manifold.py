@@ -357,12 +357,38 @@ class TestGreedySelection:
         # A pool larger than the available rank is truncated rather than
         # erroring, so candidate_factor need not be tuned to the data.
         data = _linear_data(bkd, rank=3)
-        encoder = MonomialManifoldEncoder.fit_from_data(
-            data, bkd, latent_dim=2, degrees=(2,), ncandidates=1000
-        )
+        with pytest.warns(UserWarning, match="ncandidates=1000"):
+            encoder = MonomialManifoldEncoder.fit_from_data(
+                data, bkd, latent_dim=2, degrees=(2,), ncandidates=1000
+            )
         selected = encoder.selected_indices()
         assert selected is not None
         assert max(selected) < min(data.shape)
+
+    def test_a_defaulted_pool_is_capped_silently(
+        self, bkd, recwarn
+    ) -> None:
+        """The caller never named the number, so there is nothing to report.
+
+        ``candidate_factor * latent_dim`` is a heuristic this class
+        chose, and warning about it would fire on ordinary low-rank data
+        for a decision the caller did not make.
+        """
+        data = _linear_data(bkd, rank=3)
+        MonomialManifoldEncoder.fit_from_data(
+            data, bkd, latent_dim=2, degrees=(2,)
+        )
+        assert [w for w in recwarn if w.category is UserWarning] == []
+
+    def test_an_explicit_pool_within_the_rank_is_not_reported(
+        self, bkd, recwarn
+    ) -> None:
+        """Only a pool the data could not fill is worth a warning."""
+        data = _linear_data(bkd, rank=3)
+        MonomialManifoldEncoder.fit_from_data(
+            data, bkd, latent_dim=2, degrees=(2,), ncandidates=3
+        )
+        assert [w for w in recwarn if w.category is UserWarning] == []
 
     def test_rejects_a_latent_dim_beyond_the_pool(self, bkd) -> None:
         data = _curved_data(bkd)

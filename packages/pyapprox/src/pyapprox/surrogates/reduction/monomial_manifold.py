@@ -86,6 +86,7 @@ scales with the number of snapshots rather than the ambient dimension
 
 from __future__ import annotations
 
+import warnings
 from typing import Generic, List, Optional, Sequence, Tuple
 
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
@@ -329,6 +330,14 @@ class MonomialManifoldEncoder(Generic[Array]):
             ``candidate_factor * latent_dim``, capped at the rank.
         candidate_factor : int
             Multiplier for the default pool size. The paper uses 10.
+
+            The resulting pool is capped at the data's numerical rank,
+            so this need not be tuned to the data: at ``latent_dim=5``
+            the default asks for 50 modes and data carrying 35 simply
+            gives 35. A pool named explicitly through ``ncandidates`` is
+            capped too, but warns when it is, since a caller who chose a
+            number is entitled to know the search was narrower than
+            asked for.
         center : bool
             Subtract the snapshot mean before decomposing.
         precomputed : tuple, optional
@@ -376,8 +385,16 @@ class MonomialManifoldEncoder(Generic[Array]):
                 f"equal latent_dim ({latent_dim})"
             )
 
+        # Captured before the default and the cap overwrite it, so the
+        # warning below can tell an explicit request from a derived one.
+        requested_pool = ncandidates
+
         # One SVD of the snapshot matrix, reused throughout (Section 3.2),
-        # or injected by the caller to share it across methods.
+        # or injected by the caller to share it across methods. Taken at
+        # full rank: the greedy only reaches the first ncandidates
+        # columns, but bounding the decomposition to that width needs the
+        # rank to cap it against, and the rank is what the decomposition
+        # produces.
         centered, mean, decomposition = center_and_decompose(
             snapshots,
             bkd,
@@ -392,6 +409,17 @@ class MonomialManifoldEncoder(Generic[Array]):
         if ncandidates is None:
             ncandidates = candidate_factor * latent_dim
         ncandidates = min(ncandidates, rank)
+        if requested_pool is not None and ncandidates < requested_pool:
+            # Capped rather than refused, so candidate_factor need not be
+            # tuned to the data -- but a caller who named a number is
+            # told that the data could not supply it, since a pool of the
+            # requested width would have searched further.
+            warnings.warn(
+                f"ncandidates={requested_pool} exceeds the {rank} modes "
+                f"this data carries; using {ncandidates}.",
+                UserWarning,
+                stacklevel=2,
+            )
         if latent_dim > ncandidates:
             raise ValueError(
                 f"latent_dim ({latent_dim}) cannot exceed the candidate "

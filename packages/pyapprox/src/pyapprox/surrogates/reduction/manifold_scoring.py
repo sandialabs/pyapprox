@@ -58,6 +58,7 @@ def center_and_decompose(
     mean: Optional[Array] = None,
     metric: Optional[InnerProductProtocol[Array]] = None,
     eigensolver: Optional[SnapshotEigenSolverProtocol[Array]] = None,
+    nterms: Optional[int] = None,
 ) -> Tuple[Array, Array, SnapshotDecomposition[Array]]:
     """Center the snapshot matrix and extract a basis from it.
 
@@ -102,6 +103,23 @@ def center_and_decompose(
     metric : InnerProductProtocol, optional
         The inner product the basis is orthonormal in. None is
         Euclidean.
+    nterms : int, optional
+        Keep only this many modes. None keeps every mode carrying
+        variance, which is the numerical rank.
+
+        The basis is the one ambient-sized array here, so a caller who
+        knows how many modes they will use should say so: a manifold
+        that selects from a pool of 30 never reads past the 30th column,
+        and at a large ambient dimension the columns beyond it are the
+        dominant cost of the call.
+
+        Requires knowing the data supports the count. A request above
+        the numerical rank raises rather than truncating, and the rank
+        is not known until this function returns -- so passing a count
+        is an assertion about the data, which is why it is not the
+        default. Below the rank it truncates cleanly, and a consumer
+        may narrow further.
+
     eigensolver : SnapshotEigenSolverProtocol, optional
         How the basis is extracted. Defaults to the solver matching the
         metric -- the SVD when it is diagonal, the method of snapshots
@@ -135,7 +153,7 @@ def center_and_decompose(
         if eigensolver is None
         else eigensolver
     )
-    return centered, mean, solver.solve(centered, None, metric)
+    return centered, mean, solver.solve(centered, nterms, metric)
 
 
 class ManifoldScorer(Generic[Array]):
