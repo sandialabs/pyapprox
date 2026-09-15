@@ -38,6 +38,89 @@ def _gauss_legendre_quad(lb, ub, npts, bkd):
     return pts, wts[:, 0]
 
 
+class TestTheTwoBases:
+    """The weighted basis is the unweighted one times ``sqrt(eigenvalues)``.
+
+    Only the unweighted basis is stored; the weighted form is rebuilt on
+    request and ``__call__`` avoids it entirely by scaling coefficients
+    instead. The tests here pin the relationship those three paths must
+    agree on, which nothing covered before.
+    """
+
+    def _kle(self, bkd, ncoords=30, nsamples=20, nterms=4):
+        rng = np.random.RandomState(0)
+        snapshots = bkd.array(
+            rng.normal(size=(ncoords, 8)) @ rng.normal(size=(8, nsamples))
+        )
+        return DataDrivenKLE(
+            snapshots, nterms=nterms, bkd=bkd, center=True
+        )
+
+    def test_weighted_is_the_unweighted_basis_scaled(self, bkd) -> None:
+        kle = self._kle(bkd)
+        bkd.assert_allclose(
+            kle.weighted_eigenvectors(),
+            kle.eigenvectors() * bkd.sqrt(kle.eigenvalues()),
+            atol=1e-14,
+        )
+
+    def test_scaling_is_per_mode_not_per_coordinate(self, bkd) -> None:
+        """The orientation a broadcast would get wrong without erroring.
+
+        ``sqrt_eig_vals`` is ``(nterms,)`` and the coefficients are
+        ``(nterms, nsamples)``, so scaling must multiply *rows*.  A
+        ``(ncoords, nterms)`` basis and a ``(nterms,)`` vector broadcast
+        along the last axis either way, so a transposed convention would
+        still produce an array of the right shape and wrong content.
+        Checked against an explicit per-mode construction rather than
+        against another vectorized expression.
+        """
+        kle = self._kle(bkd, ncoords=30, nterms=4)
+        basis = bkd.to_numpy(kle.eigenvectors())
+        scales = bkd.to_numpy(bkd.sqrt(kle.eigenvalues()))
+        expected = np.stack(
+            [basis[:, a] * scales[a] for a in range(basis.shape[1])],
+            axis=1,
+        )
+        bkd.assert_allclose(
+            kle.weighted_eigenvectors(), bkd.array(expected), atol=1e-14
+        )
+
+    def test_a_single_mode_is_still_one_scale_per_mode(
+        self, bkd
+    ) -> None:
+        """The case the shape guard must not reject.
+
+        With one mode the scale vector is legitimately length one, which
+        is also what a collapsed vector would look like. The guard
+        distinguishes them by comparing against ``nterms`` rather than
+        by rejecting length one, so this configuration has to keep
+        working.
+        """
+        kle = self._kle(bkd, nterms=1)
+        coef = bkd.array(np.ones((1, 3)))
+        assert kle(coef).shape == (30, 3)
+        bkd.assert_allclose(
+            kle.weighted_eigenvectors(),
+            kle.eigenvectors() * bkd.sqrt(kle.eigenvalues()),
+            atol=1e-14,
+        )
+
+    def test_call_matches_the_weighted_basis(self, bkd) -> None:
+        """``__call__`` folds the scaling into the coefficients.
+
+        It never forms the weighted basis, so this is the check that the
+        cheaper route computes the same field.
+        """
+        kle = self._kle(bkd, nterms=4)
+        coef = bkd.array(np.random.RandomState(1).normal(size=(4, 7)))
+        expected = (
+            kle.mean_field()[:, None]
+            + kle.weighted_eigenvectors() @ coef
+        )
+        bkd.assert_allclose(kle(coef), expected, atol=1e-13)
+
+
 class TestDataDrivenKLE:
 
     def test_data_driven_kle_vs_mesh_kle(self, bkd) -> None:
