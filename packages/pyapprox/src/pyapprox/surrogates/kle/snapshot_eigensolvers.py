@@ -44,23 +44,28 @@ numerical rank's width where the sketch forms one of
 affordable fit and an impossible one once :math:`N` is large enough.
 """
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import (
     Generic,
     Optional,
     Protocol,
+    Tuple,
     runtime_checkable,
 )
 
 from pyapprox.surrogates.kle.eigensolvers import (
     finalize_eigenpairs_with_convention,
 )
+from pyapprox.surrogates.kle.snapshot_sources import (
+    SnapshotSourceOperator,
+    SnapshotSourceProtocol,
+)
 from pyapprox.surrogates.kle.truncation import by_numerical_rank
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import InnerProductProtocol
 from pyapprox.util.linalg.randomized import (
     DenseMatVecOperator,
+    MatVecOperator,
     TwoPassRandomizedSVD,
 )
 
@@ -167,8 +172,126 @@ class SnapshotEigenSolverProtocol(Protocol, Generic[Array]):
         ...
 
 
-class _SnapshotEigenSolver(Generic[Array], ABC):
-    """Shared plumbing: validation, then the convention."""
+def validate_snapshot_arguments(
+    nstates: int,
+    nsamples: int,
+    nterms: Optional[int] = None,
+    metric: Optional[InnerProductProtocol[Array]] = None,
+) -> None:
+    """Check the arguments every solver here rejects the same way.
+
+    Free-standing for the reason
+    :func:`~pyapprox.surrogates.kle.eigensolvers.finalize_eigenpairs`
+    is: a solver satisfying
+    :class:`SnapshotEigenSolverProtocol` directly should be able to
+    reuse the checks without inheriting from anything, and the
+    alternative is each implementation writing its own -- which is how
+    two solvers come to disagree about what they accept.
+
+    Takes the dimensions rather than the snapshots, so a solver reading
+    from a source can call it too.
+
+    Raises
+    ------
+    ValueError
+        If ``nterms`` is not positive, exceeds ``min(nstates,
+        nsamples)`` -- which bounds the rank, so more terms than that
+        cannot exist -- or if ``metric`` is defined on a different
+        number of states.
+    """
+    if nterms is not None:
+        if nterms < 1:
+            raise ValueError(f"nterms={nterms} must be positive")
+        max_nterms = min(nstates, nsamples)
+        if nterms > max_nterms:
+            raise ValueError(
+                f"nterms={nterms} exceeds the rank of the snapshot "
+                f"matrix, min(nstates={nstates}, nsamples={nsamples})"
+                f"={max_nterms}"
+            )
+    if metric is not None and metric.nstates() != nstates:
+        raise ValueError(
+            f"metric is defined on {metric.nstates()} states but "
+            f"snapshots have {nstates}"
+        )
+
+
+def snapshot_shape(snapshots: Array) -> Tuple[int, int]:
+    """Return ``(nstates, nsamples)`` for resident snapshots.
+
+    Raises
+    ------
+    TypeError
+        If given a snapshot source. Only a solver whose every pass is a
+        row-block accumulation can read one, so this is where the rest
+        say so -- rather than failing on a missing attribute, which
+        reports the symptom and not the reason.
+    ValueError
+        If the array is not 2D.
+    """
+    if isinstance(snapshots, SnapshotSourceProtocol):
+        raise TypeError(
+            "this solver needs the snapshots in memory and was handed "
+            "a source to read them from. Symmetrizing needs the whole "
+            "matrix, and a Gram over a coupled metric needs rows from "
+            "outside the block, so neither streams. Use "
+            "RandomizedSnapshotSolver, or materialize the source."
+        )
+    if snapshots.ndim != 2:
+        raise ValueError(
+            "snapshots must be 2D (nstates, nsamples), got "
+            f"ndim={snapshots.ndim}"
+        )
+    return int(snapshots.shape[0]), int(snapshots.shape[1])
+
+
+def bundle_decomposition(
+    eig_vals: Array,
+    eig_vecs: Array,
+    raw_coordinates: Array,
+    sqrt_weights: Optional[Array],
+    nterms: int,
+    bkd: Backend[Array],
+) -> SnapshotDecomposition[Array]:
+    """Apply the convention to both factors at once.
+
+    The convention sorts, truncates and signs the eigenvectors. The
+    coordinates are the other half of the same factorization, so they
+    must be permuted and signed identically: a flip applied to one and
+    not the other leaves a pair that no longer reconstructs the
+    snapshots.
+
+    The permutation and signs are taken from the function that applied
+    them rather than re-derived here, which keeps the tie-breaking rule
+    in one place. It also keeps only one ambient-sized array alive:
+    recovering the permutation by comparing the finalized basis against
+    the raw one needs both resident, and at a large ambient dimension
+    that doubles the peak for information the sort already had.
+    """
+    vals, vecs, order, signs = finalize_eigenpairs_with_convention(
+        eig_vals, eig_vecs, sqrt_weights, nterms, bkd
+    )
+    coordinates = raw_coordinates[order, :] * signs[:, None]
+    return SnapshotDecomposition(vals, vecs, coordinates)
+
+
+class SVDSnapshotSolver(Generic[Array]):
+    r"""Thin SVD of the symmetrized snapshot matrix.
+
+    The default when the metric is diagonal, and the more accurate of
+    the two: it never forms a Gram matrix, so the singular values are
+    computed to full precision rather than to half of it.
+
+    Refuses a non-diagonal metric rather than densifying it. A caller
+    who reaches this error wants :class:`MethodOfSnapshotsSolver`, and
+    :class:`~pyapprox.surrogates.kle.DataDrivenKLE` selects it
+    automatically.
+
+    Takes resident snapshots only. Symmetrizing needs the whole matrix,
+    and a dense SVD cannot be fed in pieces, so there is no row-block
+    form of this algorithm to offer a
+    :class:`~pyapprox.surrogates.kle.snapshot_sources.SnapshotSourceProtocol`.
+    """
 
     def __init__(self, bkd: Backend[Array]) -> None:
         self._bkd = bkd
@@ -183,89 +306,9 @@ class _SnapshotEigenSolver(Generic[Array], ABC):
         nterms: Optional[int] = None,
         metric: Optional[InnerProductProtocol[Array]] = None,
     ) -> SnapshotDecomposition[Array]:
-        if snapshots.ndim != 2:
-            raise ValueError(
-                "snapshots must be 2D (nstates, nsamples), got "
-                f"ndim={snapshots.ndim}"
-            )
-        nstates, nsamples = (int(s) for s in snapshots.shape)
-        if nterms is not None:
-            if nterms < 1:
-                raise ValueError(f"nterms={nterms} must be positive")
-            max_nterms = min(nstates, nsamples)
-            if nterms > max_nterms:
-                raise ValueError(
-                    f"nterms={nterms} exceeds the rank of the snapshot "
-                    f"matrix, min(nstates={nstates}, nsamples={nsamples})"
-                    f"={max_nterms}"
-                )
-        if metric is not None and metric.nstates() != nstates:
-            raise ValueError(
-                f"metric is defined on {metric.nstates()} states but "
-                f"snapshots have {nstates}"
-            )
-        return self._solve(snapshots, nterms, metric)
-
-    @abstractmethod
-    def _solve(
-        self,
-        snapshots: Array,
-        nterms: Optional[int],
-        metric: Optional[InnerProductProtocol[Array]],
-    ) -> SnapshotDecomposition[Array]:
-        """Compute the decomposition; arguments already validated."""
-
-    def _finalize(
-        self,
-        eig_vals: Array,
-        eig_vecs: Array,
-        raw_coordinates: Array,
-        sqrt_weights: Optional[Array],
-        nterms: int,
-    ) -> SnapshotDecomposition[Array]:
-        """Apply the convention to both factors at once.
-
-        The convention sorts, truncates and signs the eigenvectors. The
-        coordinates are the other half of the same factorization, so
-        they must be permuted and signed identically: a flip applied to
-        one and not the other leaves a pair that no longer reconstructs
-        the snapshots.
-
-        The permutation and signs are taken from the function that
-        applied them rather than re-derived here, which keeps the
-        tie-breaking rule in one place. It also keeps only one
-        ambient-sized array alive: recovering the permutation by
-        comparing the finalized basis against the raw one needs both
-        resident, and at a large ambient dimension that doubles the
-        peak for information the sort already had.
-        """
-        bkd = self._bkd
-        vals, vecs, order, signs = finalize_eigenpairs_with_convention(
-            eig_vals, eig_vecs, sqrt_weights, nterms, bkd
-        )
-        coordinates = raw_coordinates[order, :] * signs[:, None]
-        return SnapshotDecomposition(vals, vecs, coordinates)
-
-
-class SVDSnapshotSolver(_SnapshotEigenSolver[Array]):
-    r"""Thin SVD of the symmetrized snapshot matrix.
-
-    The default when the metric is diagonal, and the more accurate of
-    the two: it never forms a Gram matrix, so the singular values are
-    computed to full precision rather than to half of it.
-
-    Refuses a non-diagonal metric rather than densifying it. A caller
-    who reaches this error wants :class:`MethodOfSnapshotsSolver`, and
-    :class:`~pyapprox.surrogates.kle.DataDrivenKLE` selects it
-    automatically.
-    """
-
-    def _solve(
-        self,
-        snapshots: Array,
-        nterms: Optional[int],
-        metric: Optional[InnerProductProtocol[Array]],
-    ) -> SnapshotDecomposition[Array]:
+        """Return the leading ``nterms`` eigenpairs and coordinates."""
+        nstates, nsamples = snapshot_shape(snapshots)
+        validate_snapshot_arguments(nstates, nsamples, nterms, metric)
         bkd = self._bkd
         sqrt_weights: Optional[Array] = None
         if metric is not None:
@@ -297,12 +340,12 @@ class SVDSnapshotSolver(_SnapshotEigenSolver[Array]):
         # diag(s) Psi^T: the snapshot coordinates in the basis, in the
         # solver's own (pre-convention) column order.
         raw_coordinates = svals[:, None] * right_factor
-        return self._finalize(
-            eig_vals, eig_vecs, raw_coordinates, sqrt_weights, nterms
+        return bundle_decomposition(
+            eig_vals, eig_vecs, raw_coordinates, sqrt_weights, nterms, bkd
         )
 
 
-class MethodOfSnapshotsSolver(_SnapshotEigenSolver[Array]):
+class MethodOfSnapshotsSolver(Generic[Array]):
     r"""Eigendecomposition of the ``(nsamples, nsamples)`` Gram.
 
     Works for **any** SPD metric, because it touches :math:`M` only
@@ -319,14 +362,32 @@ class MethodOfSnapshotsSolver(_SnapshotEigenSolver[Array]):
     number of :math:`S`, so modes whose singular values approach the
     square root of machine epsilon are lost. Prefer
     :class:`SVDSnapshotSolver` whenever the metric is diagonal.
+
+    Takes resident snapshots only, and the reason is the metric it
+    exists to support. The Gram accumulates over row blocks only when
+    :math:`M` has no coupling across block boundaries; a mass matrix
+    couples neighbouring nodes, so a block holding rows ``i:j`` needs
+    columns of :math:`S` from outside it. Accumulating the diagonal
+    sub-blocks alone drops that coupling and returns a basis that is
+    still orthonormal, still plausible, and wrong.
     """
 
-    def _solve(
+    def __init__(self, bkd: Backend[Array]) -> None:
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def solve(
         self,
         snapshots: Array,
-        nterms: Optional[int],
-        metric: Optional[InnerProductProtocol[Array]],
+        nterms: Optional[int] = None,
+        metric: Optional[InnerProductProtocol[Array]] = None,
     ) -> SnapshotDecomposition[Array]:
+        """Return the leading ``nterms`` eigenpairs and coordinates."""
+        nstates, nsamples = snapshot_shape(snapshots)
+        validate_snapshot_arguments(nstates, nsamples, nterms, metric)
         bkd = self._bkd
         weighted = (
             snapshots if metric is None else metric.apply(snapshots)
@@ -366,12 +427,12 @@ class MethodOfSnapshotsSolver(_SnapshotEigenSolver[Array]):
         # eigenvalues s^2, so the coordinates diag(s) Psi^T are
         # sqrt(lambda) Q^T -- already computed, not a second pass.
         raw_coordinates = bkd.sqrt(kept_vals)[:, None] * kept_vecs.T
-        return self._finalize(
-            kept_vals, basis, raw_coordinates, None, nterms
+        return bundle_decomposition(
+            kept_vals, basis, raw_coordinates, None, nterms, bkd
         )
 
 
-class RandomizedSnapshotSolver(_SnapshotEigenSolver[Array]):
+class RandomizedSnapshotSolver(Generic[Array]):
     r"""A sketched SVD of the snapshots, when the basis is what costs.
 
     Sketches :math:`S` onto ``nterms + noversampling`` random directions
@@ -429,7 +490,7 @@ class RandomizedSnapshotSolver(_SnapshotEigenSolver[Array]):
         npower_iters: int = 1,
         seed: Optional[int] = None,
     ) -> None:
-        super().__init__(bkd)
+        self._bkd = bkd
         if noversampling < 0:
             raise ValueError(
                 f"noversampling={noversampling} must be non-negative"
@@ -446,12 +507,36 @@ class RandomizedSnapshotSolver(_SnapshotEigenSolver[Array]):
         """Return the sketch seed, or None for the global RNG."""
         return self._seed
 
-    def _solve(
+    def solve(
         self,
-        snapshots: Array,
-        nterms: Optional[int],
-        metric: Optional[InnerProductProtocol[Array]],
+        snapshots: "Array | SnapshotSourceProtocol[Array]",
+        nterms: Optional[int] = None,
+        metric: Optional[InnerProductProtocol[Array]] = None,
     ) -> SnapshotDecomposition[Array]:
+        """Return the leading ``nterms`` eigenpairs and coordinates.
+
+        Accepts a
+        :class:`~pyapprox.surrogates.kle.snapshot_sources.SnapshotSourceProtocol`
+        as well as an array, and is the only solver here that does.
+        Every product the sketch needs is a row-block accumulation, so
+        the snapshots are read in pieces and the widest array formed is
+        the ``(nstates, nterms + noversampling)`` sketch. The two exact
+        solvers cannot offer this: one symmetrizes, which needs the
+        whole matrix, and the other's Gram needs rows from outside the
+        block whenever the metric couples them.
+        """
+        if isinstance(snapshots, SnapshotSourceProtocol):
+            operator: MatVecOperator[Array] = SnapshotSourceOperator(
+                snapshots, self._bkd
+            )
+            nstates, nsamples = (
+                snapshots.nstates(),
+                snapshots.nsamples(),
+            )
+        else:
+            nstates, nsamples = snapshot_shape(snapshots)
+            operator = DenseMatVecOperator(snapshots, self._bkd)
+        validate_snapshot_arguments(nstates, nsamples, nterms, metric)
         if nterms is None:
             raise ValueError(
                 f"{type(self).__name__} needs an explicit nterms: it "
@@ -465,13 +550,12 @@ class RandomizedSnapshotSolver(_SnapshotEigenSolver[Array]):
                 "SVDSnapshotSolver for a diagonal metric or "
                 "MethodOfSnapshotsSolver for any SPD one."
             )
-        nsamples = int(snapshots.shape[1])
         # Oversampling cannot exceed what is left to sample.
         noversampling = max(
             min(self._noversampling, nsamples - nterms), 0
         )
         svd = TwoPassRandomizedSVD(
-            DenseMatVecOperator(snapshots, self._bkd),
+            operator,
             noversampling=noversampling,
             npower_iters=self._npower_iters,
             seed=self._seed,
@@ -479,12 +563,13 @@ class RandomizedSnapshotSolver(_SnapshotEigenSolver[Array]):
         eig_vecs, svals, right_factor = svd.compute(nterms)
         # Same relationship as the dense SVD: eigenvalues of S S^T are
         # the squared singular values, and diag(s) Psi^T the coordinates.
-        return self._finalize(
+        return bundle_decomposition(
             svals**2,
             eig_vecs,
             svals[:, None] * right_factor,
             None,
             nterms,
+            self._bkd,
         )
 
 

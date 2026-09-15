@@ -62,6 +62,20 @@ not by the caller.
   whose basis is sized by the request rather than by the numerical rank
 - default_snapshot_eigensolver: picks between the two exact ones
 
+Snapshots too large to hold
+---------------------------
+A source delivers snapshots as row blocks -- every sample, a few mesh
+points -- which is the orientation a Gram accumulates over. Only
+RandomizedSnapshotSolver reads one: the exact solvers either symmetrize,
+which needs the whole matrix, or form a Gram whose metric couples rows
+across block boundaries. The others raise, naming the reason.
+
+- SnapshotSourceProtocol: the seam a file-backed source satisfies
+- ArraySnapshotSource: wraps a resident array; the reference a streaming
+  source is checked against
+- SnapshotSourceOperator: a source as a matrix-free operator, for the
+  randomized decomposition
+
 Truncation
 ----------
 How many modes of a spectrum to keep. Shared with the encoders, so a
@@ -105,6 +119,12 @@ from .snapshot_eigensolvers import (
     SnapshotEigenSolverProtocol,
     SVDSnapshotSolver,
     default_snapshot_eigensolver,
+)
+from .snapshot_sources import (
+    ArraySnapshotSource,
+    SnapshotSourceOperator,
+    SnapshotSourceProtocol,
+    as_snapshot_source,
 )
 from .spde_kle import SPDEMaternKLE
 from .truncation import (
@@ -152,6 +172,10 @@ __all__ = [
     "SVDSnapshotSolver",
     "MethodOfSnapshotsSolver",
     "RandomizedSnapshotSolver",
+    "SnapshotSourceProtocol",
+    "ArraySnapshotSource",
+    "SnapshotSourceOperator",
+    "as_snapshot_source",
     "default_snapshot_eigensolver",
     # Truncation
     "by_count",

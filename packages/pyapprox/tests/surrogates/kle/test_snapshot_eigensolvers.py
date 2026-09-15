@@ -18,6 +18,7 @@ from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     SVDSnapshotSolver,
     default_snapshot_eigensolver,
 )
+from pyapprox.surrogates.kle.snapshot_sources import ArraySnapshotSource
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     EuclideanInnerProduct,
@@ -493,6 +494,37 @@ class TestRandomizedSnapshotSolver:
         with pytest.raises(ValueError, match="non-negative"):
             RandomizedSnapshotSolver(bkd, npower_iters=-1)
 
+    def test_a_source_gives_the_same_answer_as_an_array(
+        self, bkd
+    ) -> None:
+        """Reading in pieces is the same computation, not an approximation.
+
+        Asserted exactly rather than to a tolerance: the block loop
+        re-associates nothing that the dense path associated
+        differently, so any discrepancy would be a dropped or repeated
+        term rather than rounding.
+        """
+        snaps = _decaying_snapshots(bkd)
+        from_array = RandomizedSnapshotSolver(bkd, seed=0).solve(snaps, 8)
+        from_source = RandomizedSnapshotSolver(bkd, seed=0).solve(
+            ArraySnapshotSource(snaps, bkd), 8
+        )
+        bkd.assert_allclose(
+            from_source.eigenvalues, from_array.eigenvalues, atol=0.0
+        )
+        bkd.assert_allclose(
+            from_source.eigenvectors, from_array.eigenvectors, atol=0.0
+        )
+        bkd.assert_allclose(
+            from_source.coordinates, from_array.coordinates, atol=0.0
+        )
+
+    def test_a_source_is_validated_like_an_array(self, bkd) -> None:
+        """The checks are on the dimensions, so a source reaches them too."""
+        source = ArraySnapshotSource(_decaying_snapshots(bkd), bkd)
+        with pytest.raises(ValueError, match="exceeds the rank"):
+            RandomizedSnapshotSolver(bkd).solve(source, 10_000)
+
     def test_oversampling_is_clamped_to_the_sample_count(
         self, bkd
     ) -> None:
@@ -506,3 +538,35 @@ class TestRandomizedSnapshotSolver:
             bkd, noversampling=100, seed=0
         ).solve(snaps, 4)
         assert result.eigenvectors.shape == (40, 4)
+
+
+class TestTheExactSolversRefuseASource:
+    """Neither exact solver can read snapshots in pieces.
+
+    Not a limitation of the implementations but of the algorithms.
+    Symmetrizing needs the whole matrix before the SVD, and the Gram
+    accumulates over row blocks only when the metric leaves rows
+    independent -- which the metric that motivates the method of
+    snapshots, an assembled mass matrix, does not.
+
+    The refusal is tested because the alternative is worse than an
+    error: a block-wise Gram over a coupled metric returns a basis that
+    is orthonormal, plausible, and wrong.
+    """
+
+    @pytest.mark.parametrize(
+        "solver_cls", [SVDSnapshotSolver, MethodOfSnapshotsSolver]
+    )
+    def test_refuses_with_a_reason(self, bkd, solver_cls) -> None:
+        source = ArraySnapshotSource(_snapshots(bkd), bkd)
+        with pytest.raises(TypeError, match="needs the snapshots in memory"):
+            solver_cls(bkd).solve(source)
+
+    @pytest.mark.parametrize(
+        "solver_cls", [SVDSnapshotSolver, MethodOfSnapshotsSolver]
+    )
+    def test_names_the_solver_that_can(self, bkd, solver_cls) -> None:
+        """A dead end without an alternative is a poor error."""
+        source = ArraySnapshotSource(_snapshots(bkd), bkd)
+        with pytest.raises(TypeError, match="RandomizedSnapshotSolver"):
+            solver_cls(bkd).solve(source)
