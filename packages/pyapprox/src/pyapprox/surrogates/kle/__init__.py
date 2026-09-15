@@ -76,6 +76,17 @@ across block boundaries. The others raise, naming the reason.
 - SnapshotSourceOperator: a source as a matrix-free operator, for the
   randomized decomposition
 
+Bases too large to hold
+-----------------------
+The other half of the same problem: a basis is (nstates, nterms), so at
+a large ambient dimension it is the object that does not fit. Every use
+of one here is a column selection, a column scaling, a contraction over
+rows, or a dimension query -- none of which needs an array.
+
+- BasisOperatorProtocol: those operations, as the seam
+- ArrayBasis: the resident implementation, and the reference any other
+  is checked against
+
 Truncation
 ----------
 How many modes of a spectrum to keep. Shared with the encoders, so a
@@ -96,6 +107,11 @@ Analytical
 """
 
 from .analytical import AnalyticalExponentialKLE1D
+from .basis_operator import (
+    ArrayBasis,
+    BasisOperatorProtocol,
+    as_basis_operator,
+)
 from .data_driven_kle import DataDrivenKLE
 from .eigensolvers import (
     DenseEigenSolver,
@@ -176,6 +192,9 @@ __all__ = [
     "ArraySnapshotSource",
     "SnapshotSourceOperator",
     "as_snapshot_source",
+    "BasisOperatorProtocol",
+    "ArrayBasis",
+    "as_basis_operator",
     "default_snapshot_eigensolver",
     # Truncation
     "by_count",
