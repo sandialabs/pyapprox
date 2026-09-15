@@ -21,8 +21,8 @@ import numpy as np
 from pyapprox.surrogates.kernels.protocols import KernelProtocol
 from pyapprox.surrogates.kle.truncation import by_numerical_rank
 from pyapprox.surrogates.kle.utils import (
-    adjust_sign_eig,
     eigendecomposition_unweighted,
+    eigenvector_signs,
     sort_eigenpairs,
 )
 from pyapprox.util.backends.protocols import Array, Backend
@@ -158,12 +158,51 @@ def finalize_eigenpairs(
     eig_vecs : Array
         Shape ``(N, nterms)``, unweighted convention, deterministic sign.
     """
+    vals, vecs, _, _ = finalize_eigenpairs_with_convention(
+        eig_vals, eig_vecs, sqrt_weights, nterms, bkd
+    )
+    return vals, vecs
+
+
+def finalize_eigenpairs_with_convention(
+    eig_vals: Array,
+    eig_vecs: Array,
+    sqrt_weights: Optional[Array],
+    nterms: int,
+    bkd: Backend[Array],
+) -> Tuple[Array, Array, Array, Array]:
+    """:func:`finalize_eigenpairs`, also reporting what it applied.
+
+    The convention reorders and flips columns, and a caller holding the
+    other factor of the same decomposition must apply the identical
+    permutation and signs or the pair stops reconstructing the matrix.
+    Reporting them is what lets that caller follow along instead of
+    re-deriving the rules -- which would put the tie-breaking logic in
+    two places, free to disagree, and a disagreement here is silent
+    because the mismatched pair still has the right shape.
+
+    Returns
+    -------
+    eig_vals : Array
+        Shape ``(nterms,)``, descending, non-negative.
+    eig_vecs : Array
+        Shape ``(N, nterms)``, unweighted convention, deterministic sign.
+    order : Array
+        Shape ``(nterms,)``. The pre-sort column each kept position came
+        from.
+    signs : Array
+        Shape ``(nterms,)``. The flip applied to each column *after* the
+        reordering, so the two compose in that order.
+    """
     if sqrt_weights is not None:
         eig_vecs = eig_vecs / sqrt_weights[:, None]
     eig_vals = bkd.maximum(eig_vals, bkd.asarray([0.0]))
-    eig_vals, eig_vecs = sort_eigenpairs(eig_vals, eig_vecs, nterms, bkd)
+    eig_vals, eig_vecs, order = sort_eigenpairs(
+        eig_vals, eig_vecs, nterms, bkd
+    )
     _reject_negligible_terms(eig_vals, bkd)
-    return eig_vals, adjust_sign_eig(eig_vecs, bkd)
+    eig_vecs, signs = eigenvector_signs(eig_vecs, bkd)
+    return eig_vals, eig_vecs, order, signs
 
 
 def usable_nterms(eig_vals: Array, bkd: Backend[Array]) -> int:

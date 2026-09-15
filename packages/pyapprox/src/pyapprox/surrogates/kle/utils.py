@@ -110,7 +110,7 @@ def sort_eigenpairs(
     eig_vecs: Array,
     nterms: int,
     bkd: Backend[Array],
-) -> Tuple[Array, Array]:
+) -> Tuple[Array, Array, Array]:
     """Sort eigenpairs by descending eigenvalue with tie-breaking.
 
     For eigenvalues that are equal up to 12 decimal places, breaks ties
@@ -134,6 +134,15 @@ def sort_eigenpairs(
         Sorted eigenvalues (descending).
     sorted_eig_vecs : Array, shape (ncoords, nterms)
         Correspondingly sorted eigenvectors.
+    order : Array, shape (nterms,)
+        The column each sorted position came from, so that a caller
+        holding a second factor of the same decomposition can apply the
+        identical permutation. Returned for the reason
+        :func:`eigenvector_signs` returns its signs: the alternative is
+        a caller re-deriving the rule above, and a tie broken
+        differently in two places leaves a pair of factors that no
+        longer reconstructs the matrix -- with the right shape, and no
+        error.
     """
     # Sort by eigenvalue descending, then by magnitude of first
     # eigenvector entry (for tie-breaking across platforms)
@@ -148,7 +157,7 @@ def sort_eigenpairs(
         reverse=True,
     )
     II = bkd.hstack([tup[0] for tup in sorted_tuples])
-    return eig_vals[II], eig_vecs[:, II]
+    return eig_vals[II], eig_vecs[:, II], II
 
 
 def _partial_eigsh(
@@ -245,7 +254,7 @@ def eigendecomposition_unweighted(
     else:
         eig_vals, eig_vecs = bkd.eigh(K)
     # Sort with tie-breaking and adjust signs
-    eig_vals, eig_vecs = sort_eigenpairs(eig_vals, eig_vecs, nterms, bkd)
+    eig_vals, eig_vecs, _ = sort_eigenpairs(eig_vals, eig_vecs, nterms, bkd)
     eig_vecs = adjust_sign_eig(eig_vecs, bkd)
     return eig_vals, eig_vecs
 
@@ -306,7 +315,7 @@ def eigendecomposition_weighted(
     # Undo symmetrization
     eig_vecs = (1.0 / sqrt_weights[:, None]) * sym_eig_vecs
     # Sort with tie-breaking and adjust signs
-    eig_vals, eig_vecs = sort_eigenpairs(sym_eig_vals, eig_vecs, nterms, bkd)
+    eig_vals, eig_vecs, _ = sort_eigenpairs(sym_eig_vals, eig_vecs, nterms, bkd)
     eig_vecs = adjust_sign_eig(eig_vecs, bkd)
     return eig_vals, eig_vecs
 
@@ -361,6 +370,6 @@ def eigendecomposition_generalized(
         eig_vals_np, eig_vecs_np = scipy_eigh(A_np, M_np)
     eig_vals = bkd.asarray(eig_vals_np)
     eig_vecs = bkd.asarray(eig_vecs_np)
-    eig_vals, eig_vecs = sort_eigenpairs(eig_vals, eig_vecs, nterms, bkd)
+    eig_vals, eig_vecs, _ = sort_eigenpairs(eig_vals, eig_vecs, nterms, bkd)
     eig_vecs = adjust_sign_eig(eig_vecs, bkd)
     return eig_vals, eig_vecs

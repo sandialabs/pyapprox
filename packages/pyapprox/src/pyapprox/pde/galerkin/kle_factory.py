@@ -196,7 +196,7 @@ def create_spde_matern_kle(
     eig_vecs = bkd.asarray(phi_vecs)
 
     # Sort descending and fix sign convention
-    eig_vals, eig_vecs = sort_eigenpairs(eig_vals, eig_vecs, n_modes, bkd)
+    eig_vals, eig_vecs, _ = sort_eigenpairs(eig_vals, eig_vecs, n_modes, bkd)
     eig_vecs = adjust_sign_eig(eig_vecs, bkd)
 
     return SPDEMaternKLE(
