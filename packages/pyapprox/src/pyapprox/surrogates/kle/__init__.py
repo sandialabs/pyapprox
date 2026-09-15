@@ -58,7 +58,9 @@ not by the caller.
 - SVDSnapshotSolver: thin SVD; needs a diagonal metric, more accurate
 - MethodOfSnapshotsSolver: Gram eigendecomposition; any SPD metric,
   never factorizes it
-- default_snapshot_eigensolver: picks between them
+- RandomizedSnapshotSolver: sketched SVD; approximate, and the only one
+  whose basis is sized by the request rather than by the numerical rank
+- default_snapshot_eigensolver: picks between the two exact ones
 
 Truncation
 ----------
@@ -99,6 +101,7 @@ from .precomputed_kle import PrecomputedKLE
 from .protocols import KLEProtocol
 from .snapshot_eigensolvers import (
     MethodOfSnapshotsSolver,
+    RandomizedSnapshotSolver,
     SnapshotEigenSolverProtocol,
     SVDSnapshotSolver,
     default_snapshot_eigensolver,
@@ -148,6 +151,7 @@ __all__ = [
     "SnapshotEigenSolverProtocol",
     "SVDSnapshotSolver",
     "MethodOfSnapshotsSolver",
+    "RandomizedSnapshotSolver",
     "default_snapshot_eigensolver",
     # Truncation
     "by_count",

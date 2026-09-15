@@ -32,63 +32,37 @@ speed: measured on random matrices, the Gram route ran 4-12x faster
 A caller who has measured their own conditioning and wants the speed
 can inject :class:`MethodOfSnapshotsSolver` for a diagonal metric too.
 
-**Why there is no randomized solver here.** Randomization exists to
-avoid decomposing a matrix that cannot be afforded exactly, and a
-snapshot matrix rarely is one: :math:`S` is *already* the low-rank
-factor, so a thin SVD is exact at :math:`O(N n^2)` rather than an
-approximation. At 50000 states and 500 snapshots -- a serious FEM set --
-both solvers above finish in under six seconds. The regime where
-randomization pays needs :math:`n` itself to be large, which is narrower
-than it first looks. Should it arrive, it is a third axis rather than a
-third entry in the list above: these two vary by *metric* and are both
-exact, while a randomized solver varies by *cost* and is approximate, so
-it would compose with either. ``util.linalg.randomized`` already has the
-machinery.
+**The randomized solver is a third axis, not a third entry.** The two
+above vary by *metric* and are both exact;
+:class:`RandomizedSnapshotSolver` varies by *cost* and is approximate,
+so it is chosen for a different reason. Time is rarely that reason --
+:math:`S` is already the low-rank factor, so a thin SVD is exact at
+:math:`O(N n^2)` and finishes in under six seconds at 50000 states and
+500 snapshots. Memory is: the exact solvers form a basis of the
+numerical rank's width where the sketch forms one of
+``nterms + noversampling``, which is the difference between an
+affordable fit and an impossible one once :math:`N` is large enough.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import (
     Generic,
-    List,
     Optional,
     Protocol,
-    Tuple,
     runtime_checkable,
 )
 
-import numpy as np
-
-from pyapprox.surrogates.kle.eigensolvers import finalize_eigenpairs
+from pyapprox.surrogates.kle.eigensolvers import (
+    finalize_eigenpairs_with_convention,
+)
 from pyapprox.surrogates.kle.truncation import by_numerical_rank
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import InnerProductProtocol
-
-
-def _match_columns(
-    raw: Array, finalized: Array, bkd: Backend[Array]
-) -> Tuple[List[int], Array]:
-    """Recover the permutation and signs relating two column sets.
-
-    ``finalized[:, j]`` is ``signs[j] * raw[:, order[j]]``. Used to
-    carry the sorting and sign convention applied to one factor of a
-    decomposition over to the other, without re-deriving the rules that
-    produced it -- which would leave two implementations free to drift
-    apart, and the drift would be silent.
-
-    Matching is by inner product: the columns are orthonormal, so the
-    partner of a finalized column is the raw column whose inner product
-    with it has magnitude one, and the sign of that inner product is the
-    flip that was applied.
-    """
-    products = bkd.to_numpy(bkd.dot(finalized.T, raw))
-    order: List[int] = []
-    signs = np.empty(products.shape[0])
-    for j in range(products.shape[0]):
-        match = int(np.argmax(np.abs(products[j, :])))
-        order.append(match)
-        signs[j] = 1.0 if products[j, match] >= 0.0 else -1.0
-    return order, bkd.asarray(signs)
+from pyapprox.util.linalg.randomized import (
+    DenseMatVecOperator,
+    TwoPassRandomizedSVD,
+)
 
 
 @dataclass(frozen=True)
@@ -167,10 +141,17 @@ class SnapshotEigenSolverProtocol(Protocol, Generic[Array]):
             Number of eigenpairs to keep. None keeps every mode carrying
             variance, which is the numerical rank.
 
-            Passing a count buys no computation -- both solvers form the
-            whole spectrum either way, and the count only decides where
-            it is cut and whether over-requesting is an error. So a
-            caller who must see the spectrum before choosing, as one
+            Pass it when it is known. It buys little computation --
+            the small factor each exact solver decomposes is the same
+            size either way -- but the basis is the one ambient-sized
+            array and every solver here sizes it by ``nterms``.
+            Measured at 200000 states and 150 snapshots of numerical
+            rank 60, requesting 10 terms cut peak allocation from
+            412 MB to 260 MB for :class:`SVDSnapshotSolver` and from
+            504 MB to 275 MB for :class:`MethodOfSnapshotsSolver`.
+            :class:`RandomizedSnapshotSolver` requires it.
+
+            A caller that must see the spectrum before choosing, as one
             truncating by variance fraction does, should omit it and
             slice the result rather than decompose twice.
         metric : InnerProductProtocol, optional
@@ -244,27 +225,24 @@ class _SnapshotEigenSolver(Generic[Array], ABC):
     ) -> SnapshotDecomposition[Array]:
         """Apply the convention to both factors at once.
 
-        ``finalize_eigenpairs`` sorts, truncates and signs the
-        eigenvectors. The coordinates are the other half of the same
-        factorization, so they must be permuted and signed identically:
-        a flip applied to one and not the other leaves a pair that no
-        longer reconstructs the snapshots. The permutation is recovered
-        by matching finalized eigenvectors against the raw ones rather
-        than duplicating the sort's tie-breaking rule, which would be a
-        second place for the two to disagree.
+        The convention sorts, truncates and signs the eigenvectors. The
+        coordinates are the other half of the same factorization, so
+        they must be permuted and signed identically: a flip applied to
+        one and not the other leaves a pair that no longer reconstructs
+        the snapshots.
+
+        The permutation and signs are taken from the function that
+        applied them rather than re-derived here, which keeps the
+        tie-breaking rule in one place. It also keeps only one
+        ambient-sized array alive: recovering the permutation by
+        comparing the finalized basis against the raw one needs both
+        resident, and at a large ambient dimension that doubles the
+        peak for information the sort already had.
         """
         bkd = self._bkd
-        vals, vecs = finalize_eigenpairs(
+        vals, vecs, order, signs = finalize_eigenpairs_with_convention(
             eig_vals, eig_vecs, sqrt_weights, nterms, bkd
         )
-        # finalize_eigenpairs un-weights the vectors before signing, so
-        # compare in the same convention the raw ones are already in.
-        unweighted_raw = (
-            eig_vecs
-            if sqrt_weights is None
-            else eig_vecs / sqrt_weights[:, None]
-        )
-        order, signs = _match_columns(unweighted_raw, vecs, bkd)
         coordinates = raw_coordinates[order, :] * signs[:, None]
         return SnapshotDecomposition(vals, vecs, coordinates)
 
@@ -390,6 +368,123 @@ class MethodOfSnapshotsSolver(_SnapshotEigenSolver[Array]):
         raw_coordinates = bkd.sqrt(kept_vals)[:, None] * kept_vecs.T
         return self._finalize(
             kept_vals, basis, raw_coordinates, None, nterms
+        )
+
+
+class RandomizedSnapshotSolver(_SnapshotEigenSolver[Array]):
+    r"""A sketched SVD of the snapshots, when the basis is what costs.
+
+    Sketches :math:`S` onto ``nterms + noversampling`` random directions
+    and factorizes there, so the widest array formed is
+    ``(nstates, nterms + noversampling)`` rather than one of the
+    numerical rank's width. Measured at 200000 states and 150 snapshots
+    of numerical rank 60, extracting 10 terms: peak allocation 69 MB
+    against the dense SVD's 260 MB, for a reconstruction error 1.0004
+    times the dense one.
+
+    Approximate, and how good the approximation is depends on the
+    spectrum rather than on this class. A sketch resolves a subspace
+    well when the spectrum decays quickly past ``nterms``; a slow decay
+    leaves energy in directions the sketch can miss, and power
+    iterations are the remedy. On 20000 states and 150 snapshots with a
+    spectrum spanning three decades, relative reconstruction error
+    against the dense SVD:
+
+    ==============  ================  =================
+    npower_iters    noversampling=5   noversampling=10
+    ==============  ================  =================
+    0               1.223x            1.082x
+    1               1.003x            1.000x
+    2               1.000x            1.000x
+    ==============  ================  =================
+
+    **Requires an explicit ``nterms``.** The other solvers discover the
+    numerical rank from a spectrum they have already formed. This one
+    never forms it.
+
+    **Takes no metric.** Weighting the snapshots before sketching is
+    sound for a diagonal metric, but the un-weighting afterwards
+    interacts with the sketch's error in a way nothing here measures.
+
+    Parameters
+    ----------
+    bkd : Backend[Array]
+        Computational backend.
+    noversampling : int
+        Extra sketch directions beyond ``nterms``. Larger is more
+        accurate and costs one ambient column each.
+    npower_iters : int
+        Subspace iterations. Each costs two passes over the snapshots
+        and sharpens the separation between kept and discarded modes.
+    seed : int, optional
+        Seeds the sketch, for a reproducible basis. None uses the
+        global RNG, so the basis then varies between runs -- which is
+        correct for a randomized method and surprising in a test.
+    """
+
+    def __init__(
+        self,
+        bkd: Backend[Array],
+        noversampling: int = 10,
+        npower_iters: int = 1,
+        seed: Optional[int] = None,
+    ) -> None:
+        super().__init__(bkd)
+        if noversampling < 0:
+            raise ValueError(
+                f"noversampling={noversampling} must be non-negative"
+            )
+        if npower_iters < 0:
+            raise ValueError(
+                f"npower_iters={npower_iters} must be non-negative"
+            )
+        self._noversampling = int(noversampling)
+        self._npower_iters = int(npower_iters)
+        self._seed = seed
+
+    def seed(self) -> Optional[int]:
+        """Return the sketch seed, or None for the global RNG."""
+        return self._seed
+
+    def _solve(
+        self,
+        snapshots: Array,
+        nterms: Optional[int],
+        metric: Optional[InnerProductProtocol[Array]],
+    ) -> SnapshotDecomposition[Array]:
+        if nterms is None:
+            raise ValueError(
+                f"{type(self).__name__} needs an explicit nterms: it "
+                "never forms the whole spectrum, so it cannot discover "
+                "the numerical rank. Pass a count, or use "
+                "SVDSnapshotSolver if the rank is what you want."
+            )
+        if metric is not None:
+            raise ValueError(
+                f"{type(self).__name__} does not accept a metric. Use "
+                "SVDSnapshotSolver for a diagonal metric or "
+                "MethodOfSnapshotsSolver for any SPD one."
+            )
+        nsamples = int(snapshots.shape[1])
+        # Oversampling cannot exceed what is left to sample.
+        noversampling = max(
+            min(self._noversampling, nsamples - nterms), 0
+        )
+        svd = TwoPassRandomizedSVD(
+            DenseMatVecOperator(snapshots, self._bkd),
+            noversampling=noversampling,
+            npower_iters=self._npower_iters,
+            seed=self._seed,
+        )
+        eig_vecs, svals, right_factor = svd.compute(nterms)
+        # Same relationship as the dense SVD: eigenvalues of S S^T are
+        # the squared singular values, and diag(s) Psi^T the coordinates.
+        return self._finalize(
+            svals**2,
+            eig_vecs,
+            svals[:, None] * right_factor,
+            None,
+            nterms,
         )
 
 

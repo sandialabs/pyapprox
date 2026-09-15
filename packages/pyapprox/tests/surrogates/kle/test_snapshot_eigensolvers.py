@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     MethodOfSnapshotsSolver,
+    RandomizedSnapshotSolver,
     SnapshotEigenSolverProtocol,
     SVDSnapshotSolver,
     default_snapshot_eigensolver,
@@ -351,3 +352,157 @@ class TestCoordinates:
             snaps,
             atol=1e-12,
         )
+
+
+def _decaying_snapshots(bkd, nstates=400, nsamples=60, rank=30, seed=0):
+    """Snapshots with a spectrum spanning three decades.
+
+    A sketch is accurate exactly when the discarded tail is small, so a
+    flat spectrum would test the method at its worst and a rank-deficient
+    one at its best. Three decades is the middle case, where the
+    approximation is good but not free.
+    """
+    rng = np.random.RandomState(seed)
+    left = rng.standard_normal((nstates, rank))
+    right = rng.standard_normal((rank, nsamples))
+    scale = np.logspace(0.0, -3.0, rank)
+    return bkd.array(left @ np.diag(scale) @ right)
+
+
+class TestRandomizedSnapshotSolver:
+    """The approximate solver, whose basis is sized by the request.
+
+    Tested against the dense SVD rather than against a threshold: the
+    question is never whether a sketch hits some absolute accuracy, but
+    whether it reaches what an exact solve would have on the same data.
+    """
+
+    def test_satisfies_the_protocol(self, bkd) -> None:
+        assert isinstance(
+            RandomizedSnapshotSolver(bkd), SnapshotEigenSolverProtocol
+        )
+
+    def test_basis_is_orthonormal(self, bkd) -> None:
+        """The convention every solver here shares."""
+        snaps = _decaying_snapshots(bkd)
+        basis = RandomizedSnapshotSolver(bkd, seed=0).solve(
+            snaps, 8
+        ).eigenvectors
+        bkd.assert_allclose(
+            basis.T @ basis, bkd.eye(8), atol=1e-12
+        )
+
+    def test_coordinates_reconstruct_the_projection(self, bkd) -> None:
+        """The two factors are consistent, as the bundle promises.
+
+        Weaker than reconstructing the snapshots, which an approximate
+        basis cannot do, and the right claim: the coordinates must be
+        the components *in the basis returned*, whatever that basis is.
+        """
+        snaps = _decaying_snapshots(bkd)
+        result = RandomizedSnapshotSolver(bkd, seed=0).solve(snaps, 8)
+        basis = result.eigenvectors
+        bkd.assert_allclose(
+            basis @ result.coordinates,
+            basis @ (basis.T @ snaps),
+            atol=1e-10,
+        )
+
+    def test_reaches_the_dense_subspace_with_power_iterations(
+        self, bkd
+    ) -> None:
+        """What the approximation costs, measured against the exact answer.
+
+        Asserted as a ratio to the dense reconstruction error rather
+        than as an absolute tolerance, since the achievable error is a
+        property of the spectrum and would have to be retuned for any
+        other data.
+        """
+        snaps = _decaying_snapshots(bkd)
+        nterms = 8
+
+        def relative_error(basis):
+            residual = snaps - basis @ (basis.T @ snaps)
+            return float(bkd.norm(residual) / bkd.norm(snaps))
+
+        dense = relative_error(
+            SVDSnapshotSolver(bkd).solve(snaps, nterms).eigenvectors
+        )
+        sketched = relative_error(
+            RandomizedSnapshotSolver(
+                bkd, noversampling=10, npower_iters=1, seed=0
+            )
+            .solve(snaps, nterms)
+            .eigenvectors
+        )
+        assert sketched < 1.05 * dense
+
+    def test_power_iterations_improve_a_poor_sketch(self, bkd) -> None:
+        """Why the knob exists, asserted rather than documented.
+
+        With no oversampling and no power iterations the sketch is
+        deliberately starved, so this compares a bad configuration
+        against a better one on identical data and seed. It would pass
+        vacuously if both were already converged, hence the starvation.
+        """
+        snaps = _decaying_snapshots(bkd)
+        nterms = 8
+
+        def relative_error(npower):
+            basis = (
+                RandomizedSnapshotSolver(
+                    bkd, noversampling=0, npower_iters=npower, seed=0
+                )
+                .solve(snaps, nterms)
+                .eigenvectors
+            )
+            residual = snaps - basis @ (basis.T @ snaps)
+            return float(bkd.norm(residual) / bkd.norm(snaps))
+
+        assert relative_error(2) < relative_error(0)
+
+    def test_the_seed_makes_the_basis_reproducible(self, bkd) -> None:
+        """A randomized method is otherwise different every run."""
+        snaps = _decaying_snapshots(bkd)
+        first = RandomizedSnapshotSolver(bkd, seed=3).solve(snaps, 6)
+        second = RandomizedSnapshotSolver(bkd, seed=3).solve(snaps, 6)
+        bkd.assert_allclose(
+            first.eigenvectors, second.eigenvectors, atol=0.0
+        )
+
+    def test_requires_an_explicit_nterms(self, bkd) -> None:
+        """It never forms the spectrum the rank would be read from."""
+        with pytest.raises(ValueError, match="explicit nterms"):
+            RandomizedSnapshotSolver(bkd).solve(_decaying_snapshots(bkd))
+
+    def test_refuses_a_metric(self, bkd) -> None:
+        """Rather than silently returning a Euclidean basis."""
+        nstates = 12
+        snaps = _decaying_snapshots(
+            bkd, nstates=nstates, nsamples=8, rank=6
+        )
+        metric = DiagonalInnerProduct(
+            _weights(bkd, nstates=nstates), bkd
+        )
+        with pytest.raises(ValueError, match="does not accept a metric"):
+            RandomizedSnapshotSolver(bkd).solve(snaps, 4, metric)
+
+    def test_rejects_negative_settings(self, bkd) -> None:
+        with pytest.raises(ValueError, match="non-negative"):
+            RandomizedSnapshotSolver(bkd, noversampling=-1)
+        with pytest.raises(ValueError, match="non-negative"):
+            RandomizedSnapshotSolver(bkd, npower_iters=-1)
+
+    def test_oversampling_is_clamped_to_the_sample_count(
+        self, bkd
+    ) -> None:
+        """Asking for more directions than exist is a setting, not an error.
+
+        The default oversampling exceeds the sample count for a small
+        problem, which a caller should not have to notice.
+        """
+        snaps = _decaying_snapshots(bkd, nstates=40, nsamples=12, rank=8)
+        result = RandomizedSnapshotSolver(
+            bkd, noversampling=100, seed=0
+        ).solve(snaps, 4)
+        assert result.eigenvectors.shape == (40, 4)
