@@ -13,6 +13,7 @@ from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     MethodOfSnapshotsSolver,
+    RandomizedSnapshotSolver,
     SVDSnapshotSolver,
 )
 from pyapprox.util.linalg.inner_product import (
@@ -211,17 +212,24 @@ class TestTermValidation:
     Requesting more terms than the data has rank used to succeed and
     return zero columns: modes the caller asked for, scaled by a zero
     singular value, indistinguishable from a genuinely tiny mode.
+
+    Two guards catch that, and the tests below say which is which. A
+    count above ``min(nstates, nsamples)`` is refused from the shape
+    alone, before any work. A count within that bound but above the
+    *numerical* rank is invisible to counting and is caught from the
+    spectrum instead.
     """
 
     def _data(self, bkd, ncoords=10, nsamples=6):
         return bkd.asarray(np.random.rand(ncoords, nsamples))
 
     def test_rejects_more_terms_than_samples(self, bkd) -> None:
-        with pytest.raises(ValueError, match="exceeds the .* modes"):
+        """Refused from the shape, so the decomposition never runs."""
+        with pytest.raises(ValueError, match="exceeds the rank"):
             DataDrivenKLE(self._data(bkd), nterms=7, bkd=bkd)
 
     def test_rejects_more_terms_than_coords(self, bkd) -> None:
-        with pytest.raises(ValueError, match="exceeds the .* modes"):
+        with pytest.raises(ValueError, match="exceeds the rank"):
             DataDrivenKLE(
                 self._data(bkd, ncoords=4, nsamples=20), nterms=5, bkd=bkd
             )
@@ -239,17 +247,19 @@ class TestTermValidation:
     def test_rejects_centered_data_at_full_sample_count(self, bkd) -> None:
         """Centering costs one term, which only the spectrum reveals.
 
-        Counting arguments cannot catch this: data centered by the
-        caller arrives as an ordinary matrix, so the rank drop from
-        nsamples to nsamples - 1 shows up only in the eigenvalues. The
-        shared truncation policy sees it, and reports the count that
-        actually exists rather than a bound computed from the shape.
+        The case the cheap guard cannot see, and the reason both exist.
+        Data centered by the caller arrives as an ordinary matrix whose
+        shape says ``nsamples`` modes are available, so ``nterms=6``
+        passes the counting check; the rank drop to ``nsamples - 1``
+        appears only in the eigenvalues. Matched on the eigenvalue
+        message to pin *which* guard fires, since a shape-based refusal
+        here would mean the spectrum was never consulted.
         """
         data = self._data(bkd)
         centered = data - bkd.reshape(
             bkd.mean(data, axis=1), (data.shape[0], 1)
         )
-        with pytest.raises(ValueError, match="exceeds the .* modes"):
+        with pytest.raises(ValueError, match="eigenvalues at or below"):
             DataDrivenKLE(centered, nterms=6, bkd=bkd)
 
     def test_accepts_centered_data_one_term_lower(self, bkd) -> None:
@@ -275,6 +285,42 @@ class TestTruncationArguments:
     def _data(self, bkd, ncoords=10, nsamples=8):
         rng = np.random.RandomState(0)
         return bkd.asarray(rng.standard_normal((ncoords, nsamples)))
+
+    def test_an_explicit_count_reaches_the_solver(self, bkd) -> None:
+        """Not merely applied afterwards, which two solvers cannot tell apart.
+
+        An approximate solver never forms the whole spectrum, so it has
+        no rank to report and refuses to be asked for one. Requesting
+        the count up front is what makes it usable here, and using one
+        as the eigensolver is how this test detects that the count was
+        passed rather than the result sliced.
+        """
+        kle = DataDrivenKLE(
+            self._data(bkd),
+            nterms=3,
+            bkd=bkd,
+            center=True,
+            eigensolver=RandomizedSnapshotSolver(bkd, seed=0),
+        )
+        assert kle.nterms() == 3
+        assert kle.eigenvectors().shape == (10, 3)
+
+    def test_a_variance_fraction_still_asks_for_everything(
+        self, bkd
+    ) -> None:
+        """It is a question about the discarded modes too.
+
+        The fraction cannot be resolved without the total variance, so
+        this policy keeps requesting the full spectrum -- and is
+        therefore available only from an exact solver.
+        """
+        kle = DataDrivenKLE(
+            self._data(bkd),
+            variance_fraction=0.9,
+            bkd=bkd,
+            center=True,
+        )
+        assert 0 < kle.nterms() <= 8
 
     def test_variance_fraction_keeps_fewer_modes_than_the_rank(
         self, bkd

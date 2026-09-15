@@ -50,10 +50,18 @@ class DataDrivenKLE(Generic[Array]):
         metric -- the SVD when it is diagonal, the method of snapshots
         otherwise -- mirroring the seam ``MeshKLE`` offers for the
         kernel-driven case.
+
+        An *approximate* solver constrains how the basis may be
+        truncated, because it never forms the whole spectrum. Pass
+        ``nterms``: both ``variance_fraction`` and the default of
+        keeping every mode carrying variance are questions about the
+        modes discarded as well as those kept, and such a solver has no
+        answer to give.
     variance_fraction : float, optional
         Keep the fewest modes carrying this fraction of the total
         variance, instead of a fixed ``nterms``. The two are alternative
-        answers to one question, so giving both is an error.
+        answers to one question, so giving both is an error. Requires an
+        exact ``eigensolver``.
     center : bool
         Subtract the sample mean before decomposing, and report it as
         the mean field. The default of False decomposes the samples as
@@ -192,12 +200,20 @@ class DataDrivenKLE(Generic[Array]):
         so the eigenvalues of C are S^2/(n-1) and its eigenvectors U.
         """
         bkd = self._bkd
-        # Solve for every mode carrying variance, then truncate. The
-        # solver forms the whole spectrum regardless, so a count given
-        # up front would save nothing and a variance fraction could not
-        # be answered at all without a second decomposition.
+        # Ask for the count when one was given. A variance fraction
+        # cannot be answered without the whole spectrum -- it is a
+        # question about the modes that were discarded as much as the
+        # ones kept -- so that case still requests everything and slices
+        # afterwards.
+        #
+        # The count is not merely a hint. An approximate solver never
+        # forms the whole spectrum and so cannot supply the numerical
+        # rank; passing None makes it unusable here rather than merely
+        # unhelped.
         decomposition = self._eigensolver.solve(
-            self._field_samples, None, self._metric
+            self._field_samples,
+            None if variance_fraction is not None else nterms,
+            self._metric,
         )
         eig_vals = decomposition.eigenvalues
         eig_vecs = decomposition.eigenvectors
