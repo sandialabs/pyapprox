@@ -19,6 +19,10 @@ the protocol's own shape, made concrete.
 
 from typing import Generic, Optional
 
+from pyapprox.surrogates.kle.basis_operator import (
+    BasisOperatorProtocol,
+    as_basis_operator,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -82,13 +86,19 @@ class PrecomputedKLE(Generic[Array]):
         self._bkd = bkd
         self._validate(eigenvalues, eigenvectors, mean_field)
         self._eig_vals = eigenvalues
-        self._unweighted_eig_vecs = eigenvectors
+        # Held through the operator seam rather than as an array, so a
+        # basis too large to materialize can be stored here unchanged.
+        # ArrayBasis is the resident implementation and costs nothing:
+        # its methods are the array expressions they replace.
+        self._basis = as_basis_operator(eigenvectors, bkd)
         self._mean_field = mean_field
         self._sigma = sigma
         self._use_log = use_log
         self._nterms = int(eigenvalues.shape[0])
         self._sqrt_eig_vals = bkd.sqrt(eigenvalues)
-        self._eig_vecs = eigenvectors * self._sqrt_eig_vals * sigma
+        # Only the unweighted basis is stored. The weighted one is it
+        # times a per-term factor, so holding both would keep two
+        # ambient-sized objects for the lifetime of the expansion.
 
     def _validate(
         self, eigenvalues: Array, eigenvectors: Array, mean_field: Array
@@ -147,7 +157,7 @@ class PrecomputedKLE(Generic[Array]):
 
     def npoints(self) -> int:
         """Return the number of points the basis is given at."""
-        return int(self._unweighted_eig_vecs.shape[0])
+        return self._basis.nstates()
 
     def eigenvalues(self) -> Array:
         """Return the eigenvalues, shape ``(nterms,)``."""
@@ -168,13 +178,33 @@ class PrecomputedKLE(Generic[Array]):
         """
         return self._bkd.sqrt(self._eig_vals)
 
+    def basis(self) -> BasisOperatorProtocol[Array]:
+        """The basis as operations rather than as an array.
+
+        What a consumer that can work blockwise should ask for. The
+        array accessors below have to materialize, which a basis larger
+        than memory cannot do.
+        """
+        return self._basis
+
     def eigenvectors(self) -> Array:
         """Unweighted eigenvectors, shape ``(npoints, nterms)``."""
-        return self._unweighted_eig_vecs
+        return self._basis.to_array()
 
     def weighted_eigenvectors(self) -> Array:
-        """Eigenvectors scaled by ``sqrt(eigenvalue)`` and sigma."""
-        return self._eig_vecs
+        """Eigenvectors scaled by ``sqrt(eigenvalue)`` and sigma.
+
+        Built on each call rather than stored: it is the unweighted
+        basis times a ``(nterms,)`` vector, and keeping both would
+        double what an expansion occupies for the whole of its life.
+        """
+        return self._weighted_basis().to_array()
+
+    def _weighted_basis(self) -> BasisOperatorProtocol[Array]:
+        """The basis with ``sqrt(eigenvalue)`` and sigma folded in."""
+        return self._basis.scale(self._sqrt_eig_vals).scale(
+            self._bkd.full((self._nterms,), self._sigma)
+        )
 
     def mean_field(self) -> Array:
         """Return the mean field, shape ``(npoints,)``."""
@@ -207,7 +237,9 @@ class PrecomputedKLE(Generic[Array]):
             raise ValueError(
                 f"coef.shape[0]={coef.shape[0]} != nterms={self._nterms}"
             )
-        field = self._mean_field[:, None] + self._eig_vecs @ coef
+        field = self._mean_field[:, None] + self._weighted_basis().apply(
+            coef
+        )
         if self._use_log:
             return self._bkd.exp(field)
         return field
