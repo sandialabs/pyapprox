@@ -86,6 +86,11 @@ rows, or a dimension query -- none of which needs an array.
 - BasisOperatorProtocol: those operations, as the seam
 - ArrayBasis: the resident implementation, and the reference any other
   is checked against
+- BasisSinkProtocol: where a basis computed one row block at a time is
+  put, since the code producing it has nowhere to hold the whole
+- ArrayBasisSink / MemmapBasisSink: to memory, or to a file
+- StreamingBasis: a basis read back in row blocks. Records selection and
+  scaling as a recipe applied per block, so composing them reads nothing
 
 Truncation
 ----------
@@ -111,6 +116,12 @@ from .basis_operator import (
     ArrayBasis,
     BasisOperatorProtocol,
     as_basis_operator,
+)
+from .basis_sinks import (
+    ArrayBasisSink,
+    BasisSinkProtocol,
+    MemmapBasisSink,
+    StreamingBasis,
 )
 from .data_driven_kle import DataDrivenKLE
 from .eigensolvers import (
@@ -195,6 +206,10 @@ __all__ = [
     "BasisOperatorProtocol",
     "ArrayBasis",
     "as_basis_operator",
+    "BasisSinkProtocol",
+    "ArrayBasisSink",
+    "MemmapBasisSink",
+    "StreamingBasis",
     "default_snapshot_eigensolver",
     # Truncation
     "by_count",
