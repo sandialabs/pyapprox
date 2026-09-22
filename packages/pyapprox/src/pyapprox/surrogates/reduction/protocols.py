@@ -68,7 +68,15 @@ class ManifoldDecoderProtocol(LinearDecoderProtocol[Array], Protocol):
     """
 
     def weights(self) -> Array:
-        """The correction weights W. Shape: (full_dim, nterms)."""
+        """The correction weights W. Shape: (full_dim, nterms).
+
+        An array, so an implementation holding W out of core
+        materializes here. That is the right contract for the accessor:
+        every consumer that wants W *as a matrix* -- serialization,
+        plotting, inspection -- wants an array, and one that only needs
+        to contract against it should take the implementation's own
+        operator accessor instead of going through the protocol.
+        """
         ...
 
     def feature_map(self) -> DifferentiableFeatureMap[Array]:

@@ -89,9 +89,17 @@ from __future__ import annotations
 import warnings
 from typing import Generic, List, Optional, Sequence, Tuple
 
+from pyapprox.surrogates.kle.basis_operator import (
+    BasisOperatorProtocol,
+    as_basis_operator,
+)
+from pyapprox.surrogates.kle.basis_sinks import BasisSinkProtocol
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     SnapshotDecomposition,
     SnapshotEigenSolverProtocol,
+)
+from pyapprox.surrogates.kle.snapshot_sources import (
+    SnapshotSourceProtocol,
 )
 from pyapprox.surrogates.reduction.feature_maps import (
     DifferentiableFeatureMap,
@@ -100,6 +108,11 @@ from pyapprox.surrogates.reduction.feature_maps import (
 from pyapprox.surrogates.reduction.manifold_scoring import (
     ManifoldScorer,
     center_and_decompose,
+)
+from pyapprox.surrogates.reduction.manifold_streaming import (
+    CenteredSource,
+    fit_weights_from_source,
+    select_gamma_from_source,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import InnerProductProtocol
@@ -115,8 +128,8 @@ class MonomialManifoldEncoder(Generic[Array]):
 
     def __init__(
         self,
-        basis: Array,
-        weights: Array,
+        basis: "Array | BasisOperatorProtocol[Array]",
+        weights: "Array | BasisOperatorProtocol[Array]",
         feature_map: DifferentiableFeatureMap[Array],
         mean: Array,
         bkd: Backend[Array],
@@ -127,9 +140,11 @@ class MonomialManifoldEncoder(Generic[Array]):
         """
         Parameters
         ----------
-        basis : Array
+        basis : Array or BasisOperatorProtocol
             Shape: (full_dim, latent_dim). The selected singular vectors.
-        weights : Array
+            An operator when the basis is too large to hold; the array
+            form is wrapped in one, which costs nothing.
+        weights : Array or BasisOperatorProtocol
             Shape: (full_dim, nterms). The correction weight matrix W.
         feature_map : DifferentiableFeatureMap
             The fixed nonlinear feature map h. Its Jacobian is what lets
@@ -149,8 +164,14 @@ class MonomialManifoldEncoder(Generic[Array]):
             ``h h^T + fit_gamma I`` inverted in the fit, a direct measure
             of the least-squares conditioning. Retained for diagnostics.
         """
-        self._basis = basis
-        self._weights = weights
+        # Held through the operator seam rather than as arrays. Both are
+        # (full_dim, k) and so are the two objects here that a large
+        # ambient dimension puts out of reach; decode and
+        # decode_jacobian contract against them and need nothing else.
+        # ArrayBasis is the resident implementation and costs nothing --
+        # its methods are the array expressions they replace.
+        self._basis = as_basis_operator(basis, bkd)
+        self._weights = as_basis_operator(weights, bkd)
         self._feature_map = feature_map
         self._mean = mean
         self._bkd = bkd
@@ -164,11 +185,11 @@ class MonomialManifoldEncoder(Generic[Array]):
 
     def full_dim(self) -> int:
         """Dimension of the ambient state."""
-        return int(self._basis.shape[0])
+        return self._basis.nstates()
 
     def latent_dim(self) -> int:
         """Dimension of the latent space."""
-        return int(self._basis.shape[1])
+        return self._basis.nterms()
 
     def encode(self, samples: Array) -> Array:
         r"""Full to latent, ``z = V^T (s - mu)``.
@@ -197,16 +218,15 @@ class MonomialManifoldEncoder(Generic[Array]):
         a fit measuring error in :math:`\|\cdot\|_M` is improved by a
         better latent map, never by "fixing" this projection.
         """
-        return self._bkd.dot(self._basis.T, samples - self._mean)
+        return self._basis.apply_transpose(samples - self._mean)
 
     def decode(self, latents: Array) -> Array:
         """Latent to full, ``s = mu + V z + W h(z)``.
 
         ``(latent_dim, N) -> (full_dim, N)``.
         """
-        bkd = self._bkd
-        linear = bkd.dot(self._basis, latents) + self._mean
-        correction = bkd.dot(self._weights, self._feature_map(latents))
+        linear = self._basis.apply(latents) + self._mean
+        correction = self._weights.apply(self._feature_map(latents))
         return linear + correction
 
     def decode_jacobian(self, latents: Array) -> Array:
@@ -231,7 +251,11 @@ class MonomialManifoldEncoder(Generic[Array]):
                 f"shape (latent_dim, 1), got {tuple(latents.shape)}."
             )
         feature_jac = self._feature_map.jacobian(latents)[:, :, 0]
-        return self._basis + self._bkd.dot(self._weights, feature_jac)
+        # The sum needs V itself, not a contraction of it, so this is
+        # the one method that materializes. Its result is
+        # (full_dim, latent_dim) regardless, so a caller who cannot hold
+        # the basis cannot hold the Jacobian either.
+        return self._basis.to_array() + self._weights.apply(feature_jac)
 
     def is_isometry(self) -> bool:
         """Whether encoding preserves the norm. Never, for a manifold.
@@ -247,11 +271,32 @@ class MonomialManifoldEncoder(Generic[Array]):
         return False
 
     def basis(self) -> Array:
-        """The basis matrix V, shape (full_dim, latent_dim)."""
-        return self._basis
+        """The basis matrix V, shape (full_dim, latent_dim).
+
+        Materializes. A basis held out of core may not fit, in which
+        case :meth:`basis_operator` is what a consumer wants -- every
+        use of V here is a contraction, which needs no array.
+        """
+        return self._basis.to_array()
 
     def weights(self) -> Array:
-        """The correction weight matrix W, shape (full_dim, nterms)."""
+        """The correction weight matrix W, shape (full_dim, nterms).
+
+        Materializes, as :meth:`basis` does, and
+        :meth:`weights_operator` is the counterpart that does not.
+        """
+        return self._weights.to_array()
+
+    def basis_operator(self) -> BasisOperatorProtocol[Array]:
+        """V as operations rather than as an array.
+
+        What :meth:`encode` and :meth:`decode` contract against, and so
+        what a consumer working blockwise should ask for.
+        """
+        return self._basis
+
+    def weights_operator(self) -> BasisOperatorProtocol[Array]:
+        """W as operations rather than as an array."""
         return self._weights
 
     def feature_map(self) -> DifferentiableFeatureMap[Array]:
@@ -465,6 +510,90 @@ class MonomialManifoldEncoder(Generic[Array]):
             selected_indices=selected,
             fit_gamma=gamma,
             gram_cond=gram_cond,
+        )
+
+    @classmethod
+    def fit_from_source(
+        cls,
+        source: SnapshotSourceProtocol[Array],
+        basis: Array,
+        feature_map: DifferentiableFeatureMap[Array],
+        mean: Array,
+        sink: BasisSinkProtocol[Array],
+        bkd: Backend[Array],
+        gamma: float = 0.0,
+        gamma_grid: Optional[Sequence[float]] = None,
+        validation: Optional[SnapshotSourceProtocol[Array]] = None,
+        max_bytes: Optional[int] = None,
+    ) -> "MonomialManifoldEncoder[Array]":
+        r"""Fit the correction from snapshots too large to hold.
+
+        Takes the basis rather than selecting one, which is the whole
+        difference from :meth:`fit_from_data`. Selection needs the
+        snapshot coordinates, and how those are obtained -- a resident
+        decomposition, a streamed one, a basis loaded from a file --
+        is a separate decision from how the correction is fitted. A
+        caller who wants both streamed decomposes with
+        :class:`~pyapprox.surrogates.kle.snapshot_eigensolvers.RandomizedSnapshotSolver`
+        and passes the basis here.
+
+        Parameters
+        ----------
+        source : SnapshotSourceProtocol
+            The snapshots, in row blocks. **Not** centered: ``mean`` is
+            subtracted per block, so a caller need not hold a centered
+            copy beside the original.
+        basis : Array
+            Shape (full_dim, latent_dim), already selected.
+        feature_map : DifferentiableFeatureMap
+            The fixed nonlinear feature map h.
+        mean : Array
+            Shape (full_dim, 1). Subtracted from every block.
+        sink : BasisSinkProtocol
+            Where the ``(full_dim, nterms)`` weights go.
+        bkd : Backend
+            Computational backend.
+        gamma : float
+            Ridge parameter, ignored when ``gamma_grid`` is given.
+        gamma_grid : sequence of float, optional
+            Candidate gammas to select among by held-out error.
+        validation : SnapshotSourceProtocol, optional
+            Held-out snapshots, required with ``gamma_grid`` and
+            centered the same way.
+        max_bytes : int, optional
+            Byte budget per row block.
+        """
+        centered = CenteredSource(source, mean, bkd)
+        if gamma_grid is not None:
+            if validation is None:
+                raise ValueError(
+                    "gamma_grid requires validation to select gamma"
+                )
+            gamma, _ = select_gamma_from_source(
+                centered,
+                CenteredSource(validation, mean, bkd),
+                basis,
+                feature_map,
+                gamma_grid,
+                bkd,
+                max_bytes=max_bytes,
+            )
+        weights = fit_weights_from_source(
+            centered,
+            basis,
+            feature_map,
+            gamma,
+            sink,
+            bkd,
+            max_bytes=max_bytes,
+        )
+        return cls(
+            basis,
+            weights,
+            feature_map,
+            mean,
+            bkd,
+            fit_gamma=gamma,
         )
 
     @staticmethod

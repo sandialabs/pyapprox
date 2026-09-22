@@ -27,6 +27,8 @@ dimension they are the object that does not fit. The fit streams
 readily: the matrix it inverts is (p, p) and contracts over snapshots,
 so each row of W depends only on the same row of the data.
 
+- CenteredSource: subtracts the mean as each block is read, so a
+  centered copy of the data is never held
 - encode_from_source: V^T S, accumulated over row blocks
 - fit_weights_from_source: W a row block at a time, into a sink
 - select_gamma_from_source: held-out gamma selection with the gamma loop
@@ -49,6 +51,7 @@ from pyapprox.surrogates.reduction.manifold_scoring import (
     center_and_decompose,
 )
 from pyapprox.surrogates.reduction.manifold_streaming import (
+    CenteredSource,
     encode_from_source,
     fit_weights_from_source,
     select_gamma_from_source,
@@ -74,6 +77,7 @@ __all__ = [
     "LinearDecoderProtocol",
     "ManifoldDecoderProtocol",
     "ManifoldScorer",
+    "CenteredSource",
     "encode_from_source",
     "fit_weights_from_source",
     "select_gamma_from_source",

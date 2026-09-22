@@ -12,12 +12,17 @@ the block budget rather than the dataset, and the gamma grid must not
 cost one ambient array per gamma.
 """
 
+import os
 import tracemalloc
 from typing import Any, List
 
 import numpy as np
 import pytest
-from pyapprox.surrogates.kle.basis_sinks import ArrayBasisSink
+from pyapprox.surrogates.kle.basis_operator import ArrayBasis
+from pyapprox.surrogates.kle.basis_sinks import (
+    ArrayBasisSink,
+    MemmapBasisSink,
+)
 from pyapprox.surrogates.kle.snapshot_sources import ArraySnapshotSource
 from pyapprox.surrogates.reduction.feature_maps import MonomialFeatureMap
 from pyapprox.surrogates.reduction.manifold_scoring import ManifoldScorer
@@ -25,6 +30,9 @@ from pyapprox.surrogates.reduction.manifold_streaming import (
     encode_from_source,
     fit_weights_from_source,
     select_gamma_from_source,
+)
+from pyapprox.surrogates.reduction.monomial_manifold import (
+    MonomialManifoldEncoder,
 )
 from pyapprox.util.backends.protocols import Backend
 
@@ -406,3 +414,195 @@ class TestNothingAmbientSizedIsFormed:
         sink_bytes = NSTATES * feature_map.nterms() * 8
         assert peak - sink_bytes < 16 * budget
         assert 16 * budget < dataset_bytes
+
+
+class TestTheEncoderHoldsOperators:
+    """Option 3: array accessors kept, operator accessors added.
+
+    The operator is the primitive -- ``decode`` and ``encode`` contract
+    against it, so they stay correct when the matrix is backed by a
+    file. The array accessor materializes, which every existing caller
+    and every small problem can afford.
+    """
+
+    def test_both_accessors_agree(self, bkd: Backend) -> None:
+        centered, _, basis, feature_map, scorer = _setup(bkd)
+        weights = scorer.fit_weights(
+            centered, basis, feature_map, GAMMA
+        )
+        encoder = MonomialManifoldEncoder(
+            basis, weights, feature_map, bkd.zeros((NSTATES, 1)), bkd
+        )
+        bkd.assert_allclose(
+            encoder.weights_operator().to_array(),
+            encoder.weights(),
+            atol=0.0,
+        )
+        bkd.assert_allclose(
+            encoder.basis_operator().to_array(),
+            encoder.basis(),
+            atol=0.0,
+        )
+
+    def test_an_array_is_accepted_unchanged(self, bkd: Backend) -> None:
+        """Existing callers pass arrays and must keep working."""
+        centered, _, basis, feature_map, scorer = _setup(bkd)
+        weights = scorer.fit_weights(
+            centered, basis, feature_map, GAMMA
+        )
+        encoder = MonomialManifoldEncoder(
+            basis, weights, feature_map, bkd.zeros((NSTATES, 1)), bkd
+        )
+        bkd.assert_allclose(encoder.weights(), weights, atol=0.0)
+        bkd.assert_allclose(encoder.basis(), basis, atol=0.0)
+
+    def test_an_operator_backing_decodes_identically(
+        self, bkd: Backend
+    ) -> None:
+        """The point of the change: decode does not care which it holds."""
+        centered, _, basis, feature_map, scorer = _setup(bkd)
+        weights = scorer.fit_weights(
+            centered, basis, feature_map, GAMMA
+        )
+        mean = bkd.zeros((NSTATES, 1))
+        from_arrays = MonomialManifoldEncoder(
+            basis, weights, feature_map, mean, bkd
+        )
+        from_operators = MonomialManifoldEncoder(
+            ArrayBasis(basis, bkd),
+            ArrayBasis(weights, bkd),
+            feature_map,
+            mean,
+            bkd,
+        )
+        latents = from_arrays.encode(centered)
+        bkd.assert_allclose(
+            from_operators.decode(latents),
+            from_arrays.decode(latents),
+            atol=0.0,
+        )
+        bkd.assert_allclose(
+            from_operators.decode_jacobian(latents[:, :1]),
+            from_arrays.decode_jacobian(latents[:, :1]),
+            atol=0.0,
+        )
+
+
+class TestFittingAnEncoderFromASource:
+    """``fit_from_source``, the streamed counterpart of the builder."""
+
+    def test_matches_a_resident_fit(self, bkd: Backend) -> None:
+        centered, _, basis, feature_map, scorer = _setup(bkd)
+        mean = bkd.zeros((NSTATES, 1))
+        expected = scorer.fit_weights(
+            centered, basis, feature_map, GAMMA
+        )
+        encoder = MonomialManifoldEncoder.fit_from_source(
+            ArraySnapshotSource(centered, bkd),
+            basis,
+            feature_map,
+            mean,
+            ArrayBasisSink(NSTATES, feature_map.nterms(), bkd),
+            bkd,
+            gamma=GAMMA,
+        )
+        bkd.assert_allclose(encoder.weights(), expected, atol=1e-11)
+
+    def test_the_mean_is_removed_per_block(self, bkd: Backend) -> None:
+        """A source of raw snapshots plus a mean, never a centered copy.
+
+        Checked against the resident fit on an explicitly centered
+        array: the two must agree, which they only do if every block had
+        the mean subtracted.
+        """
+        centered, _, basis, feature_map, _ = _setup(bkd)
+        rng = np.random.RandomState(11)
+        mean = bkd.array(rng.standard_normal((NSTATES, 1)))
+        raw = centered + mean
+        scorer = ManifoldScorer(
+            bkd.dot(basis.T, centered), GAMMA, bkd
+        )
+        expected = scorer.fit_weights(
+            centered, basis, feature_map, GAMMA
+        )
+        encoder = MonomialManifoldEncoder.fit_from_source(
+            ArraySnapshotSource(raw, bkd),
+            basis,
+            feature_map,
+            mean,
+            ArrayBasisSink(NSTATES, feature_map.nterms(), bkd),
+            bkd,
+            gamma=GAMMA,
+        )
+        bkd.assert_allclose(encoder.weights(), expected, atol=1e-11)
+
+    def test_a_gamma_grid_selects_the_same_gamma(
+        self, bkd: Backend
+    ) -> None:
+        centered, validation, basis, feature_map, scorer = _setup(bkd)
+        grid = [1e-8, 1e-6, 1e-3, 1.0]
+        expected = scorer.select_gamma(
+            centered, basis, feature_map, grid, validation
+        )
+        encoder = MonomialManifoldEncoder.fit_from_source(
+            ArraySnapshotSource(centered, bkd),
+            basis,
+            feature_map,
+            bkd.zeros((NSTATES, 1)),
+            ArrayBasisSink(NSTATES, feature_map.nterms(), bkd),
+            bkd,
+            gamma_grid=grid,
+            validation=ArraySnapshotSource(validation, bkd),
+        )
+        assert encoder.fit_gamma() == expected
+
+    def test_a_gamma_grid_without_validation_is_rejected(
+        self, bkd: Backend
+    ) -> None:
+        centered, _, basis, feature_map, _ = _setup(bkd)
+        with pytest.raises(ValueError, match="requires validation"):
+            MonomialManifoldEncoder.fit_from_source(
+                ArraySnapshotSource(centered, bkd),
+                basis,
+                feature_map,
+                bkd.zeros((NSTATES, 1)),
+                ArrayBasisSink(NSTATES, feature_map.nterms(), bkd),
+                bkd,
+                gamma_grid=[1e-6, 1e-3],
+            )
+
+    def test_a_memmap_backed_encoder_decodes_identically(
+        self, bkd: Backend, tmp_path: Any
+    ) -> None:
+        """The weights live in a file and decode does not notice."""
+        centered, _, basis, feature_map, _ = _setup(bkd)
+        mean = bkd.zeros((NSTATES, 1))
+        resident = MonomialManifoldEncoder.fit_from_source(
+            ArraySnapshotSource(centered, bkd),
+            basis,
+            feature_map,
+            mean,
+            ArrayBasisSink(NSTATES, feature_map.nterms(), bkd),
+            bkd,
+            gamma=GAMMA,
+        )
+        streamed = MonomialManifoldEncoder.fit_from_source(
+            ArraySnapshotSource(centered, bkd),
+            basis,
+            feature_map,
+            mean,
+            MemmapBasisSink(
+                os.path.join(str(tmp_path), "w.dat"),
+                NSTATES,
+                feature_map.nterms(),
+                bkd,
+            ),
+            bkd,
+            gamma=GAMMA,
+        )
+        latents = resident.encode(centered)
+        bkd.assert_allclose(
+            streamed.decode(latents),
+            resident.decode(latents),
+            atol=1e-13,
+        )

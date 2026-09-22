@@ -56,6 +56,67 @@ from pyapprox.surrogates.reduction.feature_maps import FeatureMap
 from pyapprox.util.backends.protocols import Array, Backend
 
 
+class CenteredSource(Generic[Array]):
+    """A source with the mean subtracted as each block is read.
+
+    The fit works on centered snapshots, and the resident path takes a
+    ``centered`` array the caller has already formed -- a second copy of
+    the data. Subtracting per block instead means the only ambient array
+    involved is the mean itself, which is ``(nstates, 1)`` and is needed
+    by the decoder regardless.
+
+    Parameters
+    ----------
+    source : SnapshotSourceProtocol[Array]
+        The raw snapshots.
+    mean : Array, shape (nstates, 1) or (nstates,)
+        Subtracted from every block. A column vector, matching what the
+        encoder stores.
+    bkd : Backend[Array]
+        Computational backend.
+    """
+
+    def __init__(
+        self,
+        source: SnapshotSourceProtocol[Array],
+        mean: Array,
+        bkd: Backend[Array],
+    ) -> None:
+        if int(mean.shape[0]) != source.nstates():
+            raise ValueError(
+                f"mean has {mean.shape[0]} entries but the source has "
+                f"{source.nstates()} states"
+            )
+        self._source = source
+        self._mean = mean if mean.ndim == 2 else mean[:, None]
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def nstates(self) -> int:
+        """Return the ambient dimension."""
+        return self._source.nstates()
+
+    def nsamples(self) -> int:
+        """Return the number of snapshots."""
+        return self._source.nsamples()
+
+    def row_blocks(
+        self, max_bytes: Optional[int] = None
+    ) -> Iterator[Tuple[slice, Array]]:
+        """Yield the underlying blocks, each with the mean removed."""
+        for rows, block in self._source.row_blocks(max_bytes):
+            yield rows, block - self._mean[rows, :]
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}(nstates={self.nstates()}, "
+            f"nsamples={self.nsamples()})"
+        )
+
+
 def encode_from_source(
     source: SnapshotSourceProtocol[Array],
     basis: Array,
