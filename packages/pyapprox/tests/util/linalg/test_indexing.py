@@ -1,7 +1,6 @@
 """Tests for indexing utilities."""
 
 import numpy as np
-
 from pyapprox.util.linalg.indexing import extract_submatrix
 
 

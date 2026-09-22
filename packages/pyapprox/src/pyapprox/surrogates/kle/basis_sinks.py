@@ -7,10 +7,11 @@ is the output side of the same problem. A basis is
 -- smaller than the data it came from, but past the point where it can be
 assembled in memory and handed back as an array.
 
-The lift that produces it computes one row block at a time and has
-nowhere to put the result. A sink is that somewhere. It receives
-``(rows, block)`` in the same shape the source yields, so the lift is a
-loop that reads a block and writes a block, holding neither end.
+The lift that produces it -- :func:`~pyapprox.surrogates.kle.basis_lift.lift_basis`
+-- computes one row block at a time and has nowhere to put the result.
+A sink is that somewhere. It receives ``(rows, block)`` in the same
+shape the source yields, so the lift is a loop that reads a block and
+writes a block, holding neither end.
 
 **A sink is write-once and then readable.** :meth:`BasisSinkProtocol.write`
 accumulates, :meth:`BasisSinkProtocol.finalize` closes and returns a

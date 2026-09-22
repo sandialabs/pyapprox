@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from pyapprox.util.linalg.cholesky_factor import CholeskyFactor
 
 

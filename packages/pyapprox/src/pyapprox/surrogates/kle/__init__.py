@@ -91,6 +91,13 @@ rows, or a dimension query -- none of which needs an array.
 - ArrayBasisSink / MemmapBasisSink: to memory, or to a file
 - StreamingBasis: a basis read back in row blocks. Records selection and
   scaling as a recipe applied per block, so composing them reads nothing
+- lift_basis: forms the ambient basis from the small right factor a
+  decomposition already holds, writing it to a sink a block at a time.
+  The one step in a snapshot decomposition that needs the ambient
+  dimension, so the solvers supply only their own factor
+- pivot_signs: the sign convention over row blocks, exact rather than
+  approximate. Applied to the small factor rather than the basis, since
+  a column scaling commutes through the lift
 
 Truncation
 ----------
@@ -112,6 +119,7 @@ Analytical
 """
 
 from .analytical import AnalyticalExponentialKLE1D
+from .basis_lift import lift_basis, pivot_signs
 from .basis_operator import (
     ArrayBasis,
     BasisOperatorProtocol,
@@ -210,6 +218,8 @@ __all__ = [
     "ArrayBasisSink",
     "MemmapBasisSink",
     "StreamingBasis",
+    "lift_basis",
+    "pivot_signs",
     "default_snapshot_eigensolver",
     # Truncation
     "by_count",

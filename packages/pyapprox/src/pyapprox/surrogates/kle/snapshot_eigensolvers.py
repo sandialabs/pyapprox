@@ -53,16 +53,29 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.surrogates.kle.basis_lift import lift_basis, pivot_signs
+from pyapprox.surrogates.kle.basis_operator import (
+    BasisOperatorProtocol,
+)
+from pyapprox.surrogates.kle.basis_sinks import (
+    ArrayBasisSink,
+    BasisSinkProtocol,
+)
 from pyapprox.surrogates.kle.eigensolvers import (
     finalize_eigenpairs_with_convention,
 )
 from pyapprox.surrogates.kle.snapshot_sources import (
+    ArraySnapshotSource,
     SnapshotSourceOperator,
     SnapshotSourceProtocol,
+    as_snapshot_source,
 )
 from pyapprox.surrogates.kle.truncation import by_numerical_rank
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import InnerProductProtocol
+from pyapprox.util.linalg.orthonormalize import (
+    OrthonormalizerProtocol,
+)
 from pyapprox.util.linalg.randomized import (
     DenseMatVecOperator,
     MatVecOperator,
@@ -106,6 +119,30 @@ class SnapshotDecomposition(Generic[Array]):
 
     eigenvalues: Array
     eigenvectors: Array
+    coordinates: Array
+
+    def nterms(self) -> int:
+        """Number of retained modes."""
+        return int(self.eigenvalues.shape[0])
+
+
+@dataclass(frozen=True)
+class SnapshotBasisDecomposition(Generic[Array]):
+    r"""A decomposition whose basis was written rather than returned.
+
+    :class:`SnapshotDecomposition` with one field changed: the basis is
+    a :class:`~pyapprox.surrogates.kle.basis_operator.BasisOperatorProtocol`
+    rather than an array, because at a large ambient dimension it is the
+    one piece that cannot be returned by value.
+
+    A separate type rather than a widened field on
+    :class:`SnapshotDecomposition`, so that consumers expecting an array
+    keep getting one and a caller who asked for a sink is the only one
+    who has to handle an operator.
+    """
+
+    eigenvalues: Array
+    basis: BasisOperatorProtocol[Array]
     coordinates: Array
 
     def nterms(self) -> int:
@@ -421,7 +458,18 @@ class MethodOfSnapshotsSolver(Generic[Array]):
 
         # V = S Q / sqrt(lambda) is M-orthonormal:
         # V^T M V = diag(1/sqrt(l)) Q^T (S^T M S) Q diag(1/sqrt(l)) = I.
-        basis = bkd.dot(snapshots, kept_vecs) / bkd.sqrt(kept_vals)
+        # Through lift_basis so the blocked and resident paths share one
+        # implementation; here the source and sink are both arrays, so
+        # it is the expression above with the loop running once. The
+        # convention is applied below by bundle_decomposition, which
+        # signs the coordinates to match, so it is not applied twice.
+        basis = lift_basis(
+            ArraySnapshotSource(snapshots, bkd),
+            kept_vecs / bkd.sqrt(kept_vals),
+            ArrayBasisSink(nstates, nterms, bkd),
+            bkd,
+            apply_sign_convention=False,
+        ).to_array()
         # The Gram eigenvectors are the right singular factor: for
         # S = Phi diag(s) Psi^T the Gram S^T M S has eigenvectors Psi and
         # eigenvalues s^2, so the coordinates diag(s) Psi^T are
@@ -489,6 +537,9 @@ class RandomizedSnapshotSolver(Generic[Array]):
         noversampling: int = 10,
         npower_iters: int = 1,
         seed: Optional[int] = None,
+        orthonormalizer: Optional[
+            OrthonormalizerProtocol[Array]
+        ] = None,
     ) -> None:
         self._bkd = bkd
         if noversampling < 0:
@@ -502,10 +553,21 @@ class RandomizedSnapshotSolver(Generic[Array]):
         self._noversampling = int(noversampling)
         self._npower_iters = int(npower_iters)
         self._seed = seed
+        # Passed through to the decomposition, which orthonormalizes a
+        # sketch wider than the basis it yields. The default holds that
+        # sketch in memory; a blocked implementation is how the ambient
+        # dimension is removed from the peak entirely.
+        self._orthonormalizer = orthonormalizer
 
     def seed(self) -> Optional[int]:
         """Return the sketch seed, or None for the global RNG."""
         return self._seed
+
+    def orthonormalizer(
+        self,
+    ) -> Optional[OrthonormalizerProtocol[Array]]:
+        """Return the injected orthonormalizer, or None for the default."""
+        return self._orthonormalizer
 
     def solve(
         self,
@@ -526,16 +588,12 @@ class RandomizedSnapshotSolver(Generic[Array]):
         block whenever the metric couples them.
         """
         if isinstance(snapshots, SnapshotSourceProtocol):
-            operator: MatVecOperator[Array] = SnapshotSourceOperator(
-                snapshots, self._bkd
-            )
             nstates, nsamples = (
                 snapshots.nstates(),
                 snapshots.nsamples(),
             )
         else:
             nstates, nsamples = snapshot_shape(snapshots)
-            operator = DenseMatVecOperator(snapshots, self._bkd)
         validate_snapshot_arguments(nstates, nsamples, nterms, metric)
         if nterms is None:
             raise ValueError(
@@ -550,16 +608,7 @@ class RandomizedSnapshotSolver(Generic[Array]):
                 "SVDSnapshotSolver for a diagonal metric or "
                 "MethodOfSnapshotsSolver for any SPD one."
             )
-        # Oversampling cannot exceed what is left to sample.
-        noversampling = max(
-            min(self._noversampling, nsamples - nterms), 0
-        )
-        svd = TwoPassRandomizedSVD(
-            operator,
-            noversampling=noversampling,
-            npower_iters=self._npower_iters,
-            seed=self._seed,
-        )
+        svd = self._build_sketch(snapshots, nterms, nsamples)
         eig_vecs, svals, right_factor = svd.compute(nterms)
         # Same relationship as the dense SVD: eigenvalues of S S^T are
         # the squared singular values, and diag(s) Psi^T the coordinates.
@@ -570,6 +619,104 @@ class RandomizedSnapshotSolver(Generic[Array]):
             None,
             nterms,
             self._bkd,
+        )
+
+    def _build_sketch(
+        self,
+        snapshots: "Array | SnapshotSourceProtocol[Array]",
+        nterms: int,
+        nsamples: int,
+    ) -> TwoPassRandomizedSVD[Array]:
+        """Configure the sketch, whatever the snapshots arrived as.
+
+        Shared so ``solve`` and ``solve_to_sink`` agree by construction:
+        the same seed and oversampling must produce the same sketch, or
+        the two paths would return different bases from one dataset.
+        """
+        if isinstance(snapshots, SnapshotSourceProtocol):
+            operator: MatVecOperator[Array] = SnapshotSourceOperator(
+                snapshots, self._bkd
+            )
+        else:
+            operator = DenseMatVecOperator(snapshots, self._bkd)
+        return TwoPassRandomizedSVD(
+            operator,
+            # Oversampling cannot exceed what is left to sample.
+            noversampling=max(
+                min(self._noversampling, nsamples - nterms), 0
+            ),
+            npower_iters=self._npower_iters,
+            seed=self._seed,
+            orthonormalizer=self._orthonormalizer,
+        )
+
+    def solve_to_sink(
+        self,
+        snapshots: "Array | SnapshotSourceProtocol[Array]",
+        nterms: int,
+        sink: BasisSinkProtocol[Array],
+        max_bytes: Optional[int] = None,
+    ) -> "SnapshotBasisDecomposition[Array]":
+        r"""Decompose, writing the basis to ``sink`` rather than returning it.
+
+        :meth:`solve` ends by forming an ``(nstates, nterms)`` array. So
+        does the sketch it is built from, which is
+        ``(nstates, nterms + noversampling)`` -- wider by exactly the
+        oversampling, and therefore the larger of the two. Sending the
+        basis to a sink removes the smaller: peak memory falls by
+        ``nterms / (2 * nterms + noversampling)``, and the *result* may
+        then exceed memory even though the working set may not.
+
+        Removing the sketch as well needs an orthonormalization that
+        reads row blocks, which is injected into the decomposition
+        rather than written here --
+        :class:`~pyapprox.util.linalg.orthonormalize.OrthonormalizerProtocol`.
+
+        Returns
+        -------
+        SnapshotBasisDecomposition[Array]
+            The eigenvalues and coordinates as :meth:`solve` returns
+            them, with the basis as an operator rather than an array --
+            the one field that could not be returned by value.
+        """
+        source = as_snapshot_source(snapshots, self._bkd)
+        validate_snapshot_arguments(
+            source.nstates(), source.nsamples(), nterms, None
+        )
+        factored = self._build_sketch(
+            source, nterms, source.nsamples()
+        ).compute_factored(nterms)
+        # The sketch plays the part the snapshots play in lift_basis:
+        # an (nstates, k) array contracted against a small factor on
+        # the right. ArraySnapshotSource is the adapter for exactly
+        # that, so the lift is shared rather than reimplemented.
+        sketch = ArraySnapshotSource(factored.range_basis, self._bkd)
+        # The decomposition already signed the rotation by its own rule
+        # -- the first entry of each column. ``solve`` then re-signs by
+        # the package convention, the largest-magnitude entry, so the
+        # two rules must be composed here or the streamed basis would
+        # differ from the resident one by a per-column flip. Both are
+        # column scalings, so the second folds into the rotation like
+        # the first did, and the basis is written once already signed.
+        signs = pivot_signs(
+            sketch, factored.rotation, self._bkd, max_bytes
+        )
+        basis = lift_basis(
+            sketch,
+            factored.rotation * signs,
+            sink,
+            self._bkd,
+            apply_sign_convention=False,
+            max_bytes=max_bytes,
+        )
+        return SnapshotBasisDecomposition(
+            factored.singular_values**2,
+            basis,
+            signs[:, None]
+            * (
+                factored.singular_values[:, None]
+                * factored.right_factor
+            ),
         )
 
 

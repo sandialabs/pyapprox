@@ -9,8 +9,14 @@ wrong metric still has the right shape and still decodes plausibly; only
 an explicit check catches it.
 """
 
+import os
+
 import numpy as np
 import pytest
+from pyapprox.surrogates.kle.basis_sinks import (
+    ArrayBasisSink,
+    MemmapBasisSink,
+)
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     MethodOfSnapshotsSolver,
     RandomizedSnapshotSolver,
@@ -25,6 +31,7 @@ from pyapprox.util.linalg.inner_product import (
     MassInnerProduct,
     m_orthonormality_drift,
 )
+from pyapprox.util.linalg.orthonormalize import HouseholderQR
 from scipy.sparse import diags
 
 
@@ -570,3 +577,165 @@ class TestTheExactSolversRefuseASource:
         source = ArraySnapshotSource(_snapshots(bkd), bkd)
         with pytest.raises(TypeError, match="RandomizedSnapshotSolver"):
             solver_cls(bkd).solve(source)
+
+
+class TestWritingTheBasisToASink:
+    """The randomized solver with its output streamed rather than returned.
+
+    The basis is the second-largest array the decomposition holds -- the
+    sketch it comes from is wider by the oversampling -- so sending it
+    to a sink lowers the peak without removing the ambient dimension
+    from it. What must not change is the answer: the same data through
+    ``solve`` and through ``solve_to_sink`` has to give the same basis,
+    not merely an equally valid one.
+
+    That is a sharper requirement than it sounds. Both paths sign their
+    columns, by *different* rules -- the decomposition's own first-entry
+    convention and the package's largest-magnitude one -- and a basis
+    differing by a per-column flip reconstructs its own data perfectly
+    while disagreeing with anything stored beside it.
+    """
+
+    def _solver(self, bkd, **kwargs):
+        """Seeded, so the sketch is the same across both paths."""
+        return RandomizedSnapshotSolver(
+            bkd, noversampling=5, npower_iters=1, seed=7, **kwargs
+        )
+
+    def _data(self, bkd, nstates=40, nsamples=16):
+        """Low-rank with a decaying spectrum, as snapshots are."""
+        rng = np.random.RandomState(0)
+        left = rng.standard_normal((nstates, 10))
+        right = rng.standard_normal((10, nsamples))
+        return bkd.array(
+            left @ np.diag(np.logspace(0, -3, 10)) @ right
+        )
+
+    def test_the_basis_matches_solve_exactly(self, bkd) -> None:
+        """Bit-identical, since both paths do the same arithmetic."""
+        snapshots = self._data(bkd)
+        expected = self._solver(bkd).solve(snapshots, nterms=4)
+        got = self._solver(bkd).solve_to_sink(
+            snapshots, 4, ArrayBasisSink(40, 4, bkd)
+        )
+        bkd.assert_allclose(
+            got.basis.to_array(), expected.eigenvectors, atol=0.0
+        )
+
+    def test_the_eigenvalues_and_coordinates_match_solve(
+        self, bkd
+    ) -> None:
+        """The coordinates must follow the basis through the signing.
+
+        A flip applied to one and not the other leaves a pair that no
+        longer reconstructs the snapshots, which is why this is checked
+        beside the basis rather than trusted to follow.
+        """
+        snapshots = self._data(bkd)
+        expected = self._solver(bkd).solve(snapshots, nterms=4)
+        got = self._solver(bkd).solve_to_sink(
+            snapshots, 4, ArrayBasisSink(40, 4, bkd)
+        )
+        bkd.assert_allclose(
+            got.eigenvalues, expected.eigenvalues, atol=0.0
+        )
+        bkd.assert_allclose(
+            got.coordinates, expected.coordinates, atol=0.0
+        )
+
+    def test_the_pair_reconstructs_the_snapshots(self, bkd) -> None:
+        """The property the signing could break without changing shapes.
+
+        At the data's full rank, so the residual is roundoff rather than
+        the discarded spectrum -- truncating to fewer terms would leave
+        an error of the next singular value's size and make the
+        tolerance, not the signing, the thing under test.
+        """
+        snapshots = self._data(bkd)
+        got = self._solver(bkd).solve_to_sink(
+            snapshots, 10, ArrayBasisSink(40, 10, bkd)
+        )
+        bkd.assert_allclose(
+            got.basis.apply(got.coordinates), snapshots, atol=1e-12
+        )
+
+    def test_a_memmap_sink_gives_the_same_basis(self, bkd, tmp_path) -> None:
+        """The sink is a destination, not a participant in the answer."""
+        snapshots = self._data(bkd)
+        resident = self._solver(bkd).solve_to_sink(
+            snapshots, 4, ArrayBasisSink(40, 4, bkd)
+        )
+        streamed = self._solver(bkd).solve_to_sink(
+            snapshots,
+            4,
+            MemmapBasisSink(
+                os.path.join(str(tmp_path), "basis.dat"), 40, 4, bkd
+            ),
+        )
+        bkd.assert_allclose(
+            streamed.basis.to_array(),
+            resident.basis.to_array(),
+            atol=0.0,
+        )
+
+    def test_a_source_gives_the_same_basis_as_an_array(self, bkd) -> None:
+        """Both ends streamed, and the answer still does not move."""
+        snapshots = self._data(bkd)
+        from_array = self._solver(bkd).solve_to_sink(
+            snapshots, 4, ArrayBasisSink(40, 4, bkd)
+        )
+        from_source = self._solver(bkd).solve_to_sink(
+            ArraySnapshotSource(snapshots, bkd),
+            4,
+            ArrayBasisSink(40, 4, bkd),
+        )
+        bkd.assert_allclose(
+            from_source.basis.to_array(),
+            from_array.basis.to_array(),
+            atol=0.0,
+        )
+
+    @pytest.mark.parametrize("max_bytes", [8, 400, 1 << 20])
+    def test_the_block_size_does_not_change_the_basis(
+        self, bkd, max_bytes
+    ) -> None:
+        snapshots = self._data(bkd)
+        expected = self._solver(bkd).solve(snapshots, nterms=4)
+        got = self._solver(bkd).solve_to_sink(
+            snapshots,
+            4,
+            ArrayBasisSink(40, 4, bkd),
+            max_bytes=max_bytes,
+        )
+        bkd.assert_allclose(
+            got.basis.to_array(), expected.eigenvectors, atol=1e-14
+        )
+
+    def test_an_injected_orthonormalizer_reaches_the_sketch(
+        self, bkd
+    ) -> None:
+        """The solver forwards it rather than holding it unused.
+
+        Without this the seam would look present on the solver and be
+        absent where it matters, since only the decomposition
+        orthonormalizes anything.
+        """
+        calls = []
+
+        class Counting:
+            def __init__(self, inner):
+                self._inner = inner
+
+            def __call__(self, array):
+                calls.append(1)
+                return self._inner(array)
+
+        snapshots = self._data(bkd)
+        expected = self._solver(bkd).solve(snapshots, nterms=4)
+        got = self._solver(
+            bkd, orthonormalizer=Counting(HouseholderQR(bkd))
+        ).solve(snapshots, nterms=4)
+        assert len(calls) == 2
+        bkd.assert_allclose(
+            got.eigenvectors, expected.eigenvectors, atol=0.0
+        )

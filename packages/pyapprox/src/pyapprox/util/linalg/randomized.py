@@ -49,11 +49,16 @@ Choosing an algorithm
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Callable, Generic, Optional, Tuple
 
 import numpy as np
 
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.linalg.orthonormalize import (
+    HouseholderQR,
+    OrthonormalizerProtocol,
+)
 
 
 class MatVecOperator(Generic[Array], ABC):
@@ -408,6 +413,62 @@ def adjust_sign_svd(
     return bkd.asarray(U_np), bkd.asarray(Vh_np)
 
 
+def adjust_sign_svd_with_signs(
+    U: Array, *, bkd: Backend[Array]
+) -> Tuple[Array, Array]:
+    """:func:`adjust_sign_svd`'s rule, reporting the signs it applies.
+
+    A caller holding a factorization whose left factor is not yet
+    formed needs the signs rather than the signed array: the flip can
+    then be applied to a factor that is small, and reaches the product
+    on its own.
+
+    Takes only ``U`` because the rule reads only ``U[0, :]``; the caller
+    applies the returned signs to whatever other factors are paired
+    with it.
+    """
+    signs_np = np.sign(bkd.to_numpy(U)[0, :])
+    # A zero first entry gives no orientation, and multiplying by zero
+    # would erase the column rather than leave it alone.
+    signs_np[signs_np == 0] = 1.0
+    signs = bkd.asarray(signs_np)
+    return U * signs, signs
+
+
+@dataclass(frozen=True)
+class FactoredSVD(Generic[Array]):
+    r"""A randomized SVD with its left factor left unformed.
+
+    :math:`U = Q\,Z` where :math:`Q` is the orthonormalized sketch and
+    :math:`Z` the rotation from the small SVD. Both are carried rather
+    than multiplied so a caller can perform that product where the
+    ``(nrows, rank)`` result is going -- into a sink, a row block at a
+    time -- instead of into memory.
+
+    Attributes
+    ----------
+    range_basis : Array, shape (nrows, rank + noversampling)
+        :math:`Q`. Ambient-sized, and the object that makes a randomized
+        decomposition need memory proportional to the ambient dimension
+        even when its input is streamed.
+    rotation : Array, shape (rank + noversampling, rank)
+        :math:`Z`, sign convention already applied.
+    singular_values : Array, shape (rank,)
+        Singular values, descending.
+    right_factor : Array, shape (rank, ncols)
+        :math:`V^T`, signed to match ``rotation``.
+    """
+
+    range_basis: Array
+    rotation: Array
+    singular_values: Array
+    right_factor: Array
+
+    def nterms(self) -> int:
+        """Number of retained modes."""
+        return int(self.rotation.shape[1])
+
+
 class RandomizedSVD(Generic[Array], ABC):
     """
     Abstract base class for randomized SVD algorithms.
@@ -439,6 +500,9 @@ class RandomizedSVD(Generic[Array], ABC):
         noversampling: int = 10,
         npower_iters: int = 1,
         seed: Optional[int] = None,
+        orthonormalizer: Optional[
+            OrthonormalizerProtocol[Array]
+        ] = None,
     ):
         self._check_matvec(matvec)
         self._bkd = matvec.bkd()
@@ -446,6 +510,23 @@ class RandomizedSVD(Generic[Array], ABC):
         self._noversampling = noversampling
         self._npower_iters = npower_iters
         self._seed = seed
+        # The sketch is the only (nrows, k) array here, so how it is
+        # orthonormalized decides whether the ambient dimension has to
+        # fit in memory. Dense Householder by default, which is the
+        # accurate choice; a blocked implementation is injected by a
+        # caller whose sketch does not fit.
+        if orthonormalizer is None:
+            orthonormalizer = HouseholderQR(self._bkd)
+        elif not isinstance(orthonormalizer, OrthonormalizerProtocol):
+            raise TypeError(
+                "orthonormalizer must satisfy OrthonormalizerProtocol, "
+                f"got {type(orthonormalizer).__name__}"
+            )
+        self._orthonormalizer = orthonormalizer
+
+    def orthonormalizer(self) -> OrthonormalizerProtocol[Array]:
+        """Return the factorization used to orthonormalize the sketch."""
+        return self._orthonormalizer
 
     def _check_matvec(self, matvec: MatVecOperator[Array]) -> None:
         """Validate the matrix-vector operator."""
@@ -522,9 +603,7 @@ class RandomizedSVD(Generic[Array], ABC):
         # this operator is rectangular, so apply_transpose is genuinely
         # A^T and the pair forms A^T A.
         for _ in range(self._npower_iters):
-            Y = self._bkd.asarray(
-                np.linalg.qr(self._bkd.to_numpy(Y), mode="reduced")[0]
-            )
+            Y = self._orthonormalizer(Y)
             G = self._matvec.apply_transpose(Y)
             Y = self._matvec.apply(G)
 
@@ -565,14 +644,36 @@ class TwoPassRandomizedSVD(RandomizedSVD[Array]):
         Vh : Array
             Right singular vectors (transposed). Shape: (rank, ncols)
         """
+        factors = self.compute_factored(rank)
+        return (
+            factors.range_basis @ factors.rotation,
+            factors.singular_values,
+            factors.right_factor,
+        )
+
+    def compute_factored(self, rank: int) -> "FactoredSVD[Array]":
+        r"""The same decomposition, stopping before :math:`U` is formed.
+
+        :meth:`compute` ends with ``Q @ rotation``, an
+        ``(nrows, rank)`` array. A caller who cannot hold one -- or who
+        wants it written to storage rather than returned -- needs the
+        factors instead: the product is a row-block operation, so it can
+        be performed wherever the result is going.
+
+        Both ``Q`` and the rotation are already computed here, so this
+        costs nothing extra and :meth:`compute` is written in terms of
+        it. The sign convention is applied to the rotation rather than
+        to the product, which is possible because it reads only the
+        first row: ``U[0, :]`` is ``Q[0, :] @ rotation``, and ``Q`` is
+        resident at that moment.
+        """
         if not self._matvec.right_apply_implemented():
             raise ValueError("matvec must implement right_apply")
 
         cspace_samples = self._sample_column_space(rank)
 
         # Orthogonalize column space samples
-        Q_np, _ = np.linalg.qr(self._bkd.to_numpy(cspace_samples), mode="reduced")
-        Q = self._bkd.asarray(Q_np)
+        Q = self._orthonormalizer(cspace_samples)
 
         # Compute B = Q.T @ A using right_apply
         B = self._matvec.right_apply(Q.T)
@@ -581,16 +682,21 @@ class TwoPassRandomizedSVD(RandomizedSVD[Array]):
         B_np = self._bkd.to_numpy(B)
         U_np, S_np, Vh_np = np.linalg.svd(B_np, full_matrices=False)
 
-        U = self._bkd.asarray(U_np.astype(np.float64))
+        rotation = self._bkd.asarray(U_np.astype(np.float64))[:, :rank]
         S = self._bkd.asarray(S_np.astype(np.float64))
-        Vh = self._bkd.asarray(Vh_np.astype(np.float64))
+        Vh = self._bkd.asarray(Vh_np.astype(np.float64))[:rank]
 
-        # Project back: U = Q @ U
-        U = Q @ U
-
-        # Adjust signs and truncate to rank
-        U, Vh = self.adjust_sign(U[:, :rank], Vh[:rank])
-        return U, S[:rank], Vh
+        # The convention makes the first entry of each column of
+        # Q @ rotation positive. That entry is Q[0, :] @ rotation, so
+        # the signs are available without forming the product -- and
+        # flipping a column of the rotation flips the same column of
+        # the product, since the two differ by a left multiplication.
+        _, signs = adjust_sign_svd_with_signs(
+            Q[0:1, :] @ rotation, bkd=self._bkd
+        )
+        rotation = rotation * signs
+        Vh = Vh * signs[:, None]
+        return FactoredSVD(Q, rotation, S[:rank], Vh)
 
 
 class SymmetricRandomizedSVD(RandomizedSVD[Array]):
@@ -633,13 +739,11 @@ class SymmetricRandomizedSVD(RandomizedSVD[Array]):
         """
         # First pass: sample column space
         cspace_samples = self._sample_column_space(rank)
-        Q1_np, _ = np.linalg.qr(self._bkd.to_numpy(cspace_samples), mode="reduced")
-        Q1 = self._bkd.asarray(Q1_np)
+        Q1 = self._orthonormalizer(cspace_samples)
 
         # Second pass: sample row space
         rspace_samples = self._matvec.apply_transpose(Q1)
-        Q2_np, _ = np.linalg.qr(self._bkd.to_numpy(rspace_samples), mode="reduced")
-        Q2 = self._bkd.asarray(Q2_np)
+        Q2 = self._orthonormalizer(rspace_samples)
 
         # SVD of compressed matrix
         B = Q2.T @ rspace_samples
@@ -669,6 +773,7 @@ def randomized_symmetric_eigendecomposition(
     noversampling: int = 10,
     npower_iters: int = 1,
     seed: Optional[int] = None,
+    orthonormalizer: Optional[OrthonormalizerProtocol[Array]] = None,
 ) -> Tuple[Array, Array]:
     """
     Compute a low-rank eigenvalue decomposition using randomized methods.
@@ -761,15 +866,14 @@ def randomized_symmetric_eigendecomposition(
     # per iteration suffices: applying it twice would raise A to
     # 2q + 1 rather than q + 1, doubling the loss of dynamic range for
     # no gain in the subspace captured.
+    if orthonormalizer is None:
+        orthonormalizer = HouseholderQR(bkd)
     for _ in range(npower_iters):
-        Y = bkd.asarray(np.linalg.qr(bkd.to_numpy(Y), mode="reduced")[0])
+        Y = orthonormalizer(Y)
         Y = apply_operator(Y)
 
-    # QR factorization to get orthonormal basis
-    # Use numpy for QR since it's not differentiable anyway
-    Y_np = bkd.to_numpy(Y)
-    Q_np, _ = np.linalg.qr(Y_np, mode="reduced")
-    Q = bkd.asarray(Q_np)
+    # Orthonormal basis for the sampled range.
+    Q = orthonormalizer(Y)
 
     # Form small matrix B = Q^T @ A @ Q
     AQ = apply_operator(Q)

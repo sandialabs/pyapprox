@@ -6,16 +6,14 @@ using the new typing module implementation.
 
 import numpy as np
 import pytest
-
 from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
     SquaredExponentialKernel,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.pivoted_cholesky import (
+    _HAS_NUMBA,
     KernelColumnOperator,
     PivotedCholeskyFactorizer,
-    _HAS_NUMBA,
 )
 
 
