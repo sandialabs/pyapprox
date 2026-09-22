@@ -20,6 +20,18 @@ Key Classes
 - MonomialManifoldEncoder: linear encoder, polynomial-correction decoder
 - ManifoldScorer: scores trial bases and fits the correction weights
 
+Snapshots too large to hold
+---------------------------
+The correction weights W are (nstates, p), so at a large ambient
+dimension they are the object that does not fit. The fit streams
+readily: the matrix it inverts is (p, p) and contracts over snapshots,
+so each row of W depends only on the same row of the data.
+
+- encode_from_source: V^T S, accumulated over row blocks
+- fit_weights_from_source: W a row block at a time, into a sink
+- select_gamma_from_source: held-out gamma selection with the gamma loop
+  inside the block loop, so a grid costs no ambient array per gamma
+
 Utilities
 ---------
 - center_and_decompose: center snapshots and take their thin SVD
@@ -35,6 +47,11 @@ from pyapprox.surrogates.reduction.feature_maps import (
 from pyapprox.surrogates.reduction.manifold_scoring import (
     ManifoldScorer,
     center_and_decompose,
+)
+from pyapprox.surrogates.reduction.manifold_streaming import (
+    encode_from_source,
+    fit_weights_from_source,
+    select_gamma_from_source,
 )
 from pyapprox.surrogates.reduction.monomial_manifold import (
     MonomialManifoldEncoder,
@@ -57,6 +74,9 @@ __all__ = [
     "LinearDecoderProtocol",
     "ManifoldDecoderProtocol",
     "ManifoldScorer",
+    "encode_from_source",
+    "fit_weights_from_source",
+    "select_gamma_from_source",
     "MonomialFeatureMap",
     "MonomialManifoldEncoder",
     "SelfJacobianDecoderProtocol",
