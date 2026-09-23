@@ -14,7 +14,16 @@ The coefficients are computed using:
     c_k = sum_{e in {0,1}^d} (-1)^|e| * indicator(k + e in K)
 """
 
-from typing import Dict, Iterable, List, Sequence, Set, Tuple
+from typing import (
+    Dict,
+    Iterable,
+    List,
+    Protocol,
+    Sequence,
+    Set,
+    Tuple,
+    runtime_checkable,
+)
 
 import numpy as np
 
@@ -174,6 +183,53 @@ def backward_box(key: SubspaceKey) -> List[Tuple[int, SubspaceKey]]:
             shifted[dim] -= int(shifts[row, corner])
         box.append((int(signs[corner]), tuple(shifted)))
     return box
+
+
+@runtime_checkable
+class EvaluableProtocol(Protocol[Array]):
+    """Anything that maps samples to values, such as a subspace."""
+
+    def __call__(self, samples: Array) -> Array: ...
+
+
+def evaluate_box(
+    terms: Sequence[Tuple[int, EvaluableProtocol[Array]]],
+    samples: Array,
+) -> Array:
+    """Evaluate the signed sum of subspace interpolants over a box.
+
+    Returns sum_e (-1)^|e| I_{k-e}(x), which is the change the
+    interpolant undergoes when subspace k is added:
+
+        Delta I(x) = sum_e (-1)^|e| I_{k-e}(x)
+
+    Only the box's subspaces are touched, so the cost is independent of
+    how many subspaces the grid already holds.
+
+    Parameters
+    ----------
+    terms : Sequence[Tuple[int, EvaluableProtocol[Array]]]
+        (sign, subspace) pairs, as produced from a backward box.
+    samples : Array
+        Evaluation points, shape (nvars, npoints).
+
+    Returns
+    -------
+    Array
+        Signed sum of interpolant values, shape (nqoi, npoints).
+
+    Raises
+    ------
+    ValueError
+        If terms is empty, since the result's shape is unknown.
+    """
+    if len(terms) == 0:
+        raise ValueError("cannot evaluate an empty box")
+    sign, subspace = terms[0]
+    total = sign * subspace(samples)
+    for sign, subspace in terms[1:]:
+        total = total + sign * subspace(samples)
+    return total
 
 
 class IncrementalSmolyakCoefficients:
