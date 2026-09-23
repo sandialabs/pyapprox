@@ -121,6 +121,7 @@ _RUN_ID_ATTEMPTS = 5
 #: every consumer to sort by a parsed integer.
 _SUBMISSION_DIGITS = 3
 _SAMPLE_DIGITS = 6
+_BUCKET_DIGITS = 4
 
 
 def _generate_run_id() -> str:
@@ -366,6 +367,18 @@ class TextFileMarshaller(Generic[Array]):
     on_existing : OnExisting
         What to do when a supplied ``run_id`` is already there. Ignored
         for a generated id, which is simply retried on collision.
+    outputs : EagerCollector, optional
+        Gathers each working directory as its last task is released,
+        before retention can remove it. The second retention axis:
+        whether scratch survives and whether anything is taken out of it
+        are separate questions. ``None`` gathers nothing.
+    bucket_size : int, optional
+        Insert a level below each submission so no directory holds more
+        than this many sample directories. Off by default, since it
+        changes every path and most runs are far too small to care.
+        Worth setting for a sweep of hundreds of thousands of samples on
+        a shared parallel filesystem, where one very wide directory is a
+        metadata bottleneck rather than merely untidy.
     """
 
     def __init__(
@@ -386,6 +399,7 @@ class TextFileMarshaller(Generic[Array]):
         run_id: Optional[str] = None,
         on_existing: OnExisting = OnExisting.ERROR,
         outputs: Optional[EagerCollector] = None,
+        bucket_size: Optional[int] = None,
     ) -> None:
         if not command:
             raise ValueError("command must not be empty")
@@ -429,6 +443,11 @@ class TextFileMarshaller(Generic[Array]):
         # of it are separate questions, and folding them into one
         # setting makes at least one combination unreachable.
         self._outputs = outputs
+        if bucket_size is not None and bucket_size < 1:
+            raise ValueError(
+                f"bucket_size must be >= 1, got {bucket_size}"
+            )
+        self._bucket_size = bucket_size
         # Claimed at the first ``tasks``, not here. Creating it now would
         # give the constructor a filesystem side effect and leave a
         # directory behind for every marshaller that is built and never
@@ -690,6 +709,32 @@ class TextFileMarshaller(Generic[Array]):
 
     def _submission_name(self) -> str:
         return f"sub-{self._submission:0{_SUBMISSION_DIGITS}d}"
+
+    def _sample_name(self, index: int) -> str:
+        """One sample's path below its submission.
+
+        Flat by default, because that is the shape every path already
+        written down assumes and because most runs are nowhere near
+        large enough for it to matter.
+
+        With ``bucket_size`` set, a level is inserted so no directory
+        holds more than that many entries. A directory is a data
+        structure: ext4 indexes one badly past a few tens of thousands
+        of children, and on Lustre every entry in it lives on one
+        metadata server, so a single wide directory turns ``ls`` and
+        ``rm -rf`` into a bottleneck other jobs on the cluster share.
+        The destination inherits whatever shape the source has, so an
+        archive kept for years inherits the problem too.
+
+        Derived from the index alone, so nothing has to record it:
+        anything reading a manifest takes the path as written rather
+        than reconstructing it.
+        """
+        name = f"sample-{index:0{_SAMPLE_DIGITS}d}"
+        if self._bucket_size is None:
+            return name
+        bucket = index // self._bucket_size
+        return f"{bucket:0{_BUCKET_DIGITS}d}/{name}"
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -1087,7 +1132,7 @@ class TextFileMarshaller(Generic[Array]):
         workdir = (
             self._run_dir
             / self._submission_name()
-            / f"sample-{index:0{_SAMPLE_DIGITS}d}"
+            / self._sample_name(index)
         )
         workdir.mkdir(parents=True)
         for source in self._link_files:

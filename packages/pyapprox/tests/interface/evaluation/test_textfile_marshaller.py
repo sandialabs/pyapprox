@@ -856,6 +856,161 @@ class TestResumeRefusesADifferentExperiment:
         assert Path(other.run_dir()).name != "sweep-a"
 
 
+class TestBucketing:
+    """An optional level, for a directory that would be too wide.
+
+    A directory is a data structure. ext4 indexes one badly past a few
+    tens of thousands of children, and on Lustre every entry lives on
+    one metadata server, so a single wide directory makes ``ls`` and
+    ``rm -rf`` a bottleneck the rest of the cluster shares. Off by
+    default because it changes every path and most runs are nowhere
+    near large enough to care.
+    """
+
+    def test_flat_by_default(self, solver, tmp_path, numpy_bkd) -> None:
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        tasks = marshaller.tasks(
+            numpy_bkd.ones((2, 1)), [0], Request.values_only()
+        )
+        workdir = Path(tasks[0].workdir)
+        assert workdir.parent.name == "sub-000"
+
+    def test_a_bucket_level_is_inserted(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, bucket_size=4
+        )
+        tasks = marshaller.tasks(
+            numpy_bkd.ones((2, 6)), list(range(6)), Request.values_only()
+        )
+        parents = [Path(t.workdir).parent.name for t in tasks]
+        # Indices 0-3 in bucket 0000, 4-5 in bucket 0001.
+        assert parents == ["0000"] * 4 + ["0001"] * 2
+
+    def test_no_bucket_exceeds_its_size(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, bucket_size=3
+        )
+        marshaller.tasks(
+            numpy_bkd.ones((2, 10)), list(range(10)), Request.values_only()
+        )
+        run = Path(marshaller.run_dir())
+        for bucket in (run / "sub-000").iterdir():
+            assert len(list(bucket.glob("sample-*"))) <= 3
+
+    def test_buckets_sort_as_text(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Padded for the same reason the other levels are."""
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, bucket_size=1
+        )
+        marshaller.tasks(
+            numpy_bkd.ones((2, 11)), list(range(11)), Request.values_only()
+        )
+        run = Path(marshaller.run_dir())
+        names = sorted(p.name for p in (run / "sub-000").iterdir())
+        assert names == sorted(names)
+        assert names[-1] == "0010"
+
+    def test_the_manifest_records_the_bucketed_path(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Read back rather than reconstructed, so readers need no rule."""
+        marshaller = _marshaller(
+            solver, tmp_path, numpy_bkd, bucket_size=2
+        )
+        marshaller.tasks(
+            numpy_bkd.ones((2, 3)), [0, 1, 2], Request.values_only()
+        )
+        prepared = [
+            r
+            for r in read_records(marshaller.manifest_path())
+            if r["kind"] == KIND_PREPARED
+        ]
+        assert prepared[2]["workdir"] == "sub-000/0001/sample-000002"
+
+    def test_a_bucketed_run_gathers_and_reconciles(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Nothing downstream reconstructs a path, so nothing breaks."""
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.ALWAYS,
+            bucket_size=2,
+        )
+        batch = ev.submit(_columns(numpy_bkd, 5))
+        batch.collect()
+        report = gather_run(
+            marshaller.run_dir(),
+            SpecCollector([OutputSpec("*.fld", required=True)]),
+            str(tmp_path / "archive"),
+        )
+        assert sorted(report.gathered) == [0, 1, 2, 3, 4]
+        assert reconcile(
+            marshaller.run_dir(),
+            statuses=batch.statuses(),
+            collector=SpecCollector(
+                [OutputSpec("*.fld", required=True)]
+            ),
+        ).ok()
+
+    def test_the_archive_inherits_the_bucketing(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.ALWAYS,
+            bucket_size=2,
+        )
+        ev.submit(_columns(numpy_bkd, 3)).collect()
+        gather_run(
+            marshaller.run_dir(),
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "archive"),
+        )
+        run_name = Path(marshaller.run_dir()).name
+        assert (
+            tmp_path
+            / "archive"
+            / run_name
+            / "sub-000"
+            / "0001"
+            / "sample-000002"
+            / "out.fld"
+        ).exists()
+
+    def test_retention_still_removes_a_bucketed_directory(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            retention=Retention.NEVER,
+            bucket_size=2,
+        )
+        ev.submit(_columns(numpy_bkd, 4)).collect()
+        run = Path(marshaller.run_dir())
+        assert list(run.glob("sub-*/*/sample-*")) == []
+
+    @pytest.mark.parametrize("bad", [0, -1])
+    def test_a_nonsense_bucket_size_is_refused(
+        self, solver, tmp_path, numpy_bkd, bad
+    ) -> None:
+        with pytest.raises(ValueError, match="bucket_size"):
+            _marshaller(solver, tmp_path, numpy_bkd, bucket_size=bad)
+
+
 class TestManifest:
     """What the run recorded about itself, as it ran."""
 
