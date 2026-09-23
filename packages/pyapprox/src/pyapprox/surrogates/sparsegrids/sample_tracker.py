@@ -50,6 +50,10 @@ class SampleTracker(Generic[Array]):
         self._nqoi: Optional[int] = None
         # Map from subspace position to registered subspace
         self._registered: List[TensorProductSubspace[Array]] = []
+        # Positions whose values have not been written to their subspace
+        # yet, and the largest global value index each one needs.
+        self._pending: List[int] = []
+        self._max_global_index: List[int] = []
 
     def register(
         self,
@@ -80,6 +84,16 @@ class SampleTracker(Generic[Array]):
             pos,
             subspace_samples=subspace.get_samples(),
         )
+        # Record the highest global value index this subspace reads, so
+        # distribute_values_to_subspaces can tell whether enough values
+        # have arrived to write it. Global indices are assigned in
+        # registration order and values are appended in that same order,
+        # so this is a cheap high-water mark rather than a set test.
+        global_indices = self._basis_gen.get_subspace_value_indices(pos)
+        self._max_global_index.append(
+            int(self._bkd.to_int(self._bkd.max(global_indices)))
+        )
+        self._pending.append(pos)
         return pos
 
     def get_unique_local_indices(self, pos: int) -> List[int]:
@@ -122,13 +136,42 @@ class SampleTracker(Generic[Array]):
         return samples[:, idx_array]
 
     def append_new_values(self, values: Array) -> None:
-        """Append new values to the tracker.
+        """Append values for every sample registered but not yet valued.
+
+        One call must supply every sample registered since the last
+        append, in the order the samples were handed out. That order is
+        the batch returned by the fitter's ``step_samples``, which is
+        exactly these samples, so evaluating that batch and passing the
+        result back is aligned by construction.
+
+        Global value indices are assigned in registration order and
+        index this array directly, so a short batch would leave later
+        indices pointing past the end and a long one would misalign
+        every subsequent subspace. Neither is detectable once the values
+        are in, so the count is checked here.
+
+        The count cannot catch values that are correctly sized but come
+        from the wrong samples. Build the array from the samples the
+        tracker handed out rather than reconstructing it independently.
 
         Parameters
         ----------
         values : Array
-            New values, shape (nqoi, n_new).
+            New values, shape (nqoi, n_outstanding).
+
+        Raises
+        ------
+        ValueError
+            If the column count is not the number of outstanding samples.
         """
+        held = 0 if self._values is None else self._values.shape[1]
+        expected = self.n_unique_samples() - held
+        if values.shape[1] != expected:
+            raise ValueError(
+                f"expected values for all {expected} outstanding samples "
+                f"({self.n_unique_samples()} registered, {held} already "
+                f"held), got {values.shape[1]}"
+            )
         if self._values is None:
             self._values = self._bkd.copy(values)
             self._nqoi = values.shape[0]
@@ -170,12 +213,52 @@ class SampleTracker(Generic[Array]):
         return self._values[:, global_indices]
 
     def distribute_values_to_subspaces(self) -> None:
-        """Set values on all registered subspaces from the global array."""
+        """Write values to subspaces that have not received them yet.
+
+        A subspace is never partially filled: ``get_subspace_values``
+        gathers all of its samples from the global array in one indexing
+        operation, so it is either unwritten or complete. With nested
+        rules most of those values were computed by ancestor subspaces
+        and are already held, so a subspace typically becomes writable in
+        the same ``append_new_values`` that supplies its one new point.
+
+        Only pending positions are visited, and each is written once.
+        Rewriting every registered subspace on every call costs O(total
+        samples) per step, and once subspace values are write-once it
+        would raise on the second visit.
+
+        Under the adaptive fitter every registered subspace becomes
+        writable in the append that follows its registration, so nothing
+        is left pending once values arrive. The condition is kept
+        because this is a public class: a caller that registers
+        subspaces without supplying their values yet should be skipped
+        rather than gathering past the end of the array.
+        """
         if self._values is None:
             return
-        for pos, subspace in enumerate(self._registered):
-            subspace_vals = self.get_subspace_values(pos)
-            subspace.set_values(subspace_vals)
+        nvalues = self._values.shape[1]
+        still_pending: List[int] = []
+        for pos in self._pending:
+            # Global indices are assigned in registration order, and
+            # append_new_values rejects a batch that does not cover every
+            # outstanding sample. So the values array is a dense prefix
+            # of the assigned indices: once it reaches this subspace's
+            # highest index, all of its lower indices are present too.
+            if self._max_global_index[pos] < nvalues:
+                self._registered[pos].set_values(self.get_subspace_values(pos))
+            else:
+                still_pending.append(pos)
+        self._pending = still_pending
+
+    def npending(self) -> int:
+        """Return how many registered subspaces still lack values.
+
+        Zero after every ``step_values`` under the adaptive fitter,
+        including for a config that supplied no samples in that step: a
+        config is absent from the batch exactly when it gained no new
+        subspaces, so it has nothing outstanding.
+        """
+        return len(self._pending)
 
     def n_unique_samples(self) -> int:
         """Return total number of unique samples tracked."""

@@ -304,9 +304,18 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         for cfg, vals in values.items():
             self._trackers[cfg].append_new_values(vals)
 
-        # Distribute values to subspaces
-        for tracker in self._trackers.values():
+        # Distribute values to subspaces. Every subspace registered by
+        # the preceding step_samples must come out of this with values:
+        # a config is absent from the batch exactly when it gained no
+        # new subspaces, so no tracker is left holding unwritten ones.
+        for cfg, tracker in self._trackers.items():
             tracker.distribute_values_to_subspaces()
+            if tracker.npending() != 0:
+                raise RuntimeError(
+                    f"config {cfg} has {tracker.npending()} subspaces "
+                    "without values after step_values; samples and "
+                    "values are out of step"
+                )
 
         self._nqoi = next(iter(values.values())).shape[0]
 

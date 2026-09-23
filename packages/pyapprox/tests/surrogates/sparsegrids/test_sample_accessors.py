@@ -112,11 +112,10 @@ class TestSampleTrackerFiltered:
         def func(samples):
             return bkd.reshape(samples[0] ** 2, (1, -1))
 
-        # Add values for each subspace's unique samples
-        for pos, idx in zip(positions, indices_list):
-            new_samples = tracker.get_new_samples(pos, tracker._registered[pos])
-            if new_samples is not None:
-                tracker.append_new_values(func(new_samples))
+        # One append covering every outstanding sample. collect_unique_samples
+        # returns them in the global index order the values are indexed by,
+        # so evaluating it keeps values and samples aligned.
+        tracker.append_new_values(func(tracker.collect_unique_samples()))
 
         # Check all positions
         all_samples = tracker.collect_filtered_unique_samples(None)
