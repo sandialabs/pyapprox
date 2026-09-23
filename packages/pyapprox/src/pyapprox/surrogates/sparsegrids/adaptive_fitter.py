@@ -16,8 +16,9 @@ from pyapprox.surrogates.affine.indices import (
     PriorityQueue,
 )
 from pyapprox.surrogates.sparsegrids.candidate_info import (
-    CandidateInfo,
+    Candidate,
     ConfigIdx,
+    SmolyakSelection,
 )
 from pyapprox.surrogates.sparsegrids.combination_surrogate import (
     CombinationSurrogate,
@@ -36,6 +37,10 @@ from pyapprox.surrogates.sparsegrids.fit_result import (
 from pyapprox.surrogates.sparsegrids.model_factory import (
     DictModelFactory,
     ModelFactoryProtocol,
+)
+from pyapprox.surrogates.sparsegrids.priority import (
+    CostWeightedPriority,
+    PriorityProtocol,
 )
 from pyapprox.surrogates.sparsegrids.sample_tracker import (
     SampleTracker,
@@ -95,6 +100,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         nconfig_vars: int,
         error_indicator: Optional[ErrorIndicatorProtocol[Array]] = None,
         cost_model: Optional[CostModelProtocol] = None,
+        priority: Optional[PriorityProtocol[Array]] = None,
         verbosity: int = 0,
     ) -> None:
         self._bkd = bkd
@@ -111,6 +117,14 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         if cost_model is None:
             cost_model = ConstantCostModel()
         self._cost_model = cost_model
+        if priority is None:
+            priority = CostWeightedPriority()
+        if not isinstance(priority, PriorityProtocol):
+            raise TypeError(
+                "priority must satisfy PriorityProtocol, got "
+                f"{type(priority).__name__}"
+            )
+        self._priority = priority
         self._nconfig_vars = nconfig_vars
         self._verbosity = verbosity
         self._nvars_physical = factory.nvars_physical()
@@ -139,6 +153,9 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
         # Priority queue for candidates
         self._candidate_queue: Optional[PriorityQueue[Array]] = None
+
+        # Selected-set snapshot, rebuilt lazily after each promotion.
+        self._selection: Optional[SmolyakSelection[Array]] = None
 
         # State
         self._first_step = True
@@ -188,6 +205,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         """
         key = _index_to_tuple(full_index, self._bkd)
         self._smolyak.add(key)
+        self._selection = None
         if not self._index_gen.is_selected(full_index):
             raise RuntimeError(
                 f"subspace {key} was recorded as selected but the index "
@@ -348,7 +366,12 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         self._reprioritize_candidates()
 
     def _reprioritize_candidates(self) -> None:
-        """Compute priorities for all candidate subspaces."""
+        """Score every candidate and rebuild the queue.
+
+        Every candidate is re-scored each round: a promotion changes the
+        selected set, so scores computed against an earlier set are
+        stale. Only per-subspace statistics are memoized, never errors.
+        """
         if self._nqoi is None:
             raise RuntimeError("nqoi not set; call step_values first")
 
@@ -358,117 +381,67 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         if cand_indices is None:
             return
 
-        # Build selected surrogate ONCE
-        selected_indices = self._index_gen.get_selected_indices()
-        if selected_indices.shape[1] == 0:
-            return
-
-        # Build the selected surrogate from the incremental coefficients,
-        # aligning subspaces with the keys they are stored against.
-        selected_keys = self._smolyak.keys()
-        selected_coefs = self._bkd.asarray(
-            [float(c) for c in self._smolyak.coefficient_list(selected_keys)]
-        )
-        selected_subspaces = [
-            self._subspace_by_key[key] for key in selected_keys
-        ]
-        selected_surrogate = CombinationSurrogate(
-            self._bkd,
-            self._nvars_physical,
-            selected_subspaces,
-            selected_coefs,
-            self._nqoi,
-            indices=self._keys_to_indices(selected_keys),
-        )
-
-        # For each candidate, build CandidateInfo and evaluate
         for j in range(cand_indices.shape[1]):
             cand_index = cand_indices[:, j]
             cand_key = _index_to_tuple(cand_index, self._bkd)
 
-            # Find the subspace
             cand_subspace = self._subspace_by_key.get(cand_key)
-            if cand_subspace is None:
+            if cand_subspace is None or cand_subspace.get_values() is None:
                 continue
 
-            # Check if values are set
-            if cand_subspace.get_values() is None:
-                continue
+            candidate = self._build_candidate(cand_index, cand_subspace)
+            error = self._error_indicator(candidate, self)
+            priority = self._priority(error, candidate)
 
-            info = self._build_candidate_info(
-                cand_index,
-                cand_subspace,
-                selected_indices,
-                selected_coefs,
-                selected_surrogate,
-            )
-
-            priority, error = self._error_indicator(info)
-
-            # Get the position in index_gen._indices
             idx_id = self._index_gen._cand_indices_dict[
                 self._index_gen._hash_index(cand_index)
             ]
             self._candidate_queue.put(priority, error, idx_id)
             self._subspace_errors[idx_id] = error
 
-    def _build_candidate_info(
+    def _build_candidate(
         self,
         candidate_index: Array,
         candidate_subspace: TensorProductSubspace[Array],
-        selected_indices: Array,
-        selected_coefs: Array,
-        selected_surrogate: CombinationSurrogate[Array],
-    ) -> CandidateInfo[Array]:
-        """Build CandidateInfo for a candidate subspace."""
-        if self._nqoi is None:
-            raise RuntimeError("nqoi not set; call step_values first")
+    ) -> Candidate[Array]:
+        """Assemble a candidate and its backward box."""
         config_idx = self._get_config_idx(candidate_index)
-        tracker = self._trackers[config_idx]
-
-        # Find position in tracker via stored mapping
         cand_key = _index_to_tuple(candidate_index, self._bkd)
         pos = self._tracker_positions[config_idx][cand_key]
+        unique_local = self._trackers[config_idx].get_unique_local_indices(pos)
 
-        unique_local = tracker.get_unique_local_indices(pos)
-        all_samples = tracker.collect_unique_samples()
-        cand_samples = candidate_subspace.get_samples()
-        new_samples = cand_samples[:, unique_local]
-
-        # Build sel+candidate surrogate from the incremental update.
-        combined = self._smolyak.with_added([cand_key])
-        combined_keys = combined.keys()
-        combined_coefs = self._bkd.asarray(
-            [float(c) for c in combined.coefficient_list(combined_keys)]
-        )
-        all_subspaces = [
-            self._subspace_by_key[key] for key in combined_keys
+        # Every entry of the box other than the candidate itself is
+        # already selected, so each maps to an existing subspace.
+        box = [
+            (sign, self._subspace_by_key[key])
+            for key, sign in self._smolyak.delta(cand_key)
         ]
 
-        sel_plus_surrogate = CombinationSurrogate(
-            self._bkd,
-            self._nvars_physical,
-            all_subspaces,
-            combined_coefs,
-            self._nqoi,
-            indices=self._keys_to_indices(combined_keys),
-        )
-
         model_cost = self._cost_model(config_idx)
-        subspace_cost = model_cost * len(unique_local)
-
-        return CandidateInfo(
-            candidate_index=candidate_index,
-            candidate_subspace=candidate_subspace,
-            all_samples=all_samples,
-            new_samples=new_samples,
+        return Candidate(
+            index=candidate_index,
+            subspace=candidate_subspace,
+            box=box,
             new_sample_local_indices=unique_local,
-            selected_surrogate=selected_surrogate,
-            sel_plus_candidate_surrogate=sel_plus_surrogate,
             config_idx=config_idx if self._nconfig_vars > 0 else None,
-            model_cost=model_cost,
-            subspace_cost=subspace_cost,
+            cost=model_cost * len(unique_local),
         )
+
+    def selection(self) -> SmolyakSelection[Array]:
+        """Return the selected set's Smolyak terms.
+
+        The same object is returned until the next promotion, so an
+        indicator may memoize against it by identity. Built on demand,
+        which is always after values exist.
+        """
+        if self._selection is None:
+            self._selection = SmolyakSelection(
+                terms=tuple(
+                    (coef, self._subspace_by_key[key])
+                    for key, coef in self._smolyak.nonzero_items()
+                )
+            )
+        return self._selection
 
     def _keys_to_indices(self, keys: List[SubspaceKey]) -> Array:
         """Stack subspace keys into an index array, shape (nvars, nkeys)."""
@@ -794,6 +767,7 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         factory: SubspaceFactoryProtocol[Array],
         admissibility: AdmissibilityCriteria[Array],
         error_indicator: Optional[ErrorIndicatorProtocol[Array]] = None,
+        priority: Optional[PriorityProtocol[Array]] = None,
         verbosity: int = 0,
     ) -> None:
         self._fitter = MultiFidelityAdaptiveSparseGridFitter(
@@ -802,6 +776,7 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
             admissibility,
             nconfig_vars=0,
             error_indicator=error_indicator,
+            priority=priority,
             verbosity=verbosity,
         )
 

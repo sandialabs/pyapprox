@@ -27,7 +27,14 @@ from .basis_factory import (
     get_bounds_from_marginal,
     get_transform_from_marginal,
 )
-from .candidate_info import CandidateInfo, ConfigIdx
+from .candidate_info import (
+    AdaptiveGridViewProtocol,
+    Candidate,
+    ConfigIdx,
+    SampleSourceProtocol,
+    SelectionSourceProtocol,
+    SmolyakSelection,
+)
 
 # New fitter/surrogate architecture
 from .combination_surrogate import CombinationSurrogate
@@ -68,13 +75,25 @@ from .model_factory import (
     TimedModelFactory,
 )
 from .plot import plot_sparse_grid_points
+from .priority import CostWeightedPriority, PriorityProtocol
 from .quadrature_rule import ParameterizedIsotropicSparseGridQuadratureRule
 from .sample_tracker import SampleTracker
 from .smolyak import (
+    IncrementalSmolyakCoefficients,
+    SubspaceKey,
+    backward_box,
     check_admissibility,
     compute_smolyak_coefficients,
+    evaluate_box,
     get_subspace_neighbors,
     is_downward_closed,
+)
+from .statistics import (
+    SubspaceCache,
+    box_sum,
+    subspace_mean,
+    subspace_raw_moment,
+    subspace_variance,
 )
 from .subspace import TensorProductSubspace
 from .subspace_factory import (
@@ -88,6 +107,16 @@ __all__ = [
     "is_downward_closed",
     "get_subspace_neighbors",
     "check_admissibility",
+    "SubspaceKey",
+    "backward_box",
+    "IncrementalSmolyakCoefficients",
+    "evaluate_box",
+    # Statistics
+    "SubspaceCache",
+    "box_sum",
+    "subspace_mean",
+    "subspace_variance",
+    "subspace_raw_moment",
     # Classes — new architecture
     "TensorProductSubspace",
     "CombinationSurrogate",
@@ -103,7 +132,13 @@ __all__ = [
     "L2SurplusIndicator",
     "VarianceChangeIndicator",
     # Data classes and utilities
-    "CandidateInfo",
+    "Candidate",
+    "SmolyakSelection",
+    "AdaptiveGridViewProtocol",
+    "SampleSourceProtocol",
+    "SelectionSourceProtocol",
+    "PriorityProtocol",
+    "CostWeightedPriority",
     "ConfigIdx",
     "CostModelProtocol",
     "ConstantCostModel",

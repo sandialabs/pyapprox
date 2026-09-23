@@ -12,7 +12,7 @@ All tests run on both NumPy and PyTorch backends.
 """
 
 import math
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 import pytest
@@ -485,160 +485,113 @@ class TestMFConvergence:
 
 
 # =============================================================================
-# CandidateInfo field tests
+# Candidate field tests
 # =============================================================================
 
 
-class TestCandidateInfoFields:
-    """Tests that CandidateInfo fields are correctly populated."""
+class _RecordingIndicator:
+    """Error indicator that records every candidate it is given.
 
-    def test_candidate_info_config_idx_none_for_sf(self, bkd) -> None:
-        """SF fitter produces CandidateInfo with config_idx=None."""
+    Observing the candidates the fitter actually builds is a stronger
+    check than reconstructing them from its internals, and it does not
+    depend on private helpers.
+    """
+
+    def __init__(self, bkd) -> None:
+        self._bkd = bkd
+        self.candidates: List = []
+
+    def __call__(self, candidate, grid) -> float:
+        self.candidates.append(candidate)
+        return 1.0
+
+
+def _run_one_round(fitter, models) -> None:
+    """Advance a multi-fidelity fitter through one scored round."""
+    samples = fitter.step_samples()
+    assert isinstance(samples, dict)
+    fitter.step_values({cfg: models[cfg](s) for cfg, s in samples.items()})
+
+
+class TestCandidateFields:
+    """The fitter populates every field an indicator reads."""
+
+    def test_config_idx_none_for_single_fidelity(self, bkd) -> None:
+        """Single-fidelity candidates carry no config index."""
+        recording = _RecordingIndicator(bkd)
         fitter = _make_sf_fitter(bkd, max_level=3)
+        fitter._fitter._error_indicator = recording
 
         def func(s):
             return bkd.reshape(s[0, :] ** 2, (1, -1))
 
         samples = fitter.step_samples()
-        assert samples is not None
-        values = func(samples)
-        fitter.step_values(values)
+        fitter.step_values(func(samples))
 
-        # Access the underlying MF fitter's internals via composition
-        mf = fitter._fitter
-        samples2 = fitter.step_samples()
-        if samples2 is not None:
-            from pyapprox.surrogates.sparsegrids.smolyak import (
-                compute_smolyak_coefficients,
-            )
+        assert len(recording.candidates) > 0
+        for candidate in recording.candidates:
+            assert candidate.config_idx is None
 
-            sel_indices = mf._index_gen.get_selected_indices()
-            sel_coefs = compute_smolyak_coefficients(sel_indices, bkd)
-            sel_subspaces = mf._get_subspaces_for_indices(sel_indices)
-            sel_surr = CombinationSurrogate(
-                bkd,
-                mf._nvars_physical,
-                sel_subspaces,
-                sel_coefs,
-                1,
-                indices=sel_indices,
-            )
-            cand_indices = mf._index_gen.get_candidate_indices()
-            if cand_indices is not None and cand_indices.shape[1] > 0:
-                cand_idx = cand_indices[:, 0]
-                from pyapprox.surrogates.sparsegrids.smolyak import (
-                    _index_to_tuple,
-                )
-
-                cand_key = _index_to_tuple(cand_idx, bkd)
-                cand_sub = mf._subspace_by_key[cand_key]
-                if cand_sub.get_values() is not None:
-                    info = mf._build_candidate_info(
-                        cand_idx,
-                        cand_sub,
-                        sel_indices,
-                        sel_coefs,
-                        sel_surr,
-                    )
-                    assert info.config_idx is None
-                    # Costs should still be populated
-                    assert info.model_cost is not None
-                    assert info.subspace_cost is not None
-
-    def test_candidate_info_costs_always_populated(self, bkd) -> None:
-        """model_cost and subspace_cost are always non-None."""
+    def test_config_idx_present_for_multi_fidelity(self, bkd) -> None:
+        """Multi-fidelity candidates name the fidelity they belong to."""
+        recording = _RecordingIndicator(bkd)
         models = _make_cosine_models(bkd)
         fitter = _make_mf_fitter(bkd, max_level=3)
+        fitter._error_indicator = recording
+        _run_one_round(fitter, models)
 
-        samples = fitter.step_samples()
-        assert isinstance(samples, dict)
-        values = {cfg: models[cfg](s) for cfg, s in samples.items()}
-        fitter.step_values(values)
+        assert len(recording.candidates) > 0
+        for candidate in recording.candidates:
+            assert candidate.config_idx is not None
+            assert candidate.config_idx in models
 
-        # Build CandidateInfo for a candidate
-        from pyapprox.surrogates.sparsegrids.smolyak import (
-            _index_to_tuple,
-            compute_smolyak_coefficients,
+    def test_costs_are_positive(self, bkd) -> None:
+        """Cost is the per-sample model cost times the new-sample count."""
+        recording = _RecordingIndicator(bkd)
+        models = _make_cosine_models(bkd)
+        fitter = _make_mf_fitter(
+            bkd, max_level=3, cost_model=ExponentialConfigCostModel(base=10.0)
         )
+        fitter._error_indicator = recording
+        _run_one_round(fitter, models)
 
-        sel_indices = fitter._index_gen.get_selected_indices()
-        sel_coefs = compute_smolyak_coefficients(sel_indices, bkd)
-        sel_subspaces = fitter._get_subspaces_for_indices(sel_indices)
-        sel_surr = CombinationSurrogate(
-            bkd,
-            fitter._nvars_physical,
-            sel_subspaces,
-            sel_coefs,
-            1,
-            indices=sel_indices,
-        )
+        assert len(recording.candidates) > 0
+        for candidate in recording.candidates:
+            assert candidate.cost > 0
+            expected = 10.0 ** sum(candidate.config_idx) * len(
+                candidate.new_sample_local_indices
+            )
+            assert math.isclose(candidate.cost, expected, rel_tol=1e-12)
 
-        cand_indices = fitter._index_gen.get_candidate_indices()
-        if cand_indices is not None:
-            found = False
-            for j in range(cand_indices.shape[1]):
-                cand_idx = cand_indices[:, j]
-                cand_key = _index_to_tuple(cand_idx, bkd)
-                cand_sub = fitter._subspace_by_key.get(cand_key)
-                if cand_sub is not None:
-                    if cand_sub.get_values() is not None:
-                        info = fitter._build_candidate_info(
-                            cand_idx,
-                            cand_sub,
-                            sel_indices,
-                            sel_coefs,
-                            sel_surr,
-                        )
-                        assert info.model_cost is not None
-                        assert info.subspace_cost is not None
-                        assert info.model_cost > 0
-                        assert info.subspace_cost > 0
-                        found = True
-                        break
-            assert found, "No candidate with values found"
-
-    def test_candidate_info_new_samples_never_none(self, bkd) -> None:
-        """new_samples is always a valid Array, never None."""
+    def test_new_samples_are_never_empty(self, bkd) -> None:
+        """Every candidate contributes at least one new sample."""
+        recording = _RecordingIndicator(bkd)
         models = _make_cosine_models(bkd)
         fitter = _make_mf_fitter(bkd, max_level=3)
+        fitter._error_indicator = recording
+        _run_one_round(fitter, models)
 
-        samples = fitter.step_samples()
-        assert isinstance(samples, dict)
-        values = {cfg: models[cfg](s) for cfg, s in samples.items()}
-        fitter.step_values(values)
+        assert len(recording.candidates) > 0
+        for candidate in recording.candidates:
+            assert len(candidate.new_sample_local_indices) > 0
+            samples = candidate.subspace.get_samples()
+            for local in candidate.new_sample_local_indices:
+                assert 0 <= local < samples.shape[1]
 
-        from pyapprox.surrogates.sparsegrids.smolyak import (
-            _index_to_tuple,
-            compute_smolyak_coefficients,
-        )
+    def test_box_is_a_power_of_two(self, bkd) -> None:
+        """The backward box holds 2^nnz terms, starting with the candidate."""
+        recording = _RecordingIndicator(bkd)
+        models = _make_cosine_models(bkd)
+        fitter = _make_mf_fitter(bkd, max_level=3)
+        fitter._error_indicator = recording
+        _run_one_round(fitter, models)
 
-        sel_indices = fitter._index_gen.get_selected_indices()
-        sel_coefs = compute_smolyak_coefficients(sel_indices, bkd)
-        sel_subspaces = fitter._get_subspaces_for_indices(sel_indices)
-        sel_surr = CombinationSurrogate(
-            bkd,
-            fitter._nvars_physical,
-            sel_subspaces,
-            sel_coefs,
-            1,
-            indices=sel_indices,
-        )
+        assert len(recording.candidates) > 0
+        for candidate in recording.candidates:
+            nnz = int(bkd.to_numpy(bkd.sum(candidate.index > 0)))
+            assert len(candidate.box) == 2**nnz
+            first_sign, first_subspace = candidate.box[0]
+            assert first_sign == 1
+            assert first_subspace is candidate.subspace
 
-        cand_indices = fitter._index_gen.get_candidate_indices()
-        if cand_indices is not None:
-            for j in range(cand_indices.shape[1]):
-                cand_idx = cand_indices[:, j]
-                cand_key = _index_to_tuple(cand_idx, bkd)
-                cand_sub = fitter._subspace_by_key.get(cand_key)
-                if cand_sub is not None:
-                    if cand_sub.get_values() is not None:
-                        info = fitter._build_candidate_info(
-                            cand_idx,
-                            cand_sub,
-                            sel_indices,
-                            sel_coefs,
-                            sel_surr,
-                        )
-                        assert info.new_samples is not None
-                        assert info.new_samples.shape[1] > 0
-                        break
+

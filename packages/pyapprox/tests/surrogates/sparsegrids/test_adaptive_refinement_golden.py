@@ -7,9 +7,12 @@ Smolyak coefficients, delta-based candidate scoring and the separation of
 priority from error must all leave the chosen sequence untouched.
 
 A failure here is meaningful only after ruling out a tie. The targets are
-Genz oscillatory with decaying coefficients, which makes the per-subspace
-errors distinct, so two candidates should not score equally. Confirm any
-diff is a genuine tie before updating a literal.
+Genz oscillatory with decaying coefficients, which keeps the
+per-subspace errors distinct while the target is still being resolved.
+Confirm any diff is a genuine tie before updating a literal.
+
+Only the first ``_NCOMPARED`` promotions are asserted; the recorded
+sequences run longer so the cut can be moved without re-recording.
 
 The sequences were recorded from the implementation predating that
 rewrite.
@@ -47,6 +50,16 @@ from pyapprox_benchmarks.quadrature.genz import GenzOscillatoryBenchmark
 # Sample budget per run. Large enough that the order is non-trivial,
 # small enough that these stay fast tests.
 _BUDGET = 60
+
+# Promotions to compare. Beyond roughly 40 subspaces the 2D Leja cases
+# resolve the target to machine precision, and every remaining
+# candidate's surplus is a few multiples of eps. Candidates then tie
+# exactly --- two were observed with bit-identical priorities of
+# 5.55e-16 --- so which one the queue returns is decided by summation
+# order rather than by refinement. Comparing only the prefix keeps these
+# tests measuring the choice of subspace instead of floating-point
+# associativity.
+_NCOMPARED = 40
 
 _INDICATORS = {
     "l2": L2SurplusIndicator,
@@ -347,7 +360,8 @@ class TestGoldenRefinementOrder:
             numpy_bkd, nvars, basis_type, indicator_name
         )
         sequence = _selected_sequence(fitter, target, _BUDGET)
-        assert sequence == _GOLDEN[key]
+        expected = _GOLDEN[key]
+        assert sequence[:_NCOMPARED] == expected[:_NCOMPARED]
 
 
 class TestGoldenMultiFidelityRefinementOrder:
@@ -369,7 +383,8 @@ class TestGoldenMultiFidelityRefinementOrder:
         """The promotion order matches the recorded sequence."""
         fitter, target = _build_mf_fitter(numpy_bkd, indicator_name)
         sequence = _selected_sequence(fitter, target, _BUDGET)
-        assert sequence == _GOLDEN_MF[indicator_name]
+        expected = _GOLDEN_MF[indicator_name]
+        assert sequence[:_NCOMPARED] == expected[:_NCOMPARED]
 
     def test_config_dimension_is_exercised(self, numpy_bkd) -> None:
         """The recorded runs actually buy fidelity, not just refine.
