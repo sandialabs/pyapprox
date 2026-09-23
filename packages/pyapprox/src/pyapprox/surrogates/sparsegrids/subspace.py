@@ -174,13 +174,32 @@ class TensorProductSubspace(Generic[Array]):
         return self._interpolant.get_values()
 
     def set_values(self, values: Array) -> None:
-        """Set function values at samples.
+        """Set function values at samples, once.
+
+        Values are write-once. Statistics derived from a subspace are
+        memoized against the subspace object for its lifetime, so
+        replacing the values would silently invalidate those caches
+        rather than refresh them.
+
+        To interpolate different values on the same nodes --- for
+        example to differentiate through new values under torch ---
+        build a fresh subspace.
 
         Parameters
         ----------
         values : Array
             Values with shape (nqoi, nsamples).
+
+        Raises
+        ------
+        ValueError
+            If values have already been set.
         """
+        if self._interpolant.get_values() is not None:
+            raise ValueError(
+                "values are already set on this subspace; construct a "
+                "new TensorProductSubspace to interpolate different values"
+            )
         self._interpolant.set_values(values)
 
     def __call__(self, samples: Array) -> Array:
@@ -218,9 +237,12 @@ class TensorProductSubspace(Generic[Array]):
     def get_quadrature_weights(self) -> Array:
         """Return the tensor product quadrature weights.
 
-        The weights are the raw tensor product of 1D quadrature weights
-        without normalization. For Gauss-Legendre on [-1,1]^d, the sum
-        of weights equals 2^d (Lebesgue measure).
+        The weights are the outer product of the 1D rules' weights. The
+        1D rules come from the basis factories, which build them against
+        each dimension's marginal, so they are probability weights
+        summing to 1 and the tensor product sums to 1 in any dimension.
+        Integrating with them gives the expectation under the input
+        measure, not a Lebesgue integral.
 
         Returns
         -------
