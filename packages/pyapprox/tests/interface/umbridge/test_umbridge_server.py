@@ -124,56 +124,6 @@ if UMBRIDGE_AVAILABLE:
         def supports_evaluate(self) -> bool:
             return True
 
-    class ShortHessianModel(umbridge.Model):  # type: ignore[misc]
-        """A model whose ApplyHessian returns an output-sized vector.
-
-        H v has nvars entries, but a model written against the Python
-        reference server's length check returns nqoi of them instead.
-        This model does exactly that, so the client's own check on the
-        reply length has something to catch.
-
-        Declaring nqoi == 1 keeps the client's scalar-output
-        precondition satisfied, and declaring nvars == 1 keeps the
-        Python server's reply-length check satisfied, so the malformed
-        reply reaches the client instead of being rejected en route.
-        The client is then pointed at a larger nvars through config to
-        make the received length wrong.
-        """
-
-        def __init__(self) -> None:
-            super().__init__("short_hessian")
-
-        def get_input_sizes(self, config: Dict[str, Any]) -> List[int]:
-            return [config.get("nvars", 1)]
-
-        def get_output_sizes(self, config: Dict[str, Any]) -> List[int]:
-            return [1]
-
-        def __call__(
-            self, parameters: List[List[float]], config: Dict[str, Any]
-        ) -> List[List[float]]:
-            x = np.asarray(parameters[0])
-            return [[float(np.sum(x**2))]]
-
-        def supports_evaluate(self) -> bool:
-            return True
-
-        def apply_hessian(
-            self,
-            out_wrt: int,
-            in_wrt1: int,
-            in_wrt2: int,
-            parameters: List[List[float]],
-            sens: List[float],
-            vec: List[float],
-            config: Dict[str, Any],
-        ) -> List[float]:
-            # One entry regardless of nvars: the malformed reply.
-            return [2.0 * vec[0] * sens[0]]
-
-        def supports_apply_hessian(self) -> bool:
-            return True
-
     class VectorModel(umbridge.Model):  # type: ignore[misc]
         """f(x) = [sum(x_i^2), sum(x_i)]: two outputs.
 
@@ -217,6 +167,27 @@ if UMBRIDGE_AVAILABLE:
         def supports_gradient(self) -> bool:
             return True
 
+        def apply_hessian(
+            self,
+            out_wrt: int,
+            in_wrt1: int,
+            in_wrt2: int,
+            parameters: List[List[float]],
+            sens: List[float],
+            vec: List[float],
+            config: Dict[str, Any],
+        ) -> List[float]:
+            # H of sum(x^2) is 2I; H of sum(x) is 0. So the weighted
+            # sum is 2 * sens[0] * vec, and a client that ignored the
+            # second weight would agree here only by accident -- which
+            # is why sens[1] multiplies a genuinely zero block.
+            v = np.asarray(vec)
+            hvp: List[float] = (2.0 * sens[0] * v + 0.0 * sens[1] * v).tolist()
+            return hvp
+
+        def supports_apply_hessian(self) -> bool:
+            return True
+
 
 if __name__ == "__main__":
     if not UMBRIDGE_AVAILABLE:
@@ -227,7 +198,6 @@ if __name__ == "__main__":
     models = [
         QuadraticModel(),
         LinearModel(),
-        ShortHessianModel(),
         VectorModel(),
     ]
     print(f"Starting UMBridge test server on port {port}...")

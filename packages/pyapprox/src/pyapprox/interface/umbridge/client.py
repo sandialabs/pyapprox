@@ -106,8 +106,19 @@ class UMBridgeModel(Generic[Array]):
                 if self._model.supports_apply_jacobian()
                 else None
             ),
+            # hvp contracts a single Hessian, so it exists only for a
+            # scalar output; whvp carries the weights that say which
+            # combination of several is meant, so it is offered whenever
+            # the server can apply a Hessian at all. Declaring hvp for a
+            # vector-valued model would advertise a capability whose
+            # only behavior is to raise.
             hvp=(
                 self._hvp
+                if self._model.supports_apply_hessian() and self.nqoi() == 1
+                else None
+            ),
+            whvp=(
+                self._whvp
                 if self._model.supports_apply_hessian()
                 else None
             ),
@@ -309,29 +320,62 @@ class UMBridgeModel(Generic[Array]):
 
         Notes
         -----
-        The Hessian is nvars x nvars, so H v has length nvars. UM-Bridge
-        specifies this, and the C++ reference server does not constrain
-        the length. The Python reference server (as of umbridge 1.2.4)
-        instead validates the reply against the *output* size, so a
-        conformant model serving nvars values through it is rejected
-        with an InvalidOutput error whenever nvars != nqoi. That is a
-        defect in that server, not a different convention: honoring it
-        would mean returning nqoi numbers for a quantity that has nvars
-        of them. This client sends and expects the specified length, so
-        it works against C++ servers and against a fixed Python one.
+        The Hessian is nvars x nvars, so H v has length nvars, which is
+        what UM-Bridge specifies. A server replying with its output size
+        instead is caught below rather than reshaped, since a plausible
+        array that is not an HVP is worse than an error.
         """
         if self.nqoi() != 1:
             raise ValueError(f"HVP only defined for nqoi=1, got nqoi={self.nqoi()}")
+        # The scalar case of a weighted product: one output, seeded with
+        # one. Sharing the implementation keeps the reply-length check
+        # and the sens convention in a single place.
+        return self._whvp(sample, vec, self._bkd.ones((1, 1)))
+
+    def _whvp(self, sample: Array, vec: Array, weights: Array) -> Array:
+        """Weighted Hessian-vector product, sum_j w_j H_j v.
+
+        Reached through ``derivatives().whvp``, which is None unless the
+        server advertises ApplyHessian.
+
+        Parameters
+        ----------
+        sample : Array
+            Input sample of shape (nvars, 1).
+        vec : Array
+            Direction vector of shape (nvars, 1).
+        weights : Array
+            Output weights of shape (nqoi, 1). These are the adjoint
+            seed: UM-Bridge calls the same quantity ``sens``, so a
+            weighted product needs no capability the protocol lacks,
+            only the seed the caller supplies rather than a fixed one.
+
+        Returns
+        -------
+        Array
+            Weighted Hessian-vector product of shape (nvars, 1).
+
+        Raises
+        ------
+        ValueError
+            If weights is not (nqoi, 1), or if the server returns a
+            vector whose length is not nvars.
+        """
+        if weights.shape != (self.nqoi(), 1):
+            raise ValueError(
+                f"weights has wrong shape {weights.shape}, expected "
+                f"({self.nqoi()}, 1)"
+            )
 
         parameters = self._to_parameters(sample)
         vec_list = self._bkd.to_numpy(vec[:, 0]).tolist()
+        sens_list = self._bkd.to_numpy(weights[:, 0]).tolist()
 
         # Signature is (out_wrt, in_wrt1, in_wrt2, parameters, sens, vec):
         # sens precedes vec. The block indices are 0 for this client's
-        # single input and output block. sens seeds the adjoint of the
-        # scalar output, so it is [1.0].
+        # single input and output block.
         result = self._model.apply_hessian(
-            0, 0, 0, parameters, [1.0], vec_list, config=self._config
+            0, 0, 0, parameters, sens_list, vec_list, config=self._config
         )
         # Checked rather than reshaped blindly: a server returning nqoi
         # numbers would otherwise yield a plausible (1, 1) array that is

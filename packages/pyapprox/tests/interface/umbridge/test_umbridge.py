@@ -146,11 +146,32 @@ class TestCapabilityBundle:
         assert d.hvp is None
 
     def test_partial_capability(self, server_url, bkd) -> None:
-        """gradient without apply_jacobian/apply_hessian is legal."""
+        """gradient without apply_jacobian is legal."""
         d = _model(server_url, "vector", bkd).derivatives()
         assert d.jacobian is not None
         assert d.jvp is None
+
+    def test_vector_output_offers_whvp_but_not_hvp(
+        self, server_url, bkd
+    ) -> None:
+        """The scalar-only field is absent where it cannot mean anything.
+
+        A Hessian-vector product needs one Hessian; a model with two
+        outputs has two. The weighted form says which combination is
+        meant, so it is the one a caller can use, and offering the
+        unweighted one here would advertise a call that only raises.
+        """
+        model = _model(server_url, "vector", bkd)
+        assert model.nqoi() == 2
+        d = model.derivatives()
         assert d.hvp is None
+        assert d.whvp is not None
+
+    def test_scalar_output_offers_both(self, server_url, bkd) -> None:
+        """With one output the two forms coincide, so both are offered."""
+        d = _model(server_url, "quadratic", bkd).derivatives()
+        assert d.hvp is not None
+        assert d.whvp is not None
 
     def test_batch_fields_absent(self, server_url, bkd) -> None:
         """The client evaluates one sample per request, so no batch form.
@@ -208,19 +229,7 @@ class TestDerivativeValues:
         bkd.assert_allclose(result, d.jacobian(sample) @ vec)
 
     def test_hvp_single_variable(self, server_url, bkd) -> None:
-        """H v end to end, restricted to nvars == 1 by an upstream bug.
-
-        An HVP is defined for a scalar output, so nqoi must be 1. The
-        Python reference server has a bug (see
-        ``test_upstream_hessian_length_bug_still_present``) that also
-        demands nvars == nqoi for this call. Together they leave only
-        nvars == nqoi == 1, which is why this test is narrower than the
-        capability it covers.
-
-        Against a C++ server, or once the bug is fixed, this path works
-        for any nvars; widen this test to a multi-variable model at that
-        point.
-        """
+        """H v end to end for a one-variable model."""
         model = _model(server_url, "quadratic", bkd, nvars=1)
         hvp = model.derivatives().hvp
         assert hvp is not None
@@ -229,21 +238,94 @@ class TestDerivativeValues:
         assert result.shape == (1, 1)
         bkd.assert_allclose(result, bkd.asarray([[6.0]]))
 
+    def test_hvp_several_variables(self, server_url, bkd) -> None:
+        """H v is input-sized, so nvars need not equal nqoi.
+
+        An HVP is defined for a scalar output, so nqoi is 1 while H is
+        nvars x nvars. The reply is therefore nvars long, and a model
+        with several variables is the only shape that distinguishes
+        that from an output-sized one.
+        """
+        model = _model(server_url, "quadratic", bkd, nvars=3)
+        hvp = model.derivatives().hvp
+        assert hvp is not None
+        # Hessian of sum(x_i^2) is 2I, so H v = 2 v.
+        result = hvp(
+            bkd.asarray([[1.0], [2.0], [3.0]]),
+            bkd.asarray([[1.0], [0.0], [0.0]]),
+        )
+        assert result.shape == (3, 1)
+        bkd.assert_allclose(result, bkd.asarray([[2.0], [0.0], [0.0]]))
+
     def test_hvp_reply_length_is_checked(self, server_url, bkd) -> None:
         """A reply that is not nvars long raises instead of reshaping.
 
         Guards the silent-corruption case: reshaping a wrong-length
         reply to (-1, 1) yields a plausible array that is not an HVP.
-        The model here returns an output-sized vector, which is what a
-        model written against the Python server's check would do.
+
+        The reply is stubbed rather than served, because the reference
+        server rejects a malformed length before it reaches the client.
+        The guard exists for servers this client does not control, so
+        it is exercised at the only seam that can still deliver one.
         """
-        model = _model(server_url, "short_hessian", bkd, nvars=3)
+        model = _model(server_url, "quadratic", bkd, nvars=3)
         hvp = model.derivatives().hvp
         assert hvp is not None
+        # One entry where three are owed, the shape a server written
+        # against an output-sized convention would return.
+        model._model.apply_hessian = (  # type: ignore[method-assign]
+            lambda *args, **kwargs: [2.0]
+        )
         with pytest.raises(ValueError, match="expected nvars=3"):
             hvp(
                 bkd.asarray([[1.0], [2.0], [3.0]]),
                 bkd.asarray([[1.0], [0.0], [0.0]]),
+            )
+
+    def test_whvp_weights_the_outputs(self, server_url, bkd) -> None:
+        """sum_j w_j H_j v, for a model with more than one output.
+
+        The vector model is [sum(x_i^2), sum(x_i)], whose Hessians are
+        2I and 0. Weighting them (3, 5) must give 6 v: a client that
+        dropped the weights would return 2 v, and one that summed the
+        blocks unweighted would also return 2 v, so the factor is what
+        distinguishes a weighted product from an unweighted one.
+        """
+        model = _model(server_url, "vector", bkd, nvars=2)
+        whvp = model.derivatives().whvp
+        assert whvp is not None
+        assert model.nqoi() == 2
+        result = whvp(
+            bkd.asarray([[1.0], [2.0]]),
+            bkd.asarray([[1.0], [0.0]]),
+            bkd.asarray([[3.0], [5.0]]),
+        )
+        assert result.shape == (2, 1)
+        bkd.assert_allclose(result, bkd.asarray([[6.0], [0.0]]))
+
+    def test_whvp_matches_hvp_for_scalar_output(
+        self, server_url, bkd
+    ) -> None:
+        """With one output seeded by one, the two agree by definition."""
+        model = _model(server_url, "quadratic", bkd, nvars=3)
+        d = model.derivatives()
+        assert d.hvp is not None and d.whvp is not None
+        sample = bkd.asarray([[1.0], [2.0], [3.0]])
+        vec = bkd.asarray([[1.0], [0.0], [0.0]])
+        bkd.assert_allclose(
+            d.whvp(sample, vec, bkd.ones((1, 1))), d.hvp(sample, vec)
+        )
+
+    def test_whvp_rejects_wrong_weight_shape(self, server_url, bkd) -> None:
+        """Weights are (nqoi, 1); anything else is a caller error."""
+        model = _model(server_url, "vector", bkd, nvars=2)
+        whvp = model.derivatives().whvp
+        assert whvp is not None
+        with pytest.raises(ValueError, match="weights has wrong shape"):
+            whvp(
+                bkd.asarray([[1.0], [2.0]]),
+                bkd.asarray([[1.0], [0.0]]),
+                bkd.asarray([[3.0]]),
             )
 
     def test_hvp_rejects_vector_valued_model(self, server_url, bkd) -> None:
@@ -273,47 +355,6 @@ class TestDerivativeValues:
         assert jacobian is not None
         with pytest.raises(ValueError, match=r"nvars, 1"):
             jacobian(bkd.asarray([[1.0, 2.0], [2.0, 3.0]]))
-
-
-class TestUpstreamBug:
-    """Watches an umbridge defect that constrains the tests above."""
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "umbridge Python server validates the ApplyHessian reply "
-            "against the output size, but H v is input-sized. When this "
-            "test starts passing the bug is fixed: drop this class, "
-            "widen test_hvp_single_variable to several variables, and "
-            "revisit the length check in UMBridgeModel._hvp."
-        ),
-    )
-    def test_upstream_hessian_length_bug_still_present(
-        self, server_url, bkd
-    ) -> None:
-        """A conformant nvars-long H v must round trip; today it cannot.
-
-        The specification defines H v as input-sized -- H is nvars x
-        nvars -- and the C++ reference server imposes no length check.
-        The Python server checks ``len(output) != output_sizes[out_wrt]``
-        in its ApplyHessian handler, so it rejects a correct reply from
-        any model with nvars != nqoi.
-
-        This is written as a strict xfail rather than a comment so that
-        the workarounds elsewhere in this file cannot outlive the defect
-        that motivates them: the suite fails once upstream is fixed.
-        """
-        model = _model(server_url, "quadratic", bkd, nvars=3)
-        hvp = model.derivatives().hvp
-        assert hvp is not None
-        result = hvp(
-            bkd.asarray([[1.0], [2.0], [3.0]]),
-            bkd.asarray([[1.0], [0.0], [0.0]]),
-        )
-        # Hessian of sum(x_i^2) is 2I, so H v = 2 v
-        bkd.assert_allclose(
-            result, bkd.asarray([[2.0], [0.0], [0.0]])
-        )
 
 
 class TestServerLifecycle:
