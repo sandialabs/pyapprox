@@ -572,7 +572,11 @@ class RandomizedSVD(Generic[Array], ABC):
         Array
             Column space samples. Shape: (nrows, nsamples)
         """
-        nsamples = rank + self._noversampling
+        # Saturate at the ambient dimension for the same reason as
+        # randomized_symmetric_eigendecomposition: more probes than
+        # rows cannot find more directions than the space holds, and
+        # an orthonormalizer is right to refuse a wide array.
+        nsamples = min(rank + self._noversampling, self._matvec.nrows())
         # Local stream when seeded (reproducible, never perturbs the global
         # RNG); global np.random otherwise (historical behavior).
         rng = (np.random.RandomState(self._seed) if self._seed is not None
@@ -832,7 +836,16 @@ def randomized_symmetric_eigendecomposition(
     ...     apply_A, nvars=2, rank=2, bkd=bkd
     ... )
     """
-    nsamples = rank + noversampling
+    # Oversampling draws more probes than the rank sought, because the
+    # extra columns raise the odds the sketch captures the dominant
+    # subspace. Past the ambient dimension that buys nothing: nvars
+    # probes already span the whole space, and handing an
+    # orthonormalizer more columns than rows asks it for directions
+    # that do not exist. Saturating keeps the degenerate case -- a
+    # small operator with the default oversampling of ten -- a sketch
+    # of the whole space rather than an error, and leaves the
+    # orthonormalizer free to reject input that is genuinely wide.
+    nsamples = min(rank + noversampling, nvars)
 
     # Random matrix for sampling column space. A local stream when
     # seeded, so the result is reproducible without perturbing the
