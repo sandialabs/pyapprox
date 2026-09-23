@@ -944,6 +944,41 @@ def _pairs(
     return [(path, plain) for path in collector.matches(source_dir)]
 
 
+def _verify_transferred(
+    source: Path, partial: Path, expected: int, mode: TransferMode
+) -> None:
+    """Check that what landed is the size of what was sent.
+
+    A hardlink is the same inode, so there is nothing to compare and
+    nothing that could differ.
+
+    The source is re-stated too. A file the solver was still writing
+    when gathering began is not a transfer failure, but copying it
+    yields a torn file that nothing downstream can tell from a whole
+    one -- so it is reported rather than quietly archived.
+
+    Size only. A hash would catch corruption a size cannot, and costs a
+    full read of every file: minutes per sample on a large mesh, and
+    the mesh is exactly what this exists to move. Callers who need that
+    guarantee can hash the destination afterwards, once, rather than
+    paying for it on every gather.
+    """
+    if mode is TransferMode.HARDLINK:
+        return
+    landed = partial.stat().st_size
+    if landed != expected:
+        raise OSError(
+            f"{source} copied short: {landed} bytes landed, "
+            f"{expected} expected"
+        )
+    current = source.stat().st_size
+    if current != expected:
+        raise OSError(
+            f"{source} changed while being copied: {expected} bytes at "
+            f"the start, {current} now"
+        )
+
+
 def _transfer(
     source: Path, target: Path, mode: TransferMode, overwrite: bool
 ) -> Tuple[int, bool]:
@@ -953,6 +988,14 @@ def _transfer(
     transfer from looking like a complete one: ``os.replace`` either
     happens or does not, so a reader never sees a half-written file at
     the real path.
+
+    What arrived is checked against what was sent, **before** the
+    rename. A copy can return without error and still be short -- an
+    NFS server that accepted the writes and lost them, a filesystem
+    that hit its quota between the last write and the close -- and a
+    short file at the real path is indistinguishable from a complete
+    one, since it has a plausible size and an mtime. Checking after the
+    rename would mean detecting it with the bad copy already in place.
     """
     if target.exists() and not overwrite:
         raise OSError(f"{target} exists; pass overwrite=True to replace it")
@@ -972,6 +1015,7 @@ def _transfer(
                 fellback = True
         else:
             shutil.copy2(source, partial)
+        _verify_transferred(source, partial, nbytes, mode)
         os.replace(partial, target)
     except OSError:
         # Never leave the scratch name behind: a later gather would see

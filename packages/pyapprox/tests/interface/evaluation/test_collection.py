@@ -250,6 +250,103 @@ class TestAtomicity:
         assert list(dest.rglob("*.part")) == []
 
 
+class TestWhatArrivedIsChecked:
+    """A copy can return without error and still be short.
+
+    An NFS server that accepted the writes and lost them, a filesystem
+    that hit quota between the last write and the close. The atomic
+    rename stops a *torn* file reaching the real path; it says nothing
+    about a copy that completed and is wrong.
+    """
+
+    def test_a_short_copy_is_reported(
+        self, workdir, tmp_path, monkeypatch
+    ) -> None:
+        def truncating_copy(src, dst, **kwargs):
+            # Lands, returns cleanly, and is missing bytes.
+            with open(dst, "wb") as handle:
+                handle.write(b"tr")
+
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            truncating_copy,
+        )
+        result = _gather(workdir, tmp_path / "dest", ["out.fld"])
+        assert not result.ok()
+        assert "copied short" in result.failures[0][1]
+
+    def test_a_short_copy_never_reaches_the_destination(
+        self, workdir, tmp_path, monkeypatch
+    ) -> None:
+        """Checked before the rename, so the bad copy is never in place."""
+        dest = tmp_path / "dest"
+
+        def truncating_copy(src, dst, **kwargs):
+            with open(dst, "wb") as handle:
+                handle.write(b"tr")
+
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            truncating_copy,
+        )
+        _gather(workdir, dest, ["out.fld"])
+        assert not (dest / "out.fld").exists()
+        assert list(dest.rglob("*.part")) == []
+
+    def test_a_source_still_being_written_is_reported(
+        self, workdir, tmp_path, monkeypatch
+    ) -> None:
+        """A torn read of a live file is not a whole file.
+
+        Gathering a directory whose solver has not finished gives a
+        file nothing downstream can tell from a complete one.
+        """
+        source = workdir / "out.fld"
+        real_copy = shutil.copy2
+
+        def growing_copy(src, dst, **kwargs):
+            real_copy(src, dst, **kwargs)
+            # The solver writes more after the copy read it.
+            with open(source, "a") as handle:
+                handle.write("more data arriving")
+
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            growing_copy,
+        )
+        result = _gather(workdir, tmp_path / "dest", ["out.fld"])
+        assert not result.ok()
+        assert "changed while being copied" in result.failures[0][1]
+
+    def test_an_intact_copy_passes(self, workdir, tmp_path) -> None:
+        result = _gather(workdir, tmp_path / "dest", ["out.fld"])
+        assert result.ok()
+        assert (
+            tmp_path / "dest" / "out.fld"
+        ).read_text() == "mesh data"
+
+    def test_a_hardlink_needs_no_comparison(
+        self, workdir, tmp_path
+    ) -> None:
+        """Same inode: there is nothing that could differ."""
+        result = _gather(
+            workdir,
+            tmp_path / "dest",
+            ["out.fld"],
+            mode=TransferMode.HARDLINK,
+        )
+        assert result.ok()
+
+    def test_an_empty_file_is_not_mistaken_for_a_failure(
+        self, workdir, tmp_path
+    ) -> None:
+        """Zero bytes is a legitimate size, not a short copy."""
+        (workdir / "empty.fld").write_text("")
+        result = _gather(workdir, tmp_path / "dest", ["empty.fld"])
+        assert result.ok()
+        assert (tmp_path / "dest" / "empty.fld").exists()
+
+
 class TestCollisions:
     def test_an_existing_destination_is_refused(
         self, workdir, tmp_path
