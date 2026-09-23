@@ -688,6 +688,167 @@ class TestRunAndSubmissionLayout:
         )
 
 
+class TestResumeRefusesADifferentExperiment:
+    """A run directory is one experiment, not a namespace.
+
+    Resuming into it with a different command files two experiments'
+    samples under one name with nothing to tell them apart -- and the
+    samples look identical, because what differs is the solver that
+    produced them rather than anything written per sample. No later
+    reconciliation can detect it and no gathering can separate it; the
+    numbers are simply from two models.
+    """
+
+    def _marshaller_with(self, solver, tmp_path, numpy_bkd, **kwargs):
+        return TextFileMarshaller(
+            bkd=numpy_bkd,
+            nvars=2,
+            nqoi=1,
+            scratch_root=str(tmp_path / "scratch"),
+            run_id="sweep-a",
+            on_existing=OnExisting.RESUME,
+            **kwargs,
+        )
+
+    def test_resuming_the_same_configuration_is_allowed(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        command = [sys.executable, str(solver), "ok"]
+        first = self._marshaller_with(
+            solver, tmp_path, numpy_bkd, command=command
+        )
+        first.begin_submission()
+        second = self._marshaller_with(
+            solver, tmp_path, numpy_bkd, command=command
+        )
+        second.begin_submission()
+        assert second.run_dir() == first.run_dir()
+
+    def test_a_changed_command_is_refused(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=[sys.executable, str(solver), "ok"],
+        ).begin_submission()
+        other = self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=[sys.executable, str(solver), "fail"],
+        )
+        with pytest.raises(MarshalError, match="different configuration"):
+            other.begin_submission()
+
+    def test_changed_link_files_are_refused(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        mesh = tmp_path / "mesh.dat"
+        mesh.write_text("nodes")
+        other_mesh = tmp_path / "other.dat"
+        other_mesh.write_text("nodes")
+        command = [sys.executable, str(solver), "ok"]
+        self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=command,
+            link_files=[str(mesh)],
+        ).begin_submission()
+        other = self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=command,
+            link_files=[str(other_mesh)],
+        )
+        with pytest.raises(MarshalError, match="link_files"):
+            other.begin_submission()
+
+    def test_the_refusal_names_what_differs(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """A refusal the caller cannot act on is only an obstacle."""
+        self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=[sys.executable, str(solver), "ok"],
+        ).begin_submission()
+        other = self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=[sys.executable, str(solver), "fail"],
+        )
+        with pytest.raises(MarshalError) as caught:
+            other.begin_submission()
+        message = str(caught.value)
+        assert "command" in message
+        assert "OnExisting.NEW" in message
+
+    def test_it_compares_against_the_run_that_started_it(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Not against the previous resume.
+
+        Otherwise a run drifts one small change at a time: each resume
+        matches the one before it, and the tenth has nothing to do with
+        the first.
+        """
+        command = [sys.executable, str(solver), "ok"]
+        for _ in range(3):
+            self._marshaller_with(
+                solver, tmp_path, numpy_bkd, command=command
+            ).begin_submission()
+        other = self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=[sys.executable, str(solver), "fail"],
+        )
+        with pytest.raises(MarshalError, match="different configuration"):
+            other.begin_submission()
+
+    def test_a_run_without_a_manifest_is_still_resumable(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """An unreadable manifest must not condemn usable work."""
+        (tmp_path / "scratch" / "sweep-a").mkdir(parents=True)
+        marshaller = self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=[sys.executable, str(solver), "ok"],
+        )
+        marshaller.begin_submission()
+        assert Path(marshaller.run_dir()).name == "sweep-a"
+
+    def test_new_does_not_compare_anything(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """A fresh id is a new experiment by definition."""
+        self._marshaller_with(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            command=[sys.executable, str(solver), "ok"],
+        ).begin_submission()
+        other = TextFileMarshaller(
+            command=[sys.executable, str(solver), "fail"],
+            bkd=numpy_bkd,
+            nvars=2,
+            nqoi=1,
+            scratch_root=str(tmp_path / "scratch"),
+            run_id="sweep-a",
+            on_existing=OnExisting.NEW,
+        )
+        other.begin_submission()
+        assert Path(other.run_dir()).name != "sweep-a"
+
+
 class TestManifest:
     """What the run recorded about itself, as it ran."""
 

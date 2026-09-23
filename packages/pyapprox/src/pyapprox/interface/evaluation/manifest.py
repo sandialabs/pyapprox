@@ -341,6 +341,33 @@ def iter_records(path: str) -> Iterator[Dict[str, Any]]:
                 yield parsed
 
 
+def first_run_record(run_dir: str) -> Optional[Dict[str, Any]]:
+    """The header that defined this run, or ``None`` if there is none.
+
+    The *first* one, not the latest: each resume writes its own header,
+    and what a later resume must be checked against is the
+    configuration the run started with. Checking against the previous
+    resume instead would let a run drift one small change at a time.
+
+    ``None`` when no manifest is readable, which is a run that predates
+    manifests or has lost them -- a reason to fall back, not to refuse.
+    """
+    # By modification time, not by name. Manifest names carry a host
+    # and a pid, so sorting them as text orders by whichever machine
+    # happens to sort first -- which has nothing to do with which run
+    # came first.
+    paths = manifest_paths(run_dir)
+    try:
+        paths = sorted(paths, key=os.path.getmtime)
+    except OSError:
+        pass
+    for path in paths:
+        for record in iter_records(path):
+            if record.get("kind") == KIND_RUN:
+                return record
+    return None
+
+
 def is_run_complete(run_dir: str) -> bool:
     """Whether the run said it had finished.
 

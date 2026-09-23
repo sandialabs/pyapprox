@@ -65,6 +65,7 @@ from typing import (
 from pyapprox.interface.evaluation.manifest import (
     RUN_DONE_FILENAME,
     ManifestWriter,
+    first_run_record,
     manifest_filename,
     prepared_record,
     released_record,
@@ -522,6 +523,7 @@ class TextFileMarshaller(Generic[Array]):
             candidate.mkdir(parents=True, exist_ok=False)
         except FileExistsError:
             if self._on_existing is OnExisting.RESUME:
+                self._check_resumable(candidate)
                 return candidate
             if self._on_existing is OnExisting.NEW:
                 self._requested_run_id = None
@@ -532,6 +534,53 @@ class TextFileMarshaller(Generic[Array]):
                 "OnExisting.NEW to allocate a fresh id"
             ) from None
         return candidate
+
+    def _check_resumable(self, run_dir: Path) -> None:
+        """Refuse to continue a run that was doing something else.
+
+        A run directory is one experiment. Resuming into it with a
+        different command, or a different set of linked inputs, files
+        two experiments' samples under one name with nothing to tell
+        them apart -- and the samples themselves look identical, since
+        what differs is the solver that produced them rather than
+        anything written down per sample. Later reconciliation cannot
+        detect it, gathering cannot separate it, and the numbers are
+        quietly from two different models.
+
+        Compared against the *first* header, which is the one that
+        defined the run. Later headers are earlier resumes that already
+        passed this check.
+
+        A run directory with no readable header is allowed through: it
+        may predate manifests or have lost them, and refusing would
+        make an unreadable manifest fatal to work that is otherwise
+        fine.
+        """
+        header = first_run_record(str(run_dir))
+        if header is None:
+            return
+        mismatches = []
+        recorded_command = header.get("command")
+        if (
+            isinstance(recorded_command, list)
+            and recorded_command != self._command
+        ):
+            mismatches.append(
+                f"command {recorded_command!r} != {self._command!r}"
+            )
+        recorded_links = header.get("link_files")
+        links = [str(path) for path in self._link_files]
+        if isinstance(recorded_links, list) and recorded_links != links:
+            mismatches.append(
+                f"link_files {recorded_links!r} != {links!r}"
+            )
+        if mismatches:
+            raise MarshalError(
+                f"cannot resume run {run_dir.name}: it was started with a "
+                "different configuration (" + "; ".join(mismatches) + "). "
+                "Use a different run_id, or OnExisting.NEW, rather than "
+                "mixing two experiments under one name"
+            )
 
     def run_dir(self) -> Optional[str]:
         """Where this run's directories live, once one has been claimed.
