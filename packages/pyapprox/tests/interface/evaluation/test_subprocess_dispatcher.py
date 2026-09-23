@@ -13,6 +13,7 @@ descriptors and files, and running every case twice over NumPy and
 Torch would double the module without testing anything new.
 """
 
+import os
 import subprocess
 import sys
 import textwrap
@@ -52,6 +53,25 @@ def _run(task):
     """Submit one task and wait for its outcome."""
     with SubprocessDispatcher(concurrency=1) as dispatcher:
         return dispatcher.submit([task])[0].outcome()
+
+
+def _open_fds():
+    """How many descriptors this process holds.
+
+    Counted rather than named: what matters is that a failed launch
+    leaves the total where it found it.
+    """
+    import resource
+
+    soft, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
+    count = 0
+    for fd in range(min(soft, 4096)):
+        try:
+            os.fstat(fd)
+        except OSError:
+            continue
+        count += 1
+    return count
 
 
 def _task(talker, tmp_path, code=0, nfiller=0, **kwargs):
@@ -125,6 +145,34 @@ class TestRedirectionToFiles:
         for _ in range(2):
             _run(_task(talker, tmp_path, stdout_path=str(out)))
         assert out.read_text().count("solver said hello") == 2
+
+    def test_a_stderr_open_failure_does_not_leak_the_stdout_handle(
+        self, talker, tmp_path
+    ) -> None:
+        """Either both descriptors are handed over or neither is.
+
+        stdout opens first, so a stderr path that cannot be opened
+        would otherwise strand it -- one descriptor per launch, which a
+        long sweep turns into EMFILE.
+        """
+        def attempt():
+            return _run(
+                _task(
+                    talker,
+                    tmp_path,
+                    stdout_path=str(tmp_path / "solver.stdout"),
+                    stderr_path=str(tmp_path / "absent" / "solver.stderr"),
+                )
+            )
+
+        # One failed launch strands at most one descriptor, which could
+        # hide in ordinary churn. Repeating makes a leak unambiguous:
+        # the count grows with the attempts or it does not move.
+        assert attempt().status is JobStatus.FAILED
+        before = _open_fds()
+        for _ in range(20):
+            assert attempt().status is JobStatus.FAILED
+        assert _open_fds() == before
 
     def test_an_unopenable_log_fails_only_that_sample(
         self, talker, tmp_path

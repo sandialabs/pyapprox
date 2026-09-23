@@ -279,12 +279,22 @@ class SubprocessJobHandle(Generic[Payload]):
                 os.O_WRONLY | os.O_CREAT | os.O_APPEND,
                 0o644,
             )
-        if task.stderr_path is not None:
-            stderr = os.open(
-                task.stderr_path,
-                os.O_WRONLY | os.O_CREAT | os.O_APPEND,
-                0o644,
-            )
+        try:
+            if task.stderr_path is not None:
+                stderr = os.open(
+                    task.stderr_path,
+                    os.O_WRONLY | os.O_CREAT | os.O_APPEND,
+                    0o644,
+                )
+        except OSError:
+            # Either both descriptors reach the caller or neither does.
+            # ``launch`` closes what it is handed, and it is handed
+            # nothing when this raises -- so a stdout opened before
+            # stderr failed would be stranded here, one per launch,
+            # which a long sweep turns into EMFILE.
+            if stdout >= 0:
+                os.close(stdout)
+            raise
         return stdout, stderr
 
     def poll(self) -> None:
