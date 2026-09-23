@@ -33,19 +33,76 @@ simply has no encoder.
 The basis is shared rather than copied, so the two views cannot drift.
 """
 
-from typing import Generic, Optional, Protocol, runtime_checkable
+from typing import (
+    Generic,
+    Iterator,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    runtime_checkable,
+)
 
+from pyapprox.surrogates.kle.basis_operator import (
+    BasisOperatorProtocol,
+    as_basis_operator,
+)
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.protocols import KLEProtocol
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     SnapshotEigenSolverProtocol,
 )
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, Array_co, Backend
 from pyapprox.util.linalg.inner_product import (
     EuclideanInnerProduct,
     InnerProductProtocol,
+    RowSeparableMetric,
     m_orthonormality_drift,
+    m_orthonormality_drift_from_blocks,
 )
+
+
+@runtime_checkable
+class _BlockIterableBasis(Protocol, Generic[Array_co]):
+    """A basis that can be read a row block at a time.
+
+    ``BasisOperatorProtocol`` does not require this: a resident basis
+    has no blocks to offer and would have to invent them, and the
+    operations the protocol does require -- the contractions -- work
+    without it. Iterating is an extra a streamed implementation has.
+
+    Parameterized by the covariant ``Array_co`` because the element
+    type appears only in the return: a protocol that only produces
+    arrays is satisfied by one producing a more specific array, which
+    an invariant parameter would reject.
+    """
+
+    def blocks(
+        self, max_bytes: Optional[int] = None
+    ) -> Iterator[Tuple[slice, Array_co]]:
+        ...
+
+
+@runtime_checkable
+class _OperatorBackedKLE(Protocol, Generic[Array]):
+    """A KLE that can hand over its basis as operations.
+
+    ``KLEProtocol`` requires only ``eigenvectors() -> Array``, which
+    materializes. That is the right requirement for it: five of the
+    seven expansions here build their basis from a kernel eigenproblem
+    or a closed form that is resident anyway, so an operator accessor
+    on them would return an ``ArrayBasis`` wrapping the array they
+    already hold.
+
+    The two that can do better -- an expansion handed a basis, or one
+    built from snapshots into a sink -- say so by having this method,
+    and are asked with ``isinstance`` rather than by sniffing. Without
+    it the basis is wrapped as an array, which is correct and is what
+    the majority case wants.
+    """
+
+    def basis(self) -> BasisOperatorProtocol[Array]:
+        ...
 
 
 @runtime_checkable
@@ -121,22 +178,57 @@ class KLEEncoder(Generic[Array]):
                 "inverts it. Encode against the Gaussian basis it "
                 "exponentiates, taking logs of the samples first."
             )
-        basis = kle.eigenvectors()
-        if metric is not None and metric.nstates() != int(basis.shape[0]):
-            raise ValueError(
-                f"metric is defined on {metric.nstates()} states but the "
-                f"basis has {int(basis.shape[0])} rows"
-            )
         self._kle = kle
         self._metric = metric
         self._bkd = kle.bkd()
         self._orthonormality_tol = orthonormality_tol
+        # Taken from the expansion when it has one to give, so a basis
+        # held out of core stays that way; wrapped from the array
+        # otherwise, which is what the expansions that build their
+        # basis from a resident eigenproblem would produce anyway.
+        self._basis_operator = (
+            kle.basis()
+            if isinstance(kle, _OperatorBackedKLE)
+            else as_basis_operator(kle.eigenvectors(), self._bkd)
+        )
+        nstates = self._basis_operator.nstates()
+        if metric is not None and metric.nstates() != nstates:
+            raise ValueError(
+                f"metric is defined on {metric.nstates()} states but the "
+                f"basis has {nstates} rows"
+            )
         drift_metric = (
-            EuclideanInnerProduct(int(basis.shape[0]), self._bkd)
+            EuclideanInnerProduct(nstates, self._bkd)
             if metric is None
             else metric
         )
-        self._drift = m_orthonormality_drift(basis, drift_metric, self._bkd)
+        self._drift = self._compute_drift(drift_metric)
+
+    def _compute_drift(
+        self, drift_metric: InnerProductProtocol[Array]
+    ) -> float:
+        r"""Return :math:`\|V^T M V - I\|_F` without holding V if possible.
+
+        The Gram contracts over rows, so it accumulates over row blocks
+        whenever the metric acts on a block without reaching outside it
+        -- which the Euclidean and diagonal metrics do and an assembled
+        mass matrix does not. Both conditions have to hold: a basis that
+        can supply blocks, and a metric that can be applied to one.
+
+        Falling back materializes, which is what the expansions that
+        build their basis from a resident eigenproblem do anyway. So the
+        cost is paid only where it was already being paid.
+        """
+        basis = self._basis_operator
+        if isinstance(drift_metric, RowSeparableMetric) and isinstance(
+            basis, _BlockIterableBasis
+        ):
+            return m_orthonormality_drift_from_blocks(
+                basis.blocks(), drift_metric, basis.nterms(), self._bkd
+            )
+        return m_orthonormality_drift(
+            basis.to_array(), drift_metric, self._bkd
+        )
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -248,6 +340,51 @@ class KLEEncoder(Generic[Array]):
                 f"ndim={latents.ndim}"
             )
         return self._bkd.dot(self.basis(), latents) + self.mean()
+
+    def decode_at(
+        self, latents: Array, rows: Sequence[int]
+    ) -> Array:
+        r"""Decode at selected states only, shape ``(len(rows), nsamples)``.
+
+        :math:`f = Vz + \bar{f}` has no coupling across rows -- row
+        :math:`i` of the result uses row :math:`i` of :math:`V` and of
+        :math:`\bar{f}`, and nothing else -- so a caller wanting the
+        field at a few thousand of :math:`10^7` mesh points can have
+        exactly those, rather than the whole field followed by a
+        subscript.
+
+        What that is for: plotting a mode or a realization on a coarse
+        subsample, probing a field at sensor locations, and any
+        interactive use where the full decode would be the largest
+        object in the session and most of it would never be looked at.
+
+        ``rows`` may be in any order and may repeat; the result follows
+        the order given, so a caller can pass the point ordering its
+        plot wants.
+
+        Parameters
+        ----------
+        latents : Array
+            Shape ``(latent_dim, nsamples)``.
+        rows : sequence of int
+            States to evaluate at, indices into ``full_dim``.
+
+        Returns
+        -------
+        Array
+            Shape ``(len(rows), nsamples)``.
+        """
+        if latents.ndim != 2:
+            raise ValueError(
+                f"latents must be 2D (latent_dim, nsamples), got "
+                f"ndim={latents.ndim}"
+            )
+        wanted = self._bkd.asarray(list(rows), dtype=int)
+        basis_rows = self._basis_operator.rows(list(rows))
+        return (
+            self._bkd.dot(basis_rows, latents)
+            + self.mean()[wanted, :]
+        )
 
     def decode_std(self, std_latents: Array) -> Array:
         r"""Propagate latent std to full space, without the mean shift.

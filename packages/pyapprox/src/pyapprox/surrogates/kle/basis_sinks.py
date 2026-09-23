@@ -48,6 +48,26 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
+class RowFetcherProtocol(Protocol, Generic[Array]):
+    """Fetches scattered rows of a stored basis directly.
+
+    Optional, because whether it can be done cheaply is a property of
+    the storage: a memmap indexes into a page table, while a format
+    that must be decompressed or read in order cannot, and would have
+    to walk to the same place a caller could walk itself.
+
+    A sink supplies one only when its storage indexes randomly. Where
+    it does, the difference is not marginal: fetching a few hundred
+    scattered rows of a gigabyte-scale basis touches a few hundred
+    pages, against a full pass to keep the same rows.
+    """
+
+    def __call__(self, indices: Sequence[int]) -> Array:
+        """Return rows ``indices``, shape ``(len(indices), nterms)``."""
+        ...
+
+
+@runtime_checkable
 class RowBlockReaderProtocol(Protocol, Generic[Array]):
     """Reads a stored basis back as row blocks.
 
@@ -291,12 +311,28 @@ class MemmapBasisSink(Generic[Array]):
                     np.asarray(handle[start:stop, :])
                 )
 
+        def fetch_rows(indices: Sequence[int]) -> Array:
+            """Read scattered rows directly, touching only their pages.
+
+            A memmap indexes through the page table, so this is what
+            makes decoding at a subsample cheap: a few hundred rows of
+            a gigabyte-scale basis cost a few hundred pages rather than
+            a pass over the file.
+            """
+            handle = np.memmap(
+                path, dtype=np.float64, mode="r", shape=(nstates, nterms)
+            )
+            return bkd.array(
+                np.asarray(handle[np.asarray(indices, dtype=int), :])
+            )
+
         return StreamingBasis(
             read_blocks,
             nstates,
             nterms,
             bkd,
             max_bytes=self._max_bytes,
+            fetch_rows=fetch_rows,
         )
 
     def __repr__(self) -> str:
@@ -350,6 +386,13 @@ class StreamingBasis(Generic[Array]):
         Whether each block is squared elementwise as it is read.
     max_bytes : int, optional
         Byte budget passed to ``read_blocks`` on every pass.
+    fetch_rows : RowFetcherProtocol[Array], optional
+        Fetches scattered rows directly. Supplied by a sink whose
+        storage indexes randomly, None otherwise -- absence is the
+        honest report that the storage cannot do better than a pass,
+        not a missing feature. :meth:`rows` falls back to walking the
+        blocks when it is None, which is correct either way and
+        differs only in what it reads.
     """
 
     def __init__(
@@ -362,6 +405,7 @@ class StreamingBasis(Generic[Array]):
         factors: Optional[Array] = None,
         squared: bool = False,
         max_bytes: Optional[int] = None,
+        fetch_rows: Optional[RowFetcherProtocol[Array]] = None,
     ) -> None:
         if not isinstance(read_blocks, RowBlockReaderProtocol):
             raise TypeError(
@@ -378,6 +422,7 @@ class StreamingBasis(Generic[Array]):
         self._factors = factors
         self._squared = squared
         self._max_bytes = max_bytes
+        self._fetch_rows = fetch_rows
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -415,6 +460,7 @@ class StreamingBasis(Generic[Array]):
             self._factors if factors is None else factors,
             self._squared if squared is None else squared,
             self._max_bytes,
+            self._fetch_rows,
         )
 
     def select(self, columns: Sequence[int]) -> "StreamingBasis[Array]":
@@ -474,14 +520,48 @@ class StreamingBasis(Generic[Array]):
         rather than a product with it -- writing to a sink, say.
         """
         budget = self._max_bytes if max_bytes is None else max_bytes
-        index = self._bkd.asarray(self._columns, dtype=int)
         for rows, block in self._read_blocks(budget):
-            chosen = block[:, index]
-            if self._squared:
-                chosen = chosen**2
-            if self._factors is not None:
-                chosen = chosen * self._factors
-            yield rows, chosen
+            yield rows, self._apply_recipe(block)
+
+    def _apply_recipe(self, block: Array) -> Array:
+        """Select, square and scale a block, in the recorded order.
+
+        Shared by :meth:`blocks` and :meth:`rows` so a row obtained
+        either way carries the same transformations -- the fetched path
+        would otherwise return stored columns where the walked path
+        returns presented ones.
+        """
+        chosen = block[:, self._bkd.asarray(self._columns, dtype=int)]
+        if self._squared:
+            chosen = chosen**2
+        if self._factors is not None:
+            chosen = chosen * self._factors
+        return chosen
+
+    def rows(self, indices: Sequence[int]) -> Array:
+        r"""Return the named rows, shape ``(len(indices), nterms)``.
+
+        Uses the sink's row fetcher when it supplied one, which reads
+        only the pages those rows fall on. Without one the blocks are
+        walked and the wanted rows kept -- correct, and a full pass to
+        retain a handful of rows, which is why a storage that can index
+        randomly says so rather than leaving this to guess.
+        """
+        wanted = _validate_row_indices(indices, self._nstates)
+        if self._fetch_rows is not None:
+            return self._apply_recipe(self._fetch_rows(wanted))
+        out = self._bkd.zeros((len(wanted), self.nterms()))
+        for block_rows, block in self.blocks():
+            start = 0 if block_rows.start is None else int(block_rows.start)
+            stop = (
+                self._nstates
+                if block_rows.stop is None
+                else int(block_rows.stop)
+            )
+            for position, index in enumerate(wanted):
+                if start <= index < stop:
+                    out[position, :] = block[index - start, :]
+        return out
 
     def apply(self, coefs: Array) -> Array:
         r"""Return :math:`V c`, shape ``(nstates, ncols)``.
@@ -526,6 +606,25 @@ class StreamingBasis(Generic[Array]):
             f"{self.__class__.__name__}(nstates={self._nstates}, "
             f"nterms={self.nterms()})"
         )
+
+
+def _validate_row_indices(
+    indices: Sequence[int], nstates: int
+) -> List[int]:
+    """Check every requested row exists, and return them as a list.
+
+    Checked up front rather than per block: an out-of-range index would
+    otherwise be silently skipped by the walk, leaving that row of the
+    result as whatever it was initialized to.
+    """
+    wanted = [int(index) for index in indices]
+    for index in wanted:
+        if not 0 <= index < nstates:
+            raise ValueError(
+                f"row {index} out of range for a basis with "
+                f"{nstates} states"
+            )
+    return wanted
 
 
 def validate_block(

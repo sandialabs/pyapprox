@@ -7,12 +7,15 @@ capability the wrapped object cannot support is absent rather than
 present-and-failing.
 """
 
+import os
+
 import numpy as np
 import pytest
 from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
     StdDecodingEncoderProtocol,
 )
+from pyapprox.surrogates.kle.basis_sinks import MemmapBasisSink
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.encoder import KLEEncoder, fit_kle_encoder
 from pyapprox.surrogates.kle.precomputed_kle import PrecomputedKLE
@@ -26,8 +29,10 @@ from pyapprox.surrogates.operatorlearning.protocols import (
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     EuclideanInnerProduct,
+    MassInnerProduct,
     m_orthonormality_drift,
 )
+from scipy.sparse import diags
 
 
 def _centered(bkd, nstates=12, nsamples=8, seed=0):
@@ -406,4 +411,156 @@ class TestPrecomputedSpectrum:
             stored.singular_values() ** 2,
             stored.eigenvalues(),
             rtol=1e-12,
+        )
+
+
+class TestDecodingAtSelectedStates:
+    """``decode_at``, for plotting and probing without a full field.
+
+    :math:`f = Vz + \\bar{f}` has no coupling across rows, so the field
+    at a few points is exactly those rows of the basis against the
+    coefficients -- never the whole field followed by a subscript.
+    """
+
+    def _encoder(self, bkd, nstates=400, nterms=5):
+        raw = np.random.RandomState(0).standard_normal(
+            (nstates, nterms)
+        )
+        basis = bkd.array(np.linalg.qr(raw)[0])
+        values = bkd.array(np.logspace(0, -2, nterms))
+        mean = bkd.array(
+            np.random.RandomState(1).standard_normal(nstates)
+        )
+        return KLEEncoder(
+            PrecomputedKLE(values, basis, mean, bkd=bkd)
+        )
+
+    def test_matches_decoding_then_subscripting(self, bkd) -> None:
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 3))
+        )
+        rows = [0, 311, 7, 1]
+        full = encoder.decode(latents)
+        bkd.assert_allclose(
+            encoder.decode_at(latents, rows),
+            full[bkd.asarray(rows, dtype=int), :],
+            atol=0.0,
+        )
+
+    def test_the_order_given_is_the_order_returned(self, bkd) -> None:
+        """So a caller can pass the ordering its plot wants."""
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 2))
+        )
+        full = encoder.decode(latents)
+        got = encoder.decode_at(latents, [311, 0])
+        bkd.assert_allclose(got[0], full[311], atol=0.0)
+        bkd.assert_allclose(got[1], full[0], atol=0.0)
+
+    def test_a_repeated_state_is_returned_twice(self, bkd) -> None:
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 2))
+        )
+        got = encoder.decode_at(latents, [9, 9])
+        assert got.shape == (2, 2)
+        bkd.assert_allclose(got[0], got[1], atol=0.0)
+
+    def test_an_out_of_range_state_raises(self, bkd) -> None:
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 2))
+        )
+        with pytest.raises(ValueError, match="out of range"):
+            encoder.decode_at(latents, [0, 400])
+
+    def test_1d_latents_are_rejected(self, bkd) -> None:
+        encoder = self._encoder(bkd)
+        with pytest.raises(ValueError, match="2D"):
+            encoder.decode_at(bkd.array(np.zeros(5)), [0])
+
+
+class TestTheDriftCheckWithAStreamedBasis:
+    """Orthonormality is checkable without holding the basis.
+
+    ``V^T M V`` contracts over rows, so it accumulates over row blocks
+    whenever the metric acts on a block without reaching outside it.
+    Both conditions are tested, including the one where they do not
+    hold and the check must fall back rather than silently drop the
+    terms straddling each boundary.
+    """
+
+    def _pair(self, bkd, tmp_path, metric=None, nstates=400, nterms=5):
+        """The same basis, held as an array and as a memmap."""
+        raw = np.random.RandomState(0).standard_normal(
+            (nstates, nterms)
+        )
+        basis = bkd.array(np.linalg.qr(raw)[0])
+        values = bkd.array(np.logspace(0, -2, nterms))
+        mean = bkd.array(np.zeros(nstates))
+        sink = MemmapBasisSink(
+            os.path.join(str(tmp_path), "b.dat"), nstates, nterms, bkd
+        )
+        for start in range(0, nstates, 37):
+            stop = min(start + 37, nstates)
+            sink.write(slice(start, stop), basis[start:stop, :])
+        streamed = sink.finalize()
+        return (
+            KLEEncoder(
+                PrecomputedKLE(values, basis, mean, bkd=bkd), metric
+            ),
+            KLEEncoder(
+                PrecomputedKLE(values, streamed, mean, bkd=bkd), metric
+            ),
+        )
+
+    def test_a_streamed_basis_gives_the_same_drift(
+        self, bkd, tmp_path
+    ) -> None:
+        resident, streamed = self._pair(bkd, tmp_path)
+        assert streamed.orthonormality_drift() == pytest.approx(
+            resident.orthonormality_drift(), abs=1e-14
+        )
+        assert streamed.is_isometry() == resident.is_isometry()
+
+    def test_a_diagonal_metric_also_accumulates(
+        self, bkd, tmp_path
+    ) -> None:
+        """Separable, so the block sums give the exact Gram."""
+        weights = bkd.array(
+            np.random.RandomState(4).uniform(0.5, 2.0, 400)
+        )
+        resident, streamed = self._pair(
+            bkd, tmp_path, DiagonalInnerProduct(weights, bkd)
+        )
+        assert streamed.orthonormality_drift() == pytest.approx(
+            resident.orthonormality_drift(), rel=1e-12
+        )
+
+    def test_a_coupled_metric_falls_back_rather_than_approximating(
+        self, bkd, tmp_path
+    ) -> None:
+        """A mass matrix reaches outside the block, so blocks are wrong.
+
+        The fallback materializes, which is what every expansion
+        building its basis from a resident eigenproblem does anyway.
+        What must not happen is a block-wise sum that drops the terms
+        crossing each boundary and reports a different number.
+        """
+        nstates = 400
+        mass = diags(
+            [
+                np.full(nstates - 1, 0.5),
+                np.full(nstates, 2.0),
+                np.full(nstates - 1, 0.5),
+            ],
+            [-1, 0, 1],
+        )
+        resident, streamed = self._pair(
+            bkd, tmp_path, MassInnerProduct(mass, bkd)
+        )
+        assert streamed.orthonormality_drift() == pytest.approx(
+            resident.orthonormality_drift(), rel=1e-12
         )

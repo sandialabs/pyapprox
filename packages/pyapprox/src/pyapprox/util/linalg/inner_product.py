@@ -42,6 +42,32 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 @runtime_checkable
+class RowSeparableMetric(Protocol, Generic[Array]):
+    r"""A metric whose action on a row block needs only that block.
+
+    :math:`M` is row separable when :math:`(Mx)[B]` depends only on
+    :math:`x[B]` -- true for the identity and for any diagonal
+    weighting, false for an assembled mass matrix, whose stencil
+    couples neighbouring nodes across a block boundary.
+
+    The distinction decides whether a Gram :math:`V^T M V` can be
+    accumulated over row blocks. For a separable metric the block sums
+    give the exact Gram; for a coupled one they silently give a
+    different matrix, since the terms straddling a boundary are simply
+    dropped. Measured on a tridiagonal mass matrix, a block-wise Gram
+    was wrong by 1.5e-3 while the diagonal case matched to 4.4e-16.
+
+    Declared rather than inferred: a metric knows its own structure,
+    and a consumer that guessed would be wrong exactly where the error
+    is invisible.
+    """
+
+    def apply_to_rows(self, rows: slice, block: Array) -> Array:
+        """Return ``(M x)[rows]`` given ``x[rows]``."""
+        ...
+
+
+@runtime_checkable
 class InnerProductProtocol(Protocol, Generic[Array]):
     r"""A weighted inner product :math:`\langle x, y \rangle_M = x^T M y`.
 
@@ -94,6 +120,45 @@ def m_orthonormality_drift(
     return bkd.to_float(bkd.norm(gram - bkd.eye(ncodes)))
 
 
+def m_orthonormality_drift_from_blocks(
+    blocks: object,
+    inner_product: RowSeparableMetric[Array],
+    nterms: int,
+    bkd: Backend[Array],
+) -> float:
+    r"""Return :math:`\|V^T M V - I\|_F`, accumulated over row blocks.
+
+    :math:`V^T (M V)` contracts over rows, so for a metric that acts on
+    a row block without reaching outside it the Gram is a sum of block
+    contributions and nothing ambient-sized is formed. That makes the
+    orthonormality of a basis checkable when the basis itself cannot be
+    held.
+
+    ``inner_product`` must be a
+    :class:`RowSeparableMetric`; a coupled metric drops the terms
+    straddling each boundary and returns a different matrix without
+    complaining, which is why the requirement is in the signature
+    rather than in a note.
+
+    Parameters
+    ----------
+    blocks : iterable of (slice, Array)
+        Row blocks of the basis, covering every row once.
+    inner_product : RowSeparableMetric[Array]
+        The metric the basis should be orthonormal in.
+    nterms : int
+        Number of basis vectors, the Gram's size.
+    bkd : Backend[Array]
+        Computational backend.
+    """
+    gram = bkd.zeros((nterms, nterms))
+    for rows, block in blocks:
+        gram = gram + bkd.dot(
+            block.T, inner_product.apply_to_rows(rows, block)
+        )
+    return bkd.to_float(bkd.norm(gram - bkd.eye(nterms)))
+
+
 class EuclideanInnerProduct(Generic[Array]):
     r"""The unweighted inner product, :math:`M = I`.
 
@@ -117,6 +182,10 @@ class EuclideanInnerProduct(Generic[Array]):
 
     def apply(self, x: Array) -> Array:
         return x
+
+    def apply_to_rows(self, rows: slice, block: Array) -> Array:
+        """Return the block untouched; the identity couples nothing."""
+        return block
 
     def dot(self, x: Array, y: Array) -> Array:
         return self._bkd.dot(x.T, y)
@@ -177,6 +246,10 @@ class DiagonalInnerProduct(Generic[Array]):
 
     def apply(self, x: Array) -> Array:
         return self._weights[:, None] * x
+
+    def apply_to_rows(self, rows: slice, block: Array) -> Array:
+        """Scale the block by its own weights; rows do not interact."""
+        return self._weights[rows, None] * block
 
     def dot(self, x: Array, y: Array) -> Array:
         return self._bkd.dot(x.T, self.apply(y))

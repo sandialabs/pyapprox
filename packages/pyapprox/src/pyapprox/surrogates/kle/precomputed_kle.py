@@ -84,13 +84,19 @@ class PrecomputedKLE(Generic[Array]):
         if bkd is None:
             raise ValueError("bkd must be provided")
         self._bkd = bkd
-        self._validate(eigenvalues, eigenvectors, mean_field)
+        # Wrapped before validation, not after: the checks below ask the
+        # basis for its shape, and an operator answers that through
+        # nstates/nterms rather than through .ndim and .shape. Validating
+        # the raw argument first would demand array attributes of an
+        # object this class otherwise accepts.
+        basis = as_basis_operator(eigenvectors, bkd)
+        self._validate(eigenvalues, basis, mean_field)
         self._eig_vals = eigenvalues
         # Held through the operator seam rather than as an array, so a
         # basis too large to materialize can be stored here unchanged.
         # ArrayBasis is the resident implementation and costs nothing:
         # its methods are the array expressions they replace.
-        self._basis = as_basis_operator(eigenvectors, bkd)
+        self._basis = basis
         self._mean_field = mean_field
         self._sigma = sigma
         self._use_log = use_log
@@ -101,38 +107,41 @@ class PrecomputedKLE(Generic[Array]):
         # ambient-sized objects for the lifetime of the expansion.
 
     def _validate(
-        self, eigenvalues: Array, eigenvectors: Array, mean_field: Array
+        self,
+        eigenvalues: Array,
+        basis: BasisOperatorProtocol[Array],
+        mean_field: Array,
     ) -> None:
-        """Check the three arrays describe one consistent basis.
+        """Check the three pieces describe one consistent basis.
 
         Each mismatch here would otherwise surface as a broadcasting
         error inside a matmul, at evaluation time, naming shapes that
-        have already been combined -- far from the array that was
+        have already been combined -- far from the argument that was
         actually wrong.
+
+        The basis is asked for its dimensions through the operator
+        rather than through ``.shape``, so a basis backed by a file is
+        checked as thoroughly as one backed by an array and without
+        being read.
         """
         if eigenvalues.ndim != 1:
             raise ValueError(
                 f"eigenvalues must be 1D, got ndim={eigenvalues.ndim}"
             )
-        if eigenvectors.ndim != 2:
-            raise ValueError(
-                f"eigenvectors must be 2D with shape (npoints, nterms), "
-                f"got ndim={eigenvectors.ndim}"
-            )
         if mean_field.ndim != 1:
             raise ValueError(
                 f"mean_field must be 1D, got ndim={mean_field.ndim}"
             )
-        if eigenvectors.shape[1] != eigenvalues.shape[0]:
+        if basis.nterms() != int(eigenvalues.shape[0]):
             raise ValueError(
-                f"eigenvectors has {eigenvectors.shape[1]} columns but "
+                f"eigenvectors has {basis.nterms()} columns but "
                 f"eigenvalues has {eigenvalues.shape[0]} entries; each "
                 "column is scaled by one eigenvalue"
             )
-        if mean_field.shape[0] != eigenvectors.shape[0]:
+        if int(mean_field.shape[0]) != basis.nstates():
             raise ValueError(
                 f"mean_field has {mean_field.shape[0]} entries but "
-                f"eigenvectors has {eigenvectors.shape[0]} rows; both "
+                f"eigenvectors has {basis.nstates()} rows; both "
                 "must be given at the same points"
             )
         smallest = float(self._bkd.to_numpy(eigenvalues).min())

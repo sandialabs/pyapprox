@@ -43,6 +43,7 @@ uses for them.
 
 from typing import (
     Generic,
+    List,
     Protocol,
     Sequence,
     runtime_checkable,
@@ -103,6 +104,28 @@ class BasisOperatorProtocol(Protocol, Generic[Array]):
         Needed by variance propagation, which contracts :math:`V^2`
         against a vector of variances. Elementwise, so it commutes with
         row blocking like everything else here.
+        """
+        ...
+
+    def rows(self, indices: Sequence[int]) -> Array:
+        r"""Return the named rows, shape ``(len(indices), nterms)``.
+
+        An array rather than a basis, unlike :meth:`select`: a row
+        subset is a *sample* of the ambient space rather than a smaller
+        basis for it, and the result is sized by the request, so a
+        caller asking for a few thousand rows of a 25 GB basis gets
+        something it can hold.
+
+        This is what decoding at a subset of mesh points needs. Decoding
+        has no coupling across rows -- row :math:`i` of :math:`Vz` uses
+        row :math:`i` of :math:`V` and nothing else -- so a plot over a
+        coarse subsample reads only the rows it draws.
+
+        Returning the rows rather than iterating blocks is deliberate:
+        the indices are typically scattered, and only the
+        implementation knows whether its storage indexes randomly or
+        must walk. A protocol that forced a block walk would make the
+        cheap case pay for the general one.
         """
         ...
 
@@ -198,6 +221,11 @@ class ArrayBasis(Generic[Array]):
         """Return the elementwise square of the basis."""
         return ArrayBasis(self._basis**2, self._bkd)
 
+    def rows(self, indices: Sequence[int]) -> Array:
+        r"""Return the named rows, shape ``(len(indices), nterms)``."""
+        wanted = validate_row_indices(indices, self.nstates())
+        return self._basis[self._bkd.asarray(wanted, dtype=int), :]
+
     def apply(self, coefs: Array) -> Array:
         r"""Return :math:`V c`, shape ``(nstates, ncols)``."""
         return self._bkd.dot(self._basis, coefs)
@@ -215,6 +243,28 @@ class ArrayBasis(Generic[Array]):
             f"{self.__class__.__name__}(nstates={self.nstates()}, "
             f"nterms={self.nterms()})"
         )
+
+
+def validate_row_indices(
+    indices: Sequence[int], nstates: int
+) -> List[int]:
+    """Check every requested row exists, and return them as a list.
+
+    Both bounds matter and for different reasons. An index at or above
+    ``nstates`` raises from the array anyway, but names the axis rather
+    than the argument. A *negative* index does not raise at all: it
+    wraps to a row from the other end and returns data that is the
+    right shape and the wrong field, which is the failure worth
+    spending a check on.
+    """
+    wanted = [int(index) for index in indices]
+    for index in wanted:
+        if not 0 <= index < nstates:
+            raise ValueError(
+                f"row {index} out of range for a basis with "
+                f"{nstates} states"
+            )
+    return wanted
 
 
 def as_basis_operator(

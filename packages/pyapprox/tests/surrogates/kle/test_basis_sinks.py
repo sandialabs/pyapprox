@@ -409,3 +409,175 @@ class TestTheSinksValidateTheirSize:
     ) -> None:
         with pytest.raises(ValueError, match="must be positive"):
             ArrayBasisSink(0, 5, bkd)
+
+
+class TestSelectingRows:
+    """Row selection, which decoding at a subsample needs.
+
+    Distinct from ``select``, which takes columns and returns a basis: a
+    row subset is a sample of the ambient space rather than a smaller
+    basis for it, so it returns an array sized by the request.
+    """
+
+    def test_matches_row_indexing(self, bkd: Backend) -> None:
+        array = _orthonormal(bkd, 120, 5)
+        chosen = [0, 77, 3, 1]
+        bkd.assert_allclose(
+            ArrayBasis(array, bkd).rows(chosen),
+            array[bkd.asarray(chosen, dtype=int), :],
+            atol=0.0,
+        )
+
+    def test_a_fetched_and_a_walked_basis_agree(
+        self, bkd: Backend, tmp_path: Any
+    ) -> None:
+        """The two paths through ``StreamingBasis.rows``.
+
+        A memmap sink supplies a fetcher that indexes directly; without
+        one the blocks are walked. The reads differ enormously and the
+        answer must not.
+        """
+        basis = _orthonormal(bkd, 120, 5)
+        sink = MemmapBasisSink(
+            os.path.join(str(tmp_path), "b.dat"), 120, 5, bkd
+        )
+        fetched = _fill(sink, basis)
+        walked = StreamingBasis(
+            fetched._read_blocks, 120, 5, bkd
+        )
+        chosen = [0, 77, 3, 1]
+        expected = ArrayBasis(basis, bkd).rows(chosen)
+        bkd.assert_allclose(fetched.rows(chosen), expected, atol=0.0)
+        bkd.assert_allclose(walked.rows(chosen), expected, atol=0.0)
+
+    def test_the_recipe_applies_on_both_paths(
+        self, bkd: Backend, tmp_path: Any
+    ) -> None:
+        """Rows come back selected and scaled, however they were read.
+
+        The failure this rules out is a fetched row carrying *stored*
+        columns where a walked row carries presented ones -- same shape
+        when the selection happens to be the identity, wrong otherwise.
+        """
+        basis = _orthonormal(bkd, 120, 5)
+        sink = MemmapBasisSink(
+            os.path.join(str(tmp_path), "b.dat"), 120, 5, bkd
+        )
+        fetched = _fill(sink, basis)
+        walked = StreamingBasis(fetched._read_blocks, 120, 5, bkd)
+        chosen_columns = [4, 1, 0]
+        factors = bkd.array([2.0, 0.5, 3.0])
+        chosen_rows = [0, 77, 3]
+        expected = (
+            ArrayBasis(basis, bkd)
+            .select(chosen_columns)
+            .scale(factors)
+            .rows(chosen_rows)
+        )
+        bkd.assert_allclose(
+            fetched.select(chosen_columns)
+            .scale(factors)
+            .rows(chosen_rows),
+            expected,
+            atol=1e-14,
+        )
+        bkd.assert_allclose(
+            walked.select(chosen_columns)
+            .scale(factors)
+            .rows(chosen_rows),
+            expected,
+            atol=1e-14,
+        )
+
+    def test_the_order_given_is_the_order_returned(
+        self, bkd: Backend
+    ) -> None:
+        """A caller passes the ordering its plot wants."""
+        array = _orthonormal(bkd, 120, 5)
+        rows = ArrayBasis(array, bkd).rows([77, 0, 3])
+        bkd.assert_allclose(rows[0], array[77], atol=0.0)
+        bkd.assert_allclose(rows[1], array[0], atol=0.0)
+
+    def test_a_repeated_row_is_returned_twice(
+        self, bkd: Backend, tmp_path: Any
+    ) -> None:
+        """Nothing here deduplicates, and a caller may have reason to."""
+        basis = _orthonormal(bkd, 120, 5)
+        sink = MemmapBasisSink(
+            os.path.join(str(tmp_path), "b.dat"), 120, 5, bkd
+        )
+        streamed = _fill(sink, basis)
+        rows = streamed.rows([9, 9, 9])
+        assert rows.shape == (3, 5)
+        bkd.assert_allclose(rows[0], rows[2], atol=0.0)
+
+    @pytest.mark.parametrize("bad", [-1, 120])
+    def test_an_out_of_range_row_raises(
+        self, bkd: Backend, bad: int
+    ) -> None:
+        """Silently skipped, it would leave that row as initialized."""
+        array = _orthonormal(bkd, 120, 5)
+        with pytest.raises(ValueError, match="out of range"):
+            ArrayBasis(array, bkd).rows([0, bad])
+
+
+class TestFetchingRowsReadsLessThanWalking:
+    """Why the row fetcher is worth an optional capability at all.
+
+    Both paths return the same rows, so every correctness test above
+    passes without a fetcher. What differs is what gets read: indexing
+    a memmap touches the pages those rows fall on, while walking reads
+    the basis. Asserted rather than assumed, because a fetcher silently
+    dropped from a sink would leave the tests green and the reads
+    proportional to the file.
+
+    Numpy only: the torch allocator caches, so tracemalloc does not see
+    tensor storage and the comparison would be vacuous.
+    """
+
+    def test_the_fetched_path_allocates_less(
+        self, numpy_bkd: Backend, tmp_path: Any
+    ) -> None:
+        import tracemalloc
+
+        bkd = numpy_bkd
+        nstates, nterms = 40000, 10
+        sink = MemmapBasisSink(
+            os.path.join(str(tmp_path), "b.dat"),
+            nstates,
+            nterms,
+            bkd,
+        )
+        rng = np.random.RandomState(0)
+        for start in range(0, nstates, 5000):
+            stop = min(start + 5000, nstates)
+            sink.write(
+                slice(start, stop),
+                bkd.array(rng.standard_normal((stop - start, nterms))),
+            )
+        fetched = sink.finalize()
+        walked = StreamingBasis(
+            fetched._read_blocks,
+            nstates,
+            nterms,
+            bkd,
+            max_bytes=1 << 16,
+        )
+        chosen = sorted(
+            rng.choice(nstates, 50, replace=False).tolist()
+        )
+
+        def peak(call: Any) -> int:
+            tracemalloc.start()
+            try:
+                call()
+                return int(tracemalloc.get_traced_memory()[1])
+            finally:
+                tracemalloc.stop()
+
+        bkd.assert_allclose(
+            fetched.rows(chosen), walked.rows(chosen), atol=0.0
+        )
+        assert peak(lambda: fetched.rows(chosen)) < peak(
+            lambda: walked.rows(chosen)
+        )
