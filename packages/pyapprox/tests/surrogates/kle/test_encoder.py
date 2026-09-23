@@ -15,7 +15,10 @@ from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
     StdDecodingEncoderProtocol,
 )
-from pyapprox.surrogates.kle.basis_sinks import MemmapBasisSink
+from pyapprox.surrogates.kle.basis_sinks import (
+    ArrayBasisSink,
+    MemmapBasisSink,
+)
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.encoder import KLEEncoder, fit_kle_encoder
 from pyapprox.surrogates.kle.precomputed_kle import PrecomputedKLE
@@ -475,6 +478,138 @@ class TestDecodingAtSelectedStates:
         )
         with pytest.raises(ValueError, match="out of range"):
             encoder.decode_at(latents, [0, 400])
+
+    def test_decoding_to_a_sink_matches_decoding(self, bkd) -> None:
+        """Every field, written rather than returned.
+
+        ``decode`` returns ``(full_dim, nsamples)``, which for a fine
+        mesh and a full set of snapshots is larger than the data the
+        basis came from; this writes the same values a block at a time.
+        """
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 6))
+        )
+        written = encoder.decode_to_sink(
+            latents, ArrayBasisSink(400, 6, bkd)
+        )
+        bkd.assert_allclose(
+            written.to_array(), encoder.decode(latents), atol=0.0
+        )
+
+    @pytest.mark.parametrize("max_bytes", [1 << 8, 1 << 14, None])
+    def test_the_block_size_does_not_change_the_fields(
+        self, bkd, max_bytes
+    ) -> None:
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 6))
+        )
+        written = encoder.decode_to_sink(
+            latents, ArrayBasisSink(400, 6, bkd), max_bytes=max_bytes
+        )
+        bkd.assert_allclose(
+            written.to_array(), encoder.decode(latents), atol=1e-14
+        )
+
+    def test_a_memmap_sink_holds_the_fields(
+        self, bkd, tmp_path
+    ) -> None:
+        """The case the method exists for: fields larger than memory.
+
+        ``rows`` on the result reads individual states back out, so a
+        field written here can be plotted later without being
+        reconstructed a second time.
+        """
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 6))
+        )
+        written = encoder.decode_to_sink(
+            latents,
+            MemmapBasisSink(
+                os.path.join(str(tmp_path), "fields.dat"), 400, 6, bkd
+            ),
+        )
+        expected = encoder.decode(latents)
+        bkd.assert_allclose(written.to_array(), expected, atol=0.0)
+        bkd.assert_allclose(
+            written.rows([0, 399, 7]),
+            expected[bkd.asarray([0, 399, 7], dtype=int), :],
+            atol=0.0,
+        )
+
+    def test_a_sink_sized_for_the_wrong_state_count_raises(
+        self, bkd
+    ) -> None:
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 6))
+        )
+        with pytest.raises(ValueError, match="states"):
+            encoder.decode_to_sink(
+                latents, ArrayBasisSink(401, 6, bkd)
+            )
+
+    def test_a_sink_sized_for_the_wrong_field_count_raises(
+        self, bkd
+    ) -> None:
+        """Caught before any writing, naming fields rather than terms."""
+        encoder = self._encoder(bkd)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, 6))
+        )
+        with pytest.raises(ValueError, match="fields to write"):
+            encoder.decode_to_sink(
+                latents, ArrayBasisSink(400, 4, bkd)
+            )
+
+    def test_latents_of_the_wrong_height_are_rejected(
+        self, bkd
+    ) -> None:
+        encoder = self._encoder(bkd)
+        wrong = bkd.array(
+            np.random.RandomState(2).standard_normal((3, 6))
+        )
+        with pytest.raises(ValueError, match="terms"):
+            encoder.decode_to_sink(wrong, ArrayBasisSink(400, 6, bkd))
+
+    def test_decoding_to_a_sink_does_not_hold_every_field(
+        self, numpy_bkd
+    ) -> None:
+        """The property the method exists for, asserted not assumed.
+
+        The accuracy tests above all pass against an implementation
+        that calls ``decode`` and writes the result in one go, so peak
+        allocation is the only thing that tells the two apart. The
+        sink's own storage is the intended output and is excluded.
+
+        Numpy only: the torch allocator caches, so tracemalloc does not
+        see tensor storage.
+        """
+        import tracemalloc
+
+        bkd = numpy_bkd
+        nstates, nfields = 4000, 20
+        encoder = self._encoder(bkd, nstates=nstates)
+        latents = bkd.array(
+            np.random.RandomState(2).standard_normal((5, nfields))
+        )
+        budget = 1 << 12
+
+        tracemalloc.start()
+        try:
+            encoder.decode_to_sink(
+                latents,
+                ArrayBasisSink(nstates, nfields, bkd),
+                max_bytes=budget,
+            )
+            peak = int(tracemalloc.get_traced_memory()[1])
+        finally:
+            tracemalloc.stop()
+
+        sink_bytes = nstates * nfields * 8
+        assert peak - sink_bytes < 16 * budget
 
     def test_1d_latents_are_rejected(self, bkd) -> None:
         encoder = self._encoder(bkd)

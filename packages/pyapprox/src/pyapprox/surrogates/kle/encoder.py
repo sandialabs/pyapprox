@@ -47,11 +47,13 @@ from pyapprox.surrogates.kle.basis_operator import (
     BasisOperatorProtocol,
     as_basis_operator,
 )
+from pyapprox.surrogates.kle.basis_sinks import BasisSinkProtocol
 from pyapprox.surrogates.kle.data_driven_kle import DataDrivenKLE
 from pyapprox.surrogates.kle.protocols import KLEProtocol
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     SnapshotEigenSolverProtocol,
 )
+from pyapprox.surrogates.kle.snapshot_sources import rows_per_block
 from pyapprox.util.backends.protocols import Array, Array_co, Backend
 from pyapprox.util.linalg.inner_product import (
     EuclideanInnerProduct,
@@ -385,6 +387,88 @@ class KLEEncoder(Generic[Array]):
             self._bkd.dot(basis_rows, latents)
             + self.mean()[wanted, :]
         )
+
+    def decode_to_sink(
+        self,
+        latents: Array,
+        sink: BasisSinkProtocol[Array],
+        max_bytes: Optional[int] = None,
+    ) -> BasisOperatorProtocol[Array]:
+        r"""Decode every field into ``sink``, a row block at a time.
+
+        :meth:`decode` returns ``(full_dim, nsamples)``, which for a
+        fine mesh and a full set of snapshots is larger than the data
+        the basis was built from. This writes the same values somewhere
+        that need not be memory, holding one block of them at a time.
+
+        The sink is sized ``(full_dim, nsamples)``: its second
+        dimension carries the snapshot count here rather than a term
+        count, which the sink neither knows nor needs to -- it stores
+        an ``(nstates, k)`` array and never interprets ``k``.
+
+        Parameters
+        ----------
+        latents : Array
+            Shape ``(latent_dim, nsamples)``.
+        sink : BasisSinkProtocol[Array]
+            Where the fields go, sized ``(full_dim, nsamples)``.
+        max_bytes : int, optional
+            Byte budget per row block. None lets the basis choose.
+
+        Returns
+        -------
+        BasisOperatorProtocol[Array]
+            Whatever the sink finalized to. Its ``rows`` reads
+            individual states back out, so a field written here can be
+            plotted later without being reconstructed again.
+        """
+        if latents.ndim != 2:
+            raise ValueError(
+                f"latents must be 2D (latent_dim, nsamples), got "
+                f"ndim={latents.ndim}"
+            )
+        if int(latents.shape[0]) != self.latent_dim():
+            raise ValueError(
+                f"latents has {latents.shape[0]} rows but the basis has "
+                f"{self.latent_dim()} terms"
+            )
+        if sink.nstates() != self.full_dim():
+            raise ValueError(
+                f"sink is sized for {sink.nstates()} states but the "
+                f"basis has {self.full_dim()}"
+            )
+        if sink.nterms() != int(latents.shape[1]):
+            raise ValueError(
+                f"sink is sized for {sink.nterms()} columns but there "
+                f"are {latents.shape[1]} fields to write"
+            )
+        mean = self.mean()
+        for rows, block in self._basis_blocks(max_bytes):
+            sink.write(
+                rows, self._bkd.dot(block, latents) + mean[rows, :]
+            )
+        return sink.finalize()
+
+    def _basis_blocks(
+        self, max_bytes: Optional[int]
+    ) -> Iterator[Tuple[slice, Array]]:
+        """Yield row blocks of the basis, whatever backs it.
+
+        A streamed basis blocks itself -- that is what it is for. A
+        resident one has no natural blocking and would have to invent
+        it, so the blocking is done here instead, which keeps a decode
+        to a sink available for a basis that happens to fit.
+        """
+        basis = self._basis_operator
+        if isinstance(basis, _BlockIterableBasis):
+            yield from basis.blocks(max_bytes)
+            return
+        array = basis.to_array()
+        nstates = basis.nstates()
+        nrows = rows_per_block(basis.nterms(), array.dtype, max_bytes)
+        for start in range(0, nstates, nrows):
+            stop = min(start + nrows, nstates)
+            yield slice(start, stop), array[start:stop, :]
 
     def decode_std(self, std_latents: Array) -> Array:
         r"""Propagate latent std to full space, without the mean shift.
