@@ -246,6 +246,8 @@ def released_record(
     any_failed: bool,
     tasks: Sequence[Dict[str, Any]],
     retained: bool,
+    outputs: Optional[Sequence[str]] = None,
+    collection: Optional[str] = None,
 ) -> Dict[str, Any]:
     """A directory has been finished with, and what became of it.
 
@@ -264,8 +266,14 @@ def released_record(
 
     ``retained`` says whether the directory survived, so a reader who
     finds nothing on disk can tell policy from loss.
+
+    ``collection`` is ``None`` when nothing was gathering, ``"ok"`` when
+    gathering succeeded, and the failure otherwise. The three are
+    distinct on purpose: "not configured to gather" and "tried and
+    could not" send a reader to different places, and reconciliation
+    acts on the second before anything else.
     """
-    return {
+    record: Dict[str, Any] = {
         "kind": KIND_RELEASED,
         "submission": submission,
         "index": index,
@@ -275,6 +283,11 @@ def released_record(
         "tasks": list(tasks),
         "retained": retained,
     }
+    if outputs is not None:
+        record["outputs"] = list(outputs)
+    if collection is not None:
+        record["collection"] = collection
+    return record
 
 
 def task_record(

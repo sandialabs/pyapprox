@@ -62,6 +62,10 @@ from typing import (
     Tuple,
 )
 
+from pyapprox.interface.evaluation.collection import (
+    EagerCollector,
+    TransferResult,
+)
 from pyapprox.interface.evaluation.manifest import (
     RUN_DONE_FILENAME,
     ManifestWriter,
@@ -147,6 +151,22 @@ def _highest_submission(run_dir: Path) -> int:
         if matched is not None and entry.is_dir():
             highest = max(highest, int(matched.group(1)))
     return highest
+
+
+def _collection_verdict(
+    gathered: Optional[TransferResult],
+) -> Optional[str]:
+    """What eager collection made of one directory.
+
+    ``None`` when nothing was collecting, which a reader must be able to
+    tell from a collection that ran and found nothing: the first says
+    the run was not configured to gather, the second says it tried.
+    """
+    if gathered is None:
+        return None
+    if gathered.ok():
+        return "ok"
+    return "; ".join(reason for _, reason in gathered.failures)
 
 
 def _derived_status(
@@ -365,6 +385,7 @@ class TextFileMarshaller(Generic[Array]):
         stderr_filename: str = DEFAULT_STDERR_FILENAME,
         run_id: Optional[str] = None,
         on_existing: OnExisting = OnExisting.ERROR,
+        outputs: Optional[EagerCollector] = None,
     ) -> None:
         if not command:
             raise ValueError("command must not be empty")
@@ -403,6 +424,11 @@ class TextFileMarshaller(Generic[Array]):
             )
         self._requested_run_id = run_id
         self._on_existing = on_existing
+        # The second retention axis the module docstring calls for:
+        # whether a directory survives and whether anything is taken out
+        # of it are separate questions, and folding them into one
+        # setting makes at least one combination unreachable.
+        self._outputs = outputs
         # Claimed at the first ``tasks``, not here. Creating it now would
         # give the constructor a filesystem side effect and leave a
         # directory behind for every marshaller that is built and never
@@ -778,6 +804,7 @@ class TextFileMarshaller(Generic[Array]):
         outcome: Outcome[ShellTask, ShellPayload],
         failed: bool,
         retained: bool,
+        gathered: Optional[TransferResult] = None,
     ) -> None:
         """Write the directory's one release record and forget it.
 
@@ -799,6 +826,10 @@ class TextFileMarshaller(Generic[Array]):
                 any_failed=failed,
                 tasks=tasks,
                 retained=retained,
+                outputs=(
+                    None if gathered is None else list(gathered.paths)
+                ),
+                collection=_collection_verdict(gathered),
             )
         )
 
@@ -1148,15 +1179,36 @@ class TextFileMarshaller(Generic[Array]):
         )
         self._failed_dirs.discard(key)
 
-        retained = self._retention is Retention.ALWAYS or (
-            self._retention is Retention.ON_FAILURE and failed
-        )
-        self._record_released(key, outcome, failed, retained)
+        # Gathered before the retention branch, because that branch is
+        # what removes the directory: collection has to happen while the
+        # files are still there.
+        gathered = self._gather_before_release(key)
 
-        if self._retention is Retention.ALWAYS:
-            return
-        if self._retention is Retention.ON_FAILURE and failed:
+        retained = (
+            self._retention is Retention.ALWAYS
+            or (self._retention is Retention.ON_FAILURE and failed)
+            # A directory whose gathering failed is kept whatever the
+            # policy says. Deleting the only copy because the
+            # destination was full is unrecoverable; keeping it is a
+            # disk-space problem, which is the lesser one.
+            or (gathered is not None and not gathered.ok())
+        )
+        self._record_released(key, outcome, failed, retained, gathered)
+
+        if retained:
             return
         workdir = Path(key)
         if workdir.exists():
             shutil.rmtree(workdir, ignore_errors=True)
+
+    def _gather_before_release(
+        self, key: str
+    ) -> Optional["TransferResult"]:
+        """Collect one directory's output, if anything is collecting.
+
+        ``None`` when no collector was given, which is what tells
+        "nothing was asked for" apart from "nothing was found".
+        """
+        if self._outputs is None:
+            return None
+        return self._outputs.gather(key, self._relative_workdir(Path(key)))

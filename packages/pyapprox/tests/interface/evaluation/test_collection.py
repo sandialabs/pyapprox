@@ -16,6 +16,7 @@ extension without implying one.
 """
 
 import inspect
+import logging
 import os
 import shutil
 
@@ -24,6 +25,7 @@ from pyapprox.interface.evaluation.collection import (
     DEFAULT_SKIP,
     AnomalyKind,
     CollectionError,
+    EagerCollector,
     OutputCollectorProtocol,
     OutputSpec,
     SpecCollector,
@@ -64,6 +66,11 @@ def shared_mesh(tmp_path, workdir):
     mesh.write_text("x" * 1000)
     (workdir / "shared.fld").symlink_to(mesh)
     return mesh
+
+
+def _explode(src, dst, **kwargs):
+    """A copy that always fails, for the failure paths."""
+    raise OSError("disk full")
 
 
 def _gather(workdir, dest, patterns, **kwargs):
@@ -924,6 +931,143 @@ class TestReconciliation:
         self._header(writer, run)
         self._sample(run, writer, 0)
         reconcile(str(run)).raise_if_anomalous()
+
+
+class TestEagerCollection:
+    """Gathering while the directory still exists.
+
+    The case deferred gathering cannot serve: under a retention policy
+    that deletes, there is nothing left by the time anyone runs
+    ``gather_run``.
+    """
+
+    def _collector(self, tmp_path, **kwargs):
+        return EagerCollector(
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "archive"),
+            **kwargs,
+        )
+
+    def test_it_gathers_a_directory(self, workdir, tmp_path) -> None:
+        eager = self._collector(tmp_path)
+        result = eager.gather(str(workdir), "sub-000/sample-000000")
+        assert result.ok()
+        assert (
+            tmp_path
+            / "archive"
+            / "sub-000"
+            / "sample-000000"
+            / "out.fld"
+        ).exists()
+
+    def test_a_failure_is_reported_not_raised(
+        self, workdir, tmp_path, monkeypatch
+    ) -> None:
+        """This runs inside release, where raising strands the batch."""
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode,
+        )
+        eager = self._collector(tmp_path)
+        result = eager.gather(str(workdir), "sub-000/sample-000000")
+        assert not result.ok()
+
+    def test_a_collector_that_raises_is_contained(
+        self, workdir, tmp_path
+    ) -> None:
+        """A collector is caller code and can raise anything."""
+
+        class Hostile:
+            def matches(self, workdir):
+                raise RuntimeError("no")
+
+        eager = EagerCollector(Hostile(), str(tmp_path / "archive"))
+        result = eager.gather(str(workdir), "sub-000/sample-000000")
+        assert not result.ok()
+        assert "RuntimeError" in result.failures[0][1]
+
+    def test_it_gives_up_after_repeated_failures(
+        self, workdir, tmp_path, monkeypatch
+    ) -> None:
+        """The bound that keeps one failure from becoming two.
+
+        A full destination fails for every subsequent sample too, and
+        retaining each one would exhaust the scratch the caller was
+        trying to stay inside.
+        """
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode,
+        )
+        eager = self._collector(tmp_path, max_consecutive_failures=3)
+        for _ in range(3):
+            assert not eager.degraded()
+            eager.gather(str(workdir), "sub-000/sample-000000")
+        assert eager.degraded()
+
+    def test_a_degraded_collector_stops_gathering(
+        self, workdir, tmp_path, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode,
+        )
+        eager = self._collector(tmp_path, max_consecutive_failures=1)
+        eager.gather(str(workdir), "sub-000/sample-000000")
+        monkeypatch.undo()
+        # It does not resume even though copying works again: the point
+        # is to stop retaining directories, not to keep retrying.
+        result = eager.gather(str(workdir), "sub-000/sample-000001")
+        assert result.paths == ()
+        assert result.ok()
+
+    def test_a_success_resets_the_count(
+        self, workdir, tmp_path, monkeypatch
+    ) -> None:
+        """Consecutive, not cumulative.
+
+        A run with one bad sample every few hundred is working, and
+        must not eventually trip a limit meant for a destination that
+        has stopped accepting writes.
+        """
+        eager = self._collector(tmp_path, max_consecutive_failures=2)
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode,
+        )
+        eager.gather(str(workdir), "a")
+        monkeypatch.undo()
+        eager.gather(str(workdir), "b")
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode,
+        )
+        eager.gather(str(workdir), "c")
+        assert not eager.degraded()
+
+    def test_giving_up_is_logged(
+        self, workdir, tmp_path, monkeypatch, caplog
+    ) -> None:
+        """Silence would leave a half-gathered run undiscovered."""
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode,
+        )
+        eager = self._collector(tmp_path, max_consecutive_failures=1)
+        with caplog.at_level(
+            logging.ERROR,
+            logger="pyapprox.interface.evaluation.collection",
+        ):
+            eager.gather(str(workdir), "sub-000/sample-000000")
+        assert "giving up" in caplog.text
+
+    def test_a_bad_limit_is_refused(self, tmp_path) -> None:
+        with pytest.raises(ValueError, match="max_consecutive_failures"):
+            self._collector(tmp_path, max_consecutive_failures=0)
+
+    def test_a_non_collector_is_refused(self, tmp_path) -> None:
+        with pytest.raises(TypeError, match="OutputCollectorProtocol"):
+            EagerCollector(object(), str(tmp_path / "archive"))
 
 
 class TestTheCollectorIsAProtocol:

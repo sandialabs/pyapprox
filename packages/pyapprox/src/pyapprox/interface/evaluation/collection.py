@@ -38,6 +38,7 @@ mtime. Every transfer lands on a temporary name and is renamed into
 place, the same rule the result stores follow.
 """
 
+import logging
 import os
 import shutil
 from dataclasses import dataclass, field
@@ -82,6 +83,11 @@ DEFAULT_SKIP = (
 
 #: Suffix for a transfer in progress.
 _PARTIAL_SUFFIX = ".part"
+
+#: Where collection failures go. Eager collection cannot raise and must
+#: not be silent either: a run that stopped gathering is a fact its
+#: owner needs while there is still time to act on it.
+_LOGGER = logging.getLogger(__name__)
 
 
 class TransferMode(Enum):
@@ -440,6 +446,11 @@ def gather_run(
 class AnomalyKind(Enum):
     """Why one sample did not satisfy the invariant."""
 
+    #: Eager collection tried to gather this directory and could not.
+    #: Reported ahead of everything else: the files may still be on
+    #: scratch, which makes it the one anomaly that is recoverable and
+    #: the one with a deadline.
+    COLLECTION_FAILED = "collection_failed"
     #: A required spec matched nothing though the sample succeeded. The
     #: case this whole feature exists for.
     NO_OUTPUT = "no_output"
@@ -723,6 +734,18 @@ class _Reconciler:
         status = str(record.get("status", ""))
         any_failed = bool(record.get("any_failed"))
 
+        # Acted on before anything else. A directory whose gathering
+        # failed is the one case where the output may still be on
+        # scratch and recoverable, and every hour spent deciding
+        # whether the solver was at fault is an hour the purge is
+        # running against.
+        collection = record.get("collection")
+        if isinstance(collection, str) and collection != "ok":
+            return (
+                AnomalyKind.COLLECTION_FAILED,
+                f"output collection failed: {collection}",
+            )
+
         # A failure is the evidence case, not an anomaly: the run said
         # this sample did not succeed, so no output is expected.
         if status in _RETRYABLE_STATUSES:
@@ -771,6 +794,112 @@ _RETRYABLE_STATUSES = (
     JobStatus.TIMED_OUT.name,
     JobStatus.CANCELLED.name,
 )
+
+
+#: How many consecutive gathering failures end eager collection.
+#:
+#: Bounded because the condition that causes one -- a full destination,
+#: a vanished mount -- causes every subsequent one too. Retaining each
+#: failed directory then turns a single recoverable failure into two:
+#: the caller who chose ``NEVER`` because scratch quota was the binding
+#: constraint accumulates a thousand retained directories and runs out
+#: of scratch as well, losing both copies.
+MAX_CONSECUTIVE_FAILURES = 3
+
+
+class EagerCollector:
+    """Gathers each working directory as its last task is released.
+
+    Necessary rather than convenient when scratch is a purged parallel
+    filesystem or the run outgrows its quota: collection has to happen
+    while each directory still exists, and deletion immediately after.
+    Deferred :func:`gather_run` cannot serve that case, because by the
+    time it runs there is nothing left to gather.
+
+    **Gathering never raises.** This runs inside ``release``, in the
+    loop that also removes handles from a batch's pending list, so an
+    exception escaping here would abandon every sample behind it --
+    unreleased, unrecorded, and missing from the result. A destination
+    that fills at sample 900 of 2000 would cost the other 1100. Every
+    failure is caught, counted and reported instead.
+
+    Parameters
+    ----------
+    collector : OutputCollectorProtocol
+        Decides what to take from each directory.
+    dest : str
+        Where the gathered tree is written.
+    mode : TransferMode
+        How each file gets there.
+    max_consecutive_failures : int
+        How many failures in a row end collection for the rest of the
+        run. See :data:`MAX_CONSECUTIVE_FAILURES`.
+    """
+
+    def __init__(
+        self,
+        collector: OutputCollectorProtocol,
+        dest: str,
+        mode: TransferMode = TransferMode.COPY,
+        max_consecutive_failures: int = MAX_CONSECUTIVE_FAILURES,
+    ) -> None:
+        if not isinstance(collector, OutputCollectorProtocol):
+            raise TypeError(
+                "collector must satisfy OutputCollectorProtocol, got "
+                f"{type(collector).__name__}"
+            )
+        if max_consecutive_failures < 1:
+            raise ValueError(
+                "max_consecutive_failures must be >= 1, got "
+                f"{max_consecutive_failures}"
+            )
+        self._collector = collector
+        self._dest = dest
+        self._mode = mode
+        self._limit = max_consecutive_failures
+        self._consecutive = 0
+        self._degraded = False
+
+    def degraded(self) -> bool:
+        """Whether collection has given up for the rest of the run."""
+        return self._degraded
+
+    def gather(self, workdir: str, relative: str) -> TransferResult:
+        """Gather one directory, reporting rather than raising.
+
+        Returns an empty result once degraded, so the caller's ordinary
+        retention resumes rather than every later directory being kept
+        by a failure that is not going to stop.
+        """
+        if self._degraded:
+            return TransferResult()
+        try:
+            result = gather_into(
+                workdir,
+                self._collector,
+                str(Path(self._dest) / relative),
+                mode=self._mode,
+            )
+        except Exception as exc:
+            # Nothing may escape into ``release``. A collector is
+            # caller-supplied code and can raise anything at all.
+            result = TransferResult(
+                failures=((workdir, f"{type(exc).__name__}: {exc}"),)
+            )
+        if result.ok():
+            self._consecutive = 0
+            return result
+        self._consecutive += 1
+        if self._consecutive >= self._limit:
+            self._degraded = True
+            _LOGGER.error(
+                "output collection failed %d times in a row (last: %s); "
+                "giving up for the rest of this run and reverting to the "
+                "configured retention",
+                self._consecutive,
+                result.failures[0][1] if result.failures else "unknown",
+            )
+        return result
 
 
 def _planned(

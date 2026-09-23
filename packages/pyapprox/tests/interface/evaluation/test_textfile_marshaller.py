@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 from pyapprox.interface.evaluation.collection import (
     AnomalyKind,
+    EagerCollector,
     OutputSpec,
     SpecCollector,
     gather_run,
@@ -99,6 +100,11 @@ if mode == "writesfield":
 
 Path("results.out").write_text(repr(sum(v * v for v in values)) + "\\n")
 '''
+
+
+def _explode_copy(src, dst, **kwargs):
+    """A copy that always fails, for the collection failure paths."""
+    raise OSError("disk full")
 
 
 def reference(sample):
@@ -1106,6 +1112,197 @@ class TestDeferredGathering:
         )
         assert sorted(report.missing) == [0, 1, 2]
         assert report.gathered == {}
+
+
+class TestEagerCollectionThroughAMarshaller:
+    """The combination the two retention axes exist for.
+
+    ``Retention.NEVER`` kept nothing, so the field data went with the
+    directory; ``ALWAYS`` kept the field data and the whole scratch
+    footprint beside it. Collecting as each directory is released makes
+    "keep the output, discard the scratch" reachable, which is what a
+    run on a purged filesystem or against a quota actually needs.
+    """
+
+    def _eager(self, tmp_path, **kwargs):
+        return EagerCollector(
+            SpecCollector([OutputSpec("*.fld")]),
+            str(tmp_path / "archive"),
+            **kwargs,
+        )
+
+    def test_output_survives_a_discarded_directory(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+            outputs=self._eager(tmp_path),
+        )
+        ev.submit(_columns(numpy_bkd, 3)).collect()
+        # Nothing of the scratch survives...
+        assert (
+            list((tmp_path / "scratch").glob("*/sub-*/sample-*")) == []
+        )
+        # ...and every field file does.
+        gathered = sorted((tmp_path / "archive").rglob("*.fld"))
+        assert len(gathered) == 3
+
+    def test_the_archive_keeps_submission_structure(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+            outputs=self._eager(tmp_path),
+        )
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        assert (
+            tmp_path
+            / "archive"
+            / "sub-000"
+            / "sample-000000"
+            / "out.fld"
+        ).exists()
+
+    def test_collection_is_recorded_in_the_manifest(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+            outputs=self._eager(tmp_path),
+        )
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        released = [
+            r
+            for r in read_records(marshaller.manifest_path())
+            if r["kind"] == KIND_RELEASED
+        ]
+        assert all(r["collection"] == "ok" for r in released)
+        assert all(r["outputs"] for r in released)
+
+    def test_no_collector_leaves_the_field_absent(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Absent means "not configured", not "tried and found none"."""
+        marshaller, ev = _evaluator(
+            solver, tmp_path, numpy_bkd, mode="writesfield"
+        )
+        ev.submit(_columns(numpy_bkd, 1)).collect()
+        released = [
+            r
+            for r in read_records(marshaller.manifest_path())
+            if r["kind"] == KIND_RELEASED
+        ]
+        assert "collection" not in released[0]
+
+    def test_a_directory_is_kept_when_gathering_fails(
+        self, solver, tmp_path, numpy_bkd, monkeypatch
+    ) -> None:
+        """Deleting the only copy is unrecoverable; keeping it is not.
+
+        The caller asked for NEVER, but NEVER was a statement about
+        scratch on the assumption the output got out. It did not.
+        """
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+            outputs=self._eager(tmp_path, max_consecutive_failures=99),
+        )
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode_copy,
+        )
+        ev.submit(_columns(numpy_bkd, 2)).collect()
+        kept = list((tmp_path / "scratch").glob("*/sub-*/sample-*"))
+        assert len(kept) == 2
+
+    def test_a_failed_collection_reconciles_as_an_anomaly(
+        self, solver, tmp_path, numpy_bkd, monkeypatch
+    ) -> None:
+        """Acted on first: the files may still be on scratch."""
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+            outputs=self._eager(tmp_path, max_consecutive_failures=99),
+        )
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode_copy,
+        )
+        batch = ev.submit(_columns(numpy_bkd, 2))
+        batch.collect()
+        report = reconcile(
+            marshaller.run_dir(), statuses=batch.statuses()
+        )
+        assert not report.ok()
+        assert all(
+            a.kind is AnomalyKind.COLLECTION_FAILED
+            for a in report.anomalies
+        )
+
+    def test_repeated_failure_stops_retaining_directories(
+        self, solver, tmp_path, numpy_bkd, monkeypatch
+    ) -> None:
+        """The bound, end to end.
+
+        A destination that has stopped accepting writes fails for every
+        sample. Retaining all of them would exhaust the scratch the
+        caller chose NEVER to stay inside -- losing both copies instead
+        of one.
+        """
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+            outputs=self._eager(tmp_path, max_consecutive_failures=2),
+        )
+        monkeypatch.setattr(
+            "pyapprox.interface.evaluation.collection.shutil.copy2",
+            _explode_copy,
+        )
+        ev.submit(_columns(numpy_bkd, 6)).collect()
+        kept = list((tmp_path / "scratch").glob("*/sub-*/sample-*"))
+        # The first few are kept as evidence; the rest revert to NEVER.
+        assert 0 < len(kept) < 6
+
+    def test_a_raising_collector_does_not_break_the_batch(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """release runs inside the harvest loop."""
+
+        class Hostile:
+            def matches(self, workdir):
+                raise RuntimeError("no")
+
+        marshaller, ev = _evaluator(
+            solver,
+            tmp_path,
+            numpy_bkd,
+            mode="writesfield",
+            retention=Retention.NEVER,
+            outputs=EagerCollector(Hostile(), str(tmp_path / "archive")),
+        )
+        result = ev.submit(_columns(numpy_bkd, 3)).collect()
+        assert result.nsucceeded() == 3
 
 
 class TestReconcilingARealRun:
