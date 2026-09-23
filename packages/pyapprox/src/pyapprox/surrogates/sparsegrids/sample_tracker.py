@@ -222,10 +222,10 @@ class SampleTracker(Generic[Array]):
         and are already held, so a subspace typically becomes writable in
         the same ``append_new_values`` that supplies its one new point.
 
-        Only pending positions are visited, and each is written once.
-        Rewriting every registered subspace on every call costs O(total
-        samples) per step, and once subspace values are write-once it
-        would raise on the second visit.
+        Only pending positions are visited, and each is written once,
+        so the cost is proportional to the subspaces awaiting values
+        rather than to the whole grid. Subspace values are write-once,
+        so a second write would raise.
 
         Under the adaptive fitter every registered subspace becomes
         writable in the append that follows its registration, so nothing

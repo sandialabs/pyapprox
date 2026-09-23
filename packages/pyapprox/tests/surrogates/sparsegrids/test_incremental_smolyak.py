@@ -242,6 +242,40 @@ class TestAccessors:
             keys, numpy_bkd
         )
 
+    def test_with_added_is_order_independent(self, numpy_bkd) -> None:
+        """A jointly admissible set may be passed in any order.
+
+        Keys are added by increasing level sum, so a key's backward
+        neighbours are always in place before it is reached.
+        """
+        inc = IncrementalSmolyakCoefficients(2)
+        for key in [(0, 0), (1, 0), (0, 1)]:
+            inc.add(key)
+        # (2, 0) and (0, 2) are admissible now; (1, 1) needs both of the
+        # level-1 keys, and (2, 1) needs (1, 1) and (2, 0).
+        additions = [(2, 1), (1, 1), (0, 2), (2, 0)]
+
+        reference = inc.with_added(additions)
+        for permutation in [
+            [(2, 0), (0, 2), (1, 1), (2, 1)],
+            [(1, 1), (2, 1), (2, 0), (0, 2)],
+            list(reversed(additions)),
+        ]:
+            got = inc.with_added(permutation)
+            keys = got.keys()
+            assert sorted(keys) == sorted(reference.keys())
+            assert got.coefficient_list(keys) == _from_scratch(
+                keys, numpy_bkd
+            )
+
+    def test_with_added_rejects_unreachable_key(self) -> None:
+        """Sorting cannot rescue a key whose neighbours are absent."""
+        inc = IncrementalSmolyakCoefficients(2)
+        inc.add((0, 0))
+        # (2, 0) needs (1, 0), which is neither present nor supplied.
+        with pytest.raises(ValueError, match="cannot be added"):
+            inc.with_added([(2, 0)])
+
     def test_nterms_counts_zero_coefficient_keys(self) -> None:
         inc = IncrementalSmolyakCoefficients(1)
         inc.add((0,))

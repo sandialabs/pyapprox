@@ -41,9 +41,9 @@ from pyapprox.surrogates.sparsegrids.sample_tracker import (
     SampleTracker,
 )
 from pyapprox.surrogates.sparsegrids.smolyak import (
+    IncrementalSmolyakCoefficients,
+    SubspaceKey,
     _index_to_tuple,
-    compute_smolyak_coefficients,
-    smolyak_coefs_with_candidate,
 )
 from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
@@ -102,6 +102,11 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         self._admissibility = admissibility
         if error_indicator is None:
             error_indicator = L2SurplusIndicator(bkd)
+        if not isinstance(error_indicator, ErrorIndicatorProtocol):
+            raise TypeError(
+                "error_indicator must satisfy ErrorIndicatorProtocol, got "
+                f"{type(error_indicator).__name__}"
+            )
         self._error_indicator = error_indicator
         if cost_model is None:
             cost_model = ConstantCostModel()
@@ -117,9 +122,13 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         )
         self._index_gen.set_admissibility_criteria(admissibility)
 
-        # Subspace tracking (parallel to index_gen._indices columns)
-        self._subspaces: List[TensorProductSubspace[Array]] = []
-        self._subspace_keys: List[Tuple[int, ...]] = []
+        # Smolyak coefficients of the selected set, updated one
+        # promotion at a time.
+        self._smolyak = IncrementalSmolyakCoefficients(self._nvars_index)
+
+        # Subspace lookup by key, used inside per-candidate loops.
+        self._subspace_by_key: Dict[SubspaceKey, TensorProductSubspace[Array]] = {}
+        # Errors indexed by the index generator's column.
         self._subspace_errors: List[float] = []
 
         # Sample tracker (one per config group)
@@ -167,9 +176,23 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             )
 
         key = _index_to_tuple(full_index, self._bkd)
-        self._subspaces.append(subspace)
-        self._subspace_keys.append(key)
+        self._subspace_by_key[key] = subspace
         self._tracker_positions[config_idx][key] = pos
+
+    def _select(self, full_index: Array) -> None:
+        """Record a promotion in the incremental coefficients.
+
+        Called for the zero index and after each ``refine_index``, so the
+        coefficients track the index generator's selected set one
+        promotion at a time.
+        """
+        key = _index_to_tuple(full_index, self._bkd)
+        self._smolyak.add(key)
+        if not self._index_gen.is_selected(full_index):
+            raise RuntimeError(
+                f"subspace {key} was recorded as selected but the index "
+                "generator does not consider it selected"
+            )
 
     def step_samples(self) -> Optional[Dict[ConfigIdx, Array]]:
         """Get samples for next refinement step.
@@ -195,6 +218,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         selected_indices = self._index_gen.get_selected_indices()
         for index in selected_indices.T:
             self._create_subspace(index)
+            self._select(index)
             self._subspace_errors.append(0.0)
 
         # Add candidate subspaces
@@ -236,6 +260,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
             # Refine this subspace (move from candidate to selected)
             new_cand_indices = self._index_gen.refine_index(best_index)
+            self._select(best_index)
 
             # Reset error for refined subspace
             self._subspace_errors[best_idx] = 0.0
@@ -277,7 +302,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
 
             unique_local = tracker.get_unique_local_indices(pos)
             if len(unique_local) > 0:
-                subspace = self._subspaces[self._subspace_keys.index(key)]
+                subspace = self._subspace_by_key[key]
                 subspace_samples = subspace.get_samples()
                 idx_arr = self._bkd.asarray(unique_local, dtype=self._bkd.int64_dtype())
                 if config_idx not in new_by_config:
@@ -338,15 +363,22 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         if selected_indices.shape[1] == 0:
             return
 
-        selected_coefs = compute_smolyak_coefficients(selected_indices, self._bkd)
-        selected_subspaces = self._get_subspaces_for_indices(selected_indices)
+        # Build the selected surrogate from the incremental coefficients,
+        # aligning subspaces with the keys they are stored against.
+        selected_keys = self._smolyak.keys()
+        selected_coefs = self._bkd.asarray(
+            [float(c) for c in self._smolyak.coefficient_list(selected_keys)]
+        )
+        selected_subspaces = [
+            self._subspace_by_key[key] for key in selected_keys
+        ]
         selected_surrogate = CombinationSurrogate(
             self._bkd,
             self._nvars_physical,
             selected_subspaces,
             selected_coefs,
             self._nqoi,
-            indices=selected_indices,
+            indices=self._keys_to_indices(selected_keys),
         )
 
         # For each candidate, build CandidateInfo and evaluate
@@ -355,10 +387,9 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             cand_key = _index_to_tuple(cand_index, self._bkd)
 
             # Find the subspace
-            if cand_key not in self._subspace_keys:
+            cand_subspace = self._subspace_by_key.get(cand_key)
+            if cand_subspace is None:
                 continue
-            sub_pos = self._subspace_keys.index(cand_key)
-            cand_subspace = self._subspaces[sub_pos]
 
             # Check if values are set
             if cand_subspace.get_values() is None:
@@ -404,14 +435,15 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
         cand_samples = candidate_subspace.get_samples()
         new_samples = cand_samples[:, unique_local]
 
-        # Build sel+candidate surrogate
-        combined_coefs = smolyak_coefs_with_candidate(
-            selected_indices, selected_coefs, candidate_index, self._bkd
+        # Build sel+candidate surrogate from the incremental update.
+        combined = self._smolyak.with_added([cand_key])
+        combined_keys = combined.keys()
+        combined_coefs = self._bkd.asarray(
+            [float(c) for c in combined.coefficient_list(combined_keys)]
         )
-        all_subspaces = list(selected_surrogate.subspaces()) + [candidate_subspace]
-        combined_indices = self._bkd.hstack(
-            (selected_indices, self._bkd.reshape(candidate_index, (-1, 1)))
-        )
+        all_subspaces = [
+            self._subspace_by_key[key] for key in combined_keys
+        ]
 
         sel_plus_surrogate = CombinationSurrogate(
             self._bkd,
@@ -419,7 +451,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             all_subspaces,
             combined_coefs,
             self._nqoi,
-            indices=combined_indices,
+            indices=self._keys_to_indices(combined_keys),
         )
 
         model_cost = self._cost_model(config_idx)
@@ -438,16 +470,25 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             subspace_cost=subspace_cost,
         )
 
+    def _keys_to_indices(self, keys: List[SubspaceKey]) -> Array:
+        """Stack subspace keys into an index array, shape (nvars, nkeys)."""
+        if len(keys) == 0:
+            return self._bkd.zeros(
+                (self._nvars_index, 0), dtype=self._bkd.int64_dtype()
+            )
+        return self._bkd.asarray(
+            [[key[d] for key in keys] for d in range(self._nvars_index)],
+            dtype=self._bkd.int64_dtype(),
+        )
+
     def _get_subspaces_for_indices(
         self, indices: Array
     ) -> List[TensorProductSubspace[Array]]:
         """Get subspaces corresponding to given indices."""
-        result = []
-        for j in range(indices.shape[1]):
-            key = _index_to_tuple(indices[:, j], self._bkd)
-            idx = self._subspace_keys.index(key)
-            result.append(self._subspaces[idx])
-        return result
+        return [
+            self._subspace_by_key[_index_to_tuple(indices[:, j], self._bkd)]
+            for j in range(indices.shape[1])
+        ]
 
     def current_error(self) -> float:
         """Return sum of errors for candidate subspaces."""
@@ -492,26 +533,29 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
                 cand_key = _index_to_tuple(
                     cand_indices[:, j], self._bkd
                 )
-                if cand_key in self._subspace_keys:
-                    sub_pos = self._subspace_keys.index(cand_key)
-                    if self._subspaces[sub_pos].get_values() is None:
+                cand_subspace = self._subspace_by_key.get(cand_key)
+                if cand_subspace is not None:
+                    if cand_subspace.get_values() is None:
                         raise RuntimeError(
                             "Cannot build result: candidate subspace "
                             f"{cand_key} has no values. "
                             "Call step_values before result."
                         )
 
-        selected_indices = self._index_gen.get_selected_indices()
-
         if include_candidates and cand_indices is not None:
-            all_indices = self._bkd.hstack(
-                (selected_indices, cand_indices)
+            smolyak = self._smolyak.with_added(
+                _index_to_tuple(cand_indices[:, j], self._bkd)
+                for j in range(cand_indices.shape[1])
             )
         else:
-            all_indices = selected_indices
+            smolyak = self._smolyak
 
-        all_coefs = compute_smolyak_coefficients(all_indices, self._bkd)
-        all_subspaces = self._get_subspaces_for_indices(all_indices)
+        all_keys = smolyak.keys()
+        all_coefs = self._bkd.asarray(
+            [float(c) for c in smolyak.coefficient_list(all_keys)]
+        )
+        all_subspaces = [self._subspace_by_key[key] for key in all_keys]
+        all_indices = self._keys_to_indices(all_keys)
 
         surrogate = CombinationSurrogate(
             self._bkd,
@@ -717,7 +761,7 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             f"MultiFidelityAdaptiveSparseGridFitter("
             f"nvars={self._nvars_physical}, "
             f"nconfig_vars={self._nconfig_vars}, "
-            f"nsubspaces={len(self._subspaces)}, "
+            f"nsubspaces={len(self._subspace_by_key)}, "
             f"nselected={self._index_gen.nselected_indices()}, "
             f"ncandidates={self._index_gen.ncandidate_indices()})"
         )
@@ -911,7 +955,7 @@ class SingleFidelityAdaptiveSparseGridFitter(Generic[Array]):
         return (
             f"SingleFidelityAdaptiveSparseGridFitter("
             f"nvars={self._fitter.nvars_physical()}, "
-            f"nsubspaces={len(self._fitter._subspaces)}, "
+            f"nsubspaces={len(self._fitter._subspace_by_key)}, "
             f"nselected={self._fitter.nselected()}, "
             f"ncandidates={self._fitter.ncandidates()})"
         )

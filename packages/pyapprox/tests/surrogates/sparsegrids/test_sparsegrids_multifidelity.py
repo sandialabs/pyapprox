@@ -531,8 +531,7 @@ class TestCandidateInfoFields:
                 )
 
                 cand_key = _index_to_tuple(cand_idx, bkd)
-                sub_pos = mf._subspace_keys.index(cand_key)
-                cand_sub = mf._subspaces[sub_pos]
+                cand_sub = mf._subspace_by_key[cand_key]
                 if cand_sub.get_values() is not None:
                     info = mf._build_candidate_info(
                         cand_idx,
@@ -580,9 +579,8 @@ class TestCandidateInfoFields:
             for j in range(cand_indices.shape[1]):
                 cand_idx = cand_indices[:, j]
                 cand_key = _index_to_tuple(cand_idx, bkd)
-                if cand_key in fitter._subspace_keys:
-                    sub_pos = fitter._subspace_keys.index(cand_key)
-                    cand_sub = fitter._subspaces[sub_pos]
+                cand_sub = fitter._subspace_by_key.get(cand_key)
+                if cand_sub is not None:
                     if cand_sub.get_values() is not None:
                         info = fitter._build_candidate_info(
                             cand_idx,
@@ -631,9 +629,8 @@ class TestCandidateInfoFields:
             for j in range(cand_indices.shape[1]):
                 cand_idx = cand_indices[:, j]
                 cand_key = _index_to_tuple(cand_idx, bkd)
-                if cand_key in fitter._subspace_keys:
-                    sub_pos = fitter._subspace_keys.index(cand_key)
-                    cand_sub = fitter._subspaces[sub_pos]
+                cand_sub = fitter._subspace_by_key.get(cand_key)
+                if cand_sub is not None:
                     if cand_sub.get_values() is not None:
                         info = fitter._build_candidate_info(
                             cand_idx,
