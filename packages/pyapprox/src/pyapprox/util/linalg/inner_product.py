@@ -33,7 +33,15 @@ to avoid. Algorithms needing a weighted basis should use the method of
 snapshots, which asks only for :meth:`apply`.
 """
 
-from typing import Any, Generic, Optional, Protocol, runtime_checkable
+from typing import (
+    Any,
+    Generic,
+    Iterable,
+    Optional,
+    Protocol,
+    Tuple,
+    runtime_checkable,
+)
 
 from scipy.sparse import csc_matrix, issparse, spmatrix
 from scipy.sparse.linalg import SuperLU, splu
@@ -121,7 +129,7 @@ def m_orthonormality_drift(
 
 
 def m_orthonormality_drift_from_blocks(
-    blocks: object,
+    blocks: Iterable[Tuple[slice, Array]],
     inner_product: RowSeparableMetric[Array],
     nterms: int,
     bkd: Backend[Array],

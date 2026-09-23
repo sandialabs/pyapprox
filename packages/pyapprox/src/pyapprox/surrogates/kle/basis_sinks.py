@@ -44,11 +44,11 @@ from pyapprox.surrogates.kle.basis_operator import (
     BasisOperatorProtocol,
 )
 from pyapprox.surrogates.kle.snapshot_sources import rows_per_block
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, Array_co, Backend
 
 
 @runtime_checkable
-class RowFetcherProtocol(Protocol, Generic[Array]):
+class RowFetcherProtocol(Protocol, Generic[Array_co]):
     """Fetches scattered rows of a stored basis directly.
 
     Optional, because whether it can be done cheaply is a property of
@@ -60,26 +60,33 @@ class RowFetcherProtocol(Protocol, Generic[Array]):
     it does, the difference is not marginal: fetching a few hundred
     scattered rows of a gigabyte-scale basis touches a few hundred
     pages, against a full pass to keep the same rows.
+
+    The array parameter is covariant: this only ever hands an array
+    back. :class:`BasisSinkProtocol` stays invariant because
+    :meth:`~BasisSinkProtocol.write` consumes one.
     """
 
-    def __call__(self, indices: Sequence[int]) -> Array:
+    def __call__(self, indices: Sequence[int]) -> Array_co:
         """Return rows ``indices``, shape ``(len(indices), nterms)``."""
         ...
 
 
 @runtime_checkable
-class RowBlockReaderProtocol(Protocol, Generic[Array]):
+class RowBlockReaderProtocol(Protocol, Generic[Array_co]):
     """Reads a stored basis back as row blocks.
 
     A protocol rather than a bare ``Callable`` so the byte budget is a
     named, optional argument: a reader that took a required positional
     or named it something else would otherwise typecheck and then fail
     at the first pass.
+
+    Covariant for the same reason as :class:`RowFetcherProtocol`: it
+    yields arrays and never takes one.
     """
 
     def __call__(
         self, max_bytes: Optional[int] = None
-    ) -> Iterator[Tuple[slice, Array]]:
+    ) -> Iterator[Tuple[slice, Array_co]]:
         """Yield ``(rows, block)`` covering every row once, in order."""
         ...
 
