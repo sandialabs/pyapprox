@@ -11,7 +11,14 @@ from pyapprox.util.linalg.inner_product import (
     EuclideanInnerProduct,
     InnerProductProtocol,
     MassInnerProduct,
+    RowSeparableMetric,
     m_orthonormality_drift,
+    m_orthonormality_drift_from_blocks,
+)
+from pyapprox.util.linalg.orthonormalize import (
+    CholeskyQR,
+    HouseholderQR,
+    OrthonormalizerProtocol,
 )
 from pyapprox.util.linalg.pivoted_lu import (
     PivotedLUFactorizer,
@@ -71,6 +78,11 @@ __all__ = [
     "DiagonalInnerProduct",
     "MassInnerProduct",
     "m_orthonormality_drift",
+    "RowSeparableMetric",
+    "m_orthonormality_drift_from_blocks",
+    "OrthonormalizerProtocol",
+    "HouseholderQR",
+    "CholeskyQR",
     # Randomized
     "MatVecOperator",
     "SymmetricMatVecOperator",
