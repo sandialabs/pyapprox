@@ -770,12 +770,14 @@ class TextFileMarshaller(Generic[Array]):
             ]
             key = str(layout.workdir)
             self._outstanding[key] = len(commands)
-            self._record_prepared(key, index, layout)
+            self._record_prepared(
+                key, index, layout, samples[:, position : position + 1]
+            )
             built.extend(commands)
         return built
 
     def _record_prepared(
-        self, key: str, index: int, layout: _Layout
+        self, key: str, index: int, layout: _Layout, sample: Array
     ) -> None:
         """Note that a directory exists, and remember what release needs.
 
@@ -784,6 +786,15 @@ class TextFileMarshaller(Generic[Array]):
         one created, registered and never released; without this line it
         would be indistinguishable from a sample that was never created
         at all.
+
+        The sample's own values go in too. That is not a duplicate of
+        the result store, which persists the values a solve *produced*
+        and never the inputs it was given: once scratch is gone,
+        ``params.in`` goes with it, and which parameter point a
+        directory represented becomes unrecoverable. A record small
+        enough to carry them is one a reader can interpret on its own a
+        year later. The 4096-byte cap decides how far that goes -- a
+        record too large simply shows ``truncated`` and drops them.
         """
         self._dir_submission[key] = self._submission
         self._dir_index[key] = index
@@ -795,8 +806,27 @@ class TextFileMarshaller(Generic[Array]):
                 submission=self._submission,
                 index=index,
                 workdir=self._relative_workdir(layout.workdir),
+                sample=self._sample_values(sample),
             )
         )
+
+    def _sample_values(self, sample: Array) -> Optional[List[float]]:
+        """One sample's values as plain floats, or ``None``.
+
+        Converted here rather than left to the encoder because a record
+        must be JSON, and a backend array is not. Serializing is not
+        computing: the restriction on ``to_numpy`` keeps backend arrays
+        out of calculations, not out of files, which is the same reading
+        the result stores rely on to write an ``.npz``.
+        """
+        try:
+            flat = self._bkd.to_numpy(sample).reshape(-1)
+            return [float(value) for value in flat]
+        except Exception:
+            # A manifest entry must never be able to fail a run, and a
+            # backend that cannot convert is not worth finding out about
+            # here.
+            return None
 
     def _record_released(
         self,

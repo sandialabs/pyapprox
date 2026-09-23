@@ -37,6 +37,7 @@ from pyapprox.interface.evaluation.manifest import (
     KIND_PREPARED,
     KIND_RELEASED,
     KIND_RUN,
+    MAX_RECORD_BYTES,
     RUN_DONE_FILENAME,
     read_records,
 )
@@ -966,6 +967,68 @@ class TestManifest:
         )
         assert len(self._records(marshaller, KIND_PREPARED)) == 2
         assert self._records(marshaller, KIND_RELEASED) == []
+
+    def test_a_sample_records_the_point_it_stood_for(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """Which parameter point a directory was, without the scratch.
+
+        Not a duplicate of the result store, which persists what a
+        solve produced and never what it was given. Once the directory
+        goes, ``params.in`` goes with it, and nothing else anywhere
+        records the input.
+        """
+        marshaller = _marshaller(solver, tmp_path, numpy_bkd)
+        samples = numpy_bkd.array([[1.5, 2.5], [-0.25, 4.0]])
+        marshaller.tasks(samples, [0, 1], Request.values_only())
+        prepared = [
+            r
+            for r in read_records(marshaller.manifest_path())
+            if r["kind"] == KIND_PREPARED
+        ]
+        assert prepared[0]["sample"] == [1.5, -0.25]
+        assert prepared[1]["sample"] == [2.5, 4.0]
+
+    def test_a_wide_sample_is_dropped_rather_than_splitting_a_record(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        """The cap decides how far self-description goes."""
+        marshaller = TextFileMarshaller(
+            command=[sys.executable, str(solver), "ok"],
+            bkd=numpy_bkd,
+            nvars=2000,
+            nqoi=1,
+            scratch_root=str(tmp_path / "scratch"),
+        )
+        marshaller.tasks(
+            numpy_bkd.ones((2000, 1)), [0], Request.values_only()
+        )
+        record = [
+            r
+            for r in read_records(marshaller.manifest_path())
+            if r["kind"] == KIND_PREPARED
+        ][0]
+        assert "sample" not in record
+        assert record["truncated"] is True
+        # What a reader cannot do without survives the trim.
+        assert record["workdir"] == "sub-000/sample-000000"
+
+    def test_the_record_stays_within_the_cap(
+        self, solver, tmp_path, numpy_bkd
+    ) -> None:
+        marshaller = TextFileMarshaller(
+            command=[sys.executable, str(solver), "ok"],
+            bkd=numpy_bkd,
+            nvars=2000,
+            nqoi=1,
+            scratch_root=str(tmp_path / "scratch"),
+        )
+        marshaller.tasks(
+            numpy_bkd.ones((2000, 1)), [0], Request.values_only()
+        )
+        with open(marshaller.manifest_path(), "rb") as handle:
+            for line in handle:
+                assert len(line) <= MAX_RECORD_BYTES
 
     def test_a_run_can_be_marked_done(
         self, solver, tmp_path, numpy_bkd
