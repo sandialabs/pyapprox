@@ -78,6 +78,98 @@ def subspace_variance(subspace: TensorProductSubspace[Array]) -> Array:
     return (centered**2) @ weights
 
 
+def _check_moment_shapes(**arrays: Array) -> None:
+    """Raise unless every array is 1D of the same length.
+
+    Moments are ``(nqoi,)``. A ``(nqoi, 1)`` slipping in broadcasts to
+    ``(nqoi, nqoi)`` instead of failing, and that reaches an error
+    metric as a plausible number rather than an exception, so the shape
+    is checked where the arrays meet.
+    """
+    items = list(arrays.items())
+    for name, array in items:
+        if array.ndim != 1:
+            raise ValueError(
+                f"{name} must be 1D of shape (nqoi,), got shape "
+                f"{tuple(array.shape)}"
+            )
+    first_name, first = items[0]
+    for name, array in items[1:]:
+        if array.shape[0] != first.shape[0]:
+            raise ValueError(
+                f"{name} has nqoi={array.shape[0]} but {first_name} has "
+                f"nqoi={first.shape[0]}"
+            )
+
+
+def variance_from_raw_moments(mean: Array, second: Array) -> Array:
+    """Return V = M2 - m^2 from the first two raw moments.
+
+    Raw moments combine linearly through the Smolyak coefficients where
+    a central moment does not, so a variance over a combination is built
+    from them rather than from per-subspace variances.
+
+    Parameters
+    ----------
+    mean : Array
+        First raw moment, shape (nqoi,).
+    second : Array
+        Second raw moment about zero, shape (nqoi,).
+
+    Returns
+    -------
+    Array
+        Variance, shape (nqoi,). Not guaranteed nonnegative when the
+        moments come from a signed rule.
+
+    Raises
+    ------
+    ValueError
+        If the arrays are not 1D of matching length.
+    """
+    _check_moment_shapes(mean=mean, second=second)
+    return second - mean**2
+
+
+def variance_delta(
+    mean: Array, delta_mean: Array, delta_second: Array
+) -> Array:
+    """Return the change in M2 - m^2 given changes in the raw moments.
+
+    Expanding (m + dm)^2 - m^2 gives
+
+        Delta V = Delta M2 - Delta m (2 m + Delta m)
+
+    which is algebraically V_new - V_old but does not form either. Once
+    the grid resolves the target those two are nearly equal and large
+    next to their difference, so subtracting them loses most of the
+    significant digits of the answer.
+
+    Parameters
+    ----------
+    mean : Array
+        Current first raw moment, shape (nqoi,).
+    delta_mean : Array
+        Change in the first raw moment, shape (nqoi,).
+    delta_second : Array
+        Change in the second raw moment, shape (nqoi,).
+
+    Returns
+    -------
+    Array
+        Change in the variance, shape (nqoi,).
+
+    Raises
+    ------
+    ValueError
+        If the arrays are not 1D of matching length.
+    """
+    _check_moment_shapes(
+        mean=mean, delta_mean=delta_mean, delta_second=delta_second
+    )
+    return delta_second - delta_mean * (2.0 * mean + delta_mean)
+
+
 def subspace_raw_moment(
     subspace: TensorProductSubspace[Array], order: int
 ) -> Array:

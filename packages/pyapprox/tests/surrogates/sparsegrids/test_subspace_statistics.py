@@ -29,6 +29,8 @@ from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
     subspace_mean,
     subspace_raw_moment,
     subspace_variance,
+    variance_delta,
+    variance_from_raw_moments,
 )
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
@@ -153,6 +155,85 @@ class TestSubspaceMoments:
         subspace = _valued_subspace(bkd, factory, (1, 1), _quadratic(bkd))
         with pytest.raises(ValueError, match="at least 1"):
             subspace_raw_moment(subspace, 0)
+
+
+class TestVarianceFormulas:
+    """The two raw-moment formulas, and the shapes they require."""
+
+    def test_variance_from_raw_moments(self, bkd) -> None:
+        mean = bkd.asarray([2.0, -1.0])
+        second = bkd.asarray([5.0, 4.0])
+        bkd.assert_allclose(
+            variance_from_raw_moments(mean, second),
+            bkd.asarray([1.0, 3.0]),
+            rtol=1e-12,
+        )
+
+    def test_variance_delta_equals_the_difference_it_avoids(
+        self, bkd
+    ) -> None:
+        """Algebraically V_new - V_old, without forming either."""
+        mean = bkd.asarray([2.0, -1.0])
+        second = bkd.asarray([5.0, 4.0])
+        delta_mean = bkd.asarray([0.25, -0.5])
+        delta_second = bkd.asarray([1.5, 0.75])
+
+        old = variance_from_raw_moments(mean, second)
+        new = variance_from_raw_moments(
+            mean + delta_mean, second + delta_second
+        )
+        bkd.assert_allclose(
+            variance_delta(mean, delta_mean, delta_second),
+            new - old,
+            rtol=1e-12,
+        )
+
+    def test_variance_delta_is_stable_when_converged(self, bkd) -> None:
+        """The direct difference loses digits; this form does not.
+
+        With a mean near 1e6 and a change near 1e-9, V_new and V_old
+        agree to about 15 digits, so subtracting them keeps almost none
+        of the answer.
+        """
+        mean = bkd.asarray([1.0e6])
+        second = bkd.asarray([1.0e12 + 4.0])
+        delta_mean = bkd.asarray([1.0e-9])
+        delta_second = bkd.asarray([3.0e-3])
+
+        got = bkd.to_float(
+            variance_delta(mean, delta_mean, delta_second)[0]
+        )
+        # dM2 - dm(2m + dm) = 3e-3 - 1e-9*(2e6 + 1e-9) = 1e-3
+        assert abs(got - 1.0e-3) < 1e-12
+
+        # The form this avoids: V_new and V_old are both near 4, and
+        # differencing them loses the 1e-3 answer to rounding.
+        old = variance_from_raw_moments(mean, second)
+        new = variance_from_raw_moments(
+            mean + delta_mean, second + delta_second
+        )
+        differenced = bkd.to_float((new - old)[0])
+        assert abs(differenced - 1.0e-3) > abs(got - 1.0e-3)
+
+    @pytest.mark.parametrize(
+        "bad", [(2, 1), (1, 2), (2, 2)]
+    )
+    def test_rejects_non_1d(self, bkd, bad) -> None:
+        """A (nqoi, 1) would broadcast to (nqoi, nqoi) rather than fail."""
+        with pytest.raises(ValueError, match="must be 1D"):
+            variance_from_raw_moments(bkd.zeros(bad), bkd.zeros(bad))
+
+    def test_rejects_mismatched_nqoi(self, bkd) -> None:
+        with pytest.raises(ValueError, match="nqoi"):
+            variance_from_raw_moments(
+                bkd.zeros((2,)), bkd.zeros((3,))
+            )
+
+    def test_delta_rejects_mismatched_nqoi(self, bkd) -> None:
+        with pytest.raises(ValueError, match="nqoi"):
+            variance_delta(
+                bkd.zeros((2,)), bkd.zeros((2,)), bkd.zeros((3,))
+            )
 
 
 class TestSubspaceCache:
