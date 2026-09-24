@@ -28,7 +28,7 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
     GaussLagrangeFactory,
 )
 from pyapprox.surrogates.sparsegrids.statistics.moments import (
-    CombinationMoments,
+    PCEMoments,
     QuadratureMoments,
 )
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
@@ -441,6 +441,6 @@ class TestAdaptiveSGToPCEConverter:
 
         bkd.assert_allclose(
             pce.variance(),
-            CombinationMoments(ada_result.surrogate).variance(),
+            PCEMoments(ada_result.surrogate, pce_bases_1d).variance(),
             rtol=1e-10,
         )

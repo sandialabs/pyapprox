@@ -20,6 +20,7 @@ from pyapprox.surrogates.affine.indices import (
     LinearGrowthRule,
     MaxLevelCriteria,
 )
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.sparsegrids import create_basis_factories
 from pyapprox.surrogates.sparsegrids.adaptive_fitter import (
     SingleFidelityAdaptiveSparseGridFitter,
@@ -39,7 +40,7 @@ from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
     IsotropicSparseGridFitter,
 )
 from pyapprox.surrogates.sparsegrids.statistics.moments import (
-    CombinationMoments,
+    PCEMoments,
     QuadratureMoments,
 )
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
@@ -221,11 +222,11 @@ class TestAdaptiveMoments:
             tol=1e-12,
             max_steps=50,
         )
-        return result, pce
+        return result, pce, joint
 
     def test_adaptive_mean_matches_pce(self, bkd) -> None:
         """Adaptive SG mean matches PCE mean."""
-        result, pce = self._build_converged_fitter(bkd, nqoi=2)
+        result, pce, joint = self._build_converged_fitter(bkd, nqoi=2)
         bkd.assert_allclose(
             QuadratureMoments(result.surrogate).mean(),
             pce.mean(),
@@ -233,10 +234,19 @@ class TestAdaptiveMoments:
         )
 
     def test_adaptive_variance_matches_pce(self, bkd) -> None:
-        """Adaptive SG variance matches PCE variance."""
-        result, pce = self._build_converged_fitter(bkd, nqoi=2)
+        """Adaptive SG variance matches PCE variance.
+
+        The assertion is about the surrogate's true variance, so it uses
+        PCEMoments; the sparse-grid rule applied to f^2 answers a
+        different question.
+        """
+        result, pce, joint = self._build_converged_fitter(bkd, nqoi=2)
         bkd.assert_allclose(
-            CombinationMoments(result.surrogate).variance(), pce.variance(), rtol=1e-6
+            PCEMoments(
+                result.surrogate, create_bases_1d(joint.marginals(), bkd)
+            ).variance(),
+            pce.variance(),
+            rtol=1e-6,
         )
 
 
@@ -480,7 +490,11 @@ class TestAdaptiveVarianceRefinement:
             rtol=1e-8,
         )
         bkd.assert_allclose(
-            CombinationMoments(result.surrogate).variance(), pce.variance(), rtol=1e-6
+            PCEMoments(
+                result.surrogate, create_bases_1d(joint.marginals(), bkd)
+            ).variance(),
+            pce.variance(),
+            rtol=1e-6,
         )
 
     def test_variance_refinement_multi_qoi(self, bkd) -> None:
@@ -558,9 +572,11 @@ class TestAdaptiveRecoversIsotropic:
             QuadratureMoments(iso_result.surrogate).mean(),
             rtol=1e-10,
         )
+        # Equivalence of two grids, not a claim about the true variance,
+        # so the rule's own second moment is what to compare.
         bkd.assert_allclose(
-            CombinationMoments(ada_result.surrogate).variance(),
-            CombinationMoments(iso_result.surrogate).variance(),
+            QuadratureMoments(ada_result.surrogate).variance(),
+            QuadratureMoments(iso_result.surrogate).variance(),
             rtol=1e-8,
         )
 

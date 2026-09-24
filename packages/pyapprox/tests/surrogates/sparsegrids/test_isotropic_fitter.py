@@ -23,6 +23,7 @@ from pyapprox.surrogates.affine.indices import (
 from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
 )
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.sparsegrids import (
     create_basis_factories,
     is_downward_closed,
@@ -41,7 +42,7 @@ from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
     IsotropicSparseGridFitter,
 )
 from pyapprox.surrogates.sparsegrids.statistics.moments import (
-    CombinationMoments,
+    PCEMoments,
     QuadratureMoments,
 )
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
@@ -357,6 +358,10 @@ class TestFitterQuadrature:
         tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
         return IsotropicSparseGridFitter(bkd, tp_factory, level)
 
+    def _marginals(self, bkd):
+        """The marginals _make_fitter builds its factories from."""
+        return [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+
     def test_mean_monomial_exact(self, bkd) -> None:
         """E[x^2 + y^2] = 2/3 on [-1,1]^2."""
         fitter = self._make_fitter(level=2, bkd=bkd)
@@ -401,7 +406,10 @@ class TestFitterQuadrature:
         values = bkd.reshape(x + y, (1, -1))
         result = fitter.fit(values)
 
-        variance = CombinationMoments(result.surrogate).variance()
+        # The analytic variance of the target, so PCEMoments.
+        variance = PCEMoments(
+            result.surrogate, create_bases_1d(self._marginals(bkd), bkd)
+        ).variance()
         bkd.assert_allclose(variance, bkd.asarray([2.0 / 3.0]), rtol=1e-10)
 
     def test_variance_product_function(self, bkd) -> None:
@@ -412,7 +420,10 @@ class TestFitterQuadrature:
         values = bkd.reshape(x * y, (1, -1))
         result = fitter.fit(values)
 
-        variance = CombinationMoments(result.surrogate).variance()
+        # The analytic variance of the target, so PCEMoments.
+        variance = PCEMoments(
+            result.surrogate, create_bases_1d(self._marginals(bkd), bkd)
+        ).variance()
         bkd.assert_allclose(variance, bkd.asarray([1.0 / 9.0]), rtol=1e-10)
 
 

@@ -40,7 +40,6 @@ from pyapprox.surrogates.sparsegrids.converters.pce import (
 from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
     subspace_mean,
     subspace_raw_moment,
-    subspace_variance,
 )
 from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
@@ -124,65 +123,6 @@ class QuadratureMoments(Generic[Array]):
 
     def __repr__(self) -> str:
         return f"QuadratureMoments(nqoi={self._surrogate.nqoi()})"
-
-
-class CombinationMoments(Generic[Array]):
-    """Transitional. Scheduled for removal --- do not build on it.
-
-    mean     = sum_k c_k Q_k f
-    variance = sum_k c_k Var_k
-
-    This exists only so callers can be moved off
-    ``CombinationSurrogate.mean()``/``.variance()`` mechanically, with
-    the numbers unchanged, before each call site is re-read for what it
-    was actually asserting. Every use is expected to become either
-    ``PCEMoments`` (a true variance) or ``QuadratureMoments`` (the
-    rule's second moment), after which this class goes away.
-
-    sum_k c_k Var_k is a refinement proxy, not an estimate of the
-    surrogate's variance. It ranks candidates by unresolved structure,
-    which is what ``VarianceChangeIndicator`` needs; it is not
-    Var[I_K f] and does not converge to it.
-
-    Parameters
-    ----------
-    surrogate : CombinationSurrogate[Array]
-        Fitted surrogate whose subspaces have values.
-
-    Raises
-    ------
-    TypeError
-        If surrogate is not a CombinationSurrogate.
-    """
-
-    def __init__(self, surrogate: CombinationSurrogate[Array]) -> None:
-        if not isinstance(surrogate, CombinationSurrogate):
-            raise TypeError(
-                "surrogate must be a CombinationSurrogate, got "
-                f"{type(surrogate).__name__}"
-            )
-        self._surrogate = surrogate
-        self._mean: Optional[Array] = None
-        self._variance: Optional[Array] = None
-
-    def surrogate(self) -> CombinationSurrogate[Array]:
-        """Return the surrogate these moments describe."""
-        return self._surrogate
-
-    def mean(self) -> Array:
-        """Return sum_k c_k Q_k f, shape (nqoi,)."""
-        if self._mean is None:
-            self._mean = _combine(self._surrogate, subspace_mean)
-        return self._mean
-
-    def variance(self) -> Array:
-        """Return sum_k c_k Var_k, shape (nqoi,)."""
-        if self._variance is None:
-            self._variance = _combine(self._surrogate, subspace_variance)
-        return self._variance
-
-    def __repr__(self) -> str:
-        return f"CombinationMoments(nqoi={self._surrogate.nqoi()})"
 
 
 class PCEMoments(Generic[Array]):

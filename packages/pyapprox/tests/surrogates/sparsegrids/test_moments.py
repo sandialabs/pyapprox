@@ -8,13 +8,11 @@ in the test:
 - ``PCEMoments``: the exact moments of I_K f, checked against analytic
   values on grids that resolve the target and against the orthonormal
   PCE coefficients otherwise.
-- ``CombinationMoments``: transitional, so it is pinned only to the
-  property its existence depends on --- reproducing the pre-existing
-  ``CombinationSurrogate`` methods exactly.
 
-The definitions are not tested against each other. They agree whenever
-the grid resolves the target and disagree otherwise, so any such test
-would assert an accident of the chosen case.
+The variance definitions are not tested against each other. They agree
+whenever the grid resolves the target and disagree otherwise, so any
+such test would assert an accident of the chosen case. The means are
+compared, since the mean is definition-independent.
 """
 
 from typing import List, Tuple
@@ -41,14 +39,12 @@ from pyapprox.surrogates.sparsegrids.smolyak import (
     compute_smolyak_coefficients,
 )
 from pyapprox.surrogates.sparsegrids.statistics.moments import (
-    CombinationMoments,
     PCEMoments,
     QuadratureMoments,
 )
 from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
     subspace_mean,
     subspace_raw_moment,
-    subspace_variance,
 )
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
@@ -265,56 +261,20 @@ class TestPCEMoments:
             PCEMoments("not a surrogate", [])
 
 
-class TestCombinationMomentsIsTransitional:
-    """Pinned to the pre-existing numbers, nothing else."""
-
-    @pytest.mark.parametrize("basis_type", ["gauss", "leja"])
-    @pytest.mark.parametrize("level", [1, 2, 3])
-    def test_matches_surrogate_methods(
-        self, bkd, basis_type: str, level: int
-    ) -> None:
-        """This equality is what lets call sites move mechanically."""
-        surrogate, _ = _isotropic(
-            bkd, 2, level, basis_type, _sum_of_squares(bkd)
-        )
-        moments = CombinationMoments(surrogate)
-        bkd.assert_allclose(moments.mean(), surrogate.mean(), rtol=1e-12)
-        bkd.assert_allclose(
-            moments.variance(), surrogate.variance(), rtol=1e-12
-        )
-
-    def test_matches_its_definition(self, bkd) -> None:
-        """sum_k c_k Var_k, combined in the test."""
-        surrogate, _ = _isotropic(
-            bkd, 2, 2, "gauss", _sum_of_squares(bkd)
-        )
-        bkd.assert_allclose(
-            CombinationMoments(surrogate).variance(),
-            _combine(bkd, surrogate, subspace_variance),
-            rtol=1e-12,
-        )
-
-    def test_rejects_non_surrogate(self, bkd) -> None:
-        with pytest.raises(TypeError, match="CombinationSurrogate"):
-            CombinationMoments("not a surrogate")
-
-
 class TestMeansAgree:
     """The mean is definition-independent, unlike the variance."""
 
     @pytest.mark.parametrize(
         "basis_type", ["gauss", "leja", "clenshaw_curtis"]
     )
-    def test_all_three_means_agree(self, bkd, basis_type: str) -> None:
+    def test_both_means_agree(self, bkd, basis_type: str) -> None:
         surrogate, marginals = _isotropic(
             bkd, 2, 2, basis_type, _sum_of_squares(bkd)
         )
         quadrature = QuadratureMoments(surrogate).mean()
-        combination = CombinationMoments(surrogate).mean()
         exact = PCEMoments(
             surrogate, create_bases_1d(marginals, bkd)
         ).mean()
-        bkd.assert_allclose(quadrature, combination, rtol=1e-12)
         bkd.assert_allclose(quadrature, exact, rtol=1e-12)
 
 
