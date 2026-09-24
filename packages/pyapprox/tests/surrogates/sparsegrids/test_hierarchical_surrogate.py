@@ -11,6 +11,9 @@ from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_nd import (
 from pyapprox.surrogates.sparsegrids.hierarchical.hierarchical_surrogate import (
     HierarchicalSurrogate,
 )
+from pyapprox.surrogates.sparsegrids.statistics.hierarchical_moments import (
+    HierarchicalMoments,
+)
 
 
 def _build_1d_surrogate(bkd, f, max_level):
@@ -149,13 +152,13 @@ class TestHierarchicalSurrogate:
     def test_mean_constant(self, bkd):
         """Mean of f(x)=1 over [0,1] is 1."""
         surr, _ = _build_1d_surrogate(bkd, lambda x: 1.0, max_level=2)
-        m = surr.mean()
+        m = HierarchicalMoments(surr).mean()
         bkd.assert_allclose(m, bkd.asarray([1.0]), atol=1e-14)
 
     def test_mean_linear(self, bkd):
         """Mean of f(x)=x over [0,1] is 0.5."""
         surr, _ = _build_1d_surrogate(bkd, lambda x: x, max_level=2)
-        m = surr.mean()
+        m = HierarchicalMoments(surr).mean()
         bkd.assert_allclose(m, bkd.asarray([0.5]), atol=1e-14)
 
     def test_snapshot_independence(self, bkd):

@@ -20,6 +20,10 @@ from pyapprox.surrogates.sparsegrids.hierarchical.hierarchical_fitter import (
 from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
     IsotropicSparseGridFitter,
 )
+from pyapprox.surrogates.sparsegrids.statistics import (
+    HierarchicalMoments,
+    QuadratureMoments,
+)
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
@@ -89,8 +93,8 @@ class TestHierarchicalVsCombination:
         h_vals = h_result.surrogate(test_pts)
         bkd.assert_allclose(h_vals, combo_vals, atol=1e-12)
 
-        combo_mean = combo_result.surrogate.mean()
-        h_mean = h_result.surrogate.mean()
+        combo_mean = QuadratureMoments(combo_result.surrogate).mean()
+        h_mean = HierarchicalMoments(h_result.surrogate).mean()
         bkd.assert_allclose(h_mean, combo_mean, atol=1e-14)
 
     @pytest.mark.parametrize("nvars", [2, 3])

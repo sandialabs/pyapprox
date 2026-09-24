@@ -20,6 +20,9 @@ from pyapprox.surrogates.sparsegrids.hierarchical.hierarchical_fitter import (
     SingleFidelityHierarchicalFitter,
 )
 from pyapprox.surrogates.sparsegrids.model_factory import DictModelFactory
+from pyapprox.surrogates.sparsegrids.statistics.hierarchical_moments import (
+    HierarchicalMoments,
+)
 
 
 class TestSingleFidelityHierarchicalFitter:
@@ -152,7 +155,7 @@ class TestSingleFidelityHierarchicalFitter:
             FunctionFromCallable(1, 1, f, bkd),
             tol=1e-15, max_steps=50,
         )
-        mean = result.surrogate.mean()
+        mean = HierarchicalMoments(result.surrogate).mean()
         bkd.assert_allclose(mean, bkd.asarray([0.5]), atol=1e-14)
 
     def test_1d_quadratic_exact(self, bkd):
@@ -176,7 +179,7 @@ class TestSingleFidelityHierarchicalFitter:
         vals = result.surrogate(x_test)
         bkd.assert_allclose(vals, x_test ** 2, atol=1e-13)
 
-        mean = result.surrogate.mean()
+        mean = HierarchicalMoments(result.surrogate).mean()
         bkd.assert_allclose(mean, bkd.asarray([1.0 / 3.0]), atol=1e-13)
 
     def test_always_admissible_no_deferred(self, bkd):
@@ -667,7 +670,7 @@ class TestExcludeMode:
             FunctionFromCallable(1, 1, f, bkd),
             tol=1e-15, max_steps=100,
         )
-        mean = result.surrogate.mean()
+        mean = HierarchicalMoments(result.surrogate).mean()
         bkd.assert_allclose(
             mean, bkd.asarray([2.0 / np.pi]), atol=0.01
         )

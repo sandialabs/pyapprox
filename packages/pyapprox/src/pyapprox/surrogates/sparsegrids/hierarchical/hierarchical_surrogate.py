@@ -120,18 +120,6 @@ class HierarchicalSurrogate(Generic[Array]):
         """
         return self.__call__(sample)
 
-    def mean(self) -> Array:
-        """Hierarchical quadrature mean: Σ v_{l,j,q} · w_{l,j}.
-
-        Returns
-        -------
-        Array
-            Shape (nqoi,).
-        """
-        bkd = self._bkd
-        # surpluses: (nqoi, n_points), quad_weights: (n_points,)
-        return bkd.dot(self._surpluses, self._quad_weights)
-
     def add_point(
         self, key: PointKey, surplus: Array, quad_weight: float
     ) -> None:

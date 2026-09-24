@@ -6,7 +6,7 @@ Tests verify:
 - TimedModelFactory records per-config timings
 - MeasuredCostModel reads measured wall times
 - MF convergence and cost-aware refinement
-- CandidateInfo field population
+- Candidate field population
 
 All tests run on both NumPy and PyTorch backends.
 """

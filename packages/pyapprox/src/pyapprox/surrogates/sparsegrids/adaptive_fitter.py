@@ -454,15 +454,6 @@ class MultiFidelityAdaptiveSparseGridFitter(Generic[Array]):
             dtype=self._bkd.int64_dtype(),
         )
 
-    def _get_subspaces_for_indices(
-        self, indices: Array
-    ) -> List[TensorProductSubspace[Array]]:
-        """Get subspaces corresponding to given indices."""
-        return [
-            self._subspace_by_key[_index_to_tuple(indices[:, j], self._bkd)]
-            for j in range(indices.shape[1])
-        ]
-
     def current_error(self) -> float:
         """Return sum of errors for candidate subspaces."""
         cand_indices = self._index_gen.get_candidate_indices()
