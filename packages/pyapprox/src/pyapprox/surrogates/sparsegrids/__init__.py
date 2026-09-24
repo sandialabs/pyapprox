@@ -89,6 +89,7 @@ from .smolyak import (
     is_downward_closed,
 )
 from .statistics import (
+    CrossMomentMoments,
     HierarchicalMoments,
     PCEMoments,
     QuadratureMoments,
@@ -115,6 +116,7 @@ __all__ = [
     "IncrementalSmolyakCoefficients",
     "evaluate_box",
     # Statistics
+    "CrossMomentMoments",
     "HierarchicalMoments",
     "PCEMoments",
     "QuadratureMoments",

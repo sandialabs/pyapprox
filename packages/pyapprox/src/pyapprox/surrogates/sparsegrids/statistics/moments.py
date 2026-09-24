@@ -11,10 +11,13 @@ The variance is not. Two definitions are offered and they disagree;
 pick by what the number is for.
 
 - ``QuadratureMoments``: the sparse-grid rule applied to f^2. Cheap,
-  and not guaranteed nonnegative because the rule is signed.
+  not guaranteed nonnegative because the rule is signed, and defined
+  for any interpolation basis.
 - ``PCEMoments``: the exact variance of the fitted surrogate, via an
   orthonormal PCE conversion. Reach for this one when "the variance of
-  my surrogate" is the question.
+  my surrogate" is the question **and the basis is globally
+  polynomial** --- Gauss, Leja or Clenshaw-Curtis. It rejects a
+  piecewise basis; ``CrossMomentMoments`` covers those.
 
 A third quantity, sum_k c_k Var_k, drives refinement inside
 ``VarianceChangeIndicator``. It is a proxy for ranking candidates, not
@@ -40,6 +43,7 @@ from pyapprox.surrogates.sparsegrids.converters.pce import (
 from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
     subspace_mean,
     subspace_raw_moment,
+    variance_from_raw_moments,
 )
 from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
@@ -118,8 +122,7 @@ class QuadratureMoments(Generic[Array]):
 
     def variance(self) -> Array:
         """Return Q_K[f^2] - (Q_K f)^2, shape (nqoi,)."""
-        mean = self.mean()
-        return self.second_moment() - mean**2
+        return variance_from_raw_moments(self.mean(), self.second_moment())
 
     def __repr__(self) -> str:
         return f"QuadratureMoments(nqoi={self._surrogate.nqoi()})"
@@ -133,9 +136,22 @@ class PCEMoments(Generic[Array]):
     I_K f exactly: E = c_0 and Var = sum over nonzero multi-indices of
     c_alpha^2.
 
-    This is the one to use when the question is "what is the variance of
-    my surrogate". ``QuadratureMoments`` answers a different question
-    and gives a different number.
+    For a globally polynomial basis this is the one to use when the
+    question is "what is the variance of my surrogate".
+    ``QuadratureMoments`` answers a different question and gives a
+    different number.
+
+    **Restricted to globally polynomial interpolation bases**, which
+    means Gauss, Leja and Clenshaw-Curtis. The conversion projects each
+    Lagrange function onto the orthonormal polynomials by Gauss
+    quadrature, which is exact only because those functions are
+    polynomials; a piecewise basis has breakpoints the quadrature
+    cannot see. The converter rejects such a basis rather than
+    returning coefficients for a function that is not the interpolant.
+
+    ``QuadratureMoments`` carries no such restriction, needing only the
+    subspace values and quadrature weights, and ``CrossMomentMoments``
+    gives the surrogate's own variance for any basis.
 
     Parameters
     ----------

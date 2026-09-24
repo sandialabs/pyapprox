@@ -8,6 +8,9 @@ from pyapprox.surrogates.sparsegrids.statistics.cache import (
     SubspaceCache,
     box_sum,
 )
+from pyapprox.surrogates.sparsegrids.statistics.cross_moments import (
+    CrossMomentMoments,
+)
 from pyapprox.surrogates.sparsegrids.statistics.hierarchical_moments import (
     HierarchicalMoments,
 )
@@ -22,6 +25,7 @@ from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
 )
 
 __all__ = [
+    "CrossMomentMoments",
     "HierarchicalMoments",
     "PCEMoments",
     "QuadratureMoments",
