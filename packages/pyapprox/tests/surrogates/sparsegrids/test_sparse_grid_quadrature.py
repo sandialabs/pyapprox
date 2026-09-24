@@ -7,6 +7,7 @@ from pyapprox.surrogates.sparsegrids import (
     GaussLagrangeFactory,
     IsotropicSparseGridFitter,
     ParameterizedIsotropicSparseGridQuadratureRule,
+    QuadratureMoments,
     TensorProductSubspaceFactory,
 )
 
@@ -102,7 +103,7 @@ class TestSparseGridQuadratureWeights:
 
         # Via surrogate
         result = fitter.fit(values)
-        surrogate_mean = result.surrogate.mean()
+        surrogate_mean = QuadratureMoments(result.surrogate).mean()
 
         # Via direct quadrature
         quad_mean = bkd.sum(weights * f_vals, axis=0)

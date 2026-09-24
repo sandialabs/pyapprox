@@ -38,6 +38,10 @@ from pyapprox.surrogates.sparsegrids.error_indicators import (
 from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
     IsotropicSparseGridFitter,
 )
+from pyapprox.surrogates.sparsegrids.statistics.moments import (
+    CombinationMoments,
+    QuadratureMoments,
+)
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
@@ -222,13 +226,17 @@ class TestAdaptiveMoments:
     def test_adaptive_mean_matches_pce(self, bkd) -> None:
         """Adaptive SG mean matches PCE mean."""
         result, pce = self._build_converged_fitter(bkd, nqoi=2)
-        bkd.assert_allclose(result.surrogate.mean(), pce.mean(), rtol=1e-8)
+        bkd.assert_allclose(
+            QuadratureMoments(result.surrogate).mean(),
+            pce.mean(),
+            rtol=1e-8,
+        )
 
     def test_adaptive_variance_matches_pce(self, bkd) -> None:
         """Adaptive SG variance matches PCE variance."""
         result, pce = self._build_converged_fitter(bkd, nqoi=2)
         bkd.assert_allclose(
-            result.surrogate.variance(), pce.variance(), rtol=1e-6
+            CombinationMoments(result.surrogate).variance(), pce.variance(), rtol=1e-6
         )
 
 
@@ -466,9 +474,13 @@ class TestAdaptiveVarianceRefinement:
         np.random.seed(123)
         test_pts = joint.rvs(20)
         bkd.assert_allclose(result.surrogate(test_pts), pce(test_pts), rtol=1e-8)
-        bkd.assert_allclose(result.surrogate.mean(), pce.mean(), rtol=1e-8)
         bkd.assert_allclose(
-            result.surrogate.variance(), pce.variance(), rtol=1e-6
+            QuadratureMoments(result.surrogate).mean(),
+            pce.mean(),
+            rtol=1e-8,
+        )
+        bkd.assert_allclose(
+            CombinationMoments(result.surrogate).variance(), pce.variance(), rtol=1e-6
         )
 
     def test_variance_refinement_multi_qoi(self, bkd) -> None:
@@ -542,13 +554,13 @@ class TestAdaptiveRecoversIsotropic:
 
         # Same mean and variance
         bkd.assert_allclose(
-            ada_result.surrogate.mean(),
-            iso_result.surrogate.mean(),
+            QuadratureMoments(ada_result.surrogate).mean(),
+            QuadratureMoments(iso_result.surrogate).mean(),
             rtol=1e-10,
         )
         bkd.assert_allclose(
-            ada_result.surrogate.variance(),
-            iso_result.surrogate.variance(),
+            CombinationMoments(ada_result.surrogate).variance(),
+            CombinationMoments(iso_result.surrogate).variance(),
             rtol=1e-8,
         )
 

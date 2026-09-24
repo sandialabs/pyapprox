@@ -27,6 +27,10 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
     GaussLagrangeFactory,
 )
+from pyapprox.surrogates.sparsegrids.statistics.moments import (
+    CombinationMoments,
+    QuadratureMoments,
+)
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
@@ -408,7 +412,11 @@ class TestAdaptiveSGToPCEConverter:
         converter = SparseGridToPCEConverter(bkd, pce_bases_1d)
         pce = converter.convert(ada_result.surrogate)
 
-        bkd.assert_allclose(pce.mean(), ada_result.surrogate.mean(), rtol=1e-10)
+        bkd.assert_allclose(
+            pce.mean(),
+            QuadratureMoments(ada_result.surrogate).mean(),
+            rtol=1e-10,
+        )
 
     def test_adaptive_sg_to_pce_variance(self, bkd) -> None:
         """Test adaptive SG -> PCE conversion preserves variance."""
@@ -432,5 +440,7 @@ class TestAdaptiveSGToPCEConverter:
         pce = converter.convert(ada_result.surrogate)
 
         bkd.assert_allclose(
-            pce.variance(), ada_result.surrogate.variance(), rtol=1e-10
+            pce.variance(),
+            CombinationMoments(ada_result.surrogate).variance(),
+            rtol=1e-10,
         )

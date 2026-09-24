@@ -23,6 +23,9 @@ from pyapprox.surrogates.sparsegrids.basis_setup import (
     create_lagrange_from_quadrature,
     get_quadrature_rule,
 )
+from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
+    subspace_mean,
+)
 
 
 class TestBasisSetup:
@@ -303,7 +306,7 @@ class TestTensorProductSubspace:
         values = bkd.reshape(x**2 * y**2, (1, -1))
         subspace.set_values(values)
 
-        integral = subspace.integrate()
+        integral = subspace_mean(subspace)
         expected = bkd.asarray([1.0 / 9.0])
         bkd.assert_allclose(integral, expected, rtol=1e-10)
 
@@ -322,7 +325,7 @@ class TestTensorProductSubspace:
         values = bkd.reshape(x**3, (1, -1))
         subspace.set_values(values)
 
-        integral = subspace.integrate()
+        integral = subspace_mean(subspace)
         expected = bkd.asarray([0.0])
         bkd.assert_allclose(integral, expected, atol=1e-14)
 
@@ -358,7 +361,7 @@ class TestTensorProductSubspace:
         values = bkd.reshape(x**2 + y**2, (1, -1))
         subspace.set_values(values)
 
-        integral = subspace.integrate()
+        integral = subspace_mean(subspace)
         # E[x^2 + y^2] = E[x^2] + E[y^2] = 1 + 1 = 2
         expected = bkd.asarray([2.0])
         bkd.assert_allclose(integral, expected, rtol=1e-10)
@@ -381,7 +384,7 @@ class TestTensorProductSubspace:
         values = bkd.reshape(x**4, (1, -1))
         subspace.set_values(values)
 
-        integral = subspace.integrate()
+        integral = subspace_mean(subspace)
         # E[x^4] = 3 for standard normal
         expected = bkd.asarray([3.0])
         bkd.assert_allclose(integral, expected, rtol=1e-10)
@@ -444,7 +447,7 @@ class TestTensorProductSubspace:
 
         # Integrate x^2 over [-1, 1] with uniform measure
         # Integral = int_{-1}^{1} x^2 dx = 2/3
-        integral = subspace.integrate()
+        integral = subspace_mean(subspace)
         expected = bkd.asarray([2.0 / 3.0])
         bkd.assert_allclose(integral, expected, rtol=1e-10)
 
@@ -468,7 +471,7 @@ class TestTensorProductSubspace:
         values = bkd.reshape(x**2 * y**2, (1, -1))
         subspace.set_values(values)
 
-        integral = subspace.integrate()
+        integral = subspace_mean(subspace)
         # int x^2 dx * int y^2 dy = (2/3) * (2/3) = 4/9
         expected = bkd.asarray([4.0 / 9.0])
         bkd.assert_allclose(integral, expected, rtol=1e-10)
@@ -506,7 +509,7 @@ class TestTensorProductSubspace:
         values = bkd.reshape(x**2 * y**2, (1, -1))
         subspace.set_values(values)
 
-        integral = subspace.integrate()
+        integral = subspace_mean(subspace)
         # piecewise x^2: 2/3, gauss E[y^2]: 1/3
         # Combined: 2/9
         expected = bkd.asarray([2.0 / 9.0])

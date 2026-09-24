@@ -15,6 +15,9 @@ These tests verify:
 
 import numpy as np
 import pytest
+from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
+    subspace_mean,
+)
 
 from tests._helpers.markers import slow_test, slower_test  # noqa: F401
 from tests._helpers.sparsegrids_helpers import (
@@ -114,7 +117,7 @@ class TestTensorProductGauss:
 
         # Expected mean is the constant term (index 0) of orthonormal PCE
         expected_mean = pce.get_coefficients()[0, :]
-        computed_mean = subspace.integrate()
+        computed_mean = subspace_mean(subspace)
         bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
     @pytest.mark.parametrize(
@@ -135,7 +138,7 @@ class TestTensorProductGauss:
 
         # Mean of constant 1 should be 1
         bkd.assert_allclose(
-            subspace.integrate(),
+            subspace_mean(subspace),
             bkd.asarray([1.0]),
             rtol=1e-12,
         )
@@ -191,7 +194,7 @@ class TestTensorProductLeja:
 
         # Expected mean is the constant term of orthonormal PCE
         expected_mean = pce.get_coefficients()[0, :]
-        computed_mean = subspace.integrate()
+        computed_mean = subspace_mean(subspace)
         bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
     @pytest.mark.parametrize(
@@ -211,7 +214,7 @@ class TestTensorProductLeja:
         subspace.set_values(values)
 
         bkd.assert_allclose(
-            subspace.integrate(),
+            subspace_mean(subspace),
             bkd.asarray([1.0]),
             rtol=1e-12,
         )
@@ -322,7 +325,7 @@ class TestMixedTensorProduct:
 
         # Expected mean is the constant term of orthonormal PCE
         expected_mean = pce.get_coefficients()[0, :]
-        computed_mean = subspace.integrate()
+        computed_mean = subspace_mean(subspace)
         bkd.assert_allclose(computed_mean, expected_mean, rtol=1e-10)
 
     @pytest.mark.parametrize(
@@ -342,7 +345,7 @@ class TestMixedTensorProduct:
         subspace.set_values(values)
 
         bkd.assert_allclose(
-            subspace.integrate(),
+            subspace_mean(subspace),
             bkd.asarray([1.0]),
             rtol=1e-12,
         )

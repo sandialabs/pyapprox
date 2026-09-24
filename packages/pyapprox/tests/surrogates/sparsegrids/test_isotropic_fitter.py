@@ -40,6 +40,10 @@ from pyapprox.surrogates.sparsegrids.combination_surrogate import (
 from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
     IsotropicSparseGridFitter,
 )
+from pyapprox.surrogates.sparsegrids.statistics.moments import (
+    CombinationMoments,
+    QuadratureMoments,
+)
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
@@ -361,7 +365,7 @@ class TestFitterQuadrature:
         values = bkd.reshape(x**2 + y**2, (1, -1))
         result = fitter.fit(values)
 
-        mean = result.surrogate.mean()
+        mean = QuadratureMoments(result.surrogate).mean()
         bkd.assert_allclose(mean, bkd.asarray([2.0 / 3.0]), rtol=1e-12)
 
     def test_mean_mixed_monomial(self, bkd) -> None:
@@ -372,7 +376,7 @@ class TestFitterQuadrature:
         values = bkd.reshape(x**2 * y**2, (1, -1))
         result = fitter.fit(values)
 
-        mean = result.surrogate.mean()
+        mean = QuadratureMoments(result.surrogate).mean()
         bkd.assert_allclose(mean, bkd.asarray([1.0 / 9.0]), rtol=1e-12)
 
     def test_integration_symmetry_odd_function(self, bkd) -> None:
@@ -383,7 +387,11 @@ class TestFitterQuadrature:
 
         values = bkd.reshape(x + y, (1, -1))
         result = fitter.fit(values)
-        bkd.assert_allclose(result.surrogate.mean(), bkd.asarray([0.0]), atol=1e-14)
+        bkd.assert_allclose(
+            QuadratureMoments(result.surrogate).mean(),
+            bkd.asarray([0.0]),
+            atol=1e-14,
+        )
 
     def test_variance_sum_function(self, bkd) -> None:
         """Var[x + y] = 2/3 on [-1,1]^2."""
@@ -393,7 +401,7 @@ class TestFitterQuadrature:
         values = bkd.reshape(x + y, (1, -1))
         result = fitter.fit(values)
 
-        variance = result.surrogate.variance()
+        variance = CombinationMoments(result.surrogate).variance()
         bkd.assert_allclose(variance, bkd.asarray([2.0 / 3.0]), rtol=1e-10)
 
     def test_variance_product_function(self, bkd) -> None:
@@ -404,7 +412,7 @@ class TestFitterQuadrature:
         values = bkd.reshape(x * y, (1, -1))
         result = fitter.fit(values)
 
-        variance = result.surrogate.variance()
+        variance = CombinationMoments(result.surrogate).variance()
         bkd.assert_allclose(variance, bkd.asarray([1.0 / 9.0]), rtol=1e-10)
 
 
@@ -517,7 +525,11 @@ class TestFitterIntegration:
         result = fitter.fit(values)
 
         expected_mean = pce.get_coefficients()[0, :]
-        bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
+        bkd.assert_allclose(
+            QuadratureMoments(result.surrogate).mean(),
+            expected_mean,
+            rtol=1e-10,
+        )
 
     @pytest.mark.parametrize(
         "name,joint_config,level",
@@ -536,7 +548,11 @@ class TestFitterIntegration:
         result = fitter.fit(values)
 
         expected_mean = pce.get_coefficients()[0, :]
-        bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
+        bkd.assert_allclose(
+            QuadratureMoments(result.surrogate).mean(),
+            expected_mean,
+            rtol=1e-10,
+        )
 
     @pytest.mark.parametrize(
         "name,joint_config,level",
@@ -555,7 +571,11 @@ class TestFitterIntegration:
         result = fitter.fit(values)
 
         expected_mean = pce.get_coefficients()[0, :]
-        bkd.assert_allclose(result.surrogate.mean(), expected_mean, rtol=1e-10)
+        bkd.assert_allclose(
+            QuadratureMoments(result.surrogate).mean(),
+            expected_mean,
+            rtol=1e-10,
+        )
 
 
 # =============================================================================
@@ -730,12 +750,12 @@ class TestFitterPiecewiseIntegration:
 
         samples = fitter.get_samples()
         result = fitter.fit(test_func(samples))
-        grid_mean = result.surrogate.mean()
+        grid_mean = QuadratureMoments(result.surrogate).mean()
 
         ref_fitter = _create_fitter(joint, level + 2, bkd, "gauss")
         ref_samples = ref_fitter.get_samples()
         ref_result = ref_fitter.fit(test_func(ref_samples))
-        ref_mean = ref_result.surrogate.mean()
+        ref_mean = QuadratureMoments(ref_result.surrogate).mean()
 
         bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
 
@@ -758,12 +778,12 @@ class TestFitterPiecewiseIntegration:
 
         samples = fitter.get_samples()
         result = fitter.fit(test_func(samples))
-        grid_mean = result.surrogate.mean()
+        grid_mean = QuadratureMoments(result.surrogate).mean()
 
         ref_fitter = _create_fitter(joint, level + 2, bkd, "gauss")
         ref_samples = ref_fitter.get_samples()
         ref_result = ref_fitter.fit(test_func(ref_samples))
-        ref_mean = ref_result.surrogate.mean()
+        ref_mean = QuadratureMoments(ref_result.surrogate).mean()
 
         bkd.assert_allclose(grid_mean, ref_mean, atol=1e-10)
 
