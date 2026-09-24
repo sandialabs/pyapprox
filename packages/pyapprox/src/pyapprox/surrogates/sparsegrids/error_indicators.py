@@ -80,6 +80,16 @@ class L2SurplusIndicator(Generic[Array]):
     dilution ``L2GlobalSurplusIndicator`` suffers on separable
     functions.
 
+    This is the change in the interpolant, which is not in general the
+    interpolation error. The two coincide for nested rules, where the
+    combination reproduces the data at the grid's own nodes so the
+    candidate's new points are the only ones not yet reproduced. Leja
+    and Clenshaw-Curtis are nested. Gauss rules share no points between
+    consecutive levels, so the combination does not reproduce the data
+    even at its own nodes and this error is a weaker proxy for the
+    residual there. It remains a well-defined measure of how much a
+    candidate moves the surrogate, which is what refinement ranks on.
+
     Parameters
     ----------
     bkd : Backend[Array]

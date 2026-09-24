@@ -8,6 +8,13 @@ from pyapprox.surrogates.sparsegrids.statistics.cache import (
     SubspaceCache,
     box_sum,
 )
+
+# CombinationMoments is deliberately not exported: it is transitional
+# and scheduled for removal, so it must not become a public API.
+from pyapprox.surrogates.sparsegrids.statistics.moments import (
+    PCEMoments,
+    QuadratureMoments,
+)
 from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
     subspace_mean,
     subspace_raw_moment,
@@ -15,6 +22,8 @@ from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
 )
 
 __all__ = [
+    "PCEMoments",
+    "QuadratureMoments",
     "SubspaceCache",
     "box_sum",
     "subspace_mean",

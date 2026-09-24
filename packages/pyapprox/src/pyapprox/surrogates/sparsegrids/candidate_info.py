@@ -11,11 +11,14 @@ actually uses, so its signature states its dependencies.
 
 from dataclasses import dataclass
 from typing import (
+    Dict,
     Generic,
     Optional,
     Protocol,
     Sequence,
     Tuple,
+    TypeVar,
+    Union,
     runtime_checkable,
 )
 
@@ -26,6 +29,9 @@ from pyapprox.util.backends.protocols import Array
 
 # Type alias for config indices (tuple of ints)
 ConfigIdx = Tuple[int, ...]
+
+# Covariant counterpart of Array, for protocols that only return arrays.
+ArrayCov = TypeVar("ArrayCov", covariant=True)
 
 
 @dataclass(frozen=True)
@@ -80,10 +86,22 @@ class SmolyakSelection(Generic[Array]):
 
 
 @runtime_checkable
-class SampleSourceProtocol(Protocol[Array]):
-    """Supplies the grid's samples."""
+class SampleSourceProtocol(Protocol[ArrayCov]):
+    """Supplies the grid's samples.
 
-    def get_samples(self, subset: str = "all") -> object: ...
+    The multi-fidelity fitter returns one array per config; the
+    single-fidelity wrapper returns a bare array. Consumers that do not
+    care which must handle both.
+
+    The type variable is covariant because the array appears only in
+    return position: something that supplies arrays of a subtype is a
+    valid supplier of the supertype. The invariant project-wide
+    ``Array`` cannot express that in a protocol this shape.
+    """
+
+    def get_samples(
+        self, subset: str = "all"
+    ) -> Union[ArrayCov, Dict[ConfigIdx, ArrayCov]]: ...
 
 
 @runtime_checkable
@@ -103,9 +121,13 @@ class AdaptiveGridViewProtocol(Protocol[Array]):
     with this one.
     """
 
-    def get_samples(self, subset: str = "all") -> object: ...
+    def get_samples(
+        self, subset: str = "all"
+    ) -> Union[Array, Dict[ConfigIdx, Array]]: ...
 
-    def get_values(self, subset: str = "all") -> object: ...
+    def get_values(
+        self, subset: str = "all"
+    ) -> Union[Optional[Array], Dict[ConfigIdx, Optional[Array]]]: ...
 
     def get_selected_indices(self) -> Array: ...
 

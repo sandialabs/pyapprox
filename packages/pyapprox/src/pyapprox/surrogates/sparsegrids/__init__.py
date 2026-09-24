@@ -89,6 +89,8 @@ from .smolyak import (
     is_downward_closed,
 )
 from .statistics import (
+    PCEMoments,
+    QuadratureMoments,
     SubspaceCache,
     box_sum,
     subspace_mean,
@@ -112,6 +114,8 @@ __all__ = [
     "IncrementalSmolyakCoefficients",
     "evaluate_box",
     # Statistics
+    "PCEMoments",
+    "QuadratureMoments",
     "SubspaceCache",
     "box_sum",
     "subspace_mean",
