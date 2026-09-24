@@ -148,6 +148,25 @@ class TensorProductSubspace(Generic[Array]):
         """Return sample locations for this subspace."""
         return self._interpolant.get_samples()
 
+    def get_basis_1d(self, dim: int) -> InterpolationBasis1DProtocol[Array]:
+        """Return the univariate interpolation basis for a dimension.
+
+        Consumers that are only valid for particular bases --- spectral
+        projection needs globally polynomial ones --- use this to check
+        rather than assume.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension index.
+
+        Returns
+        -------
+        InterpolationBasis1DProtocol[Array]
+            The basis this subspace interpolates with along ``dim``.
+        """
+        return self._interp_bases_1d[dim]
+
     def get_samples_1d(self, dim: int) -> Array:
         """Return 1D interpolation nodes for a specific dimension.
 

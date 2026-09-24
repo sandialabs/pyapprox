@@ -207,6 +207,72 @@ class TestConvertedCoefficients:
         )
 
 
+class TestBasisValidation:
+    """Spectral projection is only valid for polynomial bases."""
+
+    @pytest.mark.parametrize(
+        "basis_type", ["piecewise_linear", "piecewise_quadratic"]
+    )
+    def test_rejects_piecewise_bases(self, bkd, basis_type: str) -> None:
+        """The projection would return a wrong number, not an error.
+
+        Piecewise-quadratic is included deliberately: it can agree with
+        the true value on a given target, which makes an unguarded
+        conversion harder to catch rather than safe.
+        """
+        from pyapprox.surrogates.affine.indices import (
+            ClenshawCurtisGrowthRule,
+        )
+
+        marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(2)]
+        factories = create_basis_factories(marginals, bkd, basis_type)
+        tp_factory = TensorProductSubspaceFactory(
+            bkd, factories, ClenshawCurtisGrowthRule()
+        )
+        subspace = tp_factory(
+            bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        )
+        samples = subspace.get_samples()
+        subspace.set_values(
+            bkd.reshape(bkd.sum(samples**2, axis=0), (1, -1))
+        )
+        converter = TensorProductSubspaceToPCEConverter(
+            bkd, create_bases_1d(marginals, bkd)
+        )
+        with pytest.raises(ValueError, match="globally polynomial"):
+            converter.convert_subspace(subspace)
+
+    @pytest.mark.parametrize(
+        "basis_type", ["gauss", "leja", "clenshaw_curtis"]
+    )
+    def test_accepts_polynomial_bases(self, bkd, basis_type: str) -> None:
+        from pyapprox.surrogates.affine.indices import (
+            ClenshawCurtisGrowthRule,
+        )
+
+        growth = (
+            ClenshawCurtisGrowthRule()
+            if basis_type == "clenshaw_curtis"
+            else LinearGrowthRule(scale=1, shift=1)
+        )
+        marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(2)]
+        factories = create_basis_factories(marginals, bkd, basis_type)
+        tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
+        subspace = tp_factory(
+            bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        )
+        samples = subspace.get_samples()
+        subspace.set_values(
+            bkd.reshape(bkd.sum(samples**2, axis=0), (1, -1))
+        )
+        converter = TensorProductSubspaceToPCEConverter(
+            bkd, create_bases_1d(marginals, bkd)
+        )
+        indices, coefficients = converter.convert_subspace(subspace)
+        assert indices.shape[0] == 2
+        assert coefficients.shape[0] == 1
+
+
 class TestSizeSmokeTest:
     """A grid large enough to matter."""
 

@@ -30,6 +30,7 @@ from pyapprox.surrogates.affine.expansions import (
 from pyapprox.surrogates.affine.protocols import (
     PhysicalDomainBasis1DProtocol,
 )
+from pyapprox.surrogates.affine.univariate import LagrangeBasis1D
 from pyapprox.surrogates.sparsegrids.combination_surrogate import (
     CombinationSurrogate,
 )
@@ -207,6 +208,33 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
 
         return self._cached_projection_coefs[cache_key]
 
+    def _validate_bases(
+        self, subspace: TensorProductSubspace[Array]
+    ) -> None:
+        """Raise unless every dimension uses a polynomial basis.
+
+        Spectral projection integrates each interpolation basis function
+        against the orthonormal polynomials with Gauss quadrature. That
+        is exact when the basis functions are themselves polynomials,
+        and wrong otherwise: a piecewise basis has breakpoints the
+        quadrature does not see, so the projection silently returns
+        coefficients for a function that is not the interpolant.
+
+        Checked here rather than documented, because the failure
+        produces a plausible number instead of an exception.
+        """
+        for dim in range(self._nvars):
+            basis = subspace.get_basis_1d(dim)
+            if not isinstance(basis, LagrangeBasis1D):
+                raise ValueError(
+                    "conversion to a polynomial chaos expansion requires a "
+                    "globally polynomial interpolation basis, but dimension "
+                    f"{dim} uses {type(basis).__name__}. Gauss, Leja and "
+                    "Clenshaw-Curtis qualify; piecewise bases do not. Use "
+                    "QuadratureMoments, which needs only values and "
+                    "quadrature weights."
+                )
+
     def convert_subspace(
         self,
         subspace: TensorProductSubspace[Array],
@@ -228,6 +256,8 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
         values = subspace.get_values()
         if values is None:
             raise ValueError("Subspace values not set")
+
+        self._validate_bases(subspace)
 
         nqoi = values.shape[0]
 
