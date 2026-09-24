@@ -37,6 +37,7 @@ from pyapprox.surrogates.sparsegrids.subspace import (
     TensorProductSubspace,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.cartesian import cartesian_product_indices
 
 
 class TensorProductSubspaceToPCEConverter(Generic[Array]):
@@ -228,7 +229,7 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
         if values is None:
             raise ValueError("Subspace values not set")
 
-        nqoi = values.shape[0]  # nqoi is first dimension
+        nqoi = values.shape[0]
 
         # Get 1D projection coefficients for each dimension
         projection_coefs_1d: List[Array] = []
@@ -241,84 +242,32 @@ class TensorProductSubspaceToPCEConverter(Generic[Array]):
             projection_coefs_1d.append(proj_coefs)
             npts_1d.append(nodes.shape[0])
 
-        # Build tensor product indices
-        # Total number of tensor product terms
+        # The coefficients are p = (C_1 (x) ... (x) C_d)^T v, which is a
+        # sequence of one-dimensional contractions rather than a sum over
+        # every (term, sample) pair: reshape the values to a grid with one
+        # axis per dimension and contract each axis with its own C_d. The
+        # cost is O(N sum_d n_d) instead of O(N^2 d).
+        tensor = self._bkd.reshape(values, [nqoi] + npts_1d)
+        for dim in range(self._nvars):
+            # Move this dimension's axis last, contract it with C_d, and
+            # move the result back. C_d[j, i] is the coefficient of the
+            # i-th orthonormal polynomial in the j-th Lagrange function,
+            # so summing over j is what projects the values.
+            tensor = self._bkd.moveaxis(tensor, dim + 1, -1)
+            tensor = tensor @ projection_coefs_1d[dim]
+            tensor = self._bkd.moveaxis(tensor, -1, dim + 1)
+
         nterms = 1
         for npts in npts_1d:
             nterms *= npts
+        coefficients = self._bkd.reshape(tensor, (nqoi, nterms))
 
-        # Create multi-indices
-        indices = self._bkd.zeros((self._nvars, nterms), dtype=self._bkd.int64_dtype())
-
-        # Build indices using same tensor product ordering as subspace samples
-        repeat_inner = 1
-        for dim in range(self._nvars - 1, -1, -1):
-            npts = npts_1d[dim]
-            repeat_outer = nterms // (npts * repeat_inner)
-
-            col = 0
-            for _ in range(repeat_outer):
-                for pt_idx in range(npts):
-                    for _ in range(repeat_inner):
-                        indices[dim, col] = pt_idx
-                        col += 1
-
-            repeat_inner *= npts
-
-        # Compute PCE coefficients via tensor product of 1D projections
-        # For each tensor product index (i_0, i_1, ..., i_{d-1}):
-        #   PCE_coef = sum over Lagrange indices (j_0, ..., j_{d-1}) of
-        #              prod_d proj_coefs[d][j_d, i_d] * Lagrange_value[j_0,...,j_{d-1}]
-
-        coefficients = self._bkd.zeros((nqoi, nterms))
-
-        # The subspace values are organized in tensor product order
-        # matching the samples from _build_tensor_product_samples
-        nsamples = values.shape[1]  # nsamples is second dimension
-        for term_idx in range(nterms):
-            # Extract multi-index for this PCE term
-            term_multi_idx = [
-                self._bkd.to_int(indices[dim, term_idx])
-                for dim in range(self._nvars)
-            ]
-
-            # Sum over all Lagrange basis functions
-            for sample_idx in range(nsamples):
-                # Extract multi-index for this sample (Lagrange basis)
-                sample_multi_idx = self._sample_idx_to_multi_idx(sample_idx, npts_1d)
-
-                # Compute tensor product of 1D projection coefficients
-                proj_coef = 1.0
-                for dim in range(self._nvars):
-                    j_d = sample_multi_idx[dim]
-                    i_d = term_multi_idx[dim]
-                    proj_coef *= float(projection_coefs_1d[dim][j_d, i_d])
-
-                # Add contribution from this Lagrange basis
-                coefficients[:, term_idx] += proj_coef * values[:, sample_idx]
+        # Same C-order (last dimension fastest) that
+        # cartesian_product_samples gives the subspace's samples, so the
+        # coefficients line up with these multi-indices.
+        indices = cartesian_product_indices(npts_1d, self._bkd)
 
         return indices, coefficients
-
-    def _sample_idx_to_multi_idx(
-        self, sample_idx: int, npts_1d: List[int]
-    ) -> List[int]:
-        """Convert flat sample index to multi-index.
-
-        Uses same ordering as TensorProductSubspace._build_tensor_product_samples.
-        """
-        multi_idx = []
-        remaining = sample_idx
-        stride = 1
-        for npts in reversed(npts_1d):
-            stride *= npts
-
-        for dim in range(self._nvars):
-            stride //= npts_1d[dim]
-            idx = remaining // stride
-            remaining = remaining % stride
-            multi_idx.append(idx)
-
-        return multi_idx
 
 
 class SparseGridToPCEConverter(Generic[Array]):
@@ -427,8 +376,15 @@ class SparseGridToPCEConverter(Generic[Array]):
         all_indices: Dict[Tuple[int, ...], Array] = {}
 
         for subspace_idx, subspace in enumerate(subspaces):
-            coef = self._bkd.to_float(smolyak_coefs[subspace_idx])
-            if abs(coef) < 1e-14:
+            # Smolyak coefficients are sums of +-1, so they are exactly
+            # integral and a zero is exact rather than the residue of
+            # cancellation. Such a subspace contributes nothing, and
+            # skipping it avoids a whole conversion; 13-42% of
+            # subspaces are zero in practice.
+            coef = smolyak_coefs[subspace_idx]
+            # to_float only to decide whether to skip; coef itself stays
+            # an array below so the expansion remains differentiable.
+            if self._bkd.to_float(coef) == 0.0:
                 continue
 
             indices, coefficients = self._subspace_converter.convert_subspace(subspace)
