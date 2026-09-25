@@ -34,7 +34,7 @@ from pyapprox.surrogates.sparsegrids.combination_surrogate import (
 )
 from pyapprox.surrogates.sparsegrids.error_indicators import (
     L2SurplusIndicator,
-    VarianceChangeIndicator,
+    SummedSubspaceVarianceIndicator,
 )
 from pyapprox.surrogates.sparsegrids.isotropic_fitter import (
     IsotropicSparseGridFitter,
@@ -459,7 +459,7 @@ class TestAdaptiveAdditiveRecovery:
 
 
 class TestAdaptiveVarianceRefinement:
-    """End-to-end tests with VarianceChangeIndicator."""
+    """End-to-end tests with SummedSubspaceVarianceIndicator."""
 
     def test_adaptive_with_variance_refinement(self, bkd) -> None:
         """Adaptive SG converges using variance-based refinement."""
@@ -470,7 +470,7 @@ class TestAdaptiveVarianceRefinement:
         growth = LinearGrowthRule(scale=1, shift=1)
         tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
         admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=bkd)
-        indicator = VarianceChangeIndicator(bkd)
+        indicator = SummedSubspaceVarianceIndicator(bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(
             bkd, tp_factory, admis, error_indicator=indicator
         )
@@ -506,7 +506,7 @@ class TestAdaptiveVarianceRefinement:
         growth = LinearGrowthRule(scale=1, shift=1)
         tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
         admis = MaxLevelCriteria(max_level=4, pnorm=1.0, bkd=bkd)
-        indicator = VarianceChangeIndicator(bkd)
+        indicator = SummedSubspaceVarianceIndicator(bkd)
         fitter = SingleFidelityAdaptiveSparseGridFitter(
             bkd, tp_factory, admis, error_indicator=indicator
         )

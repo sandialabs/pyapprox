@@ -18,7 +18,7 @@ Available indicators:
   grid. Biased on separable functions, where refining one dimension
   adds points at which the other dimension's surplus is already
   resolved, diluting the average.
-- ``VarianceChangeIndicator``: change in mean and in the summed
+- ``SummedSubspaceVarianceIndicator``: change in mean and in the summed
   per-subspace variance.
 """
 
@@ -142,16 +142,27 @@ class L2GlobalSurplusIndicator(Generic[Array]):
         return _rms(evaluate_box(candidate.box, samples), self._bkd)
 
 
-class VarianceChangeIndicator(Generic[Array]):
+class SummedSubspaceVarianceIndicator(Generic[Array]):
     """Change in mean and in the summed per-subspace variance.
 
-    The variance here is sum_k c_k Var_k, a **refinement proxy rather
-    than an estimate of the surrogate's variance**. It ranks candidates
-    by how much unresolved structure they expose, which is what
-    refinement needs, and it is a pure box sum requiring no
-    selected-set state. It is not Var[I_K f] and does not converge to
-    it. For the variance of a fitted surrogate use ``PCEMoments``, or
-    ``QuadratureMoments`` for the sparse-grid rule applied to f^2.
+    The quantity is sum_k c_k Var_k, where Var_k is subspace k's
+    variance under its own tensor product rule. The name says that
+    rather than "variance" because it is neither published variance
+    definition: not Var[I_K f], which carries cross terms between
+    subspaces, and not Q_K[f^2] - (Q_K f)^2, which applies the
+    sparse-grid rule to f^2. Use ``CrossMomentMoments`` or
+    ``PCEMoments`` for the first and ``QuadratureMoments`` for the
+    second.
+
+    It does coincide with the true variance when every subspace
+    resolves f exactly in its own directions, because the Smolyak
+    telescoping is then exact for the second moment as well as the
+    first. That is not a condition refinement can assume, since an
+    unresolved grid is the reason to refine, so this is a proxy for
+    ranking candidates rather than an estimate of anything.
+
+    Its advantage is that it needs no selected-set state: the change is
+    a pure box sum over the candidate's own backward box.
 
     The error uses a single quantity of interest for both terms:
 

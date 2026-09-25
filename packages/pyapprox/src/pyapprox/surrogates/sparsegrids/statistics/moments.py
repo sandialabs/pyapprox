@@ -20,7 +20,7 @@ pick by what the number is for.
   piecewise basis; ``CrossMomentMoments`` covers those.
 
 A third quantity, sum_k c_k Var_k, drives refinement inside
-``VarianceChangeIndicator``. It is a proxy for ranking candidates, not
+``SummedSubspaceVarianceIndicator``. It is a proxy for ranking candidates, not
 an estimate of either definition here, and is deliberately not offered
 as a moments class.
 """

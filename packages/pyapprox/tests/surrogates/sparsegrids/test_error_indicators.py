@@ -29,7 +29,7 @@ from pyapprox.surrogates.sparsegrids.error_indicators import (
     ErrorIndicatorProtocol,
     L2GlobalSurplusIndicator,
     L2SurplusIndicator,
-    VarianceChangeIndicator,
+    SummedSubspaceVarianceIndicator,
 )
 from pyapprox.surrogates.sparsegrids.sample_tracker import SampleTracker
 from pyapprox.surrogates.sparsegrids.smolyak import (
@@ -166,7 +166,7 @@ class TestIndicatorsSatisfyProtocol:
 
     @pytest.mark.parametrize(
         "indicator_cls",
-        [L2SurplusIndicator, L2GlobalSurplusIndicator, VarianceChangeIndicator],
+        [L2SurplusIndicator, L2GlobalSurplusIndicator, SummedSubspaceVarianceIndicator],
     )
     def test_isinstance(self, bkd, indicator_cls) -> None:
         assert isinstance(indicator_cls(bkd), ErrorIndicatorProtocol)
@@ -277,7 +277,7 @@ class TestVarianceChange:
         candidate, grid, _, _ = _build_candidate(
             bkd, 2, 1, (2, 0), target_fn
         )
-        assert VarianceChangeIndicator(bkd)(candidate, grid) < 1e-6
+        assert SummedSubspaceVarianceIndicator(bkd)(candidate, grid) < 1e-6
 
     def test_zero_for_already_resolved_variance(self, bkd) -> None:
         def target_fn(samples):
@@ -286,7 +286,7 @@ class TestVarianceChange:
         candidate, grid, _, _ = _build_candidate(
             bkd, 2, 1, (2, 0), target_fn
         )
-        assert VarianceChangeIndicator(bkd)(candidate, grid) < 1e-6
+        assert SummedSubspaceVarianceIndicator(bkd)(candidate, grid) < 1e-6
 
     def test_nonzero_for_underresolved_variance(self, bkd) -> None:
         def target_fn(samples):
@@ -296,7 +296,7 @@ class TestVarianceChange:
         candidate, grid, _, _ = _build_candidate(
             bkd, 2, 1, (2, 0), target_fn
         )
-        assert VarianceChangeIndicator(bkd)(candidate, grid) > 0
+        assert SummedSubspaceVarianceIndicator(bkd)(candidate, grid) > 0
 
     def test_uses_one_qoi_for_both_terms(self, bkd) -> None:
         """q* is chosen by |Delta V|, and the mean term uses that same q*.
@@ -315,7 +315,7 @@ class TestVarianceChange:
         candidate, grid, _, _ = _build_candidate(
             bkd, 2, 1, (2, 0), target_fn
         )
-        indicator = VarianceChangeIndicator(bkd)
+        indicator = SummedSubspaceVarianceIndicator(bkd)
         error = indicator(candidate, grid)
 
         # Recover the per-QoI changes the indicator saw.
@@ -354,7 +354,7 @@ class TestCacheReuse:
         candidate, grid, _, _ = _build_candidate(
             bkd, 2, 1, (2, 0), target_fn
         )
-        indicator = VarianceChangeIndicator(bkd)
+        indicator = SummedSubspaceVarianceIndicator(bkd)
         for _ in range(4):
             indicator(candidate, grid)
         # The box holds 2^nnz = 2 subspaces for candidate (2, 0).

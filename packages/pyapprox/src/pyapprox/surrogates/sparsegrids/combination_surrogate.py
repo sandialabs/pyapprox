@@ -38,7 +38,7 @@ class CombinationSurrogate(Generic[Array]):
         Number of quantities of interest.
     indices : Array, optional
         Subspace multi-indices, shape (nvars_index, nsubspaces).
-        Stored for use by VarianceChangeIndicator and diagnostics.
+        Stored for use by SummedSubspaceVarianceIndicator and diagnostics.
     """
 
     def __init__(

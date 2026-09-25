@@ -40,7 +40,7 @@ from pyapprox.surrogates.sparsegrids.cost_model import (
 from pyapprox.surrogates.sparsegrids.error_indicators import (
     L2GlobalSurplusIndicator,
     L2SurplusIndicator,
-    VarianceChangeIndicator,
+    SummedSubspaceVarianceIndicator,
 )
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
@@ -64,7 +64,7 @@ _NCOMPARED = 40
 _INDICATORS = {
     "l2": L2SurplusIndicator,
     "l2global": L2GlobalSurplusIndicator,
-    "variance": VarianceChangeIndicator,
+    "variance": SummedSubspaceVarianceIndicator,
 }
 
 
