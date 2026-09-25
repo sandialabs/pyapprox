@@ -52,7 +52,7 @@ from .error_indicators import (
     ErrorIndicatorProtocol,
     L2GlobalSurplusIndicator,
     L2SurplusIndicator,
-    VarianceChangeIndicator,
+    SummedSubspaceVarianceIndicator,
 )
 from .fit_result import (
     AdaptiveSparseGridFitResult,
@@ -77,6 +77,7 @@ from .model_factory import (
 from .plot import plot_sparse_grid_points
 from .priority import CostWeightedPriority, PriorityProtocol
 from .quadrature_rule import ParameterizedIsotropicSparseGridQuadratureRule
+from .quadrature_variance_indicator import QuadratureVarianceIndicator
 from .sample_tracker import SampleTracker
 from .smolyak import (
     IncrementalSmolyakCoefficients,
@@ -138,7 +139,8 @@ __all__ = [
     "ErrorIndicatorProtocol",
     "L2GlobalSurplusIndicator",
     "L2SurplusIndicator",
-    "VarianceChangeIndicator",
+    "QuadratureVarianceIndicator",
+    "SummedSubspaceVarianceIndicator",
     # Data classes and utilities
     "Candidate",
     "SmolyakSelection",

@@ -62,6 +62,14 @@ section is renamed to the version number when a release is tagged (see
 - 3D collocation linear elasticity at full parity with 2D, including
   Lamé-field sensitivities, boundary tractions, and domain-decomposition
   interface fluxes.
+- Sparse grid moments classes: `QuadratureMoments` (the sparse-grid rule
+  applied to `f^2`), `PCEMoments` (exact, globally polynomial bases only)
+  and `CrossMomentMoments` (exact for any basis, including piecewise).
+  They report different quantities; each docstring says which.
+- `QuadratureVarianceIndicator` refines on the variance
+  `QuadratureMoments` defines, as an alternative to
+  `SummedSubspaceVarianceIndicator`.
+- `HierarchicalMoments` for the mean of a hierarchical surrogate.
 
 ### Changed
 
@@ -73,6 +81,25 @@ section is renamed to the version number when a release is tagged (see
 - Randomized SVD classes renamed for accuracy (no aliases kept):
   `SinglePassRandomizedSVD` → `TwoPassRandomizedSVD` and
   `DoublePassRandomizedSVD` → `SymmetricRandomizedSVD`.
+- `VarianceChangeIndicator` → `SummedSubspaceVarianceIndicator`
+  (breaking, no alias). It sums each subspace's own variance, which is
+  neither variance the moments classes report, and the old name implied
+  otherwise.
+- Sparse grid moments moved off the surrogates and subspaces (breaking,
+  no aliases): `CombinationSurrogate.mean()` →
+  `QuadratureMoments(s).mean()`, `HierarchicalSurrogate.mean()` →
+  `HierarchicalMoments(s).mean()`,
+  `TensorProductSubspace.integrate()` → `subspace_mean(subspace)`, and
+  `TensorProductSubspace.variance()` → `subspace_variance(subspace)`.
+  `CombinationSurrogate.variance()` has no drop-in replacement: it
+  computed the summed per-subspace variance, now internal to
+  `SummedSubspaceVarianceIndicator`, so use `PCEMoments` or
+  `CrossMomentMoments` for the surrogate's variance and
+  `QuadratureMoments` for the rule's.
+- Error indicators take `(candidate, grid)` and return an error; queue
+  order comes from an injected `PriorityProtocol`, defaulting to error
+  per unit cost. `CandidateInfo` → `Candidate`, which carries the
+  candidate's backward box instead of two prebuilt surrogates.
 - Adaptive sparse grid `result()` now defaults to
   `include_candidates=True`, so all evaluated candidate subspaces are
   included in the surrogate; it raises `RuntimeError` if a candidate
