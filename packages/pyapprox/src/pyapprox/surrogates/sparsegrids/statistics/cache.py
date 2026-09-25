@@ -6,7 +6,15 @@ boxes across many rounds, so the statistic it contributes is computed
 once and reused.
 """
 
-from typing import Callable, Generic, Sequence, Tuple, TypeVar
+from typing import (
+    Callable,
+    Generic,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypeVar,
+    runtime_checkable,
+)
 from weakref import WeakKeyDictionary
 
 from pyapprox.surrogates.sparsegrids.subspace import (
@@ -15,6 +23,31 @@ from pyapprox.surrogates.sparsegrids.subspace import (
 from pyapprox.util.backends.protocols import Array
 
 T = TypeVar("T")
+
+
+S = TypeVar("S", bound="SignedSummableProtocol")
+
+
+@runtime_checkable
+class SignedSummableProtocol(Protocol):
+    """A statistic that can be combined over a backward box.
+
+    ``box_sum`` needs exactly two operations: multiplication by a +1/-1
+    sign on the left, and addition to another value of the same kind.
+    Backend arrays satisfy this, and so does anything else carrying its
+    own arithmetic, such as a ``PolynomialChaosExpansion``.
+
+    Both methods are typed to return the implementing type rather than
+    the protocol, so folding a sequence of them keeps the caller's
+    statistic type instead of widening to the protocol at the first
+    operation.
+    """
+
+    def __rmul__(self: S, sign: int) -> S:
+        ...
+
+    def __add__(self: S, other: S) -> S:
+        ...
 
 
 class SubspaceCache(Generic[Array, T]):
@@ -84,9 +117,9 @@ class SubspaceCache(Generic[Array, T]):
 
 
 def box_sum(
-    cache: "SubspaceCache[Array, Array]",
+    cache: "SubspaceCache[Array, S]",
     terms: Sequence[Tuple[int, TensorProductSubspace[Array]]],
-) -> Array:
+) -> S:
     """Return the signed sum of a cached statistic over a box.
 
     For a statistic s that is linear in the subspaces, the change from
@@ -94,22 +127,27 @@ def box_sum(
 
         Delta s = sum_e (-1)^|e| s_{k-e}
 
+    The statistic only has to carry its own arithmetic: this folds with
+    a sign multiply and an add, and never indexes, reshapes or calls a
+    backend method. An array satisfies that, and so does an expansion
+    that adds by grouping like terms across differing index sets.
+
     Parameters
     ----------
-    cache : SubspaceCache[Array, Array]
+    cache : SubspaceCache[Array, S]
         Cache supplying each subspace's statistic.
     terms : Sequence[Tuple[int, TensorProductSubspace[Array]]]
         (sign, subspace) pairs, as produced from a backward box.
 
     Returns
     -------
-    Array
-        The signed sum, shaped like the statistic.
+    S
+        The signed sum, of whatever kind the statistic is.
 
     Raises
     ------
     ValueError
-        If terms is empty, since the result's shape is unknown.
+        If terms is empty, since there is nothing to fold from.
     """
     if len(terms) == 0:
         raise ValueError("cannot sum over an empty box")

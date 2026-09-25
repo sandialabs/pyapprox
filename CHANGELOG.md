@@ -69,6 +69,8 @@ section is renamed to the version number when a release is tagged (see
 - `QuadratureVarianceIndicator` refines on the variance
   `QuadratureMoments` defines, as an alternative to
   `SummedSubspaceVarianceIndicator`.
+- `PCEVarianceIndicator` refines on `Var[I_K f]`, the variance
+  `PCEMoments` defines. Globally polynomial bases only.
 - `HierarchicalMoments` for the mean of a hierarchical surrogate.
 - Batch derivatives (`jacobian_batch`, `hessian_batch`, `hvp_batch`,
   `whvp_batch`) on `TensorProductInterpolant`, and hence on sparse grid

@@ -41,6 +41,72 @@ from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.cartesian import cartesian_product_indices
 
 
+def subspace_coefficients_by_index(
+    indices: Array,
+    coefficients: Array,
+    nvars: int,
+    bkd: Backend[Array],
+) -> Dict[Tuple[int, ...], Array]:
+    """Key one subspace's PCE coefficients by their multi-index.
+
+    Subspaces carry different index sets, so combining them means
+    merging by multi-index rather than adding coefficient arrays
+    elementwise. This puts one subspace's conversion in the form that
+    merge takes.
+
+    The coefficients are copied. A caller that accumulates into the
+    returned dict would otherwise alias the source array, so the first
+    in-place addition would corrupt whatever else holds it, such as a
+    per-subspace cache.
+
+    Parameters
+    ----------
+    indices : Array
+        Multi-indices, shape (nvars, nterms).
+    coefficients : Array
+        Coefficients, shape (nqoi, nterms).
+    nvars : int
+        Number of variables.
+    bkd : Backend[Array]
+        Computational backend.
+
+    Returns
+    -------
+    Dict[Tuple[int, ...], Array]
+        Multi-index to (nqoi,) coefficients.
+    """
+    keyed: Dict[Tuple[int, ...], Array] = {}
+    for term in range(indices.shape[1]):
+        key = tuple(int(indices[dim, term]) for dim in range(nvars))
+        keyed[key] = bkd.copy(coefficients[:, term])
+    return keyed
+
+
+def merge_coefficients_by_index(
+    total: Dict[Tuple[int, ...], Array],
+    addend: Dict[Tuple[int, ...], Array],
+) -> None:
+    """Add one keyed conversion into an accumulator, in place.
+
+    Indices present in only one of the two are carried through
+    unchanged, which is what makes this a merge rather than an
+    elementwise add.
+
+    Parameters
+    ----------
+    total : Dict[Tuple[int, ...], Array]
+        Accumulator, modified in place. Must own its arrays; see
+        ``subspace_coefficients_by_index``.
+    addend : Dict[Tuple[int, ...], Array]
+        Conversion to add, left unmodified.
+    """
+    for key, coefs in addend.items():
+        if key in total:
+            total[key] = total[key] + coefs
+        else:
+            total[key] = coefs
+
+
 class TensorProductSubspaceToPCEConverter(Generic[Array]):
     """Convert a tensor product subspace to PCE coefficients.
 
@@ -422,21 +488,14 @@ class SparseGridToPCEConverter(Generic[Array]):
             # Combine with Smolyak coefficient
             weighted_coefficients = coef * coefficients
 
-            # Merge into accumulated indices
-            # coefficients has shape (nqoi, nterms)
-            for term_idx in range(indices.shape[1]):
-                idx_tuple = tuple(
-                    int(indices[dim, term_idx]) for dim in range(self._nvars)
-                )
-
-                if idx_tuple in all_indices:
-                    all_indices[idx_tuple] = (
-                        all_indices[idx_tuple] + weighted_coefficients[:, term_idx]
-                    )
-                else:
-                    all_indices[idx_tuple] = self._bkd.copy(
-                        weighted_coefficients[:, term_idx]
-                    )
+            # Subspaces carry different index sets, so this merges by
+            # multi-index rather than adding coefficients elementwise.
+            merge_coefficients_by_index(
+                all_indices,
+                subspace_coefficients_by_index(
+                    indices, weighted_coefficients, self._nvars, self._bkd
+                ),
+            )
 
         # Build final PCE
         nterms = len(all_indices)

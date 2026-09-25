@@ -40,7 +40,6 @@ from pyapprox.util.cartesian import (
     outer_product_weights,
 )
 
-
 # Pair cache: outer key weak so a dropped subspace is not retained,
 # inner key the partner's identity.
 _PairCache = WeakKeyDictionary[

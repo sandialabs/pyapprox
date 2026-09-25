@@ -74,6 +74,7 @@ from .model_factory import (
     ModelFactoryProtocol,
     TimedModelFactory,
 )
+from .pce_variance_indicator import PCEVarianceIndicator
 from .plot import plot_sparse_grid_points
 from .priority import CostWeightedPriority, PriorityProtocol
 from .quadrature_rule import ParameterizedIsotropicSparseGridQuadratureRule
@@ -139,6 +140,7 @@ __all__ = [
     "ErrorIndicatorProtocol",
     "L2GlobalSurplusIndicator",
     "L2SurplusIndicator",
+    "PCEVarianceIndicator",
     "QuadratureVarianceIndicator",
     "SummedSubspaceVarianceIndicator",
     # Data classes and utilities
