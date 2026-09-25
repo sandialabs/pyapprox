@@ -11,6 +11,7 @@ from typing import Generic, List, Optional
 
 from pyapprox.interface.functions.derivatives import (
     Derivatives,
+    HessianFn,
     HVPFn,
     JacobianFn,
     WHVPFn,
@@ -59,6 +60,7 @@ class CombinationSurrogate(Generic[Array]):
         self._sub_jacs: Optional[List[JacobianFn[Array]]] = None
         self._sub_hvps: Optional[List[HVPFn[Array]]] = None
         self._sub_whvps: Optional[List[WHVPFn[Array]]] = None
+        self._sub_hessians: Optional[List[HessianFn[Array]]] = None
         self._derivs: Derivatives[Array] = self._build_derivatives()
 
     def bkd(self) -> Backend[Array]:
@@ -123,14 +125,20 @@ class CombinationSurrogate(Generic[Array]):
     def _build_derivatives(self) -> Derivatives[Array]:
         """Compose the capability bundle from the subspaces' bundles.
 
-        Each field is available exactly when every subspace declares it
-        (hvp additionally requires nqoi == 1); the captured fields are
-        aligned index-for-index with the subspace list.
+        Every derivative here is linear in the subspaces, so the
+        combination can offer a field exactly when every subspace
+        declares it; hessian and hvp additionally require nqoi == 1.
+        The captured fields are aligned index-for-index with the
+        subspace list.
+
+        The batch fields and ``jvp`` stay ``None`` because the
+        subspaces do not provide them either, not by choice here.
         """
         sub_derivs = [subspace.derivatives() for subspace in self._subspaces]
         jacs = [d.jacobian for d in sub_derivs]
         hvps = [d.hvp for d in sub_derivs]
         whvps = [d.whvp for d in sub_derivs]
+        hessians = [d.hessian for d in sub_derivs]
 
         narrowed_jacs = [j for j in jacs if j is not None]
         if len(narrowed_jacs) != len(jacs):
@@ -145,17 +153,25 @@ class CombinationSurrogate(Generic[Array]):
         if self._nqoi == 1 and len(narrowed_hvps) == len(hvps):
             self._sub_hvps = narrowed_hvps
 
-        if self._sub_hvps is not None and self._sub_whvps is not None:
-            # hvp AND whvp together is an unusual combination, so the raw
-            # constructor is used
-            return Derivatives(
-                jacobian=self._jacobian, hvp=self._hvp, whvp=self._whvp
-            )
-        if self._sub_whvps is not None:
-            return Derivatives.second_order_weighted(
-                jacobian=self._jacobian, whvp=self._whvp
-            )
-        return Derivatives.first_order(jacobian=self._jacobian)
+        narrowed_hessians = [h for h in hessians if h is not None]
+        if self._nqoi == 1 and len(narrowed_hessians) == len(hessians):
+            self._sub_hessians = narrowed_hessians
+
+        # The named constructors cover the usual combinations; the raw
+        # one is used whenever the available set is not one of those.
+        if self._sub_whvps is not None and self._sub_hvps is None:
+            if self._sub_hessians is None:
+                return Derivatives.second_order_weighted(
+                    jacobian=self._jacobian, whvp=self._whvp
+                )
+        return Derivatives(
+            jacobian=self._jacobian,
+            hvp=self._hvp if self._sub_hvps is not None else None,
+            whvp=self._whvp if self._sub_whvps is not None else None,
+            hessian=(
+                self._hessian if self._sub_hessians is not None else None
+            ),
+        )
 
     def derivatives(self) -> Derivatives[Array]:
         """Return the derivative bundle."""
@@ -184,6 +200,28 @@ class CombinationSurrogate(Generic[Array]):
             if abs(coef) > 1e-14:
                 jacobian = jacobian + coef * sub_jac(sample)
         return jacobian
+
+    def _hessian(self, sample: Array) -> Array:
+        """Compute the Hessian at a single sample point (nqoi=1 only).
+
+        Parameters
+        ----------
+        sample : Array
+            Single evaluation point, shape (nvars, 1).
+
+        Returns
+        -------
+        Array
+            Hessian, shape (nvars, nvars).
+        """
+        if self._sub_hessians is None:
+            raise RuntimeError(
+                "hessian is unavailable; check derivatives() before calling"
+            )
+        hessian = self._bkd.zeros((self._nvars, self._nvars))
+        for j, sub_hessian in enumerate(self._sub_hessians):
+            hessian = hessian + self._coefs[j] * sub_hessian(sample)
+        return hessian
 
     def _hvp(self, sample: Array, vec: Array) -> Array:
         """Compute Hessian-vector product (nqoi=1 only).

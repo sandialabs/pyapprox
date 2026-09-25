@@ -172,6 +172,134 @@ class TestSparseGridDerivatives:
         hessian_error = float(checker.error_ratio(errors[1]).item())
         assert hessian_error < 1e-6
 
+    @pytest.mark.parametrize(
+        "basis_type", ["gauss", "leja", "clenshaw_curtis"]
+    )
+    def test_subspace_bundle_declares_what_it_can_do(
+        self, bkd, basis_type: str
+    ) -> None:
+        """A declared field must work; the combination relies on this.
+
+        The surrogate composes its bundle by intersecting the
+        subspaces', so a subspace that over-declares would produce a
+        surrogate field that raises on first use.
+        """
+        from pyapprox.surrogates.affine.indices import (
+            ClenshawCurtisGrowthRule,
+        )
+        from pyapprox.surrogates.sparsegrids import create_basis_factories
+
+        marginals = [UniformMarginal(-1.0, 1.0, bkd) for _ in range(2)]
+        growth = (
+            ClenshawCurtisGrowthRule()
+            if basis_type == "clenshaw_curtis"
+            else LinearGrowthRule(scale=1, shift=1)
+        )
+        tp_factory = TensorProductSubspaceFactory(
+            bkd, create_basis_factories(marginals, bkd, basis_type), growth
+        )
+        subspace = tp_factory(
+            bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        )
+        samples = subspace.get_samples()
+        subspace.set_values(
+            bkd.reshape(bkd.sum(samples**2, axis=0), (1, -1))
+        )
+
+        derivs = subspace.derivatives()
+        point = bkd.asarray([[0.3], [0.6]])
+        vec = bkd.asarray([[1.0], [0.5]])
+
+        assert derivs.jacobian is not None
+        assert derivs.jacobian(point).shape == (1, 2)
+        if derivs.hessian is not None:
+            assert derivs.hessian(point).shape == (2, 2)
+        if derivs.hvp is not None:
+            assert derivs.hvp(point, vec).shape == (2, 1)
+        if derivs.whvp is not None:
+            assert derivs.whvp(
+                point, vec, bkd.asarray([[1.0]])
+            ).shape == (2, 1)
+
+    def test_piecewise_subspace_declares_no_derivatives(self, bkd) -> None:
+        """Absence is the honest answer when the basis has none."""
+        from pyapprox.surrogates.affine.indices import (
+            ClenshawCurtisGrowthRule,
+        )
+        from pyapprox.surrogates.sparsegrids import create_basis_factories
+
+        marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(2)]
+        tp_factory = TensorProductSubspaceFactory(
+            bkd,
+            create_basis_factories(marginals, bkd, "piecewise_linear"),
+            ClenshawCurtisGrowthRule(),
+        )
+        subspace = tp_factory(
+            bkd.asarray([2, 2], dtype=bkd.int64_dtype())
+        )
+        samples = subspace.get_samples()
+        subspace.set_values(
+            bkd.reshape(bkd.sum(samples**2, axis=0), (1, -1))
+        )
+        derivs = subspace.derivatives()
+        assert derivs.jacobian is None
+        assert derivs.hessian is None
+        assert derivs.hvp is None
+        assert derivs.whvp is None
+
+    def test_hessian_field_is_declared_and_correct(self, bkd) -> None:
+        """The bundle's hessian field, not the checker's hvp route.
+
+        Every subspace offers a hessian at nqoi=1, and the Hessian is
+        linear in the subspaces, so the combination can offer one too.
+        """
+
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.reshape(3 * x**2 + 2 * x * y + 5 * y**2, (1, -1))
+
+        surrogate = self._build_surrogate(2, 3, func, bkd)
+        hessian_fn = surrogate.derivatives().hessian
+        assert hessian_fn is not None
+
+        # Constant for a quadratic: d2f = [[6, 2], [2, 10]].
+        expected = bkd.asarray([[6.0, 2.0], [2.0, 10.0]])
+        for point in ([[0.3], [0.4]], [[-0.8], [0.1]]):
+            got = hessian_fn(bkd.asarray(point))
+            assert got.shape == (2, 2)
+            bkd.assert_allclose(got, expected, atol=1e-9)
+
+    def test_hessian_matches_hvp(self, bkd) -> None:
+        """H @ v must equal the hvp the same bundle reports."""
+
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.reshape(x**2 + x * y + 2 * y**2, (1, -1))
+
+        surrogate = self._build_surrogate(2, 3, func, bkd)
+        derivs = surrogate.derivatives()
+        assert derivs.hessian is not None and derivs.hvp is not None
+
+        point = bkd.asarray([[0.25], [-0.5]])
+        vec = bkd.asarray([[1.0], [0.5]])
+        bkd.assert_allclose(
+            derivs.hessian(point) @ vec, derivs.hvp(point, vec), atol=1e-9
+        )
+
+    def test_hessian_withheld_for_multiple_qoi(self, bkd) -> None:
+        """A Hessian is only defined for nqoi == 1."""
+
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.stack([x**2 + y, x * y], axis=0)
+
+        surrogate = self._build_surrogate(2, 3, func, bkd)
+        derivs = surrogate.derivatives()
+        assert derivs.hessian is None
+        assert derivs.hvp is None
+        # whvp is the multi-QoI route and stays available.
+        assert derivs.whvp is not None
+
     def test_whvp_via_derivative_checker(self, bkd) -> None:
         """Test WHVP via DerivativeChecker for nqoi=2 with weights."""
 
