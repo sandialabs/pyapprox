@@ -150,19 +150,29 @@ class TensorProductInterpolant(Generic[Array]):
         if not self._jacobian_supported:
             return Derivatives.none()
         if not self._hessian_supported:
-            return Derivatives.first_order(jacobian=self._jacobian)
+            return Derivatives.first_order(
+                jacobian=self._jacobian,
+                jacobian_batch=self._jacobian_batch,
+            )
         if self._values is not None and self._values.shape[0] != 1:
             # vector-valued: second order only through the weighted form
             return Derivatives.second_order_weighted(
-                jacobian=self._jacobian, whvp=self._whvp
+                jacobian=self._jacobian,
+                jacobian_batch=self._jacobian_batch,
+                whvp=self._whvp,
+                whvp_batch=self._whvp_batch,
             )
         # jacobian + materialized hessian + hvp + whvp is an unusual
         # combination, so the raw constructor is used
         return Derivatives(
             jacobian=self._jacobian,
+            jacobian_batch=self._jacobian_batch,
             hessian=self._hessian,
+            hessian_batch=self._hessian_batch,
             hvp=self._hvp,
+            hvp_batch=self._hvp_batch,
             whvp=self._whvp,
+            whvp_batch=self._whvp_batch,
         )
 
     def derivatives(self) -> Derivatives[Array]:
@@ -392,6 +402,210 @@ class TensorProductInterpolant(Generic[Array]):
             jacobian[:, dim] = self._values @ interp_deriv
 
         return jacobian
+
+    def _second_derivative_terms(self, samples: Array) -> List[List[Array]]:
+        """Tensor product second-derivative weights for every (i, j) pair.
+
+        Entry [i][j] has shape (npoints, nterms) and holds the tensor
+        product basis differentiated twice in dimension i when i == j,
+        or once each in i and j otherwise. Contracting it with a value
+        vector gives that Hessian entry at every point.
+        """
+        nvars = self.nvars()
+        basis_vals_1d = self._basis_vals_1d(samples)
+        basis_derivs_1d = self._basis_jacobians_1d(samples)
+        basis_hess_1d = self._basis_hessians_1d(samples)
+
+        terms: List[List[Array]] = [
+            [self._bkd.zeros((1, 1))] * nvars for _ in range(nvars)
+        ]
+        for dim1 in range(nvars):
+            for dim2 in range(dim1, nvars):
+                if dim1 == dim2:
+                    term = basis_hess_1d[dim1][:, self._tp_indices[dim1, :]]
+                else:
+                    term = (
+                        basis_derivs_1d[dim1][:, self._tp_indices[dim1, :]]
+                        * basis_derivs_1d[dim2][:, self._tp_indices[dim2, :]]
+                    )
+                for dd in range(nvars):
+                    if dd != dim1 and dd != dim2:
+                        term = (
+                            term
+                            * basis_vals_1d[dd][:, self._tp_indices[dd, :]]
+                        )
+                terms[dim1][dim2] = term
+                terms[dim2][dim1] = term
+        return terms
+
+    def _hessian_from_terms(
+        self, terms: List[List[Array]], values: Array, npoints: int
+    ) -> Array:
+        """Contract second-derivative terms with one value vector.
+
+        Parameters
+        ----------
+        terms : List[List[Array]]
+            From ``_second_derivative_terms``.
+        values : Array
+            Values for a single quantity of interest, shape (nterms,).
+        npoints : int
+            Number of evaluation points.
+
+        Returns
+        -------
+        Array
+            Hessians with shape (npoints, nvars, nvars).
+        """
+        nvars = self.nvars()
+        hessian = self._bkd.zeros((npoints, nvars, nvars))
+        for dim1 in range(nvars):
+            for dim2 in range(dim1, nvars):
+                entries = terms[dim1][dim2] @ values
+                hessian[:, dim1, dim2] = entries
+                if dim1 != dim2:
+                    hessian[:, dim2, dim1] = entries
+        return hessian
+
+    def _jacobian_batch(self, samples: Array) -> Array:
+        """Compute Jacobians at many sample points at once.
+
+        The one-dimensional bases already evaluate a whole batch, so
+        this is the same product rule as ``_jacobian`` with the points
+        axis carried through rather than indexed away.
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points with shape (nvars, npoints).
+
+        Returns
+        -------
+        Array
+            Jacobians with shape (npoints, nqoi, nvars).
+
+        Raises
+        ------
+        ValueError
+            If values have not been set.
+        RuntimeError
+            If Jacobian is not supported by the bases.
+        """
+        if self._values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+        if not self._jacobian_supported:
+            raise RuntimeError("Jacobian not supported by univariate bases")
+
+        nvars = self.nvars()
+        nqoi = self._values.shape[0]
+        npoints = samples.shape[1]
+
+        basis_vals_1d = self._basis_vals_1d(samples)
+        basis_derivs_1d = self._basis_jacobians_1d(samples)
+
+        jacobian = self._bkd.zeros((npoints, nqoi, nvars))
+        for dim in range(nvars):
+            term = basis_derivs_1d[dim][:, self._tp_indices[dim, :]]
+            for dd in range(nvars):
+                if dd != dim:
+                    term = term * basis_vals_1d[dd][:, self._tp_indices[dd, :]]
+            # (npoints, nterms) @ (nterms, nqoi) -> (npoints, nqoi)
+            jacobian[:, :, dim] = term @ self._bkd.transpose(self._values)
+        return jacobian
+
+    def _hessian_batch(self, samples: Array) -> Array:
+        """Compute Hessians at many sample points at once (nqoi=1).
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points with shape (nvars, npoints).
+
+        Returns
+        -------
+        Array
+            Hessians with shape (npoints, nvars, nvars).
+
+        Raises
+        ------
+        ValueError
+            If values have not been set or nqoi > 1.
+        RuntimeError
+            If Hessian is not supported by the bases.
+        """
+        if self._values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+        if self._values.shape[0] != 1:
+            raise ValueError(
+                "hessian_batch requires nqoi == 1; use whvp_batch otherwise"
+            )
+        if not self._hessian_supported:
+            raise RuntimeError("Hessian not supported by univariate bases")
+
+        terms = self._second_derivative_terms(samples)
+        return self._hessian_from_terms(
+            terms, self._values[0, :], samples.shape[1]
+        )
+
+    def _hvp_batch(self, samples: Array, vecs: Array) -> Array:
+        """Hessian-vector products at many points (nqoi=1).
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points with shape (nvars, npoints).
+        vecs : Array
+            Directions with shape (nvars, npoints), one per point.
+
+        Returns
+        -------
+        Array
+            Products with shape (npoints, nvars).
+        """
+        hessians = self._hessian_batch(samples)
+        return self._bkd.einsum("pij,jp->pi", hessians, vecs)
+
+    def _whvp_batch(
+        self, samples: Array, vecs: Array, weights: Array
+    ) -> Array:
+        """Weighted Hessian-vector products at many points.
+
+        sum_q w_q H_q v is linear in the values, so weighting the
+        values by w first collapses the quantities of interest into a
+        single vector and the rest is the nqoi == 1 computation.
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points with shape (nvars, npoints).
+        vecs : Array
+            Directions with shape (nvars, npoints), one per point.
+        weights : Array
+            QoI weights, shape (nqoi, 1), (1, nqoi) or (nqoi,).
+
+        Returns
+        -------
+        Array
+            Products with shape (npoints, nvars).
+
+        Raises
+        ------
+        ValueError
+            If values have not been set.
+        RuntimeError
+            If the bases do not support second derivatives.
+        """
+        if self._values is None:
+            raise ValueError("Values not set. Call set_values() first.")
+        if not self._hessian_supported:
+            raise RuntimeError("WHVP not supported by univariate bases")
+
+        weighted_values = self._bkd.flatten(weights) @ self._values
+        terms = self._second_derivative_terms(samples)
+        hessians = self._hessian_from_terms(
+            terms, weighted_values, samples.shape[1]
+        )
+        return self._bkd.einsum("pij,jp->pi", hessians, vecs)
 
     def _hessian(self, sample: Array) -> Array:
         """Compute Hessian at a single sample point.

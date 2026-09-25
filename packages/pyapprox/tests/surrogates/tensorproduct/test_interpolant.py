@@ -4,7 +4,6 @@ Dual-backend tests for NumPy and PyTorch.
 """
 
 import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -292,6 +291,151 @@ class TestTensorProductInterpolant:
         expected = 0.6 * hvp0 + 0.4 * hvp1
 
         bkd.assert_allclose(whvp_result, expected, rtol=1e-10)
+
+
+class TestTensorProductBatchDerivatives:
+    """Batch derivatives contract over all points at once.
+
+    Each test pins the batch result against the single-sample field it
+    replaces, which is what establishes the contraction is right.
+    """
+
+    def _make_interpolant(self, bkd, nvars: int = 2, nterms_1d: int = 5):
+        poly = LegendrePolynomial1D(bkd)
+        poly.set_nterms(10)
+        basis = LagrangeBasis1D(bkd, poly.gauss_quadrature_rule)
+        return TensorProductInterpolant(
+            bkd, [basis] * nvars, [nterms_1d] * nvars
+        )
+
+    def _points(self, bkd, nvars, npoints, offset: float = 0.0):
+        step = 1.6 / (npoints * nvars + 1)
+        flat = bkd.asarray(
+            [-0.8 + offset + step * (k + 1) for k in range(npoints * nvars)]
+        )
+        return bkd.reshape(flat, (nvars, npoints))
+
+    @pytest.mark.parametrize("nvars,nqoi", [(2, 1), (3, 1), (2, 3)])
+    def test_jacobian_batch_matches_single(
+        self, bkd, nvars: int, nqoi: int
+    ) -> None:
+        interp = self._make_interpolant(bkd, nvars)
+        samples = interp.get_samples()
+        values = bkd.stack(
+            [
+                bkd.sum(samples**2, axis=0) * (q + 1) + samples[0, :]
+                for q in range(nqoi)
+            ],
+            axis=0,
+        )
+        interp.set_values(values)
+
+        derivs = interp.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.jacobian_batch is not None
+
+        points = self._points(bkd, nvars, 7)
+        batched = derivs.jacobian_batch(points)
+        assert batched.shape == (7, nqoi, nvars)
+        for j in range(7):
+            bkd.assert_allclose(
+                batched[j], derivs.jacobian(points[:, j: j + 1]), atol=1e-10
+            )
+
+    @pytest.mark.parametrize("nvars", [2, 3])
+    def test_hessian_batch_matches_single(self, bkd, nvars: int) -> None:
+        interp = self._make_interpolant(bkd, nvars)
+        samples = interp.get_samples()
+        interp.set_values(
+            bkd.reshape(bkd.sum(samples**2, axis=0) * samples[0, :], (1, -1))
+        )
+
+        derivs = interp.derivatives()
+        assert derivs.hessian is not None
+        assert derivs.hessian_batch is not None
+
+        points = self._points(bkd, nvars, 5)
+        batched = derivs.hessian_batch(points)
+        assert batched.shape == (5, nvars, nvars)
+        for j in range(5):
+            bkd.assert_allclose(
+                batched[j], derivs.hessian(points[:, j: j + 1]), atol=1e-10
+            )
+
+    def test_hvp_batch_matches_single(self, bkd) -> None:
+        interp = self._make_interpolant(bkd, 2)
+        samples = interp.get_samples()
+        interp.set_values(samples[0:1, :] ** 2 * samples[1:2, :])
+
+        derivs = interp.derivatives()
+        assert derivs.hvp is not None and derivs.hvp_batch is not None
+
+        points = self._points(bkd, 2, 5)
+        vecs = self._points(bkd, 2, 5, offset=0.3)
+        batched = derivs.hvp_batch(points, vecs)
+        assert batched.shape == (5, 2)
+        for j in range(5):
+            single = derivs.hvp(points[:, j: j + 1], vecs[:, j: j + 1])
+            bkd.assert_allclose(batched[j], bkd.flatten(single), atol=1e-10)
+
+    def test_whvp_batch_matches_single(self, bkd) -> None:
+        interp = self._make_interpolant(bkd, 2)
+        samples = interp.get_samples()
+        interp.set_values(
+            bkd.vstack(
+                [samples[0:1, :] ** 2, samples[1:2, :] ** 2 * samples[0:1, :]]
+            )
+        )
+
+        derivs = interp.derivatives()
+        assert derivs.whvp is not None and derivs.whvp_batch is not None
+
+        points = self._points(bkd, 2, 5)
+        vecs = self._points(bkd, 2, 5, offset=0.3)
+        weights = bkd.asarray([[0.6], [0.4]])
+        batched = derivs.whvp_batch(points, vecs, weights)
+        assert batched.shape == (5, 2)
+        for j in range(5):
+            single = derivs.whvp(
+                points[:, j: j + 1], vecs[:, j: j + 1], weights
+            )
+            bkd.assert_allclose(batched[j], bkd.flatten(single), atol=1e-10)
+
+    def test_batch_hessian_of_quadratic_is_constant(self, bkd) -> None:
+        """An analytic check that does not go through the single route."""
+        interp = self._make_interpolant(bkd, 2)
+        samples = interp.get_samples()
+        x, y = samples[0, :], samples[1, :]
+        interp.set_values(
+            bkd.reshape(3 * x**2 + 2 * x * y + 5 * y**2, (1, -1))
+        )
+
+        derivs = interp.derivatives()
+        assert derivs.hessian_batch is not None
+        points = self._points(bkd, 2, 4)
+        expected = bkd.asarray([[[6.0, 2.0], [2.0, 10.0]]] * 4)
+        bkd.assert_allclose(
+            derivs.hessian_batch(points), expected, atol=1e-9
+        )
+
+    def test_single_point_batch_matches_single_route(self, bkd) -> None:
+        """npoints == 1 is the boundary the two routes share."""
+        interp = self._make_interpolant(bkd, 2)
+        samples = interp.get_samples()
+        interp.set_values(samples[0:1, :] ** 2 * samples[1:2, :])
+
+        derivs = interp.derivatives()
+        point = bkd.asarray([[0.3], [-0.4]])
+        assert derivs.jacobian is not None
+        assert derivs.jacobian_batch is not None
+        bkd.assert_allclose(
+            derivs.jacobian_batch(point)[0], derivs.jacobian(point), atol=1e-12
+        )
+        assert derivs.hessian is not None
+        assert derivs.hessian_batch is not None
+        bkd.assert_allclose(
+            derivs.hessian_batch(point)[0], derivs.hessian(point), atol=1e-12
+        )
 
     def test_multi_qoi_drops_scalar_second_order_fields(self, bkd) -> None:
         """After set_values with nqoi > 1 the bundle omits hessian/hvp."""

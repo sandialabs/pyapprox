@@ -11,9 +11,13 @@ from typing import Generic, List, Optional
 
 from pyapprox.interface.functions.derivatives import (
     Derivatives,
+    HessianBatchFn,
     HessianFn,
+    HVPBatchFn,
     HVPFn,
+    JacobianBatchFn,
     JacobianFn,
+    WHVPBatchFn,
     WHVPFn,
 )
 from pyapprox.surrogates.sparsegrids.subspace import (
@@ -61,6 +65,10 @@ class CombinationSurrogate(Generic[Array]):
         self._sub_hvps: Optional[List[HVPFn[Array]]] = None
         self._sub_whvps: Optional[List[WHVPFn[Array]]] = None
         self._sub_hessians: Optional[List[HessianFn[Array]]] = None
+        self._sub_jac_batches: Optional[List[JacobianBatchFn[Array]]] = None
+        self._sub_hvp_batches: Optional[List[HVPBatchFn[Array]]] = None
+        self._sub_whvp_batches: Optional[List[WHVPBatchFn[Array]]] = None
+        self._sub_hess_batches: Optional[List[HessianBatchFn[Array]]] = None
         self._derivs: Derivatives[Array] = self._build_derivatives()
 
     def bkd(self) -> Backend[Array]:
@@ -131,14 +139,18 @@ class CombinationSurrogate(Generic[Array]):
         The captured fields are aligned index-for-index with the
         subspace list.
 
-        The batch fields and ``jvp`` stay ``None`` because the
-        subspaces do not provide them either, not by choice here.
+        ``jvp`` stays ``None`` because the subspaces do not provide it
+        either, not by choice here.
         """
         sub_derivs = [subspace.derivatives() for subspace in self._subspaces]
         jacs = [d.jacobian for d in sub_derivs]
         hvps = [d.hvp for d in sub_derivs]
         whvps = [d.whvp for d in sub_derivs]
         hessians = [d.hessian for d in sub_derivs]
+        jac_batches = [d.jacobian_batch for d in sub_derivs]
+        hvp_batches = [d.hvp_batch for d in sub_derivs]
+        whvp_batches = [d.whvp_batch for d in sub_derivs]
+        hess_batches = [d.hessian_batch for d in sub_derivs]
 
         narrowed_jacs = [j for j in jacs if j is not None]
         if len(narrowed_jacs) != len(jacs):
@@ -157,19 +169,66 @@ class CombinationSurrogate(Generic[Array]):
         if self._nqoi == 1 and len(narrowed_hessians) == len(hessians):
             self._sub_hessians = narrowed_hessians
 
+        narrowed_jac_batches = [j for j in jac_batches if j is not None]
+        if len(narrowed_jac_batches) == len(jac_batches):
+            self._sub_jac_batches = narrowed_jac_batches
+
+        narrowed_whvp_batches = [w for w in whvp_batches if w is not None]
+        if len(narrowed_whvp_batches) == len(whvp_batches):
+            self._sub_whvp_batches = narrowed_whvp_batches
+
+        narrowed_hvp_batches = [h for h in hvp_batches if h is not None]
+        if self._nqoi == 1 and len(narrowed_hvp_batches) == len(hvp_batches):
+            self._sub_hvp_batches = narrowed_hvp_batches
+
+        narrowed_hess_batches = [h for h in hess_batches if h is not None]
+        if self._nqoi == 1 and len(narrowed_hess_batches) == len(hess_batches):
+            self._sub_hess_batches = narrowed_hess_batches
+
         # The named constructors cover the usual combinations; the raw
         # one is used whenever the available set is not one of those.
         if self._sub_whvps is not None and self._sub_hvps is None:
             if self._sub_hessians is None:
                 return Derivatives.second_order_weighted(
-                    jacobian=self._jacobian, whvp=self._whvp
+                    jacobian=self._jacobian,
+                    jacobian_batch=(
+                        self._jacobian_batch
+                        if self._sub_jac_batches is not None
+                        else None
+                    ),
+                    whvp=self._whvp,
+                    whvp_batch=(
+                        self._whvp_batch
+                        if self._sub_whvp_batches is not None
+                        else None
+                    ),
                 )
         return Derivatives(
             jacobian=self._jacobian,
+            jacobian_batch=(
+                self._jacobian_batch
+                if self._sub_jac_batches is not None
+                else None
+            ),
             hvp=self._hvp if self._sub_hvps is not None else None,
+            hvp_batch=(
+                self._hvp_batch
+                if self._sub_hvp_batches is not None
+                else None
+            ),
             whvp=self._whvp if self._sub_whvps is not None else None,
+            whvp_batch=(
+                self._whvp_batch
+                if self._sub_whvp_batches is not None
+                else None
+            ),
             hessian=(
                 self._hessian if self._sub_hessians is not None else None
+            ),
+            hessian_batch=(
+                self._hessian_batch
+                if self._sub_hess_batches is not None
+                else None
             ),
         )
 
@@ -275,6 +334,116 @@ class CombinationSurrogate(Generic[Array]):
             coef: float = self._coefs[j].item()
             if abs(coef) > 1e-14:
                 result = result + coef * sub_whvp(sample, vec, weights)
+        return result
+
+    def _jacobian_batch(self, samples: Array) -> Array:
+        """Compute Jacobians at many sample points.
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points, shape (nvars, npoints).
+
+        Returns
+        -------
+        Array
+            Jacobians, shape (npoints, nqoi, nvars).
+        """
+        if self._sub_jac_batches is None:
+            raise RuntimeError(
+                "jacobian_batch is unavailable; check derivatives() "
+                "before calling"
+            )
+        npoints = samples.shape[1]
+        result = self._bkd.zeros((npoints, self._nqoi, self._nvars))
+        for j, sub_jac in enumerate(self._sub_jac_batches):
+            coef: float = self._coefs[j].item()
+            if abs(coef) > 1e-14:
+                result = result + coef * sub_jac(samples)
+        return result
+
+    def _hessian_batch(self, samples: Array) -> Array:
+        """Compute Hessians at many sample points (nqoi=1 only).
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points, shape (nvars, npoints).
+
+        Returns
+        -------
+        Array
+            Hessians, shape (npoints, nvars, nvars).
+        """
+        if self._sub_hess_batches is None:
+            raise RuntimeError(
+                "hessian_batch is unavailable; check derivatives() "
+                "before calling"
+            )
+        npoints = samples.shape[1]
+        result = self._bkd.zeros((npoints, self._nvars, self._nvars))
+        for j, sub_hessian in enumerate(self._sub_hess_batches):
+            coef: float = self._coefs[j].item()
+            if abs(coef) > 1e-14:
+                result = result + coef * sub_hessian(samples)
+        return result
+
+    def _hvp_batch(self, samples: Array, vecs: Array) -> Array:
+        """Compute Hessian-vector products at many points (nqoi=1 only).
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points, shape (nvars, npoints).
+        vecs : Array
+            Direction vectors, shape (nvars, npoints).
+
+        Returns
+        -------
+        Array
+            HVP results, shape (npoints, nvars).
+        """
+        if self._sub_hvp_batches is None:
+            raise RuntimeError(
+                "hvp_batch is unavailable; check derivatives() before calling"
+            )
+        npoints = samples.shape[1]
+        result = self._bkd.zeros((npoints, self._nvars))
+        for j, sub_hvp in enumerate(self._sub_hvp_batches):
+            coef: float = self._coefs[j].item()
+            if abs(coef) > 1e-14:
+                result = result + coef * sub_hvp(samples, vecs)
+        return result
+
+    def _whvp_batch(
+        self, samples: Array, vecs: Array, weights: Array
+    ) -> Array:
+        """Compute weighted Hessian-vector products at many points.
+
+        Parameters
+        ----------
+        samples : Array
+            Evaluation points, shape (nvars, npoints).
+        vecs : Array
+            Direction vectors, shape (nvars, npoints).
+        weights : Array
+            Weights for each QoI, shape (nqoi, 1).
+
+        Returns
+        -------
+        Array
+            WHVP results, shape (npoints, nvars).
+        """
+        if self._sub_whvp_batches is None:
+            raise RuntimeError(
+                "whvp_batch is unavailable; check derivatives() before calling"
+            )
+        npoints = samples.shape[1]
+        result = self._bkd.zeros((npoints, self._nvars))
+        for j, sub_whvp in enumerate(self._sub_whvp_batches):
+            coef: float = self._coefs[j].item()
+            if abs(coef) > 1e-14:
+                result = result + coef * sub_whvp(samples, vecs, weights)
         return result
 
     # ------------------------------------------------------------------

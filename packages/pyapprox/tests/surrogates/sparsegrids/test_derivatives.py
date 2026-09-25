@@ -318,3 +318,194 @@ class TestSparseGridDerivatives:
         assert len(errors) == 2
         whvp_error = float(checker.error_ratio(errors[1]).item())
         assert whvp_error < 1e-6
+
+
+class TestSparseGridBatchDerivatives:
+    """The batch fields must agree with their single-sample counterparts.
+
+    The batch route contracts over all points at once rather than
+    looping, so agreeing point-for-point with the single-sample field
+    is what establishes the contraction is the right one.
+    """
+
+    def _build_surrogate(self, nvars, level, func, bkd):
+        marginal = UniformMarginal(-1.0, 1.0, bkd)
+        factories: List[BasisFactoryProtocol] = [
+            GaussLagrangeFactory(marginal, bkd) for _ in range(nvars)
+        ]
+        tp_factory = TensorProductSubspaceFactory(
+            bkd, factories, LinearGrowthRule(scale=1, shift=1)
+        )
+        fitter = IsotropicSparseGridFitter(bkd, tp_factory, level)
+        return fitter.fit(func(fitter.get_samples())).surrogate
+
+    def _points(self, bkd, nvars, npoints):
+        """A deterministic spread of points inside the domain."""
+        step = 2.0 / (npoints * nvars + 1)
+        flat = bkd.asarray(
+            [-1.0 + step * (k + 1) for k in range(npoints * nvars)]
+        )
+        return bkd.reshape(flat, (nvars, npoints))
+
+    def test_jacobian_batch_matches_single(self, bkd) -> None:
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.stack([x**2 + x * y, y**3 - x], axis=0)
+
+        surrogate = self._build_surrogate(2, 3, func, bkd)
+        derivs = surrogate.derivatives()
+        assert derivs.jacobian is not None
+        assert derivs.jacobian_batch is not None
+
+        samples = self._points(bkd, 2, 5)
+        batched = derivs.jacobian_batch(samples)
+        assert batched.shape == (5, 2, 2)
+        for j in range(5):
+            bkd.assert_allclose(
+                batched[j], derivs.jacobian(samples[:, j: j + 1]), atol=1e-10
+            )
+
+    def test_hessian_batch_matches_single(self, bkd) -> None:
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.reshape(3 * x**2 + 2 * x * y + 5 * y**2, (1, -1))
+
+        surrogate = self._build_surrogate(2, 3, func, bkd)
+        derivs = surrogate.derivatives()
+        assert derivs.hessian is not None
+        assert derivs.hessian_batch is not None
+
+        samples = self._points(bkd, 2, 4)
+        batched = derivs.hessian_batch(samples)
+        assert batched.shape == (4, 2, 2)
+        for j in range(4):
+            bkd.assert_allclose(
+                batched[j], derivs.hessian(samples[:, j: j + 1]), atol=1e-9
+            )
+
+    def test_hvp_batch_matches_single(self, bkd) -> None:
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.reshape(x**2 + x * y + 2 * y**2, (1, -1))
+
+        surrogate = self._build_surrogate(2, 3, func, bkd)
+        derivs = surrogate.derivatives()
+        assert derivs.hvp is not None and derivs.hvp_batch is not None
+
+        samples = self._points(bkd, 2, 4)
+        vecs = self._points(bkd, 2, 4) + 0.5
+        batched = derivs.hvp_batch(samples, vecs)
+        assert batched.shape == (4, 2)
+        for j in range(4):
+            single = derivs.hvp(samples[:, j: j + 1], vecs[:, j: j + 1])
+            bkd.assert_allclose(
+                batched[j], bkd.flatten(single), atol=1e-9
+            )
+
+    def test_whvp_batch_matches_single(self, bkd) -> None:
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.stack([x**2 + y, x * y + y**2], axis=0)
+
+        surrogate = self._build_surrogate(2, 3, func, bkd)
+        derivs = surrogate.derivatives()
+        assert derivs.whvp is not None and derivs.whvp_batch is not None
+
+        samples = self._points(bkd, 2, 4)
+        vecs = self._points(bkd, 2, 4) + 0.5
+        weights = bkd.asarray([[0.6], [0.4]])
+        batched = derivs.whvp_batch(samples, vecs, weights)
+        assert batched.shape == (4, 2)
+        for j in range(4):
+            single = derivs.whvp(
+                samples[:, j: j + 1], vecs[:, j: j + 1], weights
+            )
+            bkd.assert_allclose(
+                batched[j], bkd.flatten(single), atol=1e-9
+            )
+
+    def test_batch_fields_track_their_single_counterparts(self, bkd) -> None:
+        """A batch field is present exactly when the single one is.
+
+        At nqoi > 1 the Hessian and hvp are undefined, so both routes
+        must withhold them together; whvp stays available on both.
+        """
+
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.stack([x**2 + y, x * y], axis=0)
+
+        derivs = self._build_surrogate(2, 3, func, bkd).derivatives()
+        assert derivs.hessian is None and derivs.hessian_batch is None
+        assert derivs.hvp is None and derivs.hvp_batch is None
+        assert derivs.whvp is not None and derivs.whvp_batch is not None
+        assert derivs.jacobian is not None
+        assert derivs.jacobian_batch is not None
+
+    def test_piecewise_subspace_declares_no_batch_derivatives(
+        self, bkd
+    ) -> None:
+        """Absence propagates to the batch fields unchanged."""
+        from pyapprox.surrogates.affine.indices import (
+            ClenshawCurtisGrowthRule,
+        )
+        from pyapprox.surrogates.sparsegrids import create_basis_factories
+
+        marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(2)]
+        tp_factory = TensorProductSubspaceFactory(
+            bkd,
+            create_basis_factories(marginals, bkd, "piecewise_linear"),
+            ClenshawCurtisGrowthRule(),
+        )
+        subspace = tp_factory(bkd.asarray([2, 2], dtype=bkd.int64_dtype()))
+        samples = subspace.get_samples()
+        subspace.set_values(
+            bkd.reshape(bkd.sum(samples**2, axis=0), (1, -1))
+        )
+        derivs = subspace.derivatives()
+        assert derivs.jacobian_batch is None
+        assert derivs.hessian_batch is None
+        assert derivs.hvp_batch is None
+        assert derivs.whvp_batch is None
+
+    def test_batch_fields_pass_the_batch_derivative_checker(
+        self, bkd
+    ) -> None:
+        """Finite differences, independent of the single-sample route."""
+        from pyapprox.interface.functions.derivative_checks.derivative_checker import (  # noqa: E501
+            BatchDerivativeChecker,
+        )
+
+        def func(s):
+            x, y = s[0, :], s[1, :]
+            return bkd.reshape(x**3 + x * y + 2 * y**2, (1, -1))
+
+        surrogate = self._build_surrogate(2, 3, func, bkd)
+        samples = self._points(bkd, 2, 3)
+        checker = BatchDerivativeChecker(surrogate, samples)
+
+        jac_errors = checker.check_jacobian_batch(verbosity=0)
+        for ii in range(samples.shape[1]):
+            assert float(checker.error_ratio(jac_errors[ii]).item()) < 1e-6
+
+        # Second differences hit their round-off floor at a larger step
+        # than first ones, so the best relative error settles near
+        # 1e-7 rather than the 1e-6 ratio a jacobian reaches. The floor
+        # the sweep reaches is what says the Hessian is right.
+        hess_errors = checker.check_hessian_batch(verbosity=0)
+        for ii in range(samples.shape[1]):
+            assert float(bkd.min(hess_errors[ii]).item()) < 1e-6
+
+    def test_batch_jacobian_of_linear_function_is_constant(self, bkd) -> None:
+        """An analytic check that does not go through the single route."""
+
+        def func(s):
+            return bkd.reshape(s[0, :] + 2 * s[1, :], (1, -1))
+
+        derivs = self._build_surrogate(2, 2, func, bkd).derivatives()
+        assert derivs.jacobian_batch is not None
+
+        samples = self._points(bkd, 2, 6)
+        batched = derivs.jacobian_batch(samples)
+        expected = bkd.asarray([[[1.0, 2.0]]] * 6)
+        bkd.assert_allclose(batched, expected, atol=1e-9)

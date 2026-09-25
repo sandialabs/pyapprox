@@ -70,6 +70,11 @@ section is renamed to the version number when a release is tagged (see
   `QuadratureMoments` defines, as an alternative to
   `SummedSubspaceVarianceIndicator`.
 - `HierarchicalMoments` for the mean of a hierarchical surrogate.
+- Batch derivatives (`jacobian_batch`, `hessian_batch`, `hvp_batch`,
+  `whvp_batch`) on `TensorProductInterpolant`, and hence on sparse grid
+  subspaces and `CombinationSurrogate`. Each evaluates every point in one
+  contraction rather than looping, and is declared exactly when its
+  single-sample counterpart is.
 
 ### Changed
 
