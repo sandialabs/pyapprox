@@ -297,8 +297,22 @@ class LejaLagrangeFactory(Generic[Array]):
             # Fallback for custom marginals
             poly = ContinuousNumericOrthonormalPolynomial1D(self._marginal, self._bkd)
 
-        bounds = get_bounds_from_marginal(self._marginal, self._eps)
+        user_bounds = get_bounds_from_marginal(self._marginal, self._eps)
         self._transform = get_transform_from_marginal(self._marginal, self._bkd)
+        # The orthonormal polynomial, and so the Christoffel weight built
+        # from it, lives on the canonical domain, and
+        # _user_domain_quad_rule maps the sequence out of it. The search
+        # must therefore run over canonical bounds: searching user bounds
+        # and then mapping applies the transform twice, which squeezes
+        # the points into part of the domain (U[0,1] -> [0.5, 1]) or off
+        # it entirely (U[2,4] -> [5, 7]).
+        bounds_array = self._transform.map_to_canonical(
+            self._bkd.asarray([[user_bounds[0], user_bounds[1]]])
+        )
+        bounds = (
+            float(bounds_array[0, 0]),
+            float(bounds_array[0, 1]),
+        )
 
         # Create weighting
         weighting: LejaWeightingProtocol[Array]

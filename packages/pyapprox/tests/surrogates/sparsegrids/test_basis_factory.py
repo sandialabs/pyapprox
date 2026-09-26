@@ -9,8 +9,16 @@ from pyapprox.probability.univariate import (
     GaussianMarginal,
     UniformMarginal,
 )
+from pyapprox.surrogates.affine.leja.univariate import (
+    LejaSequence1D,
+    TwoPointLejaObjective,
+)
+from pyapprox.surrogates.affine.leja.weighting import ChristoffelWeighting
 from pyapprox.surrogates.affine.univariate import LegendrePolynomial1D
 from pyapprox.surrogates.affine.univariate.lagrange import LagrangeBasis1D
+from pyapprox.surrogates.affine.univariate.registry import (
+    _lookup_analytical,
+)
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     BasisFactoryProtocol,
     ClenshawCurtisLagrangeFactory,
@@ -427,6 +435,170 @@ class TestLejaLagrangeFactory:
 
         # Same samples (nested property of Leja)
         bkd.assert_allclose(samples1, samples2, rtol=1e-12)
+
+
+class TestLejaDomainHandling:
+    """Leja points land in, and spread across, the marginal's support.
+
+    The sequence is generated on the polynomial's canonical domain and
+    then mapped to the user domain, so these use marginals whose
+    support differs from that canonical domain. A marginal where the
+    two coincide exercises the mapping as an identity and so says
+    nothing about it.
+
+    Generating a sequence costs roughly a second per handful of points
+    and grows superlinearly, so the counts here are the smallest that
+    still separate a correctly placed sequence from a misplaced one.
+    """
+
+    # Enough for a sequence to have spread over its support and for the
+    # Lebesgue constant to be meaningful, while staying inside the
+    # superlinear cost of generating one.
+    _NTERMS = 20
+
+    @staticmethod
+    def _points(bkd, marginal, nterms: int):
+        basis = LejaLagrangeFactory(marginal, bkd).create_basis()
+        basis.set_nterms(nterms)
+        return bkd.flatten(basis.quadrature_rule()[0])
+
+    @pytest.mark.parametrize(
+        "lower,upper", [(0.0, 1.0), (2.0, 4.0), (-5.0, -3.0)]
+    )
+    def test_bounded_points_span_their_support(
+        self, bkd, lower: float, upper: float
+    ) -> None:
+        """Inside the support, and reaching out towards both ends.
+
+        Both halves are asserted from one sequence because neither
+        alone is worth much: containment passes for points crowded into
+        a corner, and spread passes for points outside the support.
+        """
+        points = self._points(
+            bkd,
+            UniformMarginal(lower=lower, upper=upper, bkd=bkd),
+            self._NTERMS,
+        )
+        low = float(bkd.min(points))
+        high = float(bkd.max(points))
+        width = upper - lower
+        assert low >= lower - 1e-9
+        assert high <= upper + 1e-9
+        # Leja takes the endpoints early, so even a short sequence
+        # reaches close to both.
+        assert low < lower + 0.05 * width
+        assert high > upper - 0.05 * width
+
+    def test_uniform_points_are_affine_images_of_each_other(
+        self, bkd
+    ) -> None:
+        """The sharpest available check on where the points go.
+
+        Leja selection commutes with an affine reparameterization, so
+        two Uniform marginals give point sets related by the exact
+        affine map between their supports. This pins every point rather
+        than the extremes, needs no claim about what the distribution
+        should be, and holds term by term rather than asymptotically.
+        """
+        reference = self._points(
+            bkd,
+            UniformMarginal(lower=-1.0, upper=1.0, bkd=bkd),
+            self._NTERMS,
+        )
+        for lower, upper in [(0.0, 1.0), (2.0, 4.0), (-5.0, -3.0)]:
+            mapped = self._points(
+                bkd,
+                UniformMarginal(lower=lower, upper=upper, bkd=bkd),
+                self._NTERMS,
+            )
+            # canonical [-1, 1] -> [lower, upper]
+            expected = lower + (reference + 1.0) * (upper - lower) / 2.0
+            bkd.assert_allclose(mapped, expected, atol=1e-12)
+
+    def test_gaussian_points_are_affine_images_of_standard(
+        self, bkd
+    ) -> None:
+        """The same equivariance where the support is unbounded."""
+        reference = self._points(
+            bkd, GaussianMarginal(0.0, 1.0, bkd), self._NTERMS
+        )
+        mapped = self._points(
+            bkd, GaussianMarginal(5.0, 2.0, bkd), self._NTERMS
+        )
+        bkd.assert_allclose(mapped, 5.0 + 2.0 * reference, atol=1e-10)
+
+    def test_interpolation_is_well_conditioned(self, bkd) -> None:
+        """The property Christoffel weighting is chosen to provide.
+
+        The Lebesgue constant, max over x of sum_i |L_i(x)|, bounds how
+        much the interpolant amplifies its data. For Christoffel
+        weighted nodes it grows slowly with the node count; nodes
+        crowded into part of their domain make it explode, so a loose
+        bound separates the two without pinning a value that depends on
+        the count.
+        """
+        basis = LejaLagrangeFactory(
+            UniformMarginal(lower=0.0, upper=1.0, bkd=bkd), bkd
+        ).create_basis()
+        basis.set_nterms(self._NTERMS)
+        nodes = bkd.flatten(basis.quadrature_rule()[0])
+        grid = bkd.linspace(
+            float(bkd.min(nodes)), float(bkd.max(nodes)), 200
+        )
+        values = basis(bkd.reshape(grid, (1, -1)))
+        constant = float(bkd.max(bkd.sum(bkd.abs(values), axis=1)))
+        assert constant < 50.0
+
+    def test_semibounded_points_respect_their_lower_bound(
+        self, bkd
+    ) -> None:
+        """A Gamma marginal is bounded below and unbounded above."""
+        from pyapprox.probability.univariate import GammaMarginal
+
+        points = self._points(bkd, GammaMarginal(2.0, bkd=bkd), self._NTERMS)
+        assert float(bkd.min(points)) >= 0.0
+
+    def test_beta_points_lie_in_support(self, bkd) -> None:
+        """A skewed bounded marginal, whose transform is not affine."""
+        points = self._points(bkd, BetaMarginal(2.0, 5.0, bkd), self._NTERMS)
+        assert float(bkd.min(points)) >= 0.0
+        assert float(bkd.max(points)) <= 1.0
+
+    @pytest.mark.parametrize(
+        "objective_class", [None, TwoPointLejaObjective]
+    )
+    def test_every_objective_searches_the_canonical_domain(
+        self, numpy_bkd, objective_class
+    ) -> None:
+        """Bounds reach the objective and the initial point together.
+
+        ``LejaSequence1D`` passes one ``bounds`` to whichever objective
+        it is given and also seeds the sequence at their midpoint, so
+        the domain a sequence searches is a property of the sequence
+        rather than of the objective. The tests above go through
+        ``LejaLagrangeFactory``, which always takes the default
+        objective; this covers the alternative against the same
+        contract, so a second objective cannot silently search
+        elsewhere.
+
+        One backend is enough: the question is which interval is
+        searched, which no backend affects.
+        """
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=numpy_bkd)
+        entry = _lookup_analytical(marginal)
+        assert entry is not None
+        sequence = LejaSequence1D(
+            numpy_bkd,
+            entry.polynomial_factory(marginal, numpy_bkd),
+            ChristoffelWeighting(numpy_bkd),
+            bounds=(-1.0, 1.0),
+            objective_class=objective_class,
+        )
+        # The sequence searches the canonical domain, so its points
+        # must span it rather than sit in part of it.
+        points = numpy_bkd.flatten(sequence.quadrature_rule(7)[0])
+        assert float(numpy_bkd.min(points)) < -0.9
+        assert float(numpy_bkd.max(points)) > 0.9
 
 
 # =============================================================================
