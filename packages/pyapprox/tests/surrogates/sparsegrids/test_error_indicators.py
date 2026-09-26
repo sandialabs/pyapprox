@@ -13,11 +13,13 @@ checked against the surrogate difference they stand in for.
 Tests run on both NumPy and PyTorch backends.
 """
 
+import warnings
 from typing import List, Tuple
 
 import pytest
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import LinearGrowthRule
+from pyapprox.surrogates.sparsegrids import create_basis_factories
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     GaussLagrangeFactory,
 )
@@ -29,6 +31,8 @@ from pyapprox.surrogates.sparsegrids.error_indicators import (
     ErrorIndicatorProtocol,
     L2GlobalSurplusIndicator,
     L2SurplusIndicator,
+    QuadratureRefinementStalled,
+    QuadratureRefinementStalledError,
     SummedSubspaceVarianceIndicator,
 )
 from pyapprox.surrogates.sparsegrids.sample_tracker import SampleTracker
@@ -359,3 +363,112 @@ class TestCacheReuse:
             indicator(candidate, grid)
         # The box holds 2^nnz = 2 subspaces for candidate (2, 0).
         assert indicator._cache.nentries() == len(candidate.box)
+
+
+class TestStalledRefinementDetection:
+    """Zero error caused by weightless new points is reported.
+
+    A nested rule can place a new point where it takes essentially none
+    of the quadrature weight. Every moment the rule computes is then
+    unchanged, the signed box sum is exactly zero, and the candidate is
+    scored as fully resolved, so its dimension is never refined again.
+    Zero error has innocent causes too, so the weights decide, not the
+    error alone.
+    """
+
+    def _leja_candidate(self, bkd, nvars: int, candidate_key):
+        """Build a candidate on a Leja grid grown one point per level."""
+        marginal = UniformMarginal(0.0, 1.0, bkd)
+        factories = create_basis_factories(
+            [marginal] * nvars, bkd, "leja"
+        )
+        tp_factory = TensorProductSubspaceFactory(
+            bkd, factories, LinearGrowthRule(scale=1, shift=1)
+        )
+        selected_keys = _level_set(nvars, 1)
+        smolyak = IncrementalSmolyakCoefficients(nvars)
+        for key in selected_keys:
+            smolyak.add(key)
+
+        tracker = SampleTracker(bkd, tp_factory)
+        subspaces = {}
+        positions = {}
+        for key in selected_keys + [candidate_key]:
+            idx = bkd.asarray(list(key), dtype=bkd.int64_dtype())
+            subspace = tp_factory(idx)
+            subspaces[key] = subspace
+            positions[key] = tracker.register(idx, subspace)
+
+        def target_fn(samples):
+            return bkd.reshape(bkd.sum(samples**2, axis=0), (1, -1))
+
+        tracker.append_new_values(
+            target_fn(tracker.collect_unique_samples())
+        )
+        tracker.distribute_values_to_subspaces()
+        return Candidate(
+            index=bkd.asarray(
+                list(candidate_key), dtype=bkd.int64_dtype()
+            ),
+            subspace=subspaces[candidate_key],
+            box=[
+                (sign, subspaces[key])
+                for key, sign in smolyak.delta(candidate_key)
+            ],
+            new_sample_local_indices=tracker.get_unique_local_indices(
+                positions[candidate_key]
+            ),
+            config_idx=None,
+            cost=1.0,
+        )
+
+    def test_warns_when_new_points_carry_no_weight(self, bkd) -> None:
+        candidate = self._leja_candidate(bkd, 2, (1, 1))
+        indicator = SummedSubspaceVarianceIndicator(bkd)
+        with pytest.warns(QuadratureRefinementStalled, match="zero error"):
+            error = indicator(candidate, _Grid(bkd.zeros((2, 1))))
+        assert error == 0.0
+
+    def test_warns_once_not_once_per_candidate(self, bkd) -> None:
+        """Every candidate in a stalled run would otherwise warn."""
+        candidate = self._leja_candidate(bkd, 2, (1, 1))
+        indicator = SummedSubspaceVarianceIndicator(bkd)
+        grid = _Grid(bkd.zeros((2, 1)))
+        with pytest.warns(QuadratureRefinementStalled) as record:
+            for _ in range(5):
+                indicator(candidate, grid)
+        assert len(record) == 1
+
+    def test_raises_when_asked_to(self, bkd) -> None:
+        """A run that cannot refine further can stop instead."""
+        candidate = self._leja_candidate(bkd, 2, (1, 1))
+        indicator = SummedSubspaceVarianceIndicator(
+            bkd, raise_on_stall=True
+        )
+        with pytest.raises(
+            QuadratureRefinementStalledError, match="zero error"
+        ):
+            indicator(candidate, _Grid(bkd.zeros((2, 1))))
+
+    def test_silent_when_new_points_carry_weight(self, bkd) -> None:
+        """A Gauss rule gives every point weight, so nothing is reported."""
+
+        def target_fn(samples):
+            x, y = samples[0, :], samples[1, :]
+            return bkd.reshape(x**4 + y**4, (1, -1))
+
+        candidate, grid, _, _ = _build_candidate(
+            bkd, 2, 1, (2, 0), target_fn
+        )
+        indicator = SummedSubspaceVarianceIndicator(bkd)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", QuadratureRefinementStalled)
+            indicator(candidate, grid)
+
+    def test_silent_when_error_is_nonzero(self, bkd) -> None:
+        """The guard reports a stall, not merely a weightless point."""
+        candidate = self._leja_candidate(bkd, 2, (2, 0))
+        indicator = SummedSubspaceVarianceIndicator(bkd)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", QuadratureRefinementStalled)
+            assert indicator(candidate, _Grid(bkd.zeros((2, 1)))) > 0.0

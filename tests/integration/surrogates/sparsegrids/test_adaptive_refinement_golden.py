@@ -1,21 +1,22 @@
 """Golden regression tests pinning adaptive refinement order.
 
 These tests assert the exact sequence of subspace indices promoted from
-candidate to selected, as literal tuples. They exist to catch unintended
-reordering while the fitter's internals are rewritten: incremental
-Smolyak coefficients, delta-based candidate scoring and the separation of
-priority from error must all leave the chosen sequence untouched.
+candidate to selected, as literal tuples. Refactoring the fitter must
+leave the chosen sequence untouched, and a literal sequence is what
+makes an unintended reordering visible.
 
-A failure here is meaningful only after ruling out a tie. The targets are
+A failure is meaningful only once a tie is ruled out. The targets are
 Genz oscillatory with decaying coefficients, which keeps the
 per-subspace errors distinct while the target is still being resolved.
 Confirm any diff is a genuine tie before updating a literal.
 
+A diff that is not a tie means refinement now prefers a different
+subspace. Update the literals only once that change is understood and
+wanted; otherwise the pinned order follows whatever the code does and
+these tests stop catching anything.
+
 Only the first ``_NCOMPARED`` promotions are asserted; the recorded
 sequences run longer so the cut can be moved without re-recording.
-
-The sequences were recorded from the implementation predating that
-rewrite.
 """
 
 from typing import Dict, List, Tuple
@@ -134,11 +135,20 @@ def _build_sf_fitter(
     # Clenshaw-Curtis points are only nested under its own doubling rule;
     # pairing it with a linear rule asks the factory for point counts its
     # nested sequence cannot supply.
-    growth = (
-        ClenshawCurtisGrowthRule()
-        if basis_type == "clenshaw_curtis"
-        else LinearGrowthRule(scale=1, shift=1)
-    )
+    #
+    # Leja takes two points per level rather than one. A single new Leja
+    # point can land where the rule already integrates exactly, taking
+    # essentially none of the quadrature weight, and a quantity computed
+    # from the rule is then unchanged by adding it: the variance
+    # indicator scores that candidate as zero error and never refines
+    # the dimension. Adding a pair avoids it, and keeps these sequences
+    # measuring the choice of subspace rather than that pathology.
+    if basis_type == "clenshaw_curtis":
+        growth = ClenshawCurtisGrowthRule()
+    elif basis_type == "leja":
+        growth = LinearGrowthRule(scale=2, shift=1)
+    else:
+        growth = LinearGrowthRule(scale=1, shift=1)
     tp_factory = TensorProductSubspaceFactory(bkd, factories, growth)
     # Deliberately non-binding: the sample budget stops the loop.
     admis = MaxLevelCriteria(max_level=20, pnorm=1.0, bkd=bkd)
@@ -260,61 +270,34 @@ _GOLDEN: Dict[Tuple[str, str, int], List[Tuple[int, ...]]] = {
         (1, 0, 1), (0, 2, 0), (0, 1, 1), (2, 1, 0), (3, 0, 0)
     ],
     ('leja', 'l2', 2): [
-        (0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (0, 2), (2, 1), (3, 0), (1,
-        2), (2, 2), (4, 0), (3, 1), (0, 3), (1, 3), (4, 1), (3, 2), (2, 3),
-        (5, 0), (0, 4), (4, 2), (1, 4), (6, 0), (5, 1), (2, 4), (3, 3), (5,
-        2), (6, 1), (0, 5), (4, 3), (7, 0), (3, 4), (1, 5), (6, 2), (2, 5),
-        (7, 1), (0, 6), (4, 4), (5, 3), (8, 0), (1, 6), (7, 2), (2, 6), (3,
-        5), (6, 3), (8, 1), (5, 4), (9, 0), (4, 5), (0, 7), (8, 2), (5, 5),
-        (6, 4), (3, 6)
+        (0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (2, 1), (0, 2), (3,
+        0), (1, 2), (3, 1), (2, 2), (4, 0), (0, 3), (1, 3), (4, 1),
+        (3, 2), (2, 3)
     ],
     ('leja', 'l2', 3): [
-        (0, 0, 0), (1, 0, 0), (0, 1, 0), (2, 0, 0), (0, 0, 1), (1, 1, 0),
-        (1, 0, 1), (0, 2, 0), (2, 1, 0), (0, 1, 1), (2, 0, 1), (3, 0, 0),
-        (0, 0, 2), (1, 2, 0), (1, 1, 1), (1, 0, 2), (2, 2, 0), (0, 2, 1),
-        (2, 1, 1), (4, 0, 0), (0, 1, 2), (3, 1, 0), (2, 0, 2), (1, 2, 1),
-        (3, 0, 1), (0, 3, 0), (1, 1, 2), (2, 2, 1), (1, 3, 0), (4, 1, 0),
-        (3, 2, 0), (0, 2, 2), (2, 1, 2), (0, 0, 3), (4, 0, 1), (3, 1, 1),
-        (2, 3, 0), (5, 0, 0), (3, 0, 2), (1, 2, 2), (0, 3, 1), (1, 0, 3),
-        (0, 4, 0)
+        (0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 0), (1,
+        0, 1), (2, 0, 0), (0, 1, 1), (1, 1, 1), (2, 1, 0), (0, 2,
+        0), (2, 0, 1)
     ],
     ('leja', 'l2global', 2): [
-        (0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (0, 2), (2, 1), (3, 0), (1,
-        2), (2, 2), (4, 0), (3, 1), (0, 3), (1, 3), (4, 1), (3, 2), (2, 3),
-        (5, 0), (0, 4), (4, 2), (1, 4), (6, 0), (5, 1), (2, 4), (3, 3), (5,
-        2), (6, 1), (0, 5), (4, 3), (7, 0), (3, 4), (1, 5), (6, 2), (2, 5),
-        (7, 1), (0, 6), (4, 4), (5, 3), (8, 0), (1, 6), (7, 2), (2, 6), (3,
-        5), (6, 3), (8, 1), (5, 4), (9, 0), (0, 7), (8, 2), (3, 6), (4, 5),
-        (1, 7)
+        (0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (2, 1), (0, 2), (1,
+        2), (3, 0), (3, 1), (2, 2), (4, 0), (0, 3), (1, 3), (4, 1),
+        (3, 2), (2, 3)
     ],
     ('leja', 'l2global', 3): [
-        (0, 0, 0), (1, 0, 0), (0, 1, 0), (2, 0, 0), (0, 0, 1), (1, 1, 0),
-        (1, 0, 1), (0, 2, 0), (2, 1, 0), (0, 1, 1), (2, 0, 1), (3, 0, 0),
-        (0, 0, 2), (1, 2, 0), (1, 1, 1), (1, 0, 2), (2, 2, 0), (0, 2, 1),
-        (2, 1, 1), (4, 0, 0), (0, 1, 2), (3, 1, 0), (2, 0, 2), (1, 2, 1),
-        (3, 0, 1), (0, 3, 0), (1, 1, 2), (2, 2, 1), (1, 3, 0), (4, 1, 0),
-        (3, 2, 0), (0, 2, 2), (2, 1, 2), (0, 0, 3), (4, 0, 1), (3, 1, 1),
-        (2, 3, 0), (5, 0, 0), (3, 0, 2), (1, 2, 2), (0, 3, 1), (1, 0, 3),
-        (0, 4, 0)
+        (0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 0), (1,
+        0, 1), (2, 0, 0), (0, 1, 1), (1, 1, 1), (2, 1, 0), (2, 0,
+        1), (0, 2, 0)
     ],
     ('leja', 'variance', 2): [
-        (0, 0), (1, 0), (2, 0), (3, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1,
-        2), (4, 0), (5, 0), (2, 2), (0, 3), (1, 3), (2, 3), (6, 0), (7, 0),
-        (3, 1), (4, 1), (3, 2), (4, 2), (5, 1), (5, 2), (6, 1), (0, 4), (1,
-        4), (3, 3), (4, 3), (0, 5), (2, 4), (3, 4), (8, 0), (9, 0), (6, 2),
-        (5, 3), (6, 3), (7, 1), (7, 2), (8, 1), (1, 5), (2, 5), (4, 4), (5,
-        4), (3, 5), (4, 5), (8, 2), (0, 6), (1, 6), (9, 1), (9, 2), (10, 0),
-        (11, 0), (12, 0)
+        (0, 0), (1, 0), (0, 1), (2, 0), (1, 1), (3, 0), (0, 2), (2,
+        1), (1, 2), (4, 0), (3, 1), (0, 3), (2, 2), (1, 3), (5, 0),
+        (4, 1)
     ],
     ('leja', 'variance', 3): [
-        (0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0), (0, 1, 0), (1, 1, 0),
-        (2, 1, 0), (0, 2, 0), (1, 2, 0), (0, 0, 1), (1, 0, 1), (2, 0, 1),
-        (0, 0, 2), (4, 0, 0), (5, 0, 0), (2, 2, 0), (1, 0, 2), (0, 3, 0),
-        (0, 1, 1), (0, 2, 1), (2, 0, 2), (0, 1, 2), (1, 1, 1), (2, 1, 1),
-        (3, 0, 1), (4, 0, 1), (3, 0, 2), (1, 2, 1), (2, 2, 1), (0, 0, 3),
-        (1, 3, 0), (2, 3, 0), (1, 1, 2), (2, 1, 2), (3, 1, 0), (4, 1, 0),
-        (3, 2, 0), (3, 1, 1), (6, 0, 0), (7, 0, 0), (0, 2, 2), (1, 2, 2),
-        (4, 2, 0), (5, 1, 0), (5, 2, 0), (6, 1, 0)
+        (0, 0, 0), (1, 0, 0), (0, 1, 0), (2, 0, 0), (0, 0, 1), (1,
+        1, 0), (3, 0, 0), (1, 0, 1), (0, 2, 0), (2, 1, 0), (0, 1,
+        1), (2, 0, 1)
     ],
     ('clenshaw_curtis', 'l2', 2): [
         (0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (2, 1), (0, 2), (1, 2), (3,
