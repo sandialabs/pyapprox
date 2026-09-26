@@ -22,6 +22,7 @@ from pyapprox.surrogates.affine.indices.growth_rules import (
     ExponentialGrowthRule,
     LinearGrowthRule,
     inverse_growth_rule,
+    max_level_for_univariate_npoints,
 )
 from pyapprox.surrogates.affine.indices.utils import (
     anisotropy_penalties_from_importance,
@@ -662,6 +663,83 @@ class TestInverseGrowthRule:
         rule = LinearGrowthRule(1, 1)
         with pytest.raises(ValueError):
             inverse_growth_rule(-1, rule)
+
+
+class TestMaxLevelForUnivariateNpoints:
+    """The largest level a single dimension may reach."""
+
+    @pytest.mark.parametrize(
+        "max_npoints,expected", [(1, 1), (2, 1), (3, 2), (10, 9), (100, 99)]
+    )
+    def test_linear_growth_rule(
+        self, max_npoints: int, expected: int
+    ) -> None:
+        """n(l) = l + 1, so the level is one below the point count."""
+        rule = LinearGrowthRule(scale=1, shift=1)
+        assert (
+            max_level_for_univariate_npoints(rule, max_npoints) == expected
+        )
+
+    @pytest.mark.parametrize(
+        "max_npoints,expected", [(3, 1), (4, 1), (5, 2), (9, 3), (100, 6)]
+    )
+    def test_clenshaw_curtis_growth_rule(
+        self, max_npoints: int, expected: int
+    ) -> None:
+        """n(l) = 2^l + 1, so the level grows logarithmically."""
+        rule = ClenshawCurtisGrowthRule()
+        assert (
+            max_level_for_univariate_npoints(rule, max_npoints) == expected
+        )
+
+    @pytest.mark.parametrize(
+        "rule",
+        [
+            LinearGrowthRule(1, 1),
+            LinearGrowthRule(2, 1),
+            ClenshawCurtisGrowthRule(),
+            ExponentialGrowthRule(2),
+        ],
+    )
+    @pytest.mark.parametrize("max_npoints", [1, 5, 17, 100])
+    def test_result_is_within_the_limit(self, rule, max_npoints) -> None:
+        """The defining property, across rules: within, and maximal.
+
+        Level 1 is returned even when it overruns, so that refinement
+        can always take a first step; that case is exempt from the
+        containment half.
+        """
+        level = max_level_for_univariate_npoints(rule, max_npoints)
+        assert level >= 1
+        if level > 1:
+            assert rule(level) <= max_npoints
+            # maximal: one more level would overrun
+            assert rule(level + 1) > max_npoints
+
+    def test_tiny_limit_still_allows_one_level(self) -> None:
+        """A first refinement step is always possible."""
+        rule = ExponentialGrowthRule(2)
+        assert max_level_for_univariate_npoints(rule, 1) == 1
+
+    @pytest.mark.parametrize("max_npoints", [0, -1, -100])
+    def test_nonpositive_limit_raises(self, max_npoints: int) -> None:
+        rule = LinearGrowthRule(1, 1)
+        with pytest.raises(ValueError, match="must be positive"):
+            max_level_for_univariate_npoints(rule, max_npoints)
+
+    def test_complements_inverse_growth_rule(self) -> None:
+        """The two search opposite directions from the same rule.
+
+        ``inverse_growth_rule`` gives the smallest level exceeding a
+        degree; this gives the largest level not exceeding a count. For
+        a rule where both are well inside their range, the level this
+        returns must not exceed the one that reaches that many points.
+        """
+        rule = LinearGrowthRule(scale=1, shift=1)
+        npoints = 20
+        capped = max_level_for_univariate_npoints(rule, npoints)
+        assert rule(capped) <= npoints
+        assert inverse_growth_rule(npoints, rule) > capped
 
 
 class TestComputeDownwardClosure:

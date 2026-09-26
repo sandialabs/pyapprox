@@ -30,6 +30,7 @@ from pyapprox.surrogates.affine.indices.growth_rules import (
     IndexGrowthRule,
     LinearGrowthRule,
     inverse_growth_rule,
+    max_level_for_univariate_npoints,
 )
 from pyapprox.surrogates.affine.indices.plot import (
     format_index_axes,
@@ -85,6 +86,7 @@ __all__ = [
     "ExponentialGrowthRule",
     "CubicNestedGrowthRule",
     "inverse_growth_rule",
+    "max_level_for_univariate_npoints",
     # Generators
     "IndexGenerator",
     "IterativeIndexGenerator",

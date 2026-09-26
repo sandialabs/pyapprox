@@ -217,3 +217,67 @@ def inverse_growth_rule(degree: int, growth_rule: IndexGrowthRule) -> int:
             return level
 
     raise ValueError(f"Could not find level for degree {degree} within search limit")
+
+
+def max_level_for_univariate_npoints(
+    growth_rule: IndexGrowthRule, max_npoints_1d: int
+) -> int:
+    """Highest level whose univariate rule stays within a point count.
+
+    The limit is **per dimension**, not a budget for the whole grid: a
+    tensor product of d dimensions each at this level holds far more
+    than ``max_npoints_1d`` points in total.
+
+    Use this to derive a level cap for adaptive refinement that is
+    stopped by a total sample budget. Passing that total budget
+    directly to the level cap leaves each dimension effectively
+    unbounded, since no single dimension could reach that many levels
+    before the budget stops the run. In low dimensions refinement then
+    drives one dimension far past the point where its interpolant is
+    conditioned, spending the budget on points that make the answer
+    worse rather than better.
+
+    The complement of :func:`inverse_growth_rule`, which returns the
+    smallest level exceeding a degree; this returns the largest level
+    not exceeding a count.
+
+    Found by walking the rule rather than inverting it, so it holds for
+    any growth rule.
+
+    Parameters
+    ----------
+    growth_rule : IndexGrowthRule
+        Maps level to number of points in one dimension.
+    max_npoints_1d : int
+        Largest number of points allowed in a single dimension. Must be
+        positive.
+
+    Returns
+    -------
+    int
+        Highest level with ``growth_rule(level) <= max_npoints_1d``, and
+        at least 1 so refinement can always take a first step.
+
+    Raises
+    ------
+    ValueError
+        If max_npoints_1d is not positive.
+
+    Examples
+    --------
+    >>> rule = LinearGrowthRule(scale=1, shift=1)  # n(l) = l + 1
+    >>> max_level_for_univariate_npoints(rule, 100)
+    99
+    >>> rule = ClenshawCurtisGrowthRule()  # n(l) = 2^l + 1
+    >>> max_level_for_univariate_npoints(rule, 100)
+    6
+    """
+    if max_npoints_1d < 1:
+        raise ValueError(
+            f"max_npoints_1d must be positive, got {max_npoints_1d}"
+        )
+
+    level = 0
+    while growth_rule(level + 1) <= max_npoints_1d:
+        level += 1
+    return max(level, 1)
