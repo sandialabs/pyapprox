@@ -96,6 +96,9 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
     ClenshawCurtisLagrangeFactory,
     PiecewiseFactory,
 )
+from pyapprox.surrogates.sparsegrids.statistics.moments import (
+    QuadratureMoments,
+)
 from pyapprox.surrogates.affine.indices import (
     ClenshawCurtisGrowthRule,
     CubicNestedGrowthRule,
@@ -608,7 +611,9 @@ for poly_type, growth in [
         samps = fitter.get_samples()
         vals = smooth_fn(samps)
         result = fitter.fit(vals)
-        mean_val = float(bkd.to_numpy(result.surrogate.mean()))
+        mean_val = float(
+            bkd.to_numpy(QuadratureMoments(result.surrogate).mean())
+        )
         print(
             f"{poly_type:<12} {lev:>5} {samps.shape[1]:>6}"
             f" {mean_val:>12.6e} {abs(mean_val):>10.2e}"

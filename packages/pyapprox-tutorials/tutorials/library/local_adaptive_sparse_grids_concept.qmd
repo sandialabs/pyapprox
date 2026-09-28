@@ -147,6 +147,9 @@ from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d import (
 from pyapprox.surrogates.sparsegrids.hierarchical.hierarchical_fitter import (
     SingleFidelityHierarchicalFitter,
 )
+from pyapprox.surrogates.sparsegrids.statistics.hierarchical_moments import (
+    HierarchicalMoments,
+)
 from pyapprox.surrogates.affine.indices.admissibility import MaxLevelCriteria
 
 def f_kink(x):
@@ -227,7 +230,9 @@ result = fitter.refine_to_tolerance(
     FunctionFromCallable(1, 2, f_corner, bkd),
     tol=1e-3, max_steps=300,
 )
-mean_val = float(bkd.to_numpy(result.surrogate.mean())[0])
+mean_val = float(
+    bkd.to_numpy(HierarchicalMoments(result.surrogate).mean())[0]
+)
 print(f"Selected {result.nsamples} points; mean ≈ {mean_val:.4f}")
 ```
 

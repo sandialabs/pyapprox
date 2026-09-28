@@ -39,7 +39,7 @@ After completing this tutorial, you will be able to:
 - Construct isotropic sparse grids using `IsotropicSparseGridFitter`
 - Compare sparse grid point counts with tensor product grids across dimensions
 - Measure sparse grid convergence against the theoretical rate $N^{-r}(\log N)^{(r+2)(D-1)+1}$
-- Compute statistics via `surrogate.mean()`
+- Compute statistics via `QuadratureMoments`
 
 
 ## Prerequisites
@@ -479,9 +479,9 @@ plt.show()
 ```
 
 
-## Computing Statistics with `surrogate.mean()`
+## Computing Statistics with `QuadratureMoments`
 
-Sparse grids double as **quadrature rules**: the combination of 1D quadrature weights yields multivariate weights that integrate polynomials of the appropriate mixed degree exactly.  The `surrogate.mean()` method returns $\mathbb{E}[f(\mathbf{Z})]$ for the measure determined by the 1D bases.
+Sparse grids double as **quadrature rules**: the combination of 1D quadrature weights yields multivariate weights that integrate polynomials of the appropriate mixed degree exactly.  `QuadratureMoments` applies that rule to a fitted surrogate, and its `mean()` returns $\mathbb{E}[f(\mathbf{Z})]$ for the measure determined by the 1D bases.
 
 ```{python}
 # Compute E[cos(πZ₁)cos(πZ₂/2)] over U(-1,1)²
@@ -496,8 +496,17 @@ values_quad = target_function(samples_quad, bkd)
 result_quad = fitter_quad.fit(values_quad)
 nsamples_quad = samples_quad.shape[1]
 
-sg_mean = float(result_quad.surrogate.mean()[0])
+from pyapprox.surrogates.sparsegrids.statistics.moments import (
+    QuadratureMoments,
+)
+
+sg_mean = float(QuadratureMoments(result_quad.surrogate).mean()[0])
 ```
+
+::: {.callout-note}
+## The mean is the straightforward one
+The rule integrates the fitted interpolant exactly, so this mean is the interpolant's own --- the only error is how well the interpolant matches $f$. The variance is less simple, because $f^2$ has twice the degree and the rule may not reach it. [UQ with Sparse Grids](uq_with_sparse_grids.qmd) takes that up.
+:::
 
 
 ## Summary
@@ -506,7 +515,7 @@ sg_mean = float(result_quad.surrogate.mean()[0])
 - Smolyak coefficients alternate in sign; their sum over any downward-closed index set equals 1.
 - For $D$ dimensions and $r$ mixed derivatives, the sparse grid error satisfies $O(N^{-r}(\log N)^{(r+2)(D-1)+1})$ vs. $O(N^{-r/D})$ for tensor products.
 - The growth rule (linear, Clenshaw-Curtis, exponential) controls how rapidly the 1D node count grows with level. Certain quadrature rules demand specific growth patterns (e.g. Clenshaw-Curtis requires Clenshaw-Curtis growth), while faster growth adds larger subspace grids at each new level, enabling greater parallelism of function evaluations in adaptive settings.
-- `surrogate.mean()` provides a direct route to computing $\mathbb{E}[f]$ without additional sampling.
+- `QuadratureMoments(surrogate).mean()` provides a direct route to computing $\mathbb{E}[f]$ without additional sampling.
 
 
 ## Exercises
@@ -520,7 +529,7 @@ sg_mean = float(result_quad.surrogate.mean()[0])
 
 3. **High dimensions.** For $D = 6$ and $l = 3$, compute the sparse grid and tensor product point counts.  What is the ratio?
 
-4. **Statistics.** Use `surrogate.mean()` to compute $\mathbb{E}[\cos(\pi z_1)\cos(\pi z_2/2)]$ over $\mathcal{U}(-1,1)^2$.  Compare with the known analytic value (which is 0, by symmetry of cosine over $[-1,1]$).
+4. **Statistics.** Use `QuadratureMoments(surrogate).mean()` to compute $\mathbb{E}[\cos(\pi z_1)\cos(\pi z_2/2)]$ over $\mathcal{U}(-1,1)^2$.  Compare with the known analytic value (which is 0, by symmetry of cosine over $[-1,1]$).
 :::
 
 

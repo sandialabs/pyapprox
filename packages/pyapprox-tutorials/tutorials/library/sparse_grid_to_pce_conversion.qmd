@@ -312,13 +312,24 @@ plt.show()
 
 The maximum error should be near machine epsilon ($\sim 10^{-15}$), confirming that the conversion is exact for polynomial functions.
 
+The conversion preserves moments as well as pointwise values. `PCEMoments` reads them off the converted coefficients, and `QuadratureMoments` applies the sparse grid rule directly; for this target the grid integrates both $f$ and $f^2$ exactly, so the two agree.
+
 ```{python}
-# Verify moments match
-sg_mean_l2 = bkd.to_numpy(sg_l2.mean())
-pce_mean_l2 = bkd.to_numpy(pce_l2.mean())
-sg_var_l2 = bkd.to_numpy(sg_l2.variance())
-pce_var_l2 = bkd.to_numpy(pce_l2.variance())
+from pyapprox.surrogates.sparsegrids.statistics.moments import (
+    PCEMoments,
+    QuadratureMoments,
+)
+
+quad_l2 = QuadratureMoments(sg_l2)
+pce_mom_l2 = PCEMoments(sg_l2, bases_1d_2d)
+
+print(f"mean:     quadrature {float(quad_l2.mean()[0]):.15f}")
+print(f"          PCE        {float(pce_mom_l2.mean()[0]):.15f}")
+print(f"variance: quadrature {float(quad_l2.variance()[0]):.15f}")
+print(f"          PCE        {float(pce_mom_l2.variance()[0]):.15f}")
 ```
+
+The agreement here is a property of this target, not of the conversion. $f = x_1^2 + x_1 x_2$ is degree 2, so $f^2$ is degree 4 and the level-2 rule still integrates it exactly. Raise the degree past what the rule resolves and the quadrature variance departs from the PCE one, while the means stay locked together --- the rule integrates the interpolant itself exactly at any level.
 
 
 ## When Does This Work?
@@ -329,7 +340,9 @@ The SG-to-PCE conversion is **exact** when:
 
 2. **The Gauss quadrature rule has enough points.** A Gauss rule with $n+1$ points integrates polynomials of degree $2n+1$ exactly. Since $L_j \cdot P_k$ has degree at most $2(n-1)$, using $n+1$ quadrature points is always sufficient.
 
-3. **The sparse grid uses polynomial (Lagrange) bases.** If you use piecewise linear or piecewise quadratic bases instead, the projection formula still applies but the result is an *approximation* rather than an exact change of basis, since piecewise polynomials do not live in the global polynomial space.
+3. **The sparse grid uses globally polynomial (Lagrange) bases** --- Gauss, Leja or Clenshaw--Curtis. Piecewise linear and piecewise quadratic bases are **rejected**: the converter raises rather than returning coefficients. The projection integrates $L_j \cdot P_k$ by Gauss quadrature, which is exact only because $L_j$ is a polynomial; a piecewise basis has breakpoints the quadrature cannot see, so the integral is wrong and the resulting expansion is not the interpolant. The failure is quiet enough to be worth refusing --- for one piecewise fit the converted variance came out $0.7254$ where the true value is $2/3$ --- so the error names the restriction instead.
+
+    For the variance of a piecewise surrogate, use `CrossMomentMoments`, which is exact for any basis, or `QuadratureMoments` for the rule's.
 
 
 ## Key Takeaways

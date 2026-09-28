@@ -36,7 +36,7 @@ jupyter: python3
 
 After completing this tutorial, you will be able to:
 
-- Compute mean and variance directly from a sparse grid surrogate (Smolyak quadrature)
+- Compute mean and variance directly from a sparse grid surrogate with `QuadratureMoments`, and tell that variance apart from the surrogate's own
 - Explain why sparse grids can represent the same function as a PCE with nested point sets
 - Convert a Lagrange-based sparse grid to a PCE using `SparseGridToPCEConverter`
 - Compute covariance and Sobol sensitivity indices from the converted PCE
@@ -101,29 +101,41 @@ surrogate = result.surrogate
 
 ## Native Moments from Smolyak Quadrature
 
-`CombinationSurrogate` computes moments via the Smolyak combination of tensor product quadrature rules --- no extra sampling and no basis conversion needed:
+A sparse grid is also a quadrature rule: combining the tensor product rules with the Smolyak coefficients $c_k$ gives weights $w$ at the grid points $\boldsymbol{\theta}^{(i)}$, and any integral against the input measure becomes a weighted sum. `QuadratureMoments` applies that rule, with no extra sampling and no basis conversion:
 
 $$
-\mathbb{E}[\hat{f}] = \sum_k c_k \int \hat{f}_k(\boldsymbol{\theta})\, d\mu(\boldsymbol{\theta}),
+Q_K[g] = \sum_i w_i\, g(\boldsymbol{\theta}^{(i)}),
 \qquad
-\text{Var}[\hat{f}] = \sum_k c_k \left(\int \hat{f}_k^2\, d\mu - \left(\int \hat{f}_k\, d\mu\right)^2\right)
+\mathbb{E} \approx Q_K[f],
+\qquad
+\text{Var} \approx Q_K[f^2] - \left(Q_K[f]\right)^2
 $$
-
-where $c_k$ are Smolyak coefficients and each integral is exact for the polynomial subspace $\hat{f}_k$.
 
 ```{python}
-sg_mean = bkd.to_numpy(surrogate.mean())
-sg_var = bkd.to_numpy(surrogate.variance())
+from pyapprox.surrogates.sparsegrids.statistics.moments import (
+    QuadratureMoments,
+)
+
+quad_moments = QuadratureMoments(surrogate)
+sg_mean = bkd.to_numpy(quad_moments.mean())
+sg_var = bkd.to_numpy(quad_moments.variance())
 ```
 
 ::: {.callout-important}
-## Exact for the surrogate
-These formulas are *exact* for the fitted sparse grid surrogate $\hat{f}$, not the true model $f$. The only source of error is the surrogate approximation itself --- same caveat as PCE.
+## Which variance is this?
+$Q_K[f^2] - (Q_K[f])^2$ is the **quadrature rule's** variance, not the surrogate's. The rule integrates $f$ exactly for polynomials within its reach, but $f^2$ has twice the degree, so the second moment is generally *not* exact. Because Smolyak coefficients are signed, $Q_K$ is a signed rule and this expression can even come out negative on a coarse grid.
+
+For $\text{Var}[\hat{f}]$, the exact variance of the fitted surrogate, convert to PCE and use `PCEMoments` --- shown below. The two agree once the grid resolves $f^2$, and differ before that.
+:::
+
+::: {.callout-note}
+## A third quantity: the refinement proxy
+Adaptive refinement scores candidates with `SummedSubspaceVarianceIndicator`, which sums each subspace's own variance, $\sum_k c_k \text{Var}_k$. That is **neither** of the two above. It is a cheap ranking signal, not an estimate of anything, and it is not what you should report. `QuadratureVarianceIndicator` and `PCEVarianceIndicator` refine on the two definitions above instead, if you would rather the indicator and the reported number agree.
 :::
 
 ::: {.callout-note}
 ## Covariance and Sobol indices require conversion
-`CombinationSurrogate` provides `mean()` and `variance()` natively. For **covariance**, **Sobol indices**, or **marginalization**, we need to convert the sparse grid to a PCE --- that is the subject of the next section.
+`QuadratureMoments` provides `mean()` and `variance()`. For **covariance**, **Sobol indices**, or **marginalization**, we need to convert the sparse grid to a PCE --- that is the subject of the next section.
 :::
 
 
@@ -147,15 +159,30 @@ converter = SparseGridToPCEConverter(bkd, bases_1d)
 pce = converter.convert(surrogate)
 ```
 
-The converted PCE gives us the full analytical moment toolkit. Let us verify that its mean and variance match the native sparse grid moments:
+The converted PCE gives us the full analytical moment toolkit. `PCEMoments` reads the moments straight off its coefficients: $\mathbb{E}[\hat{f}] = c_0$ and $\text{Var}[\hat{f}] = \sum_{\alpha \neq 0} c_\alpha^2$, both exact for the surrogate.
 
 ```{python}
-pce_mean = bkd.to_numpy(pce.mean())
-pce_var = bkd.to_numpy(pce.variance())
+from pyapprox.surrogates.sparsegrids.statistics.moments import PCEMoments
+
+pce_moments = PCEMoments(surrogate, create_bases_1d(marginals, bkd))
+pce_mean = bkd.to_numpy(pce_moments.mean())
+pce_var = bkd.to_numpy(pce_moments.variance())
 pce_cov = bkd.to_numpy(pce.covariance())
 ```
 
-The SG and PCE moments should agree to near machine precision, since both represent the same polynomial interpolant --- just in different bases.
+**The means agree to machine precision**: the rule integrates $\hat{f}$ exactly, and $c_0$ is that same integral.
+
+**The variances need not.** $\text{Var}[\hat{f}]$ is exact, while $Q_K[f^2] - (Q_K[f])^2$ asks the rule to integrate $f^2$, which it does exactly only once the grid is fine enough for twice the degree. Let us look at both:
+
+```{python}
+#| echo: true
+print(f"mean:      quadrature {sg_mean[0]:.12f}   PCE {pce_mean[0]:.12f}")
+print(f"variance:  quadrature {sg_var[0]:.12f}   PCE {pce_var[0]:.12f}")
+print(f"relative variance difference: "
+      f"{abs(sg_var[0] - pce_var[0]) / abs(pce_var[0]):.3e}")
+```
+
+A gap here is not an error in either number --- they are answers to different questions. It closes as the grid resolves $f^2$.
 
 
 ## Sensitivity Analysis via Converted PCE
@@ -297,8 +324,15 @@ for lev, N_bud in zip(sg_levels, sg_npts_list):
         s_sg = fitter_rep.get_samples()
         v_sg = model(s_sg)
         res_rep = fitter_rep.fit(v_sg)
-        sg_mu = bkd.to_numpy(res_rep.surrogate.mean())[qoi_plot]
-        sg_va = bkd.to_numpy(res_rep.surrogate.variance())[qoi_plot]
+        # PCEMoments, not QuadratureMoments: this compares against the
+        # true moments, so the surrogate's own exact variance isolates
+        # the approximation error instead of mixing in the rule's error
+        # on f^2.
+        mom_rep = PCEMoments(
+            res_rep.surrogate, create_bases_1d(marginals, bkd)
+        )
+        sg_mu = bkd.to_numpy(mom_rep.mean())[qoi_plot]
+        sg_va = bkd.to_numpy(mom_rep.variance())[qoi_plot]
         sg_mean_errors[N_bud].append(
             abs(sg_mu - true_mean) / abs(true_mean)
         )
@@ -325,7 +359,8 @@ The sparse grid achieves lower error than Monte Carlo for the same number of mod
 
 ## Key Takeaways
 
-- Sparse grids give **mean and variance natively** via Smolyak quadrature --- no conversion needed
+- `QuadratureMoments` gives **mean and variance natively** via Smolyak quadrature --- no conversion needed
+- **Two different variances**, and the difference matters: `QuadratureMoments` gives the quadrature rule's, $Q_K[f^2] - (Q_K[f])^2$, which needs the grid to resolve $f^2$ and can go negative on a coarse grid; `PCEMoments` gives the surrogate's own, exact. The means agree either way. A third quantity, the summed per-subspace variance the refinement indicator uses, is a ranking signal and not an estimate to report.
 - For **covariance, Sobol indices, and marginalization**, convert to PCE via `SparseGridToPCEConverter`
 - `SparseGridSensitivityAnalysis` is a convenience wrapper that handles the conversion internally
 - The converted PCE is **mathematically equivalent** to the sparse grid interpolant, just re-expanded in an orthonormal basis
@@ -334,7 +369,7 @@ The sparse grid achieves lower error than Monte Carlo for the same number of mod
 
 ## Exercises
 
-1. Compare SG moments at levels 2, 3, and 4. How quickly do the mean and variance converge?
+1. Compare SG moments at levels 2, 3, and 4. How quickly do the mean and variance converge? Compute both `QuadratureMoments(surrogate).variance()` and `PCEMoments(surrogate, bases_1d).variance()` at each level: the gap between them measures how far the rule is from resolving $f^2$, and should shrink as the level rises even where both are still far from the true variance.
 
 2. Use `pce.total_sobol_indices()` directly on the converted PCE. Verify the results match `SparseGridSensitivityAnalysis.total_effects()`.
 
