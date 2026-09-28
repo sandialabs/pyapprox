@@ -107,6 +107,16 @@ section is renamed to the version number when a release is tagged (see
   order comes from an injected `PriorityProtocol`, defaulting to error
   per unit cost. `CandidateInfo` → `Candidate`, which carries the
   candidate's backward box instead of two prebuilt surrogates.
+  `smolyak_coefs_with_candidate` was removed with no replacement; use
+  `IncrementalSmolyakCoefficients`.
+- Sparse grid subspace values are write-once: a second `set_values()`
+  raises, as does a second `fit()` on one fitter. `append_new_values`
+  requires every outstanding sample in a single call.
+- `SparseGridToPCEConverter` raises for a non-polynomial interpolation
+  basis (piecewise linear or quadratic) instead of returning
+  coefficients that do not describe the interpolant. Use
+  `CrossMomentMoments` for the variance of a piecewise surrogate, or
+  `QuadratureMoments` for the rule's.
 - Adaptive sparse grid `result()` now defaults to
   `include_candidates=True`, so all evaluated candidate subspaces are
   included in the surrogate; it raises `RuntimeError` if a candidate
@@ -120,6 +130,14 @@ section is renamed to the version number when a release is tagged (see
 
 ### Fixed
 
+- Leja sequences were placed outside the marginal's support whenever
+  its domain differed from the polynomial's canonical one: a
+  `UniformMarginal(0, 1)` produced points spanning only `[0.5, 1]` and
+  a `UniformMarginal(2, 4)` produced `[5, 7]`. Any Leja sparse grid on
+  such a marginal was built on the wrong points, and accuracy degraded
+  sharply as levels rose. Symmetric marginals such as
+  `UniformMarginal(-1, 1)` and `GaussianMarginal(0, 1)` were
+  unaffected. Results on affected marginals will change, and improve.
 - Surrogates and OED likelihood objects (Lagrange/tensor-product/sparse-grid
   interpolants, `MultiIndexBasis`, Gaussian OED likelihoods) could not be
   pickled, blocking multiprocess use

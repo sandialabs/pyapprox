@@ -4,7 +4,10 @@ A fitted sparse grid surrogate that evaluates as a weighted sum of
 tensor product subspaces using Smolyak combination coefficients.
 
 This class contains NO fitting logic — it is constructed by fitters
-and used purely for evaluation, derivatives, and moment computation.
+and used purely for evaluation and derivatives. Moments are computed
+by the classes in ``sparsegrids/statistics``, which take a surrogate:
+``QuadratureMoments`` for the sparse grid rule's, ``PCEMoments`` or
+``CrossMomentMoments`` for the surrogate's own.
 """
 
 from typing import Generic, List, Optional
@@ -444,50 +447,6 @@ class CombinationSurrogate(Generic[Array]):
             coef: float = self._coefs[j].item()
             if abs(coef) > 1e-14:
                 result = result + coef * sub_whvp(samples, vecs, weights)
-        return result
-
-    # ------------------------------------------------------------------
-    # Moments
-    # ------------------------------------------------------------------
-
-    def mean(self) -> Array:
-        """Compute mean (expected value) via sparse grid quadrature.
-
-        Returns
-        -------
-        Array
-            Mean values, shape (nqoi,).
-        """
-        return self._compute_moment("integrate")
-
-    def variance(self) -> Array:
-        """Compute variance via sparse grid quadrature.
-
-        Returns
-        -------
-        Array
-            Variance values, shape (nqoi,).
-        """
-        return self._compute_moment("variance")
-
-    def _compute_moment(self, moment: str) -> Array:
-        """Compute a moment using Smolyak combination.
-
-        Parameters
-        ----------
-        moment : str
-            Either "integrate" or "variance".
-
-        Returns
-        -------
-        Array
-            Moment values, shape (nqoi,).
-        """
-        result = self._bkd.zeros((self._nqoi,))
-        for j, subspace in enumerate(self._subspaces):
-            coef: float = self._coefs[j].item()
-            if abs(coef) > 1e-14:
-                result = result + coef * getattr(subspace, moment)()
         return result
 
     def __repr__(self) -> str:

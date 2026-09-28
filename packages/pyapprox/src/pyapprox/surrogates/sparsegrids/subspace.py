@@ -270,62 +270,6 @@ class TensorProductSubspace(Generic[Array]):
         """
         return outer_product_weights(self._1d_weights, self._bkd)
 
-    def integrate(self) -> Array:
-        """Compute integral using tensor product quadrature.
-
-        Computes the weighted sum:
-            integral f(x) w(x) dx ≈ sum_i weights[i] * f(x_i)
-
-        where w(x) is the weight function associated with the polynomial
-        basis. For orthonormal polynomials with probability=True, the
-        weights sum to 1 and this directly computes the expectation E[f].
-
-        Returns
-        -------
-        Array
-            Integral values of shape (nqoi,)
-
-        Notes
-        -----
-        For exactly interpolated functions (polynomials up to the
-        quadrature degree), this gives the exact integral.
-        """
-        values = self._interpolant.get_values()
-        if values is None:
-            raise ValueError("Values not set. Call set_values() first.")
-
-        weights = self.get_quadrature_weights()
-        # values is (nqoi, nsamples), weights is (nsamples,)
-        # Result should be (nqoi,)
-        return values @ weights
-
-    def variance(self) -> Array:
-        """Compute variance using tensor product quadrature.
-
-        Computes Var[f] = E[f^2] - E[f]^2 using the same quadrature weights
-        as integrate(). This matches the legacy implementation in
-        pyapprox.surrogates.affine.basisexp.TensorProductInterpolant.variance().
-
-        Returns
-        -------
-        Array
-            Variance values of shape (nqoi,)
-
-        Notes
-        -----
-        For exactly interpolated functions (polynomials up to the
-        quadrature degree), this gives the exact variance.
-        """
-        values = self._interpolant.get_values()
-        if values is None:
-            raise ValueError("Values not set. Call set_values() first.")
-
-        weights = self.get_quadrature_weights()
-        mean = self.integrate()
-        # E[f^2] = (values^2) @ weights, values is (nqoi, nsamples)
-        mean_sq = (values**2) @ weights
-        return mean_sq - mean**2
-
     def __repr__(self) -> str:
         index_str = ",".join(str(int(i)) for i in self._index)
         return f"TensorProductSubspace(index=[{index_str}], nsamples={self.nsamples()})"
