@@ -8,7 +8,6 @@ accuracy tests matching legacy test_leja.py test cases.
 from typing import Any, Callable, Tuple
 
 import pytest
-
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -34,6 +33,7 @@ from pyapprox.surrogates.affine.univariate import (
 from pyapprox.surrogates.affine.univariate.lagrange import (
     LagrangeBasis1D,
 )
+
 from tests._helpers.markers import slow_test
 
 

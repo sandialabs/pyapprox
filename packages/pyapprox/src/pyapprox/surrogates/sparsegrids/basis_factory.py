@@ -39,6 +39,7 @@ from typing import (
     Optional,
     Protocol,
     Tuple,
+    Type,
     runtime_checkable,
 )
 
@@ -47,7 +48,10 @@ from pyapprox.surrogates.affine.leja.protocols import (
     LejaSequence1DProtocol,
     LejaWeightingProtocol,
 )
-from pyapprox.surrogates.affine.leja.univariate import LejaSequence1D
+from pyapprox.surrogates.affine.leja.univariate import (
+    LejaObjective,
+    LejaSequence1D,
+)
 from pyapprox.surrogates.affine.leja.weighting import (
     ChristoffelWeighting,
     PDFWeighting,
@@ -247,12 +251,21 @@ class LejaLagrangeFactory(Generic[Array]):
         Univariate marginal distribution.
     bkd : Backend[Array]
         Computational backend.
-    weighting : str, optional
-        Weighting strategy for Leja optimization. One of "christoffel"
-        (default) or "pdf".
+    weighting : LejaWeightingProtocol[Array], optional
+        Weighting strategy for Leja optimization. Defaults to
+        ``ChristoffelWeighting(bkd)``. Construct the one you want and
+        pass it: ``PDFWeighting(bkd, marginal.pdf)`` and
+        ``CompositeWeighting`` are in
+        ``pyapprox.surrogates.affine.leja``, and anything satisfying
+        the protocol works without a library change.
     eps : float, optional
         Probability mass for bounds of unbounded distributions.
         Default: 1e-6 (captures 1-eps probability mass).
+    objective_class : Type[LejaObjective[Array]], optional
+        Objective the sequence optimizes to place each new point.
+        Defaults to ``LejaObjective``, which adds one point at a time.
+        ``TwoPointLejaObjective`` adds a pair, which avoids the
+        zero-weight point a single addition can produce.
 
     Examples
     --------
@@ -270,12 +283,21 @@ class LejaLagrangeFactory(Generic[Array]):
         self,
         marginal: MarginalProtocol[Array],
         bkd: Backend[Array],
-        weighting: str = "christoffel",
+        weighting: Optional[LejaWeightingProtocol[Array]] = None,
         eps: float = 1e-6,
+        objective_class: Optional[Type[LejaObjective[Array]]] = None,
     ) -> None:
+        if weighting is None:
+            weighting = ChristoffelWeighting(bkd)
+        elif not isinstance(weighting, LejaWeightingProtocol):
+            raise TypeError(
+                "weighting must satisfy LejaWeightingProtocol, got "
+                f"{type(weighting).__name__}"
+            )
         self._marginal = marginal
         self._bkd = bkd
-        self._weighting_type = weighting
+        self._weighting = weighting
+        self._objective_class = objective_class
         self._eps = eps
         self._leja_seq: Optional[LejaSequence1DProtocol[Array]] = None
         self._transform: Optional[Univariate1DTransformProtocol[Array]] = None
@@ -314,18 +336,14 @@ class LejaLagrangeFactory(Generic[Array]):
             float(bounds_array[0, 1]),
         )
 
-        # Create weighting
-        weighting: LejaWeightingProtocol[Array]
-        if self._weighting_type == "christoffel":
-            weighting = ChristoffelWeighting(self._bkd)
-        elif self._weighting_type == "pdf":
-            # For PDF weighting we need the marginal's PDF
-            weighting = PDFWeighting(self._bkd, self._marginal.pdf)
-        else:
-            raise ValueError(f"Unknown weighting: {self._weighting_type}")
-
         # Create Leja sequence in canonical domain
-        self._leja_seq = LejaSequence1D(self._bkd, poly, weighting, bounds=bounds)
+        self._leja_seq = LejaSequence1D(
+            self._bkd,
+            poly,
+            self._weighting,
+            bounds=bounds,
+            objective_class=self._objective_class,
+        )
 
         return self._leja_seq
 
@@ -361,7 +379,7 @@ class LejaLagrangeFactory(Generic[Array]):
     def __repr__(self) -> str:
         return (
             f"LejaLagrangeFactory(marginal={self._marginal!r}, "
-            f"weighting={self._weighting_type!r})"
+            f"weighting={type(self._weighting).__name__})"
         )
 
 
@@ -789,12 +807,31 @@ def _create_gauss_factory(
 def _create_leja_factory(
     marginal: Any, bkd: Backend[Array], **kwargs: Any
 ) -> LejaLagrangeFactory[Array]:
-    """Factory creator for Leja-Lagrange basis."""
+    """Factory creator for Leja-Lagrange basis.
+
+    ``weighting`` arrives here as a name because ``basis_type`` does,
+    so this is where a name becomes an object. Construct the weighting
+    yourself and pass it to ``LejaLagrangeFactory`` to use one this
+    mapping does not cover.
+    """
+    weighting = kwargs.get("weighting", "christoffel")
+    if isinstance(weighting, str):
+        if weighting == "christoffel":
+            weighting = ChristoffelWeighting(bkd)
+        elif weighting == "pdf":
+            weighting = PDFWeighting(bkd, marginal.pdf)
+        else:
+            raise ValueError(
+                f"Unknown weighting name {weighting!r}; expected "
+                "'christoffel' or 'pdf'. Pass a LejaWeightingProtocol "
+                "object for any other weighting."
+            )
     return LejaLagrangeFactory(
         marginal,
         bkd,
-        weighting=kwargs.get("weighting", "christoffel"),
+        weighting=weighting,
         eps=kwargs.get("eps", 1e-6),
+        objective_class=kwargs.get("objective_class"),
     )
 
 

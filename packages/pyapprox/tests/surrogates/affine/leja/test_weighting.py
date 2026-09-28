@@ -1,8 +1,8 @@
 """Tests for Leja weighting strategies."""
 
-from scipy import stats
-
+import pytest
 from pyapprox.probability import ScipyContinuousMarginal
+from scipy import stats
 
 
 class TestChristoffelWeighting:
@@ -88,3 +88,56 @@ class TestPDFWeighting:
         # rv() expects (1, nsamples) and returns (1, nsamples)
         expected = rv(samples)[0, :]
         bkd.assert_allclose(weights[:, 0], expected, rtol=1e-10)
+
+    def test_accepts_a_marginal_pdf_directly(self, bkd) -> None:
+        """A marginal's own pdf is a valid argument, unwrapped.
+
+        ``marginal.pdf`` requires (1, nsamples) and rejects 1D input,
+        so passing it is what pins the calling convention. A wrapper
+        that reshapes would accept either and prove nothing.
+        """
+        from pyapprox.probability import UniformMarginal
+        from pyapprox.surrogates.affine.leja import PDFWeighting
+
+        marginal = UniformMarginal(0.0, 1.0, bkd)
+        weighting = PDFWeighting(bkd, marginal.pdf)
+        samples = bkd.asarray([[0.1, 0.5, 0.9]])
+        basis_values = bkd.asarray([[1.0], [1.0], [1.0]])
+
+        weights = weighting(samples, basis_values)
+        assert weights.shape == (3, 1)
+        # Uniform on [0, 1] has density 1 everywhere inside it.
+        bkd.assert_allclose(
+            weights[:, 0], bkd.asarray([1.0, 1.0, 1.0]), rtol=1e-12
+        )
+
+    def test_rejects_samples_that_are_not_a_single_row(self, bkd) -> None:
+        """Univariate weighting: anything but (1, nsamples) is a bug.
+
+        Passing 1D samples reaches the pdf as an array it cannot
+        interpret, and the error it raises names the pdf rather than
+        the caller, so the shape is checked here instead.
+        """
+        from pyapprox.probability import UniformMarginal
+        from pyapprox.surrogates.affine.leja import PDFWeighting
+
+        weighting = PDFWeighting(
+            bkd, UniformMarginal(0.0, 1.0, bkd).pdf
+        )
+        basis_values = bkd.asarray([[1.0], [1.0]])
+        for bad in (
+            bkd.asarray([0.1, 0.5]),
+            bkd.asarray([[0.1, 0.5], [0.2, 0.6]]),
+        ):
+            with pytest.raises(ValueError, match=r"\(1, nsamples\)"):
+                weighting(bad, basis_values)
+
+    def test_rejects_a_pdf_returning_the_wrong_count(self, bkd) -> None:
+        """One weight per sample, or the sequence is silently wrong."""
+        from pyapprox.surrogates.affine.leja import PDFWeighting
+
+        weighting = PDFWeighting(bkd, lambda s: bkd.asarray([1.0]))
+        with pytest.raises(ValueError, match="one value per sample"):
+            weighting(
+                bkd.asarray([[0.1, 0.5, 0.9]]), bkd.asarray([[1.0]])
+            )

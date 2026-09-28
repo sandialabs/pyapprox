@@ -109,12 +109,13 @@ class PDFWeighting(Generic[Array]):
     bkd : Backend[Array]
         Computational backend.
     pdf : Callable[[Array], Array]
-        Probability density function. Takes samples of shape (nsamples,)
-        and returns PDF values of shape (nsamples,).
+        Probability density function. Takes samples of shape
+        (1, nsamples) and returns one value per sample. This is the
+        shape a marginal's ``pdf`` accepts, so ``marginal.pdf`` can be
+        passed directly.
     pdf_jacobian : Callable[[Array], Array], optional
-        Jacobian of PDF. Takes samples of shape (nsamples,) and returns
-        Jacobians of shape (nsamples,). Required for gradient-based
-        optimization.
+        Jacobian of PDF, same calling convention. Required for
+        gradient-based optimization.
 
     Examples
     --------
@@ -123,10 +124,12 @@ class PDFWeighting(Generic[Array]):
     >>> from scipy import stats
     >>> bkd = NumpyBkd()
     >>> rv = stats.norm(0, 1)
-    >>> weighting = PDFWeighting(bkd, rv.pdf)
+    >>> weighting = PDFWeighting(bkd, lambda x: rv.pdf(x[0]))
     >>> samples = bkd.asarray([[0.0, 0.5, 1.0]])
     >>> basis_values = bkd.asarray([[1.0, 0.0], [1.0, 0.5], [1.0, 1.0]])
     >>> weights = weighting(samples, basis_values)
+    >>> weights.shape
+    (3, 1)
     """
 
     def __init__(
@@ -160,8 +163,20 @@ class PDFWeighting(Generic[Array]):
         Array
             Weights for each sample. Shape: (nsamples, 1)
         """
-        # samples shape: (1, nsamples) for univariate
-        pdf_vals = self._pdf(samples[0])
+        if samples.ndim != 2 or samples.shape[0] != 1:
+            raise ValueError(
+                "samples must have shape (1, nsamples), got "
+                f"{tuple(samples.shape)}"
+            )
+        # samples is passed through as (1, nsamples), the shape a
+        # marginal's pdf accepts; a pdf given 1D input rejects it.
+        pdf_vals = self._bkd.flatten(self._pdf(samples))
+        if pdf_vals.shape[0] != samples.shape[1]:
+            raise ValueError(
+                f"pdf returned {pdf_vals.shape[0]} values for "
+                f"{samples.shape[1]} samples; it must return one value "
+                "per sample"
+            )
         return pdf_vals[:, None]
 
     def jacobian(

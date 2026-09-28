@@ -437,6 +437,137 @@ class TestLejaLagrangeFactory:
         bkd.assert_allclose(samples1, samples2, rtol=1e-12)
 
 
+class TestLejaWeightingAndObjectiveInjection:
+    """The factory takes the weighting and objective it should use.
+
+    A caller who wants a weighting the library does not name, or the
+    two-point objective, constructs it and passes it. Nothing here
+    enumerates the available implementations, so adding one needs no
+    change to this factory.
+    """
+
+    def test_default_weighting_is_christoffel(self, numpy_bkd) -> None:
+        """Passing nothing matches passing the default explicitly."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=numpy_bkd)
+        default = LejaLagrangeFactory(marginal, numpy_bkd).create_basis()
+        explicit = LejaLagrangeFactory(
+            marginal, numpy_bkd, weighting=ChristoffelWeighting(numpy_bkd)
+        ).create_basis()
+        default.set_nterms(6)
+        explicit.set_nterms(6)
+        numpy_bkd.assert_allclose(
+            default.quadrature_rule()[0],
+            explicit.quadrature_rule()[0],
+            atol=1e-12,
+        )
+
+    def test_injected_weighting_drives_the_placement(
+        self, numpy_bkd
+    ) -> None:
+        """The points must come from the weighting that was passed.
+
+        Asserting only that the object was called would pass for a
+        factory that called it and then ignored the result, so this
+        pins the points themselves: a weighting reporting a constant
+        selects differently from the Christoffel one, and every point
+        after the seed differs.
+        """
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=numpy_bkd)
+
+        class _ConstantWeighting:
+            """Weights every candidate equally."""
+
+            def __init__(self, bkd) -> None:
+                self._bkd = bkd
+
+            def bkd(self):
+                return self._bkd
+
+            def __call__(self, samples, basis_values):
+                return self._bkd.ones((samples.shape[1], 1))
+
+            def jacobian(self, samples, basis_values, basis_jacobians):
+                return self._bkd.zeros((samples.shape[1], 1))
+
+        def points(weighting):
+            basis = LejaLagrangeFactory(
+                marginal, numpy_bkd, weighting=weighting
+            ).create_basis()
+            basis.set_nterms(5)
+            return numpy_bkd.flatten(basis.quadrature_rule()[0])
+
+        christoffel = points(ChristoffelWeighting(numpy_bkd))
+        constant = points(_ConstantWeighting(numpy_bkd))
+
+        assert constant.shape[0] == christoffel.shape[0]
+        differences = [
+            abs(float(constant[i]) - float(christoffel[i]))
+            for i in range(1, christoffel.shape[0])
+        ]
+        assert max(differences) > 1e-6
+
+    def test_rejects_a_weighting_that_is_not_one(self, numpy_bkd) -> None:
+        """Checked at construction, not at first use."""
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=numpy_bkd)
+        with pytest.raises(TypeError, match="LejaWeightingProtocol"):
+            LejaLagrangeFactory(
+                marginal, numpy_bkd, weighting="christoffel"
+            )
+
+    def test_two_point_objective_places_different_points(
+        self, numpy_bkd
+    ) -> None:
+        """The objective must be the one that was passed.
+
+        Both objectives return the requested number of points inside
+        the domain, so a count and a bounds check pass either way.
+        What separates them is where the points go: the two-point
+        objective optimizes a pair at a time and places them
+        symmetrically about the domain's centre, which the
+        one-at-a-time objective does not.
+        """
+        marginal = UniformMarginal(lower=0.0, upper=1.0, bkd=numpy_bkd)
+
+        def points(objective_class):
+            basis = LejaLagrangeFactory(
+                marginal, numpy_bkd, objective_class=objective_class
+            ).create_basis()
+            basis.set_nterms(7)
+            return numpy_bkd.flatten(basis.quadrature_rule()[0])
+
+        default = points(None)
+        two_point = points(TwoPointLejaObjective)
+
+        assert two_point.shape[0] == 7
+        # Same seed, then the sequences part.
+        assert (
+            abs(float(two_point[3]) - float(default[3])) > 1e-3
+        )
+        # Pairs straddle the centre: each is the other's reflection.
+        for lo, hi in ((3, 4), (5, 6)):
+            reflected = 1.0 - float(two_point[lo])
+            assert abs(float(two_point[hi]) - reflected) < 1e-3
+
+    def test_name_to_object_mapping_lives_at_the_string_edge(
+        self, numpy_bkd
+    ) -> None:
+        """``basis_type`` arrives as a name, so a name is mapped there.
+
+        ``create_basis_factories`` is where a string from outside
+        Python becomes an object, and it keeps accepting the weighting
+        by name. The factory itself takes only objects.
+        """
+        marginals = [UniformMarginal(lower=0.0, upper=1.0, bkd=numpy_bkd)]
+        factory = create_basis_factories(
+            marginals, numpy_bkd, "leja", weighting="christoffel"
+        )[0]
+        assert isinstance(factory, LejaLagrangeFactory)
+        with pytest.raises(ValueError, match="Unknown weighting name"):
+            create_basis_factories(
+                marginals, numpy_bkd, "leja", weighting="nonesuch"
+            )
+
+
 class TestLejaDomainHandling:
     """Leja points land in, and spread across, the marginal's support.
 
