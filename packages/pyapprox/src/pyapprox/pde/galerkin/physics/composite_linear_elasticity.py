@@ -361,7 +361,12 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         return self._apply_bc_to_load(load, time)
 
     def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual F = b(t) - K*u without BC enforcement.
+        """Compute spatial residual F = b(t) - (K + K_Gamma)*u without
+        Dirichlet enforcement.
+
+        ``K_Gamma`` is the Robin stiffness, added here rather than in
+        :meth:`stiffness_matrix`, which stays the interior (Lame-dependent)
+        stiffness. The Robin data is already in :meth:`load_vector`.
 
         Parameters
         ----------
@@ -375,12 +380,12 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         Array
             Spatial residual. Shape: (nstates,)
         """
-        K = self.stiffness_matrix()
+        K = self._apply_bc_to_stiffness(self.stiffness_matrix(), time)
         b = self.load_vector(time)
         return b - K @ state
 
     def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute dF/du = -K without BC enforcement.
+        """Compute dF/du = -(K + K_Gamma) without Dirichlet enforcement.
 
         Parameters
         ----------
@@ -394,7 +399,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         Array
             Jacobian matrix. Shape: (nstates, nstates)
         """
-        return -self.stiffness_matrix()
+        return -self._apply_bc_to_stiffness(self.stiffness_matrix(), time)
 
     def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a displacement field.
