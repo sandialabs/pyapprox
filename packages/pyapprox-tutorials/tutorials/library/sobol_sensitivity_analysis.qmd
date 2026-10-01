@@ -96,13 +96,14 @@ where $\theta_{\sim i}$ means all parameters except $\theta_i$.
 import numpy as np
 import matplotlib.pyplot as plt
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox_benchmarks.functions.ode import SingleStateEndpointODEFunctional
 from pyapprox_benchmarks.ode import build_lotka_volterra_3species
 
 bkd = NumpyBkd()
 problem = build_lotka_volterra_3species(bkd)
 
 # QoI: Species 1 final population
-qoi_func = problem.function(functional="endpoint_0")
+qoi_func = problem.function(functional=SingleStateEndpointODEFunctional(0))
 print(f"Model has {qoi_func.nvars()} parameters")
 ```
 

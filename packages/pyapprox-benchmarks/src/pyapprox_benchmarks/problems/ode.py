@@ -7,19 +7,20 @@ No ground truth — these are Problems, not Benchmarks.
 
 from __future__ import annotations
 
-from typing import Generic, Union
+from typing import Generic, Optional, Union
 
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualWithParamJacobianProtocol,
 )
+from pyapprox.ode.stepper_table import StepperFactory
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 from pyapprox_benchmarks.functions.ode.ode_qoi import (
+    AllStatesEndpointODEFunctional,
     ODEFunctionalProtocol,
     ODEQoIFunction,
     ODETimeConfig,
-    _create_functional_from_string,
 )
 from pyapprox_benchmarks.protocols import DomainProtocol
 
@@ -46,7 +47,10 @@ class ODEForwardUQProblem(Generic[Array]):
     nstates : int
         Number of state variables.
     initial_condition : Array
-        Default initial condition. Shape: (nstates, 1).
+        Default initial condition. Shape: (nstates, 1). A residual that
+        defines its own initial state from the parameters (the
+        coupled-springs and Hastings residuals) overrides it per sample;
+        there it is the initial state at the nominal parameters.
     nominal_parameters : Array
         Nominal parameter values. Shape: (nparams, 1).
     bkd : Backend[Array]
@@ -141,32 +145,32 @@ class ODEForwardUQProblem(Generic[Array]):
 
     def function(
         self,
-        functional: Union[str, ODEFunctionalProtocol[Array]] = "endpoint",
-        stepper: str = "backward_euler",
+        functional: Optional[ODEFunctionalProtocol[Array]] = None,
+        stepper: Union[str, StepperFactory[Array]] = "backward_euler",
     ) -> ODEQoIFunction[Array]:
         """Build a callable QoI function from this problem.
 
         Parameters
         ----------
-        functional : str or ODEFunctionalProtocol, optional
-            How to extract QoI from the solution trajectory. String
-            shorthands: "endpoint", "endpoint_0", "max". Default
-            "endpoint".
-        stepper : str, optional
-            Time stepping method. Default "backward_euler".
+        functional : ODEFunctionalProtocol, optional
+            How to extract QoI from the solution trajectory, e.g.
+            ``SingleStateEndpointODEFunctional(0)`` or
+            ``MaxODEFunctional(nstates, bkd)``. Default: every state at
+            the final time (``AllStatesEndpointODEFunctional``).
+        stepper : str or StepperFactory, optional
+            Time stepping method: a built-in name or a ``StepperFactory``.
+            Default "backward_euler".
 
         Returns
         -------
         ODEQoIFunction
             Callable with signature (samples: Array) -> Array.
         """
-        resolved_functional: ODEFunctionalProtocol[Array]
-        if isinstance(functional, str):
-            resolved_functional = _create_functional_from_string(
-                functional, self._nstates, self._bkd,
-            )
-        else:
-            resolved_functional = functional
+        resolved_functional: ODEFunctionalProtocol[Array] = (
+            AllStatesEndpointODEFunctional(self._nstates)
+            if functional is None
+            else functional
+        )
         return ODEQoIFunction(
             residual=self._residual,
             initial_condition=self._initial_condition,

@@ -4,13 +4,31 @@ from dataclasses import dataclass
 from typing import (
     Any,
     Generic,
+    Optional,
     Protocol,
     Tuple,
+    Union,
     runtime_checkable,
 )
 
 from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.ode.stepper_table import StepperFactory, create_stepper
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+@runtime_checkable
+class ODEResidualWithInitialStateProtocol(Protocol[Array]):
+    """ODE residual that also defines its initial state from parameters.
+
+    ``get_initial_condition`` returns ``y_0(p)`` for the parameters last
+    passed to ``set_param``. Its derivatives are the residual's
+    ``initial_param_jacobian`` (and ``initial_param_hvp``), so the forward
+    map and the derivatives come from one definition.
+    """
+
+    def set_param(self, param: Array) -> None: ...
+
+    def get_initial_condition(self) -> Array: ...
 
 
 @runtime_checkable
@@ -113,38 +131,6 @@ class MaxODEFunctional(Generic[Array]):
         return self._bkd.max(sol, axis=1)
 
 
-def _create_functional_from_string(
-    name: str,
-    nstates: int,
-    bkd: Backend[Array],
-) -> ODEFunctionalProtocol[Array]:
-    """Create a functional object from a string name.
-
-    Parameters
-    ----------
-    name : str
-        Functional name: "endpoint", "endpoint_0", "endpoint_1", ..., "max".
-    nstates : int
-        Number of ODE state variables.
-    bkd : Backend[Array]
-        Backend for array operations.
-
-    Returns
-    -------
-    ODEFunctionalProtocol[Array]
-        The functional object.
-    """
-    if name == "endpoint":
-        return AllStatesEndpointODEFunctional(nstates)
-    elif name.startswith("endpoint_"):
-        idx = int(name.split("_")[1])
-        return SingleStateEndpointODEFunctional(idx)
-    elif name == "max":
-        return MaxODEFunctional(nstates, bkd)
-    else:
-        raise ValueError(f"Unknown functional name: {name}")
-
-
 class ODEQoIFunction(Generic[Array]):
     """Callable QoI function wrapping an ODE residual.
 
@@ -156,7 +142,11 @@ class ODEQoIFunction(Generic[Array]):
     residual : Any
         ODE residual implementing ODEResidualWithParamJacobianProtocol.
     initial_condition : Array
-        Initial condition. Shape: (nstates, 1) or (nstates,).
+        Initial condition. Shape: (nstates, 1) or (nstates,). Used only
+        when the residual does not define its own initial state
+        (``ODEResidualWithInitialStateProtocol``); one that does is asked
+        for ``y_0(p)`` for every sample, so parameters that set the
+        initial state reach the solution.
     time_config : ODETimeConfig
         Time integration configuration.
     nparams : int
@@ -165,9 +155,10 @@ class ODEQoIFunction(Generic[Array]):
         Functional that extracts QoI from the solution trajectory.
     bkd : Backend[Array]
         Computational backend.
-    stepper : str, optional
-        Time stepping method: "backward_euler" (default), "forward_euler",
-        "heun", "crank_nicolson"
+    stepper : str or StepperFactory, optional
+        Time stepping method: a built-in name ("backward_euler", the
+        default, "crank_nicolson", "implicit_midpoint", "forward_euler",
+        "heun") or a ``StepperFactory``.
     """
 
     def __init__(
@@ -178,14 +169,21 @@ class ODEQoIFunction(Generic[Array]):
         nparams: int,
         functional: ODEFunctionalProtocol[Array],
         bkd: Backend[Array],
-        stepper: str = "backward_euler",
+        stepper: Union[str, StepperFactory[Array]] = "backward_euler",
     ) -> None:
         self._residual = residual
         self._functional = functional
-        self._stepper_type = stepper
+        self._stepper = stepper
         self._bkd = bkd
         self._time_config = time_config
         self._nparams = nparams
+        self._initial_state_residual: Optional[
+            ODEResidualWithInitialStateProtocol[Array]
+        ] = (
+            residual
+            if isinstance(residual, ODEResidualWithInitialStateProtocol)
+            else None
+        )
 
         # Flatten initial_condition from (nstates, 1) to (nstates,) for integrator
         if initial_condition.ndim == 2:
@@ -252,7 +250,7 @@ class ODEQoIFunction(Generic[Array]):
 
         self._residual.set_param(param)
 
-        time_residual = self._create_time_residual(self._residual)
+        time_residual = create_stepper(self._stepper, self._residual)
 
         from pyapprox.ode.implicit_steppers.integrator import (
             TimeIntegrator,
@@ -267,7 +265,12 @@ class ODEQoIFunction(Generic[Array]):
             newton_solver=newton_solver,
         )
 
-        return integrator.solve(self._init_state)
+        init_state = (
+            self._init_state
+            if self._initial_state_residual is None
+            else self._initial_state_residual.get_initial_condition()
+        )
+        return integrator.solve(init_state)
 
     def _evaluate_single(self, param: Array) -> Array:
         """Evaluate QoI for a single parameter sample.
@@ -284,44 +287,6 @@ class ODEQoIFunction(Generic[Array]):
         """
         solutions, times = self.solve_trajectory(param)
         return self._functional(solutions, times)
-
-    @staticmethod
-    def _create_time_residual_for_stepper(
-        residual: Any, stepper_type: str,
-    ) -> Any:
-        """Create time stepping residual based on stepper type."""
-        if stepper_type == "backward_euler":
-            from pyapprox.ode.implicit_steppers.backward_euler import (
-                BackwardEulerHVP,
-            )
-
-            return BackwardEulerHVP(residual)
-        elif stepper_type == "forward_euler":
-            from pyapprox.ode.explicit_steppers.forward_euler import (
-                ForwardEulerHVP,
-            )
-
-            return ForwardEulerHVP(residual)
-        elif stepper_type == "heun":
-            from pyapprox.ode.explicit_steppers.heun import (
-                HeunHVP,
-            )
-
-            return HeunHVP(residual)
-        elif stepper_type == "crank_nicolson":
-            from pyapprox.ode.implicit_steppers.crank_nicolson import (
-                CrankNicolsonHVP,
-            )
-
-            return CrankNicolsonHVP(residual)
-        else:
-            raise ValueError(f"Unknown stepper type: {stepper_type}")
-
-    def _create_time_residual(self, residual: Any) -> Any:
-        """Create time stepping residual based on stepper type."""
-        return self._create_time_residual_for_stepper(
-            residual, self._stepper_type,
-        )
 
 
 @dataclass
