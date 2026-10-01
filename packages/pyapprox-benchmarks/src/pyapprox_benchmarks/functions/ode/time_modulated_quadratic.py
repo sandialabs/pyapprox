@@ -119,6 +119,10 @@ class TimeModulatedQuadraticODE(
     def initial_param_jacobian(self) -> Array:
         return self._bkd.zeros((self._nstates, self._nparams))
 
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
+        """Initial-state curvature: zero, the initial state is fixed."""
+        return self._bkd.zeros((self._nparams,))
+
     # =====================================================================
     # HVP methods — all carry g(t)
     # =====================================================================

@@ -456,7 +456,15 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         """
         Accumulate the Hessian-vector product from all contributions.
 
-        HVP = dQ²/dp² · v + Σ_n [(dR_n/dp)^T · s_n + L_py · w + L_pp · v]
+        HVP = dQ²/dp² · v - (dy_0/dp)^T M^T s_0
+              + sum_i g_i (d²y_0,i/dp²) v
+              + Σ_n [(dR_n/dp)^T · s_n + L_py · w + L_pp · v]
+
+        The middle two terms differentiate the gradient's initial-state
+        term g^T dy_0/dp, with g = dQ/dy_0 + B_1^T lambda_1 = -M^T lambda_0:
+        the first through s_0 (the direction derivative of lambda_0), the
+        second through the curvature of y_0(p), which the residual must
+        state via ``initial_param_hvp`` (zero for an affine y_0).
         """
         nparams = self.nparams()
         hvp = self._bkd.zeros((nparams, 1))
@@ -470,6 +478,33 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         v_res = self._bkd.flatten(
             vvec[n_unique:] if n_unique > 0 else vvec
         )
+
+        # Initial-state contribution, using the mass the s_0 solve used.
+        ctx_0 = self._make_ctx(times, 1, fwd_sols)
+        self._time_residual.bind(ctx_0)
+        mass = self._time_residual.native_residual.mass_matrix()
+        dy0dp = self._time_residual.initial_param_jacobian()
+        init_hvp = -self._bkd.reshape(
+            mass.apply_transpose(s_sols[:, 0]) @ dy0dp, (-1, 1)
+        )
+        # Curvature of y_0(p), weighted by the gradient's initial-state
+        # sensitivity g = dQ/dy_0 + B_1^T lambda_1 (as in the gradient).
+        dqdu_0 = self._time_residual.zero_adjoint_rhs(
+            self._functional.state_jacobian(fwd_sols, param)[:, 0]
+        )
+        drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
+            ctx_0, fwd_sols[:, 1]
+        )
+        init_weight = drduT_offdiag @ adj_sols[:, 1] + dqdu_0
+        init_hvp = init_hvp + self._bkd.reshape(
+            hvp_residual.initial_param_hvp(init_weight, v_res), (-1, 1)
+        )
+        if n_unique > 0:
+            init_full = self._bkd.zeros((nparams, 1))
+            init_full = self._bkd.copy(init_full)
+            init_full[n_unique:] = init_hvp
+            init_hvp = init_full
+        hvp += init_hvp
 
         # Cross-step contribution at y_0: R_1 depends on y_0 as prev_state
         ctx_1 = self._make_ctx(times, 1, fwd_sols)

@@ -439,6 +439,16 @@ class GalerkinBCEnforcingHVPResidual(
         """Adjoint with constrained entries zeroed for RAW contractions."""
         return self._constraint_set.zero_entries(adj_state)
 
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
+        """Initial-state curvature with constrained entries zeroed.
+
+        Constrained initial values are prescribed, so they do not curve
+        in p, matching ``initial_param_jacobian``'s zeroed rows.
+        """
+        return self._hvp_inner.initial_param_hvp(
+            self._constraint_set.zero_entries(weight), vvec
+        )
+
     # -- Same-step HVP methods --
 
     def state_state_hvp(

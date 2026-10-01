@@ -402,9 +402,18 @@ class BCEnforcingAdjointResidual(BCEnforcingForwardResidual[Array], Generic[Arra
         return self._adjoint_inner.trajectory_quadrature(times)
 
     def initial_param_jacobian(self) -> Array:
-        """Compute initial condition param Jacobian with BC rows zeroed."""
-        result = self._adjoint_inner.initial_param_jacobian()
-        return self._zero_bc_rows(result)
+        """d(initial_state)/dp with essential rows zeroed.
+
+        The model overwrites the essential rows of y_0 with the
+        prescribed values, so only those rows lose their parameter
+        dependence. A natural (Robin/Neumann) row of y_0 keeps it: under
+        a two-level stepper such as Crank--Nicolson it reaches the first
+        step's interior rows through F(y_0).
+        """
+        result = self._bkd.copy(self._adjoint_inner.initial_param_jacobian())
+        for idx in self._essential:
+            result[idx, :] = 0.0
+        return result
 
 
 # =========================================================================
@@ -478,6 +487,17 @@ class BCEnforcingHVPResidual(BCEnforcingAdjointResidual[Array], Generic[Array]):
         for idx in self._row_replaced:
             adj[idx] = 0.0
         return adj
+
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
+        """Initial-state curvature with essential entries zeroed.
+
+        Only essential initial values are prescribed (and so do not curve
+        in p), matching ``initial_param_jacobian``'s zeroed rows.
+        """
+        weight = self._bkd.copy(weight)
+        for idx in self._essential:
+            weight[idx] = 0.0
+        return self._hvp_inner.initial_param_hvp(weight, vvec)
 
     @property
     def _hvp_inner(self) -> HVPEnabledTimeSteppingResidualProtocol[Array]:

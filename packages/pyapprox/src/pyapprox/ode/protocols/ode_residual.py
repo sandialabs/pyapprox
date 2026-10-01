@@ -310,6 +310,29 @@ class ODEResidualWithHVPProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
+        """
+        Compute the initial-state curvature contracted with a weight.
+
+        Required, not optional: a residual offering HVPs must state how
+        its initial state curves in the parameters. Return zeros for an
+        initial state that is affine in (or independent of) p; the HVP
+        cannot tell a zero curvature from an unstated one.
+
+        Parameters
+        ----------
+        weight : Array
+            Weight on the initial-state components. Shape: (nstates,)
+        vvec : Array
+            Direction vector v. Shape: (nparams,)
+
+        Returns
+        -------
+        Array
+            sum_i weight_i (d^2 y_0,i/dp^2) v. Shape: (nparams,)
+        """
+        ...
+
 
 # =========================================================================
 # Implicit ODE residual protocols (method re-declaration style)
@@ -408,3 +431,5 @@ class ImplicitODEResidualWithHVPProtocol(Protocol, Generic[Array]):
     def param_param_hvp(
         self, state: Array, adj_state: Array, vvec: Array
     ) -> Array: ...
+
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array: ...

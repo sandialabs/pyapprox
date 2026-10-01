@@ -220,15 +220,15 @@ class HastingsEcologyResidual(
 
     def initial_param_jacobian(self) -> Array:
         """
-        Compute initial condition parameter Jacobian.
+        Compute d(initial_state)/d(params).
 
-        The last 3 parameters are initial conditions, so this is -I
-        for those columns.
+        The last 3 parameters are the initial conditions themselves
+        (y_0 = p[6:]), so this is I for those columns.
         """
         return self._bkd.hstack(
             [
                 self._bkd.zeros((self._nstates, 6)),
-                -self._bkd.eye(3),
+                self._bkd.eye(3),
             ]
         )
 

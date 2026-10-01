@@ -134,7 +134,12 @@ class _ToyCurvatureParameterization:
             self._param_param_hvp,
             self._state_param_hvp,
             self._param_state_hvp,
+            self._initial_param_hvp,
         )
+
+    def _initial_param_hvp(self, params_1d, weight, vvec):
+        # The initial state does not depend on p.
+        return self._bkd.zeros((self.nparams(),))
 
     def _param_jacobian(self, state, time, params_1d):
         # dR/dp_j = -(1+t) phi_j ⊙ c ⊙ y^2

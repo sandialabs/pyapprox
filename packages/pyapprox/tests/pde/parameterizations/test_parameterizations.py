@@ -1,5 +1,6 @@
 """Tests for physics parameterization implementations."""
 
+import dataclasses
 import math
 
 import pytest
@@ -134,6 +135,7 @@ class _MockSecondOrderParam:
             self._param_param_hvp,
             self._state_param_hvp,
             self._param_state_hvp,
+            self._initial_param_hvp,
         )
 
     def nparams(self) -> int:
@@ -161,6 +163,9 @@ class _MockSecondOrderParam:
 
     def _initial_param_jacobian(self, params_1d):
         return self._bkd.zeros((self._nstates, self._np))
+
+    def _initial_param_hvp(self, params_1d, weight, vvec):
+        return self._bkd.zeros((self._np,))
 
     def _param_param_hvp(self, state, time, params_1d, adj_state, vvec):
         return (
@@ -731,6 +736,60 @@ class TestParameterizations:
         assert derivs.param_param_hvp is not None
         assert derivs.state_param_hvp is not None
         assert derivs.param_state_hvp is not None
+        assert derivs.initial_param_hvp is not None
+
+    def test_composite_initial_param_hvp_blocks(self, bkd) -> None:
+        """Each part's initial-state curvature fills its own parameter
+        slice, contracted with its own slice of the direction."""
+        physics = object()
+        p1 = _MockSecondOrderParam(physics, bkd, 2, 5, 2.0, "coef_a")
+        p2 = _MockSecondOrderParam(physics, bkd, 3, 5, -1.5, "coef_b")
+        # Distinct nonzero curvatures, so a misplaced block shows.
+        p1._derivs = dataclasses.replace(
+            p1._derivs,
+            initial_param_hvp=lambda p, w, v: 2.0 * bkd.sum(w) * v,
+        )
+        p2._derivs = dataclasses.replace(
+            p2._derivs,
+            initial_param_hvp=lambda p, w, v: -3.0 * bkd.sum(w) * v,
+        )
+        comp = CompositeParameterization([p1, p2], bkd)
+        fn = comp.param_derivatives().initial_param_hvp
+        assert fn is not None
+        weight = bkd.asarray([1.0, 0.5, -0.25, 2.0, 0.0])
+        vvec = bkd.asarray([1.0, 2.0, 3.0, 4.0, 5.0])
+        result = fn(bkd.zeros((5,)), weight, vvec)
+        wsum = 3.25
+        expected = bkd.asarray(
+            [2.0 * wsum * 1.0, 2.0 * wsum * 2.0,
+             -3.0 * wsum * 3.0, -3.0 * wsum * 4.0, -3.0 * wsum * 5.0]
+        )
+        bkd.assert_allclose(result, expected, rtol=1e-12)
+
+    def test_second_order_requires_initial_param_hvp(self, bkd) -> None:
+        """A second-order bundle must state its initial-state curvature."""
+        mock = _MockSecondOrderParam(object(), bkd, 2, 5, 1.0, "coef_a")
+        with pytest.raises(TypeError, match="initial_param_hvp"):
+            ParamDerivatives.second_order(
+                mock._param_jacobian,
+                mock._initial_param_jacobian,
+                mock._param_param_hvp,
+                mock._state_param_hvp,
+                mock._param_state_hvp,
+                None,
+            )
+
+    def test_composite_drops_initial_param_hvp_if_any_part_lacks_it(
+        self, bkd
+    ) -> None:
+        """All-or-none: one part without the curvature removes it."""
+        physics = object()
+        p1 = _MockSecondOrderParam(physics, bkd, 2, 5, 2.0, "coef_a")
+        p2 = _MockSecondOrderParam(physics, bkd, 3, 5, -1.5, "coef_b")
+        p2._derivs = dataclasses.replace(p2._derivs, initial_param_hvp=None)
+        with pytest.warns(UserWarning, match="initial_param_hvp"):
+            comp = CompositeParameterization([p1, p2], bkd)
+        assert comp.param_derivatives().initial_param_hvp is None
 
     def test_composite_state_param_hvp_state_shaped(self, bkd) -> None:
         """Regression (D9.4): state_param_hvp sums part results to (nstates,).

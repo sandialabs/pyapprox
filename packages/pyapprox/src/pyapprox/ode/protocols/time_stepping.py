@@ -465,6 +465,10 @@ class HVPEnabledTimeSteppingResidualProtocol(Protocol, Generic[Array]):
 
     def initial_param_jacobian(self) -> Array: ...
 
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
+        """sum_i weight_i (d^2 y_0,i/dp^2) v. Shape: (nparams,)."""
+        ...
+
     # Same-step HVP methods
 
     def state_state_hvp(

@@ -374,7 +374,13 @@ class TimeIntegrator(Generic[Array]):
         dqdp = self._functional.param_jacobian(fwd_sols, param)
         grad = self._bkd.copy(dqdp)
 
-        # Initial condition contribution (if initial condition depends on params)
+        # Initial-state contribution, for an initial state that depends on
+        # the parameters. By the chain rule it is
+        # (dQ/dy_0 + B_1^T lambda_1)^T dy_0/dp, where B_1 = dR_1/dy_0.
+        # That bracket is minus the right-hand side of the t = 0 adjoint
+        # equation M^T lambda_0 = -B_1^T lambda_1 - dQ/dy_0, so the term
+        # equals -lambda_0^T M dy_0/dp; forming it from the right-hand
+        # side avoids a mass solve and uses exactly what that equation uses.
         ctx_init = StepContext(
             t_prev=float(times[0]),
             deltat=float(times[1] - times[0]),
@@ -382,13 +388,21 @@ class TimeIntegrator(Generic[Array]):
         )
         self._time_residual.bind(ctx_init)
 
-        drdp_init = residual.initial_param_jacobian()
+        dy0dp = residual.initial_param_jacobian()
+        dqdu_0 = residual.zero_adjoint_rhs(
+            self._functional.state_jacobian(fwd_sols, param)[:, 0]
+        )
+        drduT_offdiag = residual.adjoint_off_diag_jacobian(
+            ctx_init, fwd_sols[:, 1]
+        )
+        init_sensitivity = drduT_offdiag @ adj_sols[:, 1] + dqdu_0
+        grad_init = self._bkd.reshape(init_sensitivity @ dy0dp, (1, -1))
         # Prepend zeros for functional-only parameters
         n_unique = self._functional.nunique_params()
         if n_unique > 0:
-            zeros = self._bkd.zeros((drdp_init.shape[0], n_unique))
-            drdp_init = self._bkd.hstack((zeros, drdp_init))
-        grad += adj_sols[:, 0:1].T @ drdp_init
+            zeros = self._bkd.zeros((1, n_unique))
+            grad_init = self._bkd.hstack((zeros, grad_init))
+        grad += grad_init
 
         # Accumulate contributions from each time step
         for ii in range(len(times) - 1):

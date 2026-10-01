@@ -40,6 +40,7 @@ from pyapprox.pde.collocation.time_integration.physics_adapter import (
 )
 from pyapprox.pde.parameterizations.derivatives import (
     BCFluxParamSensitivityFn,
+    InitialParamHVPFn,
     InitialParamJacobianFn,
     ParamHVPFn,
     ParamJacobianFn,
@@ -239,20 +240,30 @@ class CollocationPhysicsToODEResidualWithHVPAdapter(
         param_param_hvp = derivs.param_param_hvp
         state_param_hvp = derivs.state_param_hvp
         param_state_hvp = derivs.param_state_hvp
+        initial_param_hvp = derivs.initial_param_hvp
         if (
             param_param_hvp is None
             or state_param_hvp is None
             or param_state_hvp is None
+            or initial_param_hvp is None
         ):
             raise TypeError(
                 f"{type(self).__name__} requires a parameterization whose "
-                "bundle has all three HVP contractions; use "
+                "bundle has all three HVP contractions and "
+                "initial_param_hvp; use "
                 "create_collocation_physics_ode_residual to select the right tier"
             )
         self._hvp_physics = physics
         self._param_param_hvp_fn: ParamHVPFn[Array] = param_param_hvp
         self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
         self._param_state_hvp_fn: ParamHVPFn[Array] = param_state_hvp
+        self._initial_param_hvp_fn: InitialParamHVPFn[Array] = (
+            initial_param_hvp
+        )
+
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
+        """sum_i weight_i (d^2 y_0,i/dp^2) v. Shape: (nparams,)."""
+        return self._initial_param_hvp_fn(self._require_params(), weight, vvec)
 
     def state_state_hvp(
         self, state: Array, adj_state: Array, wvec: Array
@@ -345,6 +356,7 @@ def create_collocation_physics_ode_residual(
         derivs.param_param_hvp is not None
         and derivs.state_param_hvp is not None
         and derivs.param_state_hvp is not None
+        and derivs.initial_param_hvp is not None
     )
     if (
         has_first_order

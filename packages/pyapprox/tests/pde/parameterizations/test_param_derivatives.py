@@ -20,6 +20,10 @@ def _hvp(physics, state, time, params_1d, adj_state, vec):
     raise NotImplementedError
 
 
+def _initial_param_hvp(params_1d, weight, vvec):
+    raise NotImplementedError
+
+
 def _bc_flux(physics, state, time, params_1d, bc_indices, normals):
     raise NotImplementedError
 
@@ -66,12 +70,14 @@ class TestParamDerivatives:
             _hvp,
             _hvp,
             _hvp,
+            _initial_param_hvp,
         )
         assert d.param_jacobian is _param_jacobian
         assert d.initial_param_jacobian is _initial_param_jacobian
         assert d.param_param_hvp is _hvp
         assert d.state_param_hvp is _hvp
         assert d.param_state_hvp is _hvp
+        assert d.initial_param_hvp is _initial_param_hvp
 
     def test_second_order_requires_all_hvps(self) -> None:
         with pytest.raises(TypeError, match="second_order requires"):
@@ -81,6 +87,19 @@ class TestParamDerivatives:
                 _hvp,
                 None,
                 _hvp,
+                _initial_param_hvp,
+            )
+
+    def test_second_order_requires_initial_param_hvp(self) -> None:
+        """Zero initial-state curvature must be declared, not assumed."""
+        with pytest.raises(TypeError, match="initial_param_hvp"):
+            ParamDerivatives.second_order(
+                _param_jacobian,
+                _initial_param_jacobian,
+                _hvp,
+                _hvp,
+                _hvp,
+                None,
             )
 
     def test_non_callable_field_raises(self) -> None:

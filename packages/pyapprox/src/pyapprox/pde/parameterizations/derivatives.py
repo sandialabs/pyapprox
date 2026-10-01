@@ -22,6 +22,10 @@ per physics):
   handling; BC wrappers own all constraint corrections).
 - ``initial_param_jacobian``: ``(params_1d) -> (nstates, nparams)`` —
   d(initial_state)/d(params).
+- ``initial_param_hvp``: ``(params_1d, weight (nstates,),
+  vvec (nparams,)) -> (nparams,)`` — sum_i weight_i
+  (d^2 initial_state_i/d params^2) v. Required for second order: zero
+  must be declared, never assumed.
 - ``param_param_hvp``: ``(state, time, params_1d, adj_state,
   vvec (nparams,)) -> (nparams,)`` — lambda^T (d^2R/dp^2) v.
 - ``state_param_hvp``: ``(state, time, params_1d, adj_state,
@@ -44,6 +48,7 @@ A = TypeVar("A", bound=ArrayProtocol)
 
 ParamJacobianFn = Callable[[Array, float, Array], Array]
 InitialParamJacobianFn = Callable[[Array], Array]
+InitialParamHVPFn = Callable[[Array, Array, Array], Array]
 ParamHVPFn = Callable[[Array, float, Array, Array, Array], Array]
 BCFluxParamSensitivityFn = Callable[
     [Array, float, Array, Array, Array], Array
@@ -52,6 +57,7 @@ BCFluxParamSensitivityFn = Callable[
 _FIELD_NAMES = (
     "param_jacobian",
     "initial_param_jacobian",
+    "initial_param_hvp",
     "param_param_hvp",
     "state_param_hvp",
     "param_state_hvp",
@@ -72,6 +78,7 @@ class ParamDerivatives(Generic[Array]):
 
     param_jacobian: Optional[ParamJacobianFn[Array]] = None
     initial_param_jacobian: Optional[InitialParamJacobianFn[Array]] = None
+    initial_param_hvp: Optional[InitialParamHVPFn[Array]] = None
     param_param_hvp: Optional[ParamHVPFn[Array]] = None
     state_param_hvp: Optional[ParamHVPFn[Array]] = None
     param_state_hvp: Optional[ParamHVPFn[Array]] = None
@@ -122,27 +129,31 @@ class ParamDerivatives(Generic[Array]):
         param_param_hvp: ParamHVPFn[A],
         state_param_hvp: ParamHVPFn[A],
         param_state_hvp: ParamHVPFn[A],
+        initial_param_hvp: InitialParamHVPFn[A],
         *,
         bc_flux_param_sensitivity: Optional[
             BCFluxParamSensitivityFn[A]
         ] = None,
     ) -> "ParamDerivatives[A]":
-        """Second-order capability: jacobians AND all three HVPs required."""
+        """Second-order capability: jacobians, the three HVPs and the
+        initial-state curvature all required."""
         if (
             param_jacobian is None
             or initial_param_jacobian is None
             or param_param_hvp is None
             or state_param_hvp is None
             or param_state_hvp is None
+            or initial_param_hvp is None
         ):
             raise TypeError(
                 "second_order requires param_jacobian, "
-                "initial_param_jacobian, and all three HVP callables; use "
-                "first_order if the HVPs are unavailable"
+                "initial_param_jacobian, all three HVP callables and "
+                "initial_param_hvp; use first_order if they are unavailable"
             )
         return ParamDerivatives(
             param_jacobian=param_jacobian,
             initial_param_jacobian=initial_param_jacobian,
+            initial_param_hvp=initial_param_hvp,
             param_param_hvp=param_param_hvp,
             state_param_hvp=state_param_hvp,
             param_state_hvp=param_state_hvp,

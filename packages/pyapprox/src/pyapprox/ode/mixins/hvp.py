@@ -53,6 +53,14 @@ class HVPMixin(ABC, Generic[Array]):
     # capability. HVP-internal calls use _hvp_residual, which narrows
     # (and raises actionably) at the first genuine HVP call.
 
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
+        """sum_i weight_i (d^2 y_0,i/dp^2) v, from the ODE residual.
+
+        Independent of the stepper: the initial state is set, not
+        stepped. Shape: (nparams,).
+        """
+        return self._hvp_residual.initial_param_hvp(weight, vvec)
+
     # -- Same-step HVP methods --
 
     @abstractmethod

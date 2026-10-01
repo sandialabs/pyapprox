@@ -205,6 +205,10 @@ class LotkaVolterraResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
         """Initial condition is fixed, so this is zero."""
         return self._bkd.zeros((self._nspecies, self._nparams))
 
+    def initial_param_hvp(self, weight: Array, vvec: Array) -> Array:
+        """Initial-state curvature: zero, the initial state is fixed."""
+        return self._bkd.zeros((self._nparams,))
+
     # =========================================================================
     # HVP Methods for second-order adjoints
     # =========================================================================

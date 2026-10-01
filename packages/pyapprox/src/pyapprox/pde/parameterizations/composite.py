@@ -5,6 +5,7 @@ from typing import Generic, List, Optional, Sequence, Tuple, TypeVar
 
 from pyapprox.pde.parameterizations.derivatives import (
     BCFluxParamSensitivityFn,
+    InitialParamHVPFn,
     InitialParamJacobianFn,
     ParamDerivatives,
     ParamHVPFn,
@@ -147,6 +148,7 @@ class CompositeParameterization(Generic[Array]):
         tier_fields = (
             "param_jacobian",
             "initial_param_jacobian",
+            "initial_param_hvp",
             "param_param_hvp",
             "state_param_hvp",
             "param_state_hvp",
@@ -180,6 +182,9 @@ class CompositeParameterization(Generic[Array]):
         self._part_initial_param_jacs: Optional[
             List[InitialParamJacobianFn[Array]]
         ] = _all_or_none([d.initial_param_jacobian for d in part_derivs])
+        self._part_initial_param_hvps: Optional[
+            List[InitialParamHVPFn[Array]]
+        ] = _all_or_none([d.initial_param_hvp for d in part_derivs])
         self._part_param_param_hvps: Optional[List[ParamHVPFn[Array]]] = (
             _all_or_none([d.param_param_hvp for d in part_derivs])
         )
@@ -210,6 +215,11 @@ class CompositeParameterization(Generic[Array]):
             initial_param_jacobian=(
                 self._initial_param_jacobian
                 if self._part_initial_param_jacs is not None
+                else None
+            ),
+            initial_param_hvp=(
+                self._initial_param_hvp
+                if self._part_initial_param_hvps is not None
                 else None
             ),
             param_param_hvp=(
@@ -310,6 +320,36 @@ class CompositeParameterization(Generic[Array]):
             for col in range(np_i):
                 for row in range(npts):
                     result[row, offset + col] = block[row, col]
+        return result
+
+    def _initial_param_hvp(
+        self, params_1d: Array, weight: Array, vvec: Array
+    ) -> Array:
+        """Block assembly of the initial-state curvature. Shape:
+        (total_nparams,).
+
+        Each part's parameters enter only through that part, so the
+        curvature is block diagonal and each block is contracted with its
+        own slice of ``vvec``.
+        """
+        fns = self._part_initial_param_hvps
+        if fns is None:
+            raise RuntimeError(
+                "initial_param_hvp is unavailable; check "
+                "param_derivatives() before calling"
+            )
+        result = self._bkd.zeros((self._total_nparams,))
+        result = self._bkd.copy(result)
+        for ii, fn in enumerate(fns):
+            offset = self._offsets[ii]
+            np_i = self._parts[ii].nparams()
+            sub_result = fn(
+                params_1d[offset : offset + np_i],
+                weight,
+                vvec[offset : offset + np_i],
+            )
+            for k in range(np_i):
+                result[offset + k] = sub_result[k]
         return result
 
     def _param_param_hvp(

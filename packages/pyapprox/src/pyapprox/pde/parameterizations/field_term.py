@@ -486,6 +486,7 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
                     self.param_param_hvp,
                     self.state_param_hvp,
                     self.param_state_hvp,
+                    self.initial_param_hvp,
                     bc_flux_param_sensitivity=bc_flux_fn,
                 )
             )
@@ -672,6 +673,13 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
     def initial_param_jacobian(self, params_1d: Array) -> Array:
         """d(u_0)/dp = 0 (coefficient fields do not set the IC)."""
         return self._bkd.zeros((self._nstates, self.nparams()))
+
+    def initial_param_hvp(
+        self, params_1d: Array, weight: Array, vvec: Array
+    ) -> Array:
+        """sum_i weight_i (d^2 u_0,i/dp^2) v = 0: the IC is independent
+        of p. Shape: (nparams,)."""
+        return self._bkd.zeros((self.nparams(),))
 
     def bc_flux_param_sensitivity(
         self,

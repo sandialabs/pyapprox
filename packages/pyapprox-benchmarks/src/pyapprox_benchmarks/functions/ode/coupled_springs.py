@@ -199,15 +199,15 @@ class CoupledSpringsResidual(DefaultNewtonJacobianMixin[Array], Generic[Array]):
 
     def initial_param_jacobian(self) -> Array:
         """
-        Compute initial condition parameter Jacobian.
+        Compute d(initial_state)/d(params).
 
-        The last 4 parameters are initial conditions, so this is -I
-        for those columns.
+        The last 4 parameters are the initial conditions themselves
+        (y_0 = p[8:]), so this is I for those columns.
         """
         return self._bkd.hstack(
             [
                 self._bkd.zeros((self._nstates, 8)),
-                -self._bkd.eye(4),
+                self._bkd.eye(4),
             ]
         )
 
