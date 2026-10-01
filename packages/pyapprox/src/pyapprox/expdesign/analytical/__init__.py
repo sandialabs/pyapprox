@@ -33,6 +33,11 @@ from .outer_data import (
     MarginalOuterData,
     ReparameterizedOuterData,
 )
+from .relaxed_linear_gaussian import (
+    relaxed_linear_target_covariance,
+    relaxed_linear_target_eig,
+    relaxed_lognormal_expected_variance,
+)
 
 __all__ = [
     "ConjugateGaussianOEDPredictionUtilityBase",
@@ -51,6 +56,9 @@ __all__ = [
     "LogNormalDataMeanQoIAVaRStdDevSAAObjective",
     "LogNormalMGBlocks",
     "lognormal_goal_mg_blocks",
+    "relaxed_linear_target_covariance",
+    "relaxed_linear_target_eig",
+    "relaxed_lognormal_expected_variance",
     "MarginalOuterData",
     "ReparameterizedOuterData",
 ]
