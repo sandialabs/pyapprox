@@ -25,6 +25,10 @@ from .lognormal_avar_objective import (
 from .lognormal_avar_saa_objective import (
     LogNormalDataMeanQoIAVaRStdDevSAAObjective,
 )
+from .lognormal_mg_blocks import (
+    LogNormalMGBlocks,
+    lognormal_goal_mg_blocks,
+)
 from .outer_data import (
     MarginalOuterData,
     ReparameterizedOuterData,
@@ -45,6 +49,8 @@ __all__ = [
     "ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev",
     "LogNormalDataMeanQoIAVaRStdDevObjective",
     "LogNormalDataMeanQoIAVaRStdDevSAAObjective",
+    "LogNormalMGBlocks",
+    "lognormal_goal_mg_blocks",
     "MarginalOuterData",
     "ReparameterizedOuterData",
 ]

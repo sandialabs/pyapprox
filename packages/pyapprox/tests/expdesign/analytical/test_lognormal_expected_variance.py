@@ -14,8 +14,6 @@ from pyapprox.expdesign.analytical import (
 )
 from pyapprox.util.backends.protocols import Backend
 
-from tests._helpers.markers import slow_test
-
 
 class TestLogNormalExpectedVariance:
     """Expected posterior variance of q = exp(F x) with nuisances."""
@@ -139,17 +137,9 @@ class TestLogNormalExpectedVariance:
         )
         assert variance >= stdev**2
 
-    @slow_test
-    def test_monte_carlo(self, bkd: Backend) -> None:
-        """MC over (x, e): average the exact lognormal posterior variance."""
-        self._setup()
-        value = self._utility(
-            ConjugateGaussianOEDForLogNormalDataMeanQoIMeanVariance,
-            bkd,
-            self._prior_cov,
-        )
-        rng = np.random.default_rng(11)
-        nsamples = 400000
+    def _mc_expected_variance(self, nsamples: int, seed: int) -> float:
+        """MC over the data of the exact lognormal posterior variance."""
+        rng = np.random.default_rng(seed)
         x = rng.multivariate_normal(
             self._prior_mean[:, 0], self._prior_cov, size=nsamples
         )
@@ -161,7 +151,33 @@ class TestLogNormalExpectedVariance:
         c_l = float((self._qoi_mat @ self._prior_cov @ self._qoi_mat.T)[0, 0])
         c_ly = self._qoi_mat @ self._prior_cov @ self._obs_mat.T
         gain = np.linalg.solve(syy, c_ly.T)[:, 0]
-        v = c_l - float(c_ly @ gain)
+        v = c_l - float((c_ly @ gain)[0])
         mu = y @ gain
-        mc = float(np.mean((np.exp(v) - 1.0) * np.exp(2.0 * mu + v)))
-        bkd.assert_allclose(bkd.asarray([value]), bkd.asarray([mc]), rtol=2e-2)
+        return float(np.mean((np.exp(v) - 1.0) * np.exp(2.0 * mu + v)))
+
+    def test_monte_carlo_convergence(self, bkd: Backend) -> None:
+        """MC over (x, e) converges to the closed form at the N^(-1/2) rate."""
+        self._setup()
+        value = self._utility(
+            ConjugateGaussianOEDForLogNormalDataMeanQoIMeanVariance,
+            bkd,
+            self._prior_cov,
+        )
+        sizes = [1000, 10000, 100000]
+        nreps = 50
+        rmse = []
+        for nsamples in sizes:
+            errors = np.array(
+                [
+                    self._mc_expected_variance(nsamples, 1000 * rep + nsamples)
+                    - value
+                    for rep in range(nreps)
+                ]
+            )
+            rmse.append(np.sqrt(np.mean(errors**2)))
+        slope = np.polyfit(np.log(sizes), np.log(rmse), 1)[0]
+        # With 50 replications the fitted slope has a spread of about 0.03
+        # across seeds, so 0.1 is a tight but robust band around -1/2.
+        assert abs(slope + 0.5) < 0.1, f"MC convergence slope {slope:.3f}"
+        # A constant bias in the formula would leave a floor in the error.
+        assert rmse[-1] < 1e-2 * value
