@@ -471,6 +471,39 @@ class ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev(
         )
 
 
+class ConjugateGaussianOEDForLogNormalDataMeanQoIMeanVariance(
+    ConjugateGaussianOEDPredictionUtilityBase[Array]
+):
+    r"""
+    Expected posterior variance when QoI is lognormal.
+
+    For a scalar QoI :math:`q = \exp(L)` with :math:`L = B\theta` linear in
+    the parameters, :math:`L` given the data is Gaussian with a variance
+    :math:`v` that does not depend on the data and a mean :math:`\mu(y)`
+    that is Gaussian over the data, with mean :math:`\hat\tau` and variance
+    :math:`\hat\sigma^2`. Hence
+
+    .. math::
+
+        E_y[\mathrm{Var}(q \mid y)]
+        = (e^{v} - 1)\, e^{v}\, E_y[e^{2\mu(y)}]
+        = (e^{v} - 1)\, e^{v}\, e^{2\hat\tau + 2\hat\sigma^2}.
+
+    Nuisance parameters are marginalized exactly by including them in the
+    parameter vector, with the observation and QoI matrices padded
+    accordingly.
+    """
+
+    def _compute_utility(self) -> float:
+        tau_hat = float((self._qoi_mat @ self._nu_vec)[0, 0])
+        sigma_hat_sq = float(
+            (self._qoi_mat @ self._Cmat @ self._qoi_mat.T)[0, 0]
+        )
+        post_var = float(self._post_pushforward.covariance()[0, 0])
+        factor = (math.exp(post_var) - 1.0) * math.exp(post_var)
+        return factor * math.exp(2.0 * tau_hat + 2.0 * sigma_hat_sq)
+
+
 class ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev(
     ConjugateGaussianOEDPredictionUtilityBase[Array]
 ):
