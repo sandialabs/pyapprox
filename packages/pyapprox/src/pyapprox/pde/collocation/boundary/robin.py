@@ -103,6 +103,10 @@ class RobinBC(Generic[Array]):
         """Return indices of mesh points on this boundary."""
         return self._boundary_indices
 
+    def replaced_indices(self) -> Array:
+        """Return the replaced residual rows: the boundary rows."""
+        return self._boundary_indices
+
     def is_essential(self) -> bool:
         """Return False: Robin BCs are natural boundary conditions."""
         return False

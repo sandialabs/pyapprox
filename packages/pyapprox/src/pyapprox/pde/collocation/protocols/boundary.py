@@ -51,6 +51,21 @@ class BoundaryConditionProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def replaced_indices(self) -> Array:
+        """Return every residual row this boundary condition replaces.
+
+        Usually the boundary indices. A condition that also overwrites
+        other rows (a periodic condition replaces its partner rows with
+        the derivative match) returns those too, so the row-replaced set
+        R that the adjoint wrappers mask is complete.
+
+        Returns
+        -------
+        Array
+            Integer indices. Shape: (nreplaced,)
+        """
+        ...
+
     def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
         """Apply boundary condition to residual.
 
@@ -94,21 +109,19 @@ class BoundaryConditionProtocol(Protocol, Generic[Array]):
         ...
 
     def is_essential(self) -> bool:
-        """Return True if this BC directly constrains DOF values.
+        """Return True if this BC prescribes the values of its DOFs.
 
-        Essential BCs (Dirichlet-like) prescribe the solution value at
-        boundary DOFs. In the adjoint equation, the adjoint variable at
-        essential BC DOFs is zero: lambda[bc] = 0.
-
-        Natural BCs (Robin, Neumann) couple boundary DOFs through
-        derivative operators. The adjoint variable at natural BC DOFs
-        evolves freely according to the adjoint equation.
+        Essential BCs (Dirichlet) set the solution at their DOFs to given
+        data, so those values do not depend on the parameters
+        (dy_E/dp = 0) and the adjoint there is decoupled. A condition
+        that only relates DOFs to one another or to derivatives is not
+        essential, even though it replaces rows.
 
         Returns
         -------
         bool
-            True for essential BCs (Dirichlet, periodic value-matching),
-            False for natural BCs (Robin, Neumann).
+            True for Dirichlet BCs; False for Robin, Neumann and periodic
+            BCs, whose DOF values depend on the parameters.
         """
         ...
 
@@ -123,6 +136,7 @@ class BoundaryConditionWithParamJacobianProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]: ...
     def boundary_indices(self) -> Array: ...
+    def replaced_indices(self) -> Array: ...
     def apply_to_residual(
         self, residual: Array, state: Array, time: float
     ) -> Array: ...
@@ -168,6 +182,7 @@ class DirichletBCProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]: ...
     def boundary_indices(self) -> Array: ...
+    def replaced_indices(self) -> Array: ...
     def apply_to_residual(
         self, residual: Array, state: Array, time: float
     ) -> Array: ...
@@ -200,6 +215,7 @@ class RobinBCProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]: ...
     def boundary_indices(self) -> Array: ...
+    def replaced_indices(self) -> Array: ...
     def apply_to_residual(
         self, residual: Array, state: Array, time: float
     ) -> Array: ...
@@ -313,6 +329,7 @@ class BoundaryConditionWithNormalOperatorProtocol(Protocol, Generic[Array]):
 
     def bkd(self) -> Backend[Array]: ...
     def boundary_indices(self) -> Array: ...
+    def replaced_indices(self) -> Array: ...
 
     def normal_operator(self) -> NormalOperatorProtocol[Array]:
         """Return the normal operator applied by this BC's rows."""

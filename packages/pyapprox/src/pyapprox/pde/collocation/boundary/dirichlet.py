@@ -68,8 +68,12 @@ class DirichletBC(Generic[Array]):
         """Return indices of mesh points on this boundary."""
         return self._boundary_indices
 
+    def replaced_indices(self) -> Array:
+        """Return the replaced residual rows: the boundary rows."""
+        return self._boundary_indices
+
     def is_essential(self) -> bool:
-        """Return True: Dirichlet BCs directly constrain DOF values."""
+        """Return True: Dirichlet BCs prescribe their DOF values."""
         return True
 
     def boundary_values(self, time: float) -> Array:

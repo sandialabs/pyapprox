@@ -170,8 +170,10 @@ class AbstractPhysics(ABC, Generic[Array]):
         """Classify boundary DOFs for adjoint operations.
 
         For collocation: all BCs replace residual rows, so row_replaced
-        contains all BC DOFs. Essential contains only Dirichlet/periodic
-        DOFs (where is_essential() returns True).
+        contains every row each BC replaces (``replaced_indices``,
+        including a periodic BC's partner rows). Essential contains only
+        the rows of BCs that prescribe values (``is_essential``:
+        Dirichlet).
 
         For a future Galerkin solver, this method would classify
         differently: only strongly-enforced Dirichlet DOFs would appear
@@ -185,7 +187,7 @@ class AbstractPhysics(ABC, Generic[Array]):
         """
         essential, row_replaced = [], []
         for bc in self._boundary_conditions:
-            bc_idx = bc.boundary_indices()
+            bc_idx = bc.replaced_indices()
             for ii in range(bc_idx.shape[0]):
                 idx = self._bkd.to_int(bc_idx[ii])
                 row_replaced.append(idx)

@@ -72,9 +72,23 @@ class PeriodicBC(Generic[Array]):
         """Return indices of mesh points on the primary boundary."""
         return self._boundary_indices
 
+    def replaced_indices(self) -> Array:
+        """Return the replaced residual rows: primary and partner.
+
+        The primary rows carry the value match and the partner rows the
+        derivative match; both are overwritten.
+        """
+        return self._bkd.hstack(
+            [self._boundary_indices, self._partner_indices]
+        )
+
     def is_essential(self) -> bool:
-        """Return True: periodic BCs directly constrain DOF values."""
-        return True
+        """Return False: periodic BCs prescribe no values.
+
+        They relate the primary and partner values (and derivatives) to
+        each other, so both values still depend on the parameters.
+        """
+        return False
 
     def partner_indices(self) -> Array:
         """Return indices of mesh points on the partner boundary."""

@@ -122,10 +122,10 @@ class CollocationStateEquationWithJacobianAdapter(Generic[Array]):
         self._bc_indices = self._collect_bc_indices()
 
     def _collect_bc_indices(self) -> list[int]:
-        """Collect all boundary DOF indices from physics BCs."""
+        """Collect every residual row the physics BCs replace."""
         indices = []
         for bc in self._physics.boundary_conditions():
-            bc_idx = bc.boundary_indices()
+            bc_idx = bc.replaced_indices()
             for ii in range(bc_idx.shape[0]):
                 indices.append(self._bkd.to_int(bc_idx[ii]))
         return indices
