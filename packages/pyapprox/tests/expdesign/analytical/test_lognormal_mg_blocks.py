@@ -7,7 +7,7 @@ from pyapprox.expdesign.analytical import (
     LogNormalMGBlocks,
     lognormal_goal_mg_blocks,
 )
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestLogNormalMGBlocks:
@@ -35,7 +35,7 @@ class TestLogNormalMGBlocks:
         self._qoi_mat = np.hstack([rmat, sa, sb])
         self._noise_cov = 0.05 * np.eye(nobs)
 
-    def _blocks(self, bkd: Backend) -> LogNormalMGBlocks:
+    def _blocks(self, bkd: Backend[Array]) -> LogNormalMGBlocks[Array]:
         return lognormal_goal_mg_blocks(
             bkd.asarray(self._obs_mat),
             bkd.asarray(self._qoi_mat),
@@ -44,7 +44,7 @@ class TestLogNormalMGBlocks:
             bkd,
         )
 
-    def _mg_goal_a(self, bkd: Backend) -> float:
+    def _mg_goal_a(self, bkd: Backend[Array]) -> float:
         """MG trace of the QoI covariance given all the data."""
         blocks = self._blocks(bkd)
         syy = blocks.obs_cov + bkd.asarray(self._noise_cov)
@@ -53,7 +53,7 @@ class TestLogNormalMGBlocks:
         )
         return float(bkd.trace(cond))
 
-    def _true_goal_a(self, bkd: Backend) -> float:
+    def _true_goal_a(self, bkd: Backend[Array]) -> float:
         """Sum over QoIs of the exact expected posterior variance."""
         total = 0.0
         for ii in range(self._qoi_mat.shape[0]):
@@ -82,7 +82,7 @@ class TestLogNormalMGBlocks:
             [q.mean(0), joint[:nqoi, :nqoi].ravel(), joint[:nqoi, nqoi:].ravel()]
         )
 
-    def test_blocks_monte_carlo_convergence(self, bkd: Backend) -> None:
+    def test_blocks_monte_carlo_convergence(self, bkd: Backend[Array]) -> None:
         """MC estimates converge to the blocks at the N^(-1/2) rate."""
         self._setup()
         blocks = self._blocks(bkd)
@@ -99,8 +99,7 @@ class TestLogNormalMGBlocks:
         for nsamples in sizes:
             errors = np.array(
                 [
-                    self._mc_blocks(nsamples, 1000 * rep + nsamples)
-                    - exact
+                    self._mc_blocks(nsamples, 1000 * rep + nsamples) - exact
                     for rep in range(nreps)
                 ]
             )
@@ -113,7 +112,7 @@ class TestLogNormalMGBlocks:
         # so a constant bias in the formulas would show up here.
         assert rmse[-1] < 1e-2 * np.max(np.abs(exact))
 
-    def test_obs_blocks_are_exact_linear_gaussian(self, bkd: Backend) -> None:
+    def test_obs_blocks_are_exact_linear_gaussian(self, bkd: Backend[Array]) -> None:
         self._setup()
         blocks = self._blocks(bkd)
         bkd.assert_allclose(
@@ -127,19 +126,19 @@ class TestLogNormalMGBlocks:
             rtol=1e-12,
         )
 
-    def test_a_bound_holds(self, bkd: Backend) -> None:
+    def test_a_bound_holds(self, bkd: Backend[Array]) -> None:
         """MG goal-A bounds the exact expected posterior variance."""
         self._setup()
         assert self._mg_goal_a(bkd) >= self._true_goal_a(bkd)
 
-    def test_small_variance_limit(self, bkd: Backend) -> None:
+    def test_small_variance_limit(self, bkd: Backend[Array]) -> None:
         """For a small prior the QoI is nearly Gaussian and the gap vanishes."""
         self._setup(prior_scale=1e-4)
         mg = self._mg_goal_a(bkd)
         true = self._true_goal_a(bkd)
         bkd.assert_allclose(bkd.asarray([mg]), bkd.asarray([true]), rtol=1e-3)
 
-    def test_rejects_1d_mean(self, bkd: Backend) -> None:
+    def test_rejects_1d_mean(self, bkd: Backend[Array]) -> None:
         self._setup()
         with pytest.raises(ValueError):
             lognormal_goal_mg_blocks(
@@ -150,7 +149,7 @@ class TestLogNormalMGBlocks:
                 bkd,
             )
 
-    def test_rejects_mismatched_qoi_mat(self, bkd: Backend) -> None:
+    def test_rejects_mismatched_qoi_mat(self, bkd: Backend[Array]) -> None:
         self._setup()
         with pytest.raises(ValueError):
             lognormal_goal_mg_blocks(

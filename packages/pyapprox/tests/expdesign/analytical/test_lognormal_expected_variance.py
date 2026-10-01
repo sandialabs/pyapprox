@@ -12,7 +12,7 @@ from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanVariance,
 )
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestLogNormalExpectedVariance:
@@ -40,7 +40,7 @@ class TestLogNormalExpectedVariance:
         self._qoi_mat = np.hstack([rmat, sa, sb])
         self._noise_cov = 0.05 * np.eye(nobs)
 
-    def _utility(self, cls: type, bkd: Backend, prior_cov: np.ndarray) -> float:
+    def _utility(self, cls: type, bkd: Backend[Array], prior_cov: np.ndarray) -> float:
         utility = cls(
             bkd.asarray(self._prior_mean),
             bkd.asarray(prior_cov),
@@ -58,9 +58,9 @@ class TestLogNormalExpectedVariance:
         c_ly = self._qoi_mat @ prior_cov @ self._obs_mat.T
         v = c_l - float((c_ly @ np.linalg.solve(syy, c_ly.T))[0, 0])
         mean_l = float((self._qoi_mat @ self._prior_mean)[0, 0])
-        return (np.exp(v) - 1.0) * np.exp(2.0 * mean_l + 2.0 * c_l - v)
+        return float((np.exp(v) - 1.0) * np.exp(2.0 * mean_l + 2.0 * c_l - v))
 
-    def test_matches_closed_form_with_nuisances(self, bkd: Backend) -> None:
+    def test_matches_closed_form_with_nuisances(self, bkd: Backend[Array]) -> None:
         self._setup()
         value = self._utility(
             ConjugateGaussianOEDForLogNormalDataMeanQoIMeanVariance,
@@ -73,7 +73,7 @@ class TestLogNormalExpectedVariance:
             rtol=1e-12,
         )
 
-    def test_no_nuisance_limit(self, bkd: Backend) -> None:
+    def test_no_nuisance_limit(self, bkd: Backend[Array]) -> None:
         """Vanishing nuisance variance recovers the no-nuisance model."""
         self._setup(nuisance_scale=1e-12)
         value = self._utility(
@@ -90,7 +90,7 @@ class TestLogNormalExpectedVariance:
             rtol=1e-8,
         )
 
-    def test_marginalizing_differs_from_ignoring(self, bkd: Backend) -> None:
+    def test_marginalizing_differs_from_ignoring(self, bkd: Backend[Array]) -> None:
         """The nuisance-free model understates the expected variance.
 
         Ignoring the nuisances means the model y = A m + e, q = exp(R m);
@@ -122,7 +122,7 @@ class TestLogNormalExpectedVariance:
         )
         assert marginalized > ignored
 
-    def test_jensen_bound_against_expected_stdev(self, bkd: Backend) -> None:
+    def test_jensen_bound_against_expected_stdev(self, bkd: Backend[Array]) -> None:
         """E[Var(q|y)] >= (E[Std(q|y)])^2."""
         self._setup()
         variance = self._utility(
@@ -155,7 +155,7 @@ class TestLogNormalExpectedVariance:
         mu = y @ gain
         return float(np.mean((np.exp(v) - 1.0) * np.exp(2.0 * mu + v)))
 
-    def test_monte_carlo_convergence(self, bkd: Backend) -> None:
+    def test_monte_carlo_convergence(self, bkd: Backend[Array]) -> None:
         """MC over (x, e) converges to the closed form at the N^(-1/2) rate."""
         self._setup()
         value = self._utility(
@@ -169,8 +169,7 @@ class TestLogNormalExpectedVariance:
         for nsamples in sizes:
             errors = np.array(
                 [
-                    self._mc_expected_variance(nsamples, 1000 * rep + nsamples)
-                    - value
+                    self._mc_expected_variance(nsamples, 1000 * rep + nsamples) - value
                     for rep in range(nreps)
                 ]
             )
