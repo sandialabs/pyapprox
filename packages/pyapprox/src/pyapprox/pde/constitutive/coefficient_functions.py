@@ -813,6 +813,9 @@ class NodalFieldVelocity:
 # =====================================================================
 
 
+_ReactionLaw = Callable[[_Quad, _Quad], _Quad]
+
+
 @runtime_checkable
 class ReactionFunctionProtocol(Protocol):
     """Pointwise reaction law R(x, u) with its u-derivative."""
@@ -823,6 +826,15 @@ class ReactionFunctionProtocol(Protocol):
 
     def derivative(self, coords: _Quad, state: _Quad) -> _Quad:
         """Evaluate dR/du at coordinates and state values."""
+        ...
+
+    def second_derivative_function(self) -> Optional[_ReactionLaw]:
+        """Return ``(coords, state) -> d^2R/du^2``, or ``None``.
+
+        Needed only by the HVP tier. ``None`` when the law does not
+        supply it; a linear law supplies exact zeros. Absence is a
+        ``None`` here, never a missing method.
+        """
         ...
 
     def is_linear(self) -> bool:
@@ -851,17 +863,6 @@ class SpatiallyVaryingReactionProtocol(ReactionFunctionProtocol, Protocol):
         ...
 
 
-@runtime_checkable
-class ReactionFunctionWithSecondDerivativeProtocol(
-    ReactionFunctionProtocol, Protocol
-):
-    """Reaction law additionally exposing d^2R/du^2 (HVP tier)."""
-
-    def second_derivative(self, coords: _Quad, state: _Quad) -> _Quad:
-        """Evaluate d^2R/du^2 at coordinates and state values."""
-        ...
-
-
 class LinearReaction:
     """Linear reaction R(u) = coeff * u; second derivative exactly 0."""
 
@@ -884,6 +885,10 @@ class LinearReaction:
 
     def second_derivative(self, coords: _Quad, state: _Quad) -> _Quad:
         return np.zeros_like(np.asarray(state))
+
+    def second_derivative_function(self) -> Optional[_ReactionLaw]:
+        """Exact zero: R is linear in u."""
+        return self.second_derivative
 
     def is_linear(self) -> bool:
         return True
@@ -973,6 +978,10 @@ class NodalFieldLinearReaction:
 
     def second_derivative(self, coords: _Quad, state: _Quad) -> _Quad:
         return np.zeros_like(np.asarray(state))
+
+    def second_derivative_function(self) -> Optional[_ReactionLaw]:
+        """Exact zero: R is linear in u."""
+        return self.second_derivative
 
     def is_linear(self) -> bool:
         return True
@@ -1174,6 +1183,10 @@ class TimeModulatedNodalFieldLinearReaction:
     ) -> _Quad:
         return np.zeros_like(np.asarray(state))
 
+    def second_derivative_function(self) -> Optional[_ReactionLaw]:
+        """Exact zero: R is linear in u."""
+        return self.second_derivative
+
     def is_linear(self) -> bool:
         return True
 
@@ -1184,14 +1197,27 @@ class TimeModulatedNodalFieldLinearReaction:
         )
 
 
+class _AsArrayReactionLaw:
+    """A user reaction law whose output is coerced to an ndarray.
+
+    Module-level, so a reaction holding one pickles.
+    """
+
+    def __init__(self, func: _ReactionLaw) -> None:
+        self._func = func
+
+    def __call__(self, coords: _Quad, state: _Quad) -> _Quad:
+        return np.asarray(self._func(coords, state))
+
+
 class CallableReaction:
     """Reaction from callables R and R' (and optionally R'').
 
     ``derivative`` is required — Newton needs the Jacobian term, and
     silently dropping it (the old bare-callable form) produced wrong
-    Jacobians. ``second_derivative`` is a capability: supplied, the
-    model satisfies ``ReactionFunctionWithSecondDerivativeProtocol``
-    (dynamic binding, like the essential-BC time derivative).
+    Jacobians. ``second_derivative`` is a capability:
+    ``second_derivative_function()`` returns it when supplied and
+    ``None`` otherwise.
     """
 
     def __init__(
@@ -1205,8 +1231,11 @@ class CallableReaction:
         self._value_func = value_func
         self._derivative_func = derivative_func
         self._second_derivative_func = second_derivative_func
-        if second_derivative_func is not None:
-            self.second_derivative = self._second_derivative_impl
+        self._second_derivative: Optional[_ReactionLaw] = (
+            None
+            if second_derivative_func is None
+            else _AsArrayReactionLaw(second_derivative_func)
+        )
 
     def is_time_dependent(self) -> bool:
         """Reaction laws are functions of state, not time."""
@@ -1218,12 +1247,9 @@ class CallableReaction:
     def derivative(self, coords: _Quad, state: _Quad) -> _Quad:
         return np.asarray(self._derivative_func(coords, state))
 
-    def _second_derivative_impl(
-        self, coords: _Quad, state: _Quad
-    ) -> _Quad:
-        if self._second_derivative_func is None:
-            raise RuntimeError("second-derivative capability not bound")
-        return np.asarray(self._second_derivative_func(coords, state))
+    def second_derivative_function(self) -> Optional[_ReactionLaw]:
+        """Return the supplied d^2R/du^2, or ``None``."""
+        return self._second_derivative
 
     def is_linear(self) -> bool:
         return False

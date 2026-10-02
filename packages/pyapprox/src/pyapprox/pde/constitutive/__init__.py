@@ -19,7 +19,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldLinearReaction,
     NodalFieldVelocity,
     ReactionFunctionProtocol,
-    ReactionFunctionWithSecondDerivativeProtocol,
     StateDependentDiffusionProtocol,
     TimeAwareCallableProtocol,
     TimeDependent,
@@ -51,7 +50,6 @@ __all__ = [
     "StateDependentDiffusionProtocol",
     "VelocityFunctionProtocol",
     "ReactionFunctionProtocol",
-    "ReactionFunctionWithSecondDerivativeProtocol",
     "TimeAwareCallableProtocol",
     # Time-awareness declaration for coefficient suppliers
     "TimeDependent",

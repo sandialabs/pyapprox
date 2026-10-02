@@ -1365,6 +1365,9 @@ class TestLinearReactionSelectedByCapability:
                     self.values(coords, time), np.asarray(state).shape
                 ).copy()
 
+            def second_derivative_function(self):
+                return None
+
             def is_linear(self):
                 return True
 

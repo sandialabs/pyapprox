@@ -53,7 +53,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldForcing,
     NodalFieldVelocity,
     ReactionFunctionProtocol,
-    ReactionFunctionWithSecondDerivativeProtocol,
     SpatiallyVaryingReactionProtocol,
     StateDependentDiffusionProtocol,
     TimeVaryingProtocol,
@@ -1118,9 +1117,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         if (
             reaction is not None
             and not reaction.is_linear()
-            and not isinstance(
-                reaction, ReactionFunctionWithSecondDerivativeProtocol
-            )
+            and reaction.second_derivative_function() is None
         ):
             return StateDerivatives.none()
         return StateDerivatives.second_order(self.state_state_hvp)
@@ -1472,18 +1469,17 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         reaction = self._reaction_function
         if reaction is None or reaction.is_linear():
             return self._bkd.full_like(state, 0.0)
-        if not isinstance(
-            reaction, ReactionFunctionWithSecondDerivativeProtocol
-        ):
+        second_derivative = reaction.second_derivative_function()
+        if second_derivative is None:
             raise TypeError(
                 "state_state_hvp with a nonlinear reaction requires the "
                 "analytic second derivative "
-                "(ReactionFunctionWithSecondDerivativeProtocol); supply "
+                "(second_derivative_function() is None); supply "
                 "second_derivative_func on CallableReaction"
             )
         skfem_basis = self._basis.skfem_basis()
         contraction = asm(
-            LinearForm(_ReactionHVPKernel(reaction.second_derivative)),
+            LinearForm(_ReactionHVPKernel(second_derivative)),
             skfem_basis,
             u_prev=skfem_basis.interpolate(self._bkd.to_numpy(state)),
             adj_prev=skfem_basis.interpolate(self._bkd.to_numpy(adj_state)),
