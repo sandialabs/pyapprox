@@ -27,6 +27,7 @@ from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.boundary.implementations import DirectDirichletBC
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
 
 try:
@@ -337,6 +338,14 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
 
         self._stiffness = asm(beam_stiffness_form, self._skfem_basis)
         return self._stiffness
+
+    def system(self) -> GalerkinSystem[Array]:
+        """Return the composed system: ``F``, constraints, and mass.
+
+        The beam has no natural-BC terms, so it is its own spatial
+        operator.
+        """
+        return GalerkinSystem(self, self.constraint_set(), self)
 
     def mass_matrix(self) -> Array:
         """Return beam mass matrix M_ij = integral(w_i * w_j).

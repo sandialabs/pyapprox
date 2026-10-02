@@ -16,6 +16,7 @@ from pyapprox.pde.galerkin.protocols.boundary import (
     BoundaryConditionProtocol,
 )
 from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -52,6 +53,7 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
         # Split now so a BC with no role fails at construction.
         self._roles()
         self._spatial_operator: Optional[ComposedSpatialOperator[Array]] = None
+        self._system: Optional[GalerkinSystem[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -99,6 +101,10 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
             Interior Jacobian. Shape: (nstates, nstates)
         """
 
+    @abstractmethod
+    def mass_matrix(self) -> Array:
+        """Return the mass matrix ``M``. Shape: (nstates, nstates)."""
+
     def natural_bc_operator(self) -> NaturalBCOperator[Array]:
         """Return the natural-BC operator built from this physics' BCs."""
         return self.spatial_operator().natural_bcs()
@@ -116,6 +122,18 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
                 self, NaturalBCOperator(self.weak_form_bcs())
             )
         return self._spatial_operator
+
+    def system(self) -> GalerkinSystem[Array]:
+        """Return the composed system: ``F``, constraints, and mass.
+
+        What models and solvers consume. The mass is read from this
+        physics on every call, so a parameterized mass is never stale.
+        """
+        if self._system is None:
+            self._system = GalerkinSystem(
+                self.spatial_operator(), self.constraint_set(), self
+            )
+        return self._system
 
     def spatial_residual(self, state: Array, time: float) -> Array:
         """Compute ``F = F_Omega + F_Gamma`` without Dirichlet enforcement.

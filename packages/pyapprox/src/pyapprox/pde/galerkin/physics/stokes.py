@@ -32,6 +32,7 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     CallableDirichletBC,
 )
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
@@ -344,10 +345,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
 
     def _assemble_vel_load(self, time: float) -> np.ndarray:
         """Assemble velocity load vector."""
-        if self._vel_forcing is None:
+        vel_forcing_func = self._vel_forcing_eval
+        if vel_forcing_func is None:
             return np.zeros(self.vel_ndofs())
 
-        vel_forcing_func = self._vel_forcing_eval
         nvars = self._ndim
         current_time = time
         prepare_points = self._prepare_points
@@ -374,10 +375,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
 
     def _assemble_pres_load(self, time: float) -> np.ndarray:
         """Assemble pressure load vector (negated for convention)."""
-        if self._pres_forcing is None:
+        pres_forcing_func = self._pres_forcing_eval
+        if pres_forcing_func is None:
             return np.zeros(self.pres_ndofs())
 
-        pres_forcing_func = self._pres_forcing_eval
         current_time = time
         prepare_points = self._prepare_points
 
@@ -594,6 +595,14 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             BilinearForm(vector_mass_form), self._vel_skfem_basis
         )
         return self._vel_mass_cached
+
+    def system(self) -> GalerkinSystem[Array]:
+        """Return the composed system: ``F``, constraints, and mass.
+
+        Stokes has no natural-BC terms, so it is its own spatial
+        operator.
+        """
+        return GalerkinSystem(self, self.constraint_set(), self)
 
     def mass_matrix(self) -> Array:
         """Return block mass matrix [M_vel, 0; 0, 0].
