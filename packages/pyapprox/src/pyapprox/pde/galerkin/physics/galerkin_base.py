@@ -49,6 +49,8 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
         self._basis = basis
         self._bkd = bkd
         self._boundary_conditions = boundary_conditions or []
+        # Split now so a BC with no role fails at construction.
+        self._roles()
         self._spatial_operator: Optional[ComposedSpatialOperator[Array]] = None
 
     def bkd(self) -> Backend[Array]:

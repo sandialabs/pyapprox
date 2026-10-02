@@ -16,6 +16,7 @@ from pyapprox.pde.boundary.protocols import (
     EssentialBCProtocol,
     WeakFormBCProtocol,
 )
+from pyapprox.pde.boundary.roles import BCRoles, split_by_role
 from pyapprox.pde.boundary.signal import BoundarySignal, DofSignal
 from pyapprox.pde.boundary.time_derivative_function import (
     TimeDerivativeFunction,
@@ -24,6 +25,7 @@ from pyapprox.pde.boundary.time_derivative_function import (
 
 __all__ = [
     "BCDofClassification",
+    "BCRoles",
     "BoundarySignal",
     "DofSignal",
     "TimeDerivativeFunction",
@@ -33,4 +35,5 @@ __all__ = [
     "EssentialBCProtocol",
     "NaturalBCOperator",
     "WeakFormBCProtocol",
+    "split_by_role",
 ]

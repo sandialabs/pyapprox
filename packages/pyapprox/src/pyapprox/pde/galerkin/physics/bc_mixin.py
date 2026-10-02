@@ -9,9 +9,11 @@ through a single cached ``DirichletConstraintSet``.
 from typing import Any, Callable, Generic, List, Optional, Tuple
 
 from pyapprox.pde.boundary import (
+    BCRoles,
     DirichletConstraintSet,
     EssentialBCProtocol,
     WeakFormBCProtocol,
+    split_by_role,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -31,22 +33,24 @@ class GalerkinBCMixin(Generic[Array]):
     _boundary_conditions: List[Any]
     nstates: Callable[[], int]
     _constraint_set: Optional[DirichletConstraintSet[Array]] = None
+    _bc_roles: Optional[BCRoles[Array]] = None
+
+    def _roles(self) -> BCRoles[Array]:
+        """Return the BC list split by role (cached).
+
+        Raises on a BC with no role or both, rather than dropping it.
+        """
+        if self._bc_roles is None:
+            self._bc_roles = split_by_role(self._boundary_conditions)
+        return self._bc_roles
 
     def weak_form_bcs(self) -> List[WeakFormBCProtocol[Array]]:
         """Return the natural (Neumann/Robin) BCs, in list order."""
-        return [
-            bc
-            for bc in self._boundary_conditions
-            if isinstance(bc, WeakFormBCProtocol)
-        ]
+        return self._roles().terms()
 
     def essential_bcs(self) -> List[EssentialBCProtocol[Array]]:
         """Return the essential (Dirichlet) BCs, in list order."""
-        return [
-            bc
-            for bc in self._boundary_conditions
-            if isinstance(bc, EssentialBCProtocol)
-        ]
+        return self._roles().essentials()
 
     def constraint_set(self) -> DirichletConstraintSet[Array]:
         """Return the cached essential-constraint set for this physics.
