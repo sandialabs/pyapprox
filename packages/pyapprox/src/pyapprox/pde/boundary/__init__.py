@@ -1,9 +1,11 @@
 """Solver-neutral boundary-condition building blocks.
 
 Shared leaf of the pde layering: imports nothing from the solver
-packages (collocation, galerkin); both consume it. Besides ``sparse_utils``
-it imports only ``constitutive``, for the time-awareness declarations a
-``BoundarySignal`` shares with coefficient suppliers.
+packages (collocation, galerkin); both consume it. Within pde it imports
+only ``sparse_utils`` and ``constitutive`` (for the time-awareness
+declarations a ``BoundarySignal`` shares with coefficient suppliers);
+outside pde, ``interface.functions`` so time derivatives can be checked
+with ``DerivativeChecker``.
 """
 
 from pyapprox.pde.boundary.classification import BCDofClassification
@@ -15,11 +17,17 @@ from pyapprox.pde.boundary.protocols import (
     WeakFormBCProtocol,
 )
 from pyapprox.pde.boundary.signal import BoundarySignal, DofSignal
+from pyapprox.pde.boundary.time_derivative_function import (
+    TimeDerivativeFunction,
+    time_derivative_functions,
+)
 
 __all__ = [
     "BCDofClassification",
     "BoundarySignal",
     "DofSignal",
+    "TimeDerivativeFunction",
+    "time_derivative_functions",
     "ConstraintSetProtocol",
     "DirichletConstraintSet",
     "EssentialBCProtocol",

@@ -16,6 +16,12 @@ declared present or absent once, at construction:
 ``DofSignal`` is the coordinate-free counterpart for selections given
 as explicit DOF indices: its suppliers take only the time.
 
+Supplied derivatives are TRUSTED, like any analytic derivative in a
+``Derivatives`` bundle: a wrong one gives wrong numbers, not an error.
+To verify them, check each order against finite differences of the one
+below with ``time_derivative_functions`` and ``DerivativeChecker``
+(``pde.boundary.time_derivative_function``).
+
 The parameter Jacobian ``s_p`` of BC data is reserved for a BC-data
 parameterization and not built: it would be one more optional entry on
 a signal, so adding it changes no BC class.
