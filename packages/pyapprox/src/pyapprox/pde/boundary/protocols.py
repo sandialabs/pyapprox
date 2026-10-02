@@ -29,6 +29,25 @@ class WeakFormBCProtocol(Protocol, Generic[Array]):
 
     A weak-form BC has no row-replacement methods to misuse: it only
     adds boundary-integral contributions to assembled operators.
+
+    Sign convention. Time-dependent problems are ``du/dt = R(u)`` with the
+    physics residual on the right; for Galerkin, ``M du/dt = F(u, t)``
+    with ``F = b - K u`` (``spatial_residual``). Integrating the flux by
+    parts puts the boundary integral on the right-hand side, so a natural
+    BC is a term ``c(u, t)`` of ``F``: ``F = F_interior + sum_k c_k``.
+    ``apply_to_residual`` adds ``c`` and ``apply_to_jacobian`` adds
+    ``dc/du``; ``apply_to_load`` and ``apply_to_stiffness`` add the load
+    ``b_Gamma`` and stiffness ``K_Gamma`` of the linear split
+    ``c = b_Gamma - K_Gamma u``.
+
+    With ``q . n`` the outward normal flux of the weak form (the traction
+    ``sigma(u) n`` in elasticity, ``D grad(u) . n`` in diffusion):
+
+    - Neumann, ``q . n = h``: ``c = integral h . phi``;
+    - Robin, ``q . n + a u = g`` with ``a >= 0``:
+      ``c = integral (g - a u) . phi``. This is an elastic support (a
+      spring of stiffness ``a`` pulling the boundary toward ``g / a``);
+      ``a >= 0`` keeps ``K + K_Gamma`` positive definite.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -85,7 +104,7 @@ class WeakFormBCProtocol(Protocol, Generic[Array]):
     def apply_to_residual(
         self, residual: Array, state: Array, time: float
     ) -> Array:
-        """Add the boundary-integral contribution to the residual.
+        """Add the term ``c(u, t)`` to the residual ``F`` of ``M du/dt = F``.
 
         Parameters
         ----------
@@ -116,7 +135,7 @@ class WeakFormBCProtocol(Protocol, Generic[Array]):
     def apply_to_jacobian(
         self, jacobian: Union[spmatrix, Array], state: Array, time: float
     ) -> Union[spmatrix, Array]:
-        """Add the boundary-integral contribution to the Jacobian.
+        """Add the term's Jacobian ``dc/du`` (``-K_Gamma`` for Robin).
 
         Parameters
         ----------

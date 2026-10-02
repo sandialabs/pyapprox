@@ -256,8 +256,10 @@ class ManufacturedSolutionBC(Generic[Array]):
     ) -> RobinBC[Array]:
         """Create a Robin BC from the manufactured solution.
 
-        Robin BC: alpha * u - flux . n = g
-        So g = alpha * u - D * grad(u) . n
+        Robin BC: alpha * u - flux . n = g, where the manufactured ``flux``
+        is the physical flux -D * grad(u). So g = alpha * u + D * grad(u) . n,
+        the convention q . n + alpha * u = g of ``WeakFormBCProtocol`` with
+        q = D * grad(u) the weak form's flux.
         """
         sol_func = self._solution_func
         flux_func = self._flux_func

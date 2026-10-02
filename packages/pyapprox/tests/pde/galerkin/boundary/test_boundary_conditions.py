@@ -511,7 +511,8 @@ class TestRoleProtocols:
         assert bc.apply_to_stiffness(K, 0.0) is K
         assert bc.apply_to_jacobian(K, state, 0.0) is K
 
-    def test_neumann_residual_subtracts_load(self, numpy_bkd: NumpyBkd) -> None:
+    def test_neumann_residual_adds_load(self, numpy_bkd: NumpyBkd) -> None:
+        """The term enters F of M du/dt = F with a plus sign."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -520,7 +521,7 @@ class TestRoleProtocols:
         state = bkd.asarray(np.zeros(n))
         res = bc.apply_to_residual(bkd.asarray(np.zeros(n)), state, 0.0)
         load = bc.apply_to_load(bkd.asarray(np.zeros(n)), 0.0)
-        bkd.assert_allclose(res, -load)
+        bkd.assert_allclose(res, load)
 
     def test_bc_set_role_accessors(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd

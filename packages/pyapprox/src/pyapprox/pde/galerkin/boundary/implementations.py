@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
 import numpy as np
 import numpy.typing as npt
-from numpy.typing import NDArray
 from scipy.sparse import issparse, spmatrix
 
 from pyapprox.pde.galerkin.protocols.basis import (
@@ -496,14 +495,13 @@ class NeumannBC(Generic[Array]):
         return stiffness
 
     def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
-        """Apply Neumann BC to residual (WeakFormBCProtocol).
+        """Add the Neumann term c = integral_{Gamma} g . phi ds.
 
-        In the residual convention used by ``RobinBC.apply_to_residual``
-        (``F = K*u - b``) the flux enters with a minus sign:
-        subtracts ``integral_{Gamma} g . phi ds``.
+        The physics' sign convention F = b - K u: the term is the load
+        (see ``WeakFormBCProtocol``).
         """
         zero = self._bkd.full_like(residual, 0.0)
-        return residual - self.apply_to_load(zero, time)
+        return residual + self.apply_to_load(zero, time)
 
     def apply_to_jacobian(
         self,
@@ -637,29 +635,10 @@ class RobinBC(Generic[Array]):
             self._boundary_basis = skfem_basis.boundary(self._boundary_name)
         return self._boundary_basis
 
-    def apply_to_stiffness(
-        self,
-        stiffness: Union[spmatrix, Array],
-        time: float,
-    ) -> Union[spmatrix, Array]:
-        """Apply Robin BC contribution to stiffness matrix.
-
-        Adds: alpha * integral_{Gamma} u . phi ds
+    def _stiffness_contribution(self) -> spmatrix:
+        """Assemble K_Gamma = alpha * integral_{Gamma} u . phi ds (sparse).
 
         For vector elements uses sum_i(u_i * v_i); for scalar uses u * v.
-        Accepts both sparse matrices and dense arrays.
-
-        Parameters
-        ----------
-        stiffness : sparse matrix or Array
-            Stiffness matrix. Shape: (nstates, nstates)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        sparse matrix or Array
-            Modified stiffness matrix (same type as input).
         """
         bndry_basis = self._get_boundary_basis()
         alpha_at_quadrature = self._alpha_at_quadrature
@@ -685,7 +664,34 @@ class RobinBC(Generic[Array]):
             ) -> np.ndarray:
                 return np.asarray(alpha_at_quadrature(w) * u * v)
 
-        contribution_sparse = asm(BilinearForm(robin_bilinear), bndry_basis)
+        contribution: spmatrix = asm(BilinearForm(robin_bilinear), bndry_basis)
+        return contribution
+
+    def apply_to_stiffness(
+        self,
+        stiffness: Union[spmatrix, Array],
+        time: float,
+    ) -> Union[spmatrix, Array]:
+        """Apply Robin BC contribution to stiffness matrix.
+
+        Adds: alpha * integral_{Gamma} u . phi ds
+
+        For vector elements uses sum_i(u_i * v_i); for scalar uses u * v.
+        Accepts both sparse matrices and dense arrays.
+
+        Parameters
+        ----------
+        stiffness : sparse matrix or Array
+            Stiffness matrix. Shape: (nstates, nstates)
+        time : float
+            Current time.
+
+        Returns
+        -------
+        sparse matrix or Array
+            Modified stiffness matrix (same type as input).
+        """
+        contribution_sparse = self._stiffness_contribution()
 
         if issparse(stiffness):
             return stiffness + contribution_sparse
@@ -746,9 +752,11 @@ class RobinBC(Generic[Array]):
         return self._bkd.asarray(load_np.astype(np.float64))
 
     def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
-        """Apply Robin BC to residual.
+        """Add the Robin term c = integral_{Gamma} (g - alpha u) . phi ds.
 
-        For residual form, adds: alpha * u - g contribution on boundary.
+        The physics' sign convention F = b - K u: the term is the Robin
+        load minus K_Gamma u (see ``WeakFormBCProtocol``). Scalar and
+        vector bases alike.
 
         Parameters
         ----------
@@ -764,50 +772,24 @@ class RobinBC(Generic[Array]):
         Array
             Modified residual.
         """
-        res_np = self._bkd.to_numpy(residual).copy()
-        state_np = self._bkd.to_numpy(state)
-        bndry_basis = self._get_boundary_basis()
-        alpha_at_quadrature = self._alpha_at_quadrature
-        value_func = self._value_func
-        current_time = time
-
-        # Add alpha * u * phi contribution to residual
-        def robin_residual_u(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            return np.asarray(alpha_at_quadrature(w) * w.u_prev * v)
-
-        # Need to interpolate state onto boundary
-        state_interp = bndry_basis.interpolate(state_np)
-        contribution_u = asm(
-            LinearForm(robin_residual_u), bndry_basis, u_prev=state_interp
+        load = self.apply_to_load(self._bkd.full_like(residual, 0.0), time)
+        stiffness_times_state = self._bkd.asarray(
+            self._stiffness_contribution() @ self._bkd.to_numpy(state)
         )
-        res_np += contribution_u
+        return residual + load - stiffness_times_state
 
-        # Subtract g * phi contribution
-        def robin_residual_g(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            # Note: w.x may be a DiscreteField, so convert to ndarray
-            x_np = np.asarray(w.x)
-            x_shape = x_np.shape
-            if len(x_shape) == 3:
-                ndim, nelem, nquad = x_shape
-                x_flat = x_np.reshape(ndim, -1)
-                vals_flat = value_func(x_flat, current_time)
-                vals = vals_flat.reshape(nelem, nquad)
-            else:
-                vals = value_func(x_np, current_time)
-            ret: NDArray[np.floating[Any]] = vals * v
-            return ret
-
-        contribution_g = asm(LinearForm(robin_residual_g), bndry_basis)
-        res_np -= contribution_g
-
-        return self._bkd.asarray(res_np.astype(np.float64))
-
-    def apply_to_jacobian(self, jacobian: Array, state: Array, time: float) -> Array:
-        """Apply Robin BC to Jacobian.
-
-        Adds: alpha * integral_{Gamma} u * phi ds to Jacobian.
-        """
-        return self.apply_to_stiffness(jacobian, time)
+    def apply_to_jacobian(
+        self,
+        jacobian: Union[spmatrix, Array],
+        state: Array,
+        time: float,
+    ) -> Union[spmatrix, Array]:
+        """Add the Robin term's Jacobian, -K_Gamma (same type as input)."""
+        contribution = self._stiffness_contribution()
+        if issparse(jacobian):
+            return jacobian - contribution
+        jac_np = self._bkd.to_numpy(jacobian) - contribution.toarray()
+        return self._bkd.asarray(jac_np.astype(np.float64))
 
     def __repr__(self) -> str:
         alpha_repr = (
