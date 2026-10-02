@@ -28,6 +28,7 @@ from typing import (
 
 from scipy.sparse import spmatrix
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary.classification import BCDofClassification
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -159,6 +160,16 @@ class WeakFormBCProtocol(Protocol, Generic[Array]):
         -------
         sparse matrix or Array
             Modified Jacobian (same type as input).
+        """
+        ...
+
+    def state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the optional second state derivatives of the term ``c``.
+
+        ``StateDerivatives.linear`` for a term linear in u (Neumann,
+        Robin); a nonlinear term (radiation, a follower load) supplies
+        its curvature or ``StateDerivatives.none()``, which keeps every
+        operator it is composed into at the Jacobian tier.
         """
         ...
 

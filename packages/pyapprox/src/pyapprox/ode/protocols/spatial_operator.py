@@ -11,6 +11,7 @@ alone.
 
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -32,4 +33,11 @@ class SpatialOperatorProtocol(Protocol, Generic[Array]):
 
     def spatial_jacobian(self, state: Array, time: float) -> Array:
         """Compute ``dF/du``. Shape: (nstates, nstates); may be sparse."""
+        ...
+
+    def state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the optional second state derivatives of ``F``.
+
+        Consumers choose their derivative tier from this bundle, once.
+        """
         ...

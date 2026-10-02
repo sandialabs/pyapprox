@@ -40,6 +40,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.constitutive.coefficient_functions import (
     BasisEvaluableFieldProtocol,
     ConstantDiffusion,
@@ -1104,6 +1105,25 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
 
         jacobian: Array = asm(form, skfem_basis, u_prev=state_interp)
         return jacobian
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the interior curvature, decided once.
+
+        Only the reaction is nonlinear in u. A nonlinear reaction
+        without an analytic second derivative has no curvature to
+        supply, so the bundle says so here rather than ``state_state_hvp``
+        raising mid-solve.
+        """
+        reaction = self._reaction_function
+        if (
+            reaction is not None
+            and not reaction.is_linear()
+            and not isinstance(
+                reaction, ReactionFunctionWithSecondDerivativeProtocol
+            )
+        ):
+            return StateDerivatives.none()
+        return StateDerivatives.second_order(self.state_state_hvp)
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""

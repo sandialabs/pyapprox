@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     as_time_aware,
@@ -135,6 +136,10 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
     def diffusion_function(self) -> NodalFieldDiffusion:
         """Return the nodal diffusivity field."""
         return self._diffusivity
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the interior curvature (``kappa''`` is required)."""
+        return StateDerivatives.second_order(self.state_state_hvp)
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""

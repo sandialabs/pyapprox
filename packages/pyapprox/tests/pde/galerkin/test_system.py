@@ -10,6 +10,7 @@ from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet, NaturalBCOperator
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
@@ -51,6 +52,9 @@ class _StubInterior(Generic[Array]):
 
     def interior_jacobian(self, state: Array, time: float) -> Array:
         return -2.0 * self._bkd.eye(self._nstates)
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        return StateDerivatives.linear(self._bkd)
 
 
 class _ScaledMass(Generic[Array]):

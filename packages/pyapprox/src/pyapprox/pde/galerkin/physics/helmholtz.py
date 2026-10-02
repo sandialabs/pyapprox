@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeVaryingProtocol,
     as_time_aware,
@@ -137,7 +138,11 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         """Helmholtz equation is always linear."""
         return True
 
-    def mass_matrix(self) -> object:
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Exact zero curvature: the interior is linear in u."""
+        return StateDerivatives.linear(self._bkd)
+
+    def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
         return self._mass.mass_matrix()
 

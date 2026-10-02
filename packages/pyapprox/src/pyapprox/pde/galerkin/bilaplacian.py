@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import NaturalBCOperator, WeakFormBCProtocol
 from pyapprox.pde.galerkin.boundary.implementations import RobinBC
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -68,6 +69,9 @@ class _LinearInterior(Generic[Array]):
     def interior_jacobian(self, state: Array, time: float) -> Array:
         jacobian: Array = -self._stiffness
         return jacobian
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        return StateDerivatives.linear(self._bkd)
 
 
 class BiLaplacianPrior(Generic[Array]):

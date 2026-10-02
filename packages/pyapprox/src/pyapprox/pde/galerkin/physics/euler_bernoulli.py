@@ -25,8 +25,11 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import NaturalBCOperator
 from pyapprox.pde.galerkin.boundary.implementations import DirectDirichletBC
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -253,6 +256,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         # Assembly caches
         self._stiffness: Optional[Array] = None
         self._mass: Optional[Array] = None
+        self._spatial_operator: Optional[ComposedSpatialOperator[Array]] = None
         self._solution: Optional[Array] = None
 
     def bkd(self) -> Backend[Array]:
@@ -340,12 +344,31 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         return self._stiffness
 
     def system(self) -> GalerkinSystem[Array]:
-        """Return the composed system: ``F``, constraints, and mass.
+        """Return the composed system: ``F``, constraints, and mass."""
+        return GalerkinSystem(
+            self.spatial_operator(), self.constraint_set(), self
+        )
 
-        The beam has no natural-BC terms, so it is its own spatial
-        operator.
+    def spatial_operator(self) -> ComposedSpatialOperator[Array]:
+        """Return ``F = F_Omega + F_Gamma`` (cached).
+
+        The natural-BC terms come from the BC list; the constructor
+        accepts none yet, so the sum is the interior alone. A tip load or
+        end spring would join here, as for every other physics.
         """
-        return GalerkinSystem(self, self.constraint_set(), self)
+        if self._spatial_operator is None:
+            self._spatial_operator = ComposedSpatialOperator(
+                self, NaturalBCOperator(self.weak_form_bcs())
+            )
+        return self._spatial_operator
+
+    def state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the second state derivatives of the composed ``F``."""
+        return self.spatial_operator().state_derivatives()
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Exact zero curvature: the interior is linear in u."""
+        return StateDerivatives.linear(self._bkd)
 
     def mass_matrix(self) -> Array:
         """Return beam mass matrix M_ij = integral(w_i * w_j).
@@ -369,8 +392,11 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         self._mass = asm(BilinearForm(mass_form), self._skfem_basis)
         return self._mass
 
-    def load_vector(self) -> Array:
-        """Return load vector b_i = integral(q(x) * w_i).
+    def interior_load_vector(self) -> Array:
+        """Return the distributed-load vector b_i = integral(q(x) * w_i).
+
+        Body load only; natural-BC terms are added by the composed
+        spatial operator.
 
         Returns
         -------
@@ -387,8 +413,8 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         f = asm(LinearForm(load_form), self._skfem_basis)
         return self._bkd.asarray(f.astype(np.float64))
 
-    def spatial_residual(self, state: Array, time: float = 0.0) -> Array:
-        """Compute F = b - K*u without BC enforcement.
+    def interior_residual(self, state: Array, time: float = 0.0) -> Array:
+        """Compute the interior residual ``F_Omega = b - K u``.
 
         Parameters
         ----------
@@ -403,8 +429,12 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             Residual. Shape: (ndofs,)
         """
         K = self.stiffness_matrix()
-        b = self.load_vector()
+        b = self.interior_load_vector()
         return b - K @ state
+
+    def spatial_residual(self, state: Array, time: float = 0.0) -> Array:
+        """Compute ``F`` without Dirichlet enforcement. Shape: (ndofs,)."""
+        return self.spatial_operator().spatial_residual(state, time)
 
     def residual(self, state: Array, time: float = 0.0) -> Array:
         """Compute residual with Dirichlet BCs enforced.
@@ -426,8 +456,8 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         res = self.spatial_residual(state, time)
         return self._apply_dirichlet_to_residual(res, state, time)
 
-    def spatial_jacobian(self, state: Array, time: float = 0.0) -> Array:
-        """Compute dF/du = -K without BC enforcement.
+    def interior_jacobian(self, state: Array, time: float = 0.0) -> Array:
+        """Compute ``dF_Omega/du = -K``.
 
         Parameters
         ----------
@@ -442,6 +472,10 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             Jacobian. Shape: (ndofs, ndofs)
         """
         return -self.stiffness_matrix()
+
+    def spatial_jacobian(self, state: Array, time: float = 0.0) -> Array:
+        """Compute ``dF/du`` without Dirichlet enforcement."""
+        return self.spatial_operator().spatial_jacobian(state, time)
 
     def jacobian(self, state: Array, time: float = 0.0) -> Array:
         """Compute Jacobian with Dirichlet BCs enforced.
@@ -505,7 +539,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             return self._solution
 
         K_sp = self.stiffness_matrix()
-        f_np = self._bkd.to_numpy(self.load_vector())
+        f_np = self._bkd.to_numpy(self.interior_load_vector())
 
         dof_set = self._skfem_basis.get_dofs("left")
         u = skfem_solve(*condense(K_sp, f_np, D=dof_set))

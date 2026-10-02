@@ -18,6 +18,7 @@ from typing import (
     runtime_checkable,
 )
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import ConstraintSetProtocol, WeakFormBCProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -245,4 +246,12 @@ class GalerkinInteriorOperatorProtocol(Protocol, Generic[Array]):
 
     def interior_jacobian(self, state: Array, time: float) -> Array:
         """Compute ``dF_Omega/du``. Shape: (nstates, nstates)."""
+        ...
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the optional second state derivatives of ``F_Omega``.
+
+        ``StateDerivatives.linear`` for an interior linear in u;
+        ``StateDerivatives.none()`` when the curvature is not supplied.
+        """
         ...

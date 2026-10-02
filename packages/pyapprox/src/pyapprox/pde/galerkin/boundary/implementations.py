@@ -23,6 +23,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy.sparse import issparse, spmatrix
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary.signal import BoundarySignal, DofSignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeAwareCallableProtocol,
@@ -546,6 +547,10 @@ class NeumannBC(Generic[Array]):
         """
         return jacobian
 
+    def state_derivatives(self) -> StateDerivatives[Array]:
+        """Exact zero curvature: the term is independent of u."""
+        return StateDerivatives.linear(self._bkd)
+
     def __repr__(self) -> str:
         return (
             f"NeumannBC(boundary='{self._boundary_name}', "
@@ -832,6 +837,10 @@ class RobinBC(Generic[Array]):
             return jacobian - contribution
         jac_np = self._bkd.to_numpy(jacobian) - contribution.toarray()
         return self._bkd.asarray(jac_np.astype(np.float64))
+
+    def state_derivatives(self) -> StateDerivatives[Array]:
+        """Exact zero curvature: ``c = b_Gamma - K_Gamma u`` is linear."""
+        return StateDerivatives.linear(self._bkd)
 
     def __repr__(self) -> str:
         alpha_repr = (

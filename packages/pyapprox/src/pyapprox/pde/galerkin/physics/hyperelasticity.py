@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.constitutive.protocols import (
     StressModelProtocol,
@@ -139,6 +140,11 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
     def ndim(self) -> int:
         """Return spatial dimension."""
         return int(self._basis.ncomponents())
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """No curvature supplied: the stress tangent's derivative is not
+        assembled, so consumers stay at the Jacobian tier."""
+        return StateDerivatives.none()
 
     def mass_matrix(self) -> Array:
         """Return the vector mass matrix.

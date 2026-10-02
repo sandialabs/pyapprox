@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
@@ -262,6 +263,10 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
     def ndim(self) -> int:
         """Return spatial dimension."""
         return int(self._basis.ncomponents())
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Exact zero curvature: the interior is linear in u."""
+        return StateDerivatives.linear(self._bkd)
 
     def mass_matrix(self) -> Array:
         """Return the vector mass matrix.

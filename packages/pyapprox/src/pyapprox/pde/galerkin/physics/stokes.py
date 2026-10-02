@@ -23,6 +23,8 @@ from numpy.typing import NDArray
 from scipy.sparse import block_diag as sp_block_diag
 from scipy.sparse import csr_matrix
 
+from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import NaturalBCOperator
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
@@ -32,6 +34,7 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     CallableDirichletBC,
 )
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -190,6 +193,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
 
         # Convert tuple BCs to CallableDirichletBC objects for mixin
         self._boundary_conditions = self._build_boundary_conditions()
+        self._spatial_operator: Optional[ComposedSpatialOperator[Array]] = None
 
     def _build_boundary_conditions(self) -> List[Any]:
         """Convert tuple-based BCs to CallableDirichletBC objects."""
@@ -466,14 +470,12 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
     # Physics protocol methods
     # ------------------------------------------------------------------
 
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual without Dirichlet enforcement.
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute the interior residual ``F_Omega``, with no BC in it.
 
         Computes the block assembly:
             F_vel = vel_load - A*vel - B^T*pres [- NS_nonlinear_term]
             F_pres = pres_load - B*vel
-
-        Dirichlet BCs are NOT applied.
 
         Parameters
         ----------
@@ -512,8 +514,8 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
 
         return self._bkd.asarray(residual_np.astype(np.float64))
 
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute Jacobian dF/du = -K without Dirichlet enforcement.
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute ``dF_Omega/du = -K``, with no BC in it.
 
         Parameters
         ----------
@@ -533,6 +535,39 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         # convention.
         jacobian_matrix: Array = -K
         return jacobian_matrix
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Exact zero curvature for Stokes; none supplied for
+        Navier-Stokes, whose convective term is not differentiated
+        twice."""
+        if self._navier_stokes:
+            return StateDerivatives.none()
+        return StateDerivatives.linear(self._bkd)
+
+    def spatial_operator(self) -> ComposedSpatialOperator[Array]:
+        """Return ``F = F_Omega + F_Gamma`` (cached).
+
+        The natural-BC terms come from the BC list; the constructor
+        accepts none yet, so the sum is the interior alone. A traction
+        term would join here, as for every other physics.
+        """
+        if self._spatial_operator is None:
+            self._spatial_operator = ComposedSpatialOperator(
+                self, NaturalBCOperator(self.weak_form_bcs())
+            )
+        return self._spatial_operator
+
+    def spatial_residual(self, state: Array, time: float) -> Array:
+        """Compute ``F`` without Dirichlet enforcement. Shape: (nstates,)."""
+        return self.spatial_operator().spatial_residual(state, time)
+
+    def spatial_jacobian(self, state: Array, time: float) -> Array:
+        """Compute ``dF/du`` without Dirichlet enforcement."""
+        return self.spatial_operator().spatial_jacobian(state, time)
+
+    def state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the second state derivatives of the composed ``F``."""
+        return self.spatial_operator().state_derivatives()
 
     def residual(self, state: Array, time: float) -> Array:
         """Compute residual F(u, t) = load - K*u with BCs applied.
@@ -597,12 +632,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         return self._vel_mass_cached
 
     def system(self) -> GalerkinSystem[Array]:
-        """Return the composed system: ``F``, constraints, and mass.
-
-        Stokes has no natural-BC terms, so it is its own spatial
-        operator.
-        """
-        return GalerkinSystem(self, self.constraint_set(), self)
+        """Return the composed system: ``F``, constraints, and mass."""
+        return GalerkinSystem(
+            self.spatial_operator(), self.constraint_set(), self
+        )
 
     def mass_matrix(self) -> Array:
         """Return block mass matrix [M_vel, 0; 0, 0].

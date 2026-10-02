@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
@@ -125,6 +126,11 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         if self._forcing_eval is None:
             return np.zeros(coords.shape[-1])
         return self._forcing_eval(coords, time)
+
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """No curvature supplied: the advective term's second derivative
+        is not assembled, so consumers stay at the Jacobian tier."""
+        return StateDerivatives.none()
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""

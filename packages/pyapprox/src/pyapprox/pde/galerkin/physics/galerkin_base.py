@@ -9,6 +9,7 @@ and interior_jacobian(); the natural-BC terms are added here, once.
 from abc import ABC, abstractmethod
 from typing import Generic, List, Optional
 
+from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import NaturalBCOperator
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -102,8 +103,21 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
         """
 
     @abstractmethod
+    def interior_state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the optional second state derivatives of ``F_Omega``.
+
+        Declared by every physics: ``StateDerivatives.linear`` when the
+        interior is linear in u, ``StateDerivatives.none()`` when its
+        curvature is not supplied.
+        """
+
+    @abstractmethod
     def mass_matrix(self) -> Array:
         """Return the mass matrix ``M``. Shape: (nstates, nstates)."""
+
+    def state_derivatives(self) -> StateDerivatives[Array]:
+        """Return the second state derivatives of the composed ``F``."""
+        return self.spatial_operator().state_derivatives()
 
     def natural_bc_operator(self) -> NaturalBCOperator[Array]:
         """Return the natural-BC operator built from this physics' BCs."""
