@@ -17,6 +17,7 @@ best linear predictor otherwise.
 
 from typing import Generic, Optional, Sequence, Tuple
 
+from pyapprox.inverse.joint_gaussian.observation import LinearGaussianObservation
 from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import (
     CovarianceRepairProtocol,
@@ -169,6 +170,51 @@ class JointGaussian(Generic[Array]):
         noise_cov = self._noise.covariance()[selected][:, selected]
         sub_noise = DenseCholeskyCovarianceOperator(noise_cov, self._bkd)
         return JointGaussian(sub_blocks, sub_noise, _AlreadyChecked())
+
+    def observe(
+        self, weights: Array, variances: Array, index: int
+    ) -> LinearGaussianObservation[Array]:
+        """Target ``index`` seen through the relaxed observation.
+
+        Parameters
+        ----------
+        weights : Array
+            Design weights ``w``, non-negative. Shape: (nobs, 1)
+        variances : Array
+            Independent-noise variances ``nu``, non-negative and positive
+            wherever ``w`` is zero. Shape: (nobs, 1)
+        index : int
+            Which target block.
+        """
+        bkd, nobs = self._bkd, self.nobs()
+        for name, values in (("weights", weights), ("variances", variances)):
+            if tuple(values.shape) != (nobs, 1):
+                raise ValueError(
+                    f"{name} must have shape ({nobs}, 1), got {tuple(values.shape)}"
+                )
+            if bkd.any_bool(values < 0.0):
+                raise ValueError(f"{name} must be non-negative")
+        # Both are non-negative (checked above), so "<= 0" means "== 0".
+        # The Array protocol types "==" as returning bool, so "<=" is used.
+        weight_is_zero = weights <= 0.0
+        variance_is_zero = variances <= 0.0
+        if bkd.any_bool(weight_is_zero & variance_is_zero):
+            raise ValueError(
+                "variances must be positive where weights are zero, or the "
+                "observation is singular"
+            )
+        self._check_index(index)
+        blocks = self._blocks
+        return LinearGaussianObservation(
+            blocks.target_mean(index),
+            blocks.target_covariance(index),
+            blocks.target_obs_covariance(index),
+            blocks.obs_mean(),
+            self.obs_covariance(),
+            weights,
+            variances,
+            bkd,
+        )
 
     def _check_index(self, index: int) -> None:
         ntargets = len(self.target_sizes())
