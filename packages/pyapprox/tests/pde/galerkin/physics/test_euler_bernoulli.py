@@ -239,6 +239,32 @@ class TestEulerBernoulliFEM:
             atol=1e-10,
         )
 
+    def test_solve_uses_the_constrained_dofs_given(self, numpy_bkd) -> None:
+        """A simply supported beam (deflection pinned at both ends) under
+        uniform load q matches w = q x (L^3 - 2 L x^2 + x^3) / (24 EI).
+
+        Hermite cubics are nodally exact for beams. ``solve`` must honor
+        ``dirichlet_dofs``: clamping the left end instead gives a
+        different beam and fails this.
+        """
+        bkd = numpy_bkd
+        EI_val, L, nx, q = 1.5, 2.0, 8, 1.0
+        beam = EulerBernoulliBeamFEM(
+            nx=nx,
+            length=L,
+            EI=EI_val,
+            load_func=lambda x: np.full_like(x, q),
+            bkd=bkd,
+            dirichlet_dofs=[0, 2 * nx],
+        )
+        beam.solve()
+        x = beam.node_coordinates()
+        w_exact = q * x * (L**3 - 2 * L * x**2 + x**3) / (24 * EI_val)
+        bkd.assert_allclose(
+            beam.deflection_at_nodes(), bkd.asarray(w_exact), rtol=1e-10,
+            atol=1e-12,
+        )
+
     def test_manufactured_exact_solve_recovery(self, numpy_bkd) -> None:
         """Solve with load from cubic manufactured solution, recover exactly."""
         bkd = numpy_bkd

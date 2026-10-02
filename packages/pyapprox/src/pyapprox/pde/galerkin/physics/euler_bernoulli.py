@@ -527,7 +527,14 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         return self._bkd.asarray(dofs.astype(np.float64))
 
     def solve(self) -> Array:
-        """Solve the static beam problem.
+        """Solve the static beam problem ``R(u) = 0``.
+
+        Solves the composed spatial operator (interior plus any
+        natural-BC terms) with this beam's essential constraints, so the
+        constrained DOFs are the ones it was built with. The beam is
+        linear, so ``F(u) = F(0) - K u``; the constrained DOFs are
+        eliminated (condensed) and set exactly. The assembly is skfem
+        (scipy sparse) on every backend, so the solve stays at that seam.
 
         Returns
         -------
@@ -538,12 +545,14 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         if self._solution is not None:
             return self._solution
 
-        K_sp = self.stiffness_matrix()
-        f_np = self._bkd.to_numpy(self.interior_load_vector())
-
-        dof_set = self._skfem_basis.get_dofs("left")
-        u = skfem_solve(*condense(K_sp, f_np, D=dof_set))
-        self._solution = self._bkd.asarray(u.astype(np.float64))
+        constraint_set = self.constraint_set()
+        zero = self._bkd.zeros((self._ndofs,))
+        stiffness = -self.spatial_jacobian(zero, 0.0)
+        load = self._bkd.to_numpy(self.spatial_residual(zero, 0.0))
+        prescribed = self._bkd.to_numpy(constraint_set.inject(zero, 0.0))
+        dofs = self._bkd.to_numpy(constraint_set.dofs()).astype(np.int64)
+        u = skfem_solve(*condense(stiffness, load, x=prescribed, D=dofs))
+        self._solution = self._bkd.asarray(np.asarray(u, dtype=np.float64))
         return self._solution
 
     def deflection_at_nodes(self) -> Array:
