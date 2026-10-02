@@ -10,6 +10,7 @@ Tests cover:
 
 import numpy as np
 import pytest
+from pyapprox.expdesign.design_space import BoxBudgetDesignSpace
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import KLOEDObjective
 from pyapprox.expdesign.solver import (
@@ -22,6 +23,7 @@ from pyapprox.optimization.minimize.multistart import MultiStartOptimizer
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestRelaxedKLOEDSolver:
@@ -160,6 +162,63 @@ class TestRelaxedKLOEDSolver:
         solver = RelaxedKLOEDSolver(self._objective, config)
         assert solver.nobs() == self._nobs
         assert solver.bkd() is not None
+
+    def test_default_design_space_unchanged(self, bkd: Backend[Array]) -> None:
+        """The default is the floored simplex, giving identical optima."""
+        config = RelaxedOEDConfig(verbosity=0, maxiter=50, weight_floor=1e-4)
+        default = RelaxedKLOEDSolver(self._objective, config)
+        space = default.design_space()
+        assert isinstance(space, BoxBudgetDesignSpace)
+        assert space.budget() == 1.0
+        assert space.lower() == 1e-4
+        assert space.upper() == 1.0
+        bkd.assert_allclose(
+            space.initial(), bkd.full((self._nobs, 1), 1.0 / self._nobs)
+        )
+        explicit = RelaxedKLOEDSolver(
+            self._objective,
+            config,
+            design_space=BoxBudgetDesignSpace(
+                self._nobs, 1.0, bkd, lower=1e-4, upper=1.0
+            ),
+        )
+        weights_default, eig_default = default.solve()
+        weights_explicit, eig_explicit = explicit.solve()
+        bkd.assert_allclose(weights_explicit, weights_default, rtol=1e-12)
+        bkd.assert_allclose(
+            bkd.asarray([eig_explicit]), bkd.asarray([eig_default]), rtol=1e-12
+        )
+
+    def test_budget_other_than_one(self, bkd: Backend[Array]) -> None:
+        """A budget of 2 starts feasible and returns weights spending it."""
+        space = BoxBudgetDesignSpace(self._nobs, 2.0, bkd, lower=1e-6, upper=1.0)
+        solver = RelaxedKLOEDSolver(
+            self._objective,
+            RelaxedOEDConfig(verbosity=0, maxiter=50),
+            design_space=space,
+        )
+        bkd.assert_allclose(
+            bkd.sum(space.initial(), axis=0), bkd.asarray([2.0]), rtol=1e-12
+        )
+        weights, eig = solver.solve()
+        bkd.assert_allclose(bkd.sum(weights, axis=0), bkd.asarray([2.0]), rtol=1e-4)
+        assert bkd.all_bool(weights >= 1e-6 * (1 - 1e-6))
+        assert bkd.all_bool(weights <= 1.0 + 1e-6)
+        assert np.isfinite(eig)
+
+    def test_rejects_mismatched_design_space(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(ValueError):
+            RelaxedKLOEDSolver(
+                self._objective,
+                design_space=BoxBudgetDesignSpace(self._nobs + 1, 1.0, bkd),
+            )
+
+    def test_rejects_non_design_space(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(TypeError):
+            RelaxedKLOEDSolver(
+                self._objective,
+                design_space=bkd.ones((self._nobs, 2)),
+            )
 
 
 class TestBruteForceKLOEDSolver:

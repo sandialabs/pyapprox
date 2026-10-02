@@ -49,3 +49,21 @@ forbidden_modules =
     pyapprox.pde
     pyapprox.statest
     pyapprox.expdesign
+
+# ── Contract 3: Layering of probability, inverse and expdesign ───────────
+[importlinter:contract:probability-isolation]
+name = probability must not import inverse or expdesign
+type = forbidden
+source_modules =
+    pyapprox.probability
+forbidden_modules =
+    pyapprox.inverse
+    pyapprox.expdesign
+
+[importlinter:contract:inverse-isolation]
+name = inverse must not import expdesign
+type = forbidden
+source_modules =
+    pyapprox.inverse
+forbidden_modules =
+    pyapprox.expdesign

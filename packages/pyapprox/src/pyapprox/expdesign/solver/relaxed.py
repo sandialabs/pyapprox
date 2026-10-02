@@ -1,18 +1,19 @@
 """
 Relaxed (continuous) solver for OED problems.
 
-The relaxed solver treats design weights as continuous variables in [0, 1]
-with a sum-to-one constraint, using trust-region constrained optimization.
+The relaxed solver treats design weights as continuous variables and
+searches the feasible set given by a design space, using trust-region
+constrained optimization. By default the set is ``[weight_floor, 1]`` per
+weight with a sum-to-one constraint.
 """
 
 from dataclasses import dataclass
 from typing import Generic, Optional, Tuple
 
+from pyapprox.expdesign.design_space import BoxBudgetDesignSpace
 from pyapprox.expdesign.objective import KLOEDObjective
+from pyapprox.expdesign.protocols.design_space import DesignSpaceProtocol
 from pyapprox.expdesign.protocols.objective import OEDObjectiveProtocol
-from pyapprox.optimization.minimize.constraints.linear import (
-    PyApproxLinearConstraint,
-)
 from pyapprox.optimization.minimize.protocols import (
     BindableOptimizerProtocol,
 )
@@ -44,7 +45,9 @@ class RelaxedOEDConfig:
         relying on the optimizer keeping strictly interior iterates.
         The optimum shifts by at most ``nobs * weight_floor`` in
         probability mass (value change well below MC noise at the
-        default). Set to 0.0 to recover the closed simplex.
+        default). Set to 0.0 to recover the closed simplex. Used only
+        by the default design space; ignored when the solver is given
+        a ``design_space``.
     """
 
     verbosity: int = 0
@@ -59,8 +62,11 @@ class RelaxedOEDSolver(Generic[Array]):
 
     Solves the continuous relaxation of the OED problem:
         min objective(w)
-        s.t. sum(w) = 1
-             weight_floor <= w_i <= 1
+        s.t. w in the design space
+
+    The default design space is
+        sum(w) = 1
+        weight_floor <= w_i <= 1
 
     Parameters
     ----------
@@ -73,6 +79,10 @@ class RelaxedOEDSolver(Generic[Array]):
         Configured unbound optimizer (e.g. ``ScipyTrustConstrOptimizer``).
         Cloned during ``solve()`` to avoid shared state. If None, a
         ``ScipyTrustConstrOptimizer`` is built from ``config``.
+    design_space : DesignSpaceProtocol, optional
+        Feasible set of the weights, supplying bounds, constraints and
+        the default starting point. If None, weights lie in
+        ``[config.weight_floor, 1]`` and sum to one.
     """
 
     def __init__(
@@ -80,12 +90,32 @@ class RelaxedOEDSolver(Generic[Array]):
         objective: OEDObjectiveProtocol[Array],
         config: Optional[RelaxedOEDConfig] = None,
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
+        design_space: Optional[DesignSpaceProtocol[Array]] = None,
     ) -> None:
         self._objective = objective
         self._bkd = objective.bkd()
         self._config = config or RelaxedOEDConfig()
         self._optimizer = optimizer
         self._nobs = objective.nvars()
+        if design_space is None:
+            design_space = BoxBudgetDesignSpace(
+                self._nobs,
+                1.0,
+                self._bkd,
+                lower=self._config.weight_floor,
+                upper=1.0,
+            )
+        if not isinstance(design_space, DesignSpaceProtocol):
+            raise TypeError(
+                "design_space must satisfy DesignSpaceProtocol, got "
+                f"{type(design_space).__name__}"
+            )
+        if design_space.nvars() != self._nobs:
+            raise ValueError(
+                f"design_space has {design_space.nvars()} weights but the "
+                f"objective has {self._nobs}"
+            )
+        self._design_space = design_space
 
     def bkd(self) -> Backend[Array]:
         """Get the backend."""
@@ -95,33 +125,9 @@ class RelaxedOEDSolver(Generic[Array]):
         """Number of observation locations."""
         return self._nobs
 
-    def _create_bounds(self) -> Array:
-        """Create bounds array for design weights.
-
-        Returns
-        -------
-        Array
-            Bounds array. Shape: (nobs, 2)
-            Each row is [lower, upper] = [weight_floor, 1]
-        """
-        bounds = self._bkd.zeros((self._nobs, 2))
-        bounds[:, 0] = self._config.weight_floor
-        bounds[:, 1] = 1.0  # Upper bound
-        return bounds
-
-    def _create_sum_constraint(self) -> PyApproxLinearConstraint[Array]:
-        """Create sum-to-one equality constraint.
-
-        Returns
-        -------
-        PyApproxLinearConstraint[Array]
-            Linear constraint: sum(w) = 1
-        """
-        # A @ w = 1, where A is row of ones
-        A = self._bkd.ones((1, self._nobs))
-        lb = self._bkd.asarray([1.0])
-        ub = self._bkd.asarray([1.0])
-        return PyApproxLinearConstraint(A, lb, ub, self._bkd)
+    def design_space(self) -> DesignSpaceProtocol[Array]:
+        """Feasible set of the weights."""
+        return self._design_space
 
     def solve(self, init_weights: Optional[Array] = None) -> Tuple[Array, float]:
         """Solve the relaxed OED problem.
@@ -130,7 +136,7 @@ class RelaxedOEDSolver(Generic[Array]):
         ----------
         init_weights : Array, optional
             Initial design weights. Shape: (nobs, 1)
-            If None, uses uniform weights.
+            If None, uses the design space's starting point.
 
         Returns
         -------
@@ -139,13 +145,8 @@ class RelaxedOEDSolver(Generic[Array]):
         optimal_value : float
             Objective value at optimal design.
         """
-        # Default to uniform weights
         if init_weights is None:
-            init_weights = self._bkd.ones((self._nobs, 1)) / self._nobs
-
-        # Create bounds and constraint
-        bounds = self._create_bounds()
-        sum_constraint = self._create_sum_constraint()
+            init_weights = self._design_space.initial()
 
         optimizer: BindableOptimizerProtocol[Array]
         if self._optimizer is not None:
@@ -159,7 +160,11 @@ class RelaxedOEDSolver(Generic[Array]):
                 gtol=self._config.gtol,
                 xtol=self._config.xtol,
             )
-        optimizer.bind(self._objective, bounds, [sum_constraint])
+        optimizer.bind(
+            self._objective,
+            self._design_space.bounds(),
+            self._design_space.constraints(),
+        )
 
         # Run optimization
         result = optimizer.minimize(init_weights)
@@ -183,8 +188,8 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
 
     Solves the continuous relaxation of the OED problem:
         min -EIG(w)
-        s.t. sum(w) = 1
-             weight_floor <= w_i <= 1
+        s.t. w in the design space (by default sum(w) = 1 and
+             weight_floor <= w_i <= 1)
 
     Parameters
     ----------
@@ -195,6 +200,8 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
         if None. Ignored when ``optimizer`` is provided.
     optimizer : BindableOptimizerProtocol, optional
         Configured unbound optimizer, cloned during ``solve()``.
+    design_space : DesignSpaceProtocol, optional
+        Feasible set of the weights. See ``RelaxedOEDSolver``.
     """
 
     def __init__(
@@ -202,8 +209,9 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
         objective: KLOEDObjective[Array],
         config: Optional[RelaxedOEDConfig] = None,
         optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
+        design_space: Optional[DesignSpaceProtocol[Array]] = None,
     ) -> None:
-        super().__init__(objective, config, optimizer)
+        super().__init__(objective, config, optimizer, design_space)
         self._kl_objective = objective
 
     def solve(self, init_weights: Optional[Array] = None) -> Tuple[Array, float]:
@@ -213,7 +221,7 @@ class RelaxedKLOEDSolver(RelaxedOEDSolver[Array]):
         ----------
         init_weights : Array, optional
             Initial design weights. Shape: (nobs, 1)
-            If None, uses uniform weights.
+            If None, uses the design space's starting point.
 
         Returns
         -------
