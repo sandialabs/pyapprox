@@ -36,9 +36,7 @@ def _solve_beam(basis, sub_elems, material_map, bkd, L, q0,
     )
     bc_top = NeumannBC(
         basis, "top_edge",
-        lambda c, t=0.0, _q=q0: np.vstack(
-            [np.zeros(c.shape[1]), -_q * c[0] / L]
-        ),
+        lambda c: np.vstack([np.zeros(c.shape[1]), -q0 * c[0] / L]),
         bkd,
     )
     if nonlinear:
@@ -696,8 +694,7 @@ def plot_reference_solution(fig, ax):
     )
     bc_top = NeumannBC(
         basis, "top_edge",
-        lambda c, t=0.0: np.vstack([np.zeros(c.shape[1]),
-                                     -q0 * c[0] / L]),
+        lambda c: np.vstack([np.zeros(c.shape[1]), -q0 * c[0] / L]),
         bkd,
     )
 

@@ -29,7 +29,10 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
+)
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import NeumannBC, RobinBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
@@ -154,3 +157,75 @@ class TestWeakFormTermConvention:
         # Robin case has a sweep to check.
         if kind == "robin":
             assert float(bkd.to_numpy(checker.error_ratio(errors))) <= 1e-6
+
+
+class _TimeVaryingData:
+    def __call__(self, coords: _Arr, time: float) -> _Arr:
+        return np.asarray((1.0 + time) * (1.0 + coords[0] * coords[1]))
+
+
+def _ambiguous_data(coords: _Arr, time: float = 0.0) -> _Arr:
+    return np.asarray(1.0 + coords[0] + 0.0 * time)
+
+
+@pytest.mark.parametrize("cls", [RobinBC, NeumannBC])
+class TestWeakFormDataTimeDeclaration:
+    """Time dependence of natural-BC data is declared, never inferred."""
+
+    _NDOFS = 16  # degree-1 Lagrange on a 3 x 3 quad mesh: 4 x 4 nodes
+
+    def _bc(self, cls: Any, data: Any) -> Any:
+        bkd = NumpyBkd()
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        assert basis.ndofs() == self._NDOFS
+        if cls is RobinBC:
+            return RobinBC(basis, "right", 1.7, data, bkd)
+        return NeumannBC(basis, "right", data, bkd)
+
+    def _load(self, bc: Any, time: float) -> _Arr:
+        return bc.apply_to_load(bc.bkd().zeros((self._NDOFS,)), time)
+
+    def test_bare_coordinate_callable_is_time_independent(self, cls: Any) -> None:
+        bare = self._bc(cls, _ScalarData())
+        declared = self._bc(cls, TimeIndependent(_ScalarData()))
+        assert not bare.is_time_dependent()
+        bare.bkd().assert_allclose(
+            self._load(bare, 0.3), self._load(declared, 0.3), rtol=1e-14
+        )
+
+    def test_declared_time_dependent_data(self, cls: Any) -> None:
+        bc = self._bc(cls, TimeDependent(_TimeVaryingData()))
+        assert bc.is_time_dependent()
+        bc.bkd().assert_allclose(
+            self._load(bc, 1.0), 2.0 * self._load(bc, 0.0), rtol=1e-12
+        )
+
+    def test_ambiguous_callable_is_rejected(self, cls: Any) -> None:
+        with pytest.raises(TypeError, match="ambiguous"):
+            self._bc(cls, _ambiguous_data)
+
+    def test_constant_is_time_independent(self, cls: Any) -> None:
+        assert not self._bc(cls, 2.5).is_time_dependent()
+
+
+class TestNeumannSetFluxFunc:
+    """Replacing Neumann data keeps the declaration rule."""
+
+    def _bc(self) -> Any:
+        bkd = NumpyBkd()
+        mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
+        return NeumannBC(LagrangeBasis(mesh, degree=1), "right", 1.0, bkd)
+
+    def test_new_data_reaches_the_load(self) -> None:
+        bc = self._bc()
+        zero = bc.bkd().zeros((16,))
+        before = bc.apply_to_load(zero, 0.0)
+        bc.set_flux_func(3.0)
+        bc.bkd().assert_allclose(bc.apply_to_load(zero, 0.0), 3.0 * before)
+        bc.set_flux_func(TimeDependent(_TimeVaryingData()))
+        assert bc.is_time_dependent()
+
+    def test_ambiguous_data_is_rejected(self) -> None:
+        with pytest.raises(TypeError, match="ambiguous"):
+            self._bc().set_flux_func(_ambiguous_data)

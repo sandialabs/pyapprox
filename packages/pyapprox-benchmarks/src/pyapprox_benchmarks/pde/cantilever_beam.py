@@ -975,7 +975,7 @@ def build_cantilever_beam_2d_linear(
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
+    def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
@@ -1116,7 +1116,7 @@ def build_cantilever_beam_2d_neohookean(
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
+    def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
@@ -1353,7 +1353,7 @@ def build_cantilever_beam_2d_linear_spde(
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
+    def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
@@ -1493,7 +1493,7 @@ def build_cantilever_beam_2d_neohookean_spde(
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
+    def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))

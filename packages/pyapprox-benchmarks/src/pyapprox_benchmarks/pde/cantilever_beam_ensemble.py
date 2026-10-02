@@ -23,6 +23,7 @@ from typing import (
     TYPE_CHECKING,
     Generic,
     Literal,
+    Protocol,
 )
 
 if TYPE_CHECKING:
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
         VectorLagrangeBasis,
     )
+    from pyapprox.pde.galerkin.boundary.implementations import NeumannBC
+    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
 import numpy as np
 from pyapprox.interface.functions.derivatives import Derivatives
@@ -59,6 +62,33 @@ MESH_PATHS = {
         os.path.join(_DATA_DIR, "cantilever_beam_2d_with_holes_h_4.json")
     ),
 }
+
+
+class _TopTraction:
+    """Top-edge traction (0, -q0 x / L), time-independent.
+
+    A one-argument callable, so the BC accepts it as time-independent
+    data without a wrapper.
+    """
+
+    def __init__(self, q0: float, length: float) -> None:
+        self._q0 = q0
+        self._length = length
+
+    def __call__(self, coords: np.ndarray) -> np.ndarray:
+        return np.stack(
+            [np.zeros(coords.shape[1]), -self._q0 * coords[0] / self._length]
+        )
+
+
+class _LameElasticityPhysics(Protocol):
+    """What the beam model needs from its (linear or hyperelastic) physics."""
+
+    def set_lame_parameters(
+        self, lam_per_elem: np.ndarray, mu_per_elem: np.ndarray
+    ) -> None: ...
+
+    def nstates(self) -> int: ...
 
 
 def _lumped_mass_weights(
@@ -158,9 +188,9 @@ class SharedFieldBeamModel(Generic[Array]):
 
     def __init__(
         self,
-        physics: object,
-        solver: object,
-        neumann_bc: object,
+        physics: _LameElasticityPhysics,
+        solver: "SteadyStateSolver[Array]",
+        neumann_bc: "NeumannBC[Array]",
         scalar_skfem_basis: "skfem.CellBasis",
         kle_field_map: TransformedFieldMap[Array],
         poisson_ratio: float,
@@ -226,12 +256,7 @@ class SharedFieldBeamModel(Generic[Array]):
             lam_arr = E_at_quads * nu / ((1.0 + nu) * (1.0 - 2.0 * nu))
             self._physics.set_lame_parameters(lam_arr, mu_arr)
 
-            self._neumann_bc._flux_func = (
-                lambda coords, time=0.0, _q0=q0, _L=L: np.column_stack([
-                    np.zeros(coords.shape[1]),
-                    -_q0 * coords[0] / _L,
-                ]).T
-            )
+            self._neumann_bc.set_flux_func(_TopTraction(q0, L))
 
             init = bkd.asarray(np.zeros(self._physics.nstates()))
             result = self._solver.solve(init)
@@ -322,7 +347,7 @@ def build_shared_field_beam(
 
     bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
 
-    def top_traction(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
+    def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
@@ -339,31 +364,35 @@ def build_shared_field_beam(
         name: (E_mean, poisson_ratio) for name in subdomain_names
     }
 
+    physics: _LameElasticityPhysics
+    solver: SteadyStateSolver[Array]
     if physics_type == "linear":
         from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
 
-        physics = CompositeLinearElasticity(
+        linear = CompositeLinearElasticity(
             basis=basis,
             material_map=material_map,
             element_materials=subdomain_elements,
             bkd=bkd,
             boundary_conditions=[bc_left, bc_top],
         )
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
+        physics = linear
+        solver = SteadyStateSolver(linear, tol=1e-10, max_iter=1)
     elif physics_type == "neohookean":
         from pyapprox.pde.galerkin.physics import (
             CompositeHyperelasticityPhysics,
         )
 
-        physics = CompositeHyperelasticityPhysics(
+        neohookean = CompositeHyperelasticityPhysics(
             basis=basis,
             material_map=material_map,
             element_materials=subdomain_elements,
             bkd=bkd,
             boundary_conditions=[bc_left, bc_top],
         )
+        physics = neohookean
         solver = SteadyStateSolver(
-            physics, tol=1e-10, max_iter=50, line_search=True,
+            neohookean, tol=1e-10, max_iter=50, line_search=True,
         )
     else:
         raise ValueError(

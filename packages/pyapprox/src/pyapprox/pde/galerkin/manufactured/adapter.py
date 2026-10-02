@@ -11,6 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeAwareCallableProtocol,
     TimeDependent,
     TimeIndependent,
     TimeVaryingProtocol,
@@ -426,21 +427,23 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         self, boundary_name: str, boundary_index: int
     ) -> NeumannBC[Array]:
         """Create a Neumann BC from the manufactured solution."""
-
+        neumann_value: TimeAwareCallableProtocol
         if self._time_dependent:
 
-            def neumann_value(
-                x: NDArray[np.floating[Any]],
-                t: Optional[float] = None,
+            def varying_neumann_value(
+                x: NDArray[np.floating[Any]], t: float
             ) -> NDArray[np.floating[Any]]:
                 return self._compute_natural_bc_value(boundary_index, x, t)
+
+            neumann_value = TimeDependent(varying_neumann_value)
         else:
 
-            def neumann_value(
+            def steady_neumann_value(
                 x: NDArray[np.floating[Any]],
-                t: Optional[float] = None,
             ) -> NDArray[np.floating[Any]]:
                 return self._compute_natural_bc_value(boundary_index, x)
+
+            neumann_value = TimeIndependent(steady_neumann_value)
 
         return NeumannBC(
             basis=self._basis,
@@ -474,11 +477,11 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                 return np.asarray(alpha(x))
             return alpha
 
+        robin_value: TimeAwareCallableProtocol
         if self._time_dependent:
 
-            def robin_value(
-                x: NDArray[np.floating[Any]],
-                t: Optional[float] = None,
+            def varying_robin_value(
+                x: NDArray[np.floating[Any]], t: float
             ) -> NDArray[np.floating[Any]]:
                 u_vals = sol_func(x, t)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
@@ -488,11 +491,12 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                     alpha_values(x) * u_vals + nat_bc
                 )
                 return ret
+
+            robin_value = TimeDependent(varying_robin_value)
         else:
 
-            def robin_value(
+            def steady_robin_value(
                 x: NDArray[np.floating[Any]],
-                t: Optional[float] = None,
             ) -> NDArray[np.floating[Any]]:
                 u_vals = sol_func(x)
                 if hasattr(u_vals, "shape") and u_vals.ndim > 1:
@@ -502,6 +506,8 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                     alpha_values(x) * u_vals + nat_bc
                 )
                 return ret
+
+            robin_value = TimeIndependent(steady_robin_value)
 
         return RobinBC(
             basis=self._basis,
@@ -960,7 +966,7 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         bndry_idx = boundary_index
 
         def neumann_flux(
-            coords: NDArray[np.floating[Any]], time: float = 0.0,
+            coords: NDArray[np.floating[Any]], time: float,
         ) -> NDArray[np.floating[Any]]:
             # coords: (ndim, npts) — quadrature point coordinates
             traction = self._compute_traction(
@@ -968,10 +974,22 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
             )
             return traction  # (ndim, npts)
 
+        flux: TimeAwareCallableProtocol
+        if time_dep:
+            flux = TimeDependent(neumann_flux)
+        else:
+
+            def steady_neumann_flux(
+                coords: NDArray[np.floating[Any]],
+            ) -> NDArray[np.floating[Any]]:
+                return neumann_flux(coords, 0.0)
+
+            flux = TimeIndependent(steady_neumann_flux)
+
         return NeumannBC(
             basis=self._basis,
             boundary_name=boundary_name,
-            flux_func=neumann_flux,
+            flux_func=flux,
             bkd=self._bkd,
         )
 
@@ -990,7 +1008,7 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
         alpha_val = alpha
 
         def robin_value(
-            coords: NDArray[np.floating[Any]], time: float = 0.0,
+            coords: NDArray[np.floating[Any]], time: float,
         ) -> NDArray[np.floating[Any]]:
             # coords: (ndim, npts)
             traction = self._compute_traction(
@@ -1008,11 +1026,23 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
             )
             return ret
 
+        value: TimeAwareCallableProtocol
+        if time_dep:
+            value = TimeDependent(robin_value)
+        else:
+
+            def steady_robin_value(
+                coords: NDArray[np.floating[Any]],
+            ) -> NDArray[np.floating[Any]]:
+                return robin_value(coords, 0.0)
+
+            value = TimeIndependent(steady_robin_value)
+
         return RobinBC(
             basis=self._basis,
             boundary_name=boundary_name,
             alpha=alpha_val,
-            value_func=robin_value,
+            value_func=value,
             bkd=self._bkd,
         )
 

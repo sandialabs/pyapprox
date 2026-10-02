@@ -8,15 +8,14 @@ this tier exercises the post-processing on a benchmark mesh solve
 
 
 import pytest
-
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-
 from pyapprox.pde.galerkin.postprocessing import integrate, von_mises_stress
+
 from tests._helpers.markers import slow_test
 
 
@@ -27,11 +26,6 @@ class TestVonMisesWithFEMSolve:
     def test_cantilever_beam_stress_positive(self, numpy_bkd):
         """Von Mises stress is non-negative and nonzero for loaded beam."""
         bkd = numpy_bkd
-        from skfem.models.elasticity import lame_parameters
-
-        from pyapprox_benchmarks.pde.cantilever_beam import (
-            _DEFAULT_MESH_PATH,
-        )
         from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
@@ -42,6 +36,10 @@ class TestVonMisesWithFEMSolve:
             CompositeLinearElasticity,
         )
         from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+        from pyapprox_benchmarks.pde.cantilever_beam import (
+            _DEFAULT_MESH_PATH,
+        )
+        from skfem.models.elasticity import lame_parameters
 
         L, _H, q0 = 100.0, 30.0, 10.0
 
@@ -70,7 +68,7 @@ class TestVonMisesWithFEMSolve:
         bc_top = NeumannBC(
             basis,
             "top_edge",
-            lambda c, t=0.0: np.vstack(
+            lambda c: np.vstack(
                 [
                     np.zeros(c.shape[1]),
                     -q0 * c[0] / L,

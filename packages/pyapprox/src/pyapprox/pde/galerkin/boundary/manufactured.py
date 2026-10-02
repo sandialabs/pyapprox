@@ -9,6 +9,11 @@ from typing import Any, Callable, Generic, List, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeAwareCallableProtocol,
+    TimeDependent,
+    TimeIndependent,
+)
 from pyapprox.pde.galerkin.boundary.implementations import (
     BoundaryConditionSet,
     DirichletBC,
@@ -231,18 +236,23 @@ class ManufacturedSolutionBC(Generic[Array]):
         def normal_func(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
             return canonical_boundary_normal(boundary_index, x)
 
+        neumann_value: TimeAwareCallableProtocol
         if time_dep:
 
-            def neumann_value(
-                x: NDArray[np.floating[Any]], t: float = 0.0
+            def varying_neumann_value(
+                x: NDArray[np.floating[Any]], t: float
             ) -> NDArray[np.floating[Any]]:
                 return _compute_normal_flux(flux_func, normal_func, x, t)
+
+            neumann_value = TimeDependent(varying_neumann_value)
         else:
 
-            def neumann_value(
-                x: NDArray[np.floating[Any]], t: float = 0.0
+            def steady_neumann_value(
+                x: NDArray[np.floating[Any]],
             ) -> NDArray[np.floating[Any]]:
                 return _compute_normal_flux(flux_func, normal_func, x)
+
+            neumann_value = TimeIndependent(steady_neumann_value)
 
         return NeumannBC(
             basis=self._basis,
@@ -268,24 +278,29 @@ class ManufacturedSolutionBC(Generic[Array]):
         def normal_func(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
             return canonical_boundary_normal(boundary_index, x)
 
+        robin_value: TimeAwareCallableProtocol
         if time_dep:
 
-            def robin_value(
-                x: NDArray[np.floating[Any]], t: float = 0.0
+            def varying_robin_value(
+                x: NDArray[np.floating[Any]], t: float
             ) -> NDArray[np.floating[Any]]:
                 u_val = sol_func(x, t)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x, t)
                 ret: NDArray[np.floating[Any]] = alpha * u_val - flux_dot_n
                 return ret
+
+            robin_value = TimeDependent(varying_robin_value)
         else:
 
-            def robin_value(
-                x: NDArray[np.floating[Any]], t: float = 0.0
+            def steady_robin_value(
+                x: NDArray[np.floating[Any]],
             ) -> NDArray[np.floating[Any]]:
                 u_val = sol_func(x)
                 flux_dot_n = _compute_normal_flux(flux_func, normal_func, x)
                 ret: NDArray[np.floating[Any]] = alpha * u_val - flux_dot_n
                 return ret
+
+            robin_value = TimeIndependent(steady_robin_value)
 
         return RobinBC(
             basis=self._basis,

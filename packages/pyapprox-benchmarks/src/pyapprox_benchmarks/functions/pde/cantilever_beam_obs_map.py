@@ -91,7 +91,7 @@ def build_cantilever_beam_design_matrix(
 
     # ---- Solve unit load cases ----
     def _solve_unit_load(
-        traction_func: Callable[[np.ndarray, float], np.ndarray],
+        traction_func: Callable[[np.ndarray], np.ndarray],
     ) -> np.ndarray:
         bc_top = NeumannBC(basis, "top_edge", traction_func, bkd)
         physics = CompositeLinearElasticity(
@@ -106,17 +106,13 @@ def build_cantilever_beam_design_matrix(
         result = solver.solve(init)
         return bkd.to_numpy(result.solution)
 
-    def const_traction(
-        coords: np.ndarray, time: float = 0.0,
-    ) -> np.ndarray:
+    def const_traction(coords: np.ndarray) -> np.ndarray:
         npts = coords.shape[1]
         traction = np.zeros((2, npts))
         traction[1, :] = -1.0
         return traction
 
-    def slope_traction(
-        coords: np.ndarray, time: float = 0.0,
-    ) -> np.ndarray:
+    def slope_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
         npts = coords.shape[1]
         traction = np.zeros((2, npts))

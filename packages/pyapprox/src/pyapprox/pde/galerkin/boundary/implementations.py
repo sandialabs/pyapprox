@@ -14,6 +14,11 @@ import numpy as np
 import numpy.typing as npt
 from scipy.sparse import issparse, spmatrix
 
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeAwareCallableProtocol,
+    TimeIndependent,
+    as_time_aware,
+)
 from pyapprox.pde.galerkin.protocols.basis import (
     ComponentDofsBasisProtocol,
     GalerkinBasisProtocol,
@@ -359,8 +364,12 @@ class NeumannBC(Generic[Array]):
     boundary_name : str
         Name of the boundary.
     flux_func : Callable or float
-        Function g(x, t) returning flux values, or constant value.
-        If callable, takes coordinates (ndim, npts) and time, returns (npts,).
+        Flux values: a constant; a bare ``g(coords)`` (time-independent);
+        or a declared ``TimeIndependent(g)`` / ``TimeDependent(g)`` for
+        ``g(coords, time)``. A bare callable that could take a time is
+        rejected, so time dependence is never guessed. Coordinates have
+        shape (ndim, npts); values (npts,) for scalar and (ndim, npts)
+        for vector bases.
     bkd : Backend[Array]
         Computational backend.
     """
@@ -376,11 +385,15 @@ class NeumannBC(Generic[Array]):
         self._boundary_name = boundary_name
         self._bkd = bkd
 
-        # Store flux function
-        if callable(flux_func):
-            self._flux_func = flux_func
-        else:
-            self._flux_func = _ConstantBoundaryValue(float(flux_func))
+        # Time dependence is declared, never inferred: a bare f(coords) is
+        # time-independent, a declared TimeIndependent/TimeDependent says
+        # which it is, and a bare callable that could take a time is
+        # rejected by as_time_aware.
+        self._flux_func: TimeAwareCallableProtocol = (
+            as_time_aware(flux_func)
+            if callable(flux_func)
+            else TimeIndependent(_ConstantBoundaryValue(float(flux_func)))
+        )
 
         # Get boundary DOFs
         self._boundary_dofs = basis.get_dofs(boundary_name)
@@ -399,6 +412,23 @@ class NeumannBC(Generic[Array]):
     def boundary_dofs(self) -> Array:
         """Return indices of DOFs on this boundary."""
         return self._boundary_dofs
+
+    def is_time_dependent(self) -> bool:
+        """Whether the flux data varies in time (declared, not inferred)."""
+        return self._flux_func.is_time_dependent()
+
+    def set_flux_func(self, flux_func: Union[Callable[..., Any], float]) -> None:
+        """Replace the flux data, under the same declaration rule as the
+        constructor (a bare callable that could take a time is rejected).
+
+        Lets a caller vary the data between solves (e.g. a load per
+        sample) without rebuilding the physics that holds this BC.
+        """
+        self._flux_func = (
+            as_time_aware(flux_func)
+            if callable(flux_func)
+            else TimeIndependent(_ConstantBoundaryValue(float(flux_func)))
+        )
 
     def flux_values(self, time: float = 0.0) -> Array:
         """Return Neumann flux values at given time.
@@ -552,7 +582,10 @@ class RobinBC(Generic[Array]):
         values at boundary quadrature points (time-independent; time
         dependence belongs to ``value_func``).
     value_func : Callable or float
-        Function g(x, t) returning Robin values, or constant value.
+        Robin data g: a constant; a bare ``g(coords)`` (time-independent);
+        or a declared ``TimeIndependent(g)`` / ``TimeDependent(g)`` for
+        ``g(coords, time)``. A bare callable that could take a time is
+        rejected, so time dependence is never guessed.
     bkd : Backend[Array]
         Computational backend.
     """
@@ -572,11 +605,12 @@ class RobinBC(Generic[Array]):
         self._alpha = alpha
         self._bkd = bkd
 
-        # Store value function
-        if callable(value_func):
-            self._value_func = value_func
-        else:
-            self._value_func = _ConstantBoundaryValue(float(value_func))
+        # Time dependence is declared, never inferred (see NeumannBC).
+        self._value_func: TimeAwareCallableProtocol = (
+            as_time_aware(value_func)
+            if callable(value_func)
+            else TimeIndependent(_ConstantBoundaryValue(float(value_func)))
+        )
 
         # Get boundary DOFs
         self._boundary_dofs = basis.get_dofs(boundary_name)
@@ -595,6 +629,13 @@ class RobinBC(Generic[Array]):
     def boundary_dofs(self) -> Array:
         """Return indices of DOFs on this boundary."""
         return self._boundary_dofs
+
+    def is_time_dependent(self) -> bool:
+        """Whether the Robin data g varies in time (declared, not inferred).
+
+        The coefficient alpha is time-independent by construction.
+        """
+        return self._value_func.is_time_dependent()
 
     def alpha(self) -> Union[float, Callable[[np.ndarray], np.ndarray]]:
         """Return the coefficient for the u term (constant or callable)."""
