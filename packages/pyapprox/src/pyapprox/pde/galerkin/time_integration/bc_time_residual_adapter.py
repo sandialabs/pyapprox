@@ -619,7 +619,8 @@ def create_galerkin_bc_enforcing_residual(
     TypeError
         If the stepper is stage-based, the mass matrix is consistent
         (not diagonal/identity), and any time-varying essential BC
-        lacks an analytic ``constrained_values_time_derivative``.
+        lacks an analytic first time derivative
+        (``constrained_values_derivative(1)`` is ``None``).
         Checked eagerly here, not at the first stage solve.
     """
     if inner.is_multistage() and isinstance(
@@ -627,13 +628,13 @@ def create_galerkin_bc_enforcing_residual(
     ):
         mass = inner.native_residual.mass_matrix()
         if not mass.is_diagonal():
-            missing = physics.constraint_set().missing_time_derivative_bcs()
+            missing = physics.constraint_set().missing_derivative_bcs(1)
             if missing:
                 raise TypeError(
                     "stage-based stepper "
                     f"{type(inner).__name__} with a consistent mass "
                     "matrix requires an analytic boundary velocity "
-                    "(constrained_values_time_derivative) on every "
+                    "(a first time derivative) on every "
                     "time-varying essential BC, but these lack it: "
                     f"{missing}. A consistent mass couples boundary "
                     "motion into interior rows via M_id*g_dot; "

@@ -139,7 +139,7 @@ class TestLinearElasticityBase:
 
         body_force = TimeIndependent(_body_force_impl)
 
-        def dirichlet_value(coords, time=0.0):
+        def dirichlet_value(coords):
             vals = sol_func(coords)  # (nbndry_dofs, 1)
             nbndry_dofs = coords.shape[1]
             result = np.zeros(nbndry_dofs)
@@ -680,7 +680,7 @@ class TestLinearElasticity3DPatch:
             DirichletBC,
         )
 
-        def dirichlet_value(coords, time=0.0):
+        def dirichlet_value(coords):
             return exact_displacement(coords)
 
         bc_list = [
@@ -816,7 +816,7 @@ class TestLinearElasticity3DManufactured:
 
         body_force = TimeIndependent(_body_force_impl)
 
-        def dirichlet_value(coords, time=0.0):
+        def dirichlet_value(coords):
             return sol_func(coords).T  # (ndim, npts) vector convention
 
         bc_list = [

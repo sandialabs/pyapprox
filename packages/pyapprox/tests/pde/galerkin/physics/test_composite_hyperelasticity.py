@@ -50,7 +50,7 @@ def _to_dense(mat, bkd):
 
 
 def _make_vector_dirichlet_value_func(sol_func, ndim):
-    def value_func(coords, time=0.0):
+    def value_func(coords):
         nbndry_dofs = coords.shape[1]
         vals = sol_func(coords)
         result = np.zeros(nbndry_dofs)

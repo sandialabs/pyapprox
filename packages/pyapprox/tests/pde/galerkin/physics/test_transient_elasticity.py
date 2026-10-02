@@ -157,7 +157,9 @@ class TestTransientElasticity2D:
         # Dirichlet BCs on all 4 boundaries
         bndry_names = ["left", "right", "bottom", "top"]
         sol_func = functions["solution"]
-        value_func = _make_vector_dirichlet_value_func(sol_func, nvars)
+        value_func = TimeDependent(
+            _make_vector_dirichlet_value_func(sol_func, nvars)
+        )
 
         bc_list = []
         for bname in bndry_names:

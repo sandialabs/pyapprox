@@ -21,6 +21,7 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
@@ -121,7 +122,9 @@ class TestTransientHyperelasticity1D:
         body_force = adapter.forcing_for_galerkin()
 
         sol_func = functions["solution"]
-        value_func = _make_vector_dirichlet_value_func(sol_func, nvars)
+        value_func = TimeDependent(
+            _make_vector_dirichlet_value_func(sol_func, nvars)
+        )
         bc_list = [
             DirichletBC(basis, bname, value_func, bkd) for bname in ["left", "right"]
         ]
@@ -239,7 +242,9 @@ class TestTransientHyperelasticity2D:
         body_force = adapter.forcing_for_galerkin()
 
         sol_func = functions["solution"]
-        value_func = _make_vector_dirichlet_value_func(sol_func, nvars)
+        value_func = TimeDependent(
+            _make_vector_dirichlet_value_func(sol_func, nvars)
+        )
         bc_list = [
             DirichletBC(basis, bname, value_func, bkd)
             for bname in ["left", "right", "bottom", "top"]

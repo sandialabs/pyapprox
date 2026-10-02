@@ -31,7 +31,7 @@ layer owns everything that requires both a physics and a
 parameterization.
 """
 
-from typing import Generic, Optional, Tuple, Union
+from typing import Callable, Generic, Optional, Tuple, Union
 
 import numpy as np
 from scipy.sparse import diags, issparse, spmatrix
@@ -99,9 +99,9 @@ class GalerkinPhysicsToODEResidualAdapter(
         self._time: float = 0.0
         self._lumped_mass = lumped_mass
         self._constraint_set = physics.constraint_set()
-        # Cached: consulted on every residual evaluation.
-        self._has_boundary_velocity = (
-            self._constraint_set.has_time_derivatives()
+        # Captured once: consulted on every residual evaluation.
+        self._boundary_velocity: Optional[Callable[[float], Array]] = (
+            self._constraint_set.values_derivative(1)
         )
         # Sparse form of the BC-neutralized mass for the sparse Newton
         # matrix; None when the mass is dense.
@@ -181,11 +181,11 @@ class GalerkinPhysicsToODEResidualAdapter(
         constraint_set = self._constraint_set
         if not constraint_set.ndofs():
             return residual
-        if self._has_boundary_velocity:
+        if self._boundary_velocity is not None:
             return self._bkd.index_update(
                 residual,
                 constraint_set.dofs(),
-                constraint_set.values_time_derivative(self._time),
+                self._boundary_velocity(self._time),
             )
         return constraint_set.zero_entries(residual)
 

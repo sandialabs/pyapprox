@@ -34,7 +34,10 @@ from typing import Any, Callable, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
-from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
+from pyapprox.pde.constitutive.coefficient_functions import (
+    CallableReaction,
+    TimeDependent,
+)
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
@@ -171,7 +174,7 @@ def build_chafee_infante_physics(
         ) -> NDArray[np.floating[Any]]:
             return np.full(x.shape[1], float(captured_input(time)))
 
-        dirichlet_value = dirichlet_value_func
+        dirichlet_value = TimeDependent(dirichlet_value_func)
 
     # Natural Neumann at the right needs NO boundary object: the
     # zero-flux term vanishes from the weak form.

@@ -342,10 +342,7 @@ def build_shared_field_beam(
         skfem_mesh, bkd, num_kle_terms, sigma, correlation_length, E_mean,
     )
 
-    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-        return np.zeros(coords.shape[1])
-
-    bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+    bc_left = DirichletBC(basis, "left_edge", 0.0, bkd)
 
     def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]

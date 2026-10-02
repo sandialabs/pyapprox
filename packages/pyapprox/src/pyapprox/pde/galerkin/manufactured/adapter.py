@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, Union
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeAwareCallableProtocol,
     TimeDependent,
@@ -407,20 +408,19 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
                     return ret
                 ret2: NDArray[np.floating[Any]] = vals
                 return ret2
-        else:
 
-            def value_time_derivative_func(
-                x: NDArray[np.floating[Any]],
-                t: Optional[float] = None,
-            ) -> NDArray[np.floating[Any]]:
-                return np.zeros(x.shape[1])
+            signal = BoundarySignal(
+                TimeDependent(value_func),
+                [TimeDependent(value_time_derivative_func)],
+            )
+        else:
+            signal = BoundarySignal(TimeIndependent(value_func))
 
         return DirichletBC(
             basis=self._basis,
             boundary_name=boundary_name,
-            value_func=value_func,
+            value_func=signal,
             bkd=self._bkd,
-            value_time_derivative_func=value_time_derivative_func,
         )
 
     def _create_neumann_bc(
@@ -887,19 +887,19 @@ class GalerkinHyperelasticityAdapter(Generic[Array]):
                 for j in range(nbndry_dofs):
                     result[j] = vals[j, j % ndim]
                 return result
-        else:
 
-            def value_time_derivative_func(
-                coords: NDArray[np.floating[Any]], time: float = 0.0,
-            ) -> NDArray[np.floating[Any]]:
-                return np.zeros(coords.shape[1])
+            signal = BoundarySignal(
+                TimeDependent(value_func),
+                [TimeDependent(value_time_derivative_func)],
+            )
+        else:
+            signal = BoundarySignal(TimeIndependent(value_func))
 
         return DirichletBC(
             basis=self._basis,
             boundary_name=boundary_name,
-            value_func=value_func,
+            value_func=signal,
             bkd=self._bkd,
-            value_time_derivative_func=value_time_derivative_func,
         )
 
     def _compute_traction(

@@ -9,6 +9,7 @@ from typing import Any, Callable, Generic, List, Optional
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.boundary.signal import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeAwareCallableProtocol,
     TimeDependent,
@@ -195,13 +196,10 @@ class ManufacturedSolutionBC(Generic[Array]):
                 ret: NDArray[np.floating[Any]] = sol_func(x)
                 return ret
 
-        value_time_derivative_func: Optional[Callable[..., Any]]
+        signal: BoundarySignal
         if not time_dep:
-
-            def value_time_derivative_func(
-                x: NDArray[np.floating[Any]], t: float = 0.0
-            ) -> NDArray[np.floating[Any]]:
-                return np.zeros(x.shape[1])
+            # Declared steady: exact zero time derivatives.
+            signal = BoundarySignal(TimeIndependent(value_func))
         elif self._solution_time_derivative_func is not None:
             sol_dot_func = self._solution_time_derivative_func
 
@@ -210,17 +208,21 @@ class ManufacturedSolutionBC(Generic[Array]):
             ) -> NDArray[np.floating[Any]]:
                 ret: NDArray[np.floating[Any]] = sol_dot_func(x, t)
                 return ret
+
+            signal = BoundarySignal(
+                TimeDependent(value_func),
+                [TimeDependent(value_time_derivative_func)],
+            )
         else:
-            # No analytic derivative supplied: the BC will not satisfy
-            # EssentialBCWithTimeDerivativeProtocol.
-            value_time_derivative_func = None
+            # No analytic derivative supplied: the BC has no first time
+            # derivative, and stage-based steppers will refuse it.
+            signal = BoundarySignal(TimeDependent(value_func))
 
         return DirichletBC(
             basis=self._basis,
             boundary_name=boundary_name,
-            value_func=value_func,
+            value_func=signal,
             bkd=self._bkd,
-            value_time_derivative_func=value_time_derivative_func,
         )
 
     def _create_neumann_bc(

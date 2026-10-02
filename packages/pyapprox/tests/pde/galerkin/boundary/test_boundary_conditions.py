@@ -64,9 +64,7 @@ class TestDirichletBCBase:
         basis = LagrangeBasis(mesh, degree=1)
 
         # BC: u = x^2 at boundary
-        def bc_func(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
+        def bc_func(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
             return np.asarray(x[0] ** 2)
 
         bc = DirichletBC(basis, "right", value_func=bc_func, bkd=bkd)

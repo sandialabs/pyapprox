@@ -236,19 +236,27 @@ PyApprox registers, `"heun"` is the one that reports itself multistage;
 `"implicit_midpoint"` all step from one solution to the next and so supply
 the term from their own difference.
 
-PyApprox takes it as an explicit constructor argument rather than
-approximating it silently:
+PyApprox takes it explicitly, as part of the boundary signal, rather than
+approximating it silently, and asks you to declare that the boundary value
+depends on time:
 
 ``` python
 DirichletBC(
-    basis, "left", ramp, bkd, value_time_derivative_func=ramp_dot
+    basis, "left",
+    BoundarySignal(TimeDependent(ramp), [TimeDependent(ramp_dot)]),
+    bkd,
 )
 ```
 
+The signal holds $\vc{g}$ and its time derivatives in order, so higher
+derivatives travel the same way. A boundary value declared `TimeIndependent`
+(or a constant) needs no signal: its derivatives are exactly zero.
+
 Combine `"heun"` with a consistent mass matrix and a time-varying boundary
-that lacks `value_time_derivative_func`, and the construction raises rather
-than integrating the wrong problem --- naming the three ways out: supply the
-analytic derivative, lump the mass, or use a one-step method.
+that lacks its derivative, and the construction raises rather than
+integrating the wrong problem --- naming the boundary and the three ways
+out: supply the analytic derivative, lump the mass, or use a one-step
+method.
 
 
 ## A Transient Gradient End to End

@@ -15,7 +15,16 @@ time-integration wrappers; ``DirichletConstraintSet`` (constraint_set.py)
 is the default implementation.
 """
 
-from typing import Generic, List, Protocol, Union, overload, runtime_checkable
+from typing import (
+    Callable,
+    Generic,
+    List,
+    Optional,
+    Protocol,
+    Union,
+    overload,
+    runtime_checkable,
+)
 
 from scipy.sparse import spmatrix
 
@@ -193,7 +202,7 @@ class EssentialBCProtocol(Protocol, Generic[Array]):
         ...
 
     def is_time_invariant(self) -> bool:
-        """Whether the prescribed values are constant in time.
+        """Whether the prescribed values are DECLARED constant in time.
 
         Static BCs let consumers skip all time-derivative machinery:
         the constraint set caches values and returns exact zero
@@ -201,48 +210,29 @@ class EssentialBCProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def constrained_values_derivative(
+        self, order: int
+    ) -> Optional[Callable[[float], Array]]:
+        """Return ``t -> d^k s/dt^k`` at the constrained DOFs, or ``None``.
 
-@runtime_checkable
-class EssentialBCWithTimeDerivativeProtocol(Protocol, Generic[Array]):
-    """Essential BC additionally exposing the analytic boundary velocity.
-
-    ``constrained_values_time_derivative`` must be the ANALYTIC time
-    derivative of ``constrained_values`` — never a finite-difference
-    approximation (a user wanting FD writes it into their own BC,
-    visibly). Required for stage-based steppers with a consistent mass
-    matrix, where boundary motion couples into interior stage slopes
-    via the off-diagonal mass block; static-value BCs satisfy it
-    exactly by returning zeros.
-    """
-
-    def bkd(self) -> Backend[Array]:
-        """Return the computational backend."""
-        ...
-
-    def constrained_dofs(self) -> Array:
-        """Return the constrained global DOF indices. Shape: (ndofs,)"""
-        ...
-
-    def constrained_values(self, time: float) -> Array:
-        """Return the prescribed values at ``time``. Shape: (ndofs,)"""
-        ...
-
-    def is_time_invariant(self) -> bool:
-        """Whether the prescribed values are constant in time."""
-        ...
-
-    def constrained_values_time_derivative(self, time: float) -> Array:
-        """Return d/dt of the prescribed values at ``time``.
+        The ANALYTIC ``order``-th time derivative of
+        ``constrained_values`` — never a finite-difference
+        approximation (a user wanting FD writes it into their own BC,
+        visibly). Exact zeros for a time-invariant BC; ``None`` when a
+        time-varying BC was not given that order. The first derivative
+        is required by stage-based steppers with a consistent mass
+        matrix, where boundary motion couples into interior stage
+        slopes via the off-diagonal mass block.
 
         Parameters
         ----------
-        time : float
-            Current time.
+        order : int
+            Derivative order, at least 1.
 
         Returns
         -------
-        Array
-            Analytic boundary velocity ġ(time). Shape: (ndofs,)
+        Callable[[float], Array] or None
+            Maps a time to the derivative values. Shape: (ndofs,)
         """
         ...
 
@@ -269,20 +259,19 @@ class ConstraintSetProtocol(Protocol, Generic[Array]):
         """Return all prescribed values at ``time``. Shape: (ndofs,)"""
         ...
 
-    def values_time_derivative(self, time: float) -> Array:
-        """Return the analytic boundary velocity ġ at ``time``.
+    def values_derivative(
+        self, order: int
+    ) -> Optional[Callable[[float], Array]]:
+        """Return ``t -> d^k g/dt^k`` at ``dofs()``, or ``None``.
 
-        Raises an actionable TypeError if any member BC lacks
-        ``constrained_values_time_derivative``.
+        ``None`` when any time-varying member BC lacks that order;
+        exact zeros for a time-invariant set. Consumers capture the
+        result once rather than re-querying per evaluation.
         """
         ...
 
-    def has_time_derivatives(self) -> bool:
-        """Whether every member BC provides the analytic ġ."""
-        ...
-
-    def missing_time_derivative_bcs(self) -> List[str]:
-        """Descriptions of member BCs lacking the analytic ġ."""
+    def missing_derivative_bcs(self, order: int) -> List[str]:
+        """Descriptions of member BCs lacking the ``order``-th derivative."""
         ...
 
     def is_time_invariant(self) -> bool:

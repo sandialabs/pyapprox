@@ -79,12 +79,7 @@ def build_cantilever_beam_design_matrix(
         name: mesh.subdomain_elements(name) for name in subdomain_names
     }
 
-    def zero_dirichlet(
-        coords: np.ndarray, time: float = 0.0,
-    ) -> np.ndarray:
-        return np.zeros(coords.shape[1])
-
-    bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+    bc_left = DirichletBC(basis, "left_edge", 0.0, bkd)
     material_map = {
         name: (E_mean, poisson_ratio) for name in subdomain_names
     }

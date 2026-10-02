@@ -970,10 +970,7 @@ def build_cantilever_beam_2d_linear(
     )
 
     # Boundary conditions: clamped left, traction on top
-    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-        return np.zeros(coords.shape[1])
-
-    bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+    bc_left = DirichletBC(basis, "left_edge", 0.0, bkd)
 
     def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
@@ -1111,10 +1108,7 @@ def build_cantilever_beam_2d_neohookean(
         mean_log_E,
     )
 
-    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-        return np.zeros(coords.shape[1])
-
-    bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+    bc_left = DirichletBC(basis, "left_edge", 0.0, bkd)
 
     def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
@@ -1348,10 +1342,7 @@ def build_cantilever_beam_2d_linear_spde(
         mean_log_E,
     )
 
-    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-        return np.zeros(coords.shape[1])
-
-    bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+    bc_left = DirichletBC(basis, "left_edge", 0.0, bkd)
 
     def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]
@@ -1488,10 +1479,7 @@ def build_cantilever_beam_2d_neohookean_spde(
         mean_log_E,
     )
 
-    def zero_dirichlet(coords: np.ndarray, time: float = 0.0) -> np.ndarray:
-        return np.zeros(coords.shape[1])
-
-    bc_left = DirichletBC(basis, "left_edge", zero_dirichlet, bkd)
+    bc_left = DirichletBC(basis, "left_edge", 0.0, bkd)
 
     def top_traction(coords: np.ndarray) -> np.ndarray:
         x = coords[0]

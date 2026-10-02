@@ -138,7 +138,7 @@ class TestCompositeLinearElasticityBase:
 
         body_force = TimeIndependent(_body_force_impl)
 
-        def dirichlet_value(coords, time=0.0):
+        def dirichlet_value(coords):
             vals = sol_func(coords)
             nbndry_dofs = coords.shape[1]
             result = np.zeros(nbndry_dofs)

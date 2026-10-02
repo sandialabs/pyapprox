@@ -32,7 +32,7 @@ def _solve_beam(basis, sub_elems, material_map, bkd, L, q0,
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
     bc_left = DirichletBC(
-        basis, "left_edge", lambda c, t=0.0: np.zeros(c.shape[1]), bkd,
+        basis, "left_edge", 0.0, bkd,
     )
     bc_top = NeumannBC(
         basis, "top_edge",
@@ -690,7 +690,7 @@ def plot_reference_solution(fig, ax):
     }
 
     bc_left = DirichletBC(
-        basis, "left_edge", lambda c, t=0.0: np.zeros(c.shape[1]), bkd,
+        basis, "left_edge", 0.0, bkd,
     )
     bc_top = NeumannBC(
         basis, "top_edge",

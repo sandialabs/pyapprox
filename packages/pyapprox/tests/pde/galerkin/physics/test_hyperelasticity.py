@@ -52,7 +52,7 @@ def _make_vector_dirichlet_value_func(sol_func, ndim):
     For interleaved DOFs: DOF j corresponds to component j % ndim.
     """
 
-    def value_func(coords, time=0.0):
+    def value_func(coords):
         nbndry_dofs = coords.shape[1]
         vals = sol_func(coords)  # (nbndry_dofs, ncomponents)
         result = np.zeros(nbndry_dofs)

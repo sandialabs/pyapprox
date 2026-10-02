@@ -1,6 +1,7 @@
 """Unit tests for DirichletConstraintSet and the BC role protocols."""
 
-from typing import Any, Sequence
+import pickle
+from typing import Any, Callable, Optional, Sequence
 
 import numpy as np
 import pytest
@@ -24,6 +25,7 @@ class _EssentialBC:
         vals: Sequence[float],
         bkd: Backend[Any],
         time_scale: float = 0.0,
+        supply_derivatives: bool = True,
     ) -> None:
         self._bkd = bkd
         self._dofs = bkd.asarray(
@@ -31,6 +33,7 @@ class _EssentialBC:
         )
         self._vals = bkd.asarray(np.asarray(vals, dtype=np.float64))
         self._time_scale = time_scale
+        self._supply_derivatives = supply_derivatives
 
     def bkd(self) -> Backend[Any]:
         return self._bkd
@@ -43,6 +46,24 @@ class _EssentialBC:
 
     def is_time_invariant(self) -> bool:
         return self._time_scale == 0.0
+
+    def constrained_values_derivative(
+        self, order: int
+    ) -> Optional[Callable[[float], Any]]:
+        if not self.is_time_invariant() and not self._supply_derivatives:
+            return None
+        if order == 1:
+            return self._first_derivative
+        return self._zero_derivative
+
+    def _first_derivative(self, time: float) -> Any:
+        return self._vals * self._time_scale
+
+    def _zero_derivative(self, time: float) -> Any:
+        return self._vals * 0.0
+
+    def __repr__(self) -> str:
+        return f"_EssentialBC(dofs={[int(d) for d in self._dofs]})"
 
 
 def _example_set(
@@ -117,6 +138,57 @@ class TestConstruction:
     def test_nonpositive_nstates_raises(self, bkd: Backend[Any]) -> None:
         with pytest.raises(ValueError, match="nstates"):
             DirichletConstraintSet([], nstates=0, bkd=bkd)
+
+
+class TestValuesDerivative:
+    def test_time_invariant_set_gives_exact_zeros(
+        self, bkd: Backend[Any]
+    ) -> None:
+        cs = _example_set(bkd)
+        for order in (1, 2):
+            derivative = cs.values_derivative(order)
+            assert derivative is not None
+            bkd.assert_allclose(derivative(0.7), bkd.zeros((3,)))
+
+    def test_orders_round_trip(self, bkd: Backend[Any]) -> None:
+        cs = _example_set(bkd, time_scale=2.0)
+        first = cs.values_derivative(1)
+        second = cs.values_derivative(2)
+        assert first is not None and second is not None
+        bkd.assert_allclose(first(0.3), bkd.asarray([2.0, 4.0, 14.0]))
+        bkd.assert_allclose(second(0.3), bkd.zeros((3,)))
+
+    def test_shared_dof_derivative_last_bc_wins(
+        self, bkd: Backend[Any]
+    ) -> None:
+        bc0 = _EssentialBC([0, 2], [1.0, 2.0], bkd, time_scale=1.0)
+        bc1 = _EssentialBC([2], [5.0], bkd, time_scale=3.0)
+        cs = DirichletConstraintSet([bc0, bc1], nstates=4, bkd=bkd)
+        derivative = cs.values_derivative(1)
+        assert derivative is not None
+        bkd.assert_allclose(derivative(0.0), bkd.asarray([1.0, 15.0]))
+
+    def test_missing_derivative_is_none_and_named(
+        self, bkd: Backend[Any]
+    ) -> None:
+        bc0 = _EssentialBC([0], [1.0], bkd, time_scale=1.0)
+        bc1 = _EssentialBC(
+            [3], [2.0], bkd, time_scale=1.0, supply_derivatives=False
+        )
+        cs = DirichletConstraintSet([bc0, bc1], nstates=4, bkd=bkd)
+        assert cs.values_derivative(1) is None
+        assert cs.missing_derivative_bcs(1) == ["_EssentialBC(dofs=[3])"]
+
+    def test_invalid_order_raises(self, bkd: Backend[Any]) -> None:
+        with pytest.raises(ValueError, match="order"):
+            _example_set(bkd).values_derivative(0)
+
+    def test_derivative_pickles(self, numpy_bkd: NumpyBkd) -> None:
+        cs = _example_set(numpy_bkd, time_scale=2.0)
+        derivative = cs.values_derivative(1)
+        assert derivative is not None
+        restored = pickle.loads(pickle.dumps(derivative))
+        numpy_bkd.assert_allclose(restored(0.1), derivative(0.1))
 
 
 class TestApply:

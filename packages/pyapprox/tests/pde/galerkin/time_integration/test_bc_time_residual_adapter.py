@@ -17,7 +17,13 @@ from pyapprox.ode.protocols.time_stepping import (
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.ode.time_quadrature import left_rectangle_quadrature
+from pyapprox.pde.boundary import DofSignal
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
+)
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
@@ -263,9 +269,29 @@ class TestForwardWrapper:
         bkd.assert_allclose(out1, out2)
 
 
+def _zero_forcing(x: NDArray[Any]) -> NDArray[Any]:
+    return np.zeros(x.shape[1])
+
+
+def _left_value(x: NDArray[Any]) -> NDArray[Any]:
+    return np.full(x.shape[1], 2.0)
+
+
+def _left_ramp(x: NDArray[Any], time: float) -> NDArray[Any]:
+    return np.full(x.shape[1], 2.0 * time)
+
+
+def _dof_ramp(time: float) -> NDArray[Any]:
+    return np.array([2.0 * time])
+
+
+def _ramp_rate(time: float) -> NDArray[Any]:
+    return np.array([2.0])
+
+
 class TestStageBCRequirement:
-    """D4.5 policy: analytic g_dot required for multistage + consistent
-    mass; exempt for one-step steppers, lumped mass, and static BCs."""
+    """Analytic g_dot is required for multistage + consistent mass;
+    exempt for one-step steppers, lumped mass, and static BCs."""
 
     def _physics_with_callable_bc(
         self, bkd: NumpyBkd, with_derivative: bool
@@ -275,17 +301,15 @@ class TestStageBCRequirement:
 
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        kwargs: Any = {}
-        if with_derivative:
-            kwargs["value_time_derivative_func"] = lambda t: np.array([2.0])
+        derivatives = [_ramp_rate] if with_derivative else []
         bc = CallableDirichletBC(
-            [0], lambda t: np.array([2.0 * t]), bkd, **kwargs
+            [0], DofSignal(_dof_ramp, derivatives), bkd
         )
         return AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=1.0,
             bkd=bkd,
-            forcing=lambda x: np.zeros(x.shape[1]),
+            forcing=TimeIndependent(_zero_forcing),
             boundary_conditions=[bc],
         )
 
@@ -335,3 +359,42 @@ class TestStageBCRequirement:
         adapter = GalerkinPhysicsToODEResidualAdapter(physics)
         stepper = create_stepper("heun", adapter)
         create_galerkin_bc_enforcing_residual(stepper, physics, numpy_bkd)
+
+    def _physics_with_dirichlet(
+        self, bkd: NumpyBkd, value_func: Any
+    ) -> AdvectionDiffusionReaction[Any]:
+        mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        bc = DirichletBC(basis, "left", value_func, bkd)
+        return AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=1.0,
+            bkd=bkd,
+            forcing=TimeIndependent(_zero_forcing),
+            boundary_conditions=[bc],
+        )
+
+    def test_declared_steady_callable_passes(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A callable declared TimeIndependent needs no g_dot: its
+        derivative is exactly zero."""
+        physics = self._physics_with_dirichlet(
+            numpy_bkd, TimeIndependent(_left_value)
+        )
+        adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        stepper = create_stepper("heun", adapter)
+        create_galerkin_bc_enforcing_residual(stepper, physics, numpy_bkd)
+
+    def test_time_dependent_dirichlet_missing_gdot_names_bc(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        physics = self._physics_with_dirichlet(
+            numpy_bkd, TimeDependent(_left_ramp)
+        )
+        adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        stepper = create_stepper("heun", adapter)
+        with pytest.raises(TypeError, match="DirichletBC\\(boundary='left'"):
+            create_galerkin_bc_enforcing_residual(
+                stepper, physics, numpy_bkd
+            )
