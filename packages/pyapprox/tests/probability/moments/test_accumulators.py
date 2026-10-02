@@ -77,6 +77,30 @@ class TestAccumulators:
         _, cov = self._reference(bkd, stacked - 1e8, weights)
         bkd.assert_allclose(acc.finalize().covariance(), cov, rtol=1e-6, atol=1e-8)
 
+    def test_outlying_first_sample_does_not_cancel(self, bkd: Backend[Array]) -> None:
+        """A far-out first point with a tiny weight, as a Gauss rule's corner.
+
+        Centring on the first sample would cancel here; the centre is the
+        batch's weighted mean, which is unaffected.
+        """
+        _, weights, stacked = self._data(bkd)
+        outlier = bkd.full((stacked.shape[0], 1), 1e6)
+        stacked = bkd.hstack([outlier, stacked[:, 1:]])
+        weights = bkd.hstack([bkd.asarray([[1e-14]]), weights[:, 1:]])
+        weights = weights / bkd.sum(weights)
+        outputs = JointOutputs(
+            targets=(stacked[:2], stacked[2:3]), observations=stacked[3:]
+        )
+        mean, cov = self._reference(bkd, stacked, weights)
+        for step in (self._n, 7):
+            acc = WeightedAccumulator(bkd)
+            for start in range(0, self._n, step):
+                cols = slice(start, min(start + step, self._n))
+                acc.update(*self._batch(outputs, weights, cols))
+            blocks = acc.finalize()
+            bkd.assert_allclose(blocks.mean(), mean, rtol=1e-12)
+            bkd.assert_allclose(blocks.covariance(), cov, rtol=1e-10, atol=1e-13)
+
     def test_unbiased_matches_sample_covariance(self, bkd: Backend[Array]) -> None:
         outputs, _, stacked = self._data(bkd)
         equal = bkd.full((1, self._n), 1.0 / self._n)
@@ -115,10 +139,46 @@ class TestAccumulators:
 
     def test_satisfy_protocols(self, bkd: Backend[Array]) -> None:
         outputs, weights, _ = self._data(bkd)
-        for acc in (WeightedAccumulator(bkd), UnbiasedMCAccumulator(bkd)):
+        equal = bkd.full((1, self._n), 1.0 / self._n)
+        for acc, wts in (
+            (WeightedAccumulator(bkd), weights),
+            (UnbiasedMCAccumulator(bkd), equal),
+        ):
             assert isinstance(acc, MomentAccumulatorProtocol)
-            acc.update(weights, outputs)
+            acc.update(wts, outputs)
             assert isinstance(acc.finalize(), CovarianceBlocksProtocol)
+
+    def test_unbiased_rejects_unequal_weights(self, bkd: Backend[Array]) -> None:
+        """Quadrature or importance weights are refused."""
+        outputs, weights, _ = self._data(bkd)
+        with pytest.raises(ValueError):
+            UnbiasedMCAccumulator(bkd).update(weights, outputs)
+
+    def test_unbiased_rejects_unequal_batches(self, bkd: Backend[Array]) -> None:
+        """Each batch equal on its own, but not equal to each other."""
+        outputs, _, _ = self._data(bkd)
+        acc = UnbiasedMCAccumulator(bkd)
+        acc.update(*self._batch(outputs, bkd.full((1, self._n), 0.04), slice(0, 10)))
+        with pytest.raises(ValueError):
+            acc.update(
+                *self._batch(outputs, bkd.full((1, self._n), 0.06), slice(10, 20))
+            )
+
+    def test_unbiased_accepts_equal_batches(self, bkd: Backend[Array]) -> None:
+        """Equal weights split over batches give the one-batch result."""
+        outputs, _, _ = self._data(bkd)
+        equal = bkd.full((1, self._n), 1.0 / self._n)
+        whole = UnbiasedMCAccumulator(bkd)
+        whole.update(equal, outputs)
+        streamed = UnbiasedMCAccumulator(bkd)
+        for cols in (slice(0, 7), slice(7, 20)):
+            streamed.update(*self._batch(outputs, equal, cols))
+        bkd.assert_allclose(
+            streamed.finalize().covariance(),
+            whole.finalize().covariance(),
+            rtol=1e-12,
+            atol=1e-15,
+        )
 
     def test_rejects_1d_weights(self, bkd: Backend[Array]) -> None:
         outputs, weights, _ = self._data(bkd)
