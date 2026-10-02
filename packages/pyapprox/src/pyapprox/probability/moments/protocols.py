@@ -3,6 +3,7 @@
 from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.interface.functions.joint import JointOutputs
+from pyapprox.probability.moments.blocks import DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -70,4 +71,18 @@ class MomentAccumulatorProtocol(Protocol, Generic[Array]):
 
     def finalize(self) -> CovarianceBlocksProtocol[Array]:
         """Blocks from every batch added so far."""
+        ...
+
+
+@runtime_checkable
+class CovarianceRepairProtocol(Protocol, Generic[Array]):
+    """Makes estimated blocks usable when they are indefinite.
+
+    Estimates from rules with negative weights, or with known target
+    moments substituted, can have negative eigenvalues.
+    """
+
+    def repair(self, blocks: DenseBlocks[Array]) -> DenseBlocks[Array]:
+        """Return blocks whose stacked covariance is positive semidefinite,
+        or raise if they cannot be accepted."""
         ...

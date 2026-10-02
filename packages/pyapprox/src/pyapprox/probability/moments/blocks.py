@@ -6,7 +6,7 @@ blocks :math:`t_k` in order followed by the noise-free observations
 :math:`\Gamma_{\chi\chi}` and slices the blocks out on request.
 """
 
-from typing import Generic, Optional, Sequence
+from typing import Generic, Mapping, Optional, Sequence
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -65,6 +65,90 @@ class DenseBlocks(Generic[Array]):
             slice(start, start + size) for start, size in zip(starts, sizes)
         ]
         self._obs_slice = slice(nstacked - nobs, nstacked)
+
+    @classmethod
+    def from_linear_model(
+        cls,
+        obs_mat: Array,
+        mean: Array,
+        covariance: Array,
+        target_mats: Sequence[Array],
+        bkd: Backend[Array],
+    ) -> "DenseBlocks[Array]":
+        r"""Exact blocks of linear maps of a Gaussian input.
+
+        For :math:`\xi \sim N(\mu, \Gamma)`, observations :math:`g = A\xi`
+        and targets :math:`t_k = A_k \xi`, the stacked map
+        :math:`M = (A_1; \dots; A_r; A)` gives mean :math:`M\mu` and
+        covariance :math:`M \Gamma M^\top`, with no samples.
+
+        Parameters
+        ----------
+        obs_mat : Array
+            Observation map ``A``. Shape: (nobs, nvars)
+        mean : Array
+            Input mean. Shape: (nvars, 1)
+        covariance : Array
+            Input covariance. Shape: (nvars, nvars)
+        target_mats : Sequence[Array]
+            Target maps ``A_k``, each of shape (n_k, nvars).
+        bkd : Backend[Array]
+            Computational backend.
+        """
+        nvars = covariance.shape[0]
+        for name, mat in [("obs_mat", obs_mat)] + [
+            (f"target_mats[{ii}]", mat) for ii, mat in enumerate(target_mats)
+        ]:
+            if mat.ndim != 2 or mat.shape[1] != nvars:
+                raise ValueError(
+                    f"{name} must have shape (*, {nvars}), got {tuple(mat.shape)}"
+                )
+        stacked = bkd.vstack(list(target_mats) + [obs_mat])
+        return cls(
+            bkd.dot(stacked, mean),
+            bkd.dot(bkd.dot(stacked, covariance), stacked.T),
+            [int(mat.shape[0]) for mat in target_mats],
+            int(obs_mat.shape[0]),
+            bkd,
+        )
+
+    def with_known_targets(
+        self, overrides: Mapping[int, tuple[Array, Array]]
+    ) -> "DenseBlocks[Array]":
+        """Replace chosen targets' mean and covariance with known values.
+
+        Use when a target's own moments are known exactly, for example a
+        parameter target whose prior covariance is given, while its
+        cross-covariance with the observations is estimated. Cross
+        covariances are kept, so the result may be indefinite; repair it
+        if so.
+
+        Parameters
+        ----------
+        overrides : Mapping[int, tuple[Array, Array]]
+            Target index to ``(mean (n_k, 1), covariance (n_k, n_k))``.
+        """
+        mean, cov = self._bkd.copy(self._mean), self._bkd.copy(self._cov)
+        for index, (known_mean, known_cov) in overrides.items():
+            if not 0 <= index < len(self._sizes):
+                raise ValueError(
+                    f"target {index} does not exist; there are {len(self._sizes)}"
+                )
+            size = self._sizes[index]
+            if tuple(known_mean.shape) != (size, 1) or tuple(known_cov.shape) != (
+                size,
+                size,
+            ):
+                raise ValueError(
+                    f"target {index} needs shapes ({size}, 1) and ({size}, {size}), "
+                    f"got {tuple(known_mean.shape)} and {tuple(known_cov.shape)}"
+                )
+            rows = self._target_slices[index]
+            mean[rows] = known_mean
+            cov[rows, rows] = known_cov
+        return DenseBlocks(
+            mean, cov, self._sizes, self._nobs, self._bkd, self._nsamples
+        )
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
