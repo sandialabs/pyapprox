@@ -13,11 +13,9 @@ Bayesian inverse problems.
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
     Generic,
     List,
     Optional,
-    Union,
 )
 
 if TYPE_CHECKING:
@@ -27,9 +25,10 @@ if TYPE_CHECKING:
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.boundary import NaturalBCOperator, WeakFormBCProtocol
 from pyapprox.pde.galerkin.boundary.implementations import RobinBC
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import RobinBCProtocol
+from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
 from pyapprox.util.backends.protocols import Array, Backend
 
 try:
@@ -44,6 +43,33 @@ except ImportError:
     )
 
 
+class _LinearInterior(Generic[Array]):
+    """Interior operator ``F_Omega(u) = -K u`` for a fixed matrix ``K``.
+
+    Lets an assembled linear operator be composed with natural-BC terms
+    by ``ComposedSpatialOperator``, like any physics. Module-level, so it
+    pickles.
+    """
+
+    def __init__(self, stiffness: Any, bkd: Backend[Array]) -> None:
+        self._stiffness = stiffness
+        self._bkd = bkd
+
+    def bkd(self) -> Backend[Array]:
+        return self._bkd
+
+    def nstates(self) -> int:
+        return int(self._stiffness.shape[0])
+
+    def interior_residual(self, state: Array, time: float) -> Array:
+        residual: Array = -(self._stiffness @ state)
+        return residual
+
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        jacobian: Array = -self._stiffness
+        return jacobian
+
+
 class BiLaplacianPrior(Generic[Array]):
     r"""BiLaplacian prior for Gaussian random field generation.
 
@@ -55,7 +81,8 @@ class BiLaplacianPrior(Generic[Array]):
     where K is the stiffness matrix assembled from:
         dot(mul(K_tensor, grad(u)), grad(v)) + delta * u * v
 
-    plus Robin BC contributions.
+    plus minus the Jacobian of each natural-BC term (``a`` times the
+    boundary mass for Robin), composed by ``ComposedSpatialOperator``.
 
     Parameters
     ----------
@@ -69,8 +96,10 @@ class BiLaplacianPrior(Generic[Array]):
         :math:`\gamma / \delta` controls the correlation length.
     bkd : Backend[Array]
         Computational backend.
-    boundary_conditions : List[RobinBCProtocol[Array]]
-        Robin boundary conditions applied to all desired boundaries.
+    boundary_conditions : List[WeakFormBCProtocol[Array]]
+        Natural boundary-condition terms (typically Robin, to damp the
+        boundary artifact). Only their Jacobian enters the precision
+        operator; their data does not.
     anisotropic_tensor : np.ndarray, optional
         Anisotropy tensor of shape ``(ndim, ndim)``. Controls directional
         correlation lengths. Default: identity matrix (isotropic).
@@ -83,7 +112,7 @@ class BiLaplacianPrior(Generic[Array]):
         gamma: float,
         delta: float,
         bkd: Backend[Array],
-        boundary_conditions: List[RobinBCProtocol[Array]],
+        boundary_conditions: List[WeakFormBCProtocol[Array]],
         anisotropic_tensor: Optional[np.ndarray] = None,
     ):
         self._basis = basis
@@ -142,7 +171,7 @@ class BiLaplacianPrior(Generic[Array]):
         if robin_alpha is None:
             robin_alpha = np.sqrt(gamma * delta) * 1.42
         boundaries = list(basis.skfem_basis().mesh.boundaries.keys())
-        robin_bcs: List[RobinBCProtocol[Array]] = [
+        robin_bcs: List[WeakFormBCProtocol[Array]] = [
             RobinBC(basis, name, alpha=robin_alpha, value_func=0.0, bkd=bkd)
             for name in boundaries
         ]
@@ -168,24 +197,17 @@ class BiLaplacianPrior(Generic[Array]):
             )
             return ret
 
-        stiffness = asm(BilinearForm(bilinear_form), skfem_basis)
+        interior_stiffness = asm(BilinearForm(bilinear_form), skfem_basis)
 
-        # Apply Robin BC contributions
-        for bc in self._boundary_conditions:
-            alpha = bc.alpha()
-            bndry_basis = skfem_basis.boundary(bc.boundary_name())
-
-            def robin_bilinear(
-                u: "DiscreteField",
-                v: "DiscreteField",
-                w: "FormExtraParams",
-                _alpha: Union[
-                    float, Callable[[np.ndarray], np.ndarray]
-                ] = alpha,
-            ) -> np.ndarray:
-                return np.asarray(_alpha * u * v)
-
-            stiffness += asm(BilinearForm(robin_bilinear), bndry_basis)
+        # The precision operator is minus the Jacobian of the composed
+        # operator F = -(K + delta M) u + sum_k c_k, so the boundary terms
+        # come from the same composition every physics uses.
+        composed = ComposedSpatialOperator(
+            _LinearInterior(interior_stiffness, self._bkd),
+            NaturalBCOperator(self._boundary_conditions),
+        )
+        zero_state = self._bkd.zeros((composed.nstates(),))
+        stiffness = -composed.spatial_jacobian(zero_state, 0.0)
 
         self._stiffness = stiffness
 

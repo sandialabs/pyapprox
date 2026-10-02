@@ -6,6 +6,7 @@ packages (collocation, galerkin); both consume it.
 
 from pyapprox.pde.boundary.classification import BCDofClassification
 from pyapprox.pde.boundary.constraint_set import DirichletConstraintSet
+from pyapprox.pde.boundary.natural_operator import NaturalBCOperator
 from pyapprox.pde.boundary.protocols import (
     ConstraintSetProtocol,
     EssentialBCProtocol,
@@ -19,5 +20,6 @@ __all__ = [
     "DirichletConstraintSet",
     "EssentialBCProtocol",
     "EssentialBCWithTimeDerivativeProtocol",
+    "NaturalBCOperator",
     "WeakFormBCProtocol",
 ]

@@ -324,6 +324,41 @@ class TestBiLaplacianPrior:
         samples = prior.rvs(3, rng=rng)
         assert bkd.to_numpy(samples).shape == (basis.ndofs(), 3)
 
+    def test_callable_robin_alpha(self, numpy_bkd: Backend[Array]) -> None:
+        """A spatially varying alpha adds int_Gamma alpha u v ds.
+
+        With u = v = 1 the boundary term is int_left (1 + y) dy = 3/2,
+        integrated exactly by any boundary quadrature, so the quadratic
+        form of (precision with BC) - (precision without) is checked
+        against a closed form rather than a re-assembly.
+        """
+        bkd = numpy_bkd
+        mesh = StructuredMesh2D(nx=4, ny=4, bounds=[[0, 1], [0, 1]], bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+
+        def alpha(x: np.ndarray) -> np.ndarray:
+            return 1.0 + x[1]
+
+        with_bc = BiLaplacianPrior(
+            basis,
+            gamma=1.0,
+            delta=0.5,
+            bkd=bkd,
+            boundary_conditions=[
+                RobinBC(basis, "left", alpha=alpha, value_func=0.0, bkd=bkd)
+            ],
+        )
+        without_bc = BiLaplacianPrior(
+            basis, gamma=1.0, delta=0.5, bkd=bkd, boundary_conditions=[]
+        )
+        diff = with_bc.stiffness_matrix() - without_bc.stiffness_matrix()
+        ones = np.ones(basis.ndofs())
+        bkd.assert_allclose(
+            bkd.asarray([float(ones @ (diff @ ones))]),
+            bkd.asarray([1.5]),
+            rtol=1e-12,
+        )
+
     def test_rng_reproducibility(self, numpy_bkd):
         """Using the same rng seed produces identical samples."""
         bkd = numpy_bkd

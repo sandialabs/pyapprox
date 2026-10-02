@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_matrix
 
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
@@ -213,26 +212,17 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         load_np = asm(LinearForm(linear_form), skfem_basis, u_prev=state_interp)
         return self._bkd.asarray(load_np.astype(np.float64))
 
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute Burgers spatial residual without Dirichlet enforcement.
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute the Burgers interior residual F_Omega (no BCs).
 
         The load (linear form) already evaluates the full nonlinear interior
         residual at the current state. The Newton-linearized stiffness is NOT
-        part of the residual — it only enters the Jacobian. Robin BCs add a
-        linear boundary mass term via a zero-initialized stiffness.
+        part of the residual — it only enters the Jacobian.
         """
-        load = self._assemble_load(state, time)
-        load = self._apply_bc_to_load(load, time)
+        return self._assemble_load(state, time)
 
-        # Zero stiffness — only BC contributions (Robin alpha*M_bnd) matter
-        n = self.nstates()
-        bc_stiffness = csr_matrix((n, n))
-        bc_stiffness = self._apply_bc_to_stiffness(bc_stiffness, time)
-
-        return load - bc_stiffness @ state
-
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute dR/du without Dirichlet enforcement.
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF_Omega/du (no BCs).
 
         For Burgers, the Jacobian is -K where K is the Newton-linearized
         stiffness (bilinear form) evaluated at the current state.
@@ -247,10 +237,9 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         Returns
         -------
         Array
-            Jacobian dR/du. Shape: (nstates, nstates)
+            Interior Jacobian. Shape: (nstates, nstates)
         """
         stiffness = self._assemble_stiffness(state, time)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
     def initial_condition(self, func: Callable[..., Any]) -> Array:

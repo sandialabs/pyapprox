@@ -115,7 +115,6 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
 
         # Store wavenumber
         self._wavenumber = wavenumber
-        self._wavenumber_is_callable = callable(wavenumber)
 
         # Store forcing: the raw supplier for consumers that inspect it,
         # and a normalized companion evaluated as f(coords, time).
@@ -183,9 +182,11 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
 
         laplacian_np = asm(BilinearForm(laplacian_form), skfem_basis)
 
-        # Mass-like term with k^2
-        if self._wavenumber_is_callable:
-            sqwavenum_func = self._wavenumber
+        # Mass-like term with k^2. Branch on the value itself so the
+        # float/callable Union narrows for the type checker.
+        wavenumber = self._wavenumber
+        if callable(wavenumber):
+            sqwavenum_func = wavenumber
 
             def mass_form(
                 u: "DiscreteField",
@@ -204,7 +205,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
                 ret: NDArray[np.floating[Any]] = k2 * u * v
                 return ret
         else:
-            k = self._wavenumber
+            k = wavenumber
 
             def mass_form(
                 u: "DiscreteField",
@@ -216,8 +217,9 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
 
         mass_np = asm(BilinearForm(mass_form), skfem_basis)
 
-        # sparse + sparse = sparse
-        stiffness = laplacian_np + mass_np
+        # sparse + sparse = sparse. skfem's asm() is untyped, so pin the
+        # result rather than letting Any leak out through the Array return.
+        stiffness: Array = laplacian_np + mass_np
 
         # Cache since coefficients are constant (even callable ones are
         # spatially varying but not state-dependent)
@@ -277,10 +279,8 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
 
         return load
 
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual without Dirichlet enforcement.
-
-        Returns F = b - K*u with Robin/Neumann BC contributions.
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute the interior residual F_Omega = b - K*u (no BCs).
 
         Parameters
         ----------
@@ -296,14 +296,12 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         """
         stiffness = self._assemble_stiffness(state, time)
         load = self._assemble_load(state, time)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
-        load = self._apply_bc_to_load(load, time)
         return load - stiffness @ state
 
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute dF/du without Dirichlet enforcement.
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF_Omega/du (no BCs).
 
-        For the linear Helmholtz equation, dF/du = -K.
+        For the linear Helmholtz equation, dF_Omega/du = -K.
 
         Parameters
         ----------
@@ -318,7 +316,6 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
             Jacobian dF/du. Shape: (nstates, nstates)
         """
         stiffness = self._assemble_stiffness(state, time)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
     def initial_condition(self, func: Callable[..., Any]) -> Array:

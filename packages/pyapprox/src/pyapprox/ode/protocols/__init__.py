@@ -32,6 +32,7 @@ from .ode_residual import (
     ODEResidualWithHVPProtocol,
     ODEResidualWithParamJacobianProtocol,
 )
+from .spatial_operator import SpatialOperatorProtocol
 from .time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
     HVPEnabledTimeSteppingResidualProtocol,
@@ -53,5 +54,7 @@ __all__ = [
     "SensitivityStepperProtocol",
     "AdjointEnabledTimeSteppingResidualProtocol",
     "HVPEnabledTimeSteppingResidualProtocol",
+    # Spatial Operator Protocol
+    "SpatialOperatorProtocol",
     # Base Classes and Mixins
 ]

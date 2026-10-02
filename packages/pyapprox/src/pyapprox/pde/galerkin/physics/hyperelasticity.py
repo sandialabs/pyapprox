@@ -31,7 +31,6 @@ if TYPE_CHECKING:
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_matrix
 
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.constitutive.protocols import (
@@ -305,10 +304,10 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         load_np = asm(LinearForm(load_form), skfem_basis)
         return self._bkd.asarray(load_np.astype(np.float64))
 
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual without Dirichlet enforcement.
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute the interior residual (no BCs).
 
-        R(u) = load - internal_force - robin_stiffness * u
+        F_Omega(u) = body load - internal_force
 
         Parameters
         ----------
@@ -320,18 +319,11 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         Returns
         -------
         Array
-            Spatial residual. Shape: (nstates,)
+            Interior residual. Shape: (nstates,)
         """
         internal_force = self._assemble_internal_force(state, time)
         load = self._assemble_load(time)
-        load = self._apply_bc_to_load(load, time)
-
-        # Robin BC stiffness contribution
-        n = self.nstates()
-        bc_stiffness = csr_matrix((n, n))
-        bc_stiffness = self._apply_bc_to_stiffness(bc_stiffness, time)
-
-        return load - internal_force - bc_stiffness @ state
+        return load - internal_force
 
     def _assemble_tangent_stiffness(self, state: Array, time: float) -> Array:
         """Assemble tangent stiffness matrix.
@@ -444,10 +436,8 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         stiffness: Array = K_np
         return stiffness
 
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute dR/du without Dirichlet enforcement.
-
-        For hyperelasticity, dR/du = -(tangent_stiffness + robin_stiffness).
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF_Omega/du (no BCs): -tangent_stiffness.
 
         Parameters
         ----------
@@ -459,10 +449,9 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         Returns
         -------
         Array
-            Jacobian dR/du. Shape: (nstates, nstates)
+            Interior Jacobian. Shape: (nstates, nstates)
         """
         stiffness = self._assemble_tangent_stiffness(state, time)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
     def initial_condition(self, func: Callable[..., Any]) -> Array:

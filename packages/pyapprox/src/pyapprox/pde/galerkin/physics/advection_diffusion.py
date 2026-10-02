@@ -1113,8 +1113,8 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         """Solve M * x = rhs for x."""
         return self._mass.mass_solve(rhs)
 
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual F = b - K*u without Dirichlet enforcement.
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute the interior residual F_Omega = b - K*u (no BCs).
 
         Parameters
         ----------
@@ -1126,16 +1126,14 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         Returns
         -------
         Array
-            Spatial residual. Shape: (nstates,)
+            Interior residual. Shape: (nstates,)
         """
         stiffness = self._assemble_stiffness(state, time)
         load = self._assemble_load(state, time)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
-        load = self._apply_bc_to_load(load, time)
         return load - stiffness @ state
 
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute dF/du without Dirichlet enforcement.
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF_Omega/du (no BCs).
 
         Includes nonlinear reaction Jacobian if applicable.
 
@@ -1149,10 +1147,9 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         Returns
         -------
         Array
-            Jacobian dF/du. Shape: (nstates, nstates)
+            Interior Jacobian. Shape: (nstates, nstates)
         """
         stiffness = self._assemble_stiffness(state, time)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
         jacobian = -stiffness
         if (
             self._reaction_function is not None

@@ -7,10 +7,17 @@ A natural BC is a term ``c(u, t)`` in the spatial operator,
     Robin:    c = int (g - a u) . phi            (dc/du = -K_Gamma)
 
 so ``apply_to_residual`` adds ``c`` and ``apply_to_jacobian`` adds
-``dc/du``. The reference is the physics itself: each physics adds these
-terms through its load and stiffness, so a BC's residual contribution must
-equal the physics' spatial residual with the BC minus without it. This
-holds for scalar and vector bases alike.
+``dc/du``.
+
+The reference is independent of the BC code: on a uniform mesh with
+linear elements and constant data, the boundary integrals along an edge
+are closed-form. With node spacing ``h`` along the edge, the load
+``int g . phi_i`` is ``g h`` at interior edge nodes and ``g h / 2`` at the
+two end nodes, and ``K_Gamma = a M_edge`` with ``M_edge`` the 1D linear
+mass matrix, ``(h/6) [[2, 1], [1, 2]]`` per segment, per component. The
+expected term is assembled from DOF coordinates alone. (Comparing against a
+physics would be circular: the physics adds these terms with the same
+methods.)
 """
 
 import pytest
@@ -102,31 +109,6 @@ class TestWeakFormTermConvention:
         state = bare.bkd().asarray(rng.normal(0.0, 1.0, bare.nstates()))
         return bare, with_bc, bc, state
 
-    def test_residual_is_the_physics_term(
-        self, name: str, make_physics: Any, vector: bool, kind: str
-    ) -> None:
-        bare, with_bc, bc, state = self._setup(make_physics, vector, kind)
-        bkd = bare.bkd()
-        term = bc.apply_to_residual(bkd.zeros((bare.nstates(),)), state, 0.0)
-        expected = with_bc.spatial_residual(state, 0.0) - bare.spatial_residual(
-            state, 0.0
-        )
-        bkd.assert_allclose(term, expected, rtol=1e-12, atol=1e-12)
-
-    def test_jacobian_is_the_physics_term(
-        self, name: str, make_physics: Any, vector: bool, kind: str
-    ) -> None:
-        bare, with_bc, bc, state = self._setup(make_physics, vector, kind)
-        bkd = bare.bkd()
-        n = bare.nstates()
-        term = _dense(bc.apply_to_jacobian(bkd.zeros((n, n)), state, 0.0))
-        expected = _dense(with_bc.spatial_jacobian(state, 0.0)) - _dense(
-            bare.spatial_jacobian(state, 0.0)
-        )
-        bkd.assert_allclose(
-            bkd.asarray(term), bkd.asarray(expected), rtol=1e-12, atol=1e-12
-        )
-
     def test_jacobian_matches_finite_differences(
         self, name: str, make_physics: Any, vector: bool, kind: str
     ) -> None:
@@ -157,6 +139,81 @@ class TestWeakFormTermConvention:
         # Robin case has a sweep to check.
         if kind == "robin":
             assert float(bkd.to_numpy(checker.error_ratio(errors))) <= 1e-6
+
+
+_ROBIN_A = 1.7
+_G_SCALAR = 0.8
+_G_VECTOR = np.array([0.8, -0.3])
+
+
+class _ConstantVectorData:
+    def __call__(self, coords: _Arr) -> _Arr:
+        return np.outer(_G_VECTOR, np.ones(coords.shape[1]))
+
+
+def _independent_term(
+    basis: Any, kind: str, vector: bool, state: _Arr
+) -> Tuple[_Arr, _Arr]:
+    """Expected (c, dc/du) on the edge x = 1, from DOF coordinates alone.
+
+    Linear elements, constant data: each edge segment of length h adds
+    g h / 2 to the load at its two nodes and a (h/6)[[2, 1], [1, 2]] to
+    K_Gamma, separately for each component.
+    """
+    coords = np.asarray(basis.dof_coordinates())
+    n = coords.shape[1]
+    ncomp = 2 if vector else 1
+    load = np.zeros(n)
+    k_gamma = np.zeros((n, n))
+    for comp in range(ncomp):
+        dofs = [
+            i for i in range(n)
+            if np.isclose(coords[0, i], 1.0) and i % ncomp == comp
+        ]
+        dofs.sort(key=lambda i: coords[1, i])
+        g = _G_VECTOR[comp] if vector else _G_SCALAR
+        for a, b in zip(dofs[:-1], dofs[1:]):
+            h = coords[1, b] - coords[1, a]
+            load[[a, b]] += g * h / 2.0
+            if kind == "robin":
+                k_gamma[np.ix_([a, b], [a, b])] += (
+                    _ROBIN_A * h / 6.0 * np.array([[2.0, 1.0], [1.0, 2.0]])
+                )
+    return load - k_gamma @ state, -k_gamma
+
+
+@pytest.mark.parametrize("kind", ["robin", "neumann"])
+@pytest.mark.parametrize("vector", [False, True])
+def test_term_matches_independent_assembly(kind: str, vector: bool) -> None:
+    """The term and its Jacobian equal the closed-form boundary integrals."""
+    bkd = NumpyBkd()
+    mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
+    basis = VectorLagrangeBasis(mesh, degree=1) if vector else LagrangeBasis(
+        mesh, degree=1
+    )
+    data: Any = _ConstantVectorData() if vector else _G_SCALAR
+    bc = (
+        RobinBC(basis, "right", _ROBIN_A, data, bkd)
+        if kind == "robin"
+        else NeumannBC(basis, "right", data, bkd)
+    )
+    n = basis.ndofs()
+    state = bkd.asarray(np.random.default_rng(3).normal(0.0, 1.0, n))
+    expected_c, expected_jac = _independent_term(
+        basis, kind, vector, bkd.to_numpy(state)
+    )
+    bkd.assert_allclose(
+        bc.apply_to_residual(bkd.zeros((n,)), state, 0.0),
+        bkd.asarray(expected_c),
+        rtol=1e-12,
+        atol=1e-14,
+    )
+    bkd.assert_allclose(
+        bkd.asarray(_dense(bc.apply_to_jacobian(bkd.zeros((n, n)), state, 0.0))),
+        bkd.asarray(expected_jac),
+        rtol=1e-12,
+        atol=1e-14,
+    )
 
 
 class _TimeVaryingData:

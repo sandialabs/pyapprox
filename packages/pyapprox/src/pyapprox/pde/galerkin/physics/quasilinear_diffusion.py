@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_matrix
 
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -204,15 +203,13 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
         )
         return stiffness
 
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute the spatial residual without Dirichlet enforcement.
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute the interior residual (no BCs).
 
         .. math::
 
             R_j = \\int f \\phi_j
                 - \\int a(x) \\kappa(u_h) \\nabla u_h \\cdot \\nabla\\phi_j
-
-        plus Neumann/Robin boundary contributions.
         """
         skfem_basis = self._basis.skfem_basis()
         state_interp = self._interpolate(self._bkd.to_numpy(state))
@@ -242,19 +239,11 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
             u_prev=state_interp,
             a_field=diff_interp,
         )
-        load = self._bkd.asarray(load_np.astype(np.float64))
-        load = self._apply_bc_to_load(load, time)
+        return self._bkd.asarray(load_np.astype(np.float64))
 
-        # Zero stiffness — only BC contributions (Robin alpha*M_bnd) matter
-        n = self.nstates()
-        bc_stiffness = csr_matrix((n, n))
-        bc_stiffness = self._apply_bc_to_stiffness(bc_stiffness, time)
-        return load - bc_stiffness @ state
-
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute dR/du without Dirichlet enforcement: :math:`-K(a)`."""
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF_Omega/du (no BCs): :math:`-K(a)`."""
         stiffness = self._newton_stiffness(self._diffusivity.dofs(), state)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
     def state_state_hvp(

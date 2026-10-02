@@ -214,3 +214,35 @@ class GalerkinPhysicsWithStateStateHVPProtocol(
             The contraction. Shape: (nstates,)
         """
         ...
+
+
+@runtime_checkable
+class GalerkinInteriorOperatorProtocol(Protocol, Generic[Array]):
+    """The interior part of the spatial operator, ``F_Omega``.
+
+    A physics' own mathematics: the weak form over the domain, with no
+    boundary condition in it. The spatial operator is composed as
+    ``F = F_Omega + F_Gamma``, where the natural-BC part ``F_Gamma`` is
+    added once, by ``pyapprox.pde.boundary.NaturalBCOperator``, and never
+    by the physics itself.
+
+    Anything implementing this protocol (a physics, or an operator such
+    as a prior's precision) gets the composed ``F`` from
+    ``ComposedSpatialOperator``, with no base class required.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def nstates(self) -> int:
+        """Return the number of states."""
+        ...
+
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute ``F_Omega(u, t)``. Shape: (nstates,)."""
+        ...
+
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute ``dF_Omega/du``. Shape: (nstates, nstates)."""
+        ...

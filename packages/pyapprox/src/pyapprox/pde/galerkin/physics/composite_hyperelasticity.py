@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.sparse import csr_matrix
 
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.constitutive.neo_hookean import (
@@ -587,23 +586,15 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
 
         return K_np
 
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute R = load - internal_force without Dirichlet enforcement."""
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute F_Omega = body load - internal_force (no BCs)."""
         internal_force = self._assemble_internal_force(state, time)
         load = self._assemble_load(time)
-        load = self._apply_bc_to_load(load, time)
+        return load - internal_force
 
-        # Robin stiffness contribution
-        n = self.nstates()
-        bc_stiffness = csr_matrix((n, n))
-        bc_stiffness = self._apply_bc_to_stiffness(bc_stiffness, time)
-
-        return load - internal_force - bc_stiffness @ state
-
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute dR/du without Dirichlet enforcement."""
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF_Omega/du (no BCs)."""
         stiffness = self._assemble_tangent_stiffness(state, time)
-        stiffness = self._apply_bc_to_stiffness(stiffness, time)
         return -stiffness
 
     def initial_condition(self, func: Callable[..., Any]) -> Array:

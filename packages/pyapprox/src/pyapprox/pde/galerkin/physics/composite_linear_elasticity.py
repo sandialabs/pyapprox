@@ -316,10 +316,11 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         )
         return self._stiffness_cached
 
-    def load_vector(self, time: float = 0.0) -> Array:
-        """Return the load vector from body forces and Neumann/Robin BCs.
+    def interior_load_vector(self, time: float = 0.0) -> Array:
+        """Return the interior load vector, from body forces only.
 
-        b_i = integral(f . phi_i) + boundary integrals
+        b_i = integral(f . phi_i). Neumann and Robin data are natural-BC
+        terms, added by the composed spatial operator, not here.
 
         Parameters
         ----------
@@ -357,16 +358,10 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
 
             load_np = asm(LinearForm(linear_form), skfem_basis)
 
-        load = self._bkd.asarray(load_np.astype(np.float64))
-        return self._apply_bc_to_load(load, time)
+        return self._bkd.asarray(load_np.astype(np.float64))
 
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute spatial residual F = b(t) - (K + K_Gamma)*u without
-        Dirichlet enforcement.
-
-        ``K_Gamma`` is the Robin stiffness, added here rather than in
-        :meth:`stiffness_matrix`, which stays the interior (Lame-dependent)
-        stiffness. The Robin data is already in :meth:`load_vector`.
+    def interior_residual(self, state: Array, time: float) -> Array:
+        """Compute the interior residual F_Omega = b(t) - K*u (no BCs).
 
         Parameters
         ----------
@@ -378,14 +373,12 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         Returns
         -------
         Array
-            Spatial residual. Shape: (nstates,)
+            Interior residual. Shape: (nstates,)
         """
-        K = self._apply_bc_to_stiffness(self.stiffness_matrix(), time)
-        b = self.load_vector(time)
-        return b - K @ state
+        return self.interior_load_vector(time) - self.stiffness_matrix() @ state
 
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute dF/du = -(K + K_Gamma) without Dirichlet enforcement.
+    def interior_jacobian(self, state: Array, time: float) -> Array:
+        """Compute dF_Omega/du = -K (no BCs).
 
         Parameters
         ----------
@@ -397,9 +390,9 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         Returns
         -------
         Array
-            Jacobian matrix. Shape: (nstates, nstates)
+            Interior Jacobian. Shape: (nstates, nstates)
         """
-        return -self._apply_bc_to_stiffness(self.stiffness_matrix(), time)
+        return -self.stiffness_matrix()
 
     def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a displacement field.
