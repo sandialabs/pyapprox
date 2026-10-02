@@ -335,15 +335,24 @@ class GammaMarginal(Generic[Array]):
 
         shape = self._get_shape()
         rate = self._get_rate()
+        # gammainc(k, x) is 0 for x <= 0, and the substitution below is only
+        # valid for x > 0. Evaluating it at a non-positive x gives a spurious
+        # value (negative, greater than one, or NaN when shape < 1), so
+        # evaluate the quadrature on the positive part and zero out the rest.
+        # Substituting ones keeps the masked entries finite so they cannot
+        # poison the autograd graph.
+        positive = samples > 0.0
+        safe_samples = self._bkd.where(positive, samples, self._bkd.ones_like(samples))
         # Transform integral_0^x to integral_0^1 with substitution t = x*u
         # integral_0^x t^{k-1} exp(-t) dt = x^k * integral_0^1 u^{k-1} exp(-x*u) du
         # Using rate: for rate*x instead of x
-        rate_x = rate * samples
+        rate_x = rate * safe_samples
         quadx = rate_x[:, None] * self._quadx_01[None, :]
         quadw = rate_x[:, None] * self._quadw_01[None, :]
         integrand_vals = quadx ** (shape - 1.0) * self._bkd.exp(-quadx)
         integral = self._bkd.sum(integrand_vals * quadw, axis=1)
-        return integral / self._bkd.exp(self._bkd.gammaln(shape))
+        result = integral / self._bkd.exp(self._bkd.gammaln(shape))
+        return self._bkd.where(positive, result, self._bkd.zeros_like(result))
 
     def cdf(self, samples: Array) -> Array:
         """
