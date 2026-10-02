@@ -26,7 +26,7 @@ not symmetric, so it is factored by LU; its determinant equals that of the
 symmetric positive definite :math:`\Gamma_{zz}`.
 """
 
-from typing import Generic, Optional
+from typing import Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -68,7 +68,8 @@ class LinearGaussianObservation(Generic[Array]):
         self._lu, self._piv = bkd.lu_factor(self._a_matrix(obs_cov))
         # X = A_w^{-1} W Gamma_yt, shared by the covariance and the mean.
         self._x = bkd.lu_solve(self._lu, self._piv, weights * target_obs_cov.T)
-        self._logdet_given_t: Optional[Array] = None
+        # LU factors of A_w|t and Gamma_yy|t, computed on first use.
+        self._given_t: Optional[Tuple[Array, Array, Array]] = None
 
     def _a_matrix(self, syy: Array) -> Array:
         return self._w * syy + self._bkd.diag(self._nu[:, 0])
@@ -98,14 +99,91 @@ class LinearGaussianObservation(Generic[Array]):
 
         Needs ``Gamma_tt`` to be invertible, and is computed on first use.
         """
-        if self._logdet_given_t is None:
+        lu, _, _ = self._factor_given_t()
+        return self._logdet_lu(lu)
+
+    def covariance_vjp(self, cov_bar: Array) -> Tuple[Array, Array]:
+        r"""Gradients in ``w`` and ``nu`` of ``<cov_bar, Gamma_t|z>``.
+
+        With :math:`C = \Gamma_{ty}`, :math:`S = \Gamma_{yy}`,
+        :math:`X = \mathcal A_w^{-1} W C^\top` and
+        :math:`M = \mathcal A_w^{-\top} C^\top \bar\Gamma`,
+
+        .. math::
+
+            \partial_{w_i} = \sum_k M_{ik} (S X - C^\top)_{ik}, \qquad
+            \partial_{\nu_i} = \sum_k M_{ik} X_{ik},
+
+        from :math:`d\Gamma_{t|z} = C\mathcal A_w^{-1}\,dW\,(SX - C^\top)
+        + C\mathcal A_w^{-1}\,d\Lambda\,X`.
+
+        Parameters
+        ----------
+        cov_bar : Array
+            ``df / dGamma_t|z``. Shape: (n_t, n_t)
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            ``df/dw`` and ``df/dnu``, each of shape (d, 1).
+        """
+        ntarget = self._ctt.shape[0]
+        if tuple(cov_bar.shape) != (ntarget, ntarget):
+            raise ValueError(
+                f"cov_bar must have shape ({ntarget}, {ntarget}), got "
+                f"{tuple(cov_bar.shape)}"
+            )
+        bkd = self._bkd
+        m = bkd.lu_solve(
+            self._lu, self._piv, bkd.dot(self._cty.T, cov_bar), adjoint=True
+        )
+        residual = bkd.dot(self._syy, self._x) - self._cty.T
+        return self._row_sums(m * residual), self._row_sums(m * self._x)
+
+    def logdet_zz_gradient(self) -> Tuple[Array, Array]:
+        r"""Gradients of ``log det A_w`` in ``w`` and ``nu``.
+
+        :math:`\partial_{w} = \mathrm{diag}(S\mathcal A_w^{-1})` and
+        :math:`\partial_{\nu} = \mathrm{diag}(\mathcal A_w^{-1})`, from
+        :math:`d\log\det\mathcal A_w
+        = \mathrm{tr}(\mathcal A_w^{-1}(dW\,S + d\Lambda))`.
+
+        Returns
+        -------
+        Tuple[Array, Array]
+            Each of shape (d, 1).
+        """
+        return self._logdet_gradient(self._lu, self._piv, self._syy)
+
+    def logdet_zz_given_t_gradient(self) -> Tuple[Array, Array]:
+        """Gradients of ``log det A_w|t`` in ``w`` and ``nu``, each (d, 1).
+
+        As ``logdet_zz_gradient`` with ``Gamma_yy|t`` in place of
+        ``Gamma_yy``.
+        """
+        lu, piv, syy_given_t = self._factor_given_t()
+        return self._logdet_gradient(lu, piv, syy_given_t)
+
+    def _factor_given_t(self) -> Tuple[Array, Array, Array]:
+        if self._given_t is None:
             bkd = self._bkd
             syy_given_t = self._syy - bkd.dot(
                 self._cty.T, bkd.solve(self._ctt, self._cty)
             )
-            lu, _ = bkd.lu_factor(self._a_matrix(syy_given_t))
-            self._logdet_given_t = self._logdet_lu(lu)
-        return self._logdet_given_t
+            lu, piv = bkd.lu_factor(self._a_matrix(syy_given_t))
+            self._given_t = (lu, piv, syy_given_t)
+        return self._given_t
+
+    def _logdet_gradient(
+        self, lu: Array, piv: Array, syy: Array
+    ) -> Tuple[Array, Array]:
+        bkd = self._bkd
+        ainv = bkd.lu_solve(lu, piv, bkd.eye(syy.shape[0]))
+        # diag(S A^{-1})_i = sum_k S_ik (A^{-1})_ki
+        return self._row_sums(syy * ainv.T), bkd.reshape(bkd.diag(ainv), (-1, 1))
+
+    def _row_sums(self, values: Array) -> Array:
+        return self._bkd.reshape(self._bkd.sum(values, axis=1), (-1, 1))
 
     def mean(self, data: Array) -> Array:
         """``mu_t|z`` given data ``y`` (d, 1). Shape: (n_t, 1)
