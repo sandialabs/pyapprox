@@ -4,6 +4,8 @@ Benchmarks (have analytical ground truth):
 - ``LinearGaussianKLOEDBenchmark`` — exact EIG via conjugate Gaussian
 - ``LinearGaussianPredOEDBenchmark`` — exact prediction utility (linear QoI)
 - ``NonLinearGaussianPredOEDBenchmark`` — exact prediction utility (lognormal QoI)
+- ``LinearGaussianNuisanceLognormalBenchmark`` — exact relaxed-weight goal
+  criteria (lognormal QoI, marginalized nuisances)
 
 Problem wrappers (no ground truth):
 - ``LotkaVolterraPredictionOEDProblem`` — nonlinear ODE-based prediction OED
@@ -25,6 +27,10 @@ from pyapprox_benchmarks.expdesign.linear_gaussian import (
     LinearGaussianKLOEDBenchmark,
     build_linear_gaussian_kl_benchmark,
 )
+from pyapprox_benchmarks.expdesign.linear_gaussian_nuisance_lognormal import (
+    LinearGaussianNuisanceLognormalBenchmark,
+    build_linear_gaussian_nuisance_lognormal_benchmark,
+)
 from pyapprox_benchmarks.expdesign.linear_gaussian_pred import (
     LinearGaussianPredOEDBenchmark,
     build_linear_gaussian_pred_benchmark,
@@ -40,12 +46,14 @@ from pyapprox_benchmarks.expdesign.nonlinear_gaussian import (
 __all__ = [
     "LinearGaussianKLOEDBenchmark",
     "LinearGaussianPredOEDBenchmark",
+    "LinearGaussianNuisanceLognormalBenchmark",
     "NonLinearGaussianPredOEDBenchmark",
     "LotkaVolterraPredictionOEDProblem",
     "ObstructedAdvectionDiffusionOEDProblemWrapper",
     "FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper",
     "build_linear_gaussian_kl_benchmark",
     "build_linear_gaussian_pred_benchmark",
+    "build_linear_gaussian_nuisance_lognormal_benchmark",
     "build_nonlinear_gaussian_pred_benchmark",
     "build_obstructed_advection_diffusion_oed_problem",
     "build_fixed_velocity_obstructed_advection_diffusion_oed_problem",
