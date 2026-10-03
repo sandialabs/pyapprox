@@ -112,7 +112,7 @@ class TestQuasilinearDiffusivityParameterization:
             physics, field_map, bkd
         )
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics, param_obj, bkd
+            physics.system().steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(

@@ -173,6 +173,11 @@ class WeakFormBCProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def is_time_invariant(self) -> bool:
+        """Whether the term ``c(u, t)`` is DECLARED independent of ``t``
+        (its data — flux, Robin value — declared time-independent)."""
+        ...
+
 
 @runtime_checkable
 class EssentialBCProtocol(Protocol, Generic[Array]):

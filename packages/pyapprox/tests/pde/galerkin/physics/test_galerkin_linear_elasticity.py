@@ -160,7 +160,9 @@ class TestLinearElasticityBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-12, max_iter=5, line_search=False)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
+        )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
 
@@ -696,7 +698,7 @@ class TestLinearElasticity3DPatch:
         )
 
         solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=5, line_search=False
+            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
         )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
@@ -752,7 +754,7 @@ class TestLinearElasticity3DPatch:
             bkd=bkd,
         )
         solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=5, line_search=False
+            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
         )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
@@ -842,7 +844,7 @@ class TestLinearElasticity3DManufactured:
         physics.set_lame_parameters(lam_q, mu_q)
 
         solver = SteadyStateSolver(
-            physics, tol=1e-12, max_iter=5, line_search=False
+            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
         )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)

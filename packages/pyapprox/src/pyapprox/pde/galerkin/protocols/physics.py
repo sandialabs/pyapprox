@@ -226,3 +226,9 @@ class GalerkinInteriorOperatorProtocol(Protocol, Generic[Array]):
         ``StateDerivatives.none()`` when the curvature is not supplied.
         """
         ...
+
+    def interior_is_time_invariant(self) -> bool:
+        """Whether ``F_Omega(u, t)`` is DECLARED independent of ``t``:
+        every coefficient and forcing it holds is declared
+        time-independent."""
+        ...

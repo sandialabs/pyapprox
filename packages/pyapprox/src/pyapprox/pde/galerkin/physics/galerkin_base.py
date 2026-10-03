@@ -112,12 +112,21 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
         """
 
     @abstractmethod
+    def interior_is_time_invariant(self) -> bool:
+        """Whether every coefficient and forcing of ``F_Omega`` is
+        declared time-independent."""
+
+    @abstractmethod
     def mass_matrix(self) -> Array:
         """Return the mass matrix ``M``. Shape: (nstates, nstates)."""
 
     def state_derivatives(self) -> StateDerivatives[Array]:
         """Return the second state derivatives of the composed ``F``."""
         return self.spatial_operator().state_derivatives()
+
+    def is_time_invariant(self) -> bool:
+        """Whether the composed ``F`` is declared time-independent."""
+        return self.spatial_operator().is_time_invariant()
 
     def natural_bc_operator(self) -> NaturalBCOperator[Array]:
         """Return the natural-BC operator built from this physics' BCs."""
@@ -189,7 +198,9 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
     def residual(self, state: Array, time: float) -> Array:
         """Compute residual F(u, t) with Dirichlet BCs applied.
 
-        Wraps ``spatial_residual()`` with Dirichlet row replacement.
+        A convenience: the steady view of this physics at ``time``
+        (``system().steady_snapshot(time).residual``), which owns the
+        constraint application.
 
         Parameters
         ----------
@@ -203,14 +214,12 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
         Array
             Residual with Dirichlet rows replaced. Shape: (nstates,)
         """
-        return self._apply_dirichlet_to_residual(
-            self.spatial_residual(state, time), state, time
-        )
+        return self.system().steady_snapshot(time).steady_residual(state)
 
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute Jacobian dF/du with Dirichlet BCs applied.
 
-        Wraps ``spatial_jacobian()`` with Dirichlet row replacement.
+        A convenience: ``system().steady_snapshot(time).jacobian``.
 
         Parameters
         ----------
@@ -224,9 +233,7 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
         Array
             Jacobian with Dirichlet rows replaced. Shape: (nstates, nstates)
         """
-        return self._apply_dirichlet_to_jacobian(
-            self.spatial_jacobian(state, time), state, time
-        )
+        return self.system().steady_snapshot(time).steady_jacobian(state)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(nstates={self.nstates()})"

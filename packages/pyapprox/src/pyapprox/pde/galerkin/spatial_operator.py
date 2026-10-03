@@ -104,6 +104,13 @@ class ComposedSpatialOperator(Generic[Array]):
             self._interior.interior_jacobian(state, time), state, time
         )
 
+    def is_time_invariant(self) -> bool:
+        """Whether the interior and every term are declared
+        time-independent."""
+        return self._interior.interior_is_time_invariant() and all(
+            term.is_time_invariant() for term in self._natural_bcs.terms()
+        )
+
     def owns(self, target: object) -> bool:
         """Whether ``target`` is part of ``F``: the interior (and what it
         owns) or one of the terms."""

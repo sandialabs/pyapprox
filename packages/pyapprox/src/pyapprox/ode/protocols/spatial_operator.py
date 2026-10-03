@@ -41,3 +41,12 @@ class SpatialOperatorProtocol(Protocol, Generic[Array]):
         Consumers choose their derivative tier from this bundle, once.
         """
         ...
+
+    def is_time_invariant(self) -> bool:
+        """Whether ``F(u, t)`` is DECLARED independent of ``t``.
+
+        Aggregated from the declarations of the data ``F`` holds
+        (coefficients, forcing, boundary-term data). A steady consumer
+        may evaluate ``F`` at any time only when this holds.
+        """
+        ...

@@ -263,7 +263,9 @@ class TestCompositeHyperelasticity1D:
         physics, functions, basis = self._setup_1d_problem(bkd, nx=40, degree=2)
         exact = _get_exact_displacement(functions, basis, bkd)
 
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+        )
         init_guess = bkd.asarray(exact + 0.01)
         result = solver.solve(init_guess)
 
@@ -355,7 +357,9 @@ class TestCompositeHyperelasticity2D:
         physics, functions, basis = self._setup_2d_problem(bkd, nx=12, ny=12, degree=2)
         exact = _get_exact_displacement(functions, basis, bkd)
 
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+        )
         init_guess = bkd.asarray(exact + 0.01)
         result = solver.solve(init_guess)
 
@@ -646,7 +650,9 @@ class TestCompositeHyperelasticity3D:
         physics, functions, basis = self._setup_3d_problem(bkd, nx=2, degree=2)
         exact = _get_exact_displacement(functions, basis, bkd)
 
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+        )
         init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
 

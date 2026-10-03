@@ -210,6 +210,14 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         assembled, so consumers stay at the Jacobian tier."""
         return StateDerivatives.none()
 
+    def interior_is_time_invariant(self) -> bool:
+        """Whether the body force is declared time-independent (the
+        material properties cannot depend on time)."""
+        return (
+            self._body_force_eval is None
+            or not self._body_force_eval.is_time_dependent()
+        )
+
     def mass_matrix(self) -> Array:
         """Return the vector mass matrix M_ij = integral(phi_i . phi_j)."""
         if self._mass_cached is not None:

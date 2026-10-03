@@ -106,7 +106,9 @@ def _build_state_equation(
     param_obj = AdvectionDiffusionParameterization(
         physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
-    state_eq = GalerkinStateEquationWithHVPAdapter(physics, param_obj, bkd)
+    state_eq = GalerkinStateEquationWithHVPAdapter(
+        physics.system().steady(), param_obj, bkd
+    )
     return state_eq, physics
 
 
@@ -185,4 +187,6 @@ class TestSteadyADRLogKLEAdjointHVP:
             physics, diffusivity_map=no_hvp_map, bkd=bkd
         )
         with pytest.raises(TypeError, match="second-order"):
-            GalerkinStateEquationWithHVPAdapter(physics, param_obj, bkd)
+            GalerkinStateEquationWithHVPAdapter(
+                physics.system().steady(), param_obj, bkd
+            )

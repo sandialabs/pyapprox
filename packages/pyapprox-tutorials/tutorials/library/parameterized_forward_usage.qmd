@@ -197,7 +197,7 @@ from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 def solve_for(params):
     """Write params into the physics, then solve."""
     parameterization.apply(params)
-    result = SteadyStateSolver(physics, tol=1e-10).solve_linear()
+    result = SteadyStateSolver(physics.system().steady(), tol=1e-10).solve_linear()
     return result.solution
 
 

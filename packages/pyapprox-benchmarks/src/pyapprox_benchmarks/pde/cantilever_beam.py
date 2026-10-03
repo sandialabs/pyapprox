@@ -992,7 +992,7 @@ def build_cantilever_beam_2d_linear(
         boundary_conditions=[bc_left, bc_top],
     )
 
-    solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
+    solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
     nvars = len(subdomain_names) * num_kle_terms
@@ -1130,7 +1130,7 @@ def build_cantilever_beam_2d_neohookean(
     )
 
     solver = SteadyStateSolver(
-        physics,
+        physics.system().steady(),
         tol=1e-10,
         max_iter=50,
         line_search=True,
@@ -1363,7 +1363,7 @@ def build_cantilever_beam_2d_linear_spde(
         boundary_conditions=[bc_left, bc_top],
     )
 
-    solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
+    solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
     nvars = len(subdomain_names) * num_kle_terms
@@ -1501,7 +1501,7 @@ def build_cantilever_beam_2d_neohookean_spde(
     )
 
     solver = SteadyStateSolver(
-        physics,
+        physics.system().steady(),
         tol=1e-10,
         max_iter=50,
         line_search=True,

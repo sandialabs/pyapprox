@@ -17,7 +17,8 @@ state equation and the transient adapters alike. The constraint set is
 Galerkin's (essential rows are the replaced rows).
 """
 
-from typing import Generic
+from dataclasses import dataclass
+from typing import Callable, Generic, Optional
 
 from pyapprox.ode.state_derivatives import StateDerivatives, StateStateHVPFn
 from pyapprox.pde.boundary import ConstraintSetProtocol
@@ -27,6 +28,7 @@ from pyapprox.pde.parameterizations.derivatives import (
     ParamHVPFn,
     ParamJacobianFn,
 )
+from pyapprox.pde.steady_view import SteadyViewProtocol
 from pyapprox.util.backends.protocols import Array
 
 
@@ -160,6 +162,104 @@ def constrain_param_derivatives(
             else _WeightZeroedParamHVP(param_state_hvp, constraint_set)
         ),
         bc_flux_param_sensitivity=derivatives.bc_flux_param_sensitivity,
+    )
+
+
+SteadyParamJacobianFn = Callable[[Array, Array], Array]
+SteadyParamHVPFn = Callable[[Array, Array, Array, Array], Array]
+SteadyStateStateHVPFn = Callable[[Array, Array, Array], Array]
+
+
+class _AtTimeParamJacobian(Generic[Array]):
+    """``(state, params) -> dF/dp`` at a bound time."""
+
+    def __init__(self, fn: ParamJacobianFn[Array], time: float) -> None:
+        self._fn = fn
+        self._time = time
+
+    def __call__(self, state: Array, params_1d: Array) -> Array:
+        return self._fn(state, self._time, params_1d)
+
+
+class _AtTimeParamHVP(Generic[Array]):
+    """``(state, params, adj, vec) -> contraction`` at a bound time."""
+
+    def __init__(self, fn: ParamHVPFn[Array], time: float) -> None:
+        self._fn = fn
+        self._time = time
+
+    def __call__(
+        self, state: Array, params_1d: Array, adj_state: Array, vec: Array
+    ) -> Array:
+        return self._fn(state, self._time, params_1d, adj_state, vec)
+
+
+class _AtTimeStateStateHVP(Generic[Array]):
+    """``(state, adj, w) -> contraction`` at a bound time."""
+
+    def __init__(self, fn: StateStateHVPFn[Array], time: float) -> None:
+        self._fn = fn
+        self._time = time
+
+    def __call__(self, state: Array, adj_state: Array, wvec: Array) -> Array:
+        return self._fn(state, adj_state, wvec, self._time)
+
+
+@dataclass(frozen=True)
+class SteadyConstrainedDerivatives(Generic[Array]):
+    """Derivatives of a steady view's constrained residual, time-free.
+
+    The view's time is bound into every function, so a steady consumer
+    never passes one. Absent is ``None``.
+    """
+
+    param_jacobian: Optional[SteadyParamJacobianFn[Array]] = None
+    param_param_hvp: Optional[SteadyParamHVPFn[Array]] = None
+    state_param_hvp: Optional[SteadyParamHVPFn[Array]] = None
+    param_state_hvp: Optional[SteadyParamHVPFn[Array]] = None
+    state_state_hvp: Optional[SteadyStateStateHVPFn[Array]] = None
+
+
+def steady_constrained_derivatives(
+    view: SteadyViewProtocol[Array],
+    param_derivatives: ParamDerivatives[Array],
+) -> SteadyConstrainedDerivatives[Array]:
+    """Constrain the raw derivatives and bind the view's time into them.
+
+    The one place a steady consumer's derivatives meet time: the view
+    holds it, and it is curried here, once.
+    """
+    constraint_set = view.constraint_set()
+    time = view.time()
+    constrained = constrain_param_derivatives(
+        param_derivatives, constraint_set
+    )
+    state_state_hvp = (
+        view.spatial_operator().state_derivatives().state_state_hvp
+    )
+
+    def at_time(
+        fn: Optional[ParamHVPFn[Array]],
+    ) -> Optional[SteadyParamHVPFn[Array]]:
+        return None if fn is None else _AtTimeParamHVP(fn, time)
+
+    return SteadyConstrainedDerivatives(
+        param_jacobian=(
+            None
+            if constrained.param_jacobian is None
+            else _AtTimeParamJacobian(constrained.param_jacobian, time)
+        ),
+        param_param_hvp=at_time(constrained.param_param_hvp),
+        state_param_hvp=at_time(constrained.state_param_hvp),
+        param_state_hvp=at_time(constrained.param_state_hvp),
+        state_state_hvp=(
+            None
+            if state_state_hvp is None
+            else _AtTimeStateStateHVP(
+                constrain_state_state_hvp(state_state_hvp, constraint_set),
+                time,
+            )
+        ),
     )
 
 

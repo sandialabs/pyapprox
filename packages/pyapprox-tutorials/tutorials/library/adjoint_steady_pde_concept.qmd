@@ -283,7 +283,7 @@ from scipy.sparse.linalg import spsolve
 
 # Step 1: forward solve.
 parameterization.apply(param)
-state = SteadyStateSolver(physics, tol=1e-12).solve_linear().solution
+state = SteadyStateSolver(physics.system().steady(), tol=1e-12).solve_linear().solution
 print(f"Q = {bkd.to_numpy(state)[sensor]:.6e}")
 
 # Step 2: adjoint solve. dQ/du for a point sensor is a unit vector;
@@ -385,7 +385,7 @@ from pyapprox.pde.models.galerkin.steady import (
 )
 
 state_equation = GalerkinStateEquationWithHVPAdapter(
-    physics, parameterization, bkd,
+    physics.system().steady(), parameterization, bkd,
 )
 weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
 weights[sensor] = 1.0

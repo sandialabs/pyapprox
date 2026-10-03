@@ -209,7 +209,7 @@ class TestHelmholtzBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-10)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10)
         result = solver.solve_linear()
 
         assert result.converged
@@ -309,7 +309,7 @@ class TestParametrizedHelmholtzManufactured:
         )
 
         # Solve
-        solver = SteadyStateSolver(physics, tol=1e-12)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
         result = solver.solve_linear()
 
         # Compute error at DOF locations

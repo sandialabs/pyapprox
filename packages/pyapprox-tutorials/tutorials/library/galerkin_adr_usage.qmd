@@ -199,7 +199,7 @@ def solve_plume(kind):
         boundary_conditions=bcs,
         bkd=bkd,
     )
-    return physics, SteadyStateSolver(physics, tol=1e-12).solve_linear()
+    return physics, SteadyStateSolver(physics.system().steady(), tol=1e-12).solve_linear()
 
 
 physics, result = solve_plume("Dirichlet")
@@ -364,7 +364,7 @@ def solve_transport(kind, flow=None):
         basis=basis, diffusivity=DIFFUSIVITY, velocity=flow,
         reaction=DECAY, forcing=forcing, boundary_conditions=bcs, bkd=bkd,
     )
-    return SteadyStateSolver(physics, tol=1e-12).solve_linear().solution
+    return SteadyStateSolver(physics.system().steady(), tol=1e-12).solve_linear().solution
 
 
 still = solve_transport("Neumann")

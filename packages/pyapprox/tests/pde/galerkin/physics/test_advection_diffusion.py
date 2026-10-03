@@ -247,7 +247,7 @@ class TestLinearADRBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-10)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10)
         result = solver.solve_linear()
 
         assert result.converged
@@ -292,7 +292,7 @@ class TestLinearADRBase:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics, tol=1e-12)
+            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -353,7 +353,7 @@ class TestLinearADRBase:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics, tol=1e-12)
+            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -415,7 +415,7 @@ class TestLinearADRBase:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics, tol=1e-12)
+            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -552,7 +552,7 @@ class TestParametrizedADR1DConvergence:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics, tol=1e-12)
+            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -651,7 +651,7 @@ class TestParametrizedADR2DConvergence:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics, tol=1e-12)
+            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -923,7 +923,7 @@ class TestParametrizedADR1DExact:
         )
 
         # Solve
-        solver = SteadyStateSolver(physics, tol=1e-12)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
         result = solver.solve_linear()
 
         # Compute error
@@ -1036,7 +1036,7 @@ class TestParametrizedADR1DConservative:
             conservative=True,
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-12)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
         result = solver.solve_linear()
 
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -1134,7 +1134,7 @@ class TestParametrizedADR2DExact:
         )
 
         # Solve
-        solver = SteadyStateSolver(physics, tol=1e-12)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
         result = solver.solve_linear()
 
         # Compute error
@@ -1198,7 +1198,7 @@ class TestParametrizedADR2DExact:
             boundary_conditions=bc_set.all_conditions(),
             bkd=bkd,
         )
-        result = SteadyStateSolver(physics, tol=1e-12).solve_linear()
+        result = SteadyStateSolver(physics.system().steady(), tol=1e-12).solve_linear()
 
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
         u_num = bkd.to_numpy(result.solution)

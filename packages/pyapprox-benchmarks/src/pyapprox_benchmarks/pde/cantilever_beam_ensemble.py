@@ -374,7 +374,7 @@ def build_shared_field_beam(
             boundary_conditions=[bc_left, bc_top],
         )
         physics = linear
-        solver = SteadyStateSolver(linear, tol=1e-10, max_iter=1)
+        solver = SteadyStateSolver(linear.system().steady(), tol=1e-10, max_iter=1)
     elif physics_type == "neohookean":
         from pyapprox.pde.galerkin.physics import (
             CompositeHyperelasticityPhysics,
@@ -389,7 +389,7 @@ def build_shared_field_beam(
         )
         physics = neohookean
         solver = SteadyStateSolver(
-            neohookean, tol=1e-10, max_iter=50, line_search=True,
+            neohookean.system().steady(), tol=1e-10, max_iter=50, line_search=True,
         )
     else:
         raise ValueError(

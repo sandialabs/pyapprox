@@ -170,11 +170,13 @@ class GalerkinModel(Generic[Array]):
         initial_guess: Array,
         tol: float = 1e-10,
         maxiter: int = 50,
-        time: float = 0.0,
     ) -> Array:
-        """Solve the steady-state problem.
+        """Solve the steady-state problem F(u) = 0 with constraints.
 
-        Finds u such that residual(u, t) = 0 with boundary conditions.
+        The data must be declared time-invariant. For the steady state of
+        time-dependent data frozen at some time, solve
+        ``physics.system().steady_snapshot(time)`` with
+        ``SteadyStateSolver`` directly.
 
         Parameters
         ----------
@@ -184,8 +186,6 @@ class GalerkinModel(Generic[Array]):
             Convergence tolerance on residual norm.
         maxiter : int
             Maximum Newton iterations.
-        time : float
-            Time to evaluate at. Default: 0.0.
 
         Returns
         -------
@@ -194,11 +194,15 @@ class GalerkinModel(Generic[Array]):
 
         Raises
         ------
+        ValueError
+            If the data are declared time-dependent.
         RuntimeError
             If Newton iteration fails to converge.
         """
-        solver = SteadyStateSolver(self._physics, tol=tol, max_iter=maxiter)
-        result = solver.solve(initial_guess, time=time)
+        solver = SteadyStateSolver(
+            self._physics.system().steady(), tol=tol, max_iter=maxiter
+        )
+        result = solver.solve(initial_guess)
         if not result.converged:
             raise RuntimeError(f"Newton iteration failed to converge: {result.message}")
         return result.solution

@@ -142,6 +142,14 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         """Exact zero curvature: the interior is linear in u."""
         return StateDerivatives.linear(self._bkd)
 
+    def interior_is_time_invariant(self) -> bool:
+        """Whether the wavenumber and the forcing are declared
+        time-independent."""
+        return not self._wavenumber_is_time_dependent() and (
+            self._forcing_eval is None
+            or not self._forcing_eval.is_time_dependent()
+        )
+
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
         return self._mass.mass_matrix()

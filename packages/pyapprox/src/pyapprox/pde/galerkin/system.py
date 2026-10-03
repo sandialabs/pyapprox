@@ -12,6 +12,7 @@ from pyapprox.ode.protocols import SpatialOperatorProtocol
 from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.pde.galerkin.protocols.system import GalerkinMassProtocol
 from pyapprox.pde.ownership import owns
+from pyapprox.pde.steady_view import SteadyView
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -81,6 +82,20 @@ class GalerkinSteadySystem(Generic[Array]):
     def owns(self, target: object) -> bool:
         """Whether ``target`` is part of this system's ``F``."""
         return owns(self._spatial_operator, target)
+
+    def steady(self) -> SteadyView[Array]:
+        """The time-free steady problem ``F(u) = 0``.
+
+        Raises unless ``F`` and the constraints are declared
+        time-invariant; for time-dependent data use ``steady_snapshot``.
+        """
+        return SteadyView.of(self._spatial_operator, self._constraint_set)
+
+    def steady_snapshot(self, time: float) -> SteadyView[Array]:
+        """The steady problem of the data frozen at ``time``."""
+        return SteadyView.snapshot(
+            self._spatial_operator, self._constraint_set, time
+        )
 
     def __repr__(self) -> str:
         return (

@@ -159,7 +159,9 @@ class TestCompositeLinearElasticityBase:
             boundary_conditions=bc_list,
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-12, max_iter=5, line_search=False)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
+        )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
 

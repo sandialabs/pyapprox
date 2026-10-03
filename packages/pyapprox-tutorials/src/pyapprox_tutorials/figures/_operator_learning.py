@@ -98,7 +98,7 @@ def solve_elliptic_1d(u: np.ndarray, grid: np.ndarray) -> np.ndarray:
             boundary_conditions=[bc_left, bc_right],
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-12)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
         result = solver.solve(bkd.zeros(physics.nstates()))
         v[:, k] = bkd.to_numpy(result.solution)
     return v

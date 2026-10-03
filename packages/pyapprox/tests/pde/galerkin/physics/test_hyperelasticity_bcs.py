@@ -76,7 +76,9 @@ class TestHyperelasticityBCs1DBase:
 
     def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-4) :
         exact = _get_exact_displacement(functions, basis, bkd)
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+        )
         init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
         assert result.converged, f"Newton did not converge: {result.residual_norm:.2e}"
@@ -159,7 +161,9 @@ class TestHyperelasticityBCs2DBase:
 
     def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-3) :
         exact = _get_exact_displacement(functions, basis, bkd)
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+        )
         init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
         assert result.converged, f"Newton did not converge: {result.residual_norm:.2e}"
@@ -256,7 +260,9 @@ class TestHyperelasticityBCs3DBase:
 
     def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-3):
         exact = _get_exact_displacement(functions, basis, bkd)
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+        )
         init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
         assert result.converged, f"Newton did not converge: {result.residual_norm:.2e}"

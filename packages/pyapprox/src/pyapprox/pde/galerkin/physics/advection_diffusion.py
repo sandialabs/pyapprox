@@ -1122,6 +1122,14 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             return StateDerivatives.none()
         return StateDerivatives.second_order(self.state_state_hvp)
 
+    def interior_is_time_invariant(self) -> bool:
+        """Whether every coefficient and the forcing are declared
+        time-independent."""
+        return not self._stiffness_is_time_dependent() and (
+            self._forcing_eval is None
+            or not self._forcing_eval.is_time_dependent()
+        )
+
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
         return self._mass.mass_matrix()

@@ -73,6 +73,9 @@ class _LinearInterior(Generic[Array]):
     def interior_state_derivatives(self) -> StateDerivatives[Array]:
         return StateDerivatives.linear(self._bkd)
 
+    def interior_is_time_invariant(self) -> bool:
+        return True
+
 
 class BiLaplacianPrior(Generic[Array]):
     r"""BiLaplacian prior for Gaussian random field generation.

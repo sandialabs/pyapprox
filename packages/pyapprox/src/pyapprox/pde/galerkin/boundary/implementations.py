@@ -419,6 +419,10 @@ class NeumannBC(Generic[Array]):
         """Whether the flux data varies in time (declared, not inferred)."""
         return self._flux_func.is_time_dependent()
 
+    def is_time_invariant(self) -> bool:
+        """Whether the term is declared time-independent."""
+        return not self.is_time_dependent()
+
     def set_flux_func(self, flux_func: Union[Callable[..., Any], float]) -> None:
         """Replace the flux data, under the same declaration rule as the
         constructor (a bare callable that could take a time is rejected).
@@ -642,6 +646,10 @@ class RobinBC(Generic[Array]):
         The coefficient alpha is time-independent by construction.
         """
         return self._value_func.is_time_dependent()
+
+    def is_time_invariant(self) -> bool:
+        """Whether the term is declared time-independent."""
+        return not self.is_time_dependent()
 
     def alpha(self) -> Union[float, Callable[[np.ndarray], np.ndarray]]:
         """Return the coefficient for the u term (constant or callable)."""
@@ -1147,8 +1155,8 @@ class CallableDirichletBC(Generic[Array]):
         return self.boundary_values(time)
 
     def is_time_invariant(self) -> bool:
-        """A DOF signal is a function of time: time-varying."""
-        return False
+        """Whether the DOF signal is declared time-independent."""
+        return not self._signal.is_time_dependent()
 
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Dirichlet values at given time."""

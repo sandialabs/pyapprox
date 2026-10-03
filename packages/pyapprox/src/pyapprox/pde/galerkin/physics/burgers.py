@@ -132,6 +132,14 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         is not assembled, so consumers stay at the Jacobian tier."""
         return StateDerivatives.none()
 
+    def interior_is_time_invariant(self) -> bool:
+        """Whether the forcing is declared time-independent (the
+        viscosity cannot depend on time)."""
+        return (
+            self._forcing_eval is None
+            or not self._forcing_eval.is_time_dependent()
+        )
+
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
         return self._mass.mass_matrix()

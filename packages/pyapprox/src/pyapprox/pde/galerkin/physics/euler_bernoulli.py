@@ -370,6 +370,14 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         """Exact zero curvature: the interior is linear in u."""
         return StateDerivatives.linear(self._bkd)
 
+    def interior_is_time_invariant(self) -> bool:
+        """Always: the distributed load is ``q(x)``, with no time."""
+        return True
+
+    def is_time_invariant(self) -> bool:
+        """Whether the composed ``F`` is declared time-independent."""
+        return self.spatial_operator().is_time_invariant()
+
     def mass_matrix(self) -> Array:
         """Return beam mass matrix M_ij = integral(w_i * w_j).
 
@@ -453,8 +461,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         Array
             Residual. Shape: (ndofs,)
         """
-        res = self.spatial_residual(state, time)
-        return self._apply_dirichlet_to_residual(res, state, time)
+        return self.system().steady_snapshot(time).steady_residual(state)
 
     def interior_jacobian(self, state: Array, time: float = 0.0) -> Array:
         """Compute ``dF_Omega/du = -K``.
@@ -494,8 +501,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         Array
             Jacobian. Shape: (ndofs, ndofs)
         """
-        jac = self.spatial_jacobian(state, time)
-        return self._apply_dirichlet_to_jacobian(jac, state, time)
+        return self.system().steady_snapshot(time).steady_jacobian(state)
 
     def interpolate_manufactured(
         self,

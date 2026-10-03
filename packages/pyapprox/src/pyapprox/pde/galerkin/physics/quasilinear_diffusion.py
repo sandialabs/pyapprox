@@ -141,6 +141,14 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
         """Return the interior curvature (``kappa''`` is required)."""
         return StateDerivatives.second_order(self.state_state_hvp)
 
+    def interior_is_time_invariant(self) -> bool:
+        """Whether the forcing is declared time-independent (the
+        diffusivity field and kappa cannot depend on time)."""
+        return (
+            self._forcing_eval is None
+            or not self._forcing_eval.is_time_dependent()
+        )
+
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
         return self._mass.mass_matrix()

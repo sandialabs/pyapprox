@@ -13,6 +13,7 @@ from typing import Generic, Protocol, runtime_checkable
 
 from pyapprox.ode.protocols import SpatialOperatorProtocol
 from pyapprox.pde.boundary import ConstraintSetProtocol
+from pyapprox.pde.steady_view import SteadyView
 from pyapprox.util.backends.protocols import Array, Array_co, Backend
 
 
@@ -49,6 +50,15 @@ class GalerkinSteadySystemProtocol(Protocol, Generic[Array]):
 
     def constraint_set(self) -> ConstraintSetProtocol[Array]:
         """Return the essential constraints, applied by the consumer."""
+        ...
+
+    def steady(self) -> SteadyView[Array]:
+        """Return the time-free steady view; raises for time-dependent
+        data."""
+        ...
+
+    def steady_snapshot(self, time: float) -> SteadyView[Array]:
+        """Return the steady view of the data frozen at ``time``."""
         ...
 
 

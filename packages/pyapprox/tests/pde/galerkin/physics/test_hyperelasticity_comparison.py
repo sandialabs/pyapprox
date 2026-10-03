@@ -212,7 +212,9 @@ def _solve_galerkin_1d(sol_strs, stress, nx, degree, bkd):
     )
 
     exact = _get_exact_displacement_galerkin(functions, basis, bkd)
-    solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+    solver = SteadyStateSolver(
+        physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+    )
     result = solver.solve(bkd.asarray(exact + 0.01))
 
     return exact, bkd.to_numpy(result.solution), result.converged
@@ -255,7 +257,9 @@ def _solve_galerkin_2d(sol_strs, stress, nx, ny, degree, bkd):
     )
 
     exact = _get_exact_displacement_galerkin(functions, basis, bkd)
-    solver = SteadyStateSolver(physics, tol=1e-10, max_iter=20, line_search=True)
+    solver = SteadyStateSolver(
+        physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+    )
     result = solver.solve(bkd.asarray(exact + 0.005))
 
     return exact, bkd.to_numpy(result.solution), result.converged

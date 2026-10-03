@@ -84,7 +84,7 @@ class TestVonMisesWithFEMSolve:
             bkd=bkd,
             boundary_conditions=[bc_left, bc_top],
         )
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
         result = solver.solve(bkd.asarray(np.zeros(physics.nstates())))
 
         conn = skm.t.T

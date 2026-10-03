@@ -117,7 +117,7 @@ class TestAdvectionDiffusionParameterization:
         assert nparams == 9
 
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics, facade, bkd
+            physics.system().steady(), facade, bkd
         )
         nstates = physics.nstates()
         constrained = set(

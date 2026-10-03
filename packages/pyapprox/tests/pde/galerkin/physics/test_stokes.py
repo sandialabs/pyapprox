@@ -460,7 +460,7 @@ class TestParametrizedSteadyStokes:
         )
 
         # Solve
-        solver = SteadyStateSolver(physics, tol=1e-12)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
         if navier_stokes:
             init_guess = physics.init_guess()
             result = solver.solve(init_guess)

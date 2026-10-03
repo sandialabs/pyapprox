@@ -204,7 +204,9 @@ class TestParametrizedBurgersSteady:
         init_guess = bkd.asarray(u_exact_vals + 1.0)
 
         # Solve with Newton
-        solver = SteadyStateSolver(physics, tol=1e-12, max_iter=10, line_search=True)
+        solver = SteadyStateSolver(
+            physics.system().steady(), tol=1e-12, max_iter=10, line_search=True
+        )
         result = solver.solve(init_guess)
 
         assert result.converged, (
@@ -338,7 +340,8 @@ class TestParametrizedBurgersTransient:
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
 
             # Inject Dirichlet values into initial guess
-            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
+            constraints = physics.constraint_set()
+            d_dofs, d_vals = constraints.dofs(), constraints.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             guess = bkd.copy(y)
             if len(d_dofs_np) > 0:

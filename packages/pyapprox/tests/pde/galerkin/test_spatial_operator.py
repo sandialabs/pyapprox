@@ -66,6 +66,9 @@ class _StubInterior(Generic[Array]):
     def interior_state_derivatives(self) -> StateDerivatives[Array]:
         return self._derivatives
 
+    def interior_is_time_invariant(self) -> bool:
+        return True
+
 
 def _elementwise_hvp(
     state: Array, adj_state: Array, wvec: Array, time: float

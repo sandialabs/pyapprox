@@ -34,6 +34,7 @@ from numpy.typing import NDArray
 
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeAwareCallableProtocol,
+    TimeVaryingProtocol,
     as_time_aware,
 )
 
@@ -165,14 +166,25 @@ class BoundarySignal:
 _DofSupplier = Callable[[float], _Values]
 
 
+class _ZeroDofTimeDerivative:
+    """The exact zero time derivative of a time-independent DOF signal."""
+
+    def __init__(self, values: _DofSupplier) -> None:
+        self._values = values
+
+    def __call__(self, time: float) -> _Values:
+        return np.zeros_like(np.asarray(self._values(time), dtype=np.float64))
+
+
 class DofSignal:
     """Prescribed values ``s(t)`` at fixed DOFs, with time derivatives.
 
     The coordinate-free counterpart of ``BoundarySignal``, for
     selections given as explicit DOF indices. Each supplier takes only
-    the time, so time dependence needs no declaration: a DOF signal is
-    time-dependent by construction (static values belong in a
-    ``DirectDirichletBC``).
+    the time, so a plain function is time-dependent; a supplier that
+    declares itself time-independent (``TimeVaryingProtocol`` with
+    ``is_time_dependent() == False``) is honored, and then has exact
+    zero time derivatives.
 
     Parameters
     ----------
@@ -181,7 +193,13 @@ class DofSignal:
     time_derivatives : sequence of Callable[[float], ndarray], optional
         ANALYTIC time derivatives, ``time_derivatives[k - 1]`` being the
         ``k``-th, each with the same signature and return shape as
-        ``values``. Orders beyond the sequence are absent.
+        ``values``. Orders beyond the sequence are absent. Only
+        meaningful for a time-dependent ``values``.
+
+    Raises
+    ------
+    ValueError
+        If derivatives are supplied for declared time-independent values.
     """
 
     def __init__(
@@ -190,16 +208,32 @@ class DofSignal:
         time_derivatives: Sequence[_DofSupplier] = (),
     ) -> None:
         self._values = values
+        self._time_dependent = not (
+            isinstance(values, TimeVaryingProtocol)
+            and not values.is_time_dependent()
+        )
         self._time_derivatives: Tuple[_DofSupplier, ...] = tuple(
             time_derivatives
         )
+        if self._time_derivatives and not self._time_dependent:
+            raise ValueError(
+                "time derivatives are only meaningful for time-dependent "
+                f"values; {values!r} is declared time-independent, so its "
+                "derivatives are exactly zero automatically"
+            )
 
     def values(self) -> _DofSupplier:
         """Return ``s`` as an ``s(time)`` supplier."""
         return self._values
 
+    def is_time_dependent(self) -> bool:
+        """Whether ``s`` depends on time (plain functions of time do)."""
+        return self._time_dependent
+
     def time_derivative(self, order: int) -> Optional[_DofSupplier]:
         """Return the ``order``-th time derivative of ``s``, or ``None``.
+
+        Exact zeros for a declared time-independent signal.
 
         Parameters
         ----------
@@ -208,6 +242,8 @@ class DofSignal:
         """
         if order < 1:
             raise ValueError(f"order must be at least 1, got {order}")
+        if not self._time_dependent:
+            return _ZeroDofTimeDerivative(self._values)
         if order > len(self._time_derivatives):
             return None
         return self._time_derivatives[order - 1]

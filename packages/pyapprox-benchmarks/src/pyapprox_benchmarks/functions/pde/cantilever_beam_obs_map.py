@@ -96,7 +96,7 @@ def build_cantilever_beam_design_matrix(
             bkd=bkd,
             boundary_conditions=[bc_left, bc_top],
         )
-        solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
         init = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(init)
         return bkd.to_numpy(result.solution)

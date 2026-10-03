@@ -310,7 +310,7 @@ class TestGalerkinLameParameterizationFactory:
         physics = _make_multi_material_physics(bkd, with_bcs=True)
         param_obj = create_galerkin_lame_parameterization(physics, bkd)
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics, param_obj, bkd
+            physics.system().steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(
@@ -368,7 +368,7 @@ class TestGalerkinLameParameterizationFactory:
                 p = params[:, ii]
                 param.apply(p)
                 r = SteadyStateSolver(
-                    physics,
+                    physics.system().steady(),
                     tol=1e-12,
                     max_iter=5,
                     line_search=False,
@@ -383,7 +383,7 @@ class TestGalerkinLameParameterizationFactory:
             p = params[:, 0]
             param.apply(p)
             r = SteadyStateSolver(
-                physics,
+                physics.system().steady(),
                 tol=1e-12,
                 max_iter=5,
                 line_search=False,
@@ -399,9 +399,7 @@ class TestGalerkinLameParameterizationFactory:
 
             # Apply BC enforcement for steady-state
             dF_dp = bkd.to_numpy(
-                physics._apply_dirichlet_to_param_jacobian(
-                    bkd.asarray(dF_dp_raw), u_sol, 0.0
-                )
+                physics.constraint_set().zero_rows(bkd.asarray(dF_dp_raw))
             )
 
             grad = dF_dp.T @ lam_np

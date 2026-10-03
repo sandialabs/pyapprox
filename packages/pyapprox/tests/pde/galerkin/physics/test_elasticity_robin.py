@@ -84,7 +84,9 @@ def _set_exact_lame(physics: CompositeLinearElasticity[_Arr]) -> None:
 
 def _solve(physics: CompositeLinearElasticity[_Arr]) -> _Arr:
     bkd = physics.bkd()
-    solver = SteadyStateSolver(physics, tol=1e-10, max_iter=5, line_search=False)
+    solver = SteadyStateSolver(
+        physics.system().steady(), tol=1e-10, max_iter=5, line_search=False
+    )
     result = solver.solve(bkd.asarray(np.zeros(physics.nstates())))
     assert result.converged
     return np.asarray(bkd.to_numpy(result.solution))

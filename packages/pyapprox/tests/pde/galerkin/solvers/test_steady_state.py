@@ -8,7 +8,6 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
-
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
@@ -40,7 +39,7 @@ class TestSteadyStateSolverBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-12)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
         result = solver.solve_linear()
 
         assert result.converged
@@ -67,7 +66,7 @@ class TestSteadyStateSolverBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-10)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10)
 
         # Start from zero (use float64 for consistency with skfem)
         u_guess = bkd.asarray(np.zeros(physics.nstates(), dtype=np.float64))
@@ -93,7 +92,7 @@ class TestSteadyStateSolverBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics)
+        solver = SteadyStateSolver(physics.system().steady())
         result = solver.solve_linear()
 
         # Check all attributes exist
@@ -123,7 +122,7 @@ class TestSteadyStateSolverBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics, tol=1e-10)
+        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10)
         result = solver.solve_linear()
 
         assert result.converged
@@ -146,7 +145,7 @@ class TestSteadyStateSolverBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics)
+        solver = SteadyStateSolver(physics.system().steady())
 
         # Use float64 for consistency with skfem
         u_guess = bkd.asarray(np.zeros(physics.nstates(), dtype=np.float64))

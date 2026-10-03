@@ -79,6 +79,10 @@ class _VelComponentBCValueFunc:
             return vals[:, self._comp_idx]
         return vals
 
+    def is_time_dependent(self) -> bool:
+        """The wrapped supplier's declaration."""
+        return self._func.is_time_dependent()
+
 
 class _PresBCValueFunc:
     """Picklable adapter for scalar pressure BC callables.
@@ -100,6 +104,10 @@ class _PresBCValueFunc:
         if vals.ndim == 2:
             return vals.flatten()
         return vals
+
+    def is_time_dependent(self) -> bool:
+        """The wrapped supplier's declaration."""
+        return self._func.is_time_dependent()
 
 
 class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
@@ -544,6 +552,18 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             return StateDerivatives.none()
         return StateDerivatives.linear(self._bkd)
 
+    def interior_is_time_invariant(self) -> bool:
+        """Whether both forcings are declared time-independent (the
+        viscosity cannot depend on time)."""
+        return all(
+            forcing is None or not forcing.is_time_dependent()
+            for forcing in (self._vel_forcing_eval, self._pres_forcing_eval)
+        )
+
+    def is_time_invariant(self) -> bool:
+        """Whether the composed ``F`` is declared time-independent."""
+        return self.spatial_operator().is_time_invariant()
+
     def spatial_operator(self) -> ComposedSpatialOperator[Array]:
         """Return ``F = F_Omega + F_Gamma`` (cached).
 
@@ -586,8 +606,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         Array
             Residual vector. Shape: (nstates,)
         """
-        res = self.spatial_residual(state, time)
-        return self._apply_dirichlet_to_residual(res, state, time)
+        return self.system().steady_snapshot(time).steady_residual(state)
 
     def jacobian(self, state: Array, time: float) -> Array:
         """Compute Jacobian dF/du = -K with BCs applied.
@@ -606,8 +625,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         Array
             Jacobian matrix. Shape: (nstates, nstates)
         """
-        jac = self.spatial_jacobian(state, time)
-        return self._apply_dirichlet_to_jacobian(jac, state, time)
+        return self.system().steady_snapshot(time).steady_jacobian(state)
 
     def vel_mass_matrix(self) -> Array:
         """Return velocity mass matrix M_vel.
@@ -716,8 +734,10 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             vel_dirichlet_bcs=self._vel_dirichlet_bcs,
             pres_dirichlet_bcs=self._pres_dirichlet_bcs,
         )
-        solver: SteadyStateSolver[Array] = SteadyStateSolver(linear_physics, tol=1e-12)
-        result = solver.solve_linear(time=time)
+        solver: SteadyStateSolver[Array] = SteadyStateSolver(
+            linear_physics.system().steady_snapshot(time), tol=1e-12
+        )
+        result = solver.solve_linear()
         return result.solution
 
     def __repr__(self) -> str:

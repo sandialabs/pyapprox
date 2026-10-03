@@ -1,7 +1,8 @@
 """Steady-state state-equation adapter for parameterized galerkin PDEs.
 
-Provides GalerkinStateEquationWithHVPAdapter, which wraps a galerkin physics +
-parameterization as ParameterizedStateEquationWithJacobianAndHVPProtocol
+Provides GalerkinStateEquationWithHVPAdapter, which wraps a steady view
+(``physics.system().steady()``) + parameterization as
+ParameterizedStateEquationWithJacobianAndHVPProtocol
 for the steady adjoint operator family
 (AdjointOperatorWithJacobian/AdjointOperatorWithJacobianAndHVP, whose
 linear solves are sparse-aware).
@@ -9,20 +10,18 @@ linear solves are sparse-aware).
 
 from typing import Generic, Optional
 
-from pyapprox.ode.state_derivatives import StateStateHVPFn
-from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.models.galerkin.constrained_derivatives import (
-    constrain_param_derivatives,
-    constrain_state_state_hvp,
+    SteadyParamHVPFn,
+    SteadyParamJacobianFn,
+    SteadyStateStateHVPFn,
+    steady_constrained_derivatives,
 )
-from pyapprox.pde.parameterizations.derivatives import (
-    ParamHVPFn,
-    ParamJacobianFn,
-)
+from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.pde.steady_view import SteadyViewProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -48,11 +47,12 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
 
     Parameters
     ----------
-    physics : GalerkinPhysicsProtocol
-        Galerkin physics providing BC-applied ``residual``/``jacobian``,
-        ``constraint_set``, and a ``system()`` whose spatial operator
-        supplies the state curvature (``state_derivatives()``; exact
-        zeros for linear physics).
+    view : SteadyViewProtocol
+        The steady problem (``physics.system().steady()``, or a
+        ``steady_snapshot``): the constrained residual and Jacobian, the
+        constraint set, the bound time at which every derivative is
+        evaluated, and a spatial operator that supplies the state
+        curvature (exact zeros for linear physics).
     parameterization : ParameterizationProtocol
         Maps parameter vectors to physics coefficients. Its
         ParamDerivatives bundle must be second order (param_jacobian
@@ -66,34 +66,32 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
 
     def __init__(
         self,
-        physics: GalerkinPhysicsProtocol[Array],
+        view: SteadyViewProtocol[Array],
         parameterization: ParameterizationProtocol[Array],
         bkd: Backend[Array],
         solver: Optional[SteadyStateSolver[Array]] = None,
     ) -> None:
-        if not isinstance(physics, GalerkinPhysicsProtocol):
+        if not isinstance(view, SteadyViewProtocol):
             raise TypeError(
-                "physics must satisfy GalerkinPhysicsProtocol, got "
-                f"{type(physics).__name__}"
-            )
-        state_state_hvp = (
-            physics.system().spatial_operator().state_derivatives()
-        ).state_state_hvp
-        if state_state_hvp is None:
-            raise TypeError(
-                f"{type(physics).__name__} supplies no state curvature "
-                "(state_derivatives().state_state_hvp is None); this "
-                "adapter is the HVP tier"
+                "view must satisfy SteadyViewProtocol (build one with "
+                "physics.system().steady()), got "
+                f"{type(view).__name__}"
             )
         if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
                 "parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
-        self._constraint_set = physics.constraint_set()
-        derivs = constrain_param_derivatives(
-            parameterization.param_derivatives(), self._constraint_set
+        require_owned_targets(parameterization, view)
+        derivs = steady_constrained_derivatives(
+            view, parameterization.param_derivatives()
         )
+        if derivs.state_state_hvp is None:
+            raise TypeError(
+                f"{type(view.spatial_operator()).__name__} supplies no "
+                "state curvature (state_derivatives().state_state_hvp is "
+                "None); this adapter is the HVP tier"
+            )
         if (
             derivs.param_jacobian is None
             or derivs.param_param_hvp is None
@@ -105,20 +103,26 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
                 "ParamDerivatives bundle (param_jacobian and all three "
                 "parameter-facing HVPs); this adapter is the HVP tier"
             )
-        self._physics = physics
+        self._view = view
         self._parameterization = parameterization
         self._bkd = bkd
-        self._state_state_hvp_fn: StateStateHVPFn[Array] = (
-            constrain_state_state_hvp(state_state_hvp, self._constraint_set)
+        self._state_state_hvp_fn: SteadyStateStateHVPFn[Array] = (
+            derivs.state_state_hvp
         )
-        self._param_jacobian_fn: ParamJacobianFn[Array] = (
+        self._param_jacobian_fn: SteadyParamJacobianFn[Array] = (
             derivs.param_jacobian
         )
-        self._param_param_hvp_fn: ParamHVPFn[Array] = derivs.param_param_hvp
-        self._state_param_hvp_fn: ParamHVPFn[Array] = derivs.state_param_hvp
-        self._param_state_hvp_fn: ParamHVPFn[Array] = derivs.param_state_hvp
+        self._param_param_hvp_fn: SteadyParamHVPFn[Array] = (
+            derivs.param_param_hvp
+        )
+        self._state_param_hvp_fn: SteadyParamHVPFn[Array] = (
+            derivs.state_param_hvp
+        )
+        self._param_state_hvp_fn: SteadyParamHVPFn[Array] = (
+            derivs.param_state_hvp
+        )
         if solver is None:
-            solver = SteadyStateSolver(physics, tol=1e-12)
+            solver = SteadyStateSolver(view, tol=1e-12)
         self._solver = solver
 
     def bkd(self) -> Backend[Array]:
@@ -127,7 +131,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
 
     def nstates(self) -> int:
         """Return the number of state variables."""
-        return self._physics.nstates()
+        return self._view.nstates()
 
     def nparams(self) -> int:
         """Return the number of parameters."""
@@ -165,7 +169,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
     def __call__(self, state: Array, param: Array) -> Array:
         """Compute the BC-applied residual R(u, p). Shape: (nstates, 1)."""
         self._set_param(param)
-        return self._physics.residual(state[:, 0], 0.0)[:, None]
+        return self._view.steady_residual(state[:, 0])[:, None]
 
     def state_jacobian(self, state: Array, param: Array) -> Array:
         """Compute dR/du with Dirichlet identity rows.
@@ -174,7 +178,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         seam). Shape: (nstates, nstates).
         """
         self._set_param(param)
-        return self._physics.jacobian(state[:, 0], 0.0)
+        return self._view.steady_jacobian(state[:, 0])
 
     def param_jacobian(self, state: Array, param: Array) -> Array:
         """Compute dR/dp with constrained rows zeroed.
@@ -184,7 +188,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         vanish. Shape: (nstates, nparams).
         """
         self._set_param(param)
-        return self._param_jacobian_fn(state[:, 0], 0.0, param[:, 0])
+        return self._param_jacobian_fn(state[:, 0], param[:, 0])
 
     def state_state_hvp(
         self, state: Array, param: Array, adj_state: Array, wvec: Array
@@ -195,7 +199,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         """
         self._set_param(param)
         return self._state_state_hvp_fn(
-            state[:, 0], adj_state[:, 0], wvec[:, 0], 0.0
+            state[:, 0], adj_state[:, 0], wvec[:, 0]
         )[:, None]
 
     def param_param_hvp(
@@ -207,7 +211,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         """
         self._set_param(param)
         return self._param_param_hvp_fn(
-            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], vvec[:, 0]
+            state[:, 0], param[:, 0], adj_state[:, 0], vvec[:, 0]
         )[:, None]
 
     def state_param_hvp(
@@ -219,7 +223,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         """
         self._set_param(param)
         return self._state_param_hvp_fn(
-            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], vvec[:, 0]
+            state[:, 0], param[:, 0], adj_state[:, 0], vvec[:, 0]
         )[:, None]
 
     def param_state_hvp(
@@ -231,13 +235,13 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         """
         self._set_param(param)
         return self._param_state_hvp_fn(
-            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], wvec[:, 0]
+            state[:, 0], param[:, 0], adj_state[:, 0], wvec[:, 0]
         )[:, None]
 
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"physics={type(self._physics).__name__}, "
+            f"view={self._view!r}, "
             f"parameterization="
             f"{type(self._parameterization).__name__}, "
             f"nstates={self.nstates()}, nparams={self.nparams()})"

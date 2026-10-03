@@ -1,7 +1,8 @@
-"""Steady-state solver for Galerkin physics.
+"""Steady-state solver.
 
-Solves the steady-state equation F(u) = 0 where F is the Galerkin residual
-(spatial discretization without time derivative).
+Solves F(u) = 0 for a steady operator: the constrained residual with no
+time in it (``SteadyOperatorProtocol``; build one with
+``physics.system().steady()`` or ``SteadyView``).
 
 For linear problems: K*u = b (solved directly)
 For nonlinear problems: Newton iteration with line search
@@ -12,7 +13,7 @@ from typing import Generic
 
 import numpy as np
 
-from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
+from pyapprox.pde.steady_view import SteadyOperatorProtocol
 from pyapprox.util.backends.protocols import Array
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
@@ -38,16 +39,16 @@ class SolverResult(Generic[Array]):
 
 
 class SteadyStateSolver(Generic[Array]):
-    """Steady-state solver for Galerkin physics.
+    """Steady-state solver for a time-free steady operator.
 
-    Solves F(u) = 0 where F = residual from Galerkin physics.
+    Solves F(u) = 0 where F is the constrained steady residual.
     For linear problems (constant Jacobian), this reduces to solving K*u = b.
     For nonlinear problems, Newton iteration with optional line search.
 
     Parameters
     ----------
-    physics : GalerkinPhysicsProtocol
-        The Galerkin physics to solve.
+    operator : SteadyOperatorProtocol
+        The steady operator to solve (``physics.system().steady()``).
     tol : float, optional
         Convergence tolerance on residual norm. Default: 1e-10.
     max_iter : int, optional
@@ -69,37 +70,37 @@ class SteadyStateSolver(Generic[Array]):
     ...     basis=basis, diffusivity=0.01, bkd=bkd,
     ...     forcing=lambda x: np.ones(x.shape[1])
     ... )
-    >>> solver = SteadyStateSolver(physics)
+    >>> solver = SteadyStateSolver(physics.system().steady())
     >>> u_guess = bkd.zeros(physics.nstates())
     >>> result = solver.solve(u_guess)
     """
 
     def __init__(
         self,
-        physics: GalerkinPhysicsProtocol[Array],
+        operator: SteadyOperatorProtocol[Array],
         tol: float = 1e-10,
         max_iter: int = 50,
         line_search: bool = True,
     ):
-        self._physics = physics
-        self._bkd = physics.bkd()
+        if not isinstance(operator, SteadyOperatorProtocol):
+            raise TypeError(
+                "operator must satisfy SteadyOperatorProtocol (build one "
+                "with physics.system().steady()), got "
+                f"{type(operator).__name__}"
+            )
+        self._operator = operator
+        self._bkd = operator.bkd()
         self._tol = tol
         self._max_iter = max_iter
         self._line_search = line_search
 
-    def solve(
-        self,
-        initial_guess: Array,
-        time: float = 0.0,
-    ) -> SolverResult[Array]:
+    def solve(self, initial_guess: Array) -> SolverResult[Array]:
         """Solve for steady state.
 
         Parameters
         ----------
         initial_guess : Array
             Initial guess for the solution. Shape: (nstates,)
-        time : float, optional
-            Time at which to evaluate (for time-dependent coefficients).
 
         Returns
         -------
@@ -110,7 +111,7 @@ class SteadyStateSolver(Generic[Array]):
 
         for iteration in range(self._max_iter):
             # Compute residual and check convergence
-            residual = self._physics.residual(u, time)
+            residual = self._operator.steady_residual(u)
             residual_np = self._bkd.to_numpy(residual)
             residual_norm = float(np.linalg.norm(residual_np))
 
@@ -124,12 +125,12 @@ class SteadyStateSolver(Generic[Array]):
                 )
 
             # Compute Jacobian and Newton direction
-            jacobian = self._physics.jacobian(u, time)
+            jacobian = self._operator.steady_jacobian(u)
             delta_u = solve_maybe_sparse(self._bkd, jacobian, -residual)
 
             # Line search for robustness
             if self._line_search:
-                alpha = self._line_search_backtrack(u, delta_u, residual_norm, time)
+                alpha = self._line_search_backtrack(u, delta_u, residual_norm)
             else:
                 alpha = 1.0
 
@@ -137,7 +138,7 @@ class SteadyStateSolver(Generic[Array]):
             u = u + alpha * delta_u
 
         # Did not converge
-        residual = self._physics.residual(u, time)
+        residual = self._operator.steady_residual(u)
         residual_np = self._bkd.to_numpy(residual)
         final_residual_norm = float(np.linalg.norm(residual_np))
 
@@ -154,7 +155,6 @@ class SteadyStateSolver(Generic[Array]):
         u: Array,
         delta_u: Array,
         residual_norm: float,
-        time: float,
         alpha_init: float = 1.0,
         rho: float = 0.5,
         c: float = 1e-4,
@@ -172,8 +172,6 @@ class SteadyStateSolver(Generic[Array]):
             Newton direction.
         residual_norm : float
             Current residual norm.
-        time : float
-            Current time.
         alpha_init : float
             Initial step size.
         rho : float
@@ -192,7 +190,7 @@ class SteadyStateSolver(Generic[Array]):
 
         for _ in range(max_backtracks):
             u_trial = u + alpha * delta_u
-            residual_trial = self._physics.residual(u_trial, time)
+            residual_trial = self._operator.steady_residual(u_trial)
             residual_trial_np = self._bkd.to_numpy(residual_trial)
             new_norm = float(np.linalg.norm(residual_trial_np))
 
@@ -205,19 +203,11 @@ class SteadyStateSolver(Generic[Array]):
         # Return smallest tried alpha
         return alpha
 
-    def solve_linear(
-        self,
-        time: float = 0.0,
-    ) -> SolverResult[Array]:
+    def solve_linear(self) -> SolverResult[Array]:
         """Solve a linear steady-state problem directly.
 
         For linear problems where F(u) = b - K*u, solve K*u = b.
         This is more efficient than Newton iteration for linear problems.
-
-        Parameters
-        ----------
-        time : float, optional
-            Time at which to evaluate (for time-dependent coefficients).
 
         Returns
         -------
@@ -229,19 +219,19 @@ class SteadyStateSolver(Generic[Array]):
         # Jacobian J = -K
         # So K = -J and b = F(0)
 
-        nstates = self._physics.nstates()
+        nstates = self._operator.nstates()
         # Use double precision for consistency with skfem assembly
         u_zero = self._bkd.asarray(np.zeros(nstates, dtype=np.float64))
 
-        b = self._physics.residual(u_zero, time)
-        jacobian = self._physics.jacobian(u_zero, time)
+        b = self._operator.steady_residual(u_zero)
+        jacobian = self._operator.steady_jacobian(u_zero)
         K = -jacobian  # K = -dF/du
 
         # Solve K*u = b
         u = solve_maybe_sparse(self._bkd, K, b)
 
         # Verify
-        residual = self._physics.residual(u, time)
+        residual = self._operator.steady_residual(u)
         residual_np = self._bkd.to_numpy(residual)
         residual_norm = float(np.linalg.norm(residual_np))
 
@@ -260,7 +250,7 @@ class SteadyStateSolver(Generic[Array]):
     def __repr__(self) -> str:
         return (
             f"SteadyStateSolver(\n"
-            f"  physics={self._physics!r},\n"
+            f"  operator={self._operator!r},\n"
             f"  tol={self._tol},\n"
             f"  max_iter={self._max_iter},\n"
             f"  line_search={self._line_search},\n"

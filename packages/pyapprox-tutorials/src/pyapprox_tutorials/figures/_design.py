@@ -54,7 +54,7 @@ def _solve_beam(basis, sub_elems, material_map, bkd, L, q0,
             element_materials=sub_elems, bkd=bkd,
             boundary_conditions=[bc_left, bc_top],
         )
-    slvr = SteadyStateSolver(phys, tol=1e-10, max_iter=max_iter,
+    slvr = SteadyStateSolver(phys.system().steady(), tol=1e-10, max_iter=max_iter,
                              **({"line_search": True} if nonlinear else {}))
     res = slvr.solve(bkd.asarray(np.zeros(phys.nstates())))
     return bkd.to_numpy(res.solution)
@@ -702,7 +702,7 @@ def plot_reference_solution(fig, ax):
         basis=basis, material_map=material_map, element_materials=sub_elems,
         bkd=bkd, boundary_conditions=[bc_left, bc_top],
     )
-    solver = SteadyStateSolver(physics, tol=1e-10, max_iter=1)
+    solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
     result = solver.solve(bkd.asarray(np.zeros(physics.nstates())))
     sol = bkd.to_numpy(result.solution)
 

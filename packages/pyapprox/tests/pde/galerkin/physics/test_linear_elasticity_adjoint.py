@@ -146,7 +146,7 @@ class TestLinearElasticityAdjoint:
 
         # Solve for the state at base parameters
         solver = SteadyStateSolver(
-            physics,
+            physics.system().steady(),
             tol=1e-12,
             max_iter=5,
             line_search=False,
@@ -173,7 +173,7 @@ class TestLinearElasticityAdjoint:
             # Raw param_jacobian (no BC enforcement)
             pj_raw = param.param_derivatives().param_jacobian(u, 0.0, p)
             # Apply BC enforcement
-            pj = physics._apply_dirichlet_to_param_jacobian(pj_raw, u, 0.0)
+            pj = physics.constraint_set().zero_rows(pj_raw)
             param.apply(bkd.asarray(np.array([E0, nu0])))
             return pj
 
@@ -203,7 +203,7 @@ class TestLinearElasticityAdjoint:
 
         # Solve forward problem at base params
         solver = SteadyStateSolver(
-            physics,
+            physics.system().steady(),
             tol=1e-12,
             max_iter=5,
             line_search=False,
@@ -223,7 +223,7 @@ class TestLinearElasticityAdjoint:
                 p = params[:, ii]
                 param.apply(p)
                 r = SteadyStateSolver(
-                    physics,
+                    physics.system().steady(),
                     tol=1e-12,
                     max_iter=5,
                     line_search=False,
@@ -238,7 +238,7 @@ class TestLinearElasticityAdjoint:
             p = params[:, 0]
             param.apply(p)
             r = SteadyStateSolver(
-                physics,
+                physics.system().steady(),
                 tol=1e-12,
                 max_iter=5,
                 line_search=False,
@@ -250,11 +250,10 @@ class TestLinearElasticityAdjoint:
             lam_np = np.linalg.solve(J_np.T, -c_np)
 
             # Parameterization param_jacobian (raw) + BC enforcement
-            dF_dp_raw = bkd.to_numpy(param.param_derivatives().param_jacobian(u_sol, 0.0, p))
+            param_jacobian = param.param_derivatives().param_jacobian
+            dF_dp_raw = bkd.to_numpy(param_jacobian(u_sol, 0.0, p))
             dF_dp = bkd.to_numpy(
-                physics._apply_dirichlet_to_param_jacobian(
-                    bkd.asarray(dF_dp_raw), u_sol, 0.0
-                )
+                physics.constraint_set().zero_rows(bkd.asarray(dF_dp_raw))
             )
 
             grad = dF_dp.T @ lam_np

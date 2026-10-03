@@ -234,7 +234,7 @@ class TestFieldParameterizationTerm:
         term = _build_engine_term(bkd, physics, field_map)
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics, param_obj, bkd
+            physics.system().steady(), param_obj, bkd
         )
 
         nstates = physics.nstates()
@@ -311,7 +311,7 @@ class TestFieldParameterizationTerm:
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics, param_obj, bkd
+            physics.system().steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(
@@ -392,7 +392,7 @@ class TestFieldParameterizationTerm:
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics, param_obj, bkd
+            physics.system().steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(
@@ -477,7 +477,7 @@ class TestFieldParameterizationTerm:
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics, param_obj, bkd
+            physics.system().steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(
