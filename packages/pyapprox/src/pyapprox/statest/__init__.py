@@ -35,6 +35,7 @@ from pyapprox.statest.groupacv import (
     default_groupacv_optimizer,
     get_model_subsets,
 )
+from pyapprox.statest.known import KnownMean, KnownStatistic, KnownVariance
 from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest.plotting import (
     plot_allocation,
@@ -78,6 +79,9 @@ __all__ = [
     "MultiOutputMean",
     "MultiOutputVariance",
     "MultiOutputMeanAndVariance",
+    "KnownMean",
+    "KnownStatistic",
+    "KnownVariance",
     "MCEstimator",
     "CVEstimator",
     "ACVEstimator",

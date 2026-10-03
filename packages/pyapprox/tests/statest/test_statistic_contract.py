@@ -21,7 +21,7 @@ nothing, while still refusing by name an outside statistic supplying
 everything the estimator needs. This fake is such a statistic.
 """
 
-from typing import Any, Generic, List, Optional, Tuple
+from typing import Any, Generic, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pytest
@@ -29,6 +29,8 @@ import pytest
 from pyapprox.statest import (
     CVEstimator,
     CVToleranceAllocator,
+    KnownMean,
+    KnownStatistic,
     MCEstimator,
     MCToleranceAllocator,
     MultiOutputMean,
@@ -166,6 +168,17 @@ class _MinimalGroupStatistic(_MinimalStatistic[Array]):
         if stat_name == "mean":
             return list(range(self._nqoi))
         raise ValueError(f"{stat_name!r} not available on {type(self).__name__}")
+
+    def known_slots(self, known: KnownStatistic[Array]) -> List[int]:
+        if isinstance(known, KnownMean):
+            return list(range(self._nqoi))
+        raise ValueError(
+            f"{type(self).__name__} accepts no known {type(known).__name__}"
+        )
+
+    def check_known(self, known: Sequence[KnownStatistic[Array]]) -> None:
+        for item in known:
+            self.known_slots(item)
 
     def subset(
         self,

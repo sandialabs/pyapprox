@@ -21,11 +21,13 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Sequence,
     Tuple,
     Union,
     runtime_checkable,
 )
 
+from pyapprox.statest.known import KnownStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -177,6 +179,22 @@ class GroupBlockStatistic(ResamplableStatistic[Array], Protocol[Array]):
 
         Raises ``ValueError`` for a name the statistic does not report,
         which callers use to discover what it does report.
+        """
+        ...
+
+    def known_slots(self, known: KnownStatistic[Array]) -> List[int]:
+        """Return which slots a known statistic fills.
+
+        Raises ``ValueError`` for a kind this statistic does not accept.
+        """
+        ...
+
+    def check_known(self, known: Sequence[KnownStatistic[Array]]) -> None:
+        """Raise unless the known statistics are consistent with this one.
+
+        The statistic, not the estimator, says which known kinds it
+        accepts and which must come together, so an estimator names no
+        statistic and no kind.
         """
         ...
 

@@ -5,8 +5,20 @@ combined mean+variance from model evaluations.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 
+from pyapprox.statest.known import KnownMean, KnownStatistic, KnownVariance
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 from pyapprox.util.cartesian import cartesian_product
 
@@ -744,6 +756,51 @@ class MultiOutputStatistic(ABC, Generic[Array]):
             f"'{stat_name}' not available on {type(self).__name__}"
         )
 
+    def known_slots(self, known: KnownStatistic[Array]) -> List[int]:
+        """Per-model stat slots a known statistic fills.
+
+        Each statistic accepts the known kinds it can use and refuses
+        the rest; none by default.
+
+        Raises
+        ------
+        ValueError
+            If this statistic does not accept that kind.
+        """
+        raise ValueError(
+            f"{type(self).__name__} accepts no known "
+            f"{type(known).__name__}"
+        )
+
+    def check_known(self, known: Sequence[KnownStatistic[Array]]) -> None:
+        """Raise unless the known statistics are consistent with this one.
+
+        Every kind must be accepted, each (model, kind) given at most
+        once, and each value shaped to its slots. A statistic needing
+        more -- known values that must come together -- extends this.
+
+        Raises
+        ------
+        ValueError
+            If they are not.
+        """
+        seen: Set[Tuple[int, Type[KnownStatistic[Array]]]] = set()
+        for item in known:
+            slots = self.known_slots(item)
+            key = (item.model, type(item))
+            if key in seen:
+                raise ValueError(
+                    f"model {item.model} has more than one known "
+                    f"{type(item).__name__}"
+                )
+            seen.add(key)
+            if tuple(item.values.shape) != (len(slots),):
+                raise ValueError(
+                    f"known {type(item).__name__} for model {item.model} "
+                    f"has shape {tuple(item.values.shape)}; "
+                    f"{type(self).__name__} expects ({len(slots)},)"
+                )
+
     @abstractmethod
     def sample_estimate(self, values: Array) -> Array:
         raise NotImplementedError
@@ -888,6 +945,11 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         raise ValueError(
             f"'{stat_name}' not available on {type(self).__name__}"
         )
+
+    def known_slots(self, known: KnownStatistic[Array]) -> List[int]:
+        if isinstance(known, KnownMean):
+            return list(range(self.nqoi()))
+        return super().known_slots(known)
 
     def sample_estimate(self, values: Array) -> Array:
         """Compute sample mean estimate.
@@ -1146,6 +1208,11 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         raise ValueError(
             f"'{stat_name}' not available on {type(self).__name__}"
         )
+
+    def known_slots(self, known: KnownStatistic[Array]) -> List[int]:
+        if isinstance(known, KnownVariance):
+            return list(range(self.nstats()))
+        return super().known_slots(known)
 
     def sample_estimate(self, values: Array) -> Array:
         """Compute sample variance estimate.
@@ -1486,6 +1553,30 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         raise ValueError(
             f"'{stat_name}' not available on {type(self).__name__}"
         )
+
+    def known_slots(self, known: KnownStatistic[Array]) -> List[int]:
+        if isinstance(known, KnownMean):
+            return list(range(self.nqoi()))
+        if isinstance(known, KnownVariance):
+            return list(range(self.nqoi(), self.nstats()))
+        return super().known_slots(known)
+
+    def check_known(self, known: Sequence[KnownStatistic[Array]]) -> None:
+        """Also: a model's known mean and variance come together or not at all."""
+        super().check_known(known)
+        kinds: Dict[int, Set[Type[KnownStatistic[Array]]]] = {}
+        for item in known:
+            kinds.setdefault(item.model, set()).add(type(item))
+        both: Set[Type[KnownStatistic[Array]]] = {KnownMean, KnownVariance}
+        for model, present in kinds.items():
+            if present != both:
+                (have,) = present
+                missing = (both - present).pop()
+                raise ValueError(
+                    f"{type(self).__name__} needs a model's known mean and "
+                    f"variance together: model {model} has a known "
+                    f"{have.__name__} but no {missing.__name__}"
+                )
 
     def sample_estimate(self, values: Array) -> Array:
         """Compute sample mean and variance estimate.
