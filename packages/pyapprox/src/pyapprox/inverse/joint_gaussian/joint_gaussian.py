@@ -226,6 +226,7 @@ class JointGaussian(Generic[Array]):
             variances,
             bkd,
             lambda: self.observation_covariance_given_target(index),
+            lambda: self._check_rank(index),
         )
 
     def blp(self, index: int) -> Array:

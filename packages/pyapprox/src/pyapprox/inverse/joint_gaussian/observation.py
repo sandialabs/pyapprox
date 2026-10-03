@@ -52,6 +52,9 @@ class LinearGaussianObservation(Generic[Array]):
         Returns ``Gamma_yy|t`` (d, d). Called only when a quantity given
         the target is asked for, so its rank guard and cost are paid only
         then, and the caller can cache it across designs.
+    check_target_rank : Callable[[], None]
+        Raises if the target's moments are sampled from too few samples
+        for log-determinant criteria.
     """
 
     def __init__(
@@ -65,12 +68,14 @@ class LinearGaussianObservation(Generic[Array]):
         variances: Array,
         bkd: Backend[Array],
         obs_cov_given_target: Callable[[], Array],
+        check_target_rank: Callable[[], None],
     ) -> None:
         self._mu_t, self._ctt, self._cty = target_mean, target_cov, target_obs_cov
         self._mu_y, self._syy = obs_mean, obs_cov
         self._w, self._nu = weights, variances
         self._bkd = bkd
         self._obs_cov_given_target = obs_cov_given_target
+        self._check_target_rank = check_target_rank
         self._lu, self._piv = bkd.lu_factor(self._a_matrix(obs_cov))
         # X = A_w^{-1} W Gamma_yt, shared by the covariance and the mean.
         self._x = bkd.lu_solve(self._lu, self._piv, weights * target_obs_cov.T)
@@ -91,6 +96,16 @@ class LinearGaussianObservation(Generic[Array]):
     def variances(self) -> Array:
         """Independent-noise variances ``nu``. Shape: (d, 1)"""
         return self._nu
+
+    def check_target_rank(self) -> None:
+        """Raise if log-determinant criteria are meaningless for this target.
+
+        That is when the target's own moments are sampled and
+        ``N <= n_t + 1``: the estimate of ``Gamma_yy|t`` then collapses, and
+        since ``log det Gamma_t|z = log det Gamma_tt - 2 EIG``, D-optimality
+        is as meaningless as the EIG.
+        """
+        self._check_target_rank()
 
     def covariance(self) -> Array:
         """``Gamma_t|z``. Shape: (n_t, n_t)"""

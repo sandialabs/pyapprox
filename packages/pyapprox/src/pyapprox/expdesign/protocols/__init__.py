@@ -13,6 +13,7 @@ from .evidence import (
     EvidenceProtocol,
     LogEvidenceProtocol,
 )
+from .gaussian_criterion import GaussianDesignCriterionProtocol
 from .likelihood import (
     OEDInnerLoopLikelihoodProtocol,
     OEDOuterLoopLikelihoodProtocol,
@@ -50,6 +51,8 @@ __all__ = [
     "DesignSpaceProtocol",
     # Observation relaxation protocols
     "ObservationRelaxationProtocol",
+    # Gaussian design criterion protocols
+    "GaussianDesignCriterionProtocol",
     # Deviation protocols
     "DeviationMeasureProtocol",
     # OED inference/benchmark protocols
