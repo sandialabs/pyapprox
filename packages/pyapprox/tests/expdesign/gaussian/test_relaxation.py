@@ -15,13 +15,17 @@ from pyapprox.expdesign.protocols import ObservationRelaxationProtocol
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.fromcallable.function import (
+    FunctionFromCallable,
+)
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.interface.functions.joint import SeparateFunctions
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior
 from pyapprox.inverse.joint_gaussian import JointGaussian
 from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
-from pyapprox.probability.moments import DenseBlocks
+from pyapprox.probability.moments import CachedMoments, DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -87,6 +91,58 @@ class TestBlendedObservation:
             bkd.assert_allclose(
                 self._posterior_cov(bkd, w), selected, rtol=1e-10, atol=1e-12
             )
+
+    def _sampled_joint(self, bkd: Backend[Array]) -> JointGaussian[Array]:
+        """Blocks of (m, G(xi)) from 30 Monte Carlo samples of a nonlinear G,
+        so they are neither exact nor Gaussian."""
+        nx = self._nm + self._na
+        chol = bkd.asarray(np.linalg.cholesky(self._prior_cov))
+        hmat = bkd.asarray(self._hmat)
+
+        def model(z: Array) -> Array:
+            xi = bkd.dot(chol, z)
+            return bkd.sin(bkd.dot(hmat, xi)) + 0.2 * xi[0:1] * xi[2:3]
+
+        evaluator = SeparateFunctions(
+            FunctionFromCallable(self._nobs, nx, model, bkd),
+            [
+                FunctionFromCallable(
+                    self._nm, nx, lambda z: bkd.dot(chol, z)[: self._nm], bkd
+                )
+            ],
+        )
+        rng = np.random.default_rng(22)
+        points = bkd.asarray(rng.standard_normal((nx, 30)))
+        outputs = evaluator.evaluate(points)
+        blocks = CachedMoments(outputs, bkd.full((1, 30), 1.0 / 30), bkd).blocks()
+        assert isinstance(blocks, DenseBlocks)
+        return JointGaussian(blocks, self._joint.noise())
+
+    def test_binary_weights_equal_selection_sampled(self, bkd: Backend[Array]) -> None:
+        """A zero weight removes a sensor exactly, even for sampled blocks.
+
+        Only the noise-free outputs are sampled; the noise and nu enter
+        analytically, so the removal is algebraic. Checked for the posterior
+        covariance and for the EIG, whose log nu_i terms from unselected
+        sensors must cancel.
+        """
+        self._setup(bkd)
+        joint = self._sampled_joint(bkd)
+        data = bkd.zeros((self._nobs, 1))
+        for bits in product([0.0, 1.0], repeat=self._nobs):
+            rows = [ii for ii, bit in enumerate(bits) if bit == 1.0]
+            if not rows:
+                continue
+            w = bkd.asarray(np.array(bits)[:, None])
+            obs = joint.observe(w, self._relax.variances(w), 0)
+            subset = joint.select(rows)
+            _, selected_cov = subset.condition(data[rows], 0)
+            bkd.assert_allclose(obs.covariance(), selected_cov, rtol=1e-10, atol=1e-12)
+            ones = bkd.ones((len(rows), 1))
+            sub_obs = subset.observe(ones, bkd.zeros((len(rows), 1)), 0)
+            eig = obs.logdet_zz() - obs.logdet_zz_given_t()
+            sub_eig = sub_obs.logdet_zz() - sub_obs.logdet_zz_given_t()
+            bkd.assert_allclose(eig, sub_eig, rtol=1e-10, atol=1e-12)
 
     def test_matches_precision_weighting(self, bkd: Backend[Array]) -> None:
         """Diagonal noise, s = sigma: the conjugate posterior with noise
