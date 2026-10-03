@@ -77,6 +77,12 @@ class DOptimal(Generic[Array]):
     full-rank ``C Gamma_tt C^T``; raises otherwise. A sampled target with
     ``N <= n_t + 1`` is refused, as for the information gain.
 
+    This is the classical D-optimal convention. The Bayesian convention,
+    used by ``pyapprox.expdesign.objective.DOptimalLinearModelObjective``,
+    minimizes ``-EIG`` instead; with ``C`` the identity the two are related
+    by ``log det Gamma_t|z = log det Gamma_tt - 2 EIG``. Both rank designs
+    identically, but their values differ by that factor of 2 and constant.
+
     Parameters
     ----------
     target_map : Array, optional

@@ -34,6 +34,14 @@ class DOptimalLinearModelObjective(Generic[Array]):
     The negative sign makes this a minimization objective (minimizing
     -log(det) is equivalent to maximizing det, i.e., D-optimality).
 
+    This is the Bayesian D-optimal convention of the reference:
+    ``1/2 log det(G + I)`` is the expected information gain about the
+    parameters, so ``obj(w) = -EIG``, the 1/2 included. The classical
+    convention, ``log det`` of the posterior covariance as in
+    ``pyapprox.expdesign.gaussian.DOptimal``, equals
+    ``log det(prior covariance) - 2 EIG``. Both rank designs identically,
+    but their values differ by that factor of 2 and constant.
+
     Parameters
     ----------
     design_matrix : Array
