@@ -26,7 +26,7 @@ not symmetric, so it is factored by LU; its determinant equals that of the
 symmetric positive definite :math:`\Gamma_{zz}`.
 """
 
-from typing import Generic, Optional, Tuple
+from typing import Callable, Generic, Optional, Tuple
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -48,6 +48,10 @@ class LinearGaussianObservation(Generic[Array]):
         ``w`` and ``nu``. Shape: (d, 1)
     bkd : Backend[Array]
         Computational backend.
+    obs_cov_given_target : Callable[[], Array]
+        Returns ``Gamma_yy|t`` (d, d). Called only when a quantity given
+        the target is asked for, so its rank guard and cost are paid only
+        then, and the caller can cache it across designs.
     """
 
     def __init__(
@@ -60,11 +64,13 @@ class LinearGaussianObservation(Generic[Array]):
         weights: Array,
         variances: Array,
         bkd: Backend[Array],
+        obs_cov_given_target: Callable[[], Array],
     ) -> None:
         self._mu_t, self._ctt, self._cty = target_mean, target_cov, target_obs_cov
         self._mu_y, self._syy = obs_mean, obs_cov
         self._w, self._nu = weights, variances
         self._bkd = bkd
+        self._obs_cov_given_target = obs_cov_given_target
         self._lu, self._piv = bkd.lu_factor(self._a_matrix(obs_cov))
         # X = A_w^{-1} W Gamma_yt, shared by the covariance and the mean.
         self._x = bkd.lu_solve(self._lu, self._piv, weights * target_obs_cov.T)
@@ -97,7 +103,9 @@ class LinearGaussianObservation(Generic[Array]):
     def logdet_zz_given_t(self) -> Array:
         """``log det Gamma_zz|t = log det A_w|t``. Shape: (1,)
 
-        Needs ``Gamma_tt`` to be invertible, and is computed on first use.
+        Computed on first use, from ``Gamma_yy|t``; raises if the target
+        is sampled with too few samples (see
+        ``JointGaussian.observation_covariance_given_target``).
         """
         lu, _, _ = self._factor_given_t()
         return self._logdet_lu(lu)
@@ -166,11 +174,8 @@ class LinearGaussianObservation(Generic[Array]):
 
     def _factor_given_t(self) -> Tuple[Array, Array, Array]:
         if self._given_t is None:
-            bkd = self._bkd
-            syy_given_t = self._syy - bkd.dot(
-                self._cty.T, bkd.solve(self._ctt, self._cty)
-            )
-            lu, piv = bkd.lu_factor(self._a_matrix(syy_given_t))
+            syy_given_t = self._obs_cov_given_target()
+            lu, piv = self._bkd.lu_factor(self._a_matrix(syy_given_t))
             self._given_t = (lu, piv, syy_given_t)
         return self._given_t
 

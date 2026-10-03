@@ -80,6 +80,22 @@ class TestDenseBlocks:
             bkd.to_numpy(blocks.target_covariance(0)), 2.0 * np.eye(2)
         )
 
+    def test_exact_target_flags(self, bkd: Backend[Array]) -> None:
+        """Linear-model blocks are exact; sampled ones are not unless known."""
+        self._setup(bkd)
+        assert self._blocks(bkd).exact_targets() == (True, True)
+        blocks = self._blocks(bkd)
+        sampled = DenseBlocks(
+            blocks.mean(), blocks.covariance(), (2, 1), 4, bkd, nsamples=50
+        )
+        assert sampled.exact_targets() == (False, False)
+        known = sampled.with_known_targets({1: (bkd.ones((1, 1)), bkd.eye(1))})
+        assert known.exact_targets() == (False, True)
+        assert known.target_is_exact(1)
+        assert EigenClip().repair(known).exact_targets() == (False, True)
+        with pytest.raises(ValueError):
+            DenseBlocks(blocks.mean(), blocks.covariance(), (2, 1), 4, bkd, 50, [True])
+
     def test_with_known_targets_rejects_bad_input(self, bkd: Backend[Array]) -> None:
         self._setup(bkd)
         blocks = self._blocks(bkd)

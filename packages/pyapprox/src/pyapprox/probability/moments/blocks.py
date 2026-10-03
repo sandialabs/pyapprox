@@ -28,6 +28,11 @@ class DenseBlocks(Generic[Array]):
         Computational backend.
     nsamples : int, optional
         Number of samples the moments were estimated from. None if exact.
+    exact_targets : Sequence[bool], optional
+        Whether each target's own mean and covariance are exact rather
+        than estimated. Default: all exact when ``nsamples`` is None, none
+        otherwise. Log-determinant criteria refuse a sampled target with
+        ``nsamples <= n_t + 1``, where the estimate collapses.
     """
 
     def __init__(
@@ -38,6 +43,7 @@ class DenseBlocks(Generic[Array]):
         nobs: int,
         bkd: Backend[Array],
         nsamples: Optional[int] = None,
+        exact_targets: Optional[Sequence[bool]] = None,
     ) -> None:
         sizes = tuple(int(size) for size in target_sizes)
         if any(size < 1 for size in sizes) or nobs < 1:
@@ -60,6 +66,14 @@ class DenseBlocks(Generic[Array]):
         self._nobs = nobs
         self._bkd = bkd
         self._nsamples = nsamples
+        if exact_targets is None:
+            exact_targets = [nsamples is None] * len(sizes)
+        if len(exact_targets) != len(sizes):
+            raise ValueError(
+                f"exact_targets has {len(exact_targets)} entries for "
+                f"{len(sizes)} targets"
+            )
+        self._exact = tuple(bool(flag) for flag in exact_targets)
         starts = [sum(sizes[:ii]) for ii in range(len(sizes))]
         self._target_slices = [
             slice(start, start + size) for start, size in zip(starts, sizes)
@@ -129,6 +143,7 @@ class DenseBlocks(Generic[Array]):
             Target index to ``(mean (n_k, 1), covariance (n_k, n_k))``.
         """
         mean, cov = self._bkd.copy(self._mean), self._bkd.copy(self._cov)
+        exact = list(self._exact)
         for index, (known_mean, known_cov) in overrides.items():
             if not 0 <= index < len(self._sizes):
                 raise ValueError(
@@ -146,8 +161,9 @@ class DenseBlocks(Generic[Array]):
             rows = self._target_slices[index]
             mean[rows] = known_mean
             cov[rows, rows] = known_cov
+            exact[index] = True
         return DenseBlocks(
-            mean, cov, self._sizes, self._nobs, self._bkd, self._nsamples
+            mean, cov, self._sizes, self._nobs, self._bkd, self._nsamples, exact
         )
 
     def bkd(self) -> Backend[Array]:
@@ -161,6 +177,14 @@ class DenseBlocks(Generic[Array]):
     def nobs(self) -> int:
         """Number of observations."""
         return self._nobs
+
+    def exact_targets(self) -> tuple[bool, ...]:
+        """Whether each target's own mean and covariance are exact."""
+        return self._exact
+
+    def target_is_exact(self, index: int) -> bool:
+        """Whether target ``index``'s own mean and covariance are exact."""
+        return self._exact[index]
 
     def nsamples(self) -> Optional[int]:
         """Number of samples behind the blocks, or None if exact."""

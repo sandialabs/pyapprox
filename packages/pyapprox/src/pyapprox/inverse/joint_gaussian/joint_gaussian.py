@@ -81,6 +81,9 @@ class JointGaussian(Generic[Array]):
         self._blocks = repair.repair(blocks)
         self._noise = noise
         self._bkd = blocks.bkd()
+        # Gamma_yy|t per target. It does not depend on the design, so it is
+        # computed once and shared by every observation of that target.
+        self._given_target: dict[int, Array] = {}
 
     def bkd(self) -> Backend[Array]:
         """Get the computational backend."""
@@ -166,10 +169,18 @@ class JointGaussian(Generic[Array]):
             len(selected),
             self._bkd,
             blocks.nsamples(),
+            blocks.exact_targets(),
         )
         noise_cov = self._noise.covariance()[selected][:, selected]
         sub_noise = DenseCholeskyCovarianceOperator(noise_cov, self._bkd)
-        return JointGaussian(sub_blocks, sub_noise, _AlreadyChecked())
+        selected_joint = JointGaussian(sub_blocks, sub_noise, _AlreadyChecked())
+        # Conditioning on the target commutes with dropping observations, so
+        # the cached Gamma_yy|t of the subset is a principal submatrix.
+        selected_joint._given_target = {
+            index: cov[selected][:, selected]
+            for index, cov in self._given_target.items()
+        }
+        return selected_joint
 
     def observe(
         self, weights: Array, variances: Array, index: int
@@ -214,7 +225,72 @@ class JointGaussian(Generic[Array]):
             weights,
             variances,
             bkd,
+            lambda: self.observation_covariance_given_target(index),
         )
+
+    def blp(self, index: int) -> Array:
+        r"""Best linear predictor of the observations from target ``index``.
+
+        :math:`g \approx \mu_g + B(t - \mu_t)` with
+        :math:`B = \Gamma_{gt}\Gamma_{tt}^{+}`, in normal-equation form. A
+        least-squares form would need :math:`\sqrt{\omega_k}`, which does not
+        exist for negative quadrature weights.
+
+        Returns
+        -------
+        Array
+            ``B``. Shape: (nobs, n_t)
+        """
+        self._check_index(index)
+        blocks, bkd = self._blocks, self._bkd
+        return bkd.dot(
+            blocks.target_obs_covariance(index).T,
+            bkd.pinv(blocks.target_covariance(index)),
+        )
+
+    def observation_covariance_given_target(self, index: int) -> Array:
+        r"""``Gamma_yy|t = Gamma_gg - Gamma_gt Gamma_tt^{-1} Gamma_tg + Gamma_e``.
+
+        The covariance of the data once target ``index`` is known: the
+        noise plus the error of predicting the data linearly from the
+        target. For a parameter target it is the approximation-error
+        likelihood covariance. It does not depend on the design and is
+        computed once.
+
+        Raises
+        ------
+        ValueError
+            If the target's own moments are sampled and ``N <= n_t + 1``:
+            the linear prediction then fits every sample exactly, so the
+            estimated ``Gamma_gg|t`` is zero whatever the model.
+        """
+        self._check_index(index)
+        if index not in self._given_target:
+            self._check_rank(index)
+            blocks, bkd = self._blocks, self._bkd
+            cgt = blocks.target_obs_covariance(index).T
+            gain = bkd.solve(blocks.target_covariance(index), cgt.T)
+            self._given_target[index] = self.obs_covariance() - bkd.dot(cgt, gain)
+        return self._given_target[index]
+
+    def _check_rank(self, index: int) -> None:
+        blocks = self._blocks
+        nsamples = blocks.nsamples()
+        ntarget = blocks.target_sizes()[index]
+        if (
+            nsamples is not None
+            and not blocks.target_is_exact(index)
+            and nsamples <= ntarget + 1
+        ):
+            raise ValueError(
+                f"target {index} has {ntarget} entries but its moments come "
+                f"from {nsamples} samples; with N <= n_t + 1 the linear "
+                "prediction of the data from the target fits every sample "
+                "exactly, so the covariance given the target is zero and "
+                "log-determinant criteria are meaningless. Use more samples, "
+                "or supply the target's exact moments with "
+                "DenseBlocks.with_known_targets."
+            )
 
     def _check_index(self, index: int) -> None:
         ntargets = len(self.target_sizes())

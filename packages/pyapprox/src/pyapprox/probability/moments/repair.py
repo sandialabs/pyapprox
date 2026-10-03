@@ -75,4 +75,5 @@ class EigenClip(Generic[Array]):
             blocks.nobs(),
             bkd,
             blocks.nsamples(),
+            blocks.exact_targets(),
         )
