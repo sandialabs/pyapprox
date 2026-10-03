@@ -42,7 +42,6 @@ from pyapprox.pde.models.galerkin.physics_adapter import (
     GalerkinPhysicsToODEResidualWithParamJacobianAdapter,
     create_galerkin_physics_ode_residual,
 )
-from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
@@ -101,9 +100,10 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
                 "parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
-        require_owned_targets(parameterization, physics)
+        # The adapter checks that the parameterization's targets belong
+        # to the system.
         adapter = create_galerkin_physics_ode_residual(
-            physics, parameterization
+            physics.system(), parameterization
         )
         super().__init__(physics, bkd, adapter=adapter)
         self._parameterization = parameterization

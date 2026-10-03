@@ -33,7 +33,7 @@ class TestPhysicsAdapterBase:
         self.physics = LinearAdvectionDiffusionReaction(
             basis=self.basis, diffusivity=0.01, bkd=bkd
         )
-        self.adapter = GalerkinPhysicsToODEResidualAdapter(self.physics)
+        self.adapter = GalerkinPhysicsToODEResidualAdapter(self.physics.system())
 
     def test_adapter_has_required_methods(self, numpy_bkd) -> None:
         """Test adapter exposes required ODEResidualProtocol methods."""

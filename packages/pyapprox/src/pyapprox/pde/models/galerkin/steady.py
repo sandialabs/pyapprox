@@ -10,9 +10,7 @@ linear solves are sparse-aware).
 from typing import Generic, Optional
 
 from pyapprox.ode.state_derivatives import StateStateHVPFn
-from pyapprox.pde.galerkin.protocols.physics import (
-    GalerkinPhysicsWithStateStateHVPProtocol,
-)
+from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.models.galerkin.constrained_derivatives import (
     constrain_param_derivatives,
@@ -50,10 +48,11 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
 
     Parameters
     ----------
-    physics : GalerkinPhysicsWithStateStateHVPProtocol
+    physics : GalerkinPhysicsProtocol
         Galerkin physics providing BC-applied ``residual``/``jacobian``,
-        ``constraint_set``, and the raw ``state_state_hvp`` contraction
-        (exact zeros for linear physics).
+        ``constraint_set``, and a ``system()`` whose spatial operator
+        supplies the state curvature (``state_derivatives()``; exact
+        zeros for linear physics).
     parameterization : ParameterizationProtocol
         Maps parameter vectors to physics coefficients. Its
         ParamDerivatives bundle must be second order (param_jacobian
@@ -67,18 +66,24 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
 
     def __init__(
         self,
-        physics: GalerkinPhysicsWithStateStateHVPProtocol[Array],
+        physics: GalerkinPhysicsProtocol[Array],
         parameterization: ParameterizationProtocol[Array],
         bkd: Backend[Array],
         solver: Optional[SteadyStateSolver[Array]] = None,
     ) -> None:
-        if not isinstance(
-            physics, GalerkinPhysicsWithStateStateHVPProtocol
-        ):
+        if not isinstance(physics, GalerkinPhysicsProtocol):
             raise TypeError(
-                "physics must satisfy "
-                "GalerkinPhysicsWithStateStateHVPProtocol, got "
+                "physics must satisfy GalerkinPhysicsProtocol, got "
                 f"{type(physics).__name__}"
+            )
+        state_state_hvp = (
+            physics.system().spatial_operator().state_derivatives()
+        ).state_state_hvp
+        if state_state_hvp is None:
+            raise TypeError(
+                f"{type(physics).__name__} supplies no state curvature "
+                "(state_derivatives().state_state_hvp is None); this "
+                "adapter is the HVP tier"
             )
         if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
@@ -104,9 +109,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         self._parameterization = parameterization
         self._bkd = bkd
         self._state_state_hvp_fn: StateStateHVPFn[Array] = (
-            constrain_state_state_hvp(
-                physics.state_state_hvp, self._constraint_set
-            )
+            constrain_state_state_hvp(state_state_hvp, self._constraint_set)
         )
         self._param_jacobian_fn: ParamJacobianFn[Array] = (
             derivs.param_jacobian

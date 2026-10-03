@@ -121,10 +121,10 @@ def _build_pipeline(
     param = AdvectionDiffusionParameterization(
         physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
-    adapter = create_galerkin_physics_ode_residual(physics, param)
+    adapter = create_galerkin_physics_ode_residual(physics.system(), param)
     assert isinstance(adapter, GalerkinPhysicsToODEResidualWithHVPAdapter)
     stepper = create_stepper(method, adapter)
-    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics, bkd)
+    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), bkd)
     assert isinstance(wrapper, GalerkinBCEnforcingHVPResidual)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=20, atol=1e-12, rtol=0.0)

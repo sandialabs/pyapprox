@@ -138,13 +138,13 @@ class TestTransientHyperelasticity1D:
         )
 
         # Time stepping
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:
             stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics, bkd
+            stepper, physics.constraint_set(), bkd
         )
 
         newton = NewtonSolver(constrained)
@@ -161,7 +161,7 @@ class TestTransientHyperelasticity1D:
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
 
             # Inject Dirichlet values into initial guess
-            d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
+            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             guess = bkd.copy(y)
             if len(d_dofs_np) > 0:
@@ -259,13 +259,13 @@ class TestTransientHyperelasticity2D:
         )
 
         # Time stepping
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:
             stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics, bkd
+            stepper, physics.constraint_set(), bkd
         )
 
         newton = NewtonSolver(constrained)
@@ -282,7 +282,7 @@ class TestTransientHyperelasticity2D:
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
 
             # Inject Dirichlet values into initial guess
-            d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
+            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             guess = bkd.copy(y)
             if len(d_dofs_np) > 0:

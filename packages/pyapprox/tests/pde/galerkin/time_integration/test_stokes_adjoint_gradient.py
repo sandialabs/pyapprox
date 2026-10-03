@@ -160,9 +160,9 @@ def _build_pipeline(
         pres_dirichlet_bcs=[("left", zero_pres)],
     )
     param_obj = param_cls(physics, amplitude, bkd)
-    adapter = create_galerkin_physics_ode_residual(physics, param_obj)
+    adapter = create_galerkin_physics_ode_residual(physics.system(), param_obj)
     stepper = create_stepper(method, adapter)
-    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics, bkd)
+    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), bkd)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=50, atol=1e-12, rtol=0.0)
     integrator = TimeIntegrator(0.0, _FINAL_TIME, _DELTAT, newton)

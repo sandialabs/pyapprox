@@ -1,9 +1,10 @@
-"""Parameterized adapter tiers for Galerkin physics time integration.
+"""Parameterized adapter tiers for Galerkin time integration.
 
 Capability is decided ONCE at construction by
 :func:`create_galerkin_physics_ode_residual`, which None-checks the
-parameterization's :class:`ParamDerivatives` bundle to select a
-fixed-tier adapter class (never ``hasattr``):
+parameterization's :class:`ParamDerivatives` bundle and the system's
+:class:`StateDerivatives` bundle to select a fixed-tier adapter class
+(never ``hasattr`` or ``isinstance`` on the physics):
 
 - :class:`GalerkinPhysicsToODEResidualAdapter` (base tier, lives in
   ``pyapprox.pde.galerkin.time_integration.physics_adapter``) — raw
@@ -15,15 +16,14 @@ fixed-tier adapter class (never ``hasattr``):
   ``param_jacobian``/``initial_param_jacobian`` (first-order bundle).
 - :class:`GalerkinPhysicsToODEResidualWithHVPAdapter` — adds the three
   parameterization HVP contractions (second-order bundle) and
-  ``state_state_hvp`` (from the physics).
+  ``state_state_hvp`` (from the system's state-derivatives bundle).
 """
 
 from typing import Optional, overload
 
 from pyapprox.ode.state_derivatives import StateStateHVPFn
-from pyapprox.pde.galerkin.protocols.physics import (
-    GalerkinPhysicsProtocol,
-    GalerkinPhysicsWithStateStateHVPProtocol,
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
@@ -56,15 +56,16 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
 
     Parameters
     ----------
-    physics : GalerkinPhysicsProtocol
-        The Galerkin physics to adapt.
+    system : GalerkinTransientSystemProtocol
+        The composed system to adapt (``physics.system()``).
     parameterization : ParameterizationProtocol
-        Maps parameter vectors to physics coefficients.
+        Maps parameter vectors to coefficients of objects the system
+        holds.
     """
 
     def __init__(
         self,
-        physics: GalerkinPhysicsProtocol[Array],
+        system: GalerkinTransientSystemProtocol[Array],
         parameterization: ParameterizationProtocol[Array],
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
@@ -72,8 +73,8 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
-        require_owned_targets(parameterization, physics)
-        super().__init__(physics)
+        require_owned_targets(parameterization, system)
+        super().__init__(system)
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None
 
@@ -125,10 +126,10 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
 
     def __init__(
         self,
-        physics: GalerkinPhysicsProtocol[Array],
+        system: GalerkinTransientSystemProtocol[Array],
         parameterization: ParameterizationProtocol[Array],
     ) -> None:
-        super().__init__(physics, parameterization)
+        super().__init__(system, parameterization)
         derivs = constrain_param_derivatives(
             parameterization.param_derivatives(), self._constraint_set
         )
@@ -187,11 +188,10 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
 ):
     """Adapter with second-order parameter derivatives.
 
-    Adds the three parameterization HVP contractions (from the bundle)
-    and ``state_state_hvp`` (from the physics) on top of the
-    first-order tier. Selected by the factory when the bundle has all
-    three HVPs and the physics satisfies
-    ``GalerkinPhysicsWithStateStateHVPProtocol``.
+    Adds the three parameterization HVP contractions (from the
+    parameterization's bundle) and ``state_state_hvp`` (from the
+    system's state-derivatives bundle) on top of the first-order tier.
+    Selected by the factory when both bundles supply them.
 
     Every contraction represents second derivatives of the
     BC-NEUTRALIZED f (the same function ``__call__``/``jacobian``
@@ -207,17 +207,20 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
 
     def __init__(
         self,
-        physics: GalerkinPhysicsWithStateStateHVPProtocol[Array],
+        system: GalerkinTransientSystemProtocol[Array],
         parameterization: ParameterizationProtocol[Array],
     ) -> None:
-        if not isinstance(
-            physics, GalerkinPhysicsWithStateStateHVPProtocol
-        ):
+        state_state_hvp = (
+            system.spatial_operator().state_derivatives().state_state_hvp
+        )
+        if state_state_hvp is None:
             raise TypeError(
-                f"{type(self).__name__} requires a physics with "
-                f"state_state_hvp, got {type(physics).__name__}"
+                f"{type(self).__name__} requires a system whose spatial "
+                "operator supplies state_state_hvp; use "
+                "create_galerkin_physics_ode_residual to select the right "
+                "tier"
             )
-        super().__init__(physics, parameterization)
+        super().__init__(system, parameterization)
         derivs = constrain_param_derivatives(
             parameterization.param_derivatives(), self._constraint_set
         )
@@ -238,9 +241,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
                 "to select the right tier"
             )
         self._state_state_hvp_fn: StateStateHVPFn[Array] = (
-            constrain_state_state_hvp(
-                physics.state_state_hvp, self._constraint_set
-            )
+            constrain_state_state_hvp(state_state_hvp, self._constraint_set)
         )
         self._param_param_hvp_fn: ParamHVPFn[Array] = param_param_hvp
         self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
@@ -289,43 +290,44 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
 
 @overload
 def create_galerkin_physics_ode_residual(
-    physics: GalerkinPhysicsProtocol[Array],
+    system: GalerkinTransientSystemProtocol[Array],
     parameterization: None = None,
 ) -> GalerkinPhysicsToODEResidualAdapter[Array]: ...
 
 
 @overload
 def create_galerkin_physics_ode_residual(
-    physics: GalerkinPhysicsProtocol[Array],
+    system: GalerkinTransientSystemProtocol[Array],
     parameterization: ParameterizationProtocol[Array],
 ) -> GalerkinPhysicsToODEResidualWithSetParamAdapter[Array]: ...
 
 
 def create_galerkin_physics_ode_residual(
-    physics: GalerkinPhysicsProtocol[Array],
+    system: GalerkinTransientSystemProtocol[Array],
     parameterization: Optional[ParameterizationProtocol[Array]] = None,
 ) -> GalerkinPhysicsToODEResidualAdapter[Array]:
     """Create the widest adapter tier the inputs support.
 
     Capability enters the stepper stack exactly here: the factory
-    None-checks the parameterization's ParamDerivatives bundle (and
-    isinstance-checks the physics for ``state_state_hvp``) once, then
-    everything above sees unconditional fixed-tier methods.
+    None-checks the parameterization's ParamDerivatives bundle and the
+    system's StateDerivatives bundle once, then everything above sees
+    unconditional fixed-tier methods.
 
     Parameters
     ----------
-    physics : GalerkinPhysicsProtocol
-        The Galerkin physics to adapt.
+    system : GalerkinTransientSystemProtocol
+        The composed system to adapt (``physics.system()``).
     parameterization : ParameterizationProtocol, optional
-        Maps parameter vectors to physics coefficients.
+        Maps parameter vectors to coefficients of objects the system
+        holds.
 
     Returns
     -------
     GalerkinPhysicsToODEResidualAdapter
-        The widest tier supported by the bundle.
+        The widest tier supported by the bundles.
     """
     if parameterization is None:
-        return GalerkinPhysicsToODEResidualAdapter(physics)
+        return GalerkinPhysicsToODEResidualAdapter(system)
     if not isinstance(parameterization, ParameterizationProtocol):
         raise TypeError(
             f"parameterization must satisfy ParameterizationProtocol, "
@@ -341,16 +343,15 @@ def create_galerkin_physics_ode_residual(
             and derivs.state_param_hvp is not None
             and derivs.param_state_hvp is not None
             and derivs.initial_param_hvp is not None
-            and isinstance(
-                physics, GalerkinPhysicsWithStateStateHVPProtocol
-            )
+            and system.spatial_operator().state_derivatives().state_state_hvp
+            is not None
         ):
             return GalerkinPhysicsToODEResidualWithHVPAdapter(
-                physics, parameterization
+                system, parameterization
             )
         return GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
-            physics, parameterization
+            system, parameterization
         )
     return GalerkinPhysicsToODEResidualWithSetParamAdapter(
-        physics, parameterization
+        system, parameterization
     )

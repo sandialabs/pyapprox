@@ -602,10 +602,10 @@ class TestManualNewtonWithConstraint:
         )
 
         # Manual setup: adapter + stepper + constrained wrapper
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
         stepper = BackwardEulerHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics, bkd
+            stepper, physics.constraint_set(), bkd
         )
 
         y = bkd.asarray(exact_at_time(0.0))
@@ -618,7 +618,7 @@ class TestManualNewtonWithConstraint:
             # Set stepper with unmodified prev_state
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             # Initial guess with Dirichlet values injected
-            d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
+            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             y_new_np = bkd.to_numpy(y).copy()
             if len(d_dofs_np) > 0:
@@ -679,10 +679,10 @@ class TestManualNewtonWithConstraint:
                 return u[:, 0] if u.shape[1] == 1 else u.flatten()
             return u
 
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
         stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics, bkd
+            stepper, physics.constraint_set(), bkd
         )
 
         y = bkd.asarray(exact_at_time(0.0))
@@ -693,7 +693,7 @@ class TestManualNewtonWithConstraint:
         for step in range(nsteps):
             t_np1 = t + dt
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
-            d_dofs, d_vals = ode_adapter.dirichlet_dof_info(t_np1)
+            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             y_new_np = bkd.to_numpy(y).copy()
             if len(d_dofs_np) > 0:

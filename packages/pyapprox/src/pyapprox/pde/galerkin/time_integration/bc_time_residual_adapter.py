@@ -1,7 +1,7 @@
 """BC-enforcing time residual adapter for Galerkin methods.
 
-Wraps time stepping residuals and applies the physics' essential
-constraints (via its cached ``DirichletConstraintSet``) to the residual,
+Wraps time stepping residuals and applies a system's essential
+constraints (its constraint set) to the residual,
 Jacobian, and sensitivity/adjoint quantities after the stepper
 assembles the raw Newton system. Mirrors the collocation wrapper family
 (``pde/collocation/time_integration/bc_time_residual_adapter.py``) but
@@ -41,7 +41,7 @@ from pyapprox.ode.protocols.time_stepping import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
-from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
+from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -72,7 +72,7 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
     has_prev_state_hessian, sensitivity_off_diag_jacobian,
     native_residual). Constrained rows are replaced with
     ``R[d] = y[d] - g(t_{n+1})`` and identity Jacobian rows through the
-    physics' cached constraint set.
+    constraint set.
 
     Parameters
     ----------
@@ -81,8 +81,8 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
         ``SensitivityStepperProtocol`` at runtime (the static type
         matches ``create_stepper``'s base-tier return, mirroring the
         stepper table's lazy capability-narrowing convention).
-    physics : GalerkinPhysicsProtocol
-        Galerkin physics providing ``constraint_set()``.
+    constraint_set : ConstraintSetProtocol
+        The essential constraints (``system.constraint_set()``).
     bkd : Backend
         Computational backend.
     """
@@ -90,7 +90,7 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
     def __init__(
         self,
         time_residual: TimeSteppingResidualProtocol[Array],
-        physics: GalerkinPhysicsProtocol[Array],
+        constraint_set: ConstraintSetProtocol[Array],
         bkd: Backend[Array],
     ) -> None:
         if not isinstance(time_residual, SensitivityStepperProtocol):
@@ -98,15 +98,14 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
                 "time_residual must satisfy SensitivityStepperProtocol, "
                 f"got {type(time_residual).__name__}"
             )
-        if not isinstance(physics, GalerkinPhysicsProtocol):
+        if not isinstance(constraint_set, ConstraintSetProtocol):
             raise TypeError(
-                "physics must satisfy GalerkinPhysicsProtocol, "
-                f"got {type(physics).__name__}"
+                "constraint_set must satisfy ConstraintSetProtocol, "
+                f"got {type(constraint_set).__name__}"
             )
         self._inner: SensitivityStepperProtocol[Array] = time_residual
-        self._physics = physics
         self._bkd = bkd
-        self._constraint_set = physics.constraint_set()
+        self._constraint_set = constraint_set
         self._t_np1 = 0.0
         # Constant-Jacobian operator cache for one-step-solvable
         # (explicit) steppers: J = BC-modified M, constant across steps,
@@ -226,7 +225,6 @@ class GalerkinBCEnforcingForwardResidual(Generic[Array]):
         return (
             f"{self.__class__.__name__}("
             f"inner={type(self._inner).__name__}, "
-            f"physics={type(self._physics).__name__}, "
             f"constraint_set={self._constraint_set!r})"
         )
 
@@ -237,24 +235,22 @@ class GalerkinBCEnforcingAdjointResidual(
     """Extends the forward wrapper with adjoint methods.
 
     Wraps an AdjointEnabledTimeSteppingResidualProtocol. All Dirichlet
-    handling is owned here (parameterizations return RAW dR/dp per the
-    refactor design): constrained rows of parameter Jacobians are
-    zeroed, the adjoint diagonal is the transpose of the BC-enforced
-    forward Jacobian (sparse-factored when possible), and the adjoint
-    off-diagonal has constrained COLUMNS zeroed (the transpose of the
-    forward off-diagonal's zeroed rows).
-
-    DAE masses (singular, e.g. Stokes) are not yet supported by the
-    mass-only adjoint solves; that lands with the D6 adjoint work.
+    handling is owned here (parameterizations return RAW dR/dp):
+    constrained rows of parameter Jacobians are zeroed, the adjoint
+    diagonal is the transpose of the BC-enforced forward Jacobian
+    (sparse-factored when possible), and the adjoint off-diagonal has
+    constrained COLUMNS zeroed (the transpose of the forward
+    off-diagonal's zeroed rows). Singular (DAE) masses, e.g. Stokes, are
+    handled in ``adjoint_initial_condition``.
     """
 
     def __init__(
         self,
         time_residual: TimeSteppingResidualProtocol[Array],
-        physics: GalerkinPhysicsProtocol[Array],
+        constraint_set: ConstraintSetProtocol[Array],
         bkd: Backend[Array],
     ) -> None:
-        super().__init__(time_residual, physics, bkd)
+        super().__init__(time_residual, constraint_set, bkd)
         if not isinstance(
             time_residual, AdjointEnabledTimeSteppingResidualProtocol
         ):
@@ -420,10 +416,10 @@ class GalerkinBCEnforcingHVPResidual(
     def __init__(
         self,
         time_residual: TimeSteppingResidualProtocol[Array],
-        physics: GalerkinPhysicsProtocol[Array],
+        constraint_set: ConstraintSetProtocol[Array],
         bkd: Backend[Array],
     ) -> None:
-        super().__init__(time_residual, physics, bkd)
+        super().__init__(time_residual, constraint_set, bkd)
         if not isinstance(
             time_residual, HVPEnabledTimeSteppingResidualProtocol
         ):
@@ -568,7 +564,7 @@ class GalerkinBCEnforcingHVPResidual(
 @overload
 def create_galerkin_bc_enforcing_residual(
     inner: HVPEnabledTimeSteppingResidualProtocol[Array],
-    physics: GalerkinPhysicsProtocol[Array],
+    constraint_set: ConstraintSetProtocol[Array],
     bkd: Backend[Array],
 ) -> GalerkinBCEnforcingHVPResidual[Array]: ...
 
@@ -576,7 +572,7 @@ def create_galerkin_bc_enforcing_residual(
 @overload
 def create_galerkin_bc_enforcing_residual(
     inner: AdjointEnabledTimeSteppingResidualProtocol[Array],
-    physics: GalerkinPhysicsProtocol[Array],
+    constraint_set: ConstraintSetProtocol[Array],
     bkd: Backend[Array],
 ) -> GalerkinBCEnforcingAdjointResidual[Array]: ...
 
@@ -584,14 +580,14 @@ def create_galerkin_bc_enforcing_residual(
 @overload
 def create_galerkin_bc_enforcing_residual(
     inner: TimeSteppingResidualProtocol[Array],
-    physics: GalerkinPhysicsProtocol[Array],
+    constraint_set: ConstraintSetProtocol[Array],
     bkd: Backend[Array],
 ) -> GalerkinBCEnforcingForwardResidual[Array]: ...
 
 
 def create_galerkin_bc_enforcing_residual(
     inner: TimeSteppingResidualProtocol[Array],
-    physics: GalerkinPhysicsProtocol[Array],
+    constraint_set: ConstraintSetProtocol[Array],
     bkd: Backend[Array],
 ) -> GalerkinBCEnforcingForwardResidual[Array]:
     """Create the widest BC-enforcing wrapper the inner stepper supports.
@@ -604,8 +600,8 @@ def create_galerkin_bc_enforcing_residual(
     inner : TimeSteppingResidualProtocol
         The time stepping residual to wrap. Must satisfy
         ``SensitivityStepperProtocol`` at runtime.
-    physics : GalerkinPhysicsProtocol
-        Galerkin physics providing ``constraint_set()``.
+    constraint_set : ConstraintSetProtocol
+        The essential constraints (``system.constraint_set()``).
     bkd : Backend
         Computational backend.
 
@@ -628,7 +624,7 @@ def create_galerkin_bc_enforcing_residual(
     ):
         mass = inner.native_residual.mass_matrix()
         if not mass.is_diagonal():
-            missing = physics.constraint_set().missing_derivative_bcs(1)
+            missing = constraint_set.missing_derivative_bcs(1)
             if missing:
                 raise TypeError(
                     "stage-based stepper "
@@ -647,7 +643,7 @@ def create_galerkin_bc_enforcing_residual(
                     "exactly."
                 )
     if isinstance(inner, HVPEnabledTimeSteppingResidualProtocol):
-        return GalerkinBCEnforcingHVPResidual(inner, physics, bkd)
+        return GalerkinBCEnforcingHVPResidual(inner, constraint_set, bkd)
     if isinstance(inner, AdjointEnabledTimeSteppingResidualProtocol):
-        return GalerkinBCEnforcingAdjointResidual(inner, physics, bkd)
-    return GalerkinBCEnforcingForwardResidual(inner, physics, bkd)
+        return GalerkinBCEnforcingAdjointResidual(inner, constraint_set, bkd)
+    return GalerkinBCEnforcingForwardResidual(inner, constraint_set, bkd)

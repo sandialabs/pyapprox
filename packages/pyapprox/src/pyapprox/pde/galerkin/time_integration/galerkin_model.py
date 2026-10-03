@@ -77,16 +77,16 @@ class GalerkinModel(Generic[Array]):
                     "adapter must be a GalerkinPhysicsToODEResidualAdapter, "
                     f"got {type(adapter).__name__}"
                 )
-            if not owns(physics, adapter.physics()):
+            if not owns(adapter.system(), physics):
                 raise ValueError(
-                    "adapter wraps a physics that is not part of the one "
+                    "adapter wraps a system that does not hold the physics "
                     "passed to GalerkinModel"
                 )
         self._physics = physics
         self._bkd = bkd
         self._adapter_injected = adapter is not None
         if adapter is None:
-            adapter = GalerkinPhysicsToODEResidualAdapter(physics)
+            adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
         self._adapter = adapter
         self._last_integrator: Optional[TimeIntegrator[Array]] = None
 
@@ -214,7 +214,7 @@ class GalerkinModel(Generic[Array]):
 
         All methods run one TimeIntegrator pipeline: raw ODE adapter ->
         stepper -> BC-enforcing residual wrapper (constraint rows
-        applied via the physics' DirichletConstraintSet) -> Newton.
+        applied via the system's constraint set) -> Newton.
         Explicit steppers are one-step solvable (the constraint rows
         are linear), so Newton reduces to a single linear solve with a
         cached factorization of the constant BC-modified mass;
@@ -247,13 +247,13 @@ class GalerkinModel(Generic[Array]):
                     "lumped_mass=True instead"
                 )
             adapter = GalerkinPhysicsToODEResidualAdapter(
-                self._physics, lumped_mass=True
+                self._physics.system(), lumped_mass=True
             )
         else:
             adapter = self._adapter
         stepper = create_stepper(config.method, adapter)
         bc_residual = create_galerkin_bc_enforcing_residual(
-            stepper, self._physics, self._bkd
+            stepper, adapter.system().constraint_set(), self._bkd
         )
         newton = NewtonSolver(bc_residual)
         newton.set_options(

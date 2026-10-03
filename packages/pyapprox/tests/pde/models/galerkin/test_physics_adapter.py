@@ -33,7 +33,7 @@ class TestGalerkinAdapterFactoryTiers:
 
     def test_base_tier_without_parameterization(self, numpy_bkd):
         physics = self._make_physics(numpy_bkd)
-        adapter = create_galerkin_physics_ode_residual(physics)
+        adapter = create_galerkin_physics_ode_residual(physics.system())
         assert type(adapter) is GalerkinPhysicsToODEResidualAdapter
         assert not hasattr(adapter, "param_jacobian")
         assert not hasattr(adapter, "nparams")
@@ -65,7 +65,7 @@ class TestGalerkinAdapterFactoryTiers:
                 return ParamDerivatives.none()
 
         adapter = create_galerkin_physics_ode_residual(
-            physics, EvalOnlyParameterization(physics)
+            physics.system(), EvalOnlyParameterization(physics)
         )
         assert type(adapter) is GalerkinPhysicsToODEResidualWithSetParamAdapter
         assert not hasattr(adapter, "param_jacobian")
@@ -106,7 +106,7 @@ class TestGalerkinAdapterFactoryTiers:
                 return ParamDerivatives.first_order(_jac, _init_jac)
 
         adapter = create_galerkin_physics_ode_residual(
-            physics, FirstOrderParameterization(physics)
+            physics.system(), FirstOrderParameterization(physics)
         )
         assert isinstance(
             adapter, GalerkinPhysicsToODEResidualWithParamJacobianAdapter
@@ -143,7 +143,7 @@ class TestGalerkinAdapterFactoryTiers:
                 return ParamDerivatives.none()
 
         adapter = create_galerkin_physics_ode_residual(
-            physics, EvalOnlyParameterization(physics)
+            physics.system(), EvalOnlyParameterization(physics)
         )
         with pytest.raises(ValueError, match="must be 1D"):
             adapter.set_param(bkd.array([[0.5]]))

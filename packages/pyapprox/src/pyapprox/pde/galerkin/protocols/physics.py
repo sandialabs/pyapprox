@@ -20,6 +20,9 @@ from typing import (
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import ConstraintSetProtocol, WeakFormBCProtocol
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -152,6 +155,11 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def system(self) -> GalerkinTransientSystemProtocol[Array]:
+        """Return the composed system (spatial operator, constraints,
+        mass) that adapters and models consume."""
+        ...
+
     def constraint_set(self) -> ConstraintSetProtocol[Array]:
         """Return the essential-constraint set for this physics.
 
@@ -176,43 +184,6 @@ class GalerkinPhysicsProtocol(Protocol, Generic[Array]):
         -------
         Tuple[Array, Array]
             (dof_indices, dof_values) — shapes (ndirichlet,) each.
-        """
-        ...
-
-
-
-@runtime_checkable
-class GalerkinPhysicsWithStateStateHVPProtocol(
-    GalerkinPhysicsProtocol[Array], Protocol
-):
-    """Galerkin physics additionally providing the state-state HVP.
-
-    Required by the HVP-tier ODE-residual adapter: parameterizations
-    own the parameter-facing second derivatives (ParamDerivatives
-    bundle), but lambda^T (d^2F/du^2) w depends only on the physics.
-    Linear physics implement it as exact zeros.
-    """
-
-    def state_state_hvp(
-        self, state: Array, adj_state: Array, wvec: Array, time: float
-    ) -> Array:
-        """Compute lambda^T (d^2F/du^2) w of the RAW spatial residual.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state. Shape: (nstates,)
-        adj_state : Array
-            Adjoint variable. Shape: (nstates,)
-        wvec : Array
-            Direction vector. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            The contraction. Shape: (nstates,)
         """
         ...
 

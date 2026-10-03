@@ -31,7 +31,7 @@ layer owns everything that requires both a physics and a
 parameterization.
 """
 
-from typing import Callable, Generic, Optional, Tuple, Union
+from typing import Callable, Generic, Optional, Union
 
 import numpy as np
 from scipy.sparse import diags, issparse, spmatrix
@@ -48,8 +48,8 @@ from pyapprox.ode.mass_matrix import (
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
-from pyapprox.pde.galerkin.protocols.physics import (
-    GalerkinPhysicsProtocol,
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -58,7 +58,8 @@ from pyapprox.util.backends.protocols import Array, Backend
 class GalerkinPhysicsToODEResidualAdapter(
     DefaultNewtonJacobianMixin[Array], Generic[Array]
 ):
-    """Adapter from GalerkinPhysics to ODEResidualProtocol (base tier).
+    """Adapter from a transient Galerkin system to ODEResidualProtocol
+    (base tier).
 
     Presents the BC-neutralized ODE (see module docstring):
     - f(y) = spatial_residual with essential rows carrying g_dot(t)
@@ -70,9 +71,9 @@ class GalerkinPhysicsToODEResidualAdapter(
 
     Parameters
     ----------
-    physics : GalerkinPhysicsProtocol
-        The Galerkin physics to adapt. Must have spatial_residual(),
-        spatial_jacobian(), and constraint_set() methods.
+    system : GalerkinTransientSystemProtocol
+        The composed system to adapt: spatial operator, constraint set
+        and mass (``physics.system()``).
     lumped_mass : bool, default False
         If True, use the row-sum lumped (diagonal) mass matrix instead
         of the consistent mass. Cheaper per solve, less accurate — an
@@ -80,25 +81,26 @@ class GalerkinPhysicsToODEResidualAdapter(
 
     Examples
     --------
-    >>> ode_residual = GalerkinPhysicsToODEResidualAdapter(physics)
+    >>> ode_residual = GalerkinPhysicsToODEResidualAdapter(physics.system())
     >>> time_stepper = BackwardEulerHVP(ode_residual)
     """
 
     def __init__(
         self,
-        physics: GalerkinPhysicsProtocol[Array],
+        system: GalerkinTransientSystemProtocol[Array],
         lumped_mass: bool = False,
     ) -> None:
-        if not isinstance(physics, GalerkinPhysicsProtocol):
+        if not isinstance(system, GalerkinTransientSystemProtocol):
             raise TypeError(
-                f"physics must satisfy GalerkinPhysicsProtocol, "
-                f"got {type(physics).__name__}"
+                "system must satisfy GalerkinTransientSystemProtocol, "
+                f"got {type(system).__name__}"
             )
-        self._physics = physics
-        self._bkd = physics.bkd()
+        self._system = system
+        self._spatial_operator = system.spatial_operator()
+        self._bkd = system.bkd()
         self._time: float = 0.0
         self._lumped_mass = lumped_mass
-        self._constraint_set = physics.constraint_set()
+        self._constraint_set = system.constraint_set()
         # Captured once: consulted on every residual evaluation.
         self._boundary_velocity: Optional[Callable[[float], Array]] = (
             self._constraint_set.values_derivative(1)
@@ -115,7 +117,7 @@ class GalerkinPhysicsToODEResidualAdapter(
         (DiagonalMassMatrix with 1.0 at essential DOFs); consistent
         mass gets identity rows via the constraint set.
         """
-        raw_mass = self._physics.mass_matrix()
+        raw_mass = self._system.mass_matrix()
         constraint_set = self._constraint_set
         if self._lumped_mass:
             diagonal = self._lumped_diagonal(raw_mass)
@@ -143,9 +145,9 @@ class GalerkinPhysicsToODEResidualAdapter(
         """Get the computational backend."""
         return self._bkd
 
-    def physics(self) -> GalerkinPhysicsProtocol[Array]:
-        """Return the wrapped physics object."""
-        return self._physics
+    def system(self) -> GalerkinTransientSystemProtocol[Array]:
+        """Return the adapted system."""
+        return self._system
 
     def set_time(self, time: float) -> None:
         """Set the current time for evaluation.
@@ -177,7 +179,7 @@ class GalerkinPhysicsToODEResidualAdapter(
         Array
             BC-neutralized residual. Shape: (nstates,)
         """
-        residual = self._physics.spatial_residual(state, self._time)
+        residual = self._spatial_operator.spatial_residual(state, self._time)
         constraint_set = self._constraint_set
         if not constraint_set.ndofs():
             return residual
@@ -206,7 +208,7 @@ class GalerkinPhysicsToODEResidualAdapter(
             BC-neutralized Jacobian dF/du. Shape: (nstates, nstates)
         """
         return self._constraint_set.zero_rows(
-            self._physics.spatial_jacobian(state, self._time)
+            self._spatial_operator.spatial_jacobian(state, self._time)
         )
 
     def mass_matrix(self) -> MassMatrixProtocol[Array]:
@@ -236,26 +238,5 @@ class GalerkinPhysicsToODEResidualAdapter(
             )
         return super().newton_jacobian(state, coefficient)
 
-    def dirichlet_dof_info(self, time: float) -> Tuple[Array, Array]:
-        """Return Dirichlet DOF indices and values at given time.
-
-        Parameters
-        ----------
-        time : float
-            Time at which to evaluate Dirichlet BCs.
-
-        Returns
-        -------
-        Tuple[Array, Array]
-            dof_indices : Array
-                Global DOF indices. Shape: (ndirichlet,)
-            dof_values : Array
-                Exact Dirichlet values. Shape: (ndirichlet,)
-        """
-        return self._physics.dirichlet_dof_info(time)
-
     def __repr__(self) -> str:
-        return (
-            f"{type(self).__name__}("
-            f"physics={type(self._physics).__name__})"
-        )
+        return f"{type(self).__name__}(system={self._system!r})"

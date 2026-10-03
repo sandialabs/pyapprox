@@ -97,9 +97,9 @@ def _build_pipeline(
 ) -> Tuple[TimeIntegrator[_NumpyArray], Any, LinearElasticity[_NumpyArray]]:
     physics = _make_physics(bkd)
     param = create_galerkin_lame_parameterization(physics, bkd)
-    adapter = create_galerkin_physics_ode_residual(physics, param)
+    adapter = create_galerkin_physics_ode_residual(physics.system(), param)
     stepper = create_stepper(method, adapter)
-    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics, bkd)
+    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), bkd)
     assert isinstance(wrapper, GalerkinBCEnforcingAdjointResidual)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=20, atol=1e-12, rtol=0.0)
