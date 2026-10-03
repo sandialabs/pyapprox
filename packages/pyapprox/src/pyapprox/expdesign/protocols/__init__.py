@@ -3,7 +3,8 @@ Protocol definitions for experimental design components.
 
 This module defines the interfaces (protocols) for OED likelihoods,
 evidence computation, objectives, quadrature samplers, sample statistics,
-deviation measures, prediction objectives, and design spaces.
+deviation measures, prediction objectives, design spaces, and observation
+relaxations.
 """
 
 from .design_space import DesignSpaceProtocol
@@ -30,6 +31,7 @@ from .prediction import PredictionOEDObjectiveProtocol
 from .quadrature import (
     OEDQuadratureSamplerProtocol,
 )
+from .relaxation import ObservationRelaxationProtocol
 
 __all__ = [
     # Likelihood protocols
@@ -46,6 +48,8 @@ __all__ = [
     "OEDQuadratureSamplerProtocol",
     # Design space protocols
     "DesignSpaceProtocol",
+    # Observation relaxation protocols
+    "ObservationRelaxationProtocol",
     # Deviation protocols
     "DeviationMeasureProtocol",
     # OED inference/benchmark protocols
