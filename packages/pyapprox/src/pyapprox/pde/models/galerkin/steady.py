@@ -9,10 +9,15 @@ linear solves are sparse-aware).
 
 from typing import Generic, Optional
 
+from pyapprox.ode.state_derivatives import StateStateHVPFn
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsWithStateStateHVPProtocol,
 )
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.pde.models.galerkin.constrained_derivatives import (
+    constrain_param_derivatives,
+    constrain_state_state_hvp,
+)
 from pyapprox.pde.parameterizations.derivatives import (
     ParamHVPFn,
     ParamJacobianFn,
@@ -80,7 +85,10 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
                 "parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
-        derivs = parameterization.param_derivatives()
+        self._constraint_set = physics.constraint_set()
+        derivs = constrain_param_derivatives(
+            parameterization.param_derivatives(), self._constraint_set
+        )
         if (
             derivs.param_jacobian is None
             or derivs.param_param_hvp is None
@@ -95,7 +103,11 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         self._physics = physics
         self._parameterization = parameterization
         self._bkd = bkd
-        self._constraint_set = physics.constraint_set()
+        self._state_state_hvp_fn: StateStateHVPFn[Array] = (
+            constrain_state_state_hvp(
+                physics.state_state_hvp, self._constraint_set
+            )
+        )
         self._param_jacobian_fn: ParamJacobianFn[Array] = (
             derivs.param_jacobian
         )
@@ -121,10 +133,6 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
     def _set_param(self, param: Array) -> None:
         """Apply the parameter column through the parameterization."""
         self._parameterization.apply(param[:, 0])
-
-    def _zeroed_adjoint(self, adj_state: Array) -> Array:
-        """Adjoint column as 1D with constrained entries zeroed."""
-        return self._constraint_set.zero_entries(adj_state[:, 0])
 
     def solve(self, init_state: Array, param: Array) -> Array:
         """Solve R(u, p) = 0 for u.
@@ -173,8 +181,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         vanish. Shape: (nstates, nparams).
         """
         self._set_param(param)
-        raw = self._param_jacobian_fn(state[:, 0], 0.0, param[:, 0])
-        return self._constraint_set.zero_rows(raw)
+        return self._param_jacobian_fn(state[:, 0], 0.0, param[:, 0])
 
     def state_state_hvp(
         self, state: Array, param: Array, adj_state: Array, wvec: Array
@@ -184,8 +191,8 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         Shape: (nstates, 1).
         """
         self._set_param(param)
-        return self._physics.state_state_hvp(
-            state[:, 0], self._zeroed_adjoint(adj_state), wvec[:, 0], 0.0
+        return self._state_state_hvp_fn(
+            state[:, 0], adj_state[:, 0], wvec[:, 0], 0.0
         )[:, None]
 
     def param_param_hvp(
@@ -197,11 +204,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         """
         self._set_param(param)
         return self._param_param_hvp_fn(
-            state[:, 0],
-            0.0,
-            param[:, 0],
-            self._zeroed_adjoint(adj_state),
-            vvec[:, 0],
+            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], vvec[:, 0]
         )[:, None]
 
     def state_param_hvp(
@@ -213,11 +216,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         """
         self._set_param(param)
         return self._state_param_hvp_fn(
-            state[:, 0],
-            0.0,
-            param[:, 0],
-            self._zeroed_adjoint(adj_state),
-            vvec[:, 0],
+            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], vvec[:, 0]
         )[:, None]
 
     def param_state_hvp(
@@ -229,11 +228,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         """
         self._set_param(param)
         return self._param_state_hvp_fn(
-            state[:, 0],
-            0.0,
-            param[:, 0],
-            self._zeroed_adjoint(adj_state),
-            wvec[:, 0],
+            state[:, 0], 0.0, param[:, 0], adj_state[:, 0], wvec[:, 0]
         )[:, None]
 
     def __repr__(self) -> str:

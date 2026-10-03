@@ -20,12 +20,17 @@ fixed-tier adapter class (never ``hasattr``):
 
 from typing import Optional, overload
 
+from pyapprox.ode.state_derivatives import StateStateHVPFn
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinPhysicsProtocol,
     GalerkinPhysicsWithStateStateHVPProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
+)
+from pyapprox.pde.models.galerkin.constrained_derivatives import (
+    constrain_param_derivatives,
+    constrain_state_state_hvp,
 )
 from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.derivatives import (
@@ -124,7 +129,9 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         parameterization: ParameterizationProtocol[Array],
     ) -> None:
         super().__init__(physics, parameterization)
-        derivs = parameterization.param_derivatives()
+        derivs = constrain_param_derivatives(
+            parameterization.param_derivatives(), self._constraint_set
+        )
         param_jacobian = derivs.param_jacobian
         initial_param_jacobian = derivs.initial_param_jacobian
         if param_jacobian is None or initial_param_jacobian is None:
@@ -144,11 +151,11 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
 
         The adapter's f carries analytic boundary velocities on
         essential rows (parameter-independent), so those rows of the
-        bundle's RAW dF/dp are zeroed here — not left to the
-        BC-enforcing wrapper. Stage-based steppers (Heun) compose this
-        Jacobian through M^{-1} and stage Jacobians BEFORE the wrapper's
-        final row replacement, so raw essential rows would contaminate
-        interior rows of dR/dp.
+        bundle's RAW dF/dp are zeroed (``constrain_param_derivatives``)
+        — not left to the BC-enforcing wrapper. Stage-based steppers
+        (Heun) compose this Jacobian through M^{-1} and stage Jacobians
+        BEFORE the wrapper's final row replacement, so raw essential
+        rows would contaminate interior rows of dR/dp.
 
         Parameters
         ----------
@@ -160,10 +167,8 @@ class GalerkinPhysicsToODEResidualWithParamJacobianAdapter(
         Array
             Parameter Jacobian. Shape: (nstates, nparams)
         """
-        return self._constraint_set.zero_rows(
-            self._param_jacobian_fn(
-                state, self._time, self._require_params()
-            )
+        return self._param_jacobian_fn(
+            state, self._time, self._require_params()
         )
 
     def initial_param_jacobian(self) -> Array:
@@ -193,15 +198,12 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
     expose): essential rows carry parameter-independent boundary
     velocities, so their second derivatives vanish — the incoming
     adjoint/weight vector is zeroed at essential entries before the
-    RAW bundle contraction. Stage-based steppers (Heun) build their
-    own weight vectors (e.g. M^{-T} J2^T lambda, nonzero at essential
-    entries) inside the stepper, where the BC-enforcing wrapper's
-    adjoint zeroing cannot reach.
+    RAW contraction (``constrain_param_derivatives`` and
+    ``constrain_state_state_hvp``). Stage-based steppers (Heun)
+    build their own weight vectors (e.g. M^{-T} J2^T lambda, nonzero
+    at essential entries) inside the stepper, where the BC-enforcing
+    wrapper's adjoint zeroing cannot reach.
     """
-
-    def _neutralized_weight(self, adj_state: Array) -> Array:
-        """Zero the contraction weight at essential entries."""
-        return self._constraint_set.zero_entries(adj_state)
 
     def __init__(
         self,
@@ -216,7 +218,9 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
                 f"state_state_hvp, got {type(physics).__name__}"
             )
         super().__init__(physics, parameterization)
-        derivs = parameterization.param_derivatives()
+        derivs = constrain_param_derivatives(
+            parameterization.param_derivatives(), self._constraint_set
+        )
         param_param_hvp = derivs.param_param_hvp
         state_param_hvp = derivs.state_param_hvp
         param_state_hvp = derivs.param_state_hvp
@@ -233,7 +237,11 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
                 "initial_param_hvp; use create_galerkin_physics_ode_residual "
                 "to select the right tier"
             )
-        self._hvp_physics = physics
+        self._state_state_hvp_fn: StateStateHVPFn[Array] = (
+            constrain_state_state_hvp(
+                physics.state_state_hvp, self._constraint_set
+            )
+        )
         self._param_param_hvp_fn: ParamHVPFn[Array] = param_param_hvp
         self._state_param_hvp_fn: ParamHVPFn[Array] = state_param_hvp
         self._param_state_hvp_fn: ParamHVPFn[Array] = param_state_hvp
@@ -245,27 +253,21 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
         """sum_i weight_i (d^2 y_0,i/dp^2) v, essential entries zeroed.
         Shape: (nparams,)."""
         return self._initial_param_hvp_fn(
-            self._require_params(), self._neutralized_weight(weight), vvec
+            self._require_params(), weight, vvec
         )
 
     def state_state_hvp(
         self, state: Array, adj_state: Array, wvec: Array
     ) -> Array:
         """Compute lambda^T (d^2F/dy^2) w. Shape: (nstates,)."""
-        return self._hvp_physics.state_state_hvp(
-            state, self._neutralized_weight(adj_state), wvec, self._time
-        )
+        return self._state_state_hvp_fn(state, adj_state, wvec, self._time)
 
     def param_param_hvp(
         self, state: Array, adj_state: Array, vvec: Array
     ) -> Array:
         """Compute lambda^T (d^2F/dp^2) v. Shape: (nparams,)."""
         return self._param_param_hvp_fn(
-            state,
-            self._time,
-            self._require_params(),
-            self._neutralized_weight(adj_state),
-            vvec,
+            state, self._time, self._require_params(), adj_state, vvec
         )
 
     def state_param_hvp(
@@ -273,11 +275,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2F/dy dp) v. Shape: (nstates,)."""
         return self._state_param_hvp_fn(
-            state,
-            self._time,
-            self._require_params(),
-            self._neutralized_weight(adj_state),
-            vvec,
+            state, self._time, self._require_params(), adj_state, vvec
         )
 
     def param_state_hvp(
@@ -285,11 +283,7 @@ class GalerkinPhysicsToODEResidualWithHVPAdapter(
     ) -> Array:
         """Compute lambda^T (d^2F/dp dy) w. Shape: (nparams,)."""
         return self._param_state_hvp_fn(
-            state,
-            self._time,
-            self._require_params(),
-            self._neutralized_weight(adj_state),
-            wvec,
+            state, self._time, self._require_params(), adj_state, wvec
         )
 
 
