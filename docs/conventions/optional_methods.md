@@ -137,12 +137,14 @@ Family bundles that need heavyweight context bind it at producer
 construction, never per call. The PDE parameterization bundle
 (`pde.parameterizations.derivatives.ParamDerivatives`) is the
 reference case: its callables take `(state, time, params_1d, ...)`
-with no physics argument — the physics is bound in the
-parameterization's `__init__` (exposed via a `physics()` accessor),
-and model adapters validate at construction that the
-parameterization's bound physics **is** the adapter's own instance
-(identity, not equality). One parameterization serves one physics;
-ensembles construct one per physics.
+with no physics argument — the objects whose coefficients it writes
+(a physics, or a boundary term) are bound in the parameterization's
+`__init__` and exposed via `targets()`. Model adapters validate at
+construction that every target belongs to what they solve
+(`pde.parameterizations.binding.require_owned_targets`): the solved
+object itself, or something it holds by `owns()`
+(`pde.ownership`), compared by identity, not equality. Ensembles
+construct one parameterization per physics.
 
 ## Lifecycle
 

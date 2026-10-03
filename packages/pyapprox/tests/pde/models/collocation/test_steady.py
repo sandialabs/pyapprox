@@ -403,6 +403,9 @@ class TestSteadyForwardModel:
             def physics(self):
                 return self._physics
 
+            def targets(self):
+                return (self._physics,)
+
             def apply(self, params_1d):
                 phi0 = bkd.ones((npts,))
                 field = (
@@ -494,6 +497,9 @@ class TestSteadyForwardModel:
 
             def physics(self):
                 return self._physics
+
+            def targets(self):
+                return (self._physics,)
 
             def apply(self, params_1d):
                 field = bkd.full((npts,), 1.0) + params_1d[0] * bkd.ones((npts,))

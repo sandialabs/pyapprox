@@ -573,6 +573,10 @@ class _FieldParameterizationTerm(Generic[Array, PhysicsT]):
         """Return the bound physics instance (identity token only)."""
         return self._physics
 
+    def targets(self) -> Tuple[object, ...]:
+        """Return the objects whose coefficients ``apply`` writes."""
+        return (self._physics,)
+
     def nparams(self) -> int:
         """Return the number of parameters."""
         return self._field_map.nvars()

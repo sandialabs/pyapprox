@@ -27,6 +27,7 @@ from pyapprox.pde.galerkin.protocols.physics import (
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
+from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.derivatives import (
     InitialParamHVPFn,
     InitialParamJacobianFn,
@@ -66,12 +67,7 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
-        if parameterization.physics() is not physics:
-            raise ValueError(
-                "parameterization binds a different physics instance "
-                "than the one passed to the adapter; construct one "
-                "parameterization per physics"
-            )
+        require_owned_targets(parameterization, physics)
         super().__init__(physics)
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None

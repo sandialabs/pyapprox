@@ -19,6 +19,7 @@ from pyapprox.pde.boundary import NaturalBCOperator
 from pyapprox.pde.galerkin.protocols.physics import (
     GalerkinInteriorOperatorProtocol,
 )
+from pyapprox.pde.ownership import owns
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -101,6 +102,14 @@ class ComposedSpatialOperator(Generic[Array]):
         """
         return self._natural_bcs.add_to_jacobian(
             self._interior.interior_jacobian(state, time), state, time
+        )
+
+    def owns(self, target: object) -> bool:
+        """Whether ``target`` is part of ``F``: the interior (and what it
+        owns) or one of the terms."""
+        return (
+            owns(self._interior, target)
+            or any(target is term for term in self._natural_bcs.terms())
         )
 
     def state_derivatives(self) -> StateDerivatives[Array]:

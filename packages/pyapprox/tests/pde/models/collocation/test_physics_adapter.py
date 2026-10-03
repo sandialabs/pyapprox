@@ -121,6 +121,9 @@ class _ToyCurvatureParameterization:
     def physics(self):
         return self._physics
 
+    def targets(self):
+        return (self._physics,)
+
     def apply(self, params_1d):
         self._physics.set_coefficient(self._cfield(params_1d))
 
@@ -259,6 +262,9 @@ class TestCollocationAdapterFactoryTiers:
 
             def physics(self):
                 return self._physics
+
+            def targets(self):
+                return (self._physics,)
 
             def apply(self, params_1d):
                 field = bkd.full((npts,), 1.0) + params_1d[0]

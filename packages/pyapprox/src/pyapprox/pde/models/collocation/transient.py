@@ -45,6 +45,7 @@ from pyapprox.pde.models.collocation.physics_adapter import (
     CollocationPhysicsToODEResidualWithSetParamAdapter,
     create_collocation_physics_ode_residual,
 )
+from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
@@ -110,11 +111,7 @@ class TransientForwardModel(CollocationModel[Array]):
                 f"physics must satisfy PhysicsProtocol, "
                 f"got {type(physics).__name__}"
             )
-        if parameterization.physics() is not physics:
-            raise ValueError(
-                "parameterization is bound to a different physics "
-                "instance than the one passed to the model"
-            )
+        require_owned_targets(parameterization, physics)
         adapter = create_collocation_physics_ode_residual(
             physics, bkd, parameterization
         )

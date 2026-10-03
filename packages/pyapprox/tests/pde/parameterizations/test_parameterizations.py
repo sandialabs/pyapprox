@@ -101,6 +101,9 @@ class _EvalOnlyParam:
     def physics(self):
         return self._physics
 
+    def targets(self):
+        return (self._physics,)
+
     def apply(self, params_1d):
         pass
 
@@ -143,6 +146,9 @@ class _MockSecondOrderParam:
 
     def physics(self):
         return self._physics
+
+    def targets(self):
+        return (self._physics,)
 
     def owned_coefficients(self):
         return (self._name,)

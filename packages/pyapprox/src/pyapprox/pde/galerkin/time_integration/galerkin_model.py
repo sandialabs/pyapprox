@@ -28,6 +28,7 @@ from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
+from pyapprox.pde.ownership import owns
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
@@ -76,10 +77,10 @@ class GalerkinModel(Generic[Array]):
                     "adapter must be a GalerkinPhysicsToODEResidualAdapter, "
                     f"got {type(adapter).__name__}"
                 )
-            if adapter.physics() is not physics:
+            if not owns(physics, adapter.physics()):
                 raise ValueError(
-                    "adapter wraps a different physics instance than the "
-                    "one passed to GalerkinModel"
+                    "adapter wraps a physics that is not part of the one "
+                    "passed to GalerkinModel"
                 )
         self._physics = physics
         self._bkd = bkd

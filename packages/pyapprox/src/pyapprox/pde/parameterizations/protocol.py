@@ -28,18 +28,22 @@ class DerivativeMatrixBasisProtocol(Protocol, Generic[Array_co]):
 class ParameterizationProtocol(Protocol, Generic[Array]):
     """Protocol for physics parameterizations.
 
-    Maps a parameter vector to physics inputs. The physics is bound at
-    construction — one parameterization instance serves ONE physics
-    instance (ensembles construct one per physics); ``physics()``
-    returns it so consumers can validate identity. Optional derivative
-    capability is expressed through the :class:`ParamDerivatives` bundle
-    returned by ``param_derivatives()`` — absence of a capability is a
-    ``None`` field, never a missing attribute.
+    Maps a parameter vector to physics inputs. The objects whose
+    coefficients it writes (a physics, or a boundary term) are bound at
+    construction; ``targets()`` returns them so a consumer can check
+    each one belongs to what it solves (``binding.require_owned_targets``).
+    Ensembles construct one parameterization per physics. Optional
+    derivative capability is expressed through the
+    :class:`ParamDerivatives` bundle returned by ``param_derivatives()``
+    — absence of a capability is a ``None`` field, never a missing
+    attribute.
     """
 
     def nparams(self) -> int: ...
 
-    def physics(self) -> object: ...
+    def targets(self) -> Tuple[object, ...]:
+        """The objects whose coefficients ``apply`` writes, by identity."""
+        ...
 
     def owned_coefficients(self) -> Tuple[str, ...]:
         """Identifiers of the physics coefficient fields ``apply``

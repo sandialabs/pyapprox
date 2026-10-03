@@ -44,6 +44,15 @@ class GalerkinBCMixin(Generic[Array]):
             self._bc_roles = split_by_role(self._boundary_conditions)
         return self._bc_roles
 
+    def owns(self, target: object) -> bool:
+        """Whether ``target`` is this physics or one of its BCs.
+
+        By identity; the BCs are what a BC-data parameterization targets.
+        """
+        return target is self or any(
+            target is bc for bc in self._boundary_conditions
+        )
+
     def weak_form_bcs(self) -> List[WeakFormBCProtocol[Array]]:
         """Return the natural (Neumann/Robin) BCs, in list order."""
         return self._roles().terms()

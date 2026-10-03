@@ -54,7 +54,7 @@ class CompositeParameterization(Generic[Array]):
         bkd: Backend[Array],
     ) -> None:
         for part in parts:
-            self._validate_part(part, parts[0])
+            self._validate_part(part)
         self._validate_disjoint_coefficients(parts)
         self._parts: List[ParameterizationProtocol[Array]] = list(parts)
         self._bkd = bkd
@@ -65,24 +65,29 @@ class CompositeParameterization(Generic[Array]):
     def _validate_disjoint_coefficients(
         parts: List[ParameterizationProtocol[Array]],
     ) -> None:
-        """Reject parts writing the same coefficient field.
+        """Reject parts writing the same coefficient of the same target.
 
-        Two parts targeting one coefficient would be last-writer-wins
-        in ``apply`` while both still report nonzero derivative
-        blocks — silently wrong numbers, so this fails loudly.
+        Two parts writing one coefficient would be last-writer-wins in
+        ``apply`` while both still report nonzero derivative blocks —
+        silently wrong numbers, so this fails loudly. Coefficients are
+        keyed by target as well as name: two boundary terms each have an
+        ``alpha``, and parameterizing both is not a collision.
         """
-        seen: dict[str, str] = {}
+        seen: dict[Tuple[int, str], str] = {}
         for part in parts:
-            for name in part.owned_coefficients():
-                if name in seen:
-                    raise ValueError(
-                        f"parts {seen[name]} and {type(part).__name__} "
-                        f"both parameterize coefficient '{name}'; "
-                        "composite parts must own disjoint coefficient "
-                        "fields (parameter-coupled coefficients belong "
-                        "inside ONE term's field map)"
-                    )
-                seen[name] = type(part).__name__
+            for target in part.targets():
+                for name in part.owned_coefficients():
+                    key = (id(target), name)
+                    if key in seen:
+                        raise ValueError(
+                            f"parts {seen[key]} and {type(part).__name__} "
+                            f"both parameterize coefficient '{name}' of the "
+                            f"same {type(target).__name__}; composite parts "
+                            "must own disjoint coefficient fields "
+                            "(parameter-coupled coefficients belong inside "
+                            "ONE term's field map)"
+                        )
+                    seen[key] = type(part).__name__
 
     def owned_coefficients(self) -> Tuple[str, ...]:
         """Union of the parts' coefficient identifiers."""
@@ -92,35 +97,30 @@ class CompositeParameterization(Generic[Array]):
         return tuple(names)
 
     @staticmethod
-    def _validate_part(
-        part: ParameterizationProtocol[Array],
-        first_part: ParameterizationProtocol[Array],
-    ) -> None:
-        """Validate protocol conformance and shared physics identity."""
+    def _validate_part(part: ParameterizationProtocol[Array]) -> None:
+        """Validate protocol conformance.
+
+        Parts may target different objects (a physics and its boundary
+        terms); whether they all belong to what is solved is checked by
+        the consumer, against ``targets()``.
+        """
         if not isinstance(part, ParameterizationProtocol):
             raise TypeError(
                 f"Each part must satisfy ParameterizationProtocol, "
                 f"got {type(part).__name__}"
             )
-        if part.physics() is not first_part.physics():
-            raise ValueError(
-                f"All parts must bind the SAME physics instance; "
-                f"{type(part).__name__} binds a different physics than "
-                f"{type(first_part).__name__}. Ensembles must construct "
-                f"one composite per physics."
-            )
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
-    def physics(self) -> object:
-        """Return the physics instance shared by all parts."""
-        if not self._parts:
-            raise RuntimeError(
-                "CompositeParameterization has no parts; physics() is "
-                "undefined until a part is appended"
-            )
-        return self._parts[0].physics()
+    def targets(self) -> Tuple[object, ...]:
+        """Union of the parts' targets, by identity, in first-seen order."""
+        targets: List[object] = []
+        for part in self._parts:
+            for target in part.targets():
+                if not any(target is seen for seen in targets):
+                    targets.append(target)
+        return tuple(targets)
 
     def param_derivatives(self) -> ParamDerivatives[Array]:
         """Return the composed derivative capability bundle."""
@@ -256,9 +256,7 @@ class CompositeParameterization(Generic[Array]):
 
     def append(self, part: ParameterizationProtocol[Array]) -> None:
         """Append a parameterization. Rebuilds the capability bundle."""
-        self._validate_part(
-            part, self._parts[0] if self._parts else part
-        )
+        self._validate_part(part)
         self._validate_disjoint_coefficients(self._parts + [part])
         self._parts.append(part)
         self._recompute_offsets()

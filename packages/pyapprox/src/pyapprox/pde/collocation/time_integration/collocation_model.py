@@ -30,6 +30,7 @@ from pyapprox.pde.collocation.time_integration.bc_time_residual_adapter import (
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
     CollocationPhysicsToODEResidualAdapter,
 )
+from pyapprox.pde.ownership import owns
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
@@ -88,10 +89,10 @@ class CollocationModel(Generic[Array]):
                     f"CollocationPhysicsToODEResidualAdapter, "
                     f"got {type(adapter).__name__}"
                 )
-            if adapter.physics() is not physics:
+            if not owns(physics, adapter.physics()):
                 raise ValueError(
-                    "adapter wraps a different physics instance than the "
-                    "one passed to CollocationModel"
+                    "adapter wraps a physics that is not part of the one "
+                    "passed to CollocationModel"
                 )
         self._physics = physics
         self._bkd = bkd

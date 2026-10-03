@@ -52,6 +52,9 @@ class _InitialStateParameterization:
     def physics(self) -> object:
         return self._inner.physics()
 
+    def targets(self) -> Tuple[object, ...]:
+        return tuple(self._inner.targets())
+
     def owned_coefficients(self) -> Tuple[str, ...]:
         return tuple(self._inner.owned_coefficients())
 

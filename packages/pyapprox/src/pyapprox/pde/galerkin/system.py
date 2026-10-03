@@ -11,6 +11,7 @@ from typing import Generic
 from pyapprox.ode.protocols import SpatialOperatorProtocol
 from pyapprox.pde.boundary import ConstraintSetProtocol
 from pyapprox.pde.galerkin.protocols.system import GalerkinMassProtocol
+from pyapprox.pde.ownership import owns
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -76,6 +77,10 @@ class GalerkinSteadySystem(Generic[Array]):
     def constraint_set(self) -> ConstraintSetProtocol[Array]:
         """Return the essential constraints."""
         return self._constraint_set
+
+    def owns(self, target: object) -> bool:
+        """Whether ``target`` is part of this system's ``F``."""
+        return owns(self._spatial_operator, target)
 
     def __repr__(self) -> str:
         return (

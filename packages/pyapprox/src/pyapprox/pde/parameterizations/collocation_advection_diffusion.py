@@ -194,6 +194,10 @@ class CollocationAdvectionDiffusionParameterization(Generic[Array]):
         """Return the bound physics instance."""
         return self._physics
 
+    def targets(self) -> Tuple[object, ...]:
+        """Return the objects whose coefficients ``apply`` writes."""
+        return (self._physics,)
+
     def owned_coefficients(self) -> Tuple[str, ...]:
         """Identifiers of the parameterized coefficient fields."""
         return self._inner.owned_coefficients()

@@ -68,6 +68,10 @@ class LameApplyOnlyParameterization(Generic[Array]):
         """Return the bound physics instance."""
         return self._physics
 
+    def targets(self) -> Tuple[object, ...]:
+        """Return the objects whose coefficients ``apply`` writes."""
+        return (self._physics,)
+
     def nparams(self) -> int:
         """Return the number of parameters (2 per material)."""
         return self._field_map.nvars()

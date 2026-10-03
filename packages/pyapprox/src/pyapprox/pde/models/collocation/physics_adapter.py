@@ -38,6 +38,7 @@ from pyapprox.pde.collocation.protocols.physics import (
 from pyapprox.pde.collocation.time_integration.physics_adapter import (
     CollocationPhysicsToODEResidualAdapter,
 )
+from pyapprox.pde.parameterizations.binding import require_owned_targets
 from pyapprox.pde.parameterizations.derivatives import (
     BCFluxParamSensitivityFn,
     InitialParamHVPFn,
@@ -81,12 +82,7 @@ class CollocationPhysicsToODEResidualWithSetParamAdapter(
                 f"parameterization must satisfy ParameterizationProtocol, "
                 f"got {type(parameterization).__name__}"
             )
-        if parameterization.physics() is not physics:
-            raise ValueError(
-                "parameterization binds a different physics instance "
-                "than the one passed to the adapter; construct one "
-                "parameterization per physics"
-            )
+        require_owned_targets(parameterization, physics)
         super().__init__(physics, bkd)
         self._parameterization = parameterization
         self._current_params_1d: Optional[Array] = None

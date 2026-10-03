@@ -52,6 +52,9 @@ class TestGalerkinAdapterFactoryTiers:
             def physics(self):
                 return self._physics
 
+            def targets(self):
+                return (self._physics,)
+
             def apply(self, params_1d):
                 pass
 
@@ -90,6 +93,9 @@ class TestGalerkinAdapterFactoryTiers:
             def physics(self):
                 return self._physics
 
+            def targets(self):
+                return (self._physics,)
+
             def apply(self, params_1d):
                 pass
 
@@ -123,6 +129,9 @@ class TestGalerkinAdapterFactoryTiers:
 
             def physics(self):
                 return self._physics
+
+            def targets(self):
+                return (self._physics,)
 
             def apply(self, params_1d):
                 pass
