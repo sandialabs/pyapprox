@@ -1,11 +1,12 @@
 """Tests for the derivatives of LinearGaussianObservation in w and nu.
 
 Each scalar f(w, nu) -- <G, Gamma_t|z> for a random G, log det A_w and
-log det A_w|t -- is checked with DerivativeChecker at an interior point,
-and against torch autograd at weights that include 0 and 1.
+log det A_w|t -- is checked with DerivativeChecker at an interior point
+and at a point on the bounds (with an inward direction), and against
+torch autograd, which also shows the computation graph is intact.
 """
 
-from typing import Callable, Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
@@ -19,6 +20,8 @@ from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
 
+from tests._helpers.inward_direction import inward_direction
+
 _Value = Callable[[LinearGaussianObservation[Array]], Array]
 _Grads = Callable[[LinearGaussianObservation[Array]], Tuple[Array, Array]]
 
@@ -30,12 +33,14 @@ class TestObservationDerivatives:
 
     def _setup(self, bkd: Backend[Array]) -> None:
         rng = np.random.default_rng(13)
+        # Well-conditioned covariances keep rounding small enough for the
+        # first-order DerivativeChecker to reach error_ratio <= 1e-6.
         root = rng.normal(size=(3, 3))
-        prior_cov = root @ root.T + 0.2 * np.eye(3)
+        prior_cov = root @ root.T / 3 + np.eye(3)
         amat = rng.normal(size=(4, 3))
         bmat = rng.normal(size=(2, 3))
         noise_root = rng.normal(size=(4, 4))
-        noise_cov = 0.05 * noise_root @ noise_root.T + 0.1 * np.eye(4)
+        noise_cov = 0.1 * (noise_root @ noise_root.T / 4 + np.eye(4))
         blocks = DenseBlocks.from_linear_model(
             bkd.asarray(amat),
             bkd.zeros((3, 1)),
@@ -69,14 +74,16 @@ class TestObservationDerivatives:
             ),
         ]
 
-    def test_derivative_checker(self, bkd: Backend[Array]) -> None:
-        self._setup(bkd)
+    def _error_ratios(
+        self,
+        bkd: Backend[Array],
+        sample: np.ndarray,
+        max_step: float,
+        direction: Optional[Array] = None,
+    ) -> list[float]:
+        """DerivativeChecker error ratio of each case at ``sample = (w, nu)``."""
         d = self._d
-        # nu is a free input; 0.5 with w >= 0.5 lets steps reach 0.4 while
-        # every entry stays positive (the direction is a unit vector).
-        w = np.array([0.6, 0.5, 0.8, 0.7])
-        nu = np.full(d, 0.5)
-        sample = bkd.asarray(np.concatenate([w, nu])[:, None])
+        ratios = []
         for value, grads in self._cases():
 
             def fun(samples: Array, value: _Value[Array] = value) -> Array:
@@ -97,12 +104,37 @@ class TestObservationDerivatives:
             # First-order differences: the error falls with the step until
             # rounding, so the largest step must be large for the ratio of
             # smallest to largest error to reach 1e-6.
-            fd_eps = bkd.flip(bkd.logspace(-12, -0.4, 13))
-            errors = checker.check_derivatives(sample, fd_eps=fd_eps, verbosity=0)
-            assert bkd.to_float(checker.error_ratio(errors[0])) <= 1e-6
+            fd_eps = bkd.flip(bkd.logspace(-12, float(np.log10(max_step)), 13))
+            errors = checker.check_derivatives(
+                bkd.asarray(sample), fd_eps=fd_eps, direction=direction, verbosity=0
+            )
+            ratios.append(bkd.to_float(checker.error_ratio(errors[0])))
+        return ratios
+
+    def test_derivative_checker(self, bkd: Backend[Array]) -> None:
+        """Interior: every entry >= 0.5, so steps up to 0.5 stay non-negative."""
+        self._setup(bkd)
+        w = np.array([0.6, 0.5, 0.8, 0.7])
+        sample = np.concatenate([w, np.full(self._d, 0.5)])[:, None]
+        assert max(self._error_ratios(bkd, sample, 0.5)) <= 1e-6
+
+    def test_derivative_checker_at_bounds(self, bkd: Backend[Array]) -> None:
+        """w_1 = 0 with nu_1 > 0, and w_3 = 1 with nu_3 = 0.
+
+        ``observe`` needs w >= 0 and nu >= 0, so the direction points
+        inward on the entries at zero; every step up to 0.5 stays feasible.
+        """
+        self._setup(bkd)
+        w = np.array([0.0, 0.5, 1.0, 0.5])
+        nu = np.array([0.5, 0.5, 0.0, 0.5])
+        sample = np.concatenate([w, nu])[:, None]
+        direction = inward_direction(sample, bkd, lower=np.zeros_like(sample))
+        ratios = self._error_ratios(bkd, sample, 0.5, direction)
+        assert max(ratios) <= 1e-6
 
     def test_against_autograd(self, torch_bkd: Backend[Array]) -> None:
-        """Including w = 0 and w = 1, where finite differences cannot reach."""
+        """At weights including 0 and 1; also shows the computation graph
+        through the backend is intact."""
         import torch
 
         bkd = torch_bkd

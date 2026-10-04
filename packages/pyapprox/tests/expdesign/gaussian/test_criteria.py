@@ -5,7 +5,7 @@ relaxation, and checked against an independent reference. Gradients are
 checked through the relaxation, f(w) = criterion(w, nu(w)).
 """
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import pytest
@@ -34,6 +34,8 @@ from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import CachedMoments, DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
 
+from tests._helpers.inward_direction import inward_direction
+
 _Criterion = GaussianDesignCriterionProtocol[Array]
 
 
@@ -44,15 +46,17 @@ class TestCriteria:
 
     def _setup(self, bkd: Backend[Array], correlated: bool = True) -> None:
         rng = np.random.default_rng(23)
+        # Well-conditioned covariances keep rounding small enough for the
+        # first-order DerivativeChecker to reach error_ratio <= 1e-6.
         root = rng.normal(size=(self._nx, self._nx))
-        self._prior_cov = root @ root.T + 0.2 * np.eye(self._nx)
+        self._prior_cov = root @ root.T / self._nx + np.eye(self._nx)
         self._prior_mean = 0.1 * rng.normal(size=(self._nx, 1))
         self._hmat = rng.normal(size=(self._nobs, self._nx))
         self._bmat = 0.5 * rng.normal(size=(2, self._nx))
         if correlated:
             noise_root = rng.normal(size=(self._nobs, self._nobs))
-            self._noise_cov = 0.05 * noise_root @ noise_root.T + 0.1 * np.eye(
-                self._nobs
+            self._noise_cov = 0.1 * (
+                noise_root @ noise_root.T / self._nobs + np.eye(self._nobs)
             )
         else:
             self._noise_cov = np.diag(rng.uniform(0.05, 0.2, self._nobs))
@@ -177,10 +181,15 @@ class TestCriteria:
     def _criteria(self) -> list[Tuple[_Criterion[Array], int]]:
         return [(AOptimal(), 1), (DOptimal(), 0), (ExpectedInformationGain(), 0)]
 
-    def test_gradients_derivative_checker(self, bkd: Backend[Array]) -> None:
-        self._setup(bkd)
-        # Interior weights; steps up to 0.4 along a unit direction stay in [0, 1].
-        sample = bkd.asarray([[0.5], [0.45], [0.55], [0.5], [0.5]])
+    def _error_ratios(
+        self,
+        bkd: Backend[Array],
+        sample: np.ndarray,
+        direction: Optional[Array] = None,
+    ) -> list[float]:
+        """DerivativeChecker error ratio of each criterion through the
+        relaxation; steps up to 0.5 stay in [0, 1] for the samples used."""
+        ratios = []
         for criterion, index in self._criteria():
 
             def fun(
@@ -207,12 +216,30 @@ class TestCriteria:
                 FunctionWithJacobianFromCallable(1, self._nobs, fun, jac, bkd)
             )
             errors = checker.check_derivatives(
-                sample, fd_eps=bkd.flip(bkd.logspace(-12, -0.4, 13))
+                bkd.asarray(sample),
+                fd_eps=bkd.flip(bkd.logspace(-12, float(np.log10(0.5)), 13)),
+                direction=direction,
             )
-            assert bkd.to_float(checker.error_ratio(errors[0])) <= 1e-6
+            ratios.append(bkd.to_float(checker.error_ratio(errors[0])))
+        return ratios
+
+    def test_gradients_derivative_checker(self, bkd: Backend[Array]) -> None:
+        """Interior: w = 0.5."""
+        self._setup(bkd)
+        assert max(self._error_ratios(bkd, np.full((self._nobs, 1), 0.5))) <= 1e-6
+
+    def test_gradients_derivative_checker_at_bounds(self, bkd: Backend[Array]) -> None:
+        """w_1 = 0 and w_3 = 1, with a direction pointing into [0, 1]^d."""
+        self._setup(bkd)
+        sample = np.array([[0.5], [0.0], [0.5], [1.0], [0.5]])
+        direction = inward_direction(
+            sample, bkd, lower=np.zeros_like(sample), upper=np.ones_like(sample)
+        )
+        assert max(self._error_ratios(bkd, sample, direction)) <= 1e-6
 
     def test_gradients_against_autograd(self, torch_bkd: Backend[Array]) -> None:
-        """At weights including 0 and 1, where finite differences cannot reach."""
+        """At weights including 0 and 1; also shows the computation graph
+        through the backend is intact."""
         import torch
 
         bkd = torch_bkd

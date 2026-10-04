@@ -27,6 +27,8 @@ from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
 
+from tests._helpers.inward_direction import inward_direction
+
 
 class TestDesignObjective:
     """xi ~ N(0, P) in R^4, data H xi (5 x 4), targets B xi (2 x 4) and xi."""
@@ -105,6 +107,25 @@ class TestDesignObjective:
             checker = DerivativeChecker(self._objective(criterion, index))
             errors = checker.check_derivatives(
                 sample, fd_eps=bkd.flip(bkd.logspace(-12, float(np.log10(0.5)), 13))
+            )
+            assert bkd.to_float(checker.error_ratio(errors[0])) <= 1e-6
+
+    def test_derivative_checker_at_bounds(self, bkd: Backend[Array]) -> None:
+        """w_1 = 0 and w_4 = 1, with a direction pointing into [0, 1]^d."""
+        self._setup(bkd)
+        sample_np = np.array([[0.5], [0.0], [0.5], [1.0], [0.5]])
+        direction = inward_direction(
+            sample_np,
+            bkd,
+            lower=np.zeros_like(sample_np),
+            upper=np.ones_like(sample_np),
+        )
+        for criterion, index in self._criteria():
+            checker = DerivativeChecker(self._objective(criterion, index))
+            errors = checker.check_derivatives(
+                bkd.asarray(sample_np),
+                fd_eps=bkd.flip(bkd.logspace(-12, float(np.log10(0.5)), 13)),
+                direction=direction,
             )
             assert bkd.to_float(checker.error_ratio(errors[0])) <= 1e-6
 

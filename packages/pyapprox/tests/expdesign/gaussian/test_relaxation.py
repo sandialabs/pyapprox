@@ -6,6 +6,7 @@ marginalized exactly.
 """
 
 from itertools import product
+from typing import Optional
 
 import numpy as np
 import pytest
@@ -28,6 +29,8 @@ from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import CachedMoments, DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
 
+from tests._helpers.inward_direction import inward_direction
+
 
 class TestBlendedObservation:
     _nm, _na, _nobs = 2, 2, 4
@@ -35,13 +38,15 @@ class TestBlendedObservation:
     def _setup(self, bkd: Backend[Array], correlated: bool = True) -> None:
         rng = np.random.default_rng(18)
         nx = self._nm + self._na
+        # Well-conditioned covariances keep rounding small enough for the
+        # first-order DerivativeChecker to reach error_ratio <= 1e-6.
         root = rng.normal(size=(nx, nx))
-        self._prior_cov = root @ root.T + 0.2 * np.eye(nx)
+        self._prior_cov = root @ root.T / nx + np.eye(nx)
         self._hmat = rng.normal(size=(self._nobs, nx))
         if correlated:
             noise_root = rng.normal(size=(self._nobs, self._nobs))
-            self._noise_cov = 0.05 * noise_root @ noise_root.T + 0.1 * np.eye(
-                self._nobs
+            self._noise_cov = 0.1 * (
+                noise_root @ noise_root.T / self._nobs + np.eye(self._nobs)
             )
         else:
             self._noise_cov = np.diag(rng.uniform(0.05, 0.2, self._nobs))
@@ -199,8 +204,13 @@ class TestBlendedObservation:
         dw, dnu = obs.covariance_vjp(cov_bar)
         return value, dw + dnu * self._relax.variances_jacobian_diagonal(w)
 
-    def test_composite_derivative_checker(self, bkd: Backend[Array]) -> None:
-        self._setup(bkd)
+    def _composite_error_ratio(
+        self,
+        bkd: Backend[Array],
+        sample: np.ndarray,
+        max_step: float,
+        direction: Optional[Array] = None,
+    ) -> float:
         cov_bar = bkd.asarray(np.random.default_rng(20).normal(size=(2, 2)))
 
         def fun(samples: Array) -> Array:
@@ -212,22 +222,37 @@ class TestBlendedObservation:
             ]
             return bkd.reshape(bkd.hstack(values), (1, -1))
 
-        def jac(sample: Array) -> Array:
-            return bkd.reshape(self._composite(bkd, cov_bar, sample)[1], (1, -1))
+        def jac(single: Array) -> Array:
+            return bkd.reshape(self._composite(bkd, cov_bar, single)[1], (1, -1))
 
         checker = DerivativeChecker(
             FunctionWithJacobianFromCallable(1, self._nobs, fun, jac, bkd)
         )
-        # w in [0.45, 0.55] with steps up to 0.4 stays inside [0, 1]
-        # because the direction is a unit vector.
-        sample = bkd.asarray([[0.5], [0.45], [0.55], [0.5]])
         errors = checker.check_derivatives(
-            sample, fd_eps=bkd.flip(bkd.logspace(-12, -0.4, 13))
+            bkd.asarray(sample),
+            fd_eps=bkd.flip(bkd.logspace(-12, float(np.log10(max_step)), 13)),
+            direction=direction,
         )
-        assert bkd.to_float(checker.error_ratio(errors[0])) <= 1e-6
+        return bkd.to_float(checker.error_ratio(errors[0]))
+
+    def test_composite_derivative_checker(self, bkd: Backend[Array]) -> None:
+        """Interior: w = 0.5 with steps up to 0.5 stays in [0, 1]."""
+        self._setup(bkd)
+        sample = np.full((self._nobs, 1), 0.5)
+        assert self._composite_error_ratio(bkd, sample, 0.5) <= 1e-6
+
+    def test_composite_derivative_checker_at_bounds(self, bkd: Backend[Array]) -> None:
+        """w_1 = 0 and w_3 = 1, with a direction pointing into [0, 1]^d."""
+        self._setup(bkd)
+        sample = np.array([[0.0], [0.5], [1.0], [0.5]])
+        direction = inward_direction(
+            sample, bkd, lower=np.zeros_like(sample), upper=np.ones_like(sample)
+        )
+        assert self._composite_error_ratio(bkd, sample, 0.5, direction) <= 1e-6
 
     def test_composite_against_autograd(self, torch_bkd: Backend[Array]) -> None:
-        """At weights including 0 and 1, where finite differences cannot reach."""
+        """At weights including 0 and 1; also shows the computation graph
+        through the backend is intact."""
         import torch
 
         bkd = torch_bkd
