@@ -12,6 +12,7 @@ from pyapprox.pde.boundary.classification import BCDofClassification
 from pyapprox.pde.boundary.constraint_set import DirichletConstraintSet
 from pyapprox.pde.boundary.natural_operator import NaturalBCOperator
 from pyapprox.pde.boundary.protocols import (
+    BoundaryConditionRole,
     ConstraintSetProtocol,
     EssentialBCProtocol,
     WeakFormBCProtocol,
@@ -26,6 +27,7 @@ from pyapprox.pde.boundary.time_derivative_function import (
 __all__ = [
     "BCDofClassification",
     "BCRoles",
+    "BoundaryConditionRole",
     "BoundarySignal",
     "DofSignal",
     "TimeDerivativeFunction",

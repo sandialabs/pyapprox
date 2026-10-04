@@ -199,7 +199,21 @@ class BCEnforcingForwardResidual(Generic[Array]):
         return matrix
 
     def zero_adjoint_rhs(self, dqdu: Array, zero_essential: bool = True) -> Array:
-        """Zero dQ/dy at essential (Dirichlet) BC DOFs.
+        r"""Zero :math:`\partial Q / \partial y` at essential BC DOFs.
+
+        This drops the :math:`-\partial_{y_{n,E}} Q` term of the
+        essential adjoint entries; it does NOT make them zero. They
+        remain the reaction
+
+        .. math::
+
+            \lambda_{n,E} = -\sum_{i \notin E} (A_n)_{iE}\, \lambda_{n,i}
+                - \sum_{i \notin R} (B_{n+1})_{iE}\, \lambda_{n+1,i}
+
+        (``BCDofClassification``), which does not enter coefficient
+        parameter gradients. On the replaced rows that are not
+        essential (:math:`R \setminus E`: Neumann, Robin, periodic) the
+        adjoint is a genuine unknown and is never zeroed here.
 
         Parameters
         ----------
@@ -207,10 +221,11 @@ class BCEnforcingForwardResidual(Generic[Array]):
             Functional derivative dQ/dy at a single time step.
             Shape: (nstates,).
         zero_essential : bool, default True
-            If True, zero dQ/dy at essential BC DOFs, forcing
-            lambda[b] = 0. Correct when differentiating w.r.t.
-            PDE parameters (essential DOFs are prescribed).
-            Set to False when computing gradients w.r.t. BC parameters.
+            If True, zero dQ/dy at essential BC DOFs — correct when
+            differentiating w.r.t. coefficient parameters. Set to False
+            for gradients w.r.t. BC data, where the full reaction
+            (including :math:`-\partial_{y_{n,E}} Q`) is the multiplier
+            of the constraint.
 
         Returns
         -------

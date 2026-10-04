@@ -24,6 +24,7 @@ import numpy.typing as npt
 from scipy.sparse import issparse, spmatrix
 
 from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.boundary.signal import BoundarySignal, DofSignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeAwareCallableProtocol,
@@ -34,10 +35,6 @@ from pyapprox.pde.galerkin.protocols.basis import (
     ComponentDofsBasisProtocol,
     GalerkinBasisProtocol,
 )
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
-)
-from pyapprox.pde.sparse_utils import apply_dirichlet_rows
 from pyapprox.util.backends.protocols import Array, Backend
 
 try:
@@ -249,102 +246,6 @@ class DirichletBC(Generic[Array]):
             ]
 
         return self._bkd.asarray(values_np.astype(np.float64))
-
-    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
-        """Apply Dirichlet BC to residual.
-
-        Sets residual[dof] = state[dof] - g(x, t) for boundary DOFs.
-
-        Parameters
-        ----------
-        residual : Array
-            Residual vector. Shape: (nstates,)
-        state : Array
-            Current solution. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Modified residual. Shape: (nstates,)
-        """
-        res_np = self._bkd.to_numpy(residual).copy()
-        state_np = self._bkd.to_numpy(state)
-        bndry_dofs_np = self._bkd.to_numpy(self._boundary_dofs)
-        bndry_vals_np = self._bkd.to_numpy(self.boundary_values(time))
-
-        # Set residual to constraint violation: u - g
-        res_np[bndry_dofs_np] = state_np[bndry_dofs_np] - bndry_vals_np
-
-        return self._bkd.asarray(res_np)
-
-    def apply_to_jacobian(
-        self,
-        jacobian: Union[spmatrix, Array],
-        state: Array,
-        time: float,
-    ) -> Union[spmatrix, Array]:
-        """Apply Dirichlet BC to Jacobian.
-
-        Sets Jacobian rows to identity for boundary DOFs.
-        Accepts both sparse matrices and dense arrays.
-
-        Parameters
-        ----------
-        jacobian : sparse matrix or Array
-            Jacobian matrix. Shape: (nstates, nstates)
-        state : Array
-            Current solution. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        sparse matrix or Array
-            Modified Jacobian (same type as input).
-        """
-        bndry_dofs_np = self._bkd.to_numpy(self._boundary_dofs)
-
-        if issparse(jacobian):
-            return apply_dirichlet_rows(jacobian, bndry_dofs_np)
-        else:
-            jac_np = self._bkd.to_numpy(jacobian).copy()
-            for dof in bndry_dofs_np:
-                jac_np[dof, :] = 0.0
-                jac_np[dof, dof] = 1.0
-            return self._bkd.asarray(jac_np)
-
-    def apply_to_param_jacobian(
-        self,
-        param_jacobian: Array,
-        state: Array,
-        time: float,
-    ) -> Array:
-        """Apply Dirichlet BC to parameter Jacobian.
-
-        Dirichlet constraint u = g(x, t) does not depend on material
-        parameters, so the parameter Jacobian rows at boundary DOFs
-        are set to zero.
-
-        Parameters
-        ----------
-        param_jacobian : Array
-            Parameter Jacobian. Shape: (nstates, nparams)
-        state : Array
-            Current solution. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Modified parameter Jacobian. Shape: (nstates, nparams)
-        """
-        pj_np = self._bkd.to_numpy(param_jacobian).copy()
-        bndry_dofs_np = self._bkd.to_numpy(self._boundary_dofs)
-        pj_np[bndry_dofs_np, :] = 0.0
-        return self._bkd.asarray(pj_np)
 
     def __repr__(self) -> str:
         return (
@@ -919,23 +820,23 @@ class BoundaryConditionSet(Generic[Array]):
         """Return the essential (Dirichlet) BCs, in insertion order."""
         return list(self._dirichlet_bcs)
 
-    def all_conditions(self) -> List[BoundaryConditionProtocol[Array]]:
+    def all_conditions(self) -> List[BoundaryConditionRole[Array]]:
         """Return all boundary conditions as a flat list.
 
         The order is: Dirichlet, then Neumann, then Robin.
         This can be passed directly to physics classes that accept
-        a list of BoundaryConditionProtocol objects.
+        a list of BoundaryConditionRole objects.
 
         Returns
         -------
         List
             All boundary conditions.
         """
-        return (
-            list(self._dirichlet_bcs)
-            + list(self._neumann_bcs)
-            + list(self._robin_bcs)
-        )
+        conditions: List[BoundaryConditionRole[Array]] = []
+        conditions.extend(self._dirichlet_bcs)
+        conditions.extend(self._neumann_bcs)
+        conditions.extend(self._robin_bcs)
+        return conditions
 
     def dirichlet_dofs(self) -> Array:
         """Return all Dirichlet DOF indices."""
@@ -980,7 +881,7 @@ class DirectDirichletBC(Generic[Array]):
     indices and values are known directly (e.g., Euler-Bernoulli beams
     with hardcoded clamped DOFs).
 
-    Satisfies ``DirichletBCProtocol``.
+    Satisfies ``EssentialBCProtocol``.
 
     Parameters
     ----------
@@ -1040,39 +941,6 @@ class DirectDirichletBC(Generic[Array]):
         """Return Dirichlet values (constant, ignores time)."""
         return self._values
 
-    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
-        """Apply Dirichlet BC to residual.
-
-        Sets residual[dof] = state[dof] - value for boundary DOFs.
-        """
-        res_np = self._bkd.to_numpy(residual).copy()
-        state_np = self._bkd.to_numpy(state)
-        dofs_np = self._bkd.to_numpy(self._dof_indices)
-        vals_np = self._bkd.to_numpy(self._values)
-        res_np[dofs_np] = state_np[dofs_np] - vals_np
-        return self._bkd.asarray(res_np)
-
-    def apply_to_jacobian(
-        self,
-        jacobian: Union[spmatrix, Array],
-        state: Array,
-        time: float,
-    ) -> Union[spmatrix, Array]:
-        """Apply Dirichlet BC to Jacobian.
-
-        Sets Jacobian rows to identity for boundary DOFs.
-        Accepts both sparse matrices and dense arrays.
-        """
-        dofs_np = self._bkd.to_numpy(self._dof_indices)
-        if issparse(jacobian):
-            return apply_dirichlet_rows(jacobian, dofs_np)
-        else:
-            jac_np = self._bkd.to_numpy(jacobian).copy()
-            for dof in dofs_np:
-                jac_np[dof, :] = 0.0
-                jac_np[dof, dof] = 1.0
-            return self._bkd.asarray(jac_np)
-
     def __repr__(self) -> str:
         n = len(self._bkd.to_numpy(self._dof_indices))
         return f"DirectDirichletBC(ndofs={n})"
@@ -1084,7 +952,7 @@ class CallableDirichletBC(Generic[Array]):
     Like ``DirectDirichletBC`` but the values are recomputed at each
     time step via a user-supplied callable.
 
-    Satisfies ``DirichletBCProtocol``.
+    Satisfies ``EssentialBCProtocol``.
 
     Parameters
     ----------
@@ -1161,39 +1029,6 @@ class CallableDirichletBC(Generic[Array]):
     def boundary_values(self, time: float = 0.0) -> Array:
         """Return Dirichlet values at given time."""
         return self._evaluate(self._signal.values(), time)
-
-    def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:
-        """Apply Dirichlet BC to residual.
-
-        Sets residual[dof] = state[dof] - value(time) for boundary DOFs.
-        """
-        res_np = self._bkd.to_numpy(residual).copy()
-        state_np = self._bkd.to_numpy(state)
-        dofs_np = self._bkd.to_numpy(self._dof_indices)
-        vals_np = np.asarray(self._signal.values()(time), dtype=np.float64)
-        res_np[dofs_np] = state_np[dofs_np] - vals_np
-        return self._bkd.asarray(res_np)
-
-    def apply_to_jacobian(
-        self,
-        jacobian: Union[spmatrix, Array],
-        state: Array,
-        time: float,
-    ) -> Union[spmatrix, Array]:
-        """Apply Dirichlet BC to Jacobian.
-
-        Sets Jacobian rows to identity for boundary DOFs.
-        Accepts both sparse matrices and dense arrays.
-        """
-        dofs_np = self._bkd.to_numpy(self._dof_indices)
-        if issparse(jacobian):
-            return apply_dirichlet_rows(jacobian, dofs_np)
-        else:
-            jac_np = self._bkd.to_numpy(jacobian).copy()
-            for dof in dofs_np:
-                jac_np[dof, :] = 0.0
-                jac_np[dof, dof] = 1.0
-            return self._bkd.asarray(jac_np)
 
     def __repr__(self) -> str:
         n = len(self._bkd.to_numpy(self._dof_indices))

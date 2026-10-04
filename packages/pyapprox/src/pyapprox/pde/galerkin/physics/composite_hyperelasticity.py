@@ -26,6 +26,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
@@ -34,9 +35,6 @@ from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
-)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -84,7 +82,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         varies in time must declare itself by wrapping in
         ``TimeDependent``; ``TimeIndependent`` declares the opposite for
         a callable that could accept a time but ignores it.
-    boundary_conditions : list of BoundaryConditionProtocol, optional
+    boundary_conditions : list of BoundaryConditionRole, optional
         Boundary conditions (Dirichlet, Neumann, Robin).
 
     Examples
@@ -113,7 +111,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         poisson_ratio: float,
         bkd: Backend[Array],
         body_force: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
+        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ) -> "CompositeHyperelasticityPhysics[Array]":
         """Create from uniform material properties.
 
@@ -144,7 +142,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         element_materials: Dict[str, np.ndarray],
         bkd: Backend[Array],
         body_force: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
+        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
         # Keep the raw supplier (consumers may inspect its type) and a

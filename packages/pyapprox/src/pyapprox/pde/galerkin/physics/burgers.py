@@ -26,13 +26,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
-)
 from pyapprox.util.backends.protocols import Array, Backend
 
 try:
@@ -80,7 +78,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
     forcing : Callable, optional
         Forcing/source term f. Takes coordinates and returns (npts,).
         For time-dependent problems, takes (coordinates, time).
-    boundary_conditions : List[BoundaryConditionProtocol], optional
+    boundary_conditions : List[BoundaryConditionRole], optional
         List of boundary conditions.
     """
 
@@ -90,7 +88,7 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         viscosity: Union[float, Callable[..., Any]],
         bkd: Backend[Array],
         forcing: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
+        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
         self._mass = ScalarMassAssembler(basis, bkd)

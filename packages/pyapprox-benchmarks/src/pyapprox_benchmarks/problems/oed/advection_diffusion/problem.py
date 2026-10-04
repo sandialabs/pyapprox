@@ -33,14 +33,12 @@ from typing import (
 )
 
 if TYPE_CHECKING:
+    from pyapprox.pde.boundary import BoundaryConditionRole
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
         VectorLagrangeBasis,
     )
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
-    from pyapprox.pde.galerkin.protocols.boundary import (
-        BoundaryConditionProtocol,
-    )
 
 import numpy as np
 from pyapprox.interface.functions.fromcallable.function import (
@@ -410,7 +408,7 @@ class AdvectionDiffusionOEDProblem(
             forcing_func = None
 
         alpha = 0.1
-        robin_bcs: List["BoundaryConditionProtocol[Array]"] = [
+        robin_bcs: List["BoundaryConditionRole[Array]"] = [
             RobinBC(self._adr_basis, "left", alpha, 0.0, bkd),
             RobinBC(self._adr_basis, "right", alpha, 0.0, bkd),
         ]
@@ -438,7 +436,7 @@ class AdvectionDiffusionOEDProblem(
         # one step, orders of magnitude above newton_tol, and raises
         # RuntimeError. newton_tol=1e-6 gives headroom for linear-solve
         # roundoff without masking genuine nonlinearity.
-        config = TimeIntegrationConfig(
+        config: TimeIntegrationConfig[Array] = TimeIntegrationConfig(
             method=self._time_integrator,
             init_time=0.0,
             final_time=self._final_time,

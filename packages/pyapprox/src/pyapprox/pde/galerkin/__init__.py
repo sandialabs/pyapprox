@@ -19,17 +19,12 @@ from pyapprox.pde.galerkin.postprocessing import (
     von_mises_stress,
 )
 from pyapprox.pde.galerkin.protocols import (
-    # Boundary condition protocols
-    BoundaryConditionProtocol,
-    DirichletBCProtocol,
     # Basis protocols
     GalerkinBasisProtocol,
     # Mesh protocols
     GalerkinMeshProtocol,
     # Physics protocols
     GalerkinPhysicsProtocol,
-    NeumannBCProtocol,
-    RobinBCProtocol,
     StructuredMeshProtocol,
     VectorBasisProtocol,
 )
@@ -50,11 +45,6 @@ __all__ = [
     "VectorBasisProtocol",
     # Physics protocols
     "GalerkinPhysicsProtocol",
-    # Boundary condition protocols
-    "BoundaryConditionProtocol",
-    "DirichletBCProtocol",
-    "NeumannBCProtocol",
-    "RobinBCProtocol",
     # Time integration adapter
     "GalerkinPhysicsToODEResidualAdapter",
     # Solvers

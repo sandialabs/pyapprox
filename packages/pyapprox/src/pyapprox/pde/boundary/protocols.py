@@ -366,3 +366,12 @@ class ConstraintSetProtocol(Protocol, Generic[Array]):
     def classification(self) -> BCDofClassification:
         """Return the DOF classification (essential == row_replaced)."""
         ...
+
+
+BoundaryConditionRole = Union[
+    WeakFormBCProtocol[Array], EssentialBCProtocol[Array]
+]
+"""A boundary condition in exactly one of the two roles: a natural term
+added to ``F``, or an essential constraint on rows. The type of a BC list
+handed to a physics; ``split_by_role`` separates it, raising on anything
+in neither role."""

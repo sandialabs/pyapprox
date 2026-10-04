@@ -22,6 +22,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeVaryingProtocol,
     as_time_aware,
@@ -29,7 +30,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 # Import skfem for assembly
@@ -84,7 +84,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         Computational backend.
     forcing : Callable, optional
         Source term. Takes coordinates (ndim, npts) and returns (npts,).
-    boundary_conditions : List[BoundaryConditionProtocol], optional
+    boundary_conditions : List[BoundaryConditionRole], optional
         List of boundary conditions.
 
     Examples
@@ -109,7 +109,7 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         wavenumber: Union[float, Callable[..., Any]],
         bkd: Backend[Array],
         forcing: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
+        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)
         self._mass = ScalarMassAssembler(basis, bkd)

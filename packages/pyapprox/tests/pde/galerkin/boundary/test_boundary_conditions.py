@@ -76,56 +76,6 @@ class TestDirichletBCBase:
         )
         bkd.assert_allclose(values, expected)
 
-    def test_1d_dirichlet_apply_to_residual(self, numpy_bkd: NumpyBkd) -> None:
-        """Test Dirichlet BC modifies residual correctly."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-
-        bc = DirichletBC(basis, "left", value_func=2.0, bkd=bkd)
-
-        # Create dummy state and residual
-        nstates = basis.ndofs()
-        state = bkd.asarray(np.zeros(nstates))
-        residual = bkd.asarray(np.ones(nstates))
-
-        # Apply BC
-        modified_res = bc.apply_to_residual(residual, state, time=0.0)
-        modified_res_np = bkd.to_numpy(modified_res)
-
-        # At Dirichlet DOF, residual should be state - g = 0 - 2 = -2
-        assert abs(modified_res_np[0] - -2.0) < 1e-7
-
-        # Other DOFs should be unchanged
-        for i in range(1, nstates):
-            assert abs(modified_res_np[i] - 1.0) < 1e-7
-
-    def test_1d_dirichlet_apply_to_jacobian(self, numpy_bkd: NumpyBkd) -> None:
-        """Test Dirichlet BC modifies Jacobian correctly."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-
-        bc = DirichletBC(basis, "left", value_func=0.0, bkd=bkd)
-
-        nstates = basis.ndofs()
-        state = bkd.asarray(np.zeros(nstates))
-        jacobian = bkd.asarray(np.ones((nstates, nstates)))
-
-        modified_jac = bc.apply_to_jacobian(jacobian, state, time=0.0)
-        modified_jac_np = bkd.to_numpy(modified_jac)
-
-        # Dirichlet row should be identity row
-        expected_row = np.zeros(nstates)
-        expected_row[0] = 1.0
-        np.testing.assert_array_almost_equal(modified_jac_np[0, :], expected_row)
-
-        # Other rows unchanged
-        for i in range(1, nstates):
-            np.testing.assert_array_almost_equal(
-                modified_jac_np[i, :], np.ones(nstates)
-            )
-
     def test_2d_dirichlet_multiple_boundaries(self, numpy_bkd: NumpyBkd) -> None:
         """Test Dirichlet BC on multiple boundaries in 2D."""
         bkd = numpy_bkd

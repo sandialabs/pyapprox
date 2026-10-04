@@ -9,12 +9,6 @@ from pyapprox.pde.galerkin.protocols.basis import (
     GalerkinBasisProtocol,
     VectorBasisProtocol,
 )
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
-    DirichletBCProtocol,
-    NeumannBCProtocol,
-    RobinBCProtocol,
-)
 from pyapprox.pde.galerkin.protocols.mesh import (
     GalerkinMeshProtocol,
     StructuredMeshProtocol,
@@ -33,9 +27,4 @@ __all__ = [
     "VectorBasisProtocol",
     # Physics protocols
     "GalerkinPhysicsProtocol",
-    # Boundary condition protocols
-    "BoundaryConditionProtocol",
-    "DirichletBCProtocol",
-    "NeumannBCProtocol",
-    "RobinBCProtocol",
 ]

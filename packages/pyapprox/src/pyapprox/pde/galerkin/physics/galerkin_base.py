@@ -10,12 +10,9 @@ from abc import ABC, abstractmethod
 from typing import Generic, List, Optional
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import NaturalBCOperator
+from pyapprox.pde.boundary import BoundaryConditionRole, NaturalBCOperator
 from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
-)
 from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
@@ -46,7 +43,7 @@ class GalerkinPhysicsBase(GalerkinBCMixin[Array], ABC, Generic[Array]):
         self,
         basis: GalerkinBasisProtocol[Array],
         bkd: Backend[Array],
-        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
+        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
         self._basis = basis
         self._bkd = bkd

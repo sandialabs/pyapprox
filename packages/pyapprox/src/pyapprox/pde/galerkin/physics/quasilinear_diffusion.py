@@ -29,6 +29,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     as_time_aware,
@@ -36,9 +37,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
-)
 from pyapprox.util.backends.protocols import Array, Backend
 
 try:
@@ -89,7 +87,7 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
     forcing : Callable, optional
         Forcing f. Takes coordinates (ndim, npts) and returns (npts,);
         time-dependent variants take (coordinates, time).
-    boundary_conditions : List[BoundaryConditionProtocol], optional
+    boundary_conditions : List[BoundaryConditionRole], optional
         Boundary conditions.
     """
 
@@ -103,7 +101,7 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
         kappa_second_deriv: _KappaFn,
         forcing: Optional[Callable[..., Any]] = None,
         boundary_conditions: Optional[
-            List[BoundaryConditionProtocol[Array]]
+            List[BoundaryConditionRole[Array]]
         ] = None,
     ):
         super().__init__(basis, bkd, boundary_conditions)

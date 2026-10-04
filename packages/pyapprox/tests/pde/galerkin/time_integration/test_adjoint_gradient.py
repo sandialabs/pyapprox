@@ -31,15 +31,13 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
 from pyapprox.ode.stepper_table import create_stepper
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity as LinearElasticity,
-)
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingAdjointResidual,
@@ -78,7 +76,7 @@ def _make_physics(bkd: NumpyBkd) -> LinearElasticity[_NumpyArray]:
 
     body_force = TimeIndependent(_body_force_impl)
 
-    bc_list: list[BoundaryConditionProtocol[_NumpyArray]] = [
+    bc_list: list[BoundaryConditionRole[_NumpyArray]] = [
         DirichletBC(basis, name, 0.0, bkd)
         for name in ("left", "right", "bottom", "top")
     ]
@@ -99,7 +97,9 @@ def _build_pipeline(
     param = create_galerkin_lame_parameterization(physics, bkd)
     adapter = create_galerkin_physics_ode_residual(physics.system(), param)
     stepper = create_stepper(method, adapter)
-    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), bkd)
+    wrapper = create_galerkin_bc_enforcing_residual(
+        stepper, physics.constraint_set(), bkd
+    )
     assert isinstance(wrapper, GalerkinBCEnforcingAdjointResidual)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=20, atol=1e-12, rtol=0.0)

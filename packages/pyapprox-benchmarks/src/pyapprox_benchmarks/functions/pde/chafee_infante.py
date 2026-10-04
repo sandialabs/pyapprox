@@ -34,6 +34,7 @@ from typing import Any, Callable, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     TimeDependent,
@@ -45,9 +46,6 @@ from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import (
-    BoundaryConditionProtocol,
-)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -178,7 +176,7 @@ def build_chafee_infante_physics(
 
     # Natural Neumann at the right needs NO boundary object: the
     # zero-flux term vanishes from the weak form.
-    boundary_conditions: List[BoundaryConditionProtocol[Array]] = [
+    boundary_conditions: List[BoundaryConditionRole[Array]] = [
         DirichletBC(basis, "left", dirichlet_value, bkd)
     ]
 

@@ -41,6 +41,7 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.ode.state_derivatives import StateDerivatives
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     BasisEvaluableFieldProtocol,
     ConstantDiffusion,
@@ -63,7 +64,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.boundary import BoundaryConditionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 # Import skfem for assembly
@@ -564,7 +564,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     forcing : Callable, optional
         Forcing/source term f. Takes coordinates and returns (npts,).
         For time-dependent problems, takes (coordinates, time).
-    boundary_conditions : List[BoundaryConditionProtocol], optional
+    boundary_conditions : List[BoundaryConditionRole], optional
         List of boundary conditions.
     conservative : bool, default=False
         If True, use conservative advection form div(v*u) with weak form
@@ -612,7 +612,7 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         ] = None,
         reaction: Optional[Union[float, ReactionFunctionProtocol]] = None,
         forcing: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionProtocol[Array]]] = None,
+        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
         conservative: bool = False,
     ):
         super().__init__(basis, bkd, boundary_conditions)
