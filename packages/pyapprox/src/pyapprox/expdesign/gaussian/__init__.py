@@ -5,14 +5,18 @@ observation: it maps weights to the variances of an independent noise
 part, so that a zero weight removes a sensor exactly. ``AOptimal``,
 ``DOptimal`` and ``ExpectedInformationGain`` score a target seen through
 that observation, with gradients in the weights and variances.
+``DesignObjective`` combines a joint Gaussian, a relaxation and a
+criterion into a function of the weights that the OED solvers minimize.
 """
 
 from .criteria import AOptimal, DOptimal, ExpectedInformationGain
+from .objective import DesignObjective
 from .relaxation import BlendedObservation
 
 __all__ = [
     "AOptimal",
     "BlendedObservation",
     "DOptimal",
+    "DesignObjective",
     "ExpectedInformationGain",
 ]
