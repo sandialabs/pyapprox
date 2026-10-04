@@ -6,7 +6,7 @@ This module provides concrete implementations of BaseGroupACVEstimator:
     - GroupACVEstimatorTree: Tree-structured nested sampling estimator
 """
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, cast
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -18,6 +18,7 @@ from pyapprox.statest.groupacv.utils import (
     _get_allocation_matrix_tree,
     _nest_subsets,
 )
+from pyapprox.statest.known import KnownStatistic
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
@@ -195,7 +196,7 @@ class GroupACVEstimatorTree(BaseGroupACVEstimator[Array]):
         model_subsets: Optional[List[Array]] = None,
         asketch: Optional[Array] = None,
         use_pseudo_inv: bool = True,
-        known_quantities: Optional[Any] = None,
+        known_quantities: Optional[Sequence[KnownStatistic[Array]]] = None,
     ) -> None:
         if parents is None:
             raise ValueError(

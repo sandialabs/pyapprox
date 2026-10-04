@@ -29,6 +29,7 @@ from pyapprox.statest.groupacv.tolerance_allocation import (
 )
 from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig
 from pyapprox.statest.groupacv.variants import GroupACVEstimatorNested
+from pyapprox.statest.known import KnownMean
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.tolerance import (
     CVToleranceAllocator,
@@ -83,10 +84,10 @@ def _make_all_known_mlblue(bkd, nmodels=3, nqoi=1, nsamples=5000):
         *stat.compute_pilot_quantities([bkd.array(p) for p in pilot])
     )
     costs = bkd.array([4.0, 2.0, 1.0][:nmodels])
-    known = {
-        (m, "mean"): bkd.array(np.mean(pilot[m], axis=1))
+    known = [
+        KnownMean(m, bkd.array(np.mean(pilot[m], axis=1)))
         for m in range(1, nmodels)
-    }
+    ]
     mlblue = MLBLUEEstimator(stat, costs, known_quantities=known)
     return mlblue, CVEstimator(stat, costs)
 

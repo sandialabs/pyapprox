@@ -4,10 +4,11 @@ Uses GroupACVEstimatorIS (not MLBLUEEstimator which rejects non-mean stats).
 All benchmarks use MultiOutputEnsembleBenchmark(psd=True).
 """
 
-from typing import Dict, List, Tuple
+from typing import List
 
 import numpy as np
 import pytest
+
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.statest.allocation import CVAllocator
@@ -18,6 +19,7 @@ from pyapprox.statest.groupacv import (
     GroupACVEstimatorNested,
 )
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
+from pyapprox.statest.known import KnownMean, KnownStatistic, KnownVariance
 from pyapprox.statest.statistics import (
     MultiOutputMeanAndVariance,
     MultiOutputVariance,
@@ -117,28 +119,28 @@ def _compute_known_mean_values(
 
 def _build_known_quantities_variance(
     bkd, cov, nqoi, lf_model_indices, cov_model_offset=0,
-) -> Dict[Tuple[int, str], Array]:
-    """Build known_quantities dict for variance stat."""
-    kq: Dict[Tuple[int, str], Array] = {}
+) -> List[KnownStatistic[Array]]:
+    """Build known_quantities list for variance stat."""
+    kq: List[KnownStatistic[Array]] = []
     for m in lf_model_indices:
-        kq[(m, "variance")] = _compute_known_variance_values(
+        kq.append(KnownVariance(m, _compute_known_variance_values(
             bkd, cov, m + cov_model_offset, nqoi
-        )
+        )))
     return kq
 
 
 def _build_known_quantities_mean_variance(
     bkd, bench, cov, nqoi, qoi_idx, lf_model_indices, cov_model_offset=0,
-) -> Dict[Tuple[int, str], Array]:
-    """Build known_quantities dict for mean+variance stat."""
-    kq: Dict[Tuple[int, str], Array] = {}
+) -> List[KnownStatistic[Array]]:
+    """Build known_quantities list for mean+variance stat."""
+    kq: List[KnownStatistic[Array]] = []
     for m in lf_model_indices:
-        kq[(m, "mean")] = _compute_known_mean_values(
+        kq.append(KnownMean(m, _compute_known_mean_values(
             bkd, bench, m + cov_model_offset, qoi_idx
-        )
-        kq[(m, "variance")] = _compute_known_variance_values(
+        )))
+        kq.append(KnownVariance(m, _compute_known_variance_values(
             bkd, cov, m + cov_model_offset, nqoi
-        )
+        )))
     return kq
 
 
@@ -189,10 +191,10 @@ class TestKnownQuantitiesValidationVariance:
         model_idx = [0, 1, 2]
         qoi_idx = [0]
         stat, costs, cov = _setup_variance_stat(bkd, bench, model_idx, qoi_idx)
-        with pytest.raises(ValueError, match="not available"):
+        with pytest.raises(ValueError, match="accepts no known KnownMean"):
             GroupACVEstimatorIS(
                 stat, costs,
-                known_quantities={(1, "mean"): bkd.asarray([0.5])},
+                known_quantities=[KnownMean(1, bkd.asarray([0.5]))],
             )
 
     def test_mean_and_variance_partial_rejected(self, bkd) -> None:
@@ -202,12 +204,10 @@ class TestKnownQuantitiesValidationVariance:
         stat, costs, cov = _setup_mean_variance_stat(
             bkd, bench, model_idx, qoi_idx
         )
-        with pytest.raises(ValueError, match="all-or-nothing"):
+        with pytest.raises(ValueError, match="mean and variance together"):
             GroupACVEstimatorIS(
                 stat, costs,
-                known_quantities={
-                    (1, "mean"): bkd.asarray([0.5]),
-                },
+                known_quantities=[KnownMean(1, bkd.asarray([0.5]))],
             )
 
     def test_mean_and_variance_partial_reversed_rejected(self, bkd) -> None:
@@ -218,12 +218,10 @@ class TestKnownQuantitiesValidationVariance:
             bkd, bench, model_idx, qoi_idx
         )
         var_vals = _compute_known_variance_values(bkd, cov, 1, 1)
-        with pytest.raises(ValueError, match="all-or-nothing"):
+        with pytest.raises(ValueError, match="mean and variance together"):
             GroupACVEstimatorIS(
                 stat, costs,
-                known_quantities={
-                    (1, "variance"): var_vals,
-                },
+                known_quantities=[KnownVariance(1, var_vals)],
             )
 
 
@@ -316,7 +314,7 @@ class TestEmptyKVariance:
 
         est_std = EstimatorCls(stat_std, costs)
         est_kq = EstimatorCls(stat_kq, costs, known_quantities=None)
-        est_empty = EstimatorCls(stat_kq, costs, known_quantities={})
+        est_empty = EstimatorCls(stat_kq, costs, known_quantities=[])
 
         nps = bkd.full((est_std.nsubsets(),), 50.0)
 

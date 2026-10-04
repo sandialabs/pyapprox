@@ -320,6 +320,7 @@ maps `(model_index, stat_name)` pairs to the known value array:
 from pyapprox.statest.groupacv import GroupACVEstimatorIS
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationOptimizer
 from pyapprox.statest.groupacv.utils import get_model_subsets
+from pyapprox.statest import KnownMean, KnownVariance
 from pyapprox.statest.statistics import MultiOutputMean
 
 # Assume bench is a PolynomialEnsembleBenchmark with nmodels=5
@@ -328,10 +329,10 @@ stat.set_pilot_quantities(bench.ensemble_covariance())
 
 # Known means for models 1 and 3 (analytic surrogate, GP posterior)
 means = bench.ensemble_means()  # shape (nmodels, nqoi)
-known_quantities = {
-    (1, "mean"): means[1, :],   # shape (nqoi,)
-    (3, "mean"): means[3, :],
-}
+known_quantities = [
+    KnownMean(1, means[1, :]),  # shape (nqoi,)
+    KnownMean(3, means[3, :]),
+]
 
 est = GroupACVEstimatorIS(
     stat,
@@ -342,22 +343,23 @@ est = GroupACVEstimatorIS(
 result = GroupACVAllocationOptimizer(est).optimize(target_cost=100.0)
 ```
 
-For mean+variance estimation, both keys per model are required:
+For mean+variance estimation, both are required per model:
 
 ```python
 means = bench.ensemble_means()             # shape (nmodels, nqoi)
 cov = bench.ensemble_covariance()          # shape (nmodels, nmodels)
 variances = bkd.diag(cov)                  # shape (nmodels,)
-known_quantities = {
-    (1, "mean"): means[1, :],              # per-model all-or-nothing
-    (1, "variance"): variances[1:2],
-    (3, "mean"): means[3, :],
-    (3, "variance"): variances[3:4],
-}
+known_quantities = [
+    KnownMean(1, means[1, :]),             # per-model all-or-nothing
+    KnownVariance(1, variances[1:2]),
+    KnownMean(3, means[3, :]),
+    KnownVariance(3, variances[3:4]),
+]
 ```
 
-For variance-only estimation with `MultiOutputVariance`, only the variance
-keys are accepted; mean keys are rejected with an explanatory error.
+Each statistic decides which known statistics it accepts: with
+`MultiOutputVariance` only `KnownVariance` is accepted, and a `KnownMean`
+is rejected with an explanatory error.
 
 
 ## What the Optimizer Does With Known Moments
@@ -424,8 +426,9 @@ total cost.
 - Known moments improve the convergence rate to the CV-$M$ floor
   (see @fig-mixed-known-spectrum panel a) and the optimized-allocation variance at
   any finite budget (see @fig-mixed-known-spectrum panel b)
-- The `known_quantities` API takes a dict mapping `(model_index, stat_name)`
-  to the known value array
+- The `known_quantities` API takes a list of known statistics, such as
+  `KnownMean(model_index, values)`, and the statistic being estimated checks
+  they are consistent with it
 - Known variance requires known mean — the fitter enforces this. For joint
   mean+variance estimation, this becomes the per-model all-or-nothing rule
 - The framework interpolates smoothly between full ACV

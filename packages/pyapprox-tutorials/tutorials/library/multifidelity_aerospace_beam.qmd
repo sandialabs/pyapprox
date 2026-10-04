@@ -370,6 +370,7 @@ from pyapprox.statest.groupacv import (
 )
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationOptimizer
 from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig
+from pyapprox.statest import KnownMean, KnownVariance
 from pyapprox.statest.statistics import MultiOutputVariance
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 
@@ -416,7 +417,8 @@ def _optimize_variance(stat_obj, kq, tc):
 
 # ---- Per-QoI mean and variance stats (nqoi=1 each) ----
 all_results = {}
-kq_mean_full = known_quantities[(3, "mean")]
+(known_pce_mean,) = known_quantities   # the PCE's mean, model 3
+kq_mean_full = known_pce_mean.values
 
 for qi, qname in enumerate(qoi_names):
     pv_qi = [v[qi:qi+1, :] for v in pilot_values]
@@ -425,16 +427,16 @@ for qi, qname in enumerate(qoi_names):
     stat_m = MultiOutputMean(1, bkd)
     cov_m, = stat_m.compute_pilot_quantities(pv_qi)
     stat_m.set_pilot_quantities(cov_m)
-    kq_m = {(3, "mean"): bkd.array([bkd.to_numpy(kq_mean_full)[qi]])}
+    kq_m = [KnownMean(3, bkd.array([bkd.to_numpy(kq_mean_full)[qi]]))]
 
     # Variance stat
     stat_v = MultiOutputVariance(1, bkd)
     cov_v, W_v = stat_v.compute_pilot_quantities(pv_qi)
     stat_v.set_pilot_quantities(cov_v, W_v)
-    kq_v = {
-        (3, "mean"): bkd.array([bkd.to_numpy(kq_mean_full)[qi]]),
-        (3, "variance"): bkd.array([pce_var_np[qi]]),
-    }
+    kq_v = [
+        KnownMean(3, bkd.array([bkd.to_numpy(kq_mean_full)[qi]])),
+        KnownVariance(3, bkd.array([pce_var_np[qi]])),
+    ]
 
     # Mean estimation (direct optimizer)
     mc_vals, gacv_vals, gacv_kn_vals = [], [], []

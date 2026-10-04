@@ -6,11 +6,12 @@ estimator for Multi-Level Best Linear Unbiased Estimation.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Sequence
 
 import numpy as np
 
 from pyapprox.statest.groupacv.variants import GroupACVEstimatorIS
+from pyapprox.statest.known import KnownStatistic
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ class MLBLUEEstimator(GroupACVEstimatorIS[Array]):
         model_subsets: Optional[List[Array]] = None,
         asketch: Optional[Array] = None,
         use_pseudo_inv: bool = True,
-        known_quantities: Optional[Dict[Tuple[int, str], Array]] = None,
+        known_quantities: Optional[Sequence[KnownStatistic[Array]]] = None,
     ):
         from pyapprox.statest.statistics import (
             MultiOutputMeanAndVariance,

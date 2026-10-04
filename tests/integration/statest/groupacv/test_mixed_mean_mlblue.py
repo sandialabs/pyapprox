@@ -5,8 +5,12 @@ correction, and variance reduction in MLBLUEEstimator and
 GroupACVEstimatorNested.
 """
 
+from dataclasses import dataclass
+from typing import Generic
+
 import numpy as np
 import pytest
+
 from pyapprox.statest.allocation import CVAllocator
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.groupacv import (
@@ -16,10 +20,12 @@ from pyapprox.statest.groupacv import (
     MLBLUESPDAllocationOptimizer,
 )
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationResult
+from pyapprox.statest.known import KnownMean, KnownVariance
 from pyapprox.statest.statistics import (
     MultiOutputMean,
     MultiOutputVariance,
 )
+from pyapprox.util.backends.protocols import Array
 from pyapprox.util.optional_deps import package_available
 from pyapprox_benchmarks.statest.multioutput_ensemble import (
     MultiOutputEnsembleBenchmark,
@@ -29,6 +35,14 @@ from pyapprox_benchmarks.statest.polynomial_ensemble import (
 )
 
 HAS_CVXPY = package_available("cvxpy")
+
+
+@dataclass(frozen=True)
+class _KnownMedian(Generic[Array]):
+    """A known statistic of a kind no shipped statistic accepts."""
+
+    model: int
+    values: Array
 
 
 def _poly_benchmark(bkd, nmodels=5):
@@ -45,8 +59,8 @@ def _make_stat(bkd, cov, nqoi=1):
     return stat
 
 
-def _known_means_dict(models, means_arr, nqoi=1):
-    """Build known_quantities dict from model indices and means array.
+def _known_means(models, means_arr, nqoi=1):
+    """Build known_quantities list from model indices and means array.
 
     Parameters
     ----------
@@ -57,10 +71,9 @@ def _known_means_dict(models, means_arr, nqoi=1):
     nqoi : int
         Number of QoI.
     """
-    kq = {}
-    for ii, m in enumerate(models):
-        kq[(m, "mean")] = means_arr[ii, :nqoi]
-    return kq
+    return [
+        KnownMean(m, means_arr[ii, :nqoi]) for ii, m in enumerate(models)
+    ]
 
 
 def _make_mlblue_nqoi1(bkd, nmodels=5, **kwargs):
@@ -120,7 +133,7 @@ class TestKnownQuantitiesValidation:
         with pytest.raises(ValueError, match="Model 0"):
             MLBLUEEstimator(
                 stat, costs,
-                known_quantities={(0, "mean"): bkd.asarray([0.5])},
+                known_quantities=[KnownMean(0, bkd.asarray([0.5]))],
             )
 
     def test_out_of_range_rejected(self, bkd) -> None:
@@ -131,7 +144,7 @@ class TestKnownQuantitiesValidation:
         with pytest.raises(ValueError, match="out of range"):
             MLBLUEEstimator(
                 stat, costs,
-                known_quantities={(5, "mean"): bkd.asarray([0.5])},
+                known_quantities=[KnownMean(5, bkd.asarray([0.5]))],
             )
 
     def test_shape_mismatch_rejected(self, bkd) -> None:
@@ -139,10 +152,10 @@ class TestKnownQuantitiesValidation:
         cov = bench.ensemble_covariance()
         costs = bench.problem().costs()
         stat = _make_stat(bkd, cov)
-        with pytest.raises(ValueError, match="shape"):
+        with pytest.raises(ValueError, match="expects"):
             MLBLUEEstimator(
                 stat, costs,
-                known_quantities={(1, "mean"): bkd.asarray([0.5, 0.3])},
+                known_quantities=[KnownMean(1, bkd.asarray([0.5, 0.3]))],
             )
 
     def test_nonfinite_rejected(self, bkd) -> None:
@@ -153,9 +166,7 @@ class TestKnownQuantitiesValidation:
         with pytest.raises(ValueError, match="non-finite"):
             MLBLUEEstimator(
                 stat, costs,
-                known_quantities={
-                    (1, "mean"): bkd.asarray([float("nan")])
-                },
+                known_quantities=[KnownMean(1, bkd.asarray([float("nan")]))],
             )
 
     def test_variance_only_stat_rejected(self, numpy_bkd) -> None:
@@ -169,18 +180,18 @@ class TestKnownQuantitiesValidation:
         with pytest.raises(NotImplementedError, match="mean estimation"):
             MLBLUEEstimator(
                 stat, costs,
-                known_quantities={(1, "variance"): bkd.asarray([0.5])},
+                known_quantities=[KnownVariance(1, bkd.asarray([0.5]))],
             )
 
-    def test_invalid_stat_name_rejected(self, bkd) -> None:
+    def test_unknown_kind_rejected(self, bkd) -> None:
         bench = _poly_benchmark(bkd, 3)
         cov = bench.ensemble_covariance()
         costs = bench.problem().costs()
         stat = _make_stat(bkd, cov)
-        with pytest.raises(ValueError, match="not available"):
+        with pytest.raises(ValueError, match="accepts no known _KnownMedian"):
             MLBLUEEstimator(
                 stat, costs,
-                known_quantities={(1, "banana"): bkd.asarray([0.5])},
+                known_quantities=[_KnownMedian(1, bkd.asarray([0.5]))],
             )
 
     def test_variance_on_mean_stat_rejected(self, bkd) -> None:
@@ -188,10 +199,10 @@ class TestKnownQuantitiesValidation:
         cov = bench.ensemble_covariance()
         costs = bench.problem().costs()
         stat = _make_stat(bkd, cov)
-        with pytest.raises(ValueError, match="not available"):
+        with pytest.raises(ValueError, match="accepts no known KnownVariance"):
             MLBLUEEstimator(
                 stat, costs,
-                known_quantities={(1, "variance"): bkd.asarray([0.5])},
+                known_quantities=[KnownVariance(1, bkd.asarray([0.5]))],
             )
 
 
@@ -237,13 +248,13 @@ class TestEmptyKBitIdentical:
             est_std, _ = _make_mlblue_nqoi1(bkd, nmodels=3)
             est_km, _ = _make_mlblue_nqoi1(
                 bkd, nmodels=3,
-                known_quantities={},
+                known_quantities=[],
             )
         else:
             est_std, _, _ = _make_mlblue_multi_qoi(bkd, nqoi=nqoi)
             est_km, _, _ = _make_mlblue_multi_qoi(
                 bkd, nqoi=nqoi,
-                known_quantities={},
+                known_quantities=[],
             )
 
         nps = bkd.full((est_std.nsubsets(),), 50.0)
@@ -273,7 +284,7 @@ class TestAllKnownMeansRecoversCVEstimator:
         costs = bench.problem().costs()
         means = bench.ensemble_means()
 
-        kq = _known_means_dict(list(range(1, nmodels)), means[1:], nqoi)
+        kq = _known_means(list(range(1, nmodels)), means[1:], nqoi)
 
         stat_mlblue = _make_stat(bkd, cov, nqoi)
         subsets = [bkd.asarray(list(range(nmodels)), dtype=int)]
@@ -314,7 +325,7 @@ class TestAllKnownMeansRecoversCVEstimator:
         costs = bench.problem().costs()
         means = bench.ensemble_means()
 
-        kq = _known_means_dict(list(range(1, nmodels)), means[1:])
+        kq = _known_means(list(range(1, nmodels)), means[1:])
 
         subsets = [bkd.asarray(list(range(nmodels)), dtype=int)]
         stat = _make_stat(bkd, cov, 1)
@@ -365,7 +376,7 @@ class TestVarianceMonotonicity:
         prev_var = None
         for k_size in range(nmodels):
             if k_size > 0:
-                kq = _known_means_dict(
+                kq = _known_means(
                     list(range(1, 1 + k_size)),
                     means[1:1 + k_size],
                     nqoi,
@@ -417,10 +428,10 @@ class TestIntermediateK:
 
         var_empty = _var_for_k(None)
         var_partial = _var_for_k(
-            _known_means_dict([2, 3], means[2:4])
+            _known_means([2, 3], means[2:4])
         )
         var_all = _var_for_k(
-            _known_means_dict(list(range(1, nmodels)), means[1:])
+            _known_means(list(range(1, nmodels)), means[1:])
         )
 
         assert var_all <= var_partial + 1e-6
@@ -444,7 +455,7 @@ class TestEmpiricalUnbiasedness:
         means = bench.ensemble_means()
         true_mean = float(means[0, 0])
 
-        kq = _known_means_dict([2, 4], means[[2, 4]])
+        kq = _known_means([2, 4], means[[2, 4]])
 
         stat = _make_stat(bkd, cov)
         subsets = [bkd.asarray(list(range(nmodels)), dtype=int)]
@@ -501,7 +512,7 @@ class TestAnalyticalVsEmpiricalVariance:
         costs = bench.problem().costs()
         means = bench.ensemble_means()
 
-        kq = _known_means_dict([2, 4], means[[2, 4]])
+        kq = _known_means([2, 4], means[[2, 4]])
 
         stat = _make_stat(bkd, cov)
         subsets = [bkd.asarray(list(range(nmodels)), dtype=int)]
@@ -585,7 +596,7 @@ class TestNestedVariant:
         prev_var = None
         for k_size in range(nmodels):
             if k_size > 0:
-                kq = _known_means_dict(
+                kq = _known_means(
                     list(range(1, 1 + k_size)),
                     means[1:1 + k_size],
                 )
@@ -622,7 +633,7 @@ class TestSDPSmoke:
         costs = bench.problem().costs()
 
         stat = _make_stat(bkd, cov, 1)
-        kq = _known_means_dict([1], means[1:2])
+        kq = _known_means([1], means[1:2])
         est = MLBLUEEstimator(
             stat, costs,
             known_quantities=kq,
@@ -643,7 +654,7 @@ class TestSDPSmoke:
         nqoi = 3
 
         stat = _make_stat(bkd, cov, nqoi)
-        kq = _known_means_dict([1], means[1:2], nqoi)
+        kq = _known_means([1], means[1:2], nqoi)
         est = MLBLUEEstimator(
             stat, costs,
             known_quantities=kq,

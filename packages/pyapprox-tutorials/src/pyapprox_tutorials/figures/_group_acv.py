@@ -7,9 +7,12 @@ Covers: group_acv_concept.qmd, group_acv_analysis.qmd,
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
+
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.statest import (
     GMFEstimator,
+    KnownMean,
+    KnownVariance,
     MCEstimator,
     MFMCEstimator,
     MLMCEstimator,
@@ -802,13 +805,13 @@ _CHEAPEST_FIRST_ORDER = [4, 3, 2, 1]
 
 
 def _make_known_quantities(means, nknown, nqoi):
-    """Build known_quantities dict, adding cheapest LF models first."""
+    """Known means of the cheapest LF models first, or None for none."""
     if nknown == 0:
         return None
-    kq = {}
-    for m in _CHEAPEST_FIRST_ORDER[:nknown]:
-        kq[(m, "mean")] = means[m, :nqoi]
-    return kq
+    return [
+        KnownMean(m, means[m, :nqoi])
+        for m in _CHEAPEST_FIRST_ORDER[:nknown]
+    ]
 
 
 def _mixed_ceiling_panel(ax, bkd, benchmark):
@@ -1302,11 +1305,11 @@ def plot_known_stats_multistat(axes, target_cost=500.0):
     nk_range = range(len(order) + 1)
 
     def _build_kq(nknown_mean, nknown_var):
-        kq = {}
-        for i in order[:nknown_mean]:
-            kq[(i, "mean")] = means[i, :nqoi]
-        for i in order[:nknown_var]:
-            kq[(i, "variance")] = variances[i : i + 1]
+        kq = [KnownMean(i, means[i, :nqoi]) for i in order[:nknown_mean]]
+        kq += [
+            KnownVariance(i, variances[i : i + 1])
+            for i in order[:nknown_var]
+        ]
         return kq if kq else None
 
     def _solve_guided(stat, kq):

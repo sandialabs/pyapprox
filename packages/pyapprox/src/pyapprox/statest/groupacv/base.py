@@ -12,10 +12,10 @@ from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Callable,
-    Dict,
     Generic,
     List,
     Optional,
+    Sequence,
     Tuple,
 )
 
@@ -24,6 +24,7 @@ from pyapprox.statest.groupacv.utils import (
     _grouped_acv_sigma_block,
     get_model_subsets,
 )
+from pyapprox.statest.known import KnownStatistic
 from pyapprox.statest.protocols import GroupBlockStatistic
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -69,7 +70,7 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
         model_subsets: Optional[List[Array]] = None,
         asketch: Optional[Array] = None,
         use_pseudo_inv: bool = True,
-        known_quantities: Optional[Dict[Tuple[int, str], Array]] = None,
+        known_quantities: Optional[Sequence[KnownStatistic[Array]]] = None,
     ):
         if not isinstance(stat, GroupBlockStatistic):
             raise ValueError(
@@ -110,10 +111,8 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 
     def _setup_known_quantities(
         self,
-        known_quantities: Optional[Dict[Tuple[int, str], Array]],
+        known_quantities: Optional[Sequence[KnownStatistic[Array]]],
     ) -> None:
-        from pyapprox.statest.statistics import MultiOutputMeanAndVariance
-
         nstats = self._stat.nstats()
 
         if not known_quantities:
@@ -126,55 +125,32 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
             self._K_stat_indices: List[int] = []
             return
 
-        for (model_idx, stat_name), values in known_quantities.items():
-            if model_idx == 0:
+        # The estimator checks what is its own to check -- which models may
+        # be known, and that the values are numbers. Which kinds are
+        # accepted, and which must come together, is the statistic's.
+        for known in known_quantities:
+            name = f"known {type(known).__name__} for model {known.model}"
+            if known.model == 0:
                 raise ValueError(
                     "Model 0 (high-fidelity) cannot have known quantities"
                 )
-            if model_idx < 1 or model_idx >= self._nmodels:
+            if known.model >= self._nmodels:
                 raise ValueError(
-                    f"Model index {model_idx} out of range "
-                    f"[1, {self._nmodels})"
+                    f"{name}: model index out of range [1, {self._nmodels})"
                 )
-            slots = self._stat.stat_slot_indices(stat_name)
-            values_arr = self._bkd.asarray(values)
-            if values_arr.shape != (len(slots),):
-                raise ValueError(
-                    f"known_quantities[({model_idx}, '{stat_name}')] "
-                    f"shape {values_arr.shape} must be ({len(slots)},)"
-                )
-            if not self._bkd.all_bool(self._bkd.isfinite(values_arr)):
-                raise ValueError(
-                    f"known_quantities[({model_idx}, '{stat_name}')] "
-                    f"contains non-finite values"
-                )
-
-        if isinstance(self._stat, MultiOutputMeanAndVariance):
-            models_with_keys: Dict[int, List[str]] = {}
-            for model_idx, stat_name in known_quantities:
-                models_with_keys.setdefault(model_idx, []).append(stat_name)
-            for model_idx, keys in models_with_keys.items():
-                has_mean = "mean" in keys
-                has_var = "variance" in keys
-                if has_mean != has_var:
-                    present = "mean" if has_mean else "variance"
-                    missing = "variance" if has_mean else "mean"
-                    raise ValueError(
-                        f"MultiOutputMeanAndVariance requires per-model "
-                        f"all-or-nothing: model {model_idx} has known "
-                        f"{present} but not {missing}"
-                    )
+            if not self._bkd.all_bool(self._bkd.isfinite(known.values)):
+                raise ValueError(f"{name} contains non-finite values")
+        self._stat.check_known(known_quantities)
 
         self._has_known_quantities = True
         nan_val = float("nan")
         self._known_values = self._bkd.full(
             (self._nmodels, nstats), nan_val
         )
-        for (model_idx, stat_name), values in known_quantities.items():
-            slots = self._stat.stat_slot_indices(stat_name)
-            values_arr = self._bkd.asarray(values)
-            for q_idx, slot in enumerate(slots):
-                self._known_values[model_idx, slot] = values_arr[q_idx]
+        for known in known_quantities:
+            values_arr = self._bkd.asarray(known.values)
+            for q_idx, slot in enumerate(self._stat.known_slots(known)):
+                self._known_values[known.model, slot] = values_arr[q_idx]
 
         self._T_stat_indices = []
         self._K_stat_indices = []

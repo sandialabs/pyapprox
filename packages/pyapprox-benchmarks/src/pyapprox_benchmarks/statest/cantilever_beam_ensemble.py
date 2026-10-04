@@ -15,9 +15,11 @@ input.  Models are wrapped with ``make_parallel`` for multi-core
 evaluation and ``timed`` for cost measurement.
 """
 
-from typing import Dict, Generic, List, Optional, Tuple
+from typing import Generic, List, Optional
 
 import numpy as np
+from scipy.stats import lognorm
+
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.interface.functions.timing import TimedFunction
 from pyapprox.probability.joint.independent import IndependentJoint
@@ -25,12 +27,11 @@ from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.scipy_continuous import (
     ScipyContinuousMarginal,
 )
+from pyapprox.statest.known import KnownMean, KnownStatistic
 from pyapprox.surrogates.affine.expansions.pce import (
     PolynomialChaosExpansion,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from scipy.stats import lognorm
-
 from pyapprox_benchmarks.pde.cantilever_beam_ensemble import (
     MESH_PATHS,
     build_shared_field_beam,
@@ -276,8 +277,8 @@ class CantileverBeamEnsembleProblem(Generic[Array]):
             )
         return self._pce_mean
 
-    def known_quantities(self) -> Dict[Tuple[int, str], Array]:
-        return {(3, "mean"): self.pce_mean()}
+    def known_quantities(self) -> List[KnownStatistic[Array]]:
+        return [KnownMean(3, self.pce_mean())]
 
     def problem(
         self,

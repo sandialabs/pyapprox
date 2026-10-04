@@ -12,15 +12,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
-    Dict,
     Generic,
     List,
     Optional,
+    Sequence,
     Tuple,
     Type,
 )
 
 from pyapprox.statest.groupacv.utils import get_model_subsets
+from pyapprox.statest.known import KnownMean, KnownStatistic, KnownVariance
 from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
@@ -106,11 +107,12 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         actual estimator, and forcing them to the target-stat lower bound
         (e.g. 2 for variance) wastes budget without meaningful variance
         reduction.
-    known_quantities : dict, optional
-        Known statistics, e.g.
-        ``{(3, "mean"): array, (3, "variance"): array}``.
-        Mean-type entries are used in Stage 1 screening; all entries
-        are passed to the Stage 2 target-stat estimator.
+    known_quantities : sequence of KnownStatistic, optional
+        Statistics of cheaper models known exactly, e.g.
+        ``[KnownMean(3, mean), KnownVariance(3, variance)]``. Each goes
+        to the Stage 1 mean screening, the Stage 2 target estimator, or
+        both -- whichever accepts its kind; one neither accepts is
+        refused at construction.
     """
 
     def __init__(
@@ -124,7 +126,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         problem_config: Optional["AllocationProblemConfig"] = None,
         reg_blue: float = 0,
         activity_threshold: float = 1.0,
-        known_quantities: Optional[Dict[Tuple[int, str], Array]] = None,
+        known_quantities: Optional[Sequence[KnownStatistic[Array]]] = None,
     ) -> None:
         from pyapprox.statest.groupacv.variable_space import (
             AllocationProblemConfig,
@@ -139,28 +141,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         self._reg_blue = reg_blue
         self._activity_threshold = activity_threshold
         if known_quantities is not None:
-            stat_accepts_variance = True
-            try:
-                stat.stat_slot_indices("variance")
-            except ValueError:
-                stat_accepts_variance = False
-
-            models_with_keys: Dict[int, List[str]] = {}
-            for model_idx, stat_name in known_quantities:
-                models_with_keys.setdefault(model_idx, []).append(stat_name)
-            for model_idx, keys in models_with_keys.items():
-                if "variance" in keys and "mean" not in keys:
-                    raise ValueError(
-                        f"Model {model_idx} has known variance but not "
-                        f"known mean — a model with known variance must "
-                        f"also have known mean"
-                    )
-                if stat_accepts_variance and "mean" in keys and "variance" not in keys:
-                    raise ValueError(
-                        f"Model {model_idx} has known mean but not known "
-                        f"variance — when estimating variance, both must "
-                        f"be provided"
-                    )
+            _check_known(stat, known_quantities)
         self._known_quantities = known_quantities
 
         if problem_config is None:
@@ -190,32 +171,18 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         mean_stat.set_pilot_quantities(self._stat.pilot_covariance())
         return mean_stat
 
-    def _filter_known_quantities(
-        self,
-        accepted_stat_names: Tuple[str, ...],
-    ) -> Optional[Dict[Tuple[int, str], Array]]:
-        """Filter known_quantities to entries matching accepted stat names."""
+    def _known_for(
+        self, stat: "MultiOutputStatistic[Array]"
+    ) -> Optional[List[KnownStatistic[Array]]]:
+        """The known statistics ``stat`` accepts, or ``None`` if none.
+
+        Each was checked at construction to be accepted by the target or
+        the mean screening, so nothing given is dropped unseen.
+        """
         if self._known_quantities is None:
             return None
-        filtered = {
-            k: v for k, v in self._known_quantities.items()
-            if k[1] in accepted_stat_names
-        }
-        return filtered if filtered else None
-
-    def _target_stat_accepted_names(self) -> Tuple[str, ...]:
-        """Return stat names the target stat accepts in known_quantities."""
-        if self._known_quantities is None:
-            return ()
-        candidate_names = {k[1] for k in self._known_quantities}
-        accepted: List[str] = []
-        for name in sorted(candidate_names):
-            try:
-                self._stat.stat_slot_indices(name)
-                accepted.append(name)
-            except ValueError:
-                pass
-        return tuple(accepted)
+        accepted = [k for k in self._known_quantities if _accepts(stat, k)]
+        return accepted if accepted else None
 
     def _screen(
         self,
@@ -238,7 +205,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
             self._costs,
             reg_blue=self._reg_blue,
             model_subsets=self._candidate_subsets,
-            known_quantities=self._filter_known_quantities(("mean",)),
+            known_quantities=self._known_for(mean_stat),
         )
 
         # Screening config: log space, low lb so partitions can vanish
@@ -339,9 +306,7 @@ class MeanGuidedSubsetFitter(Generic[Array]):
         active_subsets = [
             self._candidate_subsets[i] for i in active_indices
         ]
-        target_kq = self._filter_known_quantities(
-            self._target_stat_accepted_names()
-        )
+        target_kq = self._known_for(self._stat)
         reduced_est = self._estimator_class(
             self._stat,
             self._costs,
@@ -393,3 +358,58 @@ class MeanGuidedSubsetFitter(Generic[Array]):
             mean_allocation=mean_result,
             mean_npartition_samples=mean_result.npartition_samples,
         )
+
+
+def _accepts(
+    stat: "MultiOutputStatistic[Array]", known: KnownStatistic[Array]
+) -> bool:
+    """Whether ``stat`` accepts ``known``'s kind; ``known_slots`` raises if not."""
+    try:
+        stat.known_slots(known)
+    except ValueError:
+        return False
+    return True
+
+
+def _check_known(
+    stat: "MultiOutputStatistic[Array]",
+    known: Sequence[KnownStatistic[Array]],
+) -> None:
+    """Check known statistics against the target and its mean screening.
+
+    Screening fits a mean statistic, so a known value may serve the
+    target, the screening or both; one that neither accepts is refused,
+    never dropped. Two pairing rules are this fitter's own: a known
+    variance needs its model's known mean, which screening uses; and when
+    the target estimates variance, a known mean needs its known variance.
+    Each statistic then checks what it accepts.
+    """
+    from pyapprox.statest.statistics import MultiOutputMean
+
+    screen: MultiOutputMean[Array] = MultiOutputMean(stat.nqoi(), stat.bkd())
+    for item in known:
+        if not (_accepts(stat, item) or _accepts(screen, item)):
+            raise ValueError(
+                f"known {type(item).__name__} for model {item.model} is "
+                f"accepted by neither {type(stat).__name__} nor the mean "
+                "screening"
+            )
+    means = {k.model for k in known if isinstance(k, KnownMean)}
+    variances = {k.model for k in known if isinstance(k, KnownVariance)}
+    unpaired = sorted(variances - means)
+    if unpaired:
+        raise ValueError(
+            f"Model {unpaired[0]} has known variance but not known mean — a "
+            "model with known variance must also have known mean"
+        )
+    # Whether the target estimates variance: whether it takes a known one.
+    # Acceptance depends on the kind alone, so any variance will do to ask.
+    probe: KnownVariance[Array] = KnownVariance(0, stat.bkd().zeros((1,)))
+    unpaired = sorted(means - variances)
+    if unpaired and _accepts(stat, probe):
+        raise ValueError(
+            f"Model {unpaired[0]} has known mean but not known variance — "
+            "when estimating variance, both must be provided"
+        )
+    for target in (stat, screen):
+        target.check_known([k for k in known if _accepts(target, k)])

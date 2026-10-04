@@ -1,6 +1,8 @@
 """Tests for MeanGuidedSubsetFitter with known_quantities."""
 
 import numpy as np
+
+from pyapprox.statest.known import KnownMean, KnownVariance
 from pyapprox.util.backends.numpy import NumpyBkd
 
 
@@ -38,6 +40,7 @@ class TestMeanGuidedKnownQuantities:
     def test_mean_only_kq_raises_for_variance_stat(self, numpy_bkd):
         """Mean-only known_quantities should raise for variance stat."""
         import pytest
+
         from pyapprox.statest.groupacv import (
             MeanGuidedSubsetFitter,
             get_model_subsets,
@@ -53,7 +56,7 @@ class TestMeanGuidedKnownQuantities:
         stat_var = MultiOutputVariance(nqoi, bkd)
         stat_var.set_pilot_quantities(cov, W)
 
-        kq = {(4, "mean"): means[4, :]}
+        kq = [KnownMean(4, means[4, :])]
 
         with pytest.raises(ValueError, match="known mean but not known variance"):
             MeanGuidedSubsetFitter(
@@ -79,10 +82,10 @@ class TestMeanGuidedKnownQuantities:
         stat_var.set_pilot_quantities(cov, W)
 
         variances = bkd.diag(cov)
-        kq = {
-            (4, "mean"): means[4, :],
-            (4, "variance"): variances[4:5],
-        }
+        kq = [
+            KnownMean(4, means[4, :]),
+            KnownVariance(4, variances[4:5]),
+        ]
         target_cost = 200.0
 
         result_none = MeanGuidedSubsetFitter(
@@ -125,10 +128,10 @@ class TestMeanGuidedKnownQuantities:
         stat_var.set_pilot_quantities(cov, W)
 
         variances = bkd.diag(cov)
-        kq_all = {}
+        kq_all = []
         for i in range(1, nmodels):
-            kq_all[(i, "mean")] = means[i, :]
-            kq_all[(i, "variance")] = variances[i : i + 1]
+            kq_all.append(KnownMean(i, means[i, :]))
+            kq_all.append(KnownVariance(i, variances[i : i + 1]))
         target_cost = 100.0
 
         result_none = MeanGuidedSubsetFitter(
@@ -153,6 +156,7 @@ class TestMeanGuidedKnownQuantities:
     def test_variance_only_kq_raises(self, numpy_bkd):
         """Variance-only known_quantities should raise ValueError."""
         import pytest
+
         from pyapprox.statest.groupacv import (
             MeanGuidedSubsetFitter,
             get_model_subsets,
@@ -169,7 +173,7 @@ class TestMeanGuidedKnownQuantities:
         stat_var.set_pilot_quantities(cov, W)
 
         variances = bkd.diag(cov)
-        kq_var_only = {(4, "variance"): variances[4:5]}
+        kq_var_only = [KnownVariance(4, variances[4:5])]
 
         with pytest.raises(ValueError, match="known variance but not known mean"):
             MeanGuidedSubsetFitter(
@@ -195,10 +199,10 @@ class TestMeanGuidedKnownQuantities:
         stat_mv.set_pilot_quantities(cov, W, B)
 
         variances = bkd.diag(cov)
-        kq = {
-            (4, "mean"): means[4, :],
-            (4, "variance"): variances[4:5],
-        }
+        kq = [
+            KnownMean(4, means[4, :]),
+            KnownVariance(4, variances[4:5]),
+        ]
         target_cost = 500.0
 
         result_none = MeanGuidedSubsetFitter(
@@ -239,10 +243,10 @@ class TestMeanGuidedKnownQuantities:
         stat_var.set_pilot_quantities(cov, W)
 
         variances = bkd.diag(cov)
-        kq = {
-            (4, "mean"): means[4, :],
-            (4, "variance"): variances[4:5],
-        }
+        kq = [
+            KnownMean(4, means[4, :]),
+            KnownVariance(4, variances[4:5]),
+        ]
         target_cost = 200.0
 
         result = MeanGuidedSubsetFitter(
