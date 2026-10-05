@@ -55,8 +55,6 @@ class GroupACVObjective(ABC, Generic[Array]):
     def _check_analytical_support(self) -> bool:
         """Check if analytical derivatives are available for IS estimators."""
         _, est = self._ensure_bound()
-        if not hasattr(est._stat, "_group_acv_sigma_block_derivs"):
-            return False
         # Only support IS (allocation_mat is identity)
         amat = est._allocation_mat
         bkd = est._bkd
@@ -66,7 +64,9 @@ class GroupACVObjective(ABC, Generic[Array]):
             return False
         try:
             subset = est._subsets[0]
-            est._stat._group_acv_sigma_block_derivs(subset, 10.0)
+            est._stat._group_acv_sigma_block_derivs(
+                subset, bkd.asarray(10.0)
+            )
             return True
         except NotImplementedError:
             return False
@@ -201,7 +201,9 @@ class GroupACVObjective(ABC, Generic[Array]):
             sigma_m = _grouped_acv_sigma_block(
                 subset, subset, n_m, n_m, n_m, est._stat
             )
-            if bkd.all_bool(sigma_m == 0):
+            if bkd.allclose(
+                sigma_m, bkd.zeros_like(sigma_m), rtol=0.0, atol=0.0
+            ):
                 dpsi_blocks.append(zero_block)
                 d2psi_blocks.append(zero_block)
                 continue

@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from pyapprox.statest.groupacv.optimization import (
         GroupACVCostConstraint,
     )
-    from pyapprox.statest.statistics import MultiOutputStatistic
+    from pyapprox.statest.protocols import GroupBlockStatistic
 
 
 # ---------------------------------------------------------------------------
@@ -767,7 +767,7 @@ class AllocationProblemConfig:
     bounds_lb: Literal["dead_threshold"] | float = "dead_threshold"
 
     def resolve_bounds_lb(
-        self, stat: "MultiOutputStatistic[Array]"
+        self, stat: "GroupBlockStatistic[Array]"
     ) -> float:
         """Resolve the bounds lower bound to a concrete float value."""
         if self.bounds_lb == "dead_threshold":
