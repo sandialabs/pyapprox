@@ -461,7 +461,7 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         nsample_ratios = self._native_ratios_to_npartition_ratios(nsample_ratios)
         return nsample_ratios, val
 
-    def _allocate_samples_analytical(
+    def allocate_samples_analytical(
         self, target_cost: float,
     ) -> Tuple[Array, Array]:
         """Analytical allocation for MFMC.
@@ -566,7 +566,7 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
         partition_ratios = self._native_ratios_to_npartition_ratios(nsample_ratios)
         return partition_ratios, val
 
-    def _allocate_samples_analytical(
+    def allocate_samples_analytical(
         self, target_cost: float,
     ) -> Tuple[Array, Array]:
         """Analytical allocation for MLMC.

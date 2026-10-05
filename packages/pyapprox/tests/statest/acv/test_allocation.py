@@ -12,6 +12,7 @@ from pyapprox.statest.acv.allocation import (
     ACVAllocator,
     ACVAllocatorViaTorch,
     AnalyticalAllocator,
+    AnalyticallyAllocatable,
     default_allocator_factory,
 )
 from pyapprox.statest.acv.base import FittedACVEstimator
@@ -290,14 +291,14 @@ class TestAnalyticalAllocator:
         assert isinstance(allocator, ACVAllocatorViaTorch)
 
     def test_default_allocator_factory_mfmc_returns_analytical(self, bkd):
-        """Returns AnalyticalAllocator for MFMC (has _allocate_samples_analytical)."""
+        """Returns AnalyticalAllocator for MFMC (satisfies AnalyticallyAllocatable)."""
         stat, costs = self._create_mfmc_stat_and_costs(bkd)
         est = MFMCEstimator(stat, costs)
         allocator = default_allocator_factory(est)
         assert isinstance(allocator, AnalyticalAllocator)
 
     def test_default_allocator_factory_mlmc_returns_analytical(self, bkd):
-        """Returns AnalyticalAllocator for MLMC (has _allocate_samples_analytical)."""
+        """Returns AnalyticalAllocator for MLMC (satisfies AnalyticallyAllocatable)."""
         stat, costs = self._create_mlmc_stat_and_costs(bkd)
         est = MLMCEstimator(stat, costs)
         allocator = default_allocator_factory(est)
@@ -331,6 +332,16 @@ class TestAnalyticalAllocator:
         result = allocator.allocate(target_cost=0.1)  # Too small
         assert not result.success
         assert "Budget too small" in result.message
+
+    def test_estimator_without_closed_form_refused(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """An estimator with no closed-form allocation is refused at once."""
+        stat, costs = self._create_mfmc_stat_and_costs(bkd)
+        est = GMFEstimator(stat, costs, recursion_index=bkd.array([0, 1]))
+        assert not isinstance(est, AnalyticallyAllocatable)
+        with pytest.raises(TypeError, match="AnalyticallyAllocatable"):
+            AnalyticalAllocator(est)
 
 
 class TestAllocatorFactory:
@@ -373,14 +384,14 @@ class TestAllocatorFactory:
         assert isinstance(allocator, ACVAllocatorViaTorch)
 
     def test_factory_returns_analytical_for_mfmc(self, bkd):
-        """Returns AnalyticalAllocator for MFMC (has _allocate_samples_analytical)."""
+        """Returns AnalyticalAllocator for MFMC (satisfies AnalyticallyAllocatable)."""
         stat, costs = self._create_stat_and_costs(bkd)
         est = MFMCEstimator(stat, costs)
         allocator = default_allocator_factory(est)
         assert isinstance(allocator, AnalyticalAllocator)
 
     def test_factory_returns_analytical_for_mlmc(self, bkd):
-        """Returns AnalyticalAllocator for MLMC (has _allocate_samples_analytical)."""
+        """Returns AnalyticalAllocator for MLMC (satisfies AnalyticallyAllocatable)."""
         stat, costs = self._create_stat_and_costs(bkd)
         est = MLMCEstimator(stat, costs)
         allocator = default_allocator_factory(est)

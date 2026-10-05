@@ -9,7 +9,16 @@ This module separates allocation optimization from estimation, providing:
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Generic, Optional, Union
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generic,
+    Optional,
+    Protocol,
+    Tuple,
+    Union,
+    runtime_checkable,
+)
 
 from pyapprox.interface.functions.autograd import (
     WithAutogradJacobian,
@@ -30,7 +39,7 @@ from pyapprox.statest.acv.optimization import (
 from pyapprox.statest.acv.result import ACVAllocationResult
 from pyapprox.statest.protocols import TargetArray
 from pyapprox.util.backends.autodiff import AutodiffBackend
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, Array_co, Backend
 
 if TYPE_CHECKING:
     from torch import Tensor
@@ -414,21 +423,44 @@ class ACVAllocatorViaTorch(Allocator[Array]):
         return _convert_result_to_backend(torch_result, self._est.bkd())
 
 
+@runtime_checkable
+class AnalyticallyAllocatable(Protocol[Array_co]):
+    """An estimator whose optimal sample allocation has a closed form."""
+
+    def allocate_samples_analytical(
+        self, target_cost: float
+    ) -> Tuple[Array_co, Array_co]:
+        """Return ``(partition_ratios, objective_value)`` for a budget.
+
+        ``partition_ratios`` has shape ``(nmodels - 1,)`` and
+        ``objective_value`` shape ``(1,)``.
+        """
+        ...
+
+
 class AnalyticalAllocator(Allocator[Array]):
     """Analytical (closed-form) allocator for MFMC/MLMC.
 
-    Uses the estimator's `_allocate_samples_analytical` method for
-    closed-form allocation formulas.
+    Uses the estimator's closed-form allocation formulas.
 
     Parameters
     ----------
     estimator : ACVEstimator
-        The estimator to allocate for. Must have `_allocate_samples_analytical`.
+        The estimator to allocate for. Must satisfy
+        :class:`AnalyticallyAllocatable`.
     """
 
     def __init__(self, estimator: ACVEstimator[Array]):
+        if not isinstance(estimator, AnalyticallyAllocatable):
+            raise TypeError(
+                "estimator must satisfy AnalyticallyAllocatable, got "
+                f"{type(estimator).__name__}"
+            )
         self._est = estimator
         self._bkd: Backend[Array] = estimator._bkd
+        self._allocate_samples: Callable[[float], Tuple[Array, Array]] = (
+            estimator.allocate_samples_analytical
+        )
 
     def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
         """Allocate samples using analytical formula.
@@ -449,7 +481,7 @@ class AnalyticalAllocator(Allocator[Array]):
             )
 
         try:
-            partition_ratios, objective_value = self._est._allocate_samples_analytical(
+            partition_ratios, objective_value = self._allocate_samples(
                 target_cost
             )
         except Exception as e:
@@ -492,7 +524,7 @@ def default_allocator_factory(
 ) -> Allocator[Array]:
     """Create appropriate allocator for estimator type.
 
-    Dispatches by capability: estimators with `_allocate_samples_analytical`
+    Dispatches by capability: estimators satisfying AnalyticallyAllocatable
     get AnalyticalAllocator, everything else gets ACVAllocatorViaTorch.
 
     Parameters
@@ -509,7 +541,7 @@ def default_allocator_factory(
     Allocator
         The most efficient allocator for the given estimator type.
     """
-    if hasattr(estimator, "_allocate_samples_analytical"):
+    if isinstance(estimator, AnalyticallyAllocatable):
         return AnalyticalAllocator(estimator)
 
     return ACVAllocatorViaTorch(estimator, optimizer=optimizer)
