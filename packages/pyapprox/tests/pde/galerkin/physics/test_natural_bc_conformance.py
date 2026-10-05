@@ -1,9 +1,11 @@
 """Natural-BC composition: F = F_Omega + F_Gamma, terms added exactly once.
 
 Every Galerkin physics supplies only its interior; the natural-BC terms are
-added by the composition. ``check_natural_bc_composition`` verifies this for
-each physics, and the two negative cases show it catches a physics that adds
-a term itself or adds one twice.
+added by ``compose_galerkin_system``. The per-physics test checks that the
+terms combine with each physics' own state layout and Jacobian format
+(sparse or dense, scalar or interleaved vector DOFs). The terms' own
+``apply_to_residual``/``apply_to_jacobian`` are the reference; their
+correctness is tested independently.
 """
 
 import pytest
@@ -20,7 +22,12 @@ from pyapprox.pde.boundary import NaturalBCOperator
 from pyapprox.pde.constitutive.coefficient_functions import NodalFieldDiffusion
 from pyapprox.pde.constitutive.neo_hookean import NeoHookeanStress
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
-from pyapprox.pde.galerkin.boundary.implementations import NeumannBC, RobinBC
+from pyapprox.pde.galerkin.boundary.implementations import (
+    DirichletBC,
+    NeumannBC,
+    RobinBC,
+)
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction,
@@ -31,10 +38,9 @@ from pyapprox.pde.galerkin.physics import (
     HyperelasticityPhysics,
     QuasilinearDiffusion,
 )
+from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
 from pyapprox.util.backends.numpy import NumpyBkd
 from scipy.sparse import csr_matrix, issparse
-
-from tests._helpers.natural_bc_conformance import check_natural_bc_composition
 
 _Arr = NDArray[np.floating[Any]]
 _BKD = NumpyBkd()
@@ -78,57 +84,49 @@ def _all_elements(basis: Any) -> Dict[str, NDArray[Any]]:
     return {"all": np.arange(basis.skfem_basis().mesh.nelements)}
 
 
-# Each entry: (basis factory, physics factory taking (basis, bcs), vector?)
+# Each entry: (basis factory, BC-free physics factory taking basis, vector?)
 _PHYSICS: Dict[str, Any] = {
     "adr": (
         _scalar_basis,
-        lambda b, bcs: AdvectionDiffusionReaction(
-            b, 1.3, _BKD, reaction=0.4, boundary_conditions=bcs
-        ),
+        lambda b: AdvectionDiffusionReaction(b, 1.3, _BKD, reaction=0.4),
         False,
     ),
     "helmholtz": (
         _scalar_basis,
-        lambda b, bcs: Helmholtz(b, 2.0, _BKD, boundary_conditions=bcs),
+        lambda b: Helmholtz(b, 2.0, _BKD),
         False,
     ),
     "burgers": (
         _scalar_basis,
-        lambda b, bcs: BurgersPhysics(b, 0.1, _BKD, boundary_conditions=bcs),
+        lambda b: BurgersPhysics(b, 0.1, _BKD),
         False,
     ),
     "quasilinear": (
         _scalar_basis,
-        lambda b, bcs: QuasilinearDiffusion(
+        lambda b: QuasilinearDiffusion(
             b,
             NodalFieldDiffusion(b, dofs=1.0 + 0.1 * np.arange(b.ndofs()) / b.ndofs()),
             _BKD,
             kappa=_kappa,
             kappa_deriv=_kappa_deriv,
             kappa_second_deriv=_kappa_second_deriv,
-            boundary_conditions=bcs,
         ),
         False,
     ),
     "linear_elasticity": (
         _vector_basis,
-        lambda b, bcs: CompositeLinearElasticity.from_uniform(
-            b, 1.0, 0.3, _BKD, boundary_conditions=bcs
-        ),
+        lambda b: CompositeLinearElasticity.from_uniform(b, 1.0, 0.3, _BKD),
         True,
     ),
     "hyperelasticity": (
         _vector_basis,
-        lambda b, bcs: HyperelasticityPhysics(
-            b, NeoHookeanStress(1.0, 1.0), _BKD, boundary_conditions=bcs
-        ),
+        lambda b: HyperelasticityPhysics(b, NeoHookeanStress(1.0, 1.0), _BKD),
         True,
     ),
     "composite_hyperelasticity": (
         _vector_basis,
-        lambda b, bcs: CompositeHyperelasticityPhysics(
-            b, {"all": (1.0, 0.3)}, _all_elements(b), _BKD,
-            boundary_conditions=bcs,
+        lambda b: CompositeHyperelasticityPhysics(
+            b, {"all": (1.0, 0.3)}, _all_elements(b), _BKD
         ),
         True,
     ),
@@ -168,50 +166,50 @@ def _state(basis: Any, vector: bool) -> _Arr:
     return state
 
 
+def _dense(matrix: Any) -> _Arr:
+    """A Jacobian as a dense array (physics Jacobians may be sparse)."""
+    if issparse(matrix):
+        return np.asarray(matrix.toarray())
+    return np.asarray(matrix)
+
+
 @pytest.mark.parametrize("name", list(_PHYSICS))
-def test_physics_composes_natural_bcs_once(name: str) -> None:
+def test_composition_adds_natural_terms_once(name: str) -> None:
+    """F - F_Omega is exactly the sum of the natural terms, for the
+    residual and the Jacobian, in each physics' own state layout and
+    Jacobian format; the essential BC composed alongside stays out of F."""
     make_basis, make_physics, vector = _PHYSICS[name]
     basis = make_basis()
-    bcs = _natural_bcs(basis, vector)
-    check_natural_bc_composition(
-        lambda bc_list: make_physics(basis, bc_list),
-        bcs,
-        _state(basis, vector),
-        time=0.2,
+    physics = make_physics(basis)
+    natural_bcs = _natural_bcs(basis, vector)
+    essential_bc = DirichletBC(basis, "left", 0.0, _BKD)
+    operator = compose_galerkin_system(
+        physics, [*natural_bcs, essential_bc]
+    ).spatial_operator()
+    state = _state(basis, vector)
+    time = 0.2
+    nstates = basis.ndofs()
+    expected_residual = _BKD.zeros((nstates,))
+    expected_jacobian: Any = np.zeros((nstates, nstates))
+    for bc in natural_bcs:
+        expected_residual = bc.apply_to_residual(expected_residual, state, time)
+        expected_jacobian = bc.apply_to_jacobian(expected_jacobian, state, time)
+    _BKD.assert_allclose(
+        operator.spatial_residual(state, time)
+        - physics.interior_residual(state, time),
+        expected_residual,
         rtol=1e-10,
         atol=1e-10,
     )
-
-
-class _HelmholtzAddingRobinItself(Helmholtz[_Arr]):
-    """Wrong: adds the Robin load inside its own interior."""
-
-    def interior_residual(self, state: _Arr, time: float) -> _Arr:
-        residual = super().interior_residual(state, time)
-        for bc in self.weak_form_bcs():
-            residual = bc.apply_to_load(residual, time)
-        return residual
-
-
-class _HelmholtzDoublingTerms(Helmholtz[_Arr]):
-    """Wrong: adds the natural-BC terms a second time."""
-
-    def spatial_residual(self, state: _Arr, time: float) -> _Arr:
-        residual = super().spatial_residual(state, time)
-        return self.natural_bc_operator().add_to_residual(residual, state, time)
-
-
-@pytest.mark.parametrize(
-    "cls", [_HelmholtzAddingRobinItself, _HelmholtzDoublingTerms]
-)
-def test_check_catches_wrong_composition(cls: Any) -> None:
-    basis = _scalar_basis()
-    with pytest.raises(AssertionError):
-        check_natural_bc_composition(
-            lambda bc_list: cls(basis, 2.0, _BKD, boundary_conditions=bc_list),
-            _natural_bcs(basis, False),
-            _state(basis, False),
-        )
+    _BKD.assert_allclose(
+        _BKD.asarray(
+            _dense(operator.spatial_jacobian(state, time))
+            - _dense(physics.interior_jacobian(state, time))
+        ),
+        _BKD.asarray(_dense(expected_jacobian)),
+        rtol=1e-10,
+        atol=1e-10,
+    )
 
 
 @pytest.mark.parametrize("essential", [False, True])
@@ -219,37 +217,25 @@ def test_check_catches_wrong_composition(cls: Any) -> None:
 def test_bc_mix(essential: bool, natural: bool) -> None:
     """Any mix of BCs, including none: spatial - interior is exactly the
     natural terms present (essential BCs never enter F)."""
-    from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
-
     basis = _scalar_basis()
     natural_bcs = _natural_bcs(basis, False) if natural else []
     essential_bcs = [DirichletBC(basis, "left", 0.5, _BKD)] if essential else []
-    physics = Helmholtz(
-        basis, 2.0, _BKD, boundary_conditions=essential_bcs + natural_bcs
-    )
-    assert physics.natural_bc_operator().is_empty() == (not natural)
+    physics = Helmholtz(basis, 2.0, _BKD)
+    system = compose_galerkin_system(physics, essential_bcs + natural_bcs)
+    operator = system.spatial_operator()
+    assert isinstance(operator, ComposedSpatialOperator)
+    assert operator.natural_bcs().is_empty() == (not natural)
     state = _state(basis, False)
     expected = _BKD.zeros((basis.ndofs(),))
     for bc in natural_bcs:
         expected = bc.apply_to_residual(expected, state, 0.0)
     _BKD.assert_allclose(
-        physics.spatial_residual(state, 0.0)
+        operator.spatial_residual(state, 0.0)
         - physics.interior_residual(state, 0.0),
         expected,
         rtol=1e-12,
         atol=1e-12,
     )
-
-
-def test_check_catches_factory_ignoring_bcs() -> None:
-    """A factory that drops the BC list must not pass as conforming."""
-    basis = _scalar_basis()
-    with pytest.raises(AssertionError, match="exactly the given"):
-        check_natural_bc_composition(
-            lambda bc_list: Helmholtz(basis, 2.0, _BKD),
-            _natural_bcs(basis, False),
-            _state(basis, False),
-        )
 
 
 class TestNaturalBCOperator:

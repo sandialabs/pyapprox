@@ -24,11 +24,14 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
+    TimeIndependent,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import QuasilinearDiffusion
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.numpy import NumpyBkd
 
 from tests._helpers.adjoint_checks import NumpyArray
@@ -52,7 +55,7 @@ def _forcing(x):
 
 def _build_physics(
     bkd: NumpyBkd, ndim: int
-) -> Tuple[QuasilinearDiffusion[NumpyArray], LagrangeBasis[NumpyArray]]:
+) -> Tuple[QuasilinearDiffusion[NumpyArray], GalerkinSystem[NumpyArray]]:
     if ndim == 1:
         mesh = StructuredMesh1D(nx=8, bounds=(0.0, 1.0), bkd=bkd)
     else:
@@ -70,10 +73,12 @@ def _build_physics(
         kappa=_kappa,
         kappa_deriv=_kappa_deriv,
         kappa_second_deriv=_kappa_second_deriv,
-        forcing=_forcing,
-        boundary_conditions=[DirichletBC(basis, "left", 0.0, bkd)],
+        forcing=TimeIndependent(_forcing),
     )
-    return physics, basis
+    system = compose_galerkin_system(
+        physics, [DirichletBC(basis, "left", 0.0, bkd)]
+    )
+    return physics, system
 
 
 class TestQuasilinearDiffusion:
@@ -84,7 +89,8 @@ class TestQuasilinearDiffusion:
         """Newton jacobian (kappa' and kappa terms) vs FD of the
         residual in the state."""
         bkd = numpy_bkd
-        physics, _ = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
+        operator = system.spatial_operator()
         nstates = physics.nstates()
         rng = np.random.default_rng(5)
         state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
@@ -92,7 +98,7 @@ class TestQuasilinearDiffusion:
         def residual_of_state(samples: NumpyArray) -> NumpyArray:
             results = [
                 bkd.to_numpy(
-                    physics.spatial_residual(samples[:, ii], 0.0)
+                    operator.spatial_residual(samples[:, ii], 0.0)
                 ).copy()
                 for ii in range(samples.shape[1])
             ]
@@ -101,7 +107,7 @@ class TestQuasilinearDiffusion:
         def jac_of_state(sample: NumpyArray) -> NumpyArray:
             return bkd.asarray(
                 np.asarray(
-                    physics.spatial_jacobian(sample[:, 0], 0.0).todense()
+                    operator.spatial_jacobian(sample[:, 0], 0.0).todense()
                 )
             )
 
@@ -130,7 +136,8 @@ class TestQuasilinearDiffusion:
         """S(u) (with the kappa(u) weight) vs FD of the residual in the
         diffusivity DOFs."""
         bkd = numpy_bkd
-        physics, _ = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
+        operator = system.spatial_operator()
         nstates = physics.nstates()
         field = physics.diffusion_function()
         base_dofs = np.array(field.dofs(), copy=True)
@@ -142,7 +149,7 @@ class TestQuasilinearDiffusion:
             for ii in range(samples.shape[1]):
                 field.set_dofs(bkd.to_numpy(samples[:, ii]))
                 results.append(
-                    bkd.to_numpy(physics.spatial_residual(state, 0.0)).copy()
+                    bkd.to_numpy(operator.spatial_residual(state, 0.0)).copy()
                 )
             field.set_dofs(base_dofs)
             return bkd.asarray(np.stack(results, axis=1))
@@ -248,7 +255,8 @@ class TestQuasilinearDiffusion:
         """state_state_hvp (kappa'' pathway) is the exact gradient of
         u -> lambda^T (dR/du(u) w)."""
         bkd = numpy_bkd
-        physics, _ = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
+        operator = system.spatial_operator()
         nstates = physics.nstates()
         rng = np.random.default_rng(17)
         state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
@@ -261,7 +269,7 @@ class TestQuasilinearDiffusion:
             results = [
                 adj_np
                 @ (
-                    physics.spatial_jacobian(samples[:, ii], 0.0)
+                    operator.spatial_jacobian(samples[:, ii], 0.0)
                     @ wvec_np
                 )
                 for ii in range(samples.shape[1])

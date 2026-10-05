@@ -27,6 +27,7 @@ from pyapprox.pde.constitutive.neo_hookean import (
 )
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinHyperelasticityAdapter,
     create_hyperelasticity_manufactured_test,
@@ -37,6 +38,7 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
     create_galerkin_bc_enforcing_residual,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 from tests._helpers.markers import slow_test
@@ -98,7 +100,7 @@ class TestTransientHyperelasticity1D:
     """
 
     @pytest.mark.parametrize("name,method", TRANSIENT_1D_CASES)
-    def test_transient_1d(self, numpy_bkd, name: str, method: str) -> None:
+    def test_transient_1d(self, numpy_bkd: NumpyBkd, name: str, method: str) -> None:
         bkd = numpy_bkd
         stress = NeoHookeanStress(1.0, 1.0)
         sol_strs = ["0.1*x**2*(1-x)**2*(1+T)"]
@@ -134,17 +136,18 @@ class TestTransientHyperelasticity1D:
             stress_model=stress,
             bkd=bkd,
             body_force=body_force,
-            boundary_conditions=bc_list,
         )
+        system = compose_galerkin_system(physics, bc_list)
+        constraints = system.constraint_set()
 
         # Time stepping
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:
             stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics.constraint_set(), bkd
+            stepper, constraints, bkd
         )
 
         newton = NewtonSolver(constrained)
@@ -161,7 +164,7 @@ class TestTransientHyperelasticity1D:
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
 
             # Inject Dirichlet values into initial guess
-            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
+            d_dofs, d_vals = constraints.dofs(), constraints.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             guess = bkd.copy(y)
             if len(d_dofs_np) > 0:
@@ -210,7 +213,7 @@ class TestTransientHyperelasticity2D:
 
     @pytest.mark.parametrize("name,method", TRANSIENT_2D_CASES)
     @slow_test
-    def test_transient_2d(self, numpy_bkd, name: str, method: str) -> None:
+    def test_transient_2d(self, numpy_bkd: NumpyBkd, name: str, method: str) -> None:
         bkd = numpy_bkd
         stress = NeoHookeanStress(1.0, 1.0)
         sol_strs = [
@@ -255,17 +258,18 @@ class TestTransientHyperelasticity2D:
             stress_model=stress,
             bkd=bkd,
             body_force=body_force,
-            boundary_conditions=bc_list,
         )
+        system = compose_galerkin_system(physics, bc_list)
+        constraints = system.constraint_set()
 
         # Time stepping
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:
             stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics.constraint_set(), bkd
+            stepper, constraints, bkd
         )
 
         newton = NewtonSolver(constrained)
@@ -282,7 +286,7 @@ class TestTransientHyperelasticity2D:
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
 
             # Inject Dirichlet values into initial guess
-            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
+            d_dofs, d_vals = constraints.dofs(), constraints.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             guess = bkd.copy(y)
             if len(d_dofs_np) > 0:

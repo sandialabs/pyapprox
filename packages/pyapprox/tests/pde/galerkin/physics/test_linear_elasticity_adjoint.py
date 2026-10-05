@@ -22,6 +22,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity as LinearElasticity,
@@ -30,6 +31,7 @@ from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
 from scipy.sparse import issparse
 
@@ -47,7 +49,10 @@ def _make_physics(
     nu: float = 0.3,
     with_bcs: bool = True,
 ):
-    """Create a 2D LinearElasticity with constant body force and all-Dirichlet BCs."""
+    """Create a 2D LinearElasticity with constant body force and all-Dirichlet BCs.
+
+    Returns the physics and the system composed with its BCs.
+    """
     mesh = StructuredMesh2D(
         nx=5,
         ny=5,
@@ -74,31 +79,31 @@ def _make_physics(
     else:
         bc_list = []
 
-    return LinearElasticity.from_uniform(
+    physics = LinearElasticity.from_uniform(
         basis=basis,
         youngs_modulus=E,
         poisson_ratio=nu,
         body_force=body_force,
-        boundary_conditions=bc_list,
         bkd=bkd,
     )
+    return physics, compose_galerkin_system(physics, bc_list)
 
 
 class TestLinearElasticityAdjoint:
     """Test class for LinearElasticity parameter sensitivity
     via the engine-backed Lame parameterization."""
 
-    def test_nparams(self, numpy_bkd) -> None:
+    def test_nparams(self, numpy_bkd: NumpyBkd) -> None:
         """Parameterization nparams() returns 2 (E, nu) for single material."""
         _bkd = numpy_bkd
-        physics = _make_physics(numpy_bkd)
+        physics, _ = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         assert param.nparams() == 2
 
-    def test_param_jacobian_shape(self, numpy_bkd) -> None:
+    def test_param_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         """param_jacobian returns shape (nstates, 2)."""
         _bkd = numpy_bkd
-        physics = _make_physics(numpy_bkd)
+        physics, _ = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         n = physics.nstates()
         u = numpy_bkd.asarray(np.ones(n) * 0.01)
@@ -107,10 +112,10 @@ class TestLinearElasticityAdjoint:
         pj = param.param_derivatives().param_jacobian(u, 0.0, params_1d)
         assert pj.shape == (n, 2)
 
-    def test_initial_param_jacobian_is_zero(self, numpy_bkd) -> None:
+    def test_initial_param_jacobian_is_zero(self, numpy_bkd: NumpyBkd) -> None:
         """initial_param_jacobian returns all zeros."""
         _bkd = numpy_bkd
-        physics = _make_physics(numpy_bkd)
+        physics, _ = _make_physics(numpy_bkd)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         params_1d = numpy_bkd.asarray(np.array([1.0, 0.3]))
         ipj = param.initial_param_jacobian(params_1d)
@@ -120,10 +125,10 @@ class TestLinearElasticityAdjoint:
             numpy_bkd.asarray(np.zeros_like(ipj_np)),
         )
 
-    def test_apply_changes_stiffness(self, numpy_bkd) -> None:
+    def test_apply_changes_stiffness(self, numpy_bkd: NumpyBkd) -> None:
         """Stiffness matrix changes after parameterization.apply() with new (E, nu)."""
         _bkd = numpy_bkd
-        physics = _make_physics(numpy_bkd, E=1.0, nu=0.3)
+        physics, _ = _make_physics(numpy_bkd, E=1.0, nu=0.3)
         param = create_galerkin_lame_parameterization(physics, numpy_bkd)
         K1 = _to_dense(physics.stiffness_matrix()).copy()
 
@@ -133,7 +138,7 @@ class TestLinearElasticityAdjoint:
         diff = np.linalg.norm(K2 - K1)
         assert diff > 1e-10
 
-    def test_param_jacobian_fd_validation(self, numpy_bkd) -> None:
+    def test_param_jacobian_fd_validation(self, numpy_bkd: NumpyBkd) -> None:
         """DerivativeChecker validation of parameterization param_jacobian.
 
         Wraps residual(p) and param_jacobian as a FunctionWithJacobian,
@@ -141,12 +146,12 @@ class TestLinearElasticityAdjoint:
         """
         bkd = numpy_bkd
         E0, nu0 = 1.0, 0.3
-        physics = _make_physics(bkd, E=E0, nu=nu0)
+        physics, system = _make_physics(bkd, E=E0, nu=nu0)
         param = create_galerkin_lame_parameterization(physics, bkd)
 
         # Solve for the state at base parameters
         solver = SteadyStateSolver(
-            physics.system().steady(),
+            system.steady(),
             tol=1e-12,
             max_iter=5,
             line_search=False,
@@ -162,7 +167,7 @@ class TestLinearElasticityAdjoint:
             for ii in range(nsamples):
                 p = params[:, ii]
                 param.apply(p)
-                res = physics.residual(u, 0.0)
+                res = system.steady_snapshot(0.0).steady_residual(u)
                 results.append(bkd.reshape(res, (nstates, 1)))
             param.apply(bkd.asarray(np.array([E0, nu0])))
             return bkd.hstack(results)
@@ -173,7 +178,7 @@ class TestLinearElasticityAdjoint:
             # Raw param_jacobian (no BC enforcement)
             pj_raw = param.param_derivatives().param_jacobian(u, 0.0, p)
             # Apply BC enforcement
-            pj = physics.constraint_set().zero_rows(pj_raw)
+            pj = system.constraint_set().zero_rows(pj_raw)
             param.apply(bkd.asarray(np.array([E0, nu0])))
             return pj
 
@@ -190,7 +195,7 @@ class TestLinearElasticityAdjoint:
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-6
 
-    def test_adjoint_gradient_steady(self, numpy_bkd) -> None:
+    def test_adjoint_gradient_steady(self, numpy_bkd: NumpyBkd) -> None:
         """DerivativeChecker validation of adjoint gradient via parameterization.
 
         QoI: Q(u(p)) = c^T u(p) where u(p) solves K(p)*u = b.
@@ -198,12 +203,12 @@ class TestLinearElasticityAdjoint:
         """
         bkd = numpy_bkd
         E0, nu0 = 1.0, 0.3
-        physics = _make_physics(bkd, E=E0, nu=nu0)
+        physics, system = _make_physics(bkd, E=E0, nu=nu0)
         param = create_galerkin_lame_parameterization(physics, bkd)
 
         # Solve forward problem at base params
         solver = SteadyStateSolver(
-            physics.system().steady(),
+            system.steady(),
             tol=1e-12,
             max_iter=5,
             line_search=False,
@@ -223,7 +228,7 @@ class TestLinearElasticityAdjoint:
                 p = params[:, ii]
                 param.apply(p)
                 r = SteadyStateSolver(
-                    physics.system().steady(),
+                    system.steady(),
                     tol=1e-12,
                     max_iter=5,
                     line_search=False,
@@ -238,7 +243,7 @@ class TestLinearElasticityAdjoint:
             p = params[:, 0]
             param.apply(p)
             r = SteadyStateSolver(
-                physics.system().steady(),
+                system.steady(),
                 tol=1e-12,
                 max_iter=5,
                 line_search=False,
@@ -246,14 +251,14 @@ class TestLinearElasticityAdjoint:
             u_sol = r.solution
 
             # Solve adjoint: J^T lambda = -c
-            J_np = _to_dense(physics.jacobian(u_sol, 0.0))
+            J_np = _to_dense(system.steady_snapshot(0.0).steady_jacobian(u_sol))
             lam_np = np.linalg.solve(J_np.T, -c_np)
 
             # Parameterization param_jacobian (raw) + BC enforcement
             param_jacobian = param.param_derivatives().param_jacobian
             dF_dp_raw = bkd.to_numpy(param_jacobian(u_sol, 0.0, p))
             dF_dp = bkd.to_numpy(
-                physics.constraint_set().zero_rows(bkd.asarray(dF_dp_raw))
+                system.constraint_set().zero_rows(bkd.asarray(dF_dp_raw))
             )
 
             grad = dF_dp.T @ lam_np

@@ -10,6 +10,7 @@ if not package_available("skfem"):
 import numpy as np
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
@@ -19,6 +20,7 @@ from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.util.backends.numpy import NumpyBkd
 from scipy.sparse import issparse
 
 
@@ -54,7 +56,7 @@ class TestLinearElasticityBase:
         K_np = _to_dense(K, bkd)
         np.testing.assert_array_almost_equal(K_np, K_np.T)
 
-    def test_1d_residual_shape(self, numpy_bkd) -> None:
+    def test_1d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape in 1D."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(
@@ -69,8 +71,9 @@ class TestLinearElasticityBase:
             poisson_ratio=0.3,
             bkd=bkd,
         )
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
     def test_1d_rigid_body_motion(self, numpy_bkd) -> None:
@@ -93,7 +96,7 @@ class TestLinearElasticityBase:
         Ku = _to_dense(K, bkd) @ bkd.to_numpy(u)
         assert np.linalg.norm(Ku) < 1e-10
 
-    def test_1d_manufactured_solution(self, numpy_bkd) -> None:
+    def test_1d_manufactured_solution(self, numpy_bkd: NumpyBkd) -> None:
         """1D solve recovers manufactured solution with non-zero BCs.
 
         Uses create_elasticity_manufactured_test for MMS forcing.
@@ -156,12 +159,12 @@ class TestLinearElasticityBase:
             youngs_modulus=E,
             poisson_ratio=nu,
             body_force=body_force,
-            boundary_conditions=bc_list,
             bkd=bkd,
         )
+        system = compose_galerkin_system(physics, bc_list)
 
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
+            system.steady(), tol=1e-12, max_iter=5, line_search=False
         )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
@@ -222,7 +225,7 @@ class TestLinearElasticityBase:
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_2d_residual_shape(self, numpy_bkd) -> None:
+    def test_2d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape in 2D."""
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
@@ -239,12 +242,13 @@ class TestLinearElasticityBase:
             bkd=bkd,
         )
 
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
 
         assert res.shape == (physics.nstates(),)
 
-    def test_2d_jacobian_shape(self, numpy_bkd) -> None:
+    def test_2d_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test Jacobian has correct shape in 2D."""
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
@@ -261,8 +265,9 @@ class TestLinearElasticityBase:
             bkd=bkd,
         )
 
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
 
         assert jac.shape == (physics.nstates(), physics.nstates())
 
@@ -312,7 +317,7 @@ class TestLinearElasticityBase:
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_3d_residual_shape(self, numpy_bkd) -> None:
+    def test_3d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape in 3D."""
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
@@ -330,12 +335,13 @@ class TestLinearElasticityBase:
             bkd=bkd,
         )
 
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
 
         assert res.shape == (physics.nstates(),)
 
-    def test_3d_jacobian_shape(self, numpy_bkd) -> None:
+    def test_3d_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test Jacobian has correct shape in 3D."""
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
@@ -353,12 +359,13 @@ class TestLinearElasticityBase:
             bkd=bkd,
         )
 
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
 
         assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_2d_with_body_force(self, numpy_bkd) -> None:
+    def test_2d_with_body_force(self, numpy_bkd: NumpyBkd) -> None:
         """Test 2D elasticity with body force."""
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
@@ -385,14 +392,15 @@ class TestLinearElasticityBase:
             bkd=bkd,
         )
 
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         res_np = bkd.to_numpy(res)
 
         # With body force and u=0, residual should be non-zero
         assert np.linalg.norm(res_np) > 0
 
-    def test_3d_with_body_force(self, numpy_bkd) -> None:
+    def test_3d_with_body_force(self, numpy_bkd: NumpyBkd) -> None:
         """Test 3D elasticity with body force."""
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
@@ -420,8 +428,9 @@ class TestLinearElasticityBase:
             bkd=bkd,
         )
 
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         res_np = bkd.to_numpy(res)
 
         # With body force and u=0, residual should be non-zero
@@ -653,7 +662,9 @@ class TestLinearElasticity3DPatch:
 
     @pytest.mark.parametrize("element_type", ["hex", "tet"])
     @pytest.mark.parametrize("degree", [1, 2])
-    def test_3d_patch(self, numpy_bkd, element_type, degree) -> None:
+    def test_3d_patch(
+        self, numpy_bkd: NumpyBkd, element_type: str, degree: int
+    ) -> None:
         bkd = numpy_bkd
         A = np.array(
             [
@@ -693,12 +704,12 @@ class TestLinearElasticity3DPatch:
             basis=basis,
             youngs_modulus=1.0,
             poisson_ratio=0.3,
-            boundary_conditions=bc_list,
             bkd=bkd,
         )
+        system = compose_galerkin_system(physics, bc_list)
 
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
+            system.steady(), tol=1e-12, max_iter=5, line_search=False
         )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
@@ -712,7 +723,7 @@ class TestLinearElasticity3DPatch:
         rel_error = np.linalg.norm(u_np - exact) / np.linalg.norm(exact)
         assert rel_error < 1e-10
 
-    def test_3d_component_dirichlet_roller(self, numpy_bkd) -> None:
+    def test_3d_component_dirichlet_roller(self, numpy_bkd: NumpyBkd) -> None:
         """Roller/symmetry BCs constraining single components.
 
         With nu=0 the field u = (0, 0, alpha*z) satisfies traction-free
@@ -750,11 +761,11 @@ class TestLinearElasticity3DPatch:
             basis=basis,
             youngs_modulus=1.0,
             poisson_ratio=0.0,
-            boundary_conditions=bc_list,
             bkd=bkd,
         )
+        system = compose_galerkin_system(physics, bc_list)
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
+            system.steady(), tol=1e-12, max_iter=5, line_search=False
         )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
@@ -830,9 +841,9 @@ class TestLinearElasticity3DManufactured:
             youngs_modulus=1.0,  # overwritten below via set_lame_parameters
             poisson_ratio=0.3,
             body_force=body_force,
-            boundary_conditions=bc_list,
             bkd=bkd,
         )
+        system = compose_galerkin_system(physics, bc_list)
         # impose the manufactured (possibly varying) Lame fields exactly
         # at the quadrature points
         skfem_basis = basis.skfem_basis()
@@ -844,7 +855,7 @@ class TestLinearElasticity3DManufactured:
         physics.set_lame_parameters(lam_q, mu_q)
 
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
+            system.steady(), tol=1e-12, max_iter=5, line_search=False
         )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)

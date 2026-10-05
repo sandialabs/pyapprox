@@ -28,6 +28,7 @@ from pyapprox.ode.implicit_steppers import (
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
@@ -99,10 +100,10 @@ def _setup_1d_problem(
         velocity=velocity,
         reaction=reaction,
         forcing=adapter.forcing_for_galerkin(),
-        boundary_conditions=bc_set.all_conditions(),
     )
+    system = compose_galerkin_system(physics, bc_set.all_conditions())
 
-    model = GalerkinModel(physics.system(), bkd)
+    model = GalerkinModel(system, bkd)
 
     exact_sol_func = adapter.solution_function()
     dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -266,10 +267,10 @@ class TestTransientADR2D:
             bkd=bkd,
             velocity=velocity,
             forcing=adapter.forcing_for_galerkin(),
-            boundary_conditions=bc_set.all_conditions(),
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
-        model = GalerkinModel(physics.system(), bkd)
+        model = GalerkinModel(system, bkd)
 
         exact_sol_func = adapter.solution_function()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -434,10 +435,10 @@ class TestTransientADR2D_CN:
             bkd=bkd,
             velocity=velocity,
             forcing=adapter.forcing_for_galerkin(),
-            boundary_conditions=bc_set.all_conditions(),
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
-        model = GalerkinModel(physics.system(), bkd)
+        model = GalerkinModel(system, bkd)
 
         exact_sol_func = adapter.solution_function()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -598,14 +599,14 @@ class TestManualNewtonWithConstraint:
             diffusivity=4.0,
             bkd=bkd,
             forcing=adapter.forcing_for_galerkin(),
-            boundary_conditions=bc_set.all_conditions(),
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
         # Manual setup: adapter + stepper + constrained wrapper
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
         stepper = BackwardEulerHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics.constraint_set(), bkd
+            stepper, system.constraint_set(), bkd
         )
 
         y = bkd.asarray(exact_at_time(0.0))
@@ -618,7 +619,7 @@ class TestManualNewtonWithConstraint:
             # Set stepper with unmodified prev_state
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             # Initial guess with Dirichlet values injected
-            constraint_set = physics.constraint_set()
+            constraint_set = system.constraint_set()
             d_dofs = constraint_set.dofs()
             d_vals = constraint_set.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
@@ -669,8 +670,8 @@ class TestManualNewtonWithConstraint:
             diffusivity=4.0,
             bkd=bkd,
             forcing=adapter.forcing_for_galerkin(),
-            boundary_conditions=bc_set.all_conditions(),
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
         exact_sol_func = adapter.solution_function()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -681,10 +682,10 @@ class TestManualNewtonWithConstraint:
                 return u[:, 0] if u.shape[1] == 1 else u.flatten()
             return u
 
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
         stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics.constraint_set(), bkd
+            stepper, system.constraint_set(), bkd
         )
 
         y = bkd.asarray(exact_at_time(0.0))
@@ -695,7 +696,7 @@ class TestManualNewtonWithConstraint:
         for step in range(nsteps):
             t_np1 = t + dt
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
-            constraint_set = physics.constraint_set()
+            constraint_set = system.constraint_set()
             d_dofs = constraint_set.dofs()
             d_vals = constraint_set.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)

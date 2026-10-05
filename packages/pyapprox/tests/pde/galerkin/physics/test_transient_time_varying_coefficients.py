@@ -34,6 +34,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
@@ -83,9 +84,9 @@ def _build(bkd, diff_str, vel_strs, nx=8, diffusivity_override=None):
         ),
         velocity=adapter.velocity_for_galerkin(),
         forcing=adapter.forcing_for_galerkin(),
-        boundary_conditions=bc_set.all_conditions(),
         bkd=bkd,
     )
+    system = compose_galerkin_system(physics, bc_set.all_conditions())
 
     exact_func = adapter.solution_function()
     coords = bkd.to_numpy(basis.dof_coordinates())
@@ -98,7 +99,7 @@ def _build(bkd, diff_str, vel_strs, nx=8, diffusivity_override=None):
             )
         return values
 
-    return GalerkinModel(physics.system(), bkd), exact_at_time
+    return GalerkinModel(system, bkd), exact_at_time
 
 
 def _config(deltat=0.5, final_time=2.0):

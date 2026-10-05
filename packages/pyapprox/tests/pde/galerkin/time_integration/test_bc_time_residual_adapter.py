@@ -24,12 +24,14 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingForwardResidual,
     create_galerkin_bc_enforcing_residual,
@@ -43,8 +45,8 @@ from scipy.sparse import issparse
 
 def _setup_adr(
     bkd: NumpyBkd, nx: int = 8
-) -> Tuple[AdvectionDiffusionReaction[Any], Any]:
-    """1D ADR physics with time-dependent Dirichlet-friendly solution."""
+) -> Tuple[GalerkinSystem[Any], Any]:
+    """1D ADR system with time-dependent Dirichlet-friendly solution."""
     bounds = [0.0, 1.0]
     functions, _ = create_adr_manufactured_test(
         bounds=bounds,
@@ -66,22 +68,23 @@ def _setup_adr(
         diffusivity=4.0,
         bkd=bkd,
         forcing=adapter.forcing_for_galerkin(),
-        boundary_conditions=bc_set.all_conditions(),
     )
-    return physics, adapter
+    return compose_galerkin_system(physics, bc_set.all_conditions()), adapter
 
 
 def _wrapped_backward_euler(
     bkd: NumpyBkd, nx: int = 8
 ) -> Tuple[
     GalerkinBCEnforcingForwardResidual[Any],
-    AdvectionDiffusionReaction[Any],
+    GalerkinSystem[Any],
 ]:
-    physics, _ = _setup_adr(bkd, nx)
-    ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+    system, _ = _setup_adr(bkd, nx)
+    ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
     stepper = create_stepper("backward_euler", ode_adapter)
-    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), bkd)
-    return wrapper, physics
+    wrapper = create_galerkin_bc_enforcing_residual(
+        stepper, system.constraint_set(), bkd
+    )
+    return wrapper, system
 
 
 class _FakeExplicitStepper:
@@ -144,18 +147,18 @@ class TestForwardWrapper:
         assert isinstance(wrapper, SensitivityStepperProtocol)
 
     def test_rejects_non_stepper(self, numpy_bkd: NumpyBkd) -> None:
-        physics, _ = _setup_adr(numpy_bkd)
+        system, _ = _setup_adr(numpy_bkd)
         not_a_stepper: Any = object()
         with pytest.raises(TypeError, match="SensitivityStepperProtocol"):
             GalerkinBCEnforcingForwardResidual(
-                not_a_stepper, physics.constraint_set(), numpy_bkd
+                not_a_stepper, system.constraint_set(), numpy_bkd
             )
 
     def test_residual_constraint_rows(self, numpy_bkd: NumpyBkd) -> None:
         """Constrained rows become y[d] - g(t_{n+1})."""
         bkd = numpy_bkd
-        wrapper, physics = _wrapped_backward_euler(bkd)
-        n = physics.nstates()
+        wrapper, system = _wrapped_backward_euler(bkd)
+        n = system.nstates()
         t_n, dt = 0.0, 0.5
         y_prev = bkd.asarray(np.zeros(n))
         wrapper.bind(StepContext(t_prev=t_n, deltat=dt, y_prev=y_prev))
@@ -163,7 +166,7 @@ class TestForwardWrapper:
         state = bkd.asarray(np.linspace(0.3, 0.7, n))
         residual = wrapper(state)
 
-        constraint_set = physics.constraint_set()
+        constraint_set = system.constraint_set()
         dofs = bkd.to_numpy(constraint_set.dofs())
         values = bkd.to_numpy(constraint_set.values(t_n + dt))
         residual_np = bkd.to_numpy(residual)
@@ -177,8 +180,8 @@ class TestForwardWrapper:
         self, numpy_bkd: NumpyBkd
     ) -> None:
         bkd = numpy_bkd
-        wrapper, physics = _wrapped_backward_euler(bkd)
-        n = physics.nstates()
+        wrapper, system = _wrapped_backward_euler(bkd)
+        n = system.nstates()
         y_prev = bkd.asarray(np.zeros(n))
         wrapper.bind(StepContext(t_prev=0.0, deltat=0.5, y_prev=y_prev))
 
@@ -186,15 +189,15 @@ class TestForwardWrapper:
         jacobian = wrapper.jacobian(state)
         assert issparse(jacobian)
 
-        dofs = bkd.to_numpy(physics.constraint_set().dofs())
+        dofs = bkd.to_numpy(system.constraint_set().dofs())
         dense = jacobian.toarray()
         expected = np.eye(n)[dofs]
         bkd.assert_allclose(bkd.asarray(dense[dofs]), bkd.asarray(expected))
 
     def test_linsolve_matches_dense_solve(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        wrapper, physics = _wrapped_backward_euler(bkd)
-        n = physics.nstates()
+        wrapper, system = _wrapped_backward_euler(bkd)
+        n = system.nstates()
         y_prev = bkd.asarray(np.zeros(n))
         wrapper.bind(StepContext(t_prev=0.0, deltat=0.5, y_prev=y_prev))
 
@@ -212,14 +215,14 @@ class TestForwardWrapper:
         self, numpy_bkd: NumpyBkd
     ) -> None:
         bkd = numpy_bkd
-        wrapper, physics = _wrapped_backward_euler(bkd)
-        n = physics.nstates()
+        wrapper, system = _wrapped_backward_euler(bkd)
+        n = system.nstates()
         y_prev = bkd.asarray(np.zeros(n))
         ctx = StepContext(t_prev=0.0, deltat=0.5, y_prev=y_prev)
         wrapper.bind(ctx)
 
         result = wrapper.sensitivity_off_diag_jacobian(ctx, y_prev)
-        dofs = bkd.to_numpy(physics.constraint_set().dofs())
+        dofs = bkd.to_numpy(system.constraint_set().dofs())
         result_np = (
             result.toarray() if issparse(result) else bkd.to_numpy(result)
         )
@@ -230,11 +233,11 @@ class TestForwardWrapper:
 
     def test_zero_adjoint_rhs(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        wrapper, physics = _wrapped_backward_euler(bkd)
-        n = physics.nstates()
+        wrapper, system = _wrapped_backward_euler(bkd)
+        n = system.nstates()
         dqdu = bkd.asarray(np.full(n, 2.0))
         out = wrapper.zero_adjoint_rhs(dqdu)
-        dofs = bkd.to_numpy(physics.constraint_set().dofs())
+        dofs = bkd.to_numpy(system.constraint_set().dofs())
         out_np = bkd.to_numpy(out)
         bkd.assert_allclose(
             bkd.asarray(out_np[dofs]), bkd.asarray(np.zeros(len(dofs)))
@@ -253,10 +256,10 @@ class TestForwardWrapper:
     ) -> None:
         """One-step-solvable steppers factorize the Jacobian once."""
         bkd = numpy_bkd
-        physics, _ = _setup_adr(bkd)
-        n = physics.nstates()
+        system, _ = _setup_adr(bkd)
+        n = system.nstates()
         fake = _FakeExplicitStepper(bkd, n)
-        wrapper = GalerkinBCEnforcingForwardResidual(fake, physics.constraint_set(), bkd)
+        wrapper = GalerkinBCEnforcingForwardResidual(fake, system.constraint_set(), bkd)
         wrapper.bind(
             StepContext(
                 t_prev=0.0, deltat=0.5, y_prev=bkd.asarray(np.zeros(n))
@@ -293,9 +296,9 @@ class TestStageBCRequirement:
     """Analytic g_dot is required for multistage + consistent mass;
     exempt for one-step steppers, lumped mass, and static BCs."""
 
-    def _physics_with_callable_bc(
+    def _system_with_callable_bc(
         self, bkd: NumpyBkd, with_derivative: bool
-    ) -> AdvectionDiffusionReaction[Any]:
+    ) -> GalerkinSystem[Any]:
         from pyapprox.pde.galerkin.boundary import CallableDirichletBC
         from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 
@@ -305,96 +308,106 @@ class TestStageBCRequirement:
         bc = CallableDirichletBC(
             [0], DofSignal(_dof_ramp, derivatives), bkd
         )
-        return AdvectionDiffusionReaction(
+        physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=1.0,
             bkd=bkd,
             forcing=TimeIndependent(_zero_forcing),
-            boundary_conditions=[bc],
         )
+        return compose_galerkin_system(physics, [bc])
 
     def test_multistage_consistent_mass_missing_gdot_raises(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        physics = self._physics_with_callable_bc(
+        system = self._system_with_callable_bc(
             numpy_bkd, with_derivative=False
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        adapter = GalerkinPhysicsToODEResidualAdapter(system)
         stepper = create_stepper("heun", adapter)
         with pytest.raises(TypeError, match="analytic boundary velocity"):
             create_galerkin_bc_enforcing_residual(
-                stepper, physics.constraint_set(), numpy_bkd
+                stepper, system.constraint_set(), numpy_bkd
             )
 
     def test_one_step_stepper_exempt(self, numpy_bkd: NumpyBkd) -> None:
-        physics = self._physics_with_callable_bc(
+        system = self._system_with_callable_bc(
             numpy_bkd, with_derivative=False
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        adapter = GalerkinPhysicsToODEResidualAdapter(system)
         stepper = create_stepper("backward_euler", adapter)
-        create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), numpy_bkd)
+        create_galerkin_bc_enforcing_residual(
+            stepper, system.constraint_set(), numpy_bkd
+        )
 
     def test_lumped_mass_exempt(self, numpy_bkd: NumpyBkd) -> None:
-        physics = self._physics_with_callable_bc(
+        system = self._system_with_callable_bc(
             numpy_bkd, with_derivative=False
         )
         adapter = GalerkinPhysicsToODEResidualAdapter(
-            physics.system(), lumped_mass=True
+            system, lumped_mass=True
         )
         stepper = create_stepper("heun", adapter)
-        create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), numpy_bkd)
+        create_galerkin_bc_enforcing_residual(
+            stepper, system.constraint_set(), numpy_bkd
+        )
 
     def test_static_bcs_pass_with_multistage(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        physics, _ = _setup_adr(numpy_bkd)  # static + manufactured g_dot
-        adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        system, _ = _setup_adr(numpy_bkd)  # static + manufactured g_dot
+        adapter = GalerkinPhysicsToODEResidualAdapter(system)
         stepper = create_stepper("heun", adapter)
-        create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), numpy_bkd)
+        create_galerkin_bc_enforcing_residual(
+            stepper, system.constraint_set(), numpy_bkd
+        )
 
     def test_supplied_gdot_passes(self, numpy_bkd: NumpyBkd) -> None:
-        physics = self._physics_with_callable_bc(
+        system = self._system_with_callable_bc(
             numpy_bkd, with_derivative=True
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        adapter = GalerkinPhysicsToODEResidualAdapter(system)
         stepper = create_stepper("heun", adapter)
-        create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), numpy_bkd)
+        create_galerkin_bc_enforcing_residual(
+            stepper, system.constraint_set(), numpy_bkd
+        )
 
-    def _physics_with_dirichlet(
+    def _system_with_dirichlet(
         self, bkd: NumpyBkd, value_func: Any
-    ) -> AdvectionDiffusionReaction[Any]:
+    ) -> GalerkinSystem[Any]:
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         bc = DirichletBC(basis, "left", value_func, bkd)
-        return AdvectionDiffusionReaction(
+        physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=1.0,
             bkd=bkd,
             forcing=TimeIndependent(_zero_forcing),
-            boundary_conditions=[bc],
         )
+        return compose_galerkin_system(physics, [bc])
 
     def test_declared_steady_callable_passes(
         self, numpy_bkd: NumpyBkd
     ) -> None:
         """A callable declared TimeIndependent needs no g_dot: its
         derivative is exactly zero."""
-        physics = self._physics_with_dirichlet(
+        system = self._system_with_dirichlet(
             numpy_bkd, TimeIndependent(_left_value)
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        adapter = GalerkinPhysicsToODEResidualAdapter(system)
         stepper = create_stepper("heun", adapter)
-        create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), numpy_bkd)
+        create_galerkin_bc_enforcing_residual(
+            stepper, system.constraint_set(), numpy_bkd
+        )
 
     def test_time_dependent_dirichlet_missing_gdot_names_bc(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        physics = self._physics_with_dirichlet(
+        system = self._system_with_dirichlet(
             numpy_bkd, TimeDependent(_left_ramp)
         )
-        adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        adapter = GalerkinPhysicsToODEResidualAdapter(system)
         stepper = create_stepper("heun", adapter)
         with pytest.raises(TypeError, match="DirichletBC\\(boundary='left'"):
             create_galerkin_bc_enforcing_residual(
-                stepper, physics.constraint_set(), numpy_bkd
+                stepper, system.constraint_set(), numpy_bkd
             )

@@ -27,10 +27,12 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     as_time_aware,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 def _basis(bkd, nx=6):
@@ -182,7 +184,9 @@ class TestAmbiguityIsRefused:
 class TestErrorsAreNotMasked:
     """The regression this work exists to prevent."""
 
-    def test_typeerror_inside_forcing_propagates(self, numpy_bkd) -> None:
+    def test_typeerror_inside_forcing_propagates(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         """A TypeError raised INSIDE a forcing must surface as itself.
 
         The old arity probe caught it, mistook it for a wrong-arity
@@ -197,8 +201,9 @@ class TestErrorsAreNotMasked:
             raise TypeError(sentinel)
 
         physics = _physics(bkd, forcing=broken_forcing)
+        operator = compose_galerkin_system(physics).spatial_operator()
         with pytest.raises(TypeError, match=sentinel):
-            physics.spatial_residual(bkd.zeros((physics.nstates(),)), 0.0)
+            operator.spatial_residual(bkd.zeros((physics.nstates(),)), 0.0)
 
 
 class TestTimeDependentCoefficients:
@@ -259,7 +264,7 @@ class TestLoadIsNotFrozenInTime:
     """Assembled loads must follow a time-dependent forcing."""
 
     def test_declared_forcing_reassembles_per_time(
-        self, numpy_bkd
+        self, numpy_bkd: NumpyBkd
     ) -> None:
         bkd = numpy_bkd
 
@@ -267,14 +272,15 @@ class TestLoadIsNotFrozenInTime:
             return (1.0 + time) * np.ones(coords.shape[-1])
 
         physics = _physics(bkd, forcing=TimeDependent(forcing))
+        operator = compose_galerkin_system(physics).spatial_operator()
         zeros = bkd.zeros((physics.nstates(),))
-        load_t0 = physics.spatial_residual(zeros, 0.0)
-        load_t1 = physics.spatial_residual(zeros, 1.0)
+        load_t0 = operator.spatial_residual(zeros, 0.0)
+        load_t1 = operator.spatial_residual(zeros, 1.0)
 
         bkd.assert_allclose(load_t1, 2.0 * load_t0, rtol=1e-12)
 
     def test_steady_forcing_is_stable_across_times(
-        self, numpy_bkd
+        self, numpy_bkd: NumpyBkd
     ) -> None:
         """The complement: a steady forcing must NOT vary with time,
         which is what makes caching it legitimate."""
@@ -282,9 +288,10 @@ class TestLoadIsNotFrozenInTime:
         physics = _physics(
             bkd, forcing=lambda coords: np.ones(coords.shape[-1])
         )
+        operator = compose_galerkin_system(physics).spatial_operator()
         zeros = bkd.zeros((physics.nstates(),))
         bkd.assert_allclose(
-            physics.spatial_residual(zeros, 3.0),
-            physics.spatial_residual(zeros, 0.0),
+            operator.spatial_residual(zeros, 3.0),
+            operator.spatial_residual(zeros, 0.0),
             rtol=1e-14,
         )

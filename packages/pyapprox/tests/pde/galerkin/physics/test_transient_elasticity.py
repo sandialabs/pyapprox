@@ -21,6 +21,7 @@ from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     create_elasticity_manufactured_test,
 )
@@ -32,6 +33,7 @@ from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
     create_galerkin_bc_enforcing_residual,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 # =========================================================================
@@ -113,7 +115,7 @@ class TestTransientElasticity2D:
     )
     def test_transient_elasticity_2d(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         method: str,
     ) -> None:
@@ -178,22 +180,23 @@ class TestTransientElasticity2D:
             poisson_ratio=0.25,  # nu computed from lambda=1, mu=1
             bkd=bkd,
             body_force=body_force,
-            boundary_conditions=bc_list,
         )
+        system = compose_galerkin_system(physics, bc_list)
+        constraints = system.constraint_set()
 
         # Verify Lame parameters match
         assert abs(physics.lame_lambda() - 1.0) < 1e-10
         assert abs(physics.lame_mu() - 1.0) < 1e-10
 
         # Time stepping with constrained wrapper
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
 
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:
             stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics.constraint_set(), bkd
+            stepper, constraints, bkd
         )
 
         newton = NewtonSolver(constrained)
@@ -210,7 +213,7 @@ class TestTransientElasticity2D:
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
 
             # Inject Dirichlet values into initial guess
-            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
+            d_dofs, d_vals = constraints.dofs(), constraints.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             guess = bkd.copy(y)
             if len(d_dofs_np) > 0:

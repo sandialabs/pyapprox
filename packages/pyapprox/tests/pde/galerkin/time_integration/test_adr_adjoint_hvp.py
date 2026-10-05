@@ -30,6 +30,7 @@ from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldDiffusion,
+    TimeIndependent,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
@@ -38,8 +39,10 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingHVPResidual,
     create_galerkin_bc_enforcing_residual,
@@ -94,7 +97,7 @@ def _build_pipeline(
 ) -> Tuple[
     TimeIntegrator[NumpyArray],
     Any,
-    AdvectionDiffusionReaction[NumpyArray],
+    GalerkinSystem[NumpyArray],
 ]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
@@ -112,8 +115,11 @@ def _build_pipeline(
         diffusivity=NodalFieldDiffusion(basis),
         bkd=bkd,
         reaction=reaction,
-        forcing=lambda x: np.ones(x.shape[1]),
-        boundary_conditions=[
+        forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+    )
+    system = compose_galerkin_system(
+        physics,
+        [
             DirichletBC(basis, "left", 0.0, bkd),
             DirichletBC(basis, "right", 0.0, bkd),
         ],
@@ -121,10 +127,12 @@ def _build_pipeline(
     param = AdvectionDiffusionParameterization(
         physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
-    adapter = create_galerkin_physics_ode_residual(physics.system(), param)
+    adapter = create_galerkin_physics_ode_residual(system, param)
     assert isinstance(adapter, GalerkinPhysicsToODEResidualWithHVPAdapter)
     stepper = create_stepper(method, adapter)
-    wrapper = create_galerkin_bc_enforcing_residual(stepper, physics.constraint_set(), bkd)
+    wrapper = create_galerkin_bc_enforcing_residual(
+        stepper, system.constraint_set(), bkd
+    )
     assert isinstance(wrapper, GalerkinBCEnforcingHVPResidual)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=20, atol=1e-12, rtol=0.0)
@@ -132,7 +140,7 @@ def _build_pipeline(
     if final_time is None:
         final_time = default_final_time
     integrator = TimeIntegrator(0.0, final_time, deltat, newton)
-    return integrator, adapter, physics
+    return integrator, adapter, system
 
 
 class TestADRLogKLEAdjointHVP:
@@ -145,12 +153,12 @@ class TestADRLogKLEAdjointHVP:
         self, numpy_bkd: NumpyBkd, method: str, nonlinear_reaction: bool
     ) -> None:
         bkd = numpy_bkd
-        integrator, adapter, physics = _build_pipeline(
+        integrator, adapter, system = _build_pipeline(
             bkd, method, nonlinear_reaction
         )
-        nstates = physics.nstates()
+        nstates = system.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -203,12 +211,12 @@ class TestADRLogKLEAdjointHVP:
         methods must use their ctx argument, not stale bound step
         state — invisible under uniform dt."""
         bkd = numpy_bkd
-        integrator, adapter, physics = _build_pipeline(
+        integrator, adapter, system = _build_pipeline(
             bkd, method, nonlinear_reaction=True, final_time=0.35
         )
-        nstates = physics.nstates()
+        nstates = system.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained

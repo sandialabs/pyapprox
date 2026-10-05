@@ -48,7 +48,7 @@ with one job:
 |---|---|
 | **Mesh** | the geometry: how the domain is divided into elements |
 | **Basis** | the approximation space on that mesh, and its degrees of freedom |
-| **Physics** | the equation: coefficients, forcing, and the weak form |
+| **Physics** | the equation: coefficients, forcing, and the interior weak form |
 | **Boundary conditions** | what happens on each side of the domain |
 
 The split is what makes the rest of this tutorial short. Refining the mesh
@@ -121,7 +121,8 @@ velocity field to add.
 
 The remaining ingredient is the source term $f$. A forcing is any callable of
 the coordinates returning one value per point --- here a Gaussian blob on the
-left, the point of release.
+left, the point of release. Below it is passed wrapped in `TimeIndependent`,
+which declares that it does not vary in time.
 
 ```{python}
 DIFFUSIVITY = 0.005
@@ -163,7 +164,14 @@ Here the left and right sides are held at zero concentration --- material
 reaching them is carried away --- and the condition on the outer walls and
 the three obstacle surfaces is the one we vary below.
 
+The physics itself knows nothing of boundaries: it is the interior equation
+alone. `compose_galerkin_system` joins it with a list of conditions and sorts
+each into its role --- natural terms join the assembled form, essential ones
+become the system's constraint set. The solver is handed the system.
+
 ```{python}
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
+from pyapprox.pde.galerkin import compose_galerkin_system
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC, NeumannBC, RobinBC,
 )
@@ -195,23 +203,25 @@ def solve_plume(kind):
         basis=basis,
         diffusivity=DIFFUSIVITY,
         reaction=DECAY,
-        forcing=forcing,
-        boundary_conditions=bcs,
+        forcing=TimeIndependent(forcing),
         bkd=bkd,
     )
-    return physics, SteadyStateSolver(physics.system().steady(), tol=1e-12).solve_linear()
+    system = compose_galerkin_system(physics, bcs)
+    return system, SteadyStateSolver(system.steady(), tol=1e-12).solve_linear()
 
 
-physics, result = solve_plume("Dirichlet")
-print(f"essential (rows replaced): {len(physics.essential_bcs())}")
-print(f"natural   (added to form): {len(physics.weak_form_bcs())}")
+system, result = solve_plume("Dirichlet")
+natural_terms = system.spatial_operator().natural_bcs().terms()
+print(f"essential (rows replaced): {system.constraint_set().ndofs()} dofs")
+print(f"natural   (added to form): {len(natural_terms)} terms")
 print(f"converged={result.converged}")
 ```
 
 With every boundary Dirichlet, all seven conditions are essential and none is
-natural --- the counts above report exactly that split. The equation is
-linear in $u$, so `solve_linear` assembles the system once and solves it. A
-nonlinear equation appears later, when the flow is computed.
+natural --- every boundary degree of freedom lands in the constraint set, and
+no term is added to the form. The equation is linear in $u$, so
+`solve_linear` assembles the system once and solves it. A nonlinear equation
+appears later, when the flow is computed.
 
 ```{python}
 #| echo: false
@@ -362,9 +372,10 @@ def solve_transport(kind, flow=None):
 
     physics = AdvectionDiffusionReaction(
         basis=basis, diffusivity=DIFFUSIVITY, velocity=flow,
-        reaction=DECAY, forcing=forcing, boundary_conditions=bcs, bkd=bkd,
+        reaction=DECAY, forcing=TimeIndependent(forcing), bkd=bkd,
     )
-    return SteadyStateSolver(physics.system().steady(), tol=1e-12).solve_linear().solution
+    system = compose_galerkin_system(physics, bcs)
+    return SteadyStateSolver(system.steady(), tol=1e-12).solve_linear().solution
 
 
 still = solve_transport("Neumann")
@@ -403,10 +414,15 @@ solution to the other as a coefficient.
 
 ## Summary
 
-- A steady solve is a mesh, a basis, a physics, and boundary conditions.
-  Each can be changed without touching the others.
+- A steady solve is a mesh, a basis, a physics, and boundary conditions,
+  joined by `compose_galerkin_system`. The equation and the boundary
+  conditions can each be changed without touching the other. The mesh
+  cannot: the basis is built on it, the physics and the conditions are
+  built on the basis, and the conditions name the mesh's boundaries, which
+  differ between meshes (a rectangle has four sides, a triangle three).
+  Changing the mesh means rebuilding everything downstream of it.
 - Natural conditions are added to the assembled system; essential conditions
-  replace rows of it. The physics object reports which are which.
+  replace rows of it. The composed system reports which are which.
 - Removing cells from a mesh creates new named boundaries, and each one needs
   a condition like any other side of the domain.
 - Solving a different PDE meant constructing a different physics object ---

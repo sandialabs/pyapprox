@@ -127,7 +127,8 @@ section is about what happens then.
 
 ## Evolving the Existing Physics
 
-The physics object is built exactly as in the steady tutorial. Only the
+The physics, and the system `compose_galerkin_system` makes of it and its
+boundary conditions, are built exactly as in the steady tutorial. Only the
 solve differs.
 
 ```{python}
@@ -178,6 +179,8 @@ The physics is the steady one unchanged: a Gaussian release near the left
 inlet, carried downstream by the frozen flow.
 
 ```{python}
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
+from pyapprox.pde.galerkin import compose_galerkin_system
 from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.zoo.obstructed_flow import (
@@ -214,12 +217,15 @@ physics = AdvectionDiffusionReaction(
     basis=basis,
     diffusivity=DIFFUSIVITY,
     velocity=velocity,
-    forcing=release,
-    boundary_conditions=[
+    forcing=TimeIndependent(release),
+    bkd=bkd,
+)
+system = compose_galerkin_system(
+    physics,
+    [
         DirichletBC(basis, name, value_func=0.0, bkd=bkd)
         for name in mesh.boundary_names()
     ],
-    bkd=bkd,
 )
 
 config = TimeIntegrationConfig(
@@ -233,8 +239,8 @@ config = TimeIntegrationConfig(
     verbosity=0,
 )
 
-solutions, times = GalerkinModel(physics.system(), bkd).solve_transient(
-    bkd.asarray(np.zeros(physics.nstates())), config
+solutions, times = GalerkinModel(system, bkd).solve_transient(
+    bkd.asarray(np.zeros(system.nstates())), config
 )
 print(f"{len(times)} steps to t = {times[-1]:.1f}")
 ```

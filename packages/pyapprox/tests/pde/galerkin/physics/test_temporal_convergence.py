@@ -22,6 +22,7 @@ if not package_available("skfem"):
 
 import numpy as np
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
@@ -104,10 +105,10 @@ def _setup_physics_and_model(
         bkd=bkd,
         velocity=velocity,
         forcing=adapter.forcing_for_galerkin(),
-        boundary_conditions=bc_set.all_conditions(),
     )
+    system = compose_galerkin_system(physics, bc_set.all_conditions())
 
-    model = GalerkinModel(physics.system(), bkd)
+    model = GalerkinModel(system, bkd)
 
     exact_sol_func = adapter.solution_function()
     dof_coords = bkd.to_numpy(basis.dof_coordinates())

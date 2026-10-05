@@ -19,6 +19,7 @@ from typing import Any, List, Tuple
 import numpy as np
 from numpy.typing import NDArray
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
@@ -76,9 +77,10 @@ class TestLinearADRBase:
         physics = LinearAdvectionDiffusionReaction(
             basis=basis, diffusivity=1.0, bkd=bkd
         )
+        system = compose_galerkin_system(physics)
 
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
         jac_np = self._to_dense(bkd, jac)
 
         # For pure diffusion (no reaction), -jacobian should be the
@@ -94,9 +96,10 @@ class TestLinearADRBase:
         physics = LinearAdvectionDiffusionReaction(
             basis=basis, diffusivity=0.01, bkd=bkd
         )
+        system = compose_galerkin_system(physics)
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
 
         assert res.shape == (physics.nstates(),)
 
@@ -108,9 +111,10 @@ class TestLinearADRBase:
         physics = LinearAdvectionDiffusionReaction(
             basis=basis, diffusivity=0.01, bkd=bkd
         )
+        system = compose_galerkin_system(physics)
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
 
         assert jac.shape == (physics.nstates(), physics.nstates())
 
@@ -122,6 +126,7 @@ class TestLinearADRBase:
         physics = LinearAdvectionDiffusionReaction(
             basis=basis, diffusivity=0.01, bkd=bkd
         )
+        system = compose_galerkin_system(physics)
 
         # Initial condition
         u0 = physics.initial_condition(
@@ -131,7 +136,7 @@ class TestLinearADRBase:
         # Check shapes
         assert u0.shape == (physics.nstates(),)
 
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
     def test_with_forcing(self, numpy_bkd) -> None:
@@ -146,9 +151,10 @@ class TestLinearADRBase:
         physics = LinearAdvectionDiffusionReaction(
             basis=basis, diffusivity=0.01, forcing=forcing, bkd=bkd
         )
+        system = compose_galerkin_system(physics)
 
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         res_np = bkd.to_numpy(res)
 
         # With forcing and u=0, residual should be non-zero
@@ -168,6 +174,7 @@ class TestLinearADRBase:
         physics = LinearAdvectionDiffusionReaction(
             basis=basis, diffusivity=0.01, bkd=bkd
         )
+        system = compose_galerkin_system(physics)
 
         # Initial condition
         u0 = physics.initial_condition(
@@ -177,10 +184,11 @@ class TestLinearADRBase:
         # Check shapes
         assert u0.shape == (physics.nstates(),)
 
-        res = physics.residual(u0, 0.0)
+        view = system.steady_snapshot(0.0)
+        res = view.steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
-        jac = physics.jacobian(u0, 0.0)
+        jac = view.steady_jacobian(u0)
         assert jac.shape == (physics.nstates(), physics.nstates())
 
     def test_3d_mass_matrix_symmetric(self, numpy_bkd) -> None:
@@ -217,9 +225,10 @@ class TestLinearADRBase:
         physics = LinearAdvectionDiffusionReaction(
             basis=basis, diffusivity=1.0, bkd=bkd
         )
+        system = compose_galerkin_system(physics)
 
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
         jac_np = self._to_dense(bkd, jac)
 
         # For pure diffusion, -jacobian = stiffness matrix should be symmetric
@@ -247,7 +256,7 @@ class TestLinearADRBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10)
+        solver = SteadyStateSolver(compose_galerkin_system(physics).steady(), tol=1e-10)
         result = solver.solve_linear()
 
         assert result.converged
@@ -292,7 +301,9 @@ class TestLinearADRBase:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+            solver = SteadyStateSolver(
+                compose_galerkin_system(physics).steady(), tol=1e-12
+            )
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -353,7 +364,9 @@ class TestLinearADRBase:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+            solver = SteadyStateSolver(
+                compose_galerkin_system(physics).steady(), tol=1e-12
+            )
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -415,7 +428,9 @@ class TestLinearADRBase:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+            solver = SteadyStateSolver(
+                compose_galerkin_system(physics).steady(), tol=1e-12
+            )
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -552,7 +567,9 @@ class TestParametrizedADR1DConvergence:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+            solver = SteadyStateSolver(
+                compose_galerkin_system(physics).steady(), tol=1e-12
+            )
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -651,7 +668,9 @@ class TestParametrizedADR2DConvergence:
                 bkd=bkd,
             )
 
-            solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+            solver = SteadyStateSolver(
+                compose_galerkin_system(physics).steady(), tol=1e-12
+            )
             result = solver.solve_linear()
 
             # Compute L2 error at DOF locations
@@ -918,12 +937,12 @@ class TestParametrizedADR1DExact:
             velocity=velocity,
             reaction=reaction,
             forcing=forcing_func,
-            boundary_conditions=bc_set.all_conditions(),
             bkd=bkd,
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
         # Solve
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+        solver = SteadyStateSolver(system.steady(), tol=1e-12)
         result = solver.solve_linear()
 
         # Compute error
@@ -1031,12 +1050,12 @@ class TestParametrizedADR1DConservative:
             velocity=velocity,
             reaction=reaction,
             forcing=forcing_func,
-            boundary_conditions=bc_set.all_conditions(),
             bkd=bkd,
             conservative=True,
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+        solver = SteadyStateSolver(system.steady(), tol=1e-12)
         result = solver.solve_linear()
 
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -1129,12 +1148,12 @@ class TestParametrizedADR2DExact:
             velocity=velocity,
             reaction=reaction,
             forcing=forcing_func,
-            boundary_conditions=bc_set.all_conditions(),
             bkd=bkd,
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
         # Solve
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+        solver = SteadyStateSolver(system.steady(), tol=1e-12)
         result = solver.solve_linear()
 
         # Compute error
@@ -1195,10 +1214,10 @@ class TestParametrizedADR2DExact:
             velocity=None,
             reaction=0.0,
             forcing=adapter.forcing_for_galerkin(),
-            boundary_conditions=bc_set.all_conditions(),
             bkd=bkd,
         )
-        result = SteadyStateSolver(physics.system().steady(), tol=1e-12).solve_linear()
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        result = SteadyStateSolver(system.steady(), tol=1e-12).solve_linear()
 
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
         u_num = bkd.to_numpy(result.solution)
@@ -1229,9 +1248,9 @@ class TestDiffusivityPositivity:
     def _physics(numpy_bkd, dofs):
         from pyapprox.pde.constitutive.coefficient_functions import (
             NodalFieldDiffusion,
+            TimeIndependent,
         )
         from pyapprox.pde.galerkin.basis import LagrangeBasis
-        from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
         from pyapprox.pde.galerkin.mesh import StructuredMesh2D
         from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 
@@ -1243,11 +1262,7 @@ class TestDiffusivityPositivity:
             basis=basis,
             diffusivity=NodalFieldDiffusion(basis, dofs=dofs(basis)),
             bkd=numpy_bkd,
-            forcing=lambda x: np.ones(x.shape[1]),
-            boundary_conditions=[
-                DirichletBC(basis, name, 0.0, numpy_bkd)
-                for name in ("left", "right", "bottom", "top")
-            ],
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
         )
 
     def test_positive_diffusivity_assembles(self, numpy_bkd) -> None:
@@ -1326,8 +1341,10 @@ class TestLinearReactionSelectedByCapability:
 
     @staticmethod
     def _physics(numpy_bkd, reaction):
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeIndependent,
+        )
         from pyapprox.pde.galerkin.basis import LagrangeBasis
-        from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
         from pyapprox.pde.galerkin.mesh import StructuredMesh2D
         from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 
@@ -1340,11 +1357,7 @@ class TestLinearReactionSelectedByCapability:
             diffusivity=1.0,
             bkd=numpy_bkd,
             reaction=reaction,
-            forcing=lambda x: np.ones(x.shape[1]),
-            boundary_conditions=[
-                DirichletBC(basis, name, 0.0, numpy_bkd)
-                for name in ("left", "right", "bottom", "top")
-            ],
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
         ), basis
 
     def test_a_custom_linear_reaction_reaches_the_stiffness(

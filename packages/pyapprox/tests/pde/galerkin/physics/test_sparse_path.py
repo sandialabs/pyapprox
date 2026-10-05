@@ -12,8 +12,15 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
+)
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
+from pyapprox.pde.galerkin.physics import (
+    Helmholtz,
+    LinearAdvectionDiffusionReaction,
 )
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
@@ -29,13 +36,6 @@ from pyapprox.util.linalg.sparse_dispatch import (
 )
 from scipy.sparse import issparse
 
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
-from pyapprox.pde.galerkin.physics import (
-    Helmholtz,
-    LinearAdvectionDiffusionReaction,
-)
-
 
 class TestSparsePathADR:
     """Verify ADR physics returns sparse matrices."""
@@ -49,6 +49,7 @@ class TestSparsePathADR:
             diffusivity=0.01,
             bkd=bkd,
         )
+        self._system = compose_galerkin_system(self._physics)
 
     def test_mass_matrix_is_sparse(self, numpy_bkd) -> None:
         _bkd = numpy_bkd
@@ -57,12 +58,14 @@ class TestSparsePathADR:
     def test_spatial_jacobian_is_sparse(self, numpy_bkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._physics.nstates()))
-        assert issparse(self._physics.spatial_jacobian(u, 0.0))
+        operator = self._system.spatial_operator()
+        assert issparse(operator.spatial_jacobian(u, 0.0))
 
     def test_jacobian_is_sparse(self, numpy_bkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._physics.nstates()))
-        assert issparse(self._physics.jacobian(u, 0.0))
+        view = self._system.steady_snapshot(0.0)
+        assert issparse(view.steady_jacobian(u))
 
 
 class TestSparsePathHelmholtz:
@@ -74,8 +77,9 @@ class TestSparsePathHelmholtz:
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = Helmholtz(basis=basis, wavenumber=1.0, bkd=bkd)
+        system = compose_galerkin_system(physics)
         u = bkd.asarray(np.zeros(physics.nstates()))
-        assert issparse(physics.jacobian(u, 0.0))
+        assert issparse(system.steady_snapshot(0.0).steady_jacobian(u))
 
 
 class TestSparsePathElasticity:
@@ -96,6 +100,7 @@ class TestSparsePathElasticity:
             poisson_ratio=0.3,
             bkd=bkd,
         )
+        self._system = compose_galerkin_system(self._physics)
 
     def test_mass_matrix_is_sparse(self, numpy_bkd) -> None:
         _bkd = numpy_bkd
@@ -108,7 +113,8 @@ class TestSparsePathElasticity:
     def test_jacobian_is_sparse(self, numpy_bkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._physics.nstates()))
-        assert issparse(self._physics.jacobian(u, 0.0))
+        view = self._system.steady_snapshot(0.0)
+        assert issparse(view.steady_jacobian(u))
 
 
 class TestSparsePathStokes:

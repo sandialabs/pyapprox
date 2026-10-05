@@ -82,9 +82,15 @@ The constrained rows say "this degree of freedom equals its boundary value",
 nothing more. Differentiating, the corresponding rows of the Jacobian are
 rows of the identity.
 
+In PyApprox the physics holds only the interior weak form.
+`compose_galerkin_system` joins it with its boundary conditions, and it is
+the composed *system* whose rows are replaced.
+
 ```{python}
 import numpy as np
 
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
+from pyapprox.pde.galerkin import compose_galerkin_system
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
@@ -98,16 +104,21 @@ small_mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
 small_basis = LagrangeBasis(small_mesh, degree=1)
 small_physics = AdvectionDiffusionReaction(
     basis=small_basis, diffusivity=1.0, bkd=bkd,
-    forcing=lambda x: np.ones(x.shape[1]),
-    boundary_conditions=[
+    forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+)
+small_system = compose_galerkin_system(
+    small_physics,
+    [
         DirichletBC(small_basis, "left", 0.0, bkd),
         DirichletBC(small_basis, "right", 0.0, bkd),
     ],
 )
 
-jac = small_physics.jacobian(bkd.zeros((small_physics.nstates(),)), 0.0)
+jac = small_system.steady().steady_jacobian(
+    bkd.zeros((small_system.nstates(),))
+)
 dense = np.asarray(bkd.to_numpy(jac).todense())
-constrained = bkd.to_numpy(small_physics.constraint_set().dofs())
+constrained = bkd.to_numpy(small_system.constraint_set().dofs())
 
 print("constrained dofs:", constrained)
 print("row 0    :", np.round(dense[0], 3))
@@ -138,7 +149,7 @@ import matplotlib.pyplot as plt
 from pyapprox_tutorials.figures._galerkin import plot_rows_to_columns
 
 fig, axes = plt.subplots(1, 2, figsize=(9, 4.4))
-plot_rows_to_columns(jac, small_physics.constraint_set().dofs(), axes, bkd)
+plot_rows_to_columns(jac, small_system.constraint_set().dofs(), axes, bkd)
 plt.tight_layout()
 ```
 
@@ -227,11 +238,11 @@ def release(coords):
 
 physics = AdvectionDiffusionReaction(
     basis=basis, diffusivity=NodalFieldDiffusion(basis), bkd=bkd,
-    velocity=velocity, forcing=release,
-    boundary_conditions=[
-        DirichletBC(basis, name, 0.0, bkd)
-        for name in mesh.boundary_names()
-    ],
+    velocity=velocity, forcing=TimeIndependent(release),
+)
+system = compose_galerkin_system(
+    physics,
+    [DirichletBC(basis, name, 0.0, bkd) for name in mesh.boundary_names()],
 )
 
 kle_map = create_lognormal_kle_field_map(
@@ -245,7 +256,7 @@ parameterization = AdvectionDiffusionParameterization(
 )
 
 print(f"{physics.nstates()} degrees of freedom")
-print(f"{len(bkd.to_numpy(physics.constraint_set().dofs()))} constrained")
+print(f"{len(bkd.to_numpy(system.constraint_set().dofs()))} constrained")
 print(f"{parameterization.nparams()} parameters")
 ```
 
@@ -265,7 +276,7 @@ coords = bkd.to_numpy(basis.dof_coordinates())
 free = [
     i for i in range(physics.nstates())
     if i not in set(int(d) for d in
-                    bkd.to_numpy(physics.constraint_set().dofs()))
+                    bkd.to_numpy(system.constraint_set().dofs()))
 ]
 sensor = min(
     free, key=lambda i: np.hypot(coords[0, i] - 0.85, coords[1, i] - 0.30)
@@ -283,16 +294,16 @@ from scipy.sparse.linalg import spsolve
 
 # Step 1: forward solve.
 parameterization.apply(param)
-state = SteadyStateSolver(physics.system().steady(), tol=1e-12).solve_linear().solution
+state = SteadyStateSolver(system.steady(), tol=1e-12).solve_linear().solution
 print(f"Q = {bkd.to_numpy(state)[sensor]:.6e}")
 
 # Step 2: adjoint solve. dQ/du for a point sensor is a unit vector;
 # zeroing its constrained entries is the correction from @eq-adjoint.
 dQ_du = np.zeros(physics.nstates())
 dQ_du[sensor] = 1.0
-dQ_du[bkd.to_numpy(physics.constraint_set().dofs()).astype(int)] = 0.0
+dQ_du[bkd.to_numpy(system.constraint_set().dofs()).astype(int)] = 0.0
 
-jacobian = sp.csr_matrix(bkd.to_numpy(physics.jacobian(state, 0.0)))
+jacobian = sp.csr_matrix(bkd.to_numpy(system.steady().steady_jacobian(state)))
 adjoint = spsolve(jacobian.T.tocsr(), -dQ_du)
 print(f"one extra solve; |lambda| max = {np.abs(adjoint).max():.2f}")
 ```
@@ -343,7 +354,7 @@ through $\partial \vc{R}/\partial \vc{p}$.
 
 ```{python}
 constrained_dofs = bkd.to_numpy(
-    physics.constraint_set().dofs()
+    system.constraint_set().dofs()
 ).astype(int)
 print(f"max |lambda| on constrained dofs: "
       f"{np.abs(adjoint[constrained_dofs]).max():.3e}")
@@ -385,7 +396,7 @@ from pyapprox.pde.models.galerkin.steady import (
 )
 
 state_equation = GalerkinStateEquationWithHVPAdapter(
-    physics.system().steady(), parameterization, bkd,
+    system.steady(), parameterization, bkd,
 )
 weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
 weights[sensor] = 1.0

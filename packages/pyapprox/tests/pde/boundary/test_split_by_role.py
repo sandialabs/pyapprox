@@ -16,6 +16,7 @@ from pyapprox.pde.galerkin.boundary import (
     NeumannBC,
     RobinBC,
 )
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.util.backends.protocols import Array, Backend
@@ -78,14 +79,14 @@ class TestSplitByRole:
         with pytest.raises(TypeError, match="both"):
             split_by_role([bc])
 
-    def test_physics_construction_rejects_unknown_role(
+    def test_system_composition_rejects_unknown_role(
         self, bkd: Backend[Array]
     ) -> None:
-        """Fails when the physics is built, not at the first solve."""
+        """Fails when the system is composed, not at the first solve."""
+        physics = AdvectionDiffusionReaction(
+            basis=_basis(bkd),
+            diffusivity=1.0,
+            bkd=bkd,
+        )
         with pytest.raises(TypeError, match="neither"):
-            AdvectionDiffusionReaction(
-                basis=_basis(bkd),
-                diffusivity=1.0,
-                bkd=bkd,
-                boundary_conditions=[_NoRole()],
-            )
+            compose_galerkin_system(physics, [_NoRole()])

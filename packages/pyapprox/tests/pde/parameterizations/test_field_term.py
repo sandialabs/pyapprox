@@ -37,6 +37,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldForcing,
     NodalFieldLinearReaction,
     NodalFieldVelocity,
+    TimeIndependent,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
@@ -45,8 +46,10 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
     GalerkinStateEquationWithHVPAdapter,
 )
@@ -134,6 +137,7 @@ def _build_physics_and_map(
     bkd: NumpyBkd, nonlinear_reaction: bool
 ) -> Tuple[
     AdvectionDiffusionReaction[NumpyArray],
+    GalerkinSystem[NumpyArray],
     TransformedFieldMap[NumpyArray],
 ]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -152,8 +156,11 @@ def _build_physics_and_map(
         diffusivity=NodalFieldDiffusion(basis),
         bkd=bkd,
         reaction=reaction,
-        forcing=lambda x: np.ones(x.shape[1]),
-        boundary_conditions=[
+        forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+    )
+    system = compose_galerkin_system(
+        physics,
+        [
             DirichletBC(basis, "left", 0.0, bkd),
             DirichletBC(basis, "right", 0.0, bkd),
         ],
@@ -171,7 +178,7 @@ def _build_physics_and_map(
     )
     exp = _ExpTransform(bkd)
     field_map = TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
-    return physics, field_map
+    return physics, system, field_map
 
 
 def _build_engine_term(
@@ -208,7 +215,7 @@ class TestFieldParameterizationTerm:
         mixed tensor agree (validates the new mixed assembly against
         the sensitivity assembly)."""
         bkd = numpy_bkd
-        physics, _ = _build_physics_and_map(bkd, False)
+        physics, _, _ = _build_physics_and_map(bkd, False)
         nstates = physics.nstates()
         rng = np.random.default_rng(11)
         delta = bkd.asarray(rng.normal(0.0, 1.0, nstates))
@@ -230,16 +237,18 @@ class TestFieldParameterizationTerm:
         """The engine-wired term passes the same 14-check suite the
         oracle passes (steady ADR log-KLE)."""
         bkd = numpy_bkd
-        physics, field_map = _build_physics_and_map(bkd, nonlinear_reaction)
+        physics, system, field_map = _build_physics_and_map(
+            bkd, nonlinear_reaction
+        )
         term = _build_engine_term(bkd, physics, field_map)
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics.system().steady(), param_obj, bkd
+            system.steady(), param_obj, bkd
         )
 
         nstates = physics.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -275,7 +284,10 @@ class TestFieldParameterizationTerm:
             diffusivity=NodalFieldDiffusion(basis),
             bkd=bkd,
             forcing=nodal_forcing,
-            boundary_conditions=[
+        )
+        system = compose_galerkin_system(
+            physics,
+            [
                 DirichletBC(basis, "left", 0.0, bkd),
                 DirichletBC(basis, "right", 0.0, bkd),
             ],
@@ -311,11 +323,11 @@ class TestFieldParameterizationTerm:
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics.system().steady(), param_obj, bkd
+            system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -351,8 +363,11 @@ class TestFieldParameterizationTerm:
             diffusivity=NodalFieldDiffusion(basis),
             bkd=bkd,
             reaction=nodal_reaction,
-            forcing=lambda x: np.ones(x.shape[1]),
-            boundary_conditions=[
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+        )
+        system = compose_galerkin_system(
+            physics,
+            [
                 DirichletBC(basis, "left", 0.0, bkd),
                 DirichletBC(basis, "right", 0.0, bkd),
             ],
@@ -392,11 +407,11 @@ class TestFieldParameterizationTerm:
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics.system().steady(), param_obj, bkd
+            system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -438,8 +453,11 @@ class TestFieldParameterizationTerm:
             diffusivity=NodalFieldDiffusion(basis),
             bkd=bkd,
             velocity=nodal_velocity,
-            forcing=lambda x: np.ones(x.shape[1]),
-            boundary_conditions=[
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+        )
+        system = compose_galerkin_system(
+            physics,
+            [
                 DirichletBC(basis, "left", 0.0, bkd),
                 DirichletBC(basis, "right", 0.0, bkd),
             ],
@@ -477,11 +495,11 @@ class TestFieldParameterizationTerm:
         )
         param_obj = term
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics.system().steady(), param_obj, bkd
+            system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -587,7 +605,7 @@ class TestFieldParameterizationTerm:
         """FromLinearity on the state-shaped slot requires the mixed
         assembly; field_field rejects FromLinearity."""
         bkd = numpy_bkd
-        physics, field_map = _build_physics_and_map(bkd, False)
+        physics, _, field_map = _build_physics_and_map(bkd, False)
         diffusion = physics.diffusion_function()
         assert isinstance(diffusion, NodalFieldDiffusion)
         with pytest.raises(TypeError, match="field_state_jacobian"):
@@ -634,7 +652,7 @@ class TestFieldParameterizationTerm:
         whatever the map produces.
         """
         bkd = numpy_bkd
-        physics, field_map = _build_physics_and_map(bkd, False)
+        physics, _, field_map = _build_physics_and_map(bkd, False)
         term = _build_engine_term(bkd, physics, field_map)
         term.apply(bkd.asarray(np.array([0.4, -0.3, 0.2])))
 

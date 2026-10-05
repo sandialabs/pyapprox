@@ -139,6 +139,7 @@ three. Measuring the wrong quantity turns a passing check into a misleading
 one.
 
 ```{python}
+from pyapprox.pde.galerkin import compose_galerkin_system
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
@@ -165,10 +166,10 @@ def solve_adr(nx, degree, sol_str):
 
     physics = AdvectionDiffusionReaction(
         basis=basis, diffusivity=1.0, reaction=1.0,
-        forcing=adapter.forcing_for_galerkin(),
-        boundary_conditions=bc_set.all_conditions(), bkd=bkd,
+        forcing=adapter.forcing_for_galerkin(), bkd=bkd,
     )
-    result = SteadyStateSolver(physics.system().steady(), tol=1e-13).solve_linear()
+    system = compose_galerkin_system(physics, bc_set.all_conditions())
+    result = SteadyStateSolver(system.steady(), tol=1e-13).solve_linear()
     return l2_error(basis, bkd.to_numpy(result.solution),
                     adapter.solution_function())
 ```
@@ -347,8 +348,8 @@ def solve_burgers(nx, degree, sol_str):
     physics = BurgersPhysics(
         basis=basis, viscosity=viscosity_for_galerkin(man.functions),
         bkd=bkd, forcing=adapter.forcing_for_galerkin(),
-        boundary_conditions=bc_set.all_conditions(),
     )
+    system = compose_galerkin_system(physics, bc_set.all_conditions())
 
     # Start away from the answer so the Newton iteration has work to do.
     exact = adapter.solution_function()
@@ -356,7 +357,7 @@ def solve_burgers(nx, degree, sol_str):
         exact(bkd.to_numpy(basis.dof_coordinates()))
     ).flatten() + 1.0
     result = SteadyStateSolver(
-        physics.system().steady(), tol=1e-12, max_iter=20, line_search=True
+        system.steady(), tol=1e-12, max_iter=20, line_search=True
     ).solve(bkd.asarray(guess))
 
     return (l2_error(basis, bkd.to_numpy(result.solution), exact),

@@ -19,8 +19,10 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.util.backends.numpy import NumpyBkd
 from skfem import BilinearForm, asm
 from skfem.helpers import dot, grad
 
@@ -47,7 +49,9 @@ def _make_physics(
 
 
 class TestFormsMatchAssembly:
-    def test_forms_sum_to_spatial_jacobian(self, numpy_bkd):
+    def test_forms_sum_to_spatial_jacobian(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         physics = _make_physics(
             numpy_bkd,
             diffusivity=lambda x: 1.0 + 0.5 * x[0] ** 2,
@@ -59,7 +63,8 @@ class TestFormsMatchAssembly:
             asm(form, skfem_basis) for form in physics.stiffness_forms()
         )
         zeros = numpy_bkd.zeros((physics.nstates(),))
-        stiffness = -physics.spatial_jacobian(zeros, 0.0)
+        operator = compose_galerkin_system(physics).spatial_operator()
+        stiffness = -operator.spatial_jacobian(zeros, 0.0)
         assert np.abs((total - stiffness).toarray()).max() < 1e-14
 
     def test_diffusion_form_matches_hand_assembly(self, numpy_bkd):
@@ -131,7 +136,9 @@ class TestLoadAndReactionForms:
             forcing=_unit_forcing,
         )
 
-    def test_forms_reassemble_the_spatial_residual(self, numpy_bkd):
+    def test_forms_reassemble_the_spatial_residual(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         """asm of the exposed load forms + stiffness equals the physics'
         spatial residual at a nonzero state."""
         physics = self._nonlinear_physics(numpy_bkd)
@@ -146,12 +153,13 @@ class TestLoadAndReactionForms:
             skfem_basis,
             u_prev=skfem_basis.interpolate(numpy_bkd.to_numpy(state)),
         )
-        reference = physics.spatial_residual(state, 0.0)
+        operator = compose_galerkin_system(physics).spatial_operator()
+        reference = operator.spatial_residual(state, 0.0)
         assert np.abs(load - stiffness @ state - reference).max() < 1e-13
 
     def test_reaction_jacobian_form_matches_spatial_jacobian(
-        self, numpy_bkd
-    ):
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         physics = self._nonlinear_physics(numpy_bkd)
         skfem_basis = physics.basis().skfem_basis()
         rng = np.random.RandomState(1)
@@ -164,7 +172,8 @@ class TestLoadAndReactionForms:
             skfem_basis,
             u_prev=skfem_basis.interpolate(numpy_bkd.to_numpy(state)),
         )
-        reference = physics.spatial_jacobian(state, 0.0)
+        operator = compose_galerkin_system(physics).spatial_operator()
+        reference = operator.spatial_jacobian(state, 0.0)
         assert (
             np.abs(
                 (-stiffness + reaction_jacobian - reference).toarray()
@@ -172,22 +181,25 @@ class TestLoadAndReactionForms:
             < 1e-13
         )
 
-    def test_spatial_jacobian_is_fd_consistent(self, numpy_bkd):
+    def test_spatial_jacobian_is_fd_consistent(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         """Ground truth for the reaction-Jacobian sign: dF/du of
         F = load - K*u gains +(w, R'(u)*du), so finite differences of
         spatial_residual must match spatial_jacobian."""
         physics = self._nonlinear_physics(numpy_bkd)
         rng = np.random.RandomState(3)
         state = numpy_bkd.array(rng.uniform(0.1, 1.0, physics.nstates()))
-        jacobian = physics.spatial_jacobian(state, 0.0).toarray()
+        operator = compose_galerkin_system(physics).spatial_operator()
+        jacobian = operator.spatial_jacobian(state, 0.0).toarray()
         step = 1e-7
-        residual = physics.spatial_residual(state, 0.0)
+        residual = operator.spatial_residual(state, 0.0)
         fd = np.zeros_like(jacobian)
         for j in range(physics.nstates()):
             perturbed = numpy_bkd.copy(state)
             perturbed[j] += step
             fd[:, j] = (
-                physics.spatial_residual(perturbed, 0.0) - residual
+                operator.spatial_residual(perturbed, 0.0) - residual
             ) / step
         assert np.abs(jacobian - fd).max() < 1e-6
 
@@ -236,18 +248,23 @@ class TestLoadAndReactionForms:
 
 
 class TestCachingUnchanged:
-    def test_constant_coefficients_still_cached(self, numpy_bkd):
+    def test_constant_coefficients_still_cached(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         physics = _make_physics(
             numpy_bkd, diffusivity=2.0, velocity=numpy_bkd.array([1.0, 0.0])
         )
         zeros = numpy_bkd.zeros((physics.nstates(),))
-        physics.spatial_jacobian(zeros, 0.0)
+        operator = compose_galerkin_system(physics).spatial_operator()
+        operator.spatial_jacobian(zeros, 0.0)
         assert physics._stiffness_cached is not None
         first = physics._stiffness_cached
-        physics.spatial_jacobian(zeros, 0.0)
+        operator.spatial_jacobian(zeros, 0.0)
         assert physics._stiffness_cached is first
 
-    def test_callable_coefficients_cached_by_version(self, numpy_bkd):
+    def test_callable_coefficients_cached_by_version(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         """Immutable coordinate coefficients cache like constants now:
         the cache is keyed on coefficient-function versions, and only a
         set_dofs mutation (nodal fields) bumps a version."""
@@ -255,13 +272,16 @@ class TestCachingUnchanged:
             numpy_bkd, diffusivity=lambda x: 1.0 + 0.0 * x[0]
         )
         zeros = numpy_bkd.zeros((physics.nstates(),))
-        physics.spatial_jacobian(zeros, 0.0)
+        operator = compose_galerkin_system(physics).spatial_operator()
+        operator.spatial_jacobian(zeros, 0.0)
         first = physics._stiffness_cached
         assert first is not None
-        physics.spatial_jacobian(zeros, 0.0)
+        operator.spatial_jacobian(zeros, 0.0)
         assert physics._stiffness_cached is first
 
-    def test_nodal_forcing_load_cached_and_invalidated(self, numpy_bkd):
+    def test_nodal_forcing_load_cached_and_invalidated(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         """The forcing load is version-cached like the stiffness:
         repeated evaluations reuse it across times, and a set_dofs
         rebind produces the NEW load (a stale cache here would be a
@@ -275,23 +295,26 @@ class TestCachingUnchanged:
             numpy_bkd, diffusivity=1.0, forcing=forcing
         )
         zeros = numpy_bkd.zeros((physics.nstates(),))
-        load_first = physics.spatial_residual(zeros, 0.0)
+        operator = compose_galerkin_system(physics).spatial_operator()
+        load_first = operator.spatial_residual(zeros, 0.0)
         assert physics._forcing_load_cached is not None
         cached = physics._forcing_load_cached
         # Reused across a DIFFERENT time (the field is time-invariant).
         numpy_bkd.assert_allclose(
-            physics.spatial_residual(zeros, 1.0), load_first, rtol=1e-14
+            operator.spatial_residual(zeros, 1.0), load_first, rtol=1e-14
         )
         assert physics._forcing_load_cached is cached
         # Rebind invalidates: doubled dofs double the load.
         forcing.set_dofs(2.0 * np.ones(ndofs))
-        load_rebound = physics.spatial_residual(zeros, 0.0)
+        load_rebound = operator.spatial_residual(zeros, 0.0)
         assert physics._forcing_load_cached is not cached
         numpy_bkd.assert_allclose(
             load_rebound, 2.0 * load_first, rtol=1e-12
         )
 
-    def test_time_dependent_callable_forcing_not_cached(self, numpy_bkd):
+    def test_time_dependent_callable_forcing_not_cached(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         """A forcing declared time-dependent assembles fresh at each
         time, so different times give different loads."""
 
@@ -302,7 +325,8 @@ class TestCachingUnchanged:
             numpy_bkd, diffusivity=1.0, forcing=TimeDependent(forcing)
         )
         zeros = numpy_bkd.zeros((physics.nstates(),))
-        load_t0 = physics.spatial_residual(zeros, 0.0)
-        load_t1 = physics.spatial_residual(zeros, 1.0)
+        operator = compose_galerkin_system(physics).spatial_operator()
+        load_t0 = operator.spatial_residual(zeros, 0.0)
+        load_t1 = operator.spatial_residual(zeros, 1.0)
         assert physics._forcing_load_cached is None
         numpy_bkd.assert_allclose(load_t1, 2.0 * load_t0, rtol=1e-12)

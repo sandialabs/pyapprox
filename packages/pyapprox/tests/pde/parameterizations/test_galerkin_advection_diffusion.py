@@ -29,6 +29,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldForcing,
     NodalFieldLinearReaction,
     NodalFieldVelocity,
+    TimeIndependent,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
@@ -37,8 +38,10 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
     GalerkinStateEquationWithHVPAdapter,
 )
@@ -71,6 +74,7 @@ def _build_full_physics(
     bkd: NumpyBkd,
 ) -> Tuple[
     AdvectionDiffusionReaction[NumpyArray],
+    GalerkinSystem[NumpyArray],
     LagrangeBasis[NumpyArray],
     VectorLagrangeBasis[NumpyArray],
 ]:
@@ -86,12 +90,15 @@ def _build_full_physics(
         ),
         reaction=NodalFieldLinearReaction(basis),
         forcing=NodalFieldForcing(basis),
-        boundary_conditions=[
+    )
+    system = compose_galerkin_system(
+        physics,
+        [
             DirichletBC(basis, "left", 0.0, bkd),
             DirichletBC(basis, "right", 0.0, bkd),
         ],
     )
-    return physics, basis, vel_basis
+    return physics, system, basis, vel_basis
 
 
 class TestAdvectionDiffusionParameterization:
@@ -102,7 +109,7 @@ class TestAdvectionDiffusionParameterization:
         parameter slices, composite block assembly) passes the full
         14-check suite."""
         bkd = numpy_bkd
-        physics, basis, vel_basis = _build_full_physics(bkd)
+        physics, system, basis, vel_basis = _build_full_physics(bkd)
         coords = bkd.to_numpy(basis.dof_coordinates())[0]
         vel_coords = np.linspace(0.0, 1.0, vel_basis.ndofs())
         facade = AdvectionDiffusionParameterization(
@@ -117,11 +124,11 @@ class TestAdvectionDiffusionParameterization:
         assert nparams == 9
 
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics.system().steady(), facade, bkd
+            system.steady(), facade, bkd
         )
         nstates = physics.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -161,8 +168,7 @@ class TestAdvectionDiffusionParameterization:
             basis=basis,
             diffusivity=1.0,
             bkd=bkd,
-            forcing=lambda x: np.ones(x.shape[1]),
-            boundary_conditions=[DirichletBC(basis, "left", 0.0, bkd)],
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
         )
         coords = bkd.to_numpy(basis.dof_coordinates())[0]
         field_map = _exp_kle_map(bkd, coords, 2, 0.4)
@@ -177,7 +183,7 @@ class TestAdvectionDiffusionParameterization:
 
     def test_no_maps_raises(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        physics, _, _ = _build_full_physics(bkd)
+        physics, _, _, _ = _build_full_physics(bkd)
         with pytest.raises(TypeError, match="at least one"):
             AdvectionDiffusionParameterization(physics, bkd=bkd)
 
@@ -188,7 +194,7 @@ class TestAdvectionDiffusionParameterization:
         import pickle
 
         bkd = numpy_bkd
-        physics, basis, _ = _build_full_physics(bkd)
+        physics, _, basis, _ = _build_full_physics(bkd)
         coords = bkd.to_numpy(basis.dof_coordinates())[0]
         facade = AdvectionDiffusionParameterization(
             physics,

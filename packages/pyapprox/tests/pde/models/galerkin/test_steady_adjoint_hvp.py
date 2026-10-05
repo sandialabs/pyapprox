@@ -30,6 +30,7 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldDiffusion,
+    TimeIndependent,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
@@ -38,8 +39,10 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
     GalerkinStateEquationWithHVPAdapter,
 )
@@ -79,7 +82,7 @@ def _build_state_equation(
     bkd: NumpyBkd, nonlinear_reaction: bool
 ) -> Tuple[
     GalerkinStateEquationWithHVPAdapter[NumpyArray],
-    AdvectionDiffusionReaction[NumpyArray],
+    GalerkinSystem[NumpyArray],
 ]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
@@ -97,8 +100,11 @@ def _build_state_equation(
         diffusivity=NodalFieldDiffusion(basis),
         bkd=bkd,
         reaction=reaction,
-        forcing=lambda x: np.ones(x.shape[1]),
-        boundary_conditions=[
+        forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+    )
+    system = compose_galerkin_system(
+        physics,
+        [
             DirichletBC(basis, "left", 0.0, bkd),
             DirichletBC(basis, "right", 0.0, bkd),
         ],
@@ -107,9 +113,9 @@ def _build_state_equation(
         physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
     state_eq = GalerkinStateEquationWithHVPAdapter(
-        physics.system().steady(), param_obj, bkd
+        system.steady(), param_obj, bkd
     )
-    return state_eq, physics
+    return state_eq, system
 
 
 class TestSteadyADRLogKLEAdjointHVP:
@@ -118,10 +124,10 @@ class TestSteadyADRLogKLEAdjointHVP:
         self, numpy_bkd: NumpyBkd, nonlinear_reaction: bool
     ) -> None:
         bkd = numpy_bkd
-        state_eq, physics = _build_state_equation(bkd, nonlinear_reaction)
-        nstates = physics.nstates()
+        state_eq, system = _build_state_equation(bkd, nonlinear_reaction)
+        nstates = system.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -165,8 +171,11 @@ class TestSteadyADRLogKLEAdjointHVP:
             basis=basis,
             diffusivity=NodalFieldDiffusion(basis),
             bkd=bkd,
-            forcing=lambda x: np.ones(x.shape[1]),
-            boundary_conditions=[
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
+        )
+        system = compose_galerkin_system(
+            physics,
+            [
                 DirichletBC(basis, "left", 0.0, bkd),
                 DirichletBC(basis, "right", 0.0, bkd),
             ],
@@ -188,5 +197,5 @@ class TestSteadyADRLogKLEAdjointHVP:
         )
         with pytest.raises(TypeError, match="second-order"):
             GalerkinStateEquationWithHVPAdapter(
-                physics.system().steady(), param_obj, bkd
+                system.steady(), param_obj, bkd
             )

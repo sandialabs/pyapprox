@@ -21,6 +21,7 @@ from typing import Callable, Dict, List, Tuple
 
 import numpy as np
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured import (
     GalerkinManufacturedSolutionAdapter,
 )
@@ -109,9 +110,10 @@ class TestHelmholtzBase:
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=bkd)
+        system = compose_galerkin_system(physics)
 
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
         jac_np = jac.toarray() if issparse(jac) else bkd.to_numpy(jac)
 
         # For Helmholtz, -jacobian = K = K_laplacian + k^2*M, should be symmetric
@@ -124,9 +126,10 @@ class TestHelmholtzBase:
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=bkd)
+        system = compose_galerkin_system(physics)
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
 
         assert res.shape == (physics.nstates(),)
 
@@ -136,9 +139,10 @@ class TestHelmholtzBase:
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         physics = Helmholtz(basis=basis, wavenumber=2 * np.pi, bkd=bkd)
+        system = compose_galerkin_system(physics)
 
         u0 = physics.initial_condition(lambda x: np.sin(np.pi * x[0]))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
 
         assert jac.shape == (physics.nstates(), physics.nstates())
 
@@ -150,6 +154,7 @@ class TestHelmholtzBase:
         )
         basis = LagrangeBasis(mesh, degree=1)
         physics = Helmholtz(basis=basis, wavenumber=np.pi, bkd=bkd)
+        system = compose_galerkin_system(physics)
 
         # Initial condition
         u0 = physics.initial_condition(
@@ -159,7 +164,7 @@ class TestHelmholtzBase:
         # Check shapes
         assert u0.shape == (physics.nstates(),)
 
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
     def test_with_forcing(self, numpy_bkd) -> None:
@@ -174,9 +179,10 @@ class TestHelmholtzBase:
         physics = Helmholtz(
             basis=basis, wavenumber=2 * np.pi, forcing=forcing, bkd=bkd
         )
+        system = compose_galerkin_system(physics)
 
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         res_np = bkd.to_numpy(res)
 
         # With forcing and u=0, residual should be non-zero
@@ -209,7 +215,9 @@ class TestHelmholtzBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10)
+        solver = SteadyStateSolver(
+            compose_galerkin_system(physics).steady(), tol=1e-10
+        )
         result = solver.solve_linear()
 
         assert result.converged
@@ -304,12 +312,12 @@ class TestParametrizedHelmholtzManufactured:
             basis=basis,
             wavenumber=sqwavenum_func,
             forcing=forcing_func,
-            boundary_conditions=bc_set.all_conditions(),
             bkd=bkd,
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
         # Solve
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+        solver = SteadyStateSolver(system.steady(), tol=1e-12)
         result = solver.solve_linear()
 
         # Compute error at DOF locations

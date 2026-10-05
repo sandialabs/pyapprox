@@ -23,10 +23,12 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     NeumannBC,
     RobinBC,
 )
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.mesh.structured import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -240,7 +242,7 @@ def _one(x: NDArray[Any]) -> NDArray[Any]:
 class TestPhysicsStateDerivatives:
     def _adr(
         self, numpy_bkd: Backend[Array], second_derivative: bool
-    ) -> AdvectionDiffusionReaction[Array]:
+    ) -> GalerkinSystem[Array]:
         basis = LagrangeBasis(
             StructuredMesh1D(nx=8, bounds=(0.0, 1.0), bkd=numpy_bkd), 1
         )
@@ -249,13 +251,16 @@ class TestPhysicsStateDerivatives:
             _square_derivative,
             _square_second_derivative if second_derivative else None,
         )
-        return AdvectionDiffusionReaction(
+        physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=1.0,
             bkd=numpy_bkd,
             reaction=reaction,
             forcing=TimeIndependent(_one),
-            boundary_conditions=[
+        )
+        return compose_galerkin_system(
+            physics,
+            [
                 DirichletBC(basis, "left", 0.0, numpy_bkd),
                 RobinBC(
                     basis, "right", alpha=2.0, value_func=1.0, bkd=numpy_bkd
@@ -269,17 +274,18 @@ class TestPhysicsStateDerivatives:
         """lambda^T (d^2F/du^2) w of the composed F (Robin included)
         against a central difference of J(u)^T lambda along w."""
         bkd = numpy_bkd
-        physics = self._adr(bkd, second_derivative=True)
-        hvp = physics.state_derivatives().state_state_hvp
+        system = self._adr(bkd, second_derivative=True)
+        operator = system.spatial_operator()
+        hvp = operator.state_derivatives().state_state_hvp
         assert hvp is not None
-        n = physics.nstates()
+        n = system.nstates()
         state = bkd.linspace(0.2, 0.9, n)
         adj = bkd.linspace(1.0, -1.0, n)
         wvec = bkd.linspace(0.3, 0.6, n)
         eps = 1e-6
 
         def jac_t_adj(u: Array) -> Array:
-            jac = physics.spatial_jacobian(u, 0.0)
+            jac = operator.spatial_jacobian(u, 0.0)
             return bkd.asarray(jac.T @ bkd.to_numpy(adj))
 
         fd = (jac_t_adj(state + eps * wvec) - jac_t_adj(state - eps * wvec)) / (
@@ -291,5 +297,8 @@ class TestPhysicsStateDerivatives:
         self, numpy_bkd: Backend[Array]
     ) -> None:
         """Decided up front, not by state_state_hvp raising mid-solve."""
-        physics = self._adr(numpy_bkd, second_derivative=False)
-        assert physics.state_derivatives().state_state_hvp is None
+        system = self._adr(numpy_bkd, second_derivative=False)
+        assert (
+            system.spatial_operator().state_derivatives().state_state_hvp
+            is None
+        )

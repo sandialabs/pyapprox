@@ -23,7 +23,9 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
 )
@@ -55,8 +57,9 @@ class TestBurgersBase:
             basis=self.basis,
             viscosity=1.0,
             bkd=bkd,
-            forcing=lambda x: np.ones(x.shape[-1]),
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[-1])),
         )
+        self.system = compose_galerkin_system(self.physics)
 
     def test_nstates(self, numpy_bkd) -> None:
         """Test DOF count matches basis."""
@@ -69,7 +72,7 @@ class TestBurgersBase:
         bkd = numpy_bkd
         self._setup(bkd)
         state = bkd.asarray(np.zeros(self.physics.nstates()))
-        res = self.physics.residual(state, 0.0)
+        res = self.system.steady_snapshot(0.0).steady_residual(state)
         assert res.shape == (self.physics.nstates(),)
 
     def test_jacobian_shape(self, numpy_bkd) -> None:
@@ -77,7 +80,7 @@ class TestBurgersBase:
         bkd = numpy_bkd
         self._setup(bkd)
         state = bkd.asarray(np.zeros(self.physics.nstates()))
-        jac = self.physics.jacobian(state, 0.0)
+        jac = self.system.steady_snapshot(0.0).steady_jacobian(state)
         n = self.physics.nstates()
         assert jac.shape == (n, n)
 
@@ -189,8 +192,8 @@ class TestParametrizedBurgersSteady:
             viscosity=viscosity_func,
             bkd=bkd,
             forcing=forcing_func,
-            boundary_conditions=bc_set.all_conditions(),
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
         # Initial guess: exact + 1 perturbation
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -205,7 +208,7 @@ class TestParametrizedBurgersSteady:
 
         # Solve with Newton
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-12, max_iter=10, line_search=True
+            system.steady(), tol=1e-12, max_iter=10, line_search=True
         )
         result = solver.solve(init_guess)
 
@@ -302,17 +305,17 @@ class TestParametrizedBurgersTransient:
             viscosity=viscosity_func,
             bkd=bkd,
             forcing=forcing_func,
-            boundary_conditions=bc_set.all_conditions(),
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
 
         # Create ODE adapter and time stepper with constrained wrapper
-        ode_adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+        ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
         if method == "backward_euler":
             stepper = BackwardEulerHVP(ode_adapter)
         else:
             stepper = CrankNicolsonHVP(ode_adapter)
         constrained = create_galerkin_bc_enforcing_residual(
-            stepper, physics.constraint_set(), bkd
+            stepper, system.constraint_set(), bkd
         )
 
         newton = NewtonSolver(constrained)
@@ -340,7 +343,7 @@ class TestParametrizedBurgersTransient:
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
 
             # Inject Dirichlet values into initial guess
-            constraints = physics.constraint_set()
+            constraints = system.constraint_set()
             d_dofs, d_vals = constraints.dofs(), constraints.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             guess = bkd.copy(y)

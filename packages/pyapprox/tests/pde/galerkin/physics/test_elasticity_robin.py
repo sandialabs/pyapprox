@@ -42,6 +42,7 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     NeumannBC,
     RobinBC,
 )
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinHyperelasticityAdapter,
     create_elasticity_manufactured_test,
@@ -51,6 +52,7 @@ from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
 )
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.numpy import NumpyBkd
 from scipy.sparse import issparse
 
@@ -82,12 +84,12 @@ def _set_exact_lame(physics: CompositeLinearElasticity[_Arr]) -> None:
     physics.set_lame_parameters(np.full(nelems, _LAM), np.full(nelems, _MU))
 
 
-def _solve(physics: CompositeLinearElasticity[_Arr]) -> _Arr:
-    bkd = physics.bkd()
+def _solve(system: GalerkinSystem[_Arr]) -> _Arr:
+    bkd = system.bkd()
     solver = SteadyStateSolver(
-        physics.system().steady(), tol=1e-10, max_iter=5, line_search=False
+        system.steady(), tol=1e-10, max_iter=5, line_search=False
     )
-    result = solver.solve(bkd.asarray(np.zeros(physics.nstates())))
+    result = solver.solve(bkd.asarray(np.zeros(system.nstates())))
     assert result.converged
     return np.asarray(bkd.to_numpy(result.solution))
 
@@ -116,9 +118,12 @@ class _RobinDataAsNeumann:
         return np.asarray(self._alpha * u + traction)
 
 
-def _mms_physics(
-    nx: int, wrong_model: bool
-) -> Tuple[CompositeLinearElasticity[_Arr], VectorLagrangeBasis[_Arr], Any]:
+def _mms_physics(nx: int, wrong_model: bool) -> Tuple[
+    CompositeLinearElasticity[_Arr],
+    GalerkinSystem[_Arr],
+    VectorLagrangeBasis[_Arr],
+    Any,
+]:
     bkd = NumpyBkd()
     functions, _ = create_elasticity_manufactured_test(
         bounds=[0.0, 1.0, 0.0, 1.0],
@@ -148,15 +153,15 @@ def _mms_physics(
         poisson_ratio=0.3,
         bkd=bkd,
         body_force=adapter.forcing_for_galerkin(),
-        boundary_conditions=bcs,
     )
+    system = compose_galerkin_system(physics, bcs)
     _set_exact_lame(physics)
-    return physics, basis, functions
+    return physics, system, basis, functions
 
 
 def _mms_l2_error(nx: int, wrong_model: bool = False) -> float:
-    physics, basis, functions = _mms_physics(nx, wrong_model)
-    u_h = _solve(physics)
+    physics, system, basis, functions = _mms_physics(nx, wrong_model)
+    u_h = _solve(system)
     dof_coords = np.asarray(physics.bkd().to_numpy(basis.dof_coordinates()))
     exact_vals = np.asarray(functions["solution"](dof_coords))  # (ndofs, 2)
     ndofs = basis.ndofs()
@@ -203,7 +208,9 @@ class _ConstantVector:
 
 
 def _plate(right_bc: str, a: float = 0.0, clamp: bool = True, nx: int = 6) -> Tuple[
-    CompositeLinearElasticity[_Arr], VectorLagrangeBasis[_Arr]
+    CompositeLinearElasticity[_Arr],
+    GalerkinSystem[_Arr],
+    VectorLagrangeBasis[_Arr],
 ]:
     """Plate clamped on the left, loaded by a body force, and held on the
     right by ``right_bc``: ``"robin"`` (spring of stiffness ``a`` toward
@@ -233,10 +240,10 @@ def _plate(right_bc: str, a: float = 0.0, clamp: bool = True, nx: int = 6) -> Tu
         poisson_ratio=0.3,
         bkd=bkd,
         body_force=TimeIndependent(_ConstantVector(_BODY_FORCE)),
-        boundary_conditions=bcs,
     )
+    system = compose_galerkin_system(physics, bcs)
     _set_exact_lame(physics)
-    return physics, basis
+    return physics, system, basis
 
 
 def _right_edge_gap(u: _Arr, basis: VectorLagrangeBasis[_Arr]) -> float:
@@ -251,10 +258,10 @@ class TestElasticityRobinLimits:
     def test_large_stiffness_approaches_dirichlet(self) -> None:
         """As a grows, the spring becomes a support: u -> Dirichlet u = g/a,
         with the difference falling like 1/a."""
-        u_dir = _solve(_plate("dirichlet")[0])
+        u_dir = _solve(_plate("dirichlet")[1])
         diffs = []
         for a in (1e2, 1e3, 1e4):
-            u_rob = _solve(_plate("robin", a)[0])
+            u_rob = _solve(_plate("robin", a)[1])
             diffs.append(float(np.max(np.abs(u_rob - u_dir))))
         ratios = np.array(diffs[:-1]) / np.array(diffs[1:])
         assert np.all(ratios > 5.0), (diffs, ratios)
@@ -279,25 +286,27 @@ class TestElasticityRobinLimits:
                 youngs_modulus=1.0,
                 poisson_ratio=0.3,
                 bkd=bkd,
-                boundary_conditions=[DirichletBC(basis, "left", 0.0, bkd), bc],
             )
-            solutions.append(_solve(physics))
+            system = compose_galerkin_system(
+                physics, [DirichletBC(basis, "left", 0.0, bkd), bc]
+            )
+            solutions.append(_solve(system))
         np.testing.assert_allclose(solutions[0], solutions[1], rtol=1e-10)
 
     def test_stiffer_spring_pulls_edge_toward_rest_position(self) -> None:
         """The right edge moves monotonically toward u0 as a increases."""
         gaps = []
         for a in (0.1, 1.0, 10.0, 100.0):
-            physics, basis = _plate("robin", a)
-            gaps.append(_right_edge_gap(_solve(physics), basis))
+            _, system, basis = _plate("robin", a)
+            gaps.append(_right_edge_gap(_solve(system), basis))
         assert np.all(np.diff(gaps) < 0.0), gaps
 
     def test_spring_makes_unclamped_operator_positive_definite(self) -> None:
         """With no clamp, K has rigid-body modes, so it is singular. A spring
         on one edge removes them: K + K_Gamma is symmetric positive
         definite. A wrong sign or a missing K_Gamma fails this."""
-        physics, _ = _plate("robin", a=1.0, clamp=False, nx=3)
-        stiffness = -_dense(physics.spatial_jacobian(
+        physics, system, _ = _plate("robin", a=1.0, clamp=False, nx=3)
+        stiffness = -_dense(system.spatial_operator().spatial_jacobian(
             physics.bkd().asarray(np.zeros(physics.nstates())), 0.0
         ))
         np.testing.assert_allclose(stiffness, stiffness.T, atol=1e-12)
@@ -315,21 +324,22 @@ class TestElasticityRobinDerivatives:
     """Jacobians stay consistent with the residual when Robin is present."""
 
     def test_state_jacobian(self) -> None:
-        physics, _ = _plate("robin", a=_ROBIN_A, nx=3)
+        physics, system, _ = _plate("robin", a=_ROBIN_A, nx=3)
+        operator = system.spatial_operator()
         bkd = physics.bkd()
         nstates = physics.nstates()
 
         def residual(samples: _Arr) -> _Arr:
             return bkd.stack(
                 [
-                    physics.spatial_residual(samples[:, ii], 0.0)
+                    operator.spatial_residual(samples[:, ii], 0.0)
                     for ii in range(samples.shape[1])
                 ],
                 axis=1,
             )
 
         def jacobian(sample: _Arr) -> _Arr:
-            return bkd.asarray(_dense(physics.spatial_jacobian(sample[:, 0], 0.0)))
+            return bkd.asarray(_dense(operator.spatial_jacobian(sample[:, 0], 0.0)))
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=nstates, nvars=nstates, fun=residual, jacobian=jacobian, bkd=bkd
@@ -342,7 +352,8 @@ class TestElasticityRobinDerivatives:
 
     def test_lame_jacobian(self) -> None:
         """The Robin term does not depend on the Lame values."""
-        physics, _ = _plate("robin", a=_ROBIN_A, nx=3)
+        physics, system, _ = _plate("robin", a=_ROBIN_A, nx=3)
+        operator = system.spatial_operator()
         bkd = physics.bkd()
         nstates = physics.nstates()
         base = np.array([_LAM, _MU])
@@ -353,7 +364,7 @@ class TestElasticityRobinDerivatives:
             cols = []
             for ii in range(samples.shape[1]):
                 physics.set_lame_material_values(bkd.to_numpy(samples[:, ii]))
-                cols.append(bkd.to_numpy(physics.spatial_residual(state, 0.0)))
+                cols.append(bkd.to_numpy(operator.spatial_residual(state, 0.0)))
             physics.set_lame_material_values(base)
             return bkd.asarray(np.stack(cols, axis=1))
 

@@ -33,7 +33,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
@@ -96,10 +95,6 @@ def _make_physics(numpy_bkd, basis, forcing):
         diffusivity=1.0,
         bkd=numpy_bkd,
         forcing=forcing,
-        boundary_conditions=[
-            DirichletBC(basis, name, 0.0, numpy_bkd)
-            for name in ("left", "right", "bottom", "top")
-        ],
     )
 
 

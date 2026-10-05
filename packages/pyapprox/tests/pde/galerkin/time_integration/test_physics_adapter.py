@@ -15,25 +15,29 @@ import numpy as np
 from pyapprox.ode.implicit_steppers import BackwardEulerHVP
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinPhysicsToODEResidualAdapter,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
 class TestPhysicsAdapterBase:
     """Base test class for GalerkinPhysicsToODEResidualAdapter."""
 
-    def _setup(self, bkd):
+    def _setup(self, bkd: NumpyBkd) -> None:
         # Create simple 1D physics for testing
         self.mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         self.basis = LagrangeBasis(self.mesh, degree=1)
         self.physics = LinearAdvectionDiffusionReaction(
             basis=self.basis, diffusivity=0.01, bkd=bkd
         )
-        self.adapter = GalerkinPhysicsToODEResidualAdapter(self.physics.system())
+        self.adapter = GalerkinPhysicsToODEResidualAdapter(
+            compose_galerkin_system(self.physics)
+        )
 
     def test_adapter_has_required_methods(self, numpy_bkd) -> None:
         """Test adapter exposes required ODEResidualProtocol methods."""

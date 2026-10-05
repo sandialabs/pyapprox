@@ -15,6 +15,7 @@ if not package_available("skfem"):
 
 import numpy as np
 from pyapprox.pde.galerkin.postprocessing import integrate, von_mises_stress
+from pyapprox.util.backends.numpy import NumpyBkd
 
 from tests._helpers.markers import slow_test
 
@@ -23,7 +24,7 @@ class TestVonMisesWithFEMSolve:
     """Integration test: von Mises from an actual FEM solve."""
 
     @slow_test
-    def test_cantilever_beam_stress_positive(self, numpy_bkd):
+    def test_cantilever_beam_stress_positive(self, numpy_bkd: NumpyBkd) -> None:
         """Von Mises stress is non-negative and nonzero for loaded beam."""
         bkd = numpy_bkd
         from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
@@ -31,6 +32,7 @@ class TestVonMisesWithFEMSolve:
             DirichletBC,
             NeumannBC,
         )
+        from pyapprox.pde.galerkin.compose import compose_galerkin_system
         from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
         from pyapprox.pde.galerkin.physics import (
             CompositeLinearElasticity,
@@ -62,7 +64,7 @@ class TestVonMisesWithFEMSolve:
         bc_left = DirichletBC(
             basis,
             "left_edge",
-            lambda c, t=0.0: np.zeros(c.shape[1]),
+            0.0,
             bkd,
         )
         bc_top = NeumannBC(
@@ -82,9 +84,9 @@ class TestVonMisesWithFEMSolve:
             material_map=material_map,
             element_materials=sub_elems,
             bkd=bkd,
-            boundary_conditions=[bc_left, bc_top],
         )
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
+        system = compose_galerkin_system(physics, [bc_left, bc_top])
+        solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
         result = solver.solve(bkd.asarray(np.zeros(physics.nstates())))
 
         conn = skm.t.T

@@ -17,9 +17,11 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import DirichletBC, RobinBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.steady_view import (
     SteadyOperatorProtocol,
     SteadyViewProtocol,
@@ -35,49 +37,55 @@ def _ramped_source(x: NDArray[Any], t: float) -> NDArray[Any]:
     return np.sin(np.pi * x[0]) * (1.0 - np.exp(-t))
 
 
-def _physics(
+def _physics_and_system(
     bkd: Backend[Array], forcing: Any, robin: bool = False
-) -> AdvectionDiffusionReaction[Array]:
+) -> tuple[AdvectionDiffusionReaction[Array], GalerkinSystem[Array]]:
     basis = LagrangeBasis(StructuredMesh1D(nx=8, bounds=(0.0, 1.0), bkd=bkd), 1)
     bcs: list[Any] = [DirichletBC(basis, "left", 1.0, bkd)]
     if robin:
         bcs.append(RobinBC(basis, "right", alpha=2.0, value_func=0.5, bkd=bkd))
     else:
         bcs.append(DirichletBC(basis, "right", 0.0, bkd))
-    return AdvectionDiffusionReaction(
+    physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=1.0,
         bkd=bkd,
         forcing=forcing,
-        boundary_conditions=bcs,
     )
+    return physics, compose_galerkin_system(physics, bcs)
 
 
 class TestSteadyView:
     def test_satisfies_protocols(self, bkd: Backend[Array]) -> None:
-        view = _physics(bkd, TimeIndependent(_steady_source)).system().steady()
+        _, system = _physics_and_system(bkd, TimeIndependent(_steady_source))
+        view = system.steady()
         assert isinstance(view, SteadyOperatorProtocol)
         assert isinstance(view, SteadyViewProtocol)
 
     def test_of_refuses_time_dependent_data(
         self, bkd: Backend[Array]
     ) -> None:
-        system = _physics(bkd, TimeDependent(_ramped_source)).system()
+        _, system = _physics_and_system(bkd, TimeDependent(_ramped_source))
         with pytest.raises(ValueError, match="snapshot"):
             system.steady()
 
     def test_snapshot_evaluates_at_its_time(
         self, bkd: Backend[Array]
     ) -> None:
-        physics = _physics(bkd, TimeDependent(_ramped_source))
-        system = physics.system()
+        physics, system = _physics_and_system(
+            bkd, TimeDependent(_ramped_source)
+        )
         state = bkd.linspace(1.0, 0.0, physics.nstates())
         for time in (0.0, 1.0):
             view = system.steady_snapshot(time)
             assert view.time() == time
-            bkd.assert_allclose(
-                view.steady_residual(state), physics.residual(state, time)
+            # F at this time, with the constraint rows applied at this time.
+            expected = system.constraint_set().apply_to_residual(
+                system.spatial_operator().spatial_residual(state, time),
+                state,
+                time,
             )
+            bkd.assert_allclose(view.steady_residual(state), expected)
         assert not np.allclose(
             bkd.to_numpy(system.steady_snapshot(0.0).steady_residual(state)),
             bkd.to_numpy(system.steady_snapshot(1.0).steady_residual(state)),
@@ -87,13 +95,15 @@ class TestSteadyView:
         self, bkd: Backend[Array]
     ) -> None:
         """Dirichlet rows become u_d - g; Robin rows keep F (a term)."""
-        physics = _physics(bkd, TimeIndependent(_steady_source), robin=True)
-        view = physics.system().steady()
+        physics, system = _physics_and_system(
+            bkd, TimeIndependent(_steady_source), robin=True
+        )
+        view = system.steady()
         n = physics.nstates()
         state = bkd.linspace(0.3, 0.7, n)
-        raw = physics.spatial_residual(state, 0.0)
+        raw = system.spatial_operator().spatial_residual(state, 0.0)
         residual = view.steady_residual(state)
-        dofs = [int(d) for d in physics.constraint_set().dofs()]
+        dofs = [int(d) for d in system.constraint_set().dofs()]
         assert dofs == [0]
         bkd.assert_allclose(residual[:1], state[:1] - 1.0)
         bkd.assert_allclose(residual[1:], raw[1:])
@@ -122,19 +132,21 @@ class TestSteadyView:
                 diffusivity=diffusivity,
                 bkd=bkd,
                 forcing=TimeIndependent(_steady_source),
-                boundary_conditions=[DirichletBC(basis, "left", 1.0, bkd)],
             )
-            return physics, diffusivity
+            system = compose_galerkin_system(
+                physics, [DirichletBC(basis, "left", 1.0, bkd)]
+            )
+            return system, diffusivity
 
-        physics, diffusivity = build(1.0)
-        view = physics.system().steady()
+        system, diffusivity = build(1.0)
+        view = system.steady()
         state = bkd.linspace(1.0, 0.0, basis.ndofs())
 
         diffusivity.set_dofs(np.full(basis.ndofs(), 2.0))
 
         fresh, _ = build(2.0)
         bkd.assert_allclose(
-            view.steady_residual(state), fresh.system().steady().steady_residual(state)
+            view.steady_residual(state), fresh.steady().steady_residual(state)
         )
 
     def test_solver_on_view_matches_closed_form(
@@ -143,8 +155,10 @@ class TestSteadyView:
         """-u'' = sin(pi x), u(0)=1, u(1)=0: u = 1 - x + sin(pi x)/pi^2,
         checked at the nodes to discretization accuracy."""
         bkd = numpy_bkd
-        physics = _physics(bkd, TimeIndependent(_steady_source))
-        result = SteadyStateSolver(physics.system().steady(), tol=1e-12).solve(
+        physics, system = _physics_and_system(
+            bkd, TimeIndependent(_steady_source)
+        )
+        result = SteadyStateSolver(system.steady(), tol=1e-12).solve(
             bkd.zeros((physics.nstates(),))
         )
         assert result.converged
@@ -153,7 +167,9 @@ class TestSteadyView:
         bkd.assert_allclose(result.solution, bkd.asarray(exact), atol=5e-3)
 
     def test_solver_rejects_a_physics(self, numpy_bkd: Backend[Array]) -> None:
-        physics = _physics(numpy_bkd, TimeIndependent(_steady_source))
+        physics, _ = _physics_and_system(
+            numpy_bkd, TimeIndependent(_steady_source)
+        )
         with pytest.raises(TypeError, match="SteadyOperatorProtocol"):
             SteadyStateSolver(physics)
 

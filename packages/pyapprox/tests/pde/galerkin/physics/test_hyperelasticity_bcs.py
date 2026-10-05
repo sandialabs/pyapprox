@@ -16,6 +16,7 @@ from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinHyperelasticityAdapter,
     create_hyperelasticity_manufactured_test,
@@ -26,6 +27,7 @@ from pyapprox.pde.galerkin.mesh import (
 )
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 def _get_exact_displacement(funcs, basis, bkd):
@@ -70,14 +72,14 @@ class TestHyperelasticityBCs1DBase:
             stress_model=self._stress,
             bkd=bkd,
             body_force=body_force,
-            boundary_conditions=bc_set.all_conditions(),
         )
-        return physics, functions, basis
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        return system, functions, basis
 
-    def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-4) :
+    def _check_newton_solve(self, bkd, system, functions, basis, tol=1e-4) :
         exact = _get_exact_displacement(functions, basis, bkd)
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+            system.steady(), tol=1e-10, max_iter=20, line_search=True
         )
         init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
@@ -87,35 +89,35 @@ class TestHyperelasticityBCs1DBase:
         rel_error = np.linalg.norm(u_np - exact) / max(u_norm, 1e-30)
         assert rel_error < tol
 
-    def test_bc_dirichlet_neumann_1d(self, numpy_bkd) -> None:
+    def test_bc_dirichlet_neumann_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Dirichlet left, Neumann right."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(bkd, ["D", "N"])
-        self._check_newton_solve(bkd, physics, functions, basis)
+        system, functions, basis = self._setup_problem(bkd, ["D", "N"])
+        self._check_newton_solve(bkd, system, functions, basis)
 
-    def test_bc_dirichlet_robin_1d(self, numpy_bkd) -> None:
+    def test_bc_dirichlet_robin_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Dirichlet left, Robin right."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(bkd, ["D", "R"])
-        self._check_newton_solve(bkd, physics, functions, basis)
+        system, functions, basis = self._setup_problem(bkd, ["D", "R"])
+        self._check_newton_solve(bkd, system, functions, basis)
 
-    def test_bc_robin_dirichlet_1d(self, numpy_bkd) -> None:
+    def test_bc_robin_dirichlet_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Robin left, Dirichlet right."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(bkd, ["R", "D"])
-        self._check_newton_solve(bkd, physics, functions, basis)
+        system, functions, basis = self._setup_problem(bkd, ["R", "D"])
+        self._check_newton_solve(bkd, system, functions, basis)
 
-    def test_bc_residual_at_exact_neumann_1d(self, numpy_bkd) -> None:
+    def test_bc_residual_at_exact_neumann_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Residual at exact solution should be small with Neumann BC."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(bkd, ["D", "N"])
+        system, functions, basis = self._setup_problem(bkd, ["D", "N"])
         exact = _get_exact_displacement(functions, basis, bkd)
         state = bkd.asarray(exact)
-        res = physics.residual(state, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(state)
         res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
         assert res_norm < 1e-3
 
@@ -155,14 +157,14 @@ class TestHyperelasticityBCs2DBase:
             stress_model=self._stress,
             bkd=bkd,
             body_force=body_force,
-            boundary_conditions=bc_set.all_conditions(),
         )
-        return physics, functions, basis
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        return system, functions, basis
 
-    def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-3) :
+    def _check_newton_solve(self, bkd, system, functions, basis, tol=1e-3) :
         exact = _get_exact_displacement(functions, basis, bkd)
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+            system.steady(), tol=1e-10, max_iter=20, line_search=True
         )
         init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
@@ -172,35 +174,35 @@ class TestHyperelasticityBCs2DBase:
         rel_error = np.linalg.norm(u_np - exact) / max(u_norm, 1e-30)
         assert rel_error < tol
 
-    def test_bc_mixed_DN_2d(self, numpy_bkd) -> None:
+    def test_bc_mixed_DN_2d(self, numpy_bkd: NumpyBkd) -> None:
         """Dirichlet left/bottom, Neumann right/top."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "N"])
-        self._check_newton_solve(bkd, physics, functions, basis)
+        system, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "N"])
+        self._check_newton_solve(bkd, system, functions, basis)
 
-    def test_bc_mixed_DR_2d(self, numpy_bkd) -> None:
+    def test_bc_mixed_DR_2d(self, numpy_bkd: NumpyBkd) -> None:
         """Dirichlet left/bottom, Robin right/top."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(bkd, ["D", "R", "D", "R"])
-        self._check_newton_solve(bkd, physics, functions, basis)
+        system, functions, basis = self._setup_problem(bkd, ["D", "R", "D", "R"])
+        self._check_newton_solve(bkd, system, functions, basis)
 
-    def test_bc_mixed_DNR_2d(self, numpy_bkd) -> None:
+    def test_bc_mixed_DNR_2d(self, numpy_bkd: NumpyBkd) -> None:
         """Dirichlet left, Neumann right, Dirichlet bottom, Robin top."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "R"])
-        self._check_newton_solve(bkd, physics, functions, basis)
+        system, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "R"])
+        self._check_newton_solve(bkd, system, functions, basis)
 
-    def test_bc_residual_at_exact_mixed_2d(self, numpy_bkd) -> None:
+    def test_bc_residual_at_exact_mixed_2d(self, numpy_bkd: NumpyBkd) -> None:
         """Residual at exact solution should be small with mixed BCs."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "R"])
+        system, functions, basis = self._setup_problem(bkd, ["D", "N", "D", "R"])
         exact = _get_exact_displacement(functions, basis, bkd)
         state = bkd.asarray(exact)
-        res = physics.residual(state, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(state)
         res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
         assert res_norm < 1e-3
 
@@ -254,14 +256,14 @@ class TestHyperelasticityBCs3DBase:
             stress_model=self._stress,
             bkd=bkd,
             body_force=body_force,
-            boundary_conditions=bc_set.all_conditions(),
         )
-        return physics, functions, basis
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        return system, functions, basis
 
-    def _check_newton_solve(self, bkd, physics, functions, basis, tol=1e-3):
+    def _check_newton_solve(self, bkd, system, functions, basis, tol=1e-3):
         exact = _get_exact_displacement(functions, basis, bkd)
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+            system.steady(), tol=1e-10, max_iter=20, line_search=True
         )
         init_guess = bkd.asarray(exact + 0.005)
         result = solver.solve(init_guess)
@@ -271,33 +273,33 @@ class TestHyperelasticityBCs3DBase:
         rel_error = np.linalg.norm(u_np - exact) / max(u_norm, 1e-30)
         assert rel_error < tol
 
-    def test_bc_mixed_DN_3d(self, numpy_bkd) -> None:
+    def test_bc_mixed_DN_3d(self, numpy_bkd: NumpyBkd) -> None:
         """Neumann traction on the right face, Dirichlet elsewhere."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(
+        system, functions, basis = self._setup_problem(
             bkd, ["D", "N", "D", "D", "D", "D"]
         )
-        self._check_newton_solve(bkd, physics, functions, basis)
+        self._check_newton_solve(bkd, system, functions, basis)
 
-    def test_bc_mixed_DNR_3d(self, numpy_bkd) -> None:
+    def test_bc_mixed_DNR_3d(self, numpy_bkd: NumpyBkd) -> None:
         """Neumann on right, Robin on back, Dirichlet elsewhere."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(
+        system, functions, basis = self._setup_problem(
             bkd, ["D", "N", "D", "D", "D", "R"]
         )
-        self._check_newton_solve(bkd, physics, functions, basis)
+        self._check_newton_solve(bkd, system, functions, basis)
 
-    def test_bc_residual_at_exact_mixed_3d(self, numpy_bkd) -> None:
+    def test_bc_residual_at_exact_mixed_3d(self, numpy_bkd: NumpyBkd) -> None:
         """Residual at exact solution should be small with mixed BCs."""
         bkd = numpy_bkd
         self._setup(bkd)
-        physics, functions, basis = self._setup_problem(
+        system, functions, basis = self._setup_problem(
             bkd, ["D", "N", "D", "D", "D", "R"]
         )
         exact = _get_exact_displacement(functions, basis, bkd)
         state = bkd.asarray(exact)
-        res = physics.residual(state, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(state)
         res_norm = float(np.linalg.norm(bkd.to_numpy(res)))
         assert res_norm < 1e-3

@@ -27,6 +27,7 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
+    TimeIndependent,
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import (
@@ -35,6 +36,7 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import (
     AdvectionDiffusionReaction,
@@ -77,8 +79,11 @@ def _build_physics_and_map(bkd):
         kappa=_kappa,
         kappa_deriv=_kappa_deriv,
         kappa_second_deriv=_kappa_second_deriv,
-        forcing=_forcing,
-        boundary_conditions=[
+        forcing=TimeIndependent(_forcing),
+    )
+    system = compose_galerkin_system(
+        physics,
+        [
             DirichletBC(basis, "left", 0.0, bkd),
             DirichletBC(basis, "right", 0.0, bkd),
         ],
@@ -96,7 +101,7 @@ def _build_physics_and_map(bkd):
     )
     exp = _ExpTransform(bkd)
     field_map = TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
-    return physics, field_map
+    return physics, system, field_map
 
 
 class TestQuasilinearDiffusivityParameterization:
@@ -107,16 +112,16 @@ class TestQuasilinearDiffusivityParameterization:
         (nonzero because kappa depends on u) and the kappa''-driven
         state_state_hvp are all FD-validated."""
         bkd = numpy_bkd
-        physics, field_map = _build_physics_and_map(bkd)
+        physics, system, field_map = _build_physics_and_map(bkd)
         param_obj = create_quasilinear_diffusivity_parameterization(
             physics, field_map, bkd
         )
         state_eq = GalerkinStateEquationWithHVPAdapter(
-            physics.system().steady(), param_obj, bkd
+            system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -160,10 +165,9 @@ class TestQuasilinearDiffusivityParameterization:
             basis=basis,
             diffusivity=NodalFieldDiffusion(basis),
             bkd=bkd,
-            forcing=_forcing,
-            boundary_conditions=[DirichletBC(basis, "left", 0.0, bkd)],
+            forcing=TimeIndependent(_forcing),
         )
-        _, field_map = _build_physics_and_map(bkd)
+        _, _, field_map = _build_physics_and_map(bkd)
         with pytest.raises(TypeError, match="QuasilinearDiffusion"):
             create_quasilinear_diffusivity_parameterization(
                 adr,  # type: ignore[arg-type]
@@ -175,7 +179,7 @@ class TestQuasilinearDiffusivityParameterization:
         """The term (with its physics and field map) survives pickling
         and the clone produces identical derivatives."""
         bkd = numpy_bkd
-        physics, field_map = _build_physics_and_map(bkd)
+        physics, _, field_map = _build_physics_and_map(bkd)
         param_obj = create_quasilinear_diffusivity_parameterization(
             physics, field_map, bkd
         )

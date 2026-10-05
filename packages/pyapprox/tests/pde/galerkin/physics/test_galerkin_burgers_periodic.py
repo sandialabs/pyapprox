@@ -29,6 +29,7 @@ if not package_available("skfem"):
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
@@ -73,30 +74,32 @@ class TestPeriodicAssembly:
         assert np.linalg.matrix_rank(mass) == mass.shape[0]
         assert abs(float(mass.sum()) - 1.0) < 1e-13
 
-    def test_no_dirichlet_dofs(self):
+    def test_no_dirichlet_dofs(self) -> None:
         bkd = NumpyBkd()
         _, physics = _make_periodic_burgers(bkd, nx=16)
-        dofs, values = physics.dirichlet_dof_info(0.0)
+        constraints = compose_galerkin_system(physics).constraint_set()
+        dofs, values = constraints.dofs(), constraints.values(0.0)
         assert dofs.shape[0] == 0
         assert values.shape[0] == 0
 
 
 class TestDiscreteConservation:
-    def test_momentum_rate_is_zero(self):
+    def test_momentum_rate_is_zero(self) -> None:
         """1^T f(u) = 0: convection telescopes, diffusion pairs with
         the constant test function.  Tolerance from the ASSEMBLY scale
         (quadrature/summation roundoff), not machine epsilon."""
         bkd = NumpyBkd()
         basis, physics = _make_periodic_burgers(bkd, nx=32)
         u0 = _wave_state(basis, bkd, offset=0.5)
-        residual = physics.spatial_residual(u0, 0.0)
+        operator = compose_galerkin_system(physics).spatial_operator()
+        residual = operator.spatial_residual(u0, 0.0)
         scale = bkd.to_float(bkd.max(bkd.abs(residual))) * float(
             residual.shape[0]
         )
         total = abs(bkd.to_float(bkd.sum(residual)))
         assert total < 100 * sys.float_info.epsilon * max(scale, 1.0)
 
-    def test_forward_euler_conserves_total_momentum(self):
+    def test_forward_euler_conserves_total_momentum(self) -> None:
         bkd = NumpyBkd()
         basis, physics = _make_periodic_burgers(bkd, nx=32)
         u0 = _wave_state(basis, bkd, offset=0.5)
@@ -108,13 +111,14 @@ class TestDiscreteConservation:
             lumped_mass=False,
             verbosity=0,
         )
-        states, _ = GalerkinModel(physics.system(), bkd).solve_transient(u0, config)
+        system = compose_galerkin_system(physics)
+        states, _ = GalerkinModel(system, bkd).solve_transient(u0, config)
         row_sums = _mass_row_sums(physics, bkd)
         momenta = bkd.sum(row_sums[:, None] * states, axis=0)
         drift = bkd.to_float(bkd.max(bkd.abs(momenta - momenta[0])))
         assert drift < 1e-12
 
-    def test_viscous_energy_decay(self):
+    def test_viscous_energy_decay(self) -> None:
         """Zero-mean initial data: the M-weighted energy decays."""
         bkd = NumpyBkd()
         basis, physics = _make_periodic_burgers(bkd, nx=32, viscosity=0.05)
@@ -127,7 +131,8 @@ class TestDiscreteConservation:
             lumped_mass=False,
             verbosity=0,
         )
-        states, _ = GalerkinModel(physics.system(), bkd).solve_transient(u0, config)
+        system = compose_galerkin_system(physics)
+        states, _ = GalerkinModel(system, bkd).solve_transient(u0, config)
         # M @ states is the skfem-seam contraction; analysis stays bkd
         weighted = bkd.asarray(
             physics.mass_matrix() @ np.asarray(bkd.to_numpy(states))
@@ -137,7 +142,7 @@ class TestDiscreteConservation:
 
 
 class TestManufacturedSolutionRecovery:
-    def test_periodic_exact_solution_recovered_at_fem_rate(self):
+    def test_periodic_exact_solution_recovered_at_fem_rate(self) -> None:
         """The MMS gate under the SAME periodic boundary treatment the
         OpInf benchmarks use: a space-periodic manufactured solution is
         recovered with second-order spatial convergence (P1), with the
@@ -168,7 +173,8 @@ class TestManufacturedSolutionRecovery:
                 lumped_mass=False,
                 verbosity=0,
             )
-            states, times = GalerkinModel(physics.system(), bkd).solve_transient(
+            system = compose_galerkin_system(physics)
+            states, times = GalerkinModel(system, bkd).solve_transient(
                 u0, config
             )
             exact = bkd.ravel(solution(coords, bkd.to_float(times[-1])))

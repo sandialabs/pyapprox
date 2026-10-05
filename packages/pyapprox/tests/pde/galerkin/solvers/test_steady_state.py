@@ -8,15 +8,18 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestSteadyStateSolverBase:
     """Base test class for SteadyStateSolver."""
-    def test_linear_solve_with_forcing(self, numpy_bkd) -> None:
+    def test_linear_solve_with_forcing(self, numpy_bkd: NumpyBkd) -> None:
         """Test linear steady-state solve with forcing term.
 
         Uses reaction term to make the problem non-singular (pure diffusion
@@ -35,17 +38,17 @@ class TestSteadyStateSolverBase:
             basis=basis,
             diffusivity=1.0,
             reaction=1.0,  # Makes stiffness matrix non-singular
-            forcing=forcing,
+            forcing=TimeIndependent(forcing),
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+        solver = SteadyStateSolver(compose_galerkin_system(physics).steady(), tol=1e-12)
         result = solver.solve_linear()
 
         assert result.converged
         assert result.residual_norm < 1e-10
 
-    def test_newton_solve_converges(self, numpy_bkd) -> None:
+    def test_newton_solve_converges(self, numpy_bkd: NumpyBkd) -> None:
         """Test Newton solve converges for linear problem.
 
         Uses reaction term to make the problem non-singular.
@@ -62,11 +65,11 @@ class TestSteadyStateSolverBase:
             basis=basis,
             diffusivity=0.1,
             reaction=0.5,  # Makes stiffness matrix non-singular
-            forcing=forcing,
+            forcing=TimeIndependent(forcing),
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10)
+        solver = SteadyStateSolver(compose_galerkin_system(physics).steady(), tol=1e-10)
 
         # Start from zero (use float64 for consistency with skfem)
         u_guess = bkd.asarray(np.zeros(physics.nstates(), dtype=np.float64))
@@ -77,7 +80,7 @@ class TestSteadyStateSolverBase:
         # For linear problem, should converge in 1 iteration
         assert result.iterations == 1
 
-    def test_solver_result_attributes(self, numpy_bkd) -> None:
+    def test_solver_result_attributes(self, numpy_bkd: NumpyBkd) -> None:
         """Test SolverResult has expected attributes."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
@@ -88,11 +91,11 @@ class TestSteadyStateSolverBase:
             basis=basis,
             diffusivity=1.0,
             reaction=1.0,
-            forcing=lambda x: np.ones(x.shape[1]),
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics.system().steady())
+        solver = SteadyStateSolver(compose_galerkin_system(physics).steady())
         result = solver.solve_linear()
 
         # Check all attributes exist
@@ -102,7 +105,7 @@ class TestSteadyStateSolverBase:
         assert hasattr(result, "residual_norm")
         assert hasattr(result, "message")
 
-    def test_2d_steady_state(self, numpy_bkd) -> None:
+    def test_2d_steady_state(self, numpy_bkd: NumpyBkd) -> None:
         """Test steady-state solve in 2D.
 
         Uses reaction term to make the problem non-singular.
@@ -118,17 +121,17 @@ class TestSteadyStateSolverBase:
             basis=basis,
             diffusivity=0.1,
             reaction=0.5,
-            forcing=lambda x: np.ones(x.shape[1]),
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10)
+        solver = SteadyStateSolver(compose_galerkin_system(physics).steady(), tol=1e-10)
         result = solver.solve_linear()
 
         assert result.converged
         assert result.residual_norm < 1e-8
 
-    def test_solver_with_zero_forcing(self, numpy_bkd) -> None:
+    def test_solver_with_zero_forcing(self, numpy_bkd: NumpyBkd) -> None:
         """Test that zero forcing with reaction gives zero solution.
 
         With reaction term r*u, zero forcing leads to u=0 as the unique solution.
@@ -145,7 +148,7 @@ class TestSteadyStateSolverBase:
             bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics.system().steady())
+        solver = SteadyStateSolver(compose_galerkin_system(physics).steady())
 
         # Use float64 for consistency with skfem
         u_guess = bkd.asarray(np.zeros(physics.nstates(), dtype=np.float64))

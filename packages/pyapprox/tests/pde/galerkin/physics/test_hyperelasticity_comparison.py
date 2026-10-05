@@ -34,11 +34,13 @@ from pyapprox.pde.collocation.physics.hyperelasticity import (
 from pyapprox.pde.collocation.time_integration import CollocationModel
 
 # -- Shared --
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinHyperelasticityAdapter,
     create_hyperelasticity_manufactured_test,
@@ -160,7 +162,7 @@ def _solve_collocation_2d(sol_strs, stress, npts_x, npts_y, bkd):
 def _make_vector_dirichlet_value_func(sol_func, ndim):
     """Create a DirichletBC value_func for vector basis."""
 
-    def value_func(coords, time=0.0):
+    def value_func(coords):
         nbndry_dofs = coords.shape[1]
         vals = sol_func(coords)
         result = np.zeros(nbndry_dofs)
@@ -168,7 +170,7 @@ def _make_vector_dirichlet_value_func(sol_func, ndim):
             result[j] = vals[j, j % ndim]
         return result
 
-    return value_func
+    return TimeIndependent(value_func)
 
 
 def _get_exact_displacement_galerkin(funcs, basis, bkd):
@@ -208,12 +210,12 @@ def _solve_galerkin_1d(sol_strs, stress, nx, degree, bkd):
         stress_model=stress,
         bkd=bkd,
         body_force=body_force,
-        boundary_conditions=bc_list,
     )
+    system = compose_galerkin_system(physics, bc_list)
 
     exact = _get_exact_displacement_galerkin(functions, basis, bkd)
     solver = SteadyStateSolver(
-        physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+        system.steady(), tol=1e-10, max_iter=20, line_search=True
     )
     result = solver.solve(bkd.asarray(exact + 0.01))
 
@@ -253,12 +255,12 @@ def _solve_galerkin_2d(sol_strs, stress, nx, ny, degree, bkd):
         stress_model=stress,
         bkd=bkd,
         body_force=body_force,
-        boundary_conditions=bc_list,
     )
+    system = compose_galerkin_system(physics, bc_list)
 
     exact = _get_exact_displacement_galerkin(functions, basis, bkd)
     solver = SteadyStateSolver(
-        physics.system().steady(), tol=1e-10, max_iter=20, line_search=True
+        system.steady(), tol=1e-10, max_iter=20, line_search=True
     )
     result = solver.solve(bkd.asarray(exact + 0.005))
 

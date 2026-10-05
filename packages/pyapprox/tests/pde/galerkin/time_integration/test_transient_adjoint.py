@@ -59,6 +59,7 @@ from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC,
     RobinBC,
 )
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.kle_factory import (
     create_spde_lognormal_kle_field_map,
 )
@@ -159,9 +160,9 @@ def _build_physics(
         velocity=NodalFieldVelocity(vel_basis, vel_dofs),
         reaction=reaction,
         forcing=NodalFieldForcing(basis, dofs=np.ones(basis.ndofs())),
-        boundary_conditions=boundary_conditions,
     )
-    return physics, basis, vel_basis
+    system = compose_galerkin_system(physics, boundary_conditions)
+    return physics, system, basis, vel_basis
 
 
 def _diffusivity_map(bkd: NumpyBkd, basis):
@@ -206,7 +207,7 @@ def _velocity_map(bkd: NumpyBkd, vel_basis):
 
 
 def _build_parameterization(bkd: NumpyBkd, case: str, robin: bool = False):
-    physics, basis, vel_basis = _build_physics(
+    physics, system, basis, vel_basis = _build_physics(
         bkd, cubic_reaction=case.startswith("cubic"), robin=robin
     )
     maps = {}
@@ -217,7 +218,7 @@ def _build_parameterization(bkd: NumpyBkd, case: str, robin: bool = False):
     if case == "velocity":
         maps["velocity_map"] = _velocity_map(bkd, vel_basis)
     param_obj = AdvectionDiffusionParameterization(physics, bkd=bkd, **maps)
-    return physics, param_obj
+    return physics, system, param_obj
 
 
 def _subdomain_average_weights(bkd: NumpyBkd, physics) -> NumpyArray:
@@ -240,7 +241,7 @@ def _gaussian_bump_ic(bkd: NumpyBkd, physics) -> NumpyArray:
 def _make_model(
     bkd: NumpyBkd, case: str, method: str, functional=None
 ) -> GalerkinTransientForwardModel[NumpyArray]:
-    physics, param_obj = _build_parameterization(bkd, case)
+    physics, system, param_obj = _build_parameterization(bkd, case)
     if functional is None:
         functional = WeightedEndpointFunctional(
             _subdomain_average_weights(bkd, physics),
@@ -248,7 +249,7 @@ def _make_model(
             bkd,
         )
     return GalerkinTransientForwardModel(
-        physics.system(),
+        system,
         param_obj,
         _gaussian_bump_ic(bkd, physics),
         _time_config(method),
@@ -383,11 +384,11 @@ class TestTransientAdjointWorkedExample:
         # KLE constructions are distinct parameterizations (eigensolver
         # sign/ordering indeterminacy), which would make the comparison
         # meaningless.
-        physics, param_obj = _build_parameterization(bkd, "diffusivity")
+        physics, system, param_obj = _build_parameterization(bkd, "diffusivity")
         ic = _gaussian_bump_ic(bkd, physics)
         config = _time_config("backward_euler")
         scalar_model = GalerkinTransientForwardModel(
-            physics.system(),
+            system,
             param_obj,
             ic,
             config,
@@ -399,7 +400,7 @@ class TestTransientAdjointWorkedExample:
             ),
         )
         vector_model = GalerkinTransientForwardModel(
-            physics.system(), param_obj, ic, config, bkd
+            system, param_obj, ic, config, bkd
         )
         sample_np, _ = _sample_and_direction(scalar_model.nvars())
         sample = bkd.asarray(sample_np)
@@ -427,7 +428,7 @@ class TestTransientAdjointWorkedExample:
         value/structure-conflating derivative path disagrees
         immediately. The direct dQ/dp and d2Q/dp2 terms are nonzero."""
         bkd = numpy_bkd
-        physics, param_obj = _build_parameterization(bkd, "forcing")
+        physics, system, param_obj = _build_parameterization(bkd, "forcing")
         functional = _TikhonovWeightedEndpoint(
             _subdomain_average_weights(bkd, physics),
             param_obj.nparams(),
@@ -435,7 +436,7 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            physics.system(),
+            system,
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
@@ -468,7 +469,7 @@ class TestTransientAdjointWorkedExample:
         curvature, and the Tikhonov cost supplies the direct parameter
         pathways."""
         bkd = numpy_bkd
-        physics, param_obj = _build_parameterization(bkd, "forcing")
+        physics, system, param_obj = _build_parameterization(bkd, "forcing")
         mass = physics.mass_matrix()
         mass_np = (
             mass.toarray() if hasattr(mass, "toarray") else np.asarray(mass)
@@ -481,7 +482,7 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            physics.system(),
+            system,
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config(method),
@@ -497,7 +498,7 @@ class TestTransientAdjointWorkedExample:
         yield right-rectangle nodal weights (zero at t0), not the
         trapezoid a hand-roller would reach for."""
         bkd = numpy_bkd
-        physics, param_obj = _build_parameterization(bkd, "forcing")
+        physics, system, param_obj = _build_parameterization(bkd, "forcing")
         mass = physics.mass_matrix()
         mass_np = (
             mass.toarray() if hasattr(mass, "toarray") else np.asarray(mass)
@@ -506,7 +507,7 @@ class TestTransientAdjointWorkedExample:
             bkd.asarray(mass_np), param_obj.nparams(), bkd
         )
         model = GalerkinTransientForwardModel(
-            physics.system(),
+            system,
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
@@ -538,7 +539,7 @@ class TestTransientAdjointWorkedExample:
         essential rows. First adjoint coverage of galerkin Robin BCs —
         needed before an inflow can become the Danckwerts condition."""
         bkd = numpy_bkd
-        physics, param_obj = _build_parameterization(
+        physics, system, param_obj = _build_parameterization(
             bkd, case, robin=True
         )
         functional = WeightedEndpointFunctional(
@@ -547,7 +548,7 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            physics.system(),
+            system,
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config(method),
@@ -582,7 +583,10 @@ class TestTransientAdjointWorkedExample:
             kappa=_kappa,
             kappa_deriv=_kappa_deriv,
             kappa_second_deriv=_kappa_second_deriv,
-            boundary_conditions=[
+        )
+        system = compose_galerkin_system(
+            physics,
+            [
                 DirichletBC(basis, name, 0.0, bkd)
                 for name in ("left", "right", "bottom", "top")
             ],
@@ -596,7 +600,7 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            physics.system(),
+            system,
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
@@ -667,7 +671,10 @@ class TestTimeModulatedControl:
             bkd=bkd,
             reaction=reaction,
             forcing=NodalFieldForcing(basis, dofs=np.ones(ndofs)),
-            boundary_conditions=[
+        )
+        system = compose_galerkin_system(
+            physics,
+            [
                 DirichletBC(basis, name, 0.0, bkd)
                 for name in ("left", "right", "bottom", "top")
             ],
@@ -676,13 +683,13 @@ class TestTimeModulatedControl:
             physics, reaction_map=FROM_FIELD, bkd=bkd
         )
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         free = [i for i in range(ndofs) if i not in constrained]
         weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
         weights[free[len(free) // 2]] = 1.0
         model = GalerkinTransientForwardModel(
-            physics.system(),
+            system,
             param,
             bkd.zeros((physics.nstates(),)),
             TimeIntegrationConfig(

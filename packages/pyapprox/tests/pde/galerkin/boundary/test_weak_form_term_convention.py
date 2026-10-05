@@ -42,6 +42,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import NeumannBC, RobinBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
@@ -67,20 +68,18 @@ class _VectorData:
         return np.stack([1.0 + coords[1], 0.5 - coords[0] * coords[1]])
 
 
-def _scalar_case(bcs: List[Any]) -> Any:
+def _scalar_case() -> Any:
     bkd = NumpyBkd()
     mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
-    return Helmholtz(basis, 2.0, bkd, boundary_conditions=bcs), basis
+    return Helmholtz(basis, 2.0, bkd), basis
 
 
-def _vector_case(bcs: List[Any]) -> Any:
+def _vector_case() -> Any:
     bkd = NumpyBkd()
     mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
     basis = VectorLagrangeBasis(mesh, degree=2)
-    physics = CompositeLinearElasticity.from_uniform(
-        basis, 1.0, 0.3, bkd, boundary_conditions=bcs
-    )
+    physics = CompositeLinearElasticity.from_uniform(basis, 1.0, 0.3, bkd)
     return physics, basis
 
 
@@ -92,7 +91,7 @@ def _make_bc(kind: str, basis: Any, vector: bool) -> Any:
     return NeumannBC(basis, "right", data, bkd)
 
 
-_CASES: List[Tuple[str, Callable[[List[Any]], Any], bool]] = [
+_CASES: List[Tuple[str, Callable[[], Any], bool]] = [
     ("scalar", _scalar_case, False),
     ("vector", _vector_case, True),
 ]
@@ -102,9 +101,9 @@ _CASES: List[Tuple[str, Callable[[List[Any]], Any], bool]] = [
 @pytest.mark.parametrize("name,make_physics,vector", _CASES)
 class TestWeakFormTermConvention:
     def _setup(self, make_physics: Any, vector: bool, kind: str) -> Any:
-        bare, basis = make_physics([])
+        bare, basis = make_physics()
         bc = _make_bc(kind, basis, vector)
-        with_bc, _ = make_physics([bc])
+        with_bc = compose_galerkin_system(bare, [bc])
         rng = np.random.default_rng(3)
         state = bare.bkd().asarray(rng.normal(0.0, 1.0, bare.nstates()))
         return bare, with_bc, bc, state

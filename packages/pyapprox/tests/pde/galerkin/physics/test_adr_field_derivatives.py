@@ -27,11 +27,14 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldForcing,
     NodalFieldLinearReaction,
     NodalFieldVelocity,
+    TimeIndependent,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.numpy import NumpyBkd
 
 from tests._helpers.adjoint_checks import NumpyArray
@@ -39,7 +42,7 @@ from tests._helpers.adjoint_checks import NumpyArray
 
 def _build_physics(
     bkd: NumpyBkd, ndim: int
-) -> Tuple[AdvectionDiffusionReaction[NumpyArray], LagrangeBasis[NumpyArray]]:
+) -> Tuple[AdvectionDiffusionReaction[NumpyArray], GalerkinSystem[NumpyArray]]:
     if ndim == 1:
         mesh = StructuredMesh1D(nx=8, bounds=(0.0, 1.0), bkd=bkd)
     else:
@@ -63,21 +66,24 @@ def _build_physics(
             basis, dofs=rng.normal(0.0, 0.5, ndofs)
         ),
         forcing=NodalFieldForcing(basis, dofs=rng.normal(0.0, 1.0, ndofs)),
-        boundary_conditions=[DirichletBC(basis, "left", 0.0, bkd)],
     )
-    return physics, basis
+    system = compose_galerkin_system(
+        physics, [DirichletBC(basis, "left", 0.0, bkd)]
+    )
+    return physics, system
 
 
 def _check_field_jacobian(
     bkd: NumpyBkd,
-    physics: AdvectionDiffusionReaction[NumpyArray],
+    system: GalerkinSystem[NumpyArray],
     field: object,
     jacobian_np: np.ndarray,
     state: NumpyArray,
 ) -> None:
     """DerivativeChecker: spatial_residual as a function of field DOFs."""
     base_dofs = np.array(field.dofs(), copy=True)  # type: ignore[attr-defined]
-    nstates = physics.nstates()
+    nstates = system.nstates()
+    operator = system.spatial_operator()
 
     def residual_of_dofs(samples: NumpyArray) -> NumpyArray:
         results = []
@@ -86,7 +92,7 @@ def _check_field_jacobian(
                 bkd.to_numpy(samples[:, ii])
             )
             results.append(
-                bkd.to_numpy(physics.spatial_residual(state, 0.0)).copy()
+                bkd.to_numpy(operator.spatial_residual(state, 0.0)).copy()
             )
         field.set_dofs(base_dofs)  # type: ignore[attr-defined]
         return bkd.asarray(np.stack(results, axis=1))
@@ -115,14 +121,14 @@ class TestADRFieldDerivatives:
         self, numpy_bkd: NumpyBkd, ndim: int
     ) -> None:
         bkd = numpy_bkd
-        physics, basis = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
         rng = np.random.default_rng(5)
         state = bkd.asarray(rng.normal(0.0, 0.5, physics.nstates()))
         analytic = np.asarray(
             physics.residual_diffusivity_jacobian(state).todense()
         )
         _check_field_jacobian(
-            bkd, physics, physics.diffusion_function(), analytic, state
+            bkd, system, physics.diffusion_function(), analytic, state
         )
 
     @pytest.mark.parametrize("ndim", [1, 2])
@@ -130,12 +136,12 @@ class TestADRFieldDerivatives:
         self, numpy_bkd: NumpyBkd, ndim: int
     ) -> None:
         bkd = numpy_bkd
-        physics, basis = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
         rng = np.random.default_rng(6)
         state = bkd.asarray(rng.normal(0.0, 0.5, physics.nstates()))
         analytic = np.asarray(physics.residual_forcing_jacobian().todense())
         _check_field_jacobian(
-            bkd, physics, physics.forcing_function(), analytic, state
+            bkd, system, physics.forcing_function(), analytic, state
         )
 
     @pytest.mark.parametrize("ndim", [1, 2])
@@ -143,14 +149,14 @@ class TestADRFieldDerivatives:
         self, numpy_bkd: NumpyBkd, ndim: int
     ) -> None:
         bkd = numpy_bkd
-        physics, basis = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
         rng = np.random.default_rng(12)
         state = bkd.asarray(rng.normal(0.0, 0.5, physics.nstates()))
         analytic = np.asarray(
             physics.residual_velocity_jacobian(state).todense()
         )
         _check_field_jacobian(
-            bkd, physics, physics.velocity_function(), analytic, state
+            bkd, system, physics.velocity_function(), analytic, state
         )
 
     @pytest.mark.parametrize("ndim", [1, 2])
@@ -159,7 +165,7 @@ class TestADRFieldDerivatives:
     ) -> None:
         """A_a(delta) vs FD of u -> S_a(u) delta (DerivativeChecker)."""
         bkd = numpy_bkd
-        physics, basis = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
         nstates = physics.nstates()
         velocity = physics.velocity_function()
         assert isinstance(velocity, NodalFieldVelocity)
@@ -206,14 +212,14 @@ class TestADRFieldDerivatives:
         self, numpy_bkd: NumpyBkd, ndim: int
     ) -> None:
         bkd = numpy_bkd
-        physics, basis = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
         rng = np.random.default_rng(7)
         state = bkd.asarray(rng.normal(0.0, 0.5, physics.nstates()))
         analytic = np.asarray(
             physics.residual_reaction_jacobian(state).todense()
         )
         _check_field_jacobian(
-            bkd, physics, physics.reaction_function(), analytic, state
+            bkd, system, physics.reaction_function(), analytic, state
         )
 
     @pytest.mark.parametrize("ndim", [1, 2])
@@ -222,7 +228,7 @@ class TestADRFieldDerivatives:
     ) -> None:
         """A_r(delta) vs FD of u -> S_r(u) delta (DerivativeChecker)."""
         bkd = numpy_bkd
-        physics, basis = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
         nstates = physics.nstates()
         rng = np.random.default_rng(9)
         state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
@@ -267,7 +273,7 @@ class TestADRFieldDerivatives:
     ) -> None:
         """A(delta) vs FD of u -> B(u) delta (DerivativeChecker)."""
         bkd = numpy_bkd
-        physics, basis = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim)
         nstates = physics.nstates()
         rng = np.random.default_rng(8)
         state = bkd.asarray(rng.normal(0.0, 0.5, nstates))
@@ -313,13 +319,14 @@ class TestADRFieldDerivatives:
     ) -> None:
         """set_dofs invalidates the forward path (no stale caches)."""
         bkd = numpy_bkd
-        physics, basis = _build_physics(bkd, 1)
+        physics, system = _build_physics(bkd, 1)
+        operator = system.spatial_operator()
         state = bkd.asarray(np.zeros(physics.nstates()))
-        res_a = bkd.to_numpy(physics.spatial_residual(state, 0.0)).copy()
+        res_a = bkd.to_numpy(operator.spatial_residual(state, 0.0)).copy()
         forcing = physics.forcing_function()
         assert isinstance(forcing, NodalFieldForcing)
         forcing.set_dofs(np.ones(physics.nstates()))
-        res_b = bkd.to_numpy(physics.spatial_residual(state, 0.0))
+        res_b = bkd.to_numpy(operator.spatial_residual(state, 0.0))
         assert float(np.max(np.abs(res_a - res_b))) > 1e-8
 
     def test_forcing_jacobian_requires_nodal_field(
@@ -332,8 +339,7 @@ class TestADRFieldDerivatives:
             basis=basis,
             diffusivity=1.0,
             bkd=bkd,
-            forcing=lambda x: np.ones(x.shape[1]),
-            boundary_conditions=[DirichletBC(basis, "left", 0.0, bkd)],
+            forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
         )
         with pytest.raises(TypeError, match="NodalFieldForcing"):
             physics.residual_forcing_jacobian()

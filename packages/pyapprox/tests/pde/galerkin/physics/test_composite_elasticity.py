@@ -16,6 +16,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
@@ -28,6 +29,7 @@ from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from scipy.sparse import issparse
 
 
@@ -44,7 +46,6 @@ def _uniform_material(
     nu,
     bkd,
     body_force=None,
-    boundary_conditions=None,
 ):
     """Create CompositeLinearElasticity with a single uniform material."""
     nelems = basis.skfem_basis().mesh.nelements
@@ -54,7 +55,6 @@ def _uniform_material(
         element_materials={"uniform": np.arange(nelems)},
         bkd=bkd,
         body_force=body_force,
-        boundary_conditions=boundary_conditions,
     )
 
 
@@ -74,7 +74,7 @@ class TestCompositeLinearElasticityBase:
         K_np = _to_dense(K, bkd)
         np.testing.assert_array_almost_equal(K_np, K_np.T)
 
-    def test_1d_residual_shape(self, numpy_bkd) -> None:
+    def test_1d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         mesh = StructuredMesh1D(
             nx=5,
@@ -83,8 +83,9 @@ class TestCompositeLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
     def test_1d_rigid_body_motion(self, numpy_bkd) -> None:
@@ -101,7 +102,7 @@ class TestCompositeLinearElasticityBase:
         Ku = _to_dense(K, bkd) @ bkd.to_numpy(u)
         assert np.linalg.norm(Ku) < 1e-10
 
-    def test_1d_manufactured_solution(self, numpy_bkd) -> None:
+    def test_1d_manufactured_solution(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
@@ -156,11 +157,11 @@ class TestCompositeLinearElasticityBase:
             nu,
             bkd,
             body_force=body_force,
-            boundary_conditions=bc_list,
         )
+        system = compose_galerkin_system(physics, bc_list)
 
         solver = SteadyStateSolver(
-            physics.system().steady(), tol=1e-12, max_iter=5, line_search=False
+            system.steady(), tol=1e-12, max_iter=5, line_search=False
         )
         u0 = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(u0)
@@ -205,7 +206,7 @@ class TestCompositeLinearElasticityBase:
         M_np = _to_dense(M, bkd)
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_2d_residual_shape(self, numpy_bkd) -> None:
+    def test_2d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
@@ -215,11 +216,12 @@ class TestCompositeLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
-    def test_2d_jacobian_shape(self, numpy_bkd) -> None:
+    def test_2d_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
@@ -229,8 +231,9 @@ class TestCompositeLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
         assert jac.shape == (physics.nstates(), physics.nstates())
 
     def test_3d_stiffness_symmetric(self, numpy_bkd) -> None:
@@ -263,7 +266,7 @@ class TestCompositeLinearElasticityBase:
         M_np = _to_dense(M, bkd)
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_3d_residual_shape(self, numpy_bkd) -> None:
+    def test_3d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
@@ -274,11 +277,12 @@ class TestCompositeLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
-    def test_3d_jacobian_shape(self, numpy_bkd) -> None:
+    def test_3d_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
@@ -289,11 +293,12 @@ class TestCompositeLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        jac = physics.jacobian(u0, 0.0)
+        jac = system.steady_snapshot(0.0).steady_jacobian(u0)
         assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_2d_with_body_force(self, numpy_bkd) -> None:
+    def test_2d_with_body_force(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
             nx=5,
@@ -317,12 +322,13 @@ class TestCompositeLinearElasticityBase:
             bkd,
             body_force=body_force,
         )
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         res_np = bkd.to_numpy(res)
         assert np.linalg.norm(res_np) > 0
 
-    def test_3d_with_body_force(self, numpy_bkd) -> None:
+    def test_3d_with_body_force(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
             nx=3,
@@ -347,8 +353,9 @@ class TestCompositeLinearElasticityBase:
             bkd,
             body_force=body_force,
         )
+        system = compose_galerkin_system(physics)
         u0 = bkd.asarray(np.zeros(physics.nstates()))
-        res = physics.residual(u0, 0.0)
+        res = system.steady_snapshot(0.0).steady_residual(u0)
         res_np = bkd.to_numpy(res)
         assert np.linalg.norm(res_np) > 0
 
@@ -604,11 +611,12 @@ class TestCompositeLinearElasticityBase:
             values.append(E / (2.0 * (1.0 + nu)))
         return np.array(values)
 
-    def test_lame_jacobian_vs_fd(self, numpy_bkd) -> None:
+    def test_lame_jacobian_vs_fd(self, numpy_bkd: NumpyBkd) -> None:
         """residual_lame_jacobian vs DerivativeChecker FD of the residual
         as a function of the per-material Lame values."""
         bkd = numpy_bkd
         physics = self._two_material_physics(bkd)
+        spatial_operator = compose_galerkin_system(physics).spatial_operator()
         nstates = physics.nstates()
         nvals = 2 * physics.nmaterials()
         base_values = self._material_lame_values(physics)
@@ -622,7 +630,9 @@ class TestCompositeLinearElasticityBase:
                     bkd.to_numpy(samples[:, ii])
                 )
                 results.append(
-                    bkd.to_numpy(physics.spatial_residual(state, 0.0)).copy()
+                    bkd.to_numpy(
+                        spatial_operator.spatial_residual(state, 0.0)
+                    ).copy()
                 )
             physics.set_lame_material_values(base_values)
             return bkd.asarray(np.stack(results, axis=1))
@@ -735,7 +745,7 @@ class TestCompositeLinearElasticityBase:
         np.testing.assert_array_equal(elem_mats["left"], left_elems)
         np.testing.assert_array_equal(elem_mats["right"], right_elems)
 
-    def test_param_jacobian_fd_check(self, numpy_bkd) -> None:
+    def test_param_jacobian_fd_check(self, numpy_bkd: NumpyBkd) -> None:
         """Finite difference check for parameterization param_jacobian."""
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
@@ -746,6 +756,7 @@ class TestCompositeLinearElasticityBase:
         )
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = _uniform_material(basis, 2.0, 0.3, bkd)
+        spatial_operator = compose_galerkin_system(physics).spatial_operator()
         parameterization = create_galerkin_lame_parameterization(physics, bkd)
 
         rng = np.random.RandomState(42)
@@ -766,9 +777,11 @@ class TestCompositeLinearElasticityBase:
             p_minus[j] -= eps
 
             parameterization.apply(bkd.asarray(p_plus))
-            res_plus = bkd.to_numpy(physics.spatial_residual(u0, 0.0))
+            res_plus = bkd.to_numpy(spatial_operator.spatial_residual(u0, 0.0))
             parameterization.apply(bkd.asarray(p_minus))
-            res_minus = bkd.to_numpy(physics.spatial_residual(u0, 0.0))
+            res_minus = bkd.to_numpy(
+                spatial_operator.spatial_residual(u0, 0.0)
+            )
 
             fd_col = (res_plus - res_minus) / (2 * eps)
             np.testing.assert_allclose(

@@ -77,7 +77,9 @@ import numpy as np
 
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
+    TimeIndependent,
 )
+from pyapprox.pde.galerkin import compose_galerkin_system
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC, NeumannBC,
@@ -115,9 +117,10 @@ bcs += [NeumannBC(basis, name, flux_func=0.0, bkd=bkd)
         for name in ("bottom", "top", "obs0", "obs1", "obs2")]
 
 physics = AdvectionDiffusionReaction(
-    basis=basis, diffusivity=diffusion, reaction=DECAY, forcing=forcing,
-    boundary_conditions=bcs, bkd=bkd,
+    basis=basis, diffusivity=diffusion, reaction=DECAY,
+    forcing=TimeIndependent(forcing), bkd=bkd,
 )
+system = compose_galerkin_system(physics, bcs)
 print(f"{physics.nstates()} unknowns")
 ```
 
@@ -187,8 +190,8 @@ uncertain is a choice made at this layer, not in the physics.
 ## Sampling and Solving
 
 The workflow is three lines: draw $\vc{p}$, apply it, solve. `apply` writes
-the coefficient values into the physics, so the solve that follows sees the
-new field.
+the coefficient values into the physics, and the system composed from it holds
+that same physics, so the solve that follows sees the new field.
 
 ```{python}
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
@@ -197,7 +200,7 @@ from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 def solve_for(params):
     """Write params into the physics, then solve."""
     parameterization.apply(params)
-    result = SteadyStateSolver(physics.system().steady(), tol=1e-10).solve_linear()
+    result = SteadyStateSolver(system.steady(), tol=1e-10).solve_linear()
     return result.solution
 
 

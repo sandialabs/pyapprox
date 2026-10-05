@@ -16,12 +16,14 @@ from typing import Any, Callable, Tuple
 import numpy as np
 from numpy.typing import NDArray
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     GalerkinManufacturedSolutionAdapter,
     create_adr_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinModel,
     TimeIntegrationConfig,
@@ -33,10 +35,10 @@ from tests._helpers.markers import slow_test
 _ExactAtTime = Callable[[float], NDArray[np.floating[Any]]]
 
 
-def _setup_adr_physics(
+def _setup_adr_system(
     bkd: NumpyBkd, nx: int = 32
-) -> Tuple[AdvectionDiffusionReaction[Any], _ExactAtTime]:
-    """Create a simple 1D ADR physics with manufactured solution."""
+) -> Tuple[GalerkinSystem[Any], _ExactAtTime]:
+    """Create a simple 1D ADR system with manufactured solution."""
     bounds = [0.0, 1.0]
     sol_str = "(1-x)*x*(1+T)"
     diff_str = "4+1e-16*x"
@@ -66,8 +68,8 @@ def _setup_adr_physics(
         diffusivity=4.0,
         bkd=bkd,
         forcing=adapter.forcing_for_galerkin(),
-        boundary_conditions=bc_set.all_conditions(),
     )
+    system = compose_galerkin_system(physics, bc_set.all_conditions())
 
     exact_sol_func = adapter.solution_function()
     dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -78,7 +80,7 @@ def _setup_adr_physics(
             return np.asarray(u[:, 0] if u.shape[1] == 1 else u.flatten())
         return np.asarray(u)
 
-    return physics, exact_at_time
+    return system, exact_at_time
 
 
 IMPLICIT_CASES = [
@@ -98,9 +100,9 @@ class TestGalerkinModelImplicit:
     def test_solve_transient_implicit(self, numpy_bkd: NumpyBkd, method: str) -> None:
         """GalerkinModel matches exact solution for time-linear problem."""
         bkd = numpy_bkd
-        physics, exact_at_time = _setup_adr_physics(bkd)
+        system, exact_at_time = _setup_adr_system(bkd)
 
-        model = GalerkinModel(physics.system(), bkd)
+        model = GalerkinModel(system, bkd)
 
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
@@ -146,9 +148,9 @@ class TestGalerkinModelExplicit:
         CFL: h=0.25, D=4, dt < h²/(2D) = 0.0078 → dt=1e-5 well within.
         """
         bkd = numpy_bkd
-        physics, exact_at_time = _setup_adr_physics(bkd, nx=4)
+        system, exact_at_time = _setup_adr_system(bkd, nx=4)
 
-        model = GalerkinModel(physics.system(), bkd)
+        model = GalerkinModel(system, bkd)
 
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
@@ -177,7 +179,7 @@ class TestExplicitUnifiedPipeline:
 
     def _setup_constant_in_space(
         self, bkd: NumpyBkd
-    ) -> Tuple[AdvectionDiffusionReaction[Any], _ExactAtTime]:
+    ) -> Tuple[GalerkinSystem[Any], _ExactAtTime]:
         """u = 1+T: constant in space, so row-sum lumping is exact and
         the Dirichlet values g(t) = 1+t vary in time."""
         bounds = [0.0, 1.0]
@@ -201,8 +203,8 @@ class TestExplicitUnifiedPipeline:
             diffusivity=1e-2,
             bkd=bkd,
             forcing=adapter.forcing_for_galerkin(),
-            boundary_conditions=bc_set.all_conditions(),
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
         exact_sol_func = adapter.solution_function()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
@@ -214,7 +216,7 @@ class TestExplicitUnifiedPipeline:
                 )
             return np.asarray(u)
 
-        return physics, exact_at_time
+        return system, exact_at_time
 
     @pytest.mark.parametrize("lumped", [False, True])
     def test_forward_euler_time_varying_dirichlet(
@@ -224,8 +226,8 @@ class TestExplicitUnifiedPipeline:
         consistent mass both reproduce the constant-in-space solution
         to machine precision (row-sum lumping preserves constants)."""
         bkd = numpy_bkd
-        physics, exact_at_time = self._setup_constant_in_space(bkd)
-        model = GalerkinModel(physics.system(), bkd)
+        system, exact_at_time = self._setup_constant_in_space(bkd)
+        model = GalerkinModel(system, bkd)
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
             method="forward_euler",
@@ -247,7 +249,7 @@ class TestExplicitUnifiedPipeline:
         assert rel_error < 1e-12
 
         # Dirichlet DOFs hit g(t) exactly at every stored time
-        cs = physics.constraint_set()
+        cs = system.constraint_set()
         dofs = bkd.to_numpy(cs.dofs())
         for jj, t in enumerate(bkd.to_numpy(times)):
             g = bkd.to_numpy(cs.values(float(t)))
@@ -287,12 +289,12 @@ class TestExplicitUnifiedPipeline:
             diffusivity=1e-2,
             bkd=bkd,
             forcing=adapter.forcing_for_galerkin(),
-            boundary_conditions=bc_set.all_conditions(),
         )
+        system = compose_galerkin_system(physics, bc_set.all_conditions())
         exact_sol_func = adapter.solution_function()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
-        model = GalerkinModel(physics.system(), bkd)
+        model = GalerkinModel(system, bkd)
         y0 = bkd.asarray(exact_sol_func(dof_coords, 0.0).flatten())
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
             method="heun",

@@ -35,10 +35,12 @@ from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity as LinearElasticity,
 )
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     GalerkinBCEnforcingAdjointResidual,
     GalerkinBCEnforcingHVPResidual,
@@ -61,7 +63,9 @@ _E0, _NU0 = 1.0, 0.3
 _FINAL_TIME, _DELTAT = 0.4, 0.1
 
 
-def _make_physics(bkd: NumpyBkd) -> LinearElasticity[_NumpyArray]:
+def _make_physics(
+    bkd: NumpyBkd,
+) -> Tuple[LinearElasticity[_NumpyArray], GalerkinSystem[_NumpyArray]]:
     """Small 2D elasticity with body force and all-Dirichlet BCs."""
     mesh = StructuredMesh2D(
         nx=3, ny=3, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
@@ -80,31 +84,31 @@ def _make_physics(bkd: NumpyBkd) -> LinearElasticity[_NumpyArray]:
         DirichletBC(basis, name, 0.0, bkd)
         for name in ("left", "right", "bottom", "top")
     ]
-    return LinearElasticity.from_uniform(
+    physics = LinearElasticity.from_uniform(
         basis=basis,
         youngs_modulus=_E0,
         poisson_ratio=_NU0,
         body_force=body_force,
-        boundary_conditions=bc_list,
         bkd=bkd,
     )
+    return physics, compose_galerkin_system(physics, bc_list)
 
 
 def _build_pipeline(
     bkd: NumpyBkd, method: str
-) -> Tuple[TimeIntegrator[_NumpyArray], Any, LinearElasticity[_NumpyArray]]:
-    physics = _make_physics(bkd)
+) -> Tuple[TimeIntegrator[_NumpyArray], Any, GalerkinSystem[_NumpyArray]]:
+    physics, system = _make_physics(bkd)
     param = create_galerkin_lame_parameterization(physics, bkd)
-    adapter = create_galerkin_physics_ode_residual(physics.system(), param)
+    adapter = create_galerkin_physics_ode_residual(system, param)
     stepper = create_stepper(method, adapter)
     wrapper = create_galerkin_bc_enforcing_residual(
-        stepper, physics.constraint_set(), bkd
+        stepper, system.constraint_set(), bkd
     )
     assert isinstance(wrapper, GalerkinBCEnforcingAdjointResidual)
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=20, atol=1e-12, rtol=0.0)
     integrator = TimeIntegrator(0.0, _FINAL_TIME, _DELTAT, newton)
-    return integrator, adapter, physics
+    return integrator, adapter, system
 
 
 class TestTransientAdjointGradient:
@@ -113,11 +117,11 @@ class TestTransientAdjointGradient:
         self, numpy_bkd: NumpyBkd, method: str
     ) -> None:
         bkd = numpy_bkd
-        integrator, adapter, physics = _build_pipeline(bkd, method)
-        nstates = physics.nstates()
+        integrator, adapter, system = _build_pipeline(bkd, method)
+        nstates = system.nstates()
         # An interior DOF: constrained endpoint QoIs have zero gradient.
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
@@ -170,12 +174,12 @@ class TestTransientAdjointHVP:
         the HVP wrapper tier.
         """
         bkd = numpy_bkd
-        integrator, adapter, physics = _build_pipeline(bkd, method)
+        integrator, adapter, system = _build_pipeline(bkd, method)
         wrapper = integrator.time_residual()
         assert isinstance(wrapper, GalerkinBCEnforcingHVPResidual)
-        nstates = physics.nstates()
+        nstates = system.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(nstates) if ii not in constrained
