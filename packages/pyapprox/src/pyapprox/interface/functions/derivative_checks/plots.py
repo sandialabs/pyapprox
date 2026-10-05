@@ -11,7 +11,11 @@ Pass the same ``fd_eps`` array given to the checker.
 from typing import List, Optional, Sequence, Tuple, Union
 
 from matplotlib.axes import Axes
+from matplotlib.typing import ColorType
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    VShapeReport,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -22,6 +26,7 @@ def plot_fd_error_sweep(
     ax: Axes,
     labels: Optional[Sequence[str]] = None,
     slope_guides: Optional[Sequence[int]] = None,
+    reports: Optional[Sequence[VShapeReport]] = None,
 ) -> Axes:
     """Plot finite-difference error sweeps on log-log axes.
 
@@ -44,6 +49,13 @@ def plot_fd_error_sweep(
         Reference slopes (e.g. ``[1]`` for the one-sided truncation
         branch) drawn as dashed guide lines anchored at the largest
         step of the first curve.
+    reports : sequence of VShapeReport, optional
+        One ``DerivativeChecker.check_v_shape`` report per curve. Each
+        curve then shows, in its color, a triangle at the bottom of its V
+        and a shaded band over the steps its order was fitted on; its
+        legend entry gives the fitted order and pass or fail. A labelled
+        dotted line marks the largest step a bottom may sit at, drawn once
+        per distinct value (in black when several curves share it).
 
     Returns
     -------
@@ -57,9 +69,10 @@ def plot_fd_error_sweep(
     else:
         error_curves = [errors]
     if labels is not None and len(labels) != len(error_curves):
-        raise ValueError(
-            f"got {len(labels)} labels for {len(error_curves)} curves"
-        )
+        raise ValueError(f"got {len(labels)} labels for {len(error_curves)} curves")
+    if reports is not None and len(reports) != len(error_curves):
+        raise ValueError(f"got {len(reports)} reports for {len(error_curves)} curves")
+    curve_colors: List[ColorType] = []
     for ii, curve in enumerate(error_curves):
         curve_np = bkd.to_numpy(curve)
         if curve_np.shape != eps_np.shape:
@@ -68,7 +81,17 @@ def plot_fd_error_sweep(
                 f"has shape {eps_np.shape}"
             )
         label = None if labels is None else labels[ii]
-        ax.loglog(eps_np, curve_np, "-o", label=label)
+        if reports is not None:
+            report = reports[ii]
+            verdict = "pass" if report.passed else "fail"
+            name = f"curve {ii}" if label is None else label
+            label = f"{name}: order {report.order:.2f}, {verdict}"
+        (line,) = ax.loglog(eps_np, curve_np, "-o", label=label)
+        if reports is not None:
+            _draw_v_shape(ax, reports[ii], float(curve_np.min()), line.get_color())
+            curve_colors.append(line.get_color())
+    if reports is not None:
+        _draw_bottom_bounds(ax, reports, curve_colors)
     if slope_guides:
         anchor_eps = float(eps_np.max())
         first_np = bkd.to_numpy(error_curves[0])
@@ -84,6 +107,43 @@ def plot_fd_error_sweep(
             )
     ax.set_xlabel(r"step size $\epsilon$")
     ax.set_ylabel("finite-difference error")
-    if labels is not None or slope_guides:
+    if labels is not None or slope_guides or reports is not None:
         ax.legend()
     return ax
+
+
+def _draw_v_shape(
+    ax: Axes, report: VShapeReport, min_error: float, color: ColorType
+) -> None:
+    """Mark what ``check_v_shape`` looked at, in the curve's color.
+
+    A triangle at the bottom of the V and a shaded band over the steps the
+    order was fitted on (10 to 1000 times the bottom step).
+    """
+    bottom = report.bottom_step
+    ax.loglog([bottom], [min_error], "v", color=color, markersize=10)
+    ax.axvspan(10.0 * bottom, 1000.0 * bottom, color=color, alpha=0.12)
+
+
+def _draw_bottom_bounds(
+    ax: Axes, reports: Sequence[VShapeReport], colors: Sequence[ColorType]
+) -> None:
+    """One dotted, labelled line per distinct largest bottom step.
+
+    Curves usually share the bound (forward and central have one each),
+    and drawing it per curve would stack identical lines. A bound shared
+    by several curves is drawn once in black; one used by a single curve
+    keeps that curve's color.
+    """
+    users: dict[float, List[ColorType]] = {}
+    for report, color in zip(reports, colors):
+        users.setdefault(report.max_bottom_step, []).append(color)
+    for bound, bound_colors in users.items():
+        color = bound_colors[0] if len(bound_colors) == 1 else "k"
+        ax.axvline(
+            bound,
+            color=color,
+            linestyle=":",
+            alpha=0.8,
+            label=f"max bottom step ({bound:.0e})",
+        )

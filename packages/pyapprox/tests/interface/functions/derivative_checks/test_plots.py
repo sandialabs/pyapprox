@@ -37,9 +37,7 @@ class TestPlotFDErrorSweep:
         assert ax.get_yscale() == "log"
         plt.close("all")
 
-    def test_multiple_curves_with_labels_and_guides(
-        self, numpy_bkd
-    ) -> None:
+    def test_multiple_curves_with_labels_and_guides(self, numpy_bkd) -> None:
         bkd = numpy_bkd
         eps = _fd_eps(bkd)
         eps_np = bkd.to_numpy(eps)
@@ -90,21 +88,66 @@ class TestPlotFDErrorSweep:
             return bkd.sum(samples**3, axis=0, keepdims=True)
 
         def jac_fn(sample):
-            return 3.0 * (sample.T ** 2)
+            return 3.0 * (sample.T**2)
 
         wrapped = FunctionWithJacobianFromCallable(
             nqoi=1, nvars=_NVARS, fun=eval_fn, jacobian=jac_fn, bkd=bkd
         )
         checker = DerivativeChecker(wrapped)
         eps = _fd_eps(bkd)
-        sample = bkd.asarray(
-            np.random.default_rng(3).normal(0.0, 1.0, (_NVARS, 1))
-        )
-        errors = checker.check_derivatives(
-            sample, fd_eps=eps, relative=True
-        )[0]
+        sample = bkd.asarray(np.random.default_rng(3).normal(0.0, 1.0, (_NVARS, 1)))
+        errors = checker.check_derivatives(sample, fd_eps=eps, relative=True)[0]
         _, ax = plt.subplots()
         plot_fd_error_sweep(eps, errors, bkd, ax, labels=["gradient"])
         errors_np = bkd.to_numpy(errors)
         assert errors_np.min() <= 1e-6 * errors_np.max()
+        plt.close("all")
+
+    def test_v_shape_reports(self, numpy_bkd) -> None:
+        """A report adds the bottom marker, the fitting band and the bound
+        on the bottom step, and puts the order and verdict in the legend."""
+        bkd = numpy_bkd
+
+        def eval_fn(samples):
+            return bkd.sum(samples**3, axis=0, keepdims=True)
+
+        def jac_fn(sample):
+            return 3.0 * (sample.T**2)
+
+        checker = DerivativeChecker(
+            FunctionWithJacobianFromCallable(
+                nqoi=1, nvars=_NVARS, fun=eval_fn, jacobian=jac_fn, bkd=bkd
+            )
+        )
+        eps = bkd.flip(bkd.logspace(-12, -1, 23))
+        sample = bkd.asarray(np.random.default_rng(3).normal(0.0, 1.0, (_NVARS, 1)))
+        errors = checker.check_derivatives(sample, fd_eps=eps)[0]
+        report = checker.check_v_shape(errors, eps)
+        _, ax = plt.subplots()
+        plot_fd_error_sweep(eps, errors, bkd, ax, labels=["gradient"], reports=[report])
+        # The curve, the bottom marker and the bound line.
+        assert len(ax.get_lines()) == 3
+        # The shaded fitting band.
+        assert len(ax.patches) == 1
+        legend = [text.get_text() for text in ax.get_legend().get_texts()]
+        assert legend == [
+            f"gradient: order {report.order:.2f}, pass",
+            "max bottom step (1e-05)",
+        ]
+        with pytest.raises(ValueError, match="reports"):
+            plot_fd_error_sweep(eps, errors, bkd, ax, reports=[report, report])
+        plt.close("all")
+
+        # Two curves sharing the bound: it is drawn once, in black.
+        _, ax = plt.subplots()
+        plot_fd_error_sweep(
+            eps, [errors, errors], bkd, ax, labels=["a", "b"], reports=[report, report]
+        )
+        # Two curves, two bottom markers, one bound line.
+        assert len(ax.get_lines()) == 5
+        bound_lines = [
+            line for line in ax.get_lines() if line.get_label().startswith("max")
+        ]
+        assert len(bound_lines) == 1
+        assert bound_lines[0].get_color() == "k"
         plt.close("all")

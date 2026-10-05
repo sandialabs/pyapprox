@@ -28,7 +28,6 @@ class _JVPViewProtocol(Protocol, Generic[Array]):
     def jvp(self, sample: Array, vec: Array) -> Array: ...
 
 
-
 class JVPChecker(Generic[Array]):
     """
     Base class for checking the correctness of jacobian vector products.
@@ -39,6 +38,13 @@ class JVPChecker(Generic[Array]):
         The function object satisfying the required protocol.
     backend : Backend
         The backend to use for computations.
+    central : bool
+        Use central differences, ``(f(x + h v) - f(x - h v)) / (2 h)``,
+        whose error falls like ``h**2`` rather than ``h``. Their error
+        reaches its minimum at a larger step and a lower level, which
+        makes the check more decisive. Needs ``x - h v`` to be a valid
+        input; at a bound use forward differences with an inward
+        direction. Default False (forward differences).
     """
 
     def __init__(
@@ -49,6 +55,7 @@ class JVPChecker(Generic[Array]):
         direction: Optional[Array] = None,
         relative: bool = True,
         verbosity: int = 0,
+        central: bool = False,
     ):
         self._validate_function(function)
         self._fun = function
@@ -66,6 +73,7 @@ class JVPChecker(Generic[Array]):
         self._direction = direction
         self._relative = relative
         self._verbosity = verbosity
+        self._central = central
 
     def _validate_function(
         self,
@@ -109,7 +117,15 @@ class JVPChecker(Generic[Array]):
                 self._bkd.copy(sample) + self._fd_eps[ii] * self._direction
             )
             perturbed_val = self._fun(sample_perturbed)
-            fd_directional_grad = (perturbed_val - val) / self._fd_eps[ii]
+            if self._central:
+                backward_val = self._fun(
+                    self._bkd.copy(sample) - self._fd_eps[ii] * self._direction
+                )
+                fd_directional_grad = (perturbed_val - backward_val) / (
+                    2.0 * self._fd_eps[ii]
+                )
+            else:
+                fd_directional_grad = (perturbed_val - val) / self._fd_eps[ii]
             errors.append(
                 self._bkd.norm(
                     self._bkd.reshape(fd_directional_grad, directional_grad.shape)
@@ -132,6 +148,4 @@ class JVPChecker(Generic[Array]):
                         errors[ii],
                     )
                 )
-        return self._bkd.asarray(
-            [self._bkd.to_float(e) for e in errors]
-        )
+        return self._bkd.asarray([self._bkd.to_float(e) for e in errors])
