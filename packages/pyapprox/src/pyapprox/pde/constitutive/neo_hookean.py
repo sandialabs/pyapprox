@@ -28,13 +28,14 @@ class NeoHookeanStress(Generic[Array]):
 
     Parameters
     ----------
-    lamda : float
-        Lame's first parameter.
-    mu : float
-        Shear modulus.
+    lamda : float or Array
+        Lame's first parameter: uniform, or one value per evaluation point
+        (shape ``(npts,)``, matching the deformation-gradient components).
+    mu : float or Array
+        Shear modulus, uniform or per point.
     """
 
-    def __init__(self, lamda: float, mu: float):
+    def __init__(self, lamda: Union[float, Array], mu: Union[float, Array]):
         self._lamda: Union[float, Array] = lamda
         self._mu: Union[float, Array] = mu
 

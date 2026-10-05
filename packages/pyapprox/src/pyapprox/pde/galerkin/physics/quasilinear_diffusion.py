@@ -34,6 +34,10 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     as_time_aware,
 )
+from pyapprox.pde.galerkin.boundary.flux_law import (
+    DiffusiveFlux,
+    NormalFluxLawProtocol,
+)
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -146,6 +150,17 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
             self._forcing_eval is None
             or not self._forcing_eval.is_time_dependent()
         )
+
+    def flux_law(self) -> NormalFluxLawProtocol:
+        r"""The flux the weak form integrates by parts:
+        :math:`a(x)\kappa(u)\nabla u\cdot n`.
+
+        :math:`a` is the nodal field, so the law interpolates it. A
+        manufactured test with an analytic :math:`a` builds
+        ``DiffusiveFlux`` from that instead, keeping interpolation error
+        out of the boundary data.
+        """
+        return DiffusiveFlux(self._diffusivity, state_factor=self._kappa)
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""

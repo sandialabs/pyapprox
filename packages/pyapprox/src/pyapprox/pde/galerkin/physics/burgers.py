@@ -27,7 +27,15 @@ from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import BoundaryConditionRole
-from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
+from pyapprox.pde.constitutive.coefficient_functions import (
+    ConstantDiffusion,
+    CoordinateDiffusion,
+    as_time_aware,
+)
+from pyapprox.pde.galerkin.boundary.flux_law import (
+    DiffusiveFlux,
+    NormalFluxLawProtocol,
+)
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -137,6 +145,18 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
             self._forcing_eval is None
             or not self._forcing_eval.is_time_dependent()
         )
+
+    def flux_law(self) -> NormalFluxLawProtocol:
+        r"""The flux the weak form integrates by parts:
+        :math:`\nu\nabla u\cdot n`.
+
+        The advective term is assembled as :math:`u\,\partial_x u\,v`, not
+        integrated by parts, so it adds no boundary term.
+        """
+        viscosity = self._viscosity
+        if callable(viscosity):
+            return DiffusiveFlux(CoordinateDiffusion(viscosity))
+        return DiffusiveFlux(ConstantDiffusion(viscosity))
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""

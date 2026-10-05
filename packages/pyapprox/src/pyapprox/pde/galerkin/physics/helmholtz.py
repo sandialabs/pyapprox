@@ -24,8 +24,13 @@ from numpy.typing import NDArray
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
+    ConstantDiffusion,
     TimeVaryingProtocol,
     as_time_aware,
+)
+from pyapprox.pde.galerkin.boundary.flux_law import (
+    DiffusiveFlux,
+    NormalFluxLawProtocol,
 )
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
@@ -149,6 +154,13 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
             self._forcing_eval is None
             or not self._forcing_eval.is_time_dependent()
         )
+
+    def flux_law(self) -> NormalFluxLawProtocol:
+        r"""The flux the weak form integrates by parts: :math:`\nabla u\cdot n`.
+
+        The wavenumber term has no derivative, so it adds no boundary term.
+        """
+        return DiffusiveFlux(ConstantDiffusion(1.0))
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""

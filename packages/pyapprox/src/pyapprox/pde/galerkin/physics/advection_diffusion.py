@@ -61,6 +61,12 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     VersionedProtocol,
     as_time_aware,
 )
+from pyapprox.pde.galerkin.boundary.flux_law import (
+    AdvectiveFlux,
+    DiffusiveFlux,
+    NormalFluxLawProtocol,
+    SumFlux,
+)
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
@@ -1129,6 +1135,18 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             self._forcing_eval is None
             or not self._forcing_eval.is_time_dependent()
         )
+
+    def flux_law(self) -> NormalFluxLawProtocol:
+        r"""The flux the weak form integrates by parts.
+
+        :math:`D\nabla u\cdot n` in both forms. The conservative form also
+        integrates :math:`\nabla\cdot(v u)` by parts, adding
+        :math:`-(v\cdot n)u`.
+        """
+        diffusive = DiffusiveFlux(self._diffusion_function)
+        if not self._conservative or self._velocity_function is None:
+            return diffusive
+        return SumFlux([diffusive, AdvectiveFlux(self._velocity_function)])
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""

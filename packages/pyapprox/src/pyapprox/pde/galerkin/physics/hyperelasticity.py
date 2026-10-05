@@ -42,6 +42,10 @@ from pyapprox.pde.constitutive.protocols import (
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
+from pyapprox.pde.galerkin.boundary.flux_law import (
+    NormalFluxLawProtocol,
+    PK1Traction,
+)
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -151,6 +155,11 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             self._body_force_eval is None
             or not self._body_force_eval.is_time_dependent()
         )
+
+    def flux_law(self) -> NormalFluxLawProtocol:
+        r"""The flux the weak form integrates by parts: the nominal
+        traction :math:`P(F)\,N` on the reference configuration."""
+        return PK1Traction(self._stress_model)
 
     def mass_matrix(self) -> Array:
         """Return the vector mass matrix.

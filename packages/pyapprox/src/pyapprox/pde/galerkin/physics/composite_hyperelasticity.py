@@ -34,7 +34,12 @@ from pyapprox.pde.constitutive.neo_hookean import (
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
+from pyapprox.pde.galerkin.boundary.flux_law import (
+    NeoHookeanTraction,
+    NormalFluxLawProtocol,
+)
 from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
+from pyapprox.pde.galerkin.physics.helpers import PerElementField
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -214,6 +219,28 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         return (
             self._body_force_eval is None
             or not self._body_force_eval.is_time_dependent()
+        )
+
+    def _lamda_per_element(self) -> np.ndarray:
+        """The current first Lame parameter of each element."""
+        return self._lam_per_elem
+
+    def _mu_per_element(self) -> np.ndarray:
+        """The current shear modulus of each element."""
+        return self._mu_per_elem
+
+    def flux_law(self) -> NormalFluxLawProtocol:
+        r"""The flux the weak form integrates by parts: the Neo-Hookean
+        nominal traction :math:`P(F)\,N`, with each point taking its
+        element's material.
+
+        Raises at evaluation if the Lame values were set per quadrature
+        point, since those have no value away from the quadrature points.
+        """
+        mesh = self._basis.skfem_basis().mesh
+        return NeoHookeanTraction(
+            PerElementField(self._lamda_per_element, mesh),
+            PerElementField(self._mu_per_element, mesh),
         )
 
     def mass_matrix(self) -> Array:

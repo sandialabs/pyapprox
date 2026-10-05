@@ -59,13 +59,12 @@ class DiffusionMixin:
 
     def sympy_diffusion_expressions(self) -> None:
         """Build and store diffusion sympy expressions."""
-        diff_expr, gradient_exprs, flux_exprs, forc_expr = (
-            self._sympy_diffusion_expressions(
-                self._diff_str, self._expressions["solution"]
-            )
+        # The solution mixin already set "gradient"; setting it here again
+        # would add to it.
+        diff_expr, _, flux_exprs, forc_expr = self._sympy_diffusion_expressions(
+            self._diff_str, self._expressions["solution"]
         )
         self._set_expression("diffusion", diff_expr, self._diff_str)
-        self._set_expression("gradient", gradient_exprs, self._sol_str)
         self._set_expression("flux", flux_exprs, self._sol_str)
         # Store diffusive flux separately so it remains available even when
         # the composite "flux" is later augmented by advective contributions.

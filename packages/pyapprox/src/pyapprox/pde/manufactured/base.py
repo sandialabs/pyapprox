@@ -432,6 +432,7 @@ class ScalarSolutionMixin:
     _set_expression: Callable[..., Any]
     _set_expression_from_bool: Callable[..., Any]
     time_symbol: Callable[..., Any]
+    cartesian_symbols: Callable[..., Any]
     is_transient: Callable[..., Any]
 
     def __init__(self, sol_str: str, *args: object, **kwargs: object) -> None:
@@ -439,9 +440,14 @@ class ScalarSolutionMixin:
         super().__init__(*args, **kwargs)
 
     def _solution_expression(self) -> None:
-        """Set up scalar solution expression."""
+        """Set up the scalar solution and its gradient :math:`\\partial_j u`."""
         sol_expr = sp.sympify(self._sol_str)
         self._set_expression("solution", sol_expr, self._sol_str)
+        self._set_expression(
+            "gradient",
+            [sol_expr.diff(symb, 1) for symb in self.cartesian_symbols()],
+            self._sol_str,
+        )
         # Initialize forcing to 0, will be built by mixins
         self._expressions["forcing"] = sp.Integer(0)
 
@@ -487,6 +493,7 @@ class VectorSolutionMixin:
     _set_expression: Callable[..., Any]
     _set_expression_from_bool: Callable[..., Any]
     time_symbol: Callable[..., Any]
+    cartesian_symbols: Callable[..., Any]
     is_transient: Callable[..., Any]
 
     def __init__(self, sol_strs: List[str], *args: object, **kwargs: object) -> None:
@@ -499,9 +506,18 @@ class VectorSolutionMixin:
         return self._ncomponents
 
     def _solution_expression(self) -> None:
-        """Set up vector solution expressions."""
+        """Set up the vector solution and its gradient
+        :math:`\\partial_j u_i`, rows indexed by component ``i``."""
         sol_exprs = [sp.sympify(sol_str) for sol_str in self._sol_strs]
         self._set_expression("solution", sol_exprs, self._sol_strs[0])
+        self._set_expression(
+            "gradient",
+            [
+                [expr.diff(symb, 1) for symb in self.cartesian_symbols()]
+                for expr in sol_exprs
+            ],
+            self._sol_strs[0],
+        )
         # Initialize forcing to zeros for each component
         self._expressions["forcing"] = [sp.Integer(0) for _ in range(self._ncomponents)]
 
