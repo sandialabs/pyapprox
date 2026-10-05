@@ -52,11 +52,6 @@ def _clone_estimator_for_torch(
     """
     import torch
 
-    from pyapprox.statest.statistics import (
-        MultiOutputMean,
-        MultiOutputMeanAndVariance,
-        MultiOutputVariance,
-    )
     from pyapprox.util.backends.torch import TorchBkd
 
     torch_bkd = TorchBkd()
@@ -66,35 +61,10 @@ def _clone_estimator_for_torch(
         estimator._bkd.to_numpy(estimator._costs), dtype=torch.double
     )
 
-    # Create fresh torch stat with re-derived pilot quantities
-    nqoi = estimator._stat.nqoi()
-    stat = estimator._stat
+    clone._stat = estimator._stat.with_backend(torch_bkd)
 
     def _to_torch_double(arr: Array) -> Array:
         return torch_bkd.asarray(estimator._bkd.to_numpy(arr), dtype=torch.double)
-
-    if isinstance(stat, MultiOutputMeanAndVariance):
-        clone._stat = MultiOutputMeanAndVariance(nqoi, torch_bkd, tril=stat._tril)
-        clone._stat.set_pilot_quantities(
-            _to_torch_double(stat.pilot_covariance()),
-            _to_torch_double(stat._W),
-            _to_torch_double(stat._B),
-        )
-    elif isinstance(stat, MultiOutputVariance):
-        clone._stat = MultiOutputVariance(nqoi, torch_bkd, tril=stat._tril)
-        clone._stat.set_pilot_quantities(
-            _to_torch_double(stat.pilot_covariance()),
-            _to_torch_double(stat._W),
-        )
-    elif isinstance(stat, MultiOutputMean):
-        clone._stat = MultiOutputMean(nqoi, torch_bkd)
-        clone._stat.set_pilot_quantities(
-            _to_torch_double(stat.pilot_covariance()),
-        )
-    else:
-        raise TypeError(
-            f"Unsupported stat type for torch optimization: {type(stat).__name__}"
-        )
 
     # Convert allocation matrix
     if hasattr(estimator, "_allocation_mat") and estimator._allocation_mat is not None:

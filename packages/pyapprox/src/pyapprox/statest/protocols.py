@@ -23,12 +23,18 @@ from typing import (
     Protocol,
     Sequence,
     Tuple,
+    TypeVar,
     Union,
     runtime_checkable,
 )
 
 from pyapprox.statest.known import KnownStatistic
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
+
+# The array type of the backend a statistic is moved onto. Bound per
+# call, independently of the statistic's own ``Array``, which is what
+# lets ``with_backend`` change it.
+TargetArray = TypeVar("TargetArray", bound=ArrayProtocol)
 
 
 @runtime_checkable
@@ -240,4 +246,15 @@ class ACVDiscrepancyStatistic(ResamplableStatistic[Array], Protocol[Array]):
         self, allocation_mat: Array, npartition_samples: Array
     ) -> Tuple[Array, Array]:
         """Return ``(CF, cf)`` for an approximate control variate."""
+        ...
+
+    def with_backend(
+        self, bkd: Backend[TargetArray]
+    ) -> "ACVDiscrepancyStatistic[TargetArray]":
+        """Return the same statistic, pilot quantities included, on ``bkd``.
+
+        An estimator allocating samples on a backend without autodiff
+        moves to one that has it; the statistic is what knows which of
+        its quantities have to go with it.
+        """
         ...

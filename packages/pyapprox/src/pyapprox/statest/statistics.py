@@ -19,8 +19,8 @@ from typing import (
 )
 
 from pyapprox.statest.known import KnownMean, KnownStatistic, KnownVariance
+from pyapprox.statest.protocols import ACVDiscrepancyStatistic, TargetArray
 from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
-from pyapprox.util.cartesian import cartesian_product
 
 # Helper functions
 
@@ -654,18 +654,15 @@ def _nqoi_nqoisq_subproblem(
     return B_new
 
 
-def _ncovariance_stats(nqoi: int, tril: bool) -> int:
+def _ncovariance_stats(nqoi: int) -> int:
     """Number of distinct covariance entries estimated for ``nqoi`` QoIs.
 
-    Determined entirely by the number of quantities of interest and
-    whether only the lower triangle is kept, both fixed at construction.
-    No pilot data enters, so this is answerable before any is supplied --
-    which is why the statistics that report it need no pilot quantities
-    to do so.
+    The lower triangle of the covariance, determined entirely by the
+    number of quantities of interest, fixed at construction. No pilot
+    data enters, so this is answerable before any is supplied -- which is
+    why the statistics that report it need no pilot quantities to do so.
     """
-    if tril:
-        return nqoi * (nqoi + 1) // 2
-    return nqoi**2
+    return nqoi * (nqoi + 1) // 2
 
 
 def log_determinant_variance(bkd: Backend[Array], variance: Array) -> Array:
@@ -728,6 +725,13 @@ class MultiOutputStatistic(ABC, Generic[Array]):
         question the accessor above cannot answer, since it raises.
         """
         return self._cov is not None
+
+    @abstractmethod
+    def with_backend(
+        self, bkd: Backend[TargetArray]
+    ) -> "ACVDiscrepancyStatistic[TargetArray]":
+        """Return the same statistic, pilot quantities included, on ``bkd``."""
+        raise NotImplementedError
 
     @abstractmethod
     def nstats(self) -> int:
@@ -936,6 +940,16 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
         super().__init__(nqoi, bkd)
         self._cov: Optional[Array] = None
 
+    def with_backend(
+        self, bkd: Backend[TargetArray]
+    ) -> "ACVDiscrepancyStatistic[TargetArray]":
+        stat = MultiOutputMean(self._nqoi, bkd)
+        if self._cov is not None:
+            stat.set_pilot_quantities(
+                bkd.asarray(self._cov, dtype=bkd.double_dtype())
+            )
+        return stat
+
     def nstats(self) -> int:
         return self.nqoi()
 
@@ -1120,12 +1134,11 @@ class MultiOutputMean(MultiOutputStatistic[Array]):
 class MultiOutputVariance(MultiOutputStatistic[Array]):
     """Statistics for computing variances across multiple models and QoIs."""
 
-    def __init__(self, nqoi: int, bkd: Backend[Array], tril: bool = True):
+    def __init__(self, nqoi: int, bkd: Backend[Array]):
         super().__init__(nqoi, bkd)
         self._cov: Optional[Array] = None
         self._W: Optional[Array] = None
         self._V: Optional[Array] = None
-        self._tril: bool = tril  # todo deprecated remove once testing complete
         self._tril_idx: Optional[Tuple[Array, Array]] = None
         self._tril_idx_flat: Optional[Array] = None
         self._comp_idx: Optional[Array] = None
@@ -1133,6 +1146,17 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         self._Wcomp: Optional[Array] = None
         self._lf_delta_idx: Optional[Array] = None
         self._hf_delta_idx: Optional[Array] = None
+
+    def with_backend(
+        self, bkd: Backend[TargetArray]
+    ) -> "ACVDiscrepancyStatistic[TargetArray]":
+        stat = MultiOutputVariance(self._nqoi, bkd)
+        if self._cov is not None and self._W is not None:
+            stat.set_pilot_quantities(
+                bkd.asarray(self._cov, dtype=bkd.double_dtype()),
+                bkd.asarray(self._W, dtype=bkd.double_dtype()),
+            )
+        return stat
 
     def _set_compressed_data(self) -> None:
         # subset0 wil contain indices into lower diagonal of covariance
@@ -1149,17 +1173,7 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
             raise ValueError("V and W must be set before _set_compressed_data")
 
         # get compressed V
-        if self._tril:
-            self._tril_idx = self._bkd.tril_indices(self._nqoi)
-        else:
-            self._tril_idx = (
-                cartesian_product(
-                    self._bkd, [self._bkd.arange(self._nqoi)] * 2
-                )[[1, 0], :][0],
-                cartesian_product(
-                    self._bkd, [self._bkd.arange(self._nqoi)] * 2
-                )[[1, 0], :][1]
-            )
+        self._tril_idx = self._bkd.tril_indices(self._nqoi)
 
         self._tril_idx_flat = self._bkd.reshape(
             self._bkd.arange(self._nqoi**2, dtype=self._bkd.int64_dtype()),
@@ -1178,27 +1192,22 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         if self._nmodels == 1:
             return
 
-        if self._tril:
-            self._lf_delta_idx = self._bkd.hstack(
-                [
-                    self._tril_idx_flat + ii * self._nqoi**2
-                    for ii in range(self._nmodels - 1)
-                ]
-            )
-        else:
-            self._lf_delta_idx = self._bkd.arange(
-                self.nstats() * (self._nmodels - 1),
-                dtype=self._bkd.int64_dtype())
+        self._lf_delta_idx = self._bkd.hstack(
+            [
+                self._tril_idx_flat + ii * self._nqoi**2
+                for ii in range(self._nmodels - 1)
+            ]
+        )
         self._hf_delta_idx = self._lf_delta_idx[: self.nstats()]
 
     def nstats(self) -> int:
-        ncov = _ncovariance_stats(self.nqoi(), self._tril)
+        ncov = _ncovariance_stats(self.nqoi())
         if self._tril_idx_flat is not None and (
             self._tril_idx_flat.shape[0] != ncov
         ):
             raise RuntimeError(
                 f"pilot quantities imply {self._tril_idx_flat.shape[0]} "
-                f"covariance statistics but nqoi and tril imply {ncov}"
+                f"covariance statistics but nqoi implies {ncov}"
             )
         return ncov
 
@@ -1401,7 +1410,7 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
         )
 
         new_stat: MultiOutputVariance[Array] = MultiOutputVariance(
-            new_nqoi, self._bkd, tril=self._tril
+            new_nqoi, self._bkd
         )
         new_stat.set_pilot_quantities(cov_sub, W_sub)
         return new_stat
@@ -1460,13 +1469,12 @@ class MultiOutputVariance(MultiOutputStatistic[Array]):
 class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
     """Statistics for computing both mean and variance."""
 
-    def __init__(self, nqoi: int, bkd: Backend[Array], tril: bool = True):
+    def __init__(self, nqoi: int, bkd: Backend[Array]):
         super().__init__(nqoi, bkd)
         self._cov: Optional[Array] = None
         self._W: Optional[Array] = None
         self._V: Optional[Array] = None
         self._B: Optional[Array] = None
-        self._tril = tril  # todo deprecated remove once testing complete
         self._tril_idx: Optional[Tuple[Array, Array]] = None
         self._tril_idx_flat: Optional[Array] = None
         self._comp_idx: Optional[Array] = None
@@ -1475,6 +1483,22 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         self._Bcomp: Optional[Array] = None
         self._lf_delta_idx: Optional[Array] = None
         self._hf_delta_idx: Optional[Array] = None
+
+    def with_backend(
+        self, bkd: Backend[TargetArray]
+    ) -> "ACVDiscrepancyStatistic[TargetArray]":
+        stat = MultiOutputMeanAndVariance(self._nqoi, bkd)
+        if (
+            self._cov is not None
+            and self._W is not None
+            and self._B is not None
+        ):
+            stat.set_pilot_quantities(
+                bkd.asarray(self._cov, dtype=bkd.double_dtype()),
+                bkd.asarray(self._W, dtype=bkd.double_dtype()),
+                bkd.asarray(self._B, dtype=bkd.double_dtype()),
+            )
+        return stat
 
     def _set_compressed_data(self) -> None:
         # subset0 wil contain indices into lower diagonal of covariance
@@ -1488,17 +1512,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         # ([0, 2, 3], [4, 6, 7])
 
         # get compressed V
-        if self._tril:
-            self._tril_idx = self._bkd.tril_indices(self._nqoi)
-        else:
-            self._tril_idx = (
-                cartesian_product(
-                    self._bkd, [self._bkd.arange(self._nqoi)] * 2
-                )[[1, 0], :][0],
-                cartesian_product(
-                    self._bkd, [self._bkd.arange(self._nqoi)] * 2
-                )[[1, 0], :][1]
-            )
+        self._tril_idx = self._bkd.tril_indices(self._nqoi)
         assert self._tril_idx is not None
         self._tril_idx_flat = self._bkd.reshape(
             self._bkd.arange(self._nqoi**2, dtype=self._bkd.int64_dtype()),
@@ -1517,31 +1531,28 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         if self._nmodels == 1:
             return
 
-        if self._tril:
-            self._lf_delta_idx = self._bkd.hstack(
-                [
-                    self._bkd.hstack(
-                        (
-                            self._bkd.arange(self.nqoi()),
-                            self._tril_idx_flat + self.nqoi(),
-                        )
+        self._lf_delta_idx = self._bkd.hstack(
+            [
+                self._bkd.hstack(
+                    (
+                        self._bkd.arange(self.nqoi()),
+                        self._tril_idx_flat + self.nqoi(),
                     )
-                    + ii * (self.nqoi() ** 2 + self.nqoi())
-                    for ii in range(self._nmodels - 1)
-                ]
-            )
-        else:
-            self._lf_delta_idx = self._bkd.arange(self.nstats() * (self._nmodels - 1))
+                )
+                + ii * (self.nqoi() ** 2 + self.nqoi())
+                for ii in range(self._nmodels - 1)
+            ]
+        )
         self._hf_delta_idx = self._lf_delta_idx[: self.nstats()]
 
     def nstats(self) -> int:
-        ncov = _ncovariance_stats(self.nqoi(), self._tril)
+        ncov = _ncovariance_stats(self.nqoi())
         if self._tril_idx_flat is not None and (
             self._tril_idx_flat.shape[0] != ncov
         ):
             raise RuntimeError(
                 f"pilot quantities imply {self._tril_idx_flat.shape[0]} "
-                f"covariance statistics but nqoi and tril imply {ncov}"
+                f"covariance statistics but nqoi implies {ncov}"
             )
         return self.nqoi() + ncov
 
@@ -1818,7 +1829,7 @@ class MultiOutputMeanAndVariance(MultiOutputStatistic[Array]):
         )
 
         new_stat: MultiOutputMeanAndVariance[Array] = MultiOutputMeanAndVariance(
-            new_nqoi, self._bkd, tril=self._tril
+            new_nqoi, self._bkd
         )
         new_stat.set_pilot_quantities(cov_sub, W_sub, B_sub)
         return new_stat
