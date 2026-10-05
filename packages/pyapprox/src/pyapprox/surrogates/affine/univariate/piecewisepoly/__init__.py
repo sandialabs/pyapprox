@@ -23,6 +23,9 @@ EquidistantNodeGenerator
     Generate equidistant nodes on an interval.
 DynamicPiecewiseBasis
     Wrapper providing set_nterms() for piecewise polynomial bases.
+PiecewiseMeasureQuadratureRule
+    Equidistant piecewise rule with weights integrating the basis against a
+    marginal's density.
 """
 
 from pyapprox.surrogates.affine.univariate.piecewisepoly.cubic import (
@@ -38,6 +41,9 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly.left_constant import (
 )
 from pyapprox.surrogates.affine.univariate.piecewisepoly.linear import (
     PiecewiseLinear,
+)
+from pyapprox.surrogates.affine.univariate.piecewisepoly.measure_rule import (
+    PiecewiseMeasureQuadratureRule,
 )
 from pyapprox.surrogates.affine.univariate.piecewisepoly.mid_constant import (
     PiecewiseConstantMidpoint,
@@ -63,4 +69,5 @@ __all__ = [
     "NodeGenerator",
     "EquidistantNodeGenerator",
     "DynamicPiecewiseBasis",
+    "PiecewiseMeasureQuadratureRule",
 ]
