@@ -279,7 +279,7 @@ MLMC-OPT — can outperform standard MLMC.
 #| label: fig-mlmc-vs-opt
 
 from pyapprox.statest import GRDEstimator
-from pyapprox.statest.acv.allocation import ACVAllocator
+from pyapprox.statest.acv.allocation import ACVAllocatorViaTorch
 from pyapprox.optimization.minimize.scipy.slsqp import (
     ScipySLSQPOptimizer,
 )
@@ -297,7 +297,7 @@ mlmc_var = float(mlmc_fitted_cmp.covariance()[0, 0])
 acv_optimizer = ScipySLSQPOptimizer(maxiter=200)
 ri_mlmc = bkd.asarray(np.arange(M), dtype=int)  # [0, 1, 2, 3]
 acv_est = GRDEstimator(stat_true, bkd.asarray(costs), recursion_index=ri_mlmc)
-acv_allocator = ACVAllocator(acv_est, optimizer=acv_optimizer)
+acv_allocator = ACVAllocatorViaTorch(acv_est, optimizer=acv_optimizer)
 acv_fitted = FittedACVEstimator(acv_est, acv_allocator.allocate(P_cmp))
 acv_var = float(acv_fitted.covariance()[0, 0])
 

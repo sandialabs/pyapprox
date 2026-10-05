@@ -17,7 +17,7 @@ from pyapprox.statest import (
     MFMCEstimator,
     MLMCEstimator,
 )
-from pyapprox.statest.acv import ACVAllocator, default_allocator_factory
+from pyapprox.statest.acv import ACVAllocatorViaTorch, default_allocator_factory
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.allocation import MCAllocator
 from pyapprox.statest.groupacv import (
@@ -221,6 +221,7 @@ def _ceiling_panel(ax, bkd, benchmark):
                 nhf * np.hstack(
                     (1, base_ratio[: nparts - 1] * 2**f)
                 ),
+                dtype=bkd.double_dtype(),
             )
             ec = est_template._covariance_from_npartition_samples(
                 npartition_samples
@@ -312,7 +313,7 @@ def _optimized_panel(ax, bkd, benchmark, target_costs):
             return bkd.to_float(FittedACVEstimator(template, result).covariance()[0, 0])
         elif est_type == "ACVMF":
             template = GMFEstimator(stat, costs, recursion_index=ri_zeros)
-            result = ACVAllocator(template, optimizer=optimizer).allocate(tc)
+            result = ACVAllocatorViaTorch(template, optimizer=optimizer).allocate(tc)
             return bkd.to_float(FittedACVEstimator(template, result).covariance()[0, 0])
         elif est_type == "GACV-IS":
             return _gacv_is_variance(cov, costs, nqoi, nmodels, tc)
@@ -539,7 +540,7 @@ def plot_sample_allocation(axes, target_cost=500.0):
             res = default_allocator_factory(est).allocate(float(target_cost))
             n_per_model = bkd.to_numpy(res.nsamples_per_model).astype(float)
         elif name == "ACVMF":
-            res = ACVAllocator(est, optimizer=optimizer).allocate(
+            res = ACVAllocatorViaTorch(est, optimizer=optimizer).allocate(
                 float(target_cost)
             )
             n_per_model = bkd.to_numpy(res.nsamples_per_model).astype(float)

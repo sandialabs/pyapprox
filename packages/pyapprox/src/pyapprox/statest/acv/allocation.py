@@ -2,13 +2,14 @@
 
 This module separates allocation optimization from estimation, providing:
 - Allocator: Abstract base for allocation strategies
-- ACVAllocator: Optimization-based allocator
+- ACVAllocator: Optimization-based allocator on the estimator's backend
+- ACVAllocatorViaTorch: Optimization-based allocator for an estimator on
+  any backend, optimizing on a torch copy of it
 - AnalyticalAllocator: Closed-form allocator for MFMC/MLMC
 """
 
-import copy
 from abc import ABC, abstractmethod
-from typing import Generic, Optional, Union
+from typing import TYPE_CHECKING, Generic, Optional, Union
 
 from pyapprox.interface.functions.autograd import (
     WithAutogradJacobian,
@@ -27,61 +28,16 @@ from pyapprox.statest.acv.optimization import (
     ACVPartitionConstraint,
 )
 from pyapprox.statest.acv.result import ACVAllocationResult
+from pyapprox.statest.protocols import TargetArray
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
-
-def _clone_estimator_for_torch(
-    estimator: ACVEstimator[Array],
-) -> ACVEstimator[Array]:
-    """Create a torch-backed clone of an estimator for optimization.
-
-    Reuses the same logic as ACVEstimator._clone_for_torch_optimization:
-    shallow copy with TorchBkd, converting costs, stat, allocation_mat,
-    and recursion_index.
-
-    Parameters
-    ----------
-    estimator : ACVEstimator
-        The estimator (any backend) to clone.
-
-    Returns
-    -------
-    ACVEstimator
-        A shallow copy backed by TorchBkd.
-    """
-    import torch
-
-    from pyapprox.util.backends.torch import TorchBkd
-
-    torch_bkd = TorchBkd()
-    clone = copy.copy(estimator)
-    clone._bkd = torch_bkd
-    clone._costs = torch_bkd.asarray(
-        estimator._bkd.to_numpy(estimator._costs), dtype=torch.double
-    )
-
-    clone._stat = estimator._stat.with_backend(torch_bkd)
-
-    def _to_torch_double(arr: Array) -> Array:
-        return torch_bkd.asarray(estimator._bkd.to_numpy(arr), dtype=torch.double)
-
-    # Convert allocation matrix
-    if hasattr(estimator, "_allocation_mat") and estimator._allocation_mat is not None:
-        clone._allocation_mat = _to_torch_double(estimator._allocation_mat)
-
-    # Convert recursion index
-    if (
-        hasattr(estimator, "_recursion_index")
-        and estimator._recursion_index is not None
-    ):
-        clone._recursion_index = _to_torch_double(estimator._recursion_index)
-
-    return clone
+if TYPE_CHECKING:
+    from torch import Tensor
 
 
 def _convert_result_to_backend(
-    result: ACVAllocationResult[Array],
+    result: ACVAllocationResult[TargetArray],
     bkd: Backend[Array],
 ) -> ACVAllocationResult[Array]:
     """Convert an ACVAllocationResult's arrays to a different backend.
@@ -98,21 +54,14 @@ def _convert_result_to_backend(
     ACVAllocationResult
         A new result with all Array fields converted to the target backend.
     """
-    from pyapprox.util.backends.torch import TorchBkd
-
-    src_bkd = TorchBkd()
     return ACVAllocationResult(
-        partition_ratios=bkd.asarray(src_bkd.to_numpy(result.partition_ratios)),
+        partition_ratios=bkd.asarray(result.partition_ratios),
         continuous_npartition_samples=bkd.asarray(
-            src_bkd.to_numpy(result.continuous_npartition_samples)
+            result.continuous_npartition_samples
         ),
-        objective_value=bkd.asarray(src_bkd.to_numpy(result.objective_value)),
-        npartition_samples=bkd.asarray(
-            src_bkd.to_numpy(result.npartition_samples), dtype=int
-        ),
-        nsamples_per_model=bkd.asarray(
-            src_bkd.to_numpy(result.nsamples_per_model), dtype=int
-        ),
+        objective_value=bkd.asarray(result.objective_value),
+        npartition_samples=bkd.asarray(result.npartition_samples, dtype=int),
+        nsamples_per_model=bkd.asarray(result.nsamples_per_model, dtype=int),
         target_cost=result.target_cost,
         actual_cost=result.actual_cost,
         success=result.success,
@@ -202,12 +151,19 @@ class Allocator(ABC, Generic[Array]):
 class ACVAllocator(Allocator[Array]):
     """Optimization-based allocator for ACV estimators.
 
+    Optimizes on the estimator's own backend. On a backend with autodiff
+    the objective and constraint get autograd jacobians; on one without,
+    the optimizer must not need them -- a gradient-free optimizer, or
+    one that approximates them. :class:`ACVAllocatorViaTorch` runs this on
+    torch for an estimator on any backend.
+
     Parameters
     ----------
     estimator : ACVEstimator
         The estimator to optimize allocation for.
     optimizer : optional
-        Optimizer to use. If None, uses default chained optimizer.
+        Optimizer to use. If None, uses default chained optimizer, whose
+        trust-region stage needs jacobians.
     objective : optional
         Objective function. If None, uses ACVLogDeterminantObjective.
     """
@@ -240,8 +196,10 @@ class ACVAllocator(Allocator[Array]):
         )
 
         return ChainedOptimizer(
-            ScipyDifferentialEvolutionOptimizer(maxiter=3, raise_on_failure=False),
-            ScipyTrustConstrOptimizer(),
+            ScipyDifferentialEvolutionOptimizer[Array](
+                maxiter=3, raise_on_failure=False
+            ),
+            ScipyTrustConstrOptimizer[Array](),
         )
 
     def _get_objective(
@@ -258,11 +216,6 @@ class ACVAllocator(Allocator[Array]):
     def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
         """Allocate samples using optimization.
 
-        Automatically clones the estimator to TorchBkd when the estimator
-        uses NumpyBkd, since the trust-constr optimizer requires autodiff
-        gradients. The result arrays are converted back to the original
-        backend.
-
         Parameters
         ----------
         target_cost : float
@@ -273,32 +226,6 @@ class ACVAllocator(Allocator[Array]):
         AllocationResult
             The allocation result. Check `success` field for status.
         """
-        from pyapprox.util.backends.numpy import NumpyBkd
-
-        if isinstance(self._bkd, NumpyBkd):
-            return self._allocate_with_torch_clone(target_cost)
-        return self._allocate_impl(target_cost)
-
-    def _allocate_with_torch_clone(
-        self, target_cost: float
-    ) -> ACVAllocationResult[Array]:
-        """Run allocation via a TorchBkd clone, then convert result back."""
-        import torch
-
-        prev_dtype = torch.get_default_dtype()
-        torch.set_default_dtype(torch.float64)
-        try:
-            torch_est = _clone_estimator_for_torch(self._est)
-            torch_allocator = ACVAllocator(torch_est, optimizer=self._optimizer)
-            torch_result = torch_allocator._allocate_impl(target_cost)
-            if not torch_result.success:
-                return self._failure_result(target_cost, torch_result.message)
-            return _convert_result_to_backend(torch_result, self._bkd)
-        finally:
-            torch.set_default_dtype(prev_dtype)
-
-    def _allocate_impl(self, target_cost: float) -> ACVAllocationResult[Array]:
-        """Core allocation logic (requires autodiff-capable backend)."""
         if target_cost < self._bkd.to_float(self._bkd.sum(self._est._costs)):
             return self._failure_result(
                 target_cost, "Budget too small for one sample per model"
@@ -426,6 +353,67 @@ class ACVAllocator(Allocator[Array]):
         )
 
 
+class ACVAllocatorViaTorch(Allocator[Array]):
+    """Optimization-based allocator for an estimator on any backend.
+
+    Moves a copy of the estimator to TorchBkd, allocates there with
+    :class:`ACVAllocator` -- so the objective and constraint get autograd
+    jacobians -- and returns the result on the estimator's own backend.
+    The optimizer and objective therefore always work on torch tensors,
+    whatever backend the estimator uses.
+
+    Parameters
+    ----------
+    estimator : ACVEstimator
+        The estimator to optimize allocation for, on any backend.
+    optimizer : optional
+        Optimizer to use. If None, uses the default of
+        :class:`ACVAllocator`.
+    objective : optional
+        Objective function. If None, uses ACVLogDeterminantObjective.
+    """
+
+    def __init__(
+        self,
+        estimator: ACVEstimator[Array],
+        optimizer: Optional[BindableOptimizerProtocol["Tensor"]] = None,
+        objective: Optional[ACVObjective["Tensor"]] = None,
+    ) -> None:
+        self._est = estimator
+        self._optimizer = optimizer
+        self._objective = objective
+
+    def allocate(self, target_cost: float) -> ACVAllocationResult[Array]:
+        """Allocate samples using optimization on torch.
+
+        Parameters
+        ----------
+        target_cost : float
+            The total computational budget.
+
+        Returns
+        -------
+        AllocationResult
+            The allocation result on the estimator's backend. Check
+            `success` field for status.
+        """
+        import torch
+
+        from pyapprox.util.backends.torch import TorchBkd
+
+        prev_dtype = torch.get_default_dtype()
+        torch.set_default_dtype(torch.float64)
+        try:
+            torch_result = ACVAllocator(
+                self._est.with_backend(TorchBkd()),
+                optimizer=self._optimizer,
+                objective=self._objective,
+            ).allocate(target_cost)
+        finally:
+            torch.set_default_dtype(prev_dtype)
+        return _convert_result_to_backend(torch_result, self._est.bkd())
+
+
 class AnalyticalAllocator(Allocator[Array]):
     """Analytical (closed-form) allocator for MFMC/MLMC.
 
@@ -500,21 +488,21 @@ class AnalyticalAllocator(Allocator[Array]):
 
 def default_allocator_factory(
     estimator: ACVEstimator[Array],
-    optimizer: Optional[BindableOptimizerProtocol[Array]] = None,
+    optimizer: Optional[BindableOptimizerProtocol["Tensor"]] = None,
 ) -> Allocator[Array]:
     """Create appropriate allocator for estimator type.
 
     Dispatches by capability: estimators with `_allocate_samples_analytical`
-    get AnalyticalAllocator, everything else gets ACVAllocator.
+    get AnalyticalAllocator, everything else gets ACVAllocatorViaTorch.
 
     Parameters
     ----------
     estimator : ACVEstimator
         The estimator to create an allocator for.
     optimizer : optional
-        Optimizer to use for optimization-based allocators (ACVAllocator).
-        If None, uses the default chained optimizer. Ignored when an
-        analytical allocator is selected.
+        Optimizer to use for the optimization-based allocator, which runs
+        on torch. If None, uses the default chained optimizer. Ignored
+        when an analytical allocator is selected.
 
     Returns
     -------
@@ -524,4 +512,4 @@ def default_allocator_factory(
     if hasattr(estimator, "_allocate_samples_analytical"):
         return AnalyticalAllocator(estimator)
 
-    return ACVAllocator(estimator, optimizer=optimizer)
+    return ACVAllocatorViaTorch(estimator, optimizer=optimizer)

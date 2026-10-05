@@ -22,7 +22,7 @@ import numpy as np
 
 from pyapprox.statest._cv_math import optimal_cv_weights
 from pyapprox.statest.acv.result import ACVAllocationResult
-from pyapprox.statest.protocols import ACVDiscrepancyStatistic
+from pyapprox.statest.protocols import ACVDiscrepancyStatistic, TargetArray
 from pyapprox.statest.statistics import log_determinant_variance
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -69,6 +69,38 @@ class ACVEstimator(Generic[Array]):
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
         return self._bkd
+
+    @abstractmethod
+    def with_backend(self, bkd: Backend[TargetArray]) -> "ACVEstimator[TargetArray]":
+        """Return the same estimator, statistic included, on ``bkd``.
+
+        Each estimator rebuilds itself through its own constructor, so
+        everything derived from the constructor arguments -- the
+        allocation matrix among it -- is derived again on ``bkd`` rather
+        than copied.
+        """
+
+    def _require_own_with_backend(self, cls: type) -> None:
+        """Refuse a subclass that inherited ``cls.with_backend``.
+
+        Inheriting it would rebuild the estimator as ``cls``, dropping
+        the subclass's own behavior without an error -- MFMC rebuilt as
+        the GMF estimator it extends, for instance.
+        """
+        if type(self) is not cls:
+            raise NotImplementedError(
+                f"{type(self).__name__} must override with_backend"
+            )
+
+    def _costs_on(self, bkd: Backend[TargetArray]) -> TargetArray:
+        return bkd.asarray(self._costs, dtype=bkd.double_dtype())
+
+    def _recursion_index_on(
+        self, bkd: Backend[TargetArray]
+    ) -> Optional[TargetArray]:
+        if self._recursion_index is None:
+            return None
+        return bkd.asarray(self._recursion_index, dtype=bkd.int64_dtype())
 
     def _optimization_criteria(self, est_covariance: Array) -> Array:
         """Scalarize an estimator covariance for comparison.

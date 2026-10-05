@@ -517,7 +517,7 @@ def plot_pacv_enumeration(ax):
     """
     from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
     from pyapprox.statest.acv.allocation import (
-        ACVAllocator,
+        ACVAllocatorViaTorch,
         default_allocator_factory,
     )
     from pyapprox.statest.acv.base import FittedACVEstimator
@@ -550,8 +550,8 @@ def plot_pacv_enumeration(ax):
 
     def _fast_allocator(est):
         alloc = default_allocator_factory(est)
-        if isinstance(alloc, ACVAllocator):
-            return ACVAllocator(est, optimizer=_slsqp)
+        if isinstance(alloc, ACVAllocatorViaTorch):
+            return ACVAllocatorViaTorch(est, optimizer=_slsqp)
         return alloc
 
     search = ACVSearch(
@@ -966,6 +966,7 @@ def plot_correlation_heatmaps(axes, fig):
     Correlation matrices for two configurations of the tunable benchmark.
     """
     from mpl_toolkits.axes_grid1 import make_axes_locatable
+
     from pyapprox.util.backends.numpy import NumpyBkd
     from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 

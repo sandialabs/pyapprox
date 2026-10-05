@@ -1,14 +1,21 @@
 """Tests for ACV allocation module."""
 
+from typing import Any
+
 import numpy as np
 import pytest
+import torch
+from numpy.typing import NDArray
 
+from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.statest.acv.allocation import (
     ACVAllocator,
+    ACVAllocatorViaTorch,
     AnalyticalAllocator,
     default_allocator_factory,
 )
 from pyapprox.statest.acv.base import FittedACVEstimator
+from pyapprox.statest.acv.optimization import ACVLogDeterminantObjective
 from pyapprox.statest.acv.result import ACVAllocationResult
 from pyapprox.statest.acv.variants import (
     GMFEstimator,
@@ -16,6 +23,9 @@ from pyapprox.statest.acv.variants import (
     MLMCEstimator,
 )
 from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.torch import TorchBkd
 from tests._helpers.markers import slow_test
 
 
@@ -76,10 +86,10 @@ class TestACVAllocationResult:
 
 
 class TestACVAllocator:
-    """Tests for ACVAllocator with both backends.
+    """Tests for ACVAllocatorViaTorch with both backends.
 
-    NumpyBkd estimators are automatically cloned to TorchBkd for optimization,
-    with results converted back.
+    Estimators on any backend are optimized on a TorchBkd copy, with
+    results converted back.
     """
 
     @pytest.fixture(autouse=True)
@@ -108,7 +118,7 @@ class TestACVAllocator:
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
         assert result.actual_cost <= result.target_cost
@@ -118,7 +128,7 @@ class TestACVAllocator:
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=0.1)  # Too small
         assert not result.success
         assert "Budget too small" in result.message
@@ -128,7 +138,7 @@ class TestACVAllocator:
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         target_cost = 500.0
         result = allocator.allocate(target_cost=target_cost)
         if result.success:
@@ -139,7 +149,7 @@ class TestACVAllocator:
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=1000.0)
         if result.success:
             assert result.objective_value.shape == (1,)
@@ -149,7 +159,7 @@ class TestACVAllocator:
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=0.1)  # Will fail
         assert not result.success
         assert result.objective_value.shape == (1,)
@@ -160,7 +170,7 @@ class TestACVAllocator:
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
         # All array fields should be the same type as the backend's arrays
@@ -170,6 +180,56 @@ class TestACVAllocator:
         assert isinstance(result.objective_value, expected_type)
         assert isinstance(result.npartition_samples, expected_type)
         assert isinstance(result.nsamples_per_model, expected_type)
+
+    def test_custom_objective_is_used(self, bkd: Backend[Array]) -> None:
+        """The objective given is the one optimized, on the torch copy."""
+        stat, costs = self._create_stat_and_costs(bkd)
+        recursion_index = bkd.array([0, 1], dtype=int)
+        est = GMFEstimator(stat, costs, recursion_index=recursion_index)
+        objective = ACVLogDeterminantObjective[torch.Tensor]()
+        result = ACVAllocatorViaTorch(est, objective=objective).allocate(
+            target_cost=1000.0
+        )
+        assert result.success
+        assert isinstance(objective.bkd(), TorchBkd)
+
+
+class TestACVAllocatorOnOwnBackend:
+    """ACVAllocator optimizes on the estimator's backend, never another."""
+
+    def _estimator(self, bkd: Backend[Array]) -> GMFEstimator[Array]:
+        stat, costs = TestACVAllocator()._create_stat_and_costs(bkd)
+        return GMFEstimator(
+            stat, costs, recursion_index=bkd.array([0, 1], dtype=int)
+        )
+
+    def test_torch_estimator_with_autograd(self, torch_bkd: TorchBkd) -> None:
+        """On an autodiff backend the default optimizer gets jacobians."""
+        result = ACVAllocator(self._estimator(torch_bkd)).allocate(1000.0)
+        assert result.success
+        assert isinstance(result.partition_ratios, torch.Tensor)
+
+    def test_numpy_estimator_with_finite_differences(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """Without autodiff, an optimizer that approximates jacobians works.
+
+        SLSQP falls back to finite differences when the objective and
+        constraint declare no jacobian, so no torch copy is needed; the
+        allocation matches the one optimized on torch with autograd.
+        """
+        est = self._estimator(numpy_bkd)
+        result = ACVAllocator(
+            est, optimizer=ScipySLSQPOptimizer[NDArray[Any]](maxiter=200)
+        ).allocate(1000.0)
+        assert result.success
+        assert isinstance(result.partition_ratios, np.ndarray)
+        via_torch = ACVAllocatorViaTorch(
+            est, optimizer=ScipySLSQPOptimizer[torch.Tensor](maxiter=200)
+        ).allocate(1000.0)
+        numpy_bkd.assert_allclose(
+            result.objective_value, via_torch.objective_value, rtol=1e-4
+        )
 
 
 class TestAnalyticalAllocator:
@@ -214,20 +274,20 @@ class TestAnalyticalAllocator:
         return stat, costs
 
     def test_default_allocator_factory_gmf_chain(self, bkd):
-        """Returns ACVAllocator for GMF with chain index."""
+        """Returns ACVAllocatorViaTorch for GMF with chain index."""
         stat, costs = self._create_mfmc_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
         allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
+        assert isinstance(allocator, ACVAllocatorViaTorch)
 
     def test_default_allocator_factory_gmf_non_chain(self, bkd):
-        """Returns ACVAllocator for GMF with non-chain index."""
+        """Returns ACVAllocatorViaTorch for GMF with non-chain index."""
         stat, costs = self._create_mfmc_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 0], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
         allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
+        assert isinstance(allocator, ACVAllocatorViaTorch)
 
     def test_default_allocator_factory_mfmc_returns_analytical(self, bkd):
         """Returns AnalyticalAllocator for MFMC (has _allocate_samples_analytical)."""
@@ -297,20 +357,20 @@ class TestAllocatorFactory:
         return stat, costs
 
     def test_factory_returns_acv_for_gmf_chain(self, bkd):
-        """Returns ACVAllocator for GMF with chain index."""
+        """Returns ACVAllocatorViaTorch for GMF with chain index."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
         allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
+        assert isinstance(allocator, ACVAllocatorViaTorch)
 
     def test_factory_returns_acv_for_gmf_non_chain(self, bkd):
-        """Returns ACVAllocator for GMF with non-chain index."""
+        """Returns ACVAllocatorViaTorch for GMF with non-chain index."""
         stat, costs = self._create_stat_and_costs(bkd)
         recursion_index = bkd.array([0, 0], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
         allocator = default_allocator_factory(est)
-        assert isinstance(allocator, ACVAllocator)
+        assert isinstance(allocator, ACVAllocatorViaTorch)
 
     def test_factory_returns_analytical_for_mfmc(self, bkd):
         """Returns AnalyticalAllocator for MFMC (has _allocate_samples_analytical)."""
@@ -356,7 +416,7 @@ class TestFittedACVEstimator:
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
 
@@ -371,7 +431,7 @@ class TestFittedACVEstimator:
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=0.1)
         assert not result.success
 
@@ -417,7 +477,7 @@ class TestFittedACVEstimator:
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
 
@@ -436,7 +496,7 @@ class TestFittedACVEstimator:
         recursion_index = bkd.array([0, 1], dtype=int)
         est = GMFEstimator(stat, costs, recursion_index=recursion_index)
 
-        allocator = ACVAllocator(est)
+        allocator = ACVAllocatorViaTorch(est)
         result = allocator.allocate(target_cost=1000.0)
         assert result.success
 
@@ -495,8 +555,8 @@ class TestAnalyticalVsNumerical:
         analytical_result = analytical_allocator.allocate(target_cost)
         assert analytical_result.success
 
-        # Numerical (force optimization by using ACVAllocator directly)
-        numerical_allocator = ACVAllocator(mfmc_est)
+        # Numerical (force optimization by using ACVAllocatorViaTorch directly)
+        numerical_allocator = ACVAllocatorViaTorch(mfmc_est)
         numerical_result = numerical_allocator.allocate(target_cost)
         assert numerical_result.success
 
@@ -525,7 +585,7 @@ class TestAnalyticalVsNumerical:
         assert analytical_result.success
 
         # Numerical (MLMCEstimator uses -1 weights, same objective)
-        numerical_allocator = ACVAllocator(mlmc_est)
+        numerical_allocator = ACVAllocatorViaTorch(mlmc_est)
         numerical_result = numerical_allocator.allocate(target_cost)
         assert numerical_result.success
 

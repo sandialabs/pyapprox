@@ -339,7 +339,7 @@ from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
 from pyapprox.statest import (
     MLMCEstimator, MFMCEstimator, GMFEstimator,
 )
-from pyapprox.statest.acv import ACVAllocator, default_allocator_factory
+from pyapprox.statest.acv import ACVAllocatorViaTorch, default_allocator_factory
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.groupacv import GroupACVEstimatorIS
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationOptimizer
@@ -395,7 +395,7 @@ mfmc_e = FittedACVEstimator(
 
 acvmf_t = GMFEstimator(stat, costs, recursion_index=ri_zeros)
 acvmf_e = FittedACVEstimator(
-    acvmf_t, ACVAllocator(acvmf_t, optimizer=optimizer).allocate(target_cost))
+    acvmf_t, ACVAllocatorViaTorch(acvmf_t, optimizer=optimizer).allocate(target_cost))
 
 gacv_t = GroupACVEstimatorIS(
     stat, costs, model_subsets=get_model_subsets(nmodels, bkd))

@@ -17,7 +17,7 @@ from pyapprox.statest.acv.optimization import (
     _get_allocation_matrix_acvrd,
     _get_allocation_matrix_gmf,
 )
-from pyapprox.statest.statistics import MultiOutputStatistic
+from pyapprox.statest.protocols import ACVDiscrepancyStatistic, TargetArray
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -360,6 +360,15 @@ def _get_sample_allocation_matrix_mlmc(nmodels: int, bkd: Backend[Array]) -> Arr
 class GMFEstimator(ACVEstimator[Array], Generic[Array]):
     """Generalized Multifidelity (GMF) estimator."""
 
+    def with_backend(self, bkd: Backend[TargetArray]) -> GMFEstimator[TargetArray]:
+        self._require_own_with_backend(GMFEstimator)
+        return GMFEstimator(
+            self._stat.with_backend(bkd),
+            self._costs_on(bkd),
+            recursion_index=self._recursion_index_on(bkd),
+            npartitions_lower_bound=self._npartitions_lower_bound,
+        )
+
     def _create_allocation_matrix(self, recursion_index: Array) -> None:
         self._allocation_mat = _get_allocation_matrix_gmf(recursion_index, self._bkd)
 
@@ -368,6 +377,15 @@ class GISEstimator(ACVEstimator[Array], Generic[Array]):
     """
     The GIS estimator from Gorodetsky et al. and Bomorito et al
     """
+
+    def with_backend(self, bkd: Backend[TargetArray]) -> GISEstimator[TargetArray]:
+        self._require_own_with_backend(GISEstimator)
+        return GISEstimator(
+            self._stat.with_backend(bkd),
+            self._costs_on(bkd),
+            recursion_index=self._recursion_index_on(bkd),
+            npartitions_lower_bound=self._npartitions_lower_bound,
+        )
 
     def _create_allocation_matrix(self, recursion_index: Array) -> None:
         self._allocation_mat = _get_allocation_matrix_acvis(recursion_index, self._bkd)
@@ -378,6 +396,15 @@ class GRDEstimator(ACVEstimator[Array], Generic[Array]):
     The GRD estimator.
     """
 
+    def with_backend(self, bkd: Backend[TargetArray]) -> GRDEstimator[TargetArray]:
+        self._require_own_with_backend(GRDEstimator)
+        return GRDEstimator(
+            self._stat.with_backend(bkd),
+            self._costs_on(bkd),
+            recursion_index=self._recursion_index_on(bkd),
+            npartitions_lower_bound=self._npartitions_lower_bound,
+        )
+
     def _create_allocation_matrix(self, recursion_index: Array) -> None:
         self._allocation_mat = _get_allocation_matrix_acvrd(recursion_index, self._bkd)
 
@@ -387,7 +414,7 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
 
     def __init__(
         self,
-        stat: MultiOutputStatistic[Array],
+        stat: ACVDiscrepancyStatistic[Array],
         costs: Union[List[float], Array],
         opt_qoi: int = 0,
     ) -> None:
@@ -401,6 +428,14 @@ class MFMCEstimator(GMFEstimator[Array], Generic[Array]):
         )
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
+
+    def with_backend(self, bkd: Backend[TargetArray]) -> MFMCEstimator[TargetArray]:
+        self._require_own_with_backend(MFMCEstimator)
+        return MFMCEstimator(
+            self._stat.with_backend(bkd),
+            self._costs_on(bkd),
+            opt_qoi=self._opt_qoi,
+        )
 
     def _allocate_samples(
         self, target_cost: float,
@@ -467,7 +502,7 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
 
     def __init__(
         self,
-        stat: MultiOutputStatistic[Array],
+        stat: ACVDiscrepancyStatistic[Array],
         costs: Union[List[float], Array],
         opt_qoi: int = 0,
     ) -> None:
@@ -486,6 +521,14 @@ class MLMCEstimator(GRDEstimator[Array], Generic[Array]):
         )
         # The qoi index used to generate the sample allocation
         self._opt_qoi = opt_qoi
+
+    def with_backend(self, bkd: Backend[TargetArray]) -> MLMCEstimator[TargetArray]:
+        self._require_own_with_backend(MLMCEstimator)
+        return MLMCEstimator(
+            self._stat.with_backend(bkd),
+            self._costs_on(bkd),
+            opt_qoi=self._opt_qoi,
+        )
 
     def _optimal_weights(self, CF: Array, cf: Array) -> Array:
         return -self._bkd.ones(cf.shape)

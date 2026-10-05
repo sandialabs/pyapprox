@@ -412,7 +412,7 @@ from pyapprox.statest import (
     MCEstimator, MLMCEstimator, MFMCEstimator, GMFEstimator, GISEstimator,
 )
 from pyapprox.statest.acv import (
-    ACVAllocator, default_allocator_factory,
+    ACVAllocatorViaTorch, default_allocator_factory,
 )
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.allocation import MCAllocator
@@ -447,7 +447,7 @@ for name, est in templates.items():
     if name in ("MLMC", "MFMC"):
         allocator = default_allocator_factory(est)
     else:
-        allocator = ACVAllocator(est, optimizer=optimizer)
+        allocator = ACVAllocatorViaTorch(est, optimizer=optimizer)
     estimators[name] = FittedACVEstimator(est, allocator.allocate(target_cost))
 
 from pyapprox_tutorials.figures._cv_acv import plot_allocation_matrices
@@ -494,7 +494,7 @@ for P_t in target_costs_sweep:
     mfmc_vars_pred.append(float(mf_fitted.covariance()[0, 0]))
 
     acv_e = GMFEstimator(stat, costs, recursion_index=ri_zeros)
-    acv_allocator = ACVAllocator(acv_e, optimizer=opt_verify)
+    acv_allocator = ACVAllocatorViaTorch(acv_e, optimizer=opt_verify)
     acv_fitted = FittedACVEstimator(acv_e, acv_allocator.allocate(float(P_t)))
     acvmf_vars_pred.append(float(acv_fitted.covariance()[0, 0]))
 

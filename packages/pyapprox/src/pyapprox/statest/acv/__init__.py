@@ -2,6 +2,7 @@
 
 from pyapprox.statest.acv.allocation import (
     ACVAllocator,
+    ACVAllocatorViaTorch,
     Allocator,
     AnalyticalAllocator,
     default_allocator_factory,
@@ -48,6 +49,7 @@ __all__ = [
     "ACVAllocationResult",
     "Allocator",
     "ACVAllocator",
+    "ACVAllocatorViaTorch",
     "AnalyticalAllocator",
     "default_allocator_factory",
     # Strategies

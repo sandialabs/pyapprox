@@ -125,7 +125,7 @@ from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.mc_estimator import MCEstimator
 from pyapprox.statest.acv import GMFEstimator, GRDEstimator, GISEstimator
 from pyapprox.statest.acv.search import ACVSearch
-from pyapprox.statest.acv.allocation import ACVAllocator, default_allocator_factory
+from pyapprox.statest.acv.allocation import ACVAllocatorViaTorch, default_allocator_factory
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.strategies import (
     FixedRecursionStrategy, TreeDepthRecursionStrategy,
@@ -151,8 +151,8 @@ _slsqp = ScipySLSQPOptimizer(maxiter=200)
 def fast_allocator(est):
     """Route analytical cases to closed-form, others to SLSQP."""
     alloc = default_allocator_factory(est)
-    if isinstance(alloc, ACVAllocator):
-        return ACVAllocator(est, optimizer=_slsqp)
+    if isinstance(alloc, ACVAllocatorViaTorch):
+        return ACVAllocatorViaTorch(est, optimizer=_slsqp)
     return alloc
 
 # MFMC (chain) and ACVMF (star) as GMF estimators
