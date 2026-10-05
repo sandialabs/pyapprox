@@ -18,8 +18,6 @@ evaluation and ``timed`` for cost measurement.
 from typing import Generic, List, Optional
 
 import numpy as np
-from scipy.stats import lognorm
-
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.interface.functions.timing import TimedFunction
 from pyapprox.probability.joint.independent import IndependentJoint
@@ -32,6 +30,8 @@ from pyapprox.surrogates.affine.expansions.pce import (
     PolynomialChaosExpansion,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from scipy.stats import lognorm
+
 from pyapprox_benchmarks.pde.cantilever_beam_ensemble import (
     MESH_PATHS,
     build_shared_field_beam,
