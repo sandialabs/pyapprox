@@ -327,6 +327,7 @@ def build_shared_field_beam(
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
     from skfem import Basis as SkfemBasis
@@ -371,10 +372,10 @@ def build_shared_field_beam(
             material_map=material_map,
             element_materials=subdomain_elements,
             bkd=bkd,
-            boundary_conditions=[bc_left, bc_top],
         )
         physics = linear
-        solver = SteadyStateSolver(linear.system().steady(), tol=1e-10, max_iter=1)
+        system = compose_galerkin_system(linear, [bc_left, bc_top])
+        solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
     elif physics_type == "neohookean":
         from pyapprox.pde.galerkin.physics import (
             CompositeHyperelasticityPhysics,
@@ -385,11 +386,11 @@ def build_shared_field_beam(
             material_map=material_map,
             element_materials=subdomain_elements,
             bkd=bkd,
-            boundary_conditions=[bc_left, bc_top],
         )
         physics = neohookean
+        system = compose_galerkin_system(neohookean, [bc_left, bc_top])
         solver = SteadyStateSolver(
-            neohookean.system().steady(), tol=1e-10, max_iter=50, line_search=True,
+            system.steady(), tol=1e-10, max_iter=50, line_search=True,
         )
     else:
         raise ValueError(

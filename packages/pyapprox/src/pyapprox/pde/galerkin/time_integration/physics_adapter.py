@@ -73,7 +73,7 @@ class GalerkinPhysicsToODEResidualAdapter(
     ----------
     system : GalerkinTransientSystemProtocol
         The composed system to adapt: spatial operator, constraint set
-        and mass (``physics.system()``).
+        and mass (``compose_galerkin_system(physics, bcs)``).
     lumped_mass : bool, default False
         If True, use the row-sum lumped (diagonal) mass matrix instead
         of the consistent mass. Cheaper per solve, less accurate — an
@@ -81,7 +81,8 @@ class GalerkinPhysicsToODEResidualAdapter(
 
     Examples
     --------
-    >>> ode_residual = GalerkinPhysicsToODEResidualAdapter(physics.system())
+    >>> system = compose_galerkin_system(physics, bcs)
+    >>> ode_residual = GalerkinPhysicsToODEResidualAdapter(system)
     >>> time_stepper = BackwardEulerHVP(ode_residual)
     """
 

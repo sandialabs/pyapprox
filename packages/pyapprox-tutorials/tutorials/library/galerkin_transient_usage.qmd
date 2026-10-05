@@ -233,7 +233,7 @@ config = TimeIntegrationConfig(
     verbosity=0,
 )
 
-solutions, times = GalerkinModel(physics, bkd).solve_transient(
+solutions, times = GalerkinModel(physics.system(), bkd).solve_transient(
     bkd.asarray(np.zeros(physics.nstates())), config
 )
 print(f"{len(times)} steps to t = {times[-1]:.1f}")
@@ -423,7 +423,7 @@ cyl_config = TimeIntegrationConfig(
     verbosity=0,
 )
 
-cyl_solutions, cyl_times = GalerkinModel(cyl_physics, bkd).solve_transient(
+cyl_solutions, cyl_times = GalerkinModel(cyl_physics.system(), bkd).solve_transient(
     bkd.asarray(np.zeros(cyl_physics.nstates())), cyl_config
 )
 print(f"{len(cyl_times)} steps to t = {cyl_times[-1]:.0f}")

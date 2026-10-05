@@ -2,7 +2,7 @@
 
 Solves F(u) = 0 for a steady operator: the constrained residual with no
 time in it (``SteadyOperatorProtocol``; build one with
-``physics.system().steady()`` or ``SteadyView``).
+``compose_galerkin_system(physics, bcs).steady()`` or ``SteadyView``).
 
 For linear problems: K*u = b (solved directly)
 For nonlinear problems: Newton iteration with line search
@@ -48,7 +48,8 @@ class SteadyStateSolver(Generic[Array]):
     Parameters
     ----------
     operator : SteadyOperatorProtocol
-        The steady operator to solve (``physics.system().steady()``).
+        The steady operator to solve
+        (``compose_galerkin_system(physics, bcs).steady()``).
     tol : float, optional
         Convergence tolerance on residual norm. Default: 1e-10.
     max_iter : int, optional
@@ -70,7 +71,7 @@ class SteadyStateSolver(Generic[Array]):
     ...     basis=basis, diffusivity=0.01, bkd=bkd,
     ...     forcing=lambda x: np.ones(x.shape[1])
     ... )
-    >>> solver = SteadyStateSolver(physics.system().steady())
+    >>> solver = SteadyStateSolver(compose_galerkin_system(physics, bcs).steady())
     >>> u_guess = bkd.zeros(physics.nstates())
     >>> result = solver.solve(u_guess)
     """
@@ -85,7 +86,7 @@ class SteadyStateSolver(Generic[Array]):
         if not isinstance(operator, SteadyOperatorProtocol):
             raise TypeError(
                 "operator must satisfy SteadyOperatorProtocol (build one "
-                "with physics.system().steady()), got "
+                "with compose_galerkin_system(physics, bcs).steady()), got "
                 f"{type(operator).__name__}"
             )
         self._operator = operator

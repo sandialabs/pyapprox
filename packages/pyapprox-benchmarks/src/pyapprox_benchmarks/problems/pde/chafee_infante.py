@@ -19,21 +19,24 @@ from typing import Generic
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
+)
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 
 from pyapprox_benchmarks.benchmark import BoxDomain
 from pyapprox_benchmarks.functions.pde.chafee_infante import (
-    build_chafee_infante_physics,
+    build_chafee_infante_system,
     build_line_basis,
 )
 from pyapprox_benchmarks.problems.pde.opinf_problem import PDEOpInfProblem
 
 
-class _ChafeeInfantePhysicsFactory(Generic[Array]):
-    """Rebuild Chafee-Infante physics per (gamma, lambda) on the shared basis."""
+class _ChafeeInfanteSystemFactory(Generic[Array]):
+    """Rebuild the Chafee-Infante system per (gamma, lambda) on the shared
+    basis."""
 
     def __init__(
         self,
@@ -47,11 +50,11 @@ class _ChafeeInfantePhysicsFactory(Generic[Array]):
 
     def __call__(
         self, parameters: Array
-    ) -> GalerkinPhysicsProtocol[Array]:
+    ) -> GalerkinTransientSystemProtocol[Array]:
         parameters_np = self._bkd.to_numpy(parameters)
         diffusivity = float(parameters_np[0, 0])
         bifurcation = float(parameters_np[1, 0])
-        return build_chafee_infante_physics(
+        return build_chafee_infante_system(
             self._basis,
             diffusivity,
             bifurcation,
@@ -140,7 +143,7 @@ def build_chafee_infante_opinf_problem(
 
     return PDEOpInfProblem(
         name="homogeneous_chafee_infante_opinf",
-        physics_factory=_ChafeeInfantePhysicsFactory(basis, bkd, bc_kind),
+        system_factory=_ChafeeInfanteSystemFactory(basis, bkd, bc_kind),
         basis=basis,
         prior=prior,
         domain=BoxDomain(_bounds=domain_bounds, _bkd=bkd),

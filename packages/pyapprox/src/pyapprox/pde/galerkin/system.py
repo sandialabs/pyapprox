@@ -4,6 +4,8 @@
 constraint set; ``GalerkinSystem`` adds the mass. Both take the parts
 already composed --- never a physics plus a BC list --- so anything that
 satisfies the part protocols can be solved, with no base class.
+``compose_galerkin_system`` builds the parts from a physics and its
+boundary conditions.
 """
 
 from typing import Generic

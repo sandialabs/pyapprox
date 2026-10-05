@@ -248,7 +248,7 @@ def _make_model(
             bkd,
         )
     return GalerkinTransientForwardModel(
-        physics,
+        physics.system(),
         param_obj,
         _gaussian_bump_ic(bkd, physics),
         _time_config(method),
@@ -387,7 +387,7 @@ class TestTransientAdjointWorkedExample:
         ic = _gaussian_bump_ic(bkd, physics)
         config = _time_config("backward_euler")
         scalar_model = GalerkinTransientForwardModel(
-            physics,
+            physics.system(),
             param_obj,
             ic,
             config,
@@ -399,7 +399,7 @@ class TestTransientAdjointWorkedExample:
             ),
         )
         vector_model = GalerkinTransientForwardModel(
-            physics, param_obj, ic, config, bkd
+            physics.system(), param_obj, ic, config, bkd
         )
         sample_np, _ = _sample_and_direction(scalar_model.nvars())
         sample = bkd.asarray(sample_np)
@@ -410,7 +410,7 @@ class TestTransientAdjointWorkedExample:
         grad = bkd.to_numpy(scalar_jac(sample))
         w_final = bkd.to_numpy(vector_jac(sample))
         weights = bkd.to_numpy(
-            _subdomain_average_weights(bkd, scalar_model.physics())
+            _subdomain_average_weights(bkd, physics)
         )[:, 0]
         bkd.assert_allclose(
             bkd.asarray(grad.flatten()),
@@ -435,7 +435,7 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            physics,
+            physics.system(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
@@ -481,7 +481,7 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            physics,
+            physics.system(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config(method),
@@ -506,7 +506,7 @@ class TestTransientAdjointWorkedExample:
             bkd.asarray(mass_np), param_obj.nparams(), bkd
         )
         model = GalerkinTransientForwardModel(
-            physics,
+            physics.system(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
@@ -547,7 +547,7 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            physics,
+            physics.system(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config(method),
@@ -596,7 +596,7 @@ class TestTransientAdjointWorkedExample:
             bkd,
         )
         model = GalerkinTransientForwardModel(
-            physics,
+            physics.system(),
             param_obj,
             _gaussian_bump_ic(bkd, physics),
             _time_config("backward_euler"),
@@ -682,7 +682,7 @@ class TestTimeModulatedControl:
         weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
         weights[free[len(free) // 2]] = 1.0
         model = GalerkinTransientForwardModel(
-            physics,
+            physics.system(),
             param,
             bkd.zeros((physics.nstates(),)),
             TimeIntegrationConfig(

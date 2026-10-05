@@ -1,4 +1,4 @@
-"""Chafee-Infante physics builder.
+"""Chafee-Infante system builder.
 
 The Chafee-Infante equation is a diffusion equation with cubic
 bistable reaction,
@@ -41,11 +41,13 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.advection_diffusion import (
     AdvectionDiffusionReaction,
 )
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -108,7 +110,7 @@ class _CubicBistableReactionDeriv:
         return result
 
 
-def build_chafee_infante_physics(
+def build_chafee_infante_system(
     basis: GalerkinBasisProtocol[Array],
     diffusivity: float,
     bifurcation: float,
@@ -116,8 +118,8 @@ def build_chafee_infante_physics(
     input_func: Optional[Callable[[float], float]] = None,
     bc_kind: str = "dirichlet_neumann",
     forcing: Optional[Callable[..., Any]] = None,
-) -> AdvectionDiffusionReaction[Array]:
-    """Build Chafee-Infante physics on a shared basis.
+) -> GalerkinSystem[Array]:
+    """Build the Chafee-Infante system on a shared basis.
 
     The basis is taken as an argument so parameterized rebuilds share
     ONE discretization (see :func:`build_periodic_burgers_physics`).
@@ -151,9 +153,9 @@ def build_chafee_infante_physics(
 
     Returns
     -------
-    AdvectionDiffusionReaction
-        Physics with reaction ``lambda*u - u**3`` and the requested
-        boundary configuration.
+    GalerkinSystem
+        The physics with reaction ``lambda*u - u**3``, composed with the
+        requested boundary configuration.
     """
     if bc_kind != "dirichlet_neumann":
         raise ValueError(
@@ -180,7 +182,7 @@ def build_chafee_infante_physics(
         DirichletBC(basis, "left", dirichlet_value, bkd)
     ]
 
-    return AdvectionDiffusionReaction(
+    physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=diffusivity,
         bkd=bkd,
@@ -189,5 +191,5 @@ def build_chafee_infante_physics(
             _CubicBistableReactionDeriv(bifurcation),
         ),
         forcing=forcing,
-        boundary_conditions=boundary_conditions,
     )
+    return compose_galerkin_system(physics, boundary_conditions)

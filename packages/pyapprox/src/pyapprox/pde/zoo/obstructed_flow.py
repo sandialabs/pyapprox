@@ -257,7 +257,7 @@ def solve_obstructed_stokes(
         vel_dirichlet_bcs=vel_bcs,
     )
 
-    model = GalerkinModel(stokes, bkd)
+    model = GalerkinModel(stokes.system(), bkd)
     init_guess = stokes.init_guess(0.0)
     sol = model.solve_steady(init_guess, tol=1e-10, maxiter=50)
 

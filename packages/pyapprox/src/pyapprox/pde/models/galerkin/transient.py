@@ -31,8 +31,8 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
 from pyapprox.ode.stepper_table import create_stepper
-from pyapprox.pde.galerkin.protocols.physics import (
-    GalerkinPhysicsProtocol,
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
 )
 from pyapprox.pde.galerkin.time_integration.galerkin_model import (
     GalerkinModel,
@@ -68,13 +68,13 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
 
     Parameters
     ----------
-    physics : GalerkinPhysicsProtocol
-        Galerkin physics. Each parameterized coefficient must be in its
-        differentiable representation (validated by the
-        parameterization's facade at its construction).
+    system : GalerkinTransientSystemProtocol
+        The composed Galerkin system. Each parameterized coefficient of
+        its physics must be in its differentiable representation
+        (validated by the parameterization's facade at its construction).
     parameterization : ParameterizationProtocol
-        Maps parameter vectors to physics coefficients; must be bound
-        to the same physics instance.
+        Maps parameter vectors to coefficients; its targets must belong
+        to ``system``.
     init_state : Array
         Initial condition for the transient solve. Shape: (nstates,).
     time_config : TimeIntegrationConfig
@@ -88,7 +88,7 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
 
     def __init__(
         self,
-        physics: GalerkinPhysicsProtocol[Array],
+        system: GalerkinTransientSystemProtocol[Array],
         parameterization: ParameterizationProtocol[Array],
         init_state: Array,
         time_config: TimeIntegrationConfig[Array],
@@ -103,15 +103,15 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         # The adapter checks that the parameterization's targets belong
         # to the system.
         adapter = create_galerkin_physics_ode_residual(
-            physics.system(), parameterization
+            system, parameterization
         )
-        super().__init__(physics, bkd, adapter=adapter)
+        super().__init__(system, bkd, adapter=adapter)
         self._parameterization = parameterization
         # Inject Dirichlet values ONCE so every consumer of the initial
         # state (solve_transient re-injects idempotently; the HVP
         # operator's internal forward solve does not inject) sees the
         # same constrained state.
-        self._init_state = physics.constraint_set().inject(
+        self._init_state = system.constraint_set().inject(
             init_state, time_config.init_time
         )
         self._time_config = time_config
@@ -119,7 +119,7 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
 
         if functional is None:
             functional = AllStatesEndpointFunctional(
-                physics.nstates(), self._nparams, bkd
+                system.nstates(), self._nparams, bkd
             )
         if not isinstance(
             functional, TransientFunctionalWithJacobianProtocol
@@ -313,7 +313,7 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"physics={self._physics.__class__.__name__}, "
+            f"system={self._system!r}, "
             f"nqoi={self.nqoi()}, "
             f"nvars={self.nvars()})"
         )

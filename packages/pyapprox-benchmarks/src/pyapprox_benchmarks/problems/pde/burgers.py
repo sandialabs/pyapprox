@@ -12,8 +12,11 @@ import math
 from typing import Generic
 
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
+)
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
@@ -26,8 +29,8 @@ from pyapprox_benchmarks.functions.pde.burgers import (
 from pyapprox_benchmarks.problems.pde.opinf_problem import PDEOpInfProblem
 
 
-class _PeriodicBurgersPhysicsFactory(Generic[Array]):
-    """Rebuild Burgers physics per viscosity on the shared basis."""
+class _PeriodicBurgersSystemFactory(Generic[Array]):
+    """Rebuild the Burgers system per viscosity on the shared basis."""
 
     def __init__(
         self, basis: GalerkinBasisProtocol[Array], bkd: Backend[Array]
@@ -37,10 +40,11 @@ class _PeriodicBurgersPhysicsFactory(Generic[Array]):
 
     def __call__(
         self, parameters: Array
-    ) -> GalerkinPhysicsProtocol[Array]:
+    ) -> GalerkinTransientSystemProtocol[Array]:
         viscosity = float(self._bkd.to_numpy(parameters)[0, 0])
-        return build_periodic_burgers_physics(
-            self._basis, viscosity, self._bkd
+        # Periodic topology: no boundary conditions.
+        return compose_galerkin_system(
+            build_periodic_burgers_physics(self._basis, viscosity, self._bkd)
         )
 
 
@@ -102,7 +106,7 @@ def build_periodic_burgers_opinf_problem(
 
     return PDEOpInfProblem(
         name="periodic_burgers_opinf",
-        physics_factory=_PeriodicBurgersPhysicsFactory(basis, bkd),
+        system_factory=_PeriodicBurgersSystemFactory(basis, bkd),
         basis=basis,
         prior=prior,
         domain=BoxDomain(_bounds=domain_bounds, _bkd=bkd),

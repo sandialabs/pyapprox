@@ -609,7 +609,7 @@ class TestParametrizedTransientStokes:
         )
 
         # Time stepping through the unified DAE pipeline
-        model = GalerkinModel(physics, bkd)
+        model = GalerkinModel(physics.system(), bkd)
         y0 = bkd.asarray(
             _get_exact_state(
                 funcs,

@@ -12,6 +12,7 @@ the weak formulation with mass matrices: M*du/dt = F(u,t) instead of
 the strong form du/dt = f(u,t).
 """
 
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.postprocessing import (
     integrate,
     strain_from_displacement,
@@ -45,6 +46,8 @@ __all__ = [
     "VectorBasisProtocol",
     # Physics protocols
     "GalerkinPhysicsProtocol",
+    # Composing a physics with its boundary conditions
+    "compose_galerkin_system",
     # Time integration adapter
     "GalerkinPhysicsToODEResidualAdapter",
     # Solvers

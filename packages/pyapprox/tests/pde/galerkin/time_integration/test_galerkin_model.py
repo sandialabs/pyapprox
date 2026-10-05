@@ -100,7 +100,7 @@ class TestGalerkinModelImplicit:
         bkd = numpy_bkd
         physics, exact_at_time = _setup_adr_physics(bkd)
 
-        model = GalerkinModel(physics, bkd)
+        model = GalerkinModel(physics.system(), bkd)
 
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
@@ -148,7 +148,7 @@ class TestGalerkinModelExplicit:
         bkd = numpy_bkd
         physics, exact_at_time = _setup_adr_physics(bkd, nx=4)
 
-        model = GalerkinModel(physics, bkd)
+        model = GalerkinModel(physics.system(), bkd)
 
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
@@ -225,7 +225,7 @@ class TestExplicitUnifiedPipeline:
         to machine precision (row-sum lumping preserves constants)."""
         bkd = numpy_bkd
         physics, exact_at_time = self._setup_constant_in_space(bkd)
-        model = GalerkinModel(physics, bkd)
+        model = GalerkinModel(physics.system(), bkd)
         y0 = bkd.asarray(exact_at_time(0.0))
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
             method="forward_euler",
@@ -292,7 +292,7 @@ class TestExplicitUnifiedPipeline:
         exact_sol_func = adapter.solution_function()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
-        model = GalerkinModel(physics, bkd)
+        model = GalerkinModel(physics.system(), bkd)
         y0 = bkd.asarray(exact_sol_func(dof_coords, 0.0).flatten())
         config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
             method="heun",

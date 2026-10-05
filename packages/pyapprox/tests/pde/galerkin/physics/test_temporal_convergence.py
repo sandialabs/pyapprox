@@ -107,7 +107,7 @@ def _setup_physics_and_model(
         boundary_conditions=bc_set.all_conditions(),
     )
 
-    model = GalerkinModel(physics, bkd)
+    model = GalerkinModel(physics.system(), bkd)
 
     exact_sol_func = adapter.solution_function()
     dof_coords = bkd.to_numpy(basis.dof_coordinates())

@@ -18,12 +18,12 @@ if package_available("skfem"):
         build_periodic_line_basis,
     )
     from pyapprox_benchmarks.functions.pde.chafee_infante import (
-        build_chafee_infante_physics,
+        build_chafee_infante_system,
         build_line_basis,
     )
 
     __all__ += [
-        "build_chafee_infante_physics",
+        "build_chafee_infante_system",
         "build_line_basis",
         "build_periodic_burgers_physics",
         "build_periodic_line_basis",

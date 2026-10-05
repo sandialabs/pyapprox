@@ -369,7 +369,7 @@ def build_model(method, deltat):
         newton_tol=1e-12, newton_maxiter=20, lumped_mass=False, verbosity=0,
     )
     return GalerkinTransientForwardModel(
-        physics, parameterization, bkd.zeros((physics.nstates(),)),
+        physics.system(), parameterization, bkd.zeros((physics.nstates(),)),
         config, bkd, functional=functional,
     )
 

@@ -19,9 +19,18 @@ state-parameter curvature enters the Hessian-vector products.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Dict, Generic, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+)
 
 if TYPE_CHECKING:
+    from pyapprox.pde.boundary import BoundaryConditionRole
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.zone_weights import ZoneWeightProtocol
     from pyapprox.pde.models.galerkin.transient import (
@@ -276,6 +285,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
             DirichletBC,
             RobinBC,
         )
+        from pyapprox.pde.galerkin.compose import compose_galerkin_system
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
@@ -341,31 +351,31 @@ class ObstructedFlowControlProblem(Generic[Array]):
             reaction=NodalFieldLinearReaction(
                 self._basis, dofs=np.zeros(self._basis.ndofs())
             ),
-            # Transport BCs at the inflow: Danckwerts total-flux
-            # kappa*grad(u).n = (v.n)(u - u_in) with u_in = 0, mapped
-            # to the Robin convention -D du/dn = alpha u - g as
-            # alpha(y) = |v.n|(y) (the parabolic inlet speed), g = 0 —
-            # mass exchanges with the inlet only advectively, closing
-            # the ledger (measured: the Dirichlet variant loses ~half
-            # the release by upstream diffusion into u = 0). Everything
-            # else is natural by omission: with the NON-conservative
-            # advection form this is exactly du/dn = 0 — free advective
-            # outflow on the right, no-flux walls elsewhere (v.n = 0
-            # there). Outflow must be neither Dirichlet (artificial
-            # boundary layer reflecting the plume) nor zero-total-flux
-            # (traps all contaminant).
-            boundary_conditions=[
-                RobinBC(
-                    self._basis,
-                    "left",
-                    _InletNormalSpeed(*vel_shape_params),
-                    0.0,
-                    bkd,
-                )
-                if self._inlet_bc == "danckwerts"
-                else DirichletBC(self._basis, "left", 0.0, bkd)
-            ],
         )
+        # Transport BCs at the inflow: Danckwerts total-flux
+        # kappa*grad(u).n = (v.n)(u - u_in) with u_in = 0, mapped
+        # to the Robin convention -D du/dn = alpha u - g as
+        # alpha(y) = |v.n|(y) (the parabolic inlet speed), g = 0 —
+        # mass exchanges with the inlet only advectively, closing
+        # the ledger (measured: the Dirichlet variant loses ~half
+        # the release by upstream diffusion into u = 0). Everything
+        # else is natural by omission: with the NON-conservative
+        # advection form this is exactly du/dn = 0 — free advective
+        # outflow on the right, no-flux walls elsewhere (v.n = 0
+        # there). Outflow must be neither Dirichlet (artificial
+        # boundary layer reflecting the plume) nor zero-total-flux
+        # (traps all contaminant).
+        boundary_conditions: List[BoundaryConditionRole[Array]] = [
+            RobinBC(
+                self._basis,
+                "left",
+                _InletNormalSpeed(*vel_shape_params),
+                0.0,
+                bkd,
+            )
+            if self._inlet_bc == "danckwerts"
+            else DirichletBC(self._basis, "left", 0.0, bkd)
+        ]
         parameterization = AdvectionDiffusionParameterization(
             physics, reaction_map=extraction_map, bkd=bkd
         )
@@ -397,7 +407,7 @@ class ObstructedFlowControlProblem(Generic[Array]):
         )
         self._model: "GalerkinTransientForwardModel[Array]" = (
             GalerkinTransientForwardModel(
-                physics,
+                compose_galerkin_system(physics, boundary_conditions),
                 parameterization,
                 bkd.zeros((physics.nstates(),)),
                 config,

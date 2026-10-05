@@ -24,6 +24,7 @@ import math
 
 import numpy as np
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
     create_adr_manufactured_test,
 )
@@ -39,7 +40,7 @@ from pyapprox_benchmarks.functions.pde.burgers import (
     build_periodic_line_basis,
 )
 from pyapprox_benchmarks.functions.pde.chafee_infante import (
-    build_chafee_infante_physics,
+    build_chafee_infante_system,
     build_line_basis,
 )
 from pyapprox_benchmarks.problems.pde import (
@@ -49,10 +50,10 @@ from pyapprox_benchmarks.problems.pde import (
 from pyapprox_benchmarks.protocols import DomainProtocol
 
 
-def _mass_row_sums(physics, bkd):
+def _mass_row_sums(system, bkd):
     """1^T M as a backend array -- the single skfem-seam contraction."""
     return bkd.asarray(
-        np.asarray(physics.mass_matrix().sum(axis=0)).ravel()
+        np.asarray(system.mass_matrix().sum(axis=0)).ravel()
     )
 
 
@@ -83,7 +84,7 @@ class TestPeriodicBurgersOpInfProblem:
         problem = build_periodic_burgers_opinf_problem(bkd, nx=16)
         model_nominal = problem.model()
         model_other = problem.model(bkd.array([[0.3]]))
-        assert model_nominal.physics() is not model_other.physics()
+        assert model_nominal.system() is not model_other.system()
         assert model_nominal.nstates() == problem.nstates()
         assert model_other.nstates() == problem.nstates()
 
@@ -102,7 +103,7 @@ class TestPeriodicBurgersOpInfProblem:
         states, _ = model.solve_transient(
             problem.initial_condition(), config
         )
-        row_sums = _mass_row_sums(model.physics(), bkd)
+        row_sums = _mass_row_sums(model.system(), bkd)
         momenta = bkd.sum(row_sums[:, None] * states, axis=0)
         drift = bkd.to_float(bkd.max(bkd.abs(momenta - momenta[0])))
         assert drift < 1e-12
@@ -134,9 +135,9 @@ class TestPeriodicBurgersOpInfProblem:
                 final_time=0.1, deltat=1e-3, newton_tol=1e-10,
                 newton_maxiter=20, lumped_mass=False, verbosity=0,
             )
-            states, times = GalerkinModel(physics, bkd).solve_transient(
-                u0, config
-            )
+            states, times = GalerkinModel(
+                compose_galerkin_system(physics), bkd
+            ).solve_transient(u0, config)
             exact = bkd.ravel(
                 solution(coords, bkd.to_float(times[-1]))
             )
@@ -168,7 +169,7 @@ class TestChafeeInfanteOpInfProblem:
         bkd = NumpyBkd()
         basis = build_line_basis(8, (0.0, 1.0), bkd)
         with pytest.raises(ValueError, match="bc_kind"):
-            build_chafee_infante_physics(
+            build_chafee_infante_system(
                 basis, 1.0, 1.0, bkd, bc_kind="periodic"
             )
 
@@ -195,7 +196,7 @@ class TestChafeeInfanteOpInfProblem:
     def test_manufactured_solution_recovered_at_fem_rate(self):
         """MMS gate under the SAME boundary treatment the problem
         ships with (zero Dirichlet left, natural Neumann right),
-        through the physics builder: sin(pi*x/2) vanishes at x=0 and
+        through the system builder: sin(pi*x/2) vanishes at x=0 and
         has zero slope at x=1, so both BCs are satisfied exactly and
         the exact solution is recovered at the P1 rate."""
         bkd = NumpyBkd()
@@ -214,7 +215,7 @@ class TestChafeeInfanteOpInfProblem:
         errors = []
         for nx in (16, 32, 64):
             basis = build_line_basis(nx, (0.0, 1.0), bkd)
-            physics = build_chafee_infante_physics(
+            system = build_chafee_infante_system(
                 basis, 1.0, 1.0, bkd, forcing=forcing
             )
             coords = basis.dof_coordinates()
@@ -224,7 +225,7 @@ class TestChafeeInfanteOpInfProblem:
                 final_time=0.1, deltat=1e-3, newton_tol=1e-10,
                 newton_maxiter=20, lumped_mass=False, verbosity=0,
             )
-            states, times = GalerkinModel(physics, bkd).solve_transient(
+            states, times = GalerkinModel(system, bkd).solve_transient(
                 u0, config
             )
             exact = bkd.ravel(

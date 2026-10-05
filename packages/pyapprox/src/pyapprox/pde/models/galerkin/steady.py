@@ -1,7 +1,7 @@
 """Steady-state state-equation adapter for parameterized galerkin PDEs.
 
 Provides GalerkinStateEquationWithHVPAdapter, which wraps a steady view
-(``physics.system().steady()``) + parameterization as
+(``compose_galerkin_system(physics, bcs).steady()``) + parameterization as
 ParameterizedStateEquationWithJacobianAndHVPProtocol
 for the steady adjoint operator family
 (AdjointOperatorWithJacobian/AdjointOperatorWithJacobianAndHVP, whose
@@ -48,7 +48,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
     Parameters
     ----------
     view : SteadyViewProtocol
-        The steady problem (``physics.system().steady()``, or a
+        The steady problem (``compose_galerkin_system(physics, bcs).steady()``, or a
         ``steady_snapshot``): the constrained residual and Jacobian, the
         constraint set, the bound time at which every derivative is
         evaluated, and a spatial operator that supplies the state
@@ -74,7 +74,7 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
         if not isinstance(view, SteadyViewProtocol):
             raise TypeError(
                 "view must satisfy SteadyViewProtocol (build one with "
-                "physics.system().steady()), got "
+                "compose_galerkin_system(physics, bcs).steady()), got "
                 f"{type(view).__name__}"
             )
         if not isinstance(parameterization, ParameterizationProtocol):

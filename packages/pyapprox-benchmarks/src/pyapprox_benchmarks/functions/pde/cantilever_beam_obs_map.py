@@ -66,6 +66,7 @@ def build_cantilever_beam_design_matrix(
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
@@ -94,9 +95,9 @@ def build_cantilever_beam_design_matrix(
             material_map=material_map,
             element_materials=subdomain_elements,
             bkd=bkd,
-            boundary_conditions=[bc_left, bc_top],
         )
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
+        system = compose_galerkin_system(physics, [bc_left, bc_top])
+        solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
         init = bkd.asarray(np.zeros(physics.nstates()))
         result = solver.solve(init)
         return bkd.to_numpy(result.solution)

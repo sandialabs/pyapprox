@@ -18,8 +18,8 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
 )
 from pyapprox.ode.stepper_table import create_stepper
-from pyapprox.pde.galerkin.protocols.physics import (
-    GalerkinPhysicsProtocol,
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
 )
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
@@ -28,7 +28,6 @@ from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
 from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
-from pyapprox.pde.ownership import owns
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
@@ -44,19 +43,20 @@ class GalerkinModel(Generic[Array]):
 
     Parameters
     ----------
-    physics : GalerkinPhysicsProtocol
-        Physics object defining the PDE in weak form.
+    system : GalerkinTransientSystemProtocol
+        The composed system ``M du/dt = F(u, t)`` with its essential
+        constraints, e.g. from ``compose_galerkin_system``.
     bkd : Backend
         Computational backend.
     adapter : GalerkinPhysicsToODEResidualAdapter, optional
-        ODE-residual adapter to drive the time integration. Omitted for
-        pure forward solves (the model builds the base adapter); the
-        models layer injects a parameterized tier here so
-        ``gradient``/``hvp_operator`` gain the dR/dp surface.
+        ODE-residual adapter to drive the time integration, wrapping this
+        same ``system``. Omitted for pure forward solves (the model builds
+        the base adapter); the models layer injects a parameterized tier
+        here so ``gradient``/``hvp_operator`` gain the dR/dp surface.
 
     Examples
     --------
-    >>> model = GalerkinModel(physics, bkd)
+    >>> model = GalerkinModel(compose_galerkin_system(physics, bcs), bkd)
     >>> config = TimeIntegrationConfig(
     ...     method="backward_euler", init_time=0.0, final_time=1.0,
     ...     deltat=0.01, newton_tol=1e-10, newton_maxiter=20,
@@ -67,26 +67,31 @@ class GalerkinModel(Generic[Array]):
 
     def __init__(
         self,
-        physics: GalerkinPhysicsProtocol[Array],
+        system: GalerkinTransientSystemProtocol[Array],
         bkd: Backend[Array],
         adapter: Optional[GalerkinPhysicsToODEResidualAdapter[Array]] = None,
     ):
+        if not isinstance(system, GalerkinTransientSystemProtocol):
+            raise TypeError(
+                "system must satisfy GalerkinTransientSystemProtocol, got "
+                f"{type(system).__name__}"
+            )
         if adapter is not None:
             if not isinstance(adapter, GalerkinPhysicsToODEResidualAdapter):
                 raise TypeError(
                     "adapter must be a GalerkinPhysicsToODEResidualAdapter, "
                     f"got {type(adapter).__name__}"
                 )
-            if not owns(adapter.system(), physics):
+            if adapter.system() is not system:
                 raise ValueError(
-                    "adapter wraps a system that does not hold the physics "
-                    "passed to GalerkinModel"
+                    "adapter wraps a different system than the one passed "
+                    "to GalerkinModel"
                 )
-        self._physics = physics
+        self._system = system
         self._bkd = bkd
         self._adapter_injected = adapter is not None
         if adapter is None:
-            adapter = GalerkinPhysicsToODEResidualAdapter(physics.system())
+            adapter = GalerkinPhysicsToODEResidualAdapter(system)
         self._adapter = adapter
         self._last_integrator: Optional[TimeIntegrator[Array]] = None
 
@@ -157,13 +162,13 @@ class GalerkinModel(Generic[Array]):
         """Return the computational backend."""
         return self._bkd
 
-    def physics(self) -> GalerkinPhysicsProtocol[Array]:
-        """Return the physics object."""
-        return self._physics
+    def system(self) -> GalerkinTransientSystemProtocol[Array]:
+        """Return the composed system this model solves."""
+        return self._system
 
     def nstates(self) -> int:
         """Return number of states."""
-        return self._physics.nstates()
+        return self._system.nstates()
 
     def solve_steady(
         self,
@@ -175,8 +180,8 @@ class GalerkinModel(Generic[Array]):
 
         The data must be declared time-invariant. For the steady state of
         time-dependent data frozen at some time, solve
-        ``physics.system().steady_snapshot(time)`` with
-        ``SteadyStateSolver`` directly.
+        ``system.steady_snapshot(time)`` with ``SteadyStateSolver``
+        directly.
 
         Parameters
         ----------
@@ -200,7 +205,7 @@ class GalerkinModel(Generic[Array]):
             If Newton iteration fails to converge.
         """
         solver = SteadyStateSolver(
-            self._physics.system().steady(), tol=tol, max_iter=maxiter
+            self._system.steady(), tol=tol, max_iter=maxiter
         )
         result = solver.solve(initial_guess)
         if not result.converged:
@@ -251,7 +256,7 @@ class GalerkinModel(Generic[Array]):
                     "lumped_mass=True instead"
                 )
             adapter = GalerkinPhysicsToODEResidualAdapter(
-                self._physics.system(), lumped_mass=True
+                self._system, lumped_mass=True
             )
         else:
             adapter = self._adapter
@@ -273,7 +278,7 @@ class GalerkinModel(Generic[Array]):
             newton,
             verbosity=config.verbosity,
         )
-        init_state = self._physics.constraint_set().inject(
+        init_state = self._system.constraint_set().inject(
             initial_condition, config.init_time
         )
         solutions, times = integrator.solve(init_state)
@@ -283,6 +288,6 @@ class GalerkinModel(Generic[Array]):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"physics={self._physics.__class__.__name__}, "
+            f"system={self._system!r}, "
             f"nstates={self.nstates()})"
         )

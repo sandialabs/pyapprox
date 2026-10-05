@@ -98,7 +98,7 @@ def _build(bkd, diff_str, vel_strs, nx=8, diffusivity_override=None):
             )
         return values
 
-    return GalerkinModel(physics, bkd), exact_at_time
+    return GalerkinModel(physics.system(), bkd), exact_at_time
 
 
 def _config(deltat=0.5, final_time=2.0):

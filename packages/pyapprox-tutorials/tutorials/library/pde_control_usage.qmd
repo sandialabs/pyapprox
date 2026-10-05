@@ -266,7 +266,7 @@ def build_model(reaction, reaction_map, weight):
         weight=bkd.asarray(weight),
     )
     return GalerkinTransientForwardModel(
-        physics,
+        physics.system(),
         parameterization,
         bkd.zeros((physics.nstates(),)),
         TimeIntegrationConfig(

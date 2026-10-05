@@ -19,6 +19,7 @@ from typing import Optional
 
 import matplotlib.patches as patches
 import numpy as np
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin import (
     AdvectionDiffusionReaction,
     LagrangeBasis,
@@ -26,6 +27,7 @@ from pyapprox.pde.galerkin import (
     StructuredMesh1D,
 )
 from pyapprox.pde.galerkin.boundary import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.surrogates.kernels import SquaredExponentialKernel
 from pyapprox.surrogates.kle import MeshKLE
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -93,12 +95,12 @@ def solve_elliptic_1d(u: np.ndarray, grid: np.ndarray) -> np.ndarray:
         bc_left = DirichletBC(basis, "left", 0.0, bkd)
         bc_right = DirichletBC(basis, "right", 0.0, bkd)
         physics = AdvectionDiffusionReaction(
-            basis=basis, diffusivity=diffusivity,
-            forcing=forcing, bkd=bkd,
-            boundary_conditions=[bc_left, bc_right],
+            basis=basis, diffusivity=TimeIndependent(diffusivity),
+            forcing=TimeIndependent(forcing), bkd=bkd,
         )
 
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+        system = compose_galerkin_system(physics, [bc_left, bc_right])
+        solver = SteadyStateSolver(system.steady(), tol=1e-12)
         result = solver.solve(bkd.zeros(physics.nstates()))
         v[:, k] = bkd.to_numpy(result.solution)
     return v

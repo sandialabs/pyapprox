@@ -57,7 +57,7 @@ class GalerkinPhysicsToODEResidualWithSetParamAdapter(
     Parameters
     ----------
     system : GalerkinTransientSystemProtocol
-        The composed system to adapt (``physics.system()``).
+        The composed system to adapt (``compose_galerkin_system(physics, bcs)``).
     parameterization : ParameterizationProtocol
         Maps parameter vectors to coefficients of objects the system
         holds.
@@ -316,7 +316,7 @@ def create_galerkin_physics_ode_residual(
     Parameters
     ----------
     system : GalerkinTransientSystemProtocol
-        The composed system to adapt (``physics.system()``).
+        The composed system to adapt (``compose_galerkin_system(physics, bcs)``).
     parameterization : ParameterizationProtocol, optional
         Maps parameter vectors to coefficients of objects the system
         holds.

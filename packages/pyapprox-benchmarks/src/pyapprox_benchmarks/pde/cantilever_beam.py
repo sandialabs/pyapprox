@@ -934,6 +934,7 @@ def build_cantilever_beam_2d_linear(
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.solvers.steady_state import (
@@ -989,10 +990,10 @@ def build_cantilever_beam_2d_linear(
         material_map=material_map,
         element_materials=subdomain_elements,
         bkd=bkd,
-        boundary_conditions=[bc_left, bc_top],
     )
 
-    solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
+    system = compose_galerkin_system(physics, [bc_left, bc_top])
+    solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
     nvars = len(subdomain_names) * num_kle_terms
@@ -1073,6 +1074,7 @@ def build_cantilever_beam_2d_neohookean(
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import (
         CompositeHyperelasticityPhysics,
@@ -1126,11 +1128,10 @@ def build_cantilever_beam_2d_neohookean(
         material_map=material_map,
         element_materials=subdomain_elements,
         bkd=bkd,
-        boundary_conditions=[bc_left, bc_top],
     )
 
     solver = SteadyStateSolver(
-        physics.system().steady(),
+        compose_galerkin_system(physics, [bc_left, bc_top]).steady(),
         tol=1e-10,
         max_iter=50,
         line_search=True,
@@ -1310,6 +1311,7 @@ def build_cantilever_beam_2d_linear_spde(
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import CompositeLinearElasticity
     from pyapprox.pde.galerkin.solvers.steady_state import (
@@ -1360,10 +1362,10 @@ def build_cantilever_beam_2d_linear_spde(
         material_map=material_map,
         element_materials=subdomain_elements,
         bkd=bkd,
-        boundary_conditions=[bc_left, bc_top],
     )
 
-    solver = SteadyStateSolver(physics.system().steady(), tol=1e-10, max_iter=1)
+    system = compose_galerkin_system(physics, [bc_left, bc_top])
+    solver = SteadyStateSolver(system.steady(), tol=1e-10, max_iter=1)
     tip_dof = _find_tip_dof(basis, length, height, bkd)
 
     nvars = len(subdomain_names) * num_kle_terms
@@ -1445,6 +1447,7 @@ def build_cantilever_beam_2d_neohookean_spde(
         DirichletBC,
         NeumannBC,
     )
+    from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.physics import (
         CompositeHyperelasticityPhysics,
@@ -1497,11 +1500,10 @@ def build_cantilever_beam_2d_neohookean_spde(
         material_map=material_map,
         element_materials=subdomain_elements,
         bkd=bkd,
-        boundary_conditions=[bc_left, bc_top],
     )
 
     solver = SteadyStateSolver(
-        physics.system().steady(),
+        compose_galerkin_system(physics, [bc_left, bc_top]).steady(),
         tol=1e-10,
         max_iter=50,
         line_search=True,

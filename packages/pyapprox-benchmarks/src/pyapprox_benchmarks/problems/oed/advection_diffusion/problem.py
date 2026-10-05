@@ -367,6 +367,7 @@ class AdvectionDiffusionOEDProblem(
         """Run the ADR transient using a precomputed Stokes result."""
         from pyapprox.ode.config import TimeIntegrationConfig
         from pyapprox.pde.galerkin.boundary.implementations import RobinBC
+        from pyapprox.pde.galerkin.compose import compose_galerkin_system
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
             AdvectionDiffusionReaction,
         )
@@ -419,10 +420,9 @@ class AdvectionDiffusionOEDProblem(
             bkd=bkd,
             velocity=vel_callable,
             forcing=forcing_func,
-            boundary_conditions=robin_bcs,
         )
 
-        model = GalerkinModel(adr, bkd)
+        model = GalerkinModel(compose_galerkin_system(adr, robin_bcs), bkd)
         if self._source_mode == "initial_condition":
             ic = kle_nodal.astype(np.float64)
         else:

@@ -11,6 +11,7 @@ split raises instead, naming the object.
 from typing import Generic, List, Sequence
 
 from pyapprox.pde.boundary.protocols import (
+    BoundaryConditionRole,
     EssentialBCProtocol,
     WeakFormBCProtocol,
 )
@@ -45,14 +46,17 @@ class BCRoles(Generic[Array]):
         return list(self._essentials)
 
 
-def split_by_role(bcs: Sequence[object]) -> BCRoles[Array]:
+def split_by_role(
+    bcs: Sequence[BoundaryConditionRole[Array]],
+) -> BCRoles[Array]:
     """Split ``bcs`` into natural terms and essential constraints.
 
     Parameters
     ----------
-    bcs : sequence
+    bcs : Sequence[BoundaryConditionRole]
         Boundary conditions, each satisfying exactly one of
-        ``WeakFormBCProtocol`` and ``EssentialBCProtocol``.
+        ``WeakFormBCProtocol`` and ``EssentialBCProtocol``. Checked at
+        runtime too, since an untyped caller can pass anything.
 
     Raises
     ------

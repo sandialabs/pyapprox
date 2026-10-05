@@ -108,7 +108,7 @@ class TestDiscreteConservation:
             lumped_mass=False,
             verbosity=0,
         )
-        states, _ = GalerkinModel(physics, bkd).solve_transient(u0, config)
+        states, _ = GalerkinModel(physics.system(), bkd).solve_transient(u0, config)
         row_sums = _mass_row_sums(physics, bkd)
         momenta = bkd.sum(row_sums[:, None] * states, axis=0)
         drift = bkd.to_float(bkd.max(bkd.abs(momenta - momenta[0])))
@@ -127,7 +127,7 @@ class TestDiscreteConservation:
             lumped_mass=False,
             verbosity=0,
         )
-        states, _ = GalerkinModel(physics, bkd).solve_transient(u0, config)
+        states, _ = GalerkinModel(physics.system(), bkd).solve_transient(u0, config)
         # M @ states is the skfem-seam contraction; analysis stays bkd
         weighted = bkd.asarray(
             physics.mass_matrix() @ np.asarray(bkd.to_numpy(states))
@@ -168,7 +168,7 @@ class TestManufacturedSolutionRecovery:
                 lumped_mass=False,
                 verbosity=0,
             )
-            states, times = GalerkinModel(physics, bkd).solve_transient(
+            states, times = GalerkinModel(physics.system(), bkd).solve_transient(
                 u0, config
             )
             exact = bkd.ravel(solution(coords, bkd.to_float(times[-1])))

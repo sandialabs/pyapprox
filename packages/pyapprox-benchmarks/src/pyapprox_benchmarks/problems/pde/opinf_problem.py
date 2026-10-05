@@ -6,7 +6,7 @@ exact reduced dynamics, the input dimension, the boundary lift, and
 the time-integration defaults.  Composition, not inheritance --
 mirrors ``ODEForwardUQProblem``: the problem returns a solvable
 ``GalerkinModel`` and the caller drives it (``model.solve_transient``,
-``model.physics()``); the problem itself never solves.
+``model.system()``); the problem itself never solves.
 """
 
 from __future__ import annotations
@@ -15,7 +15,9 @@ from typing import Callable, Generic, Optional, Tuple
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinTransientSystemProtocol,
+)
 from pyapprox.pde.galerkin.time_integration.galerkin_model import (
     GalerkinModel,
 )
@@ -29,7 +31,7 @@ class PDEOpInfProblem(Generic[Array]):
     """Parameterized PDE problem for operator-inference recovery.
 
     The semi-discrete FOM is ``M du/dt = f(u; mu)`` on a FIXED basis:
-    ``model`` rebuilds the physics per parameter value on the one
+    ``model`` rebuilds the system per parameter value on the one
     shared basis, so snapshots, projections, and the intrusive reduced
     operators all live on the identical discretization.
 
@@ -37,9 +39,9 @@ class PDEOpInfProblem(Generic[Array]):
     ----------
     name : str
         Problem name.
-    physics_factory : Callable[[Array], GalerkinPhysicsProtocol[Array]]
-        Builds physics for parameters of shape ``(nparams, 1)`` on the
-        shared basis.
+    system_factory : Callable[[Array], GalerkinTransientSystemProtocol[Array]]
+        Builds the system (physics with its boundary conditions) for
+        parameters of shape ``(nparams, 1)`` on the shared basis.
     basis : GalerkinBasisProtocol[Array]
         The shared finite element basis.
     prior : DistributionProtocol[Array]
@@ -78,7 +80,9 @@ class PDEOpInfProblem(Generic[Array]):
     def __init__(
         self,
         name: str,
-        physics_factory: Callable[[Array], GalerkinPhysicsProtocol[Array]],
+        system_factory: Callable[
+            [Array], GalerkinTransientSystemProtocol[Array]
+        ],
         basis: GalerkinBasisProtocol[Array],
         prior: DistributionProtocol[Array],
         domain: DomainProtocol[Array],
@@ -95,7 +99,7 @@ class PDEOpInfProblem(Generic[Array]):
         reference: str = "",
     ) -> None:
         self._name = name
-        self._physics_factory = physics_factory
+        self._system_factory = system_factory
         self._basis = basis
         self._prior = prior
         self._domain = domain
@@ -184,14 +188,14 @@ class PDEOpInfProblem(Generic[Array]):
     ) -> GalerkinModel[Array]:
         """Build the transient FEM model at the given parameters.
 
-        Rebuilds the physics per parameter value on the SHARED basis
+        Rebuilds the system per parameter value on the SHARED basis
         and wraps it in a solvable ``GalerkinModel``; the caller
         drives it (``model.solve_transient(problem.initial_condition(),
         problem.time_config())``) and reaches the semi-discrete
-        operator through ``model.physics()``.  Downstream recovery
+        operator through ``model.system()``.  Downstream recovery
         code must use ONE returned model for both snapshot generation
-        and the intrusive reference -- two separately built physics
-        instances agree only up to assembly determinism.
+        and the intrusive reference -- two separately built systems
+        agree only up to assembly determinism.
 
         Parameters
         ----------
@@ -207,5 +211,5 @@ class PDEOpInfProblem(Generic[Array]):
         if parameters is None:
             parameters = self._nominal_parameters
         return GalerkinModel(
-            self._physics_factory(parameters), self._bkd
+            self._system_factory(parameters), self._bkd
         )

@@ -102,7 +102,7 @@ def _setup_1d_problem(
         boundary_conditions=bc_set.all_conditions(),
     )
 
-    model = GalerkinModel(physics, bkd)
+    model = GalerkinModel(physics.system(), bkd)
 
     exact_sol_func = adapter.solution_function()
     dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -269,7 +269,7 @@ class TestTransientADR2D:
             boundary_conditions=bc_set.all_conditions(),
         )
 
-        model = GalerkinModel(physics, bkd)
+        model = GalerkinModel(physics.system(), bkd)
 
         exact_sol_func = adapter.solution_function()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -437,7 +437,7 @@ class TestTransientADR2D_CN:
             boundary_conditions=bc_set.all_conditions(),
         )
 
-        model = GalerkinModel(physics, bkd)
+        model = GalerkinModel(physics.system(), bkd)
 
         exact_sol_func = adapter.solution_function()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -618,7 +618,9 @@ class TestManualNewtonWithConstraint:
             # Set stepper with unmodified prev_state
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
             # Initial guess with Dirichlet values injected
-            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
+            constraint_set = physics.constraint_set()
+            d_dofs = constraint_set.dofs()
+            d_vals = constraint_set.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             y_new_np = bkd.to_numpy(y).copy()
             if len(d_dofs_np) > 0:
@@ -693,7 +695,9 @@ class TestManualNewtonWithConstraint:
         for step in range(nsteps):
             t_np1 = t + dt
             constrained.bind(StepContext(t_prev=t, deltat=dt, y_prev=y))
-            d_dofs, d_vals = physics.constraint_set().dofs(), physics.constraint_set().values(t_np1)
+            constraint_set = physics.constraint_set()
+            d_dofs = constraint_set.dofs()
+            d_vals = constraint_set.values(t_np1)
             d_dofs_np = bkd.to_numpy(d_dofs).astype(np.intp)
             y_new_np = bkd.to_numpy(y).copy()
             if len(d_dofs_np) > 0:
