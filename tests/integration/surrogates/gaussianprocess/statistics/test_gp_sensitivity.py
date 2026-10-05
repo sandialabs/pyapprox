@@ -619,12 +619,19 @@ class TestIshigamiBenchmark:
                 err_msg=f"T_{i} = {T_values[i]:.4f}, expected {T_exact[i]:.4f}",
             )
 
-        # Verify S_13 interaction index matches analytical value
+        # Verify S_13 interaction index matches analytical value.
+        #
+        # atol is 2e-4 rather than the 1e-4 used for the indices above
+        # because this one is a difference, T_1 - S_1, so it carries the
+        # error of both terms. Each is held to 1e-4 individually just
+        # above, which is the real check on the quadrature. CI's Linux
+        # BLAS reached 1.15e-4 here where macOS stayed under 1e-4, so the
+        # bound admits that spread and nothing more.
         bkd.assert_allclose(
             bkd.asarray([S_13_computed]),
             bkd.asarray([S_13_exact]),
             rtol=1e-4,
-            atol=1e-4,
+            atol=2e-4,
             err_msg=f"S_13 = {S_13_computed:.4f}, expected {S_13_exact:.4f}",
         )
 
