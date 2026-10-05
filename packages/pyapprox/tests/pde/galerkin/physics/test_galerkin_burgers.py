@@ -39,6 +39,7 @@ from pyapprox.pde.galerkin.time_integration import (
 from pyapprox.pde.manufactured.burgers import (
     ManufacturedBurgers1D,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
 from scipy.sparse import issparse
 
@@ -67,7 +68,7 @@ class TestBurgersBase:
         self._setup(bkd)
         assert self.physics.nstates() == self.basis.ndofs()
 
-    def test_residual_shape(self, numpy_bkd) -> None:
+    def test_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has shape (nstates,)."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -75,7 +76,7 @@ class TestBurgersBase:
         res = self.system.steady_snapshot(0.0).steady_residual(state)
         assert res.shape == (self.physics.nstates(),)
 
-    def test_jacobian_shape(self, numpy_bkd) -> None:
+    def test_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test Jacobian has shape (nstates, nstates)."""
         bkd = numpy_bkd
         self._setup(bkd)
@@ -158,7 +159,7 @@ class TestParametrizedBurgersSteady:
     )
     def test_steady_burgers(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -268,7 +269,7 @@ class TestParametrizedBurgersTransient:
     )
     def test_transient_burgers(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],

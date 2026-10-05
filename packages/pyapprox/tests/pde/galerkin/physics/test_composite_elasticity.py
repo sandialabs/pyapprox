@@ -72,7 +72,7 @@ class TestCompositeLinearElasticityBase:
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
         K = physics.stiffness_matrix()
         K_np = _to_dense(K, bkd)
-        np.testing.assert_array_almost_equal(K_np, K_np.T)
+        bkd.assert_allclose(K_np, K_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_1d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
@@ -190,7 +190,7 @@ class TestCompositeLinearElasticityBase:
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
         K = physics.stiffness_matrix()
         K_np = _to_dense(K, bkd)
-        np.testing.assert_array_almost_equal(K_np, K_np.T)
+        bkd.assert_allclose(K_np, K_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_2d_mass_matrix_symmetric(self, numpy_bkd) -> None:
         bkd = numpy_bkd
@@ -204,7 +204,7 @@ class TestCompositeLinearElasticityBase:
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
         M = physics.mass_matrix()
         M_np = _to_dense(M, bkd)
-        np.testing.assert_array_almost_equal(M_np, M_np.T)
+        bkd.assert_allclose(M_np, M_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_2d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
@@ -249,7 +249,7 @@ class TestCompositeLinearElasticityBase:
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
         K = physics.stiffness_matrix()
         K_np = _to_dense(K, bkd)
-        np.testing.assert_array_almost_equal(K_np, K_np.T)
+        bkd.assert_allclose(K_np, K_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_3d_mass_matrix_symmetric(self, numpy_bkd) -> None:
         bkd = numpy_bkd
@@ -264,7 +264,7 @@ class TestCompositeLinearElasticityBase:
         physics = _uniform_material(basis, 1.0, 0.3, bkd)
         M = physics.mass_matrix()
         M_np = _to_dense(M, bkd)
-        np.testing.assert_array_almost_equal(M_np, M_np.T)
+        bkd.assert_allclose(M_np, M_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_3d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
@@ -530,7 +530,7 @@ class TestCompositeLinearElasticityBase:
         # Should be different
         assert np.linalg.norm(K_uni - K_comp) > 1e-6
         # But both should be symmetric
-        np.testing.assert_allclose(K_comp, K_comp.T, atol=1e-12)
+        bkd.assert_allclose(K_comp, K_comp.T, atol=1e-12)
 
     def test_apply_invalidates_cache(self, numpy_bkd) -> None:
         bkd = numpy_bkd
@@ -694,7 +694,7 @@ class TestCompositeLinearElasticityBase:
             mu_per_elem[elem_idx] = new_values[2 * i + 1]
         physics.set_lame_parameters(lam_per_elem, mu_per_elem)
         K3 = _to_dense(physics.stiffness_matrix(), bkd)
-        np.testing.assert_allclose(K2, K3, rtol=1e-14)
+        bkd.assert_allclose(K2, K3, rtol=1e-14)
 
     def test_lame_value_shape_validation(self, numpy_bkd) -> None:
         """Wrong-length values/delta raise."""
@@ -742,8 +742,10 @@ class TestCompositeLinearElasticityBase:
         assert physics.material_params("left") == (1.0, 0.3)
         assert physics.material_params("right") == (5.0, 0.2)
         elem_mats = physics.element_materials()
-        np.testing.assert_array_equal(elem_mats["left"], left_elems)
-        np.testing.assert_array_equal(elem_mats["right"], right_elems)
+        bkd.assert_allclose(elem_mats["left"], left_elems, rtol=0.0, atol=0.0)
+        bkd.assert_allclose(
+            elem_mats["right"], right_elems, rtol=0.0, atol=0.0
+        )
 
     def test_param_jacobian_fd_check(self, numpy_bkd: NumpyBkd) -> None:
         """Finite difference check for parameterization param_jacobian."""
@@ -784,7 +786,7 @@ class TestCompositeLinearElasticityBase:
             )
 
             fd_col = (res_plus - res_minus) / (2 * eps)
-            np.testing.assert_allclose(
+            bkd.assert_allclose(
                 pjac[:, j],
                 fd_col,
                 rtol=1e-5,

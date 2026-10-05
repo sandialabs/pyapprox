@@ -59,18 +59,28 @@ class SteadyStateSolver(Generic[Array]):
 
     Examples
     --------
+    >>> import numpy as np
     >>> from pyapprox.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.pde.galerkin import (
-    ...     StructuredMesh1D, LagrangeBasis, LinearAdvectionDiffusionReaction
+    >>> from pyapprox.pde.constitutive.coefficient_functions import (
+    ...     TimeIndependent,
     ... )
+    >>> from pyapprox.pde.galerkin import (
+    ...     StructuredMesh1D, LagrangeBasis, LinearAdvectionDiffusionReaction,
+    ...     compose_galerkin_system,
+    ... )
+    >>> from pyapprox.pde.galerkin.boundary import DirichletBC
     >>> from pyapprox.pde.galerkin.solvers import SteadyStateSolver
     >>> bkd = NumpyBkd()
     >>> mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
     >>> basis = LagrangeBasis(mesh, degree=1)
     >>> physics = LinearAdvectionDiffusionReaction(
     ...     basis=basis, diffusivity=0.01, bkd=bkd,
-    ...     forcing=lambda x: np.ones(x.shape[1])
+    ...     forcing=TimeIndependent(lambda x: np.ones(x.shape[1])),
     ... )
+    >>> bcs = [
+    ...     DirichletBC(basis, "left", 0.0, bkd),
+    ...     DirichletBC(basis, "right", 0.0, bkd),
+    ... ]
     >>> solver = SteadyStateSolver(compose_galerkin_system(physics, bcs).steady())
     >>> u_guess = bkd.zeros(physics.nstates())
     >>> result = solver.solve(u_guess)

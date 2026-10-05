@@ -54,7 +54,7 @@ class TestLinearElasticityBase:
         )
         K = physics.stiffness_matrix()
         K_np = _to_dense(K, bkd)
-        np.testing.assert_array_almost_equal(K_np, K_np.T)
+        bkd.assert_allclose(K_np, K_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_1d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape in 1D."""
@@ -201,7 +201,7 @@ class TestLinearElasticityBase:
         K = physics.stiffness_matrix()
         K_np = _to_dense(K, bkd)
 
-        np.testing.assert_array_almost_equal(K_np, K_np.T)
+        bkd.assert_allclose(K_np, K_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_2d_mass_matrix_symmetric(self, numpy_bkd) -> None:
         """Test mass matrix is symmetric in 2D."""
@@ -223,7 +223,7 @@ class TestLinearElasticityBase:
         M = physics.mass_matrix()
         M_np = _to_dense(M, bkd)
 
-        np.testing.assert_array_almost_equal(M_np, M_np.T)
+        bkd.assert_allclose(M_np, M_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_2d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape in 2D."""
@@ -292,7 +292,7 @@ class TestLinearElasticityBase:
         K = physics.stiffness_matrix()
         K_np = _to_dense(K, bkd)
 
-        np.testing.assert_array_almost_equal(K_np, K_np.T)
+        bkd.assert_allclose(K_np, K_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_3d_mass_matrix_symmetric(self, numpy_bkd) -> None:
         """Test mass matrix is symmetric in 3D."""
@@ -315,7 +315,7 @@ class TestLinearElasticityBase:
         M = physics.mass_matrix()
         M_np = _to_dense(M, bkd)
 
-        np.testing.assert_array_almost_equal(M_np, M_np.T)
+        bkd.assert_allclose(M_np, M_np.T, rtol=0.0, atol=1.5e-6)
 
     def test_3d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape in 3D."""

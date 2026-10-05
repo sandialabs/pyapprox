@@ -134,3 +134,21 @@ class TestComposeGalerkinSystem:
             compose_galerkin_system(
                 physics, [object()]  # type: ignore[list-item]
             )
+
+    def test_rejects_physics_holding_its_own_bcs(
+        self, numpy_bkd: Backend[Array]
+    ) -> None:
+        """Composing would drop BCs the physics holds, so it refuses.
+
+        Goes with the constructors' ``boundary_conditions=`` argument.
+        """
+        basis, bcs, _ = _setup(numpy_bkd)
+        physics = AdvectionDiffusionReaction(
+            basis=basis,
+            diffusivity=0.3,
+            bkd=numpy_bkd,
+            forcing=TimeIndependent(_forcing),
+            boundary_conditions=bcs,
+        )
+        with pytest.raises(ValueError, match="boundary_conditions="):
+            compose_galerkin_system(physics)

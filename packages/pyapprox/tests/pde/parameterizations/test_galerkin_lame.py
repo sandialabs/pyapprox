@@ -273,7 +273,9 @@ class TestGalerkinLameParameterizationFactory:
         assert initial_param_jacobian is not None
         p = bkd.asarray(np.array([1.0, 0.3]))
         ipj_np = bkd.to_numpy(initial_param_jacobian(p))
-        np.testing.assert_array_equal(ipj_np, 0.0)
+        bkd.assert_allclose(
+            ipj_np, np.zeros_like(ipj_np), rtol=0.0, atol=0.0
+        )
 
     def test_pickle_round_trip(self, numpy_bkd: NumpyBkd) -> None:
         """The factory product (with its physics) survives pickling and

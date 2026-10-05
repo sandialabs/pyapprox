@@ -17,6 +17,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldForcing,
     TimeDependent,
+    TimeIndependent,
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -54,7 +55,7 @@ class TestFormsMatchAssembly:
     ) -> None:
         physics = _make_physics(
             numpy_bkd,
-            diffusivity=lambda x: 1.0 + 0.5 * x[0] ** 2,
+            diffusivity=TimeIndependent(lambda x: 1.0 + 0.5 * x[0] ** 2),
             velocity=numpy_bkd.array([1.0, -0.5]),
             reaction=0.7,
         )
@@ -97,7 +98,7 @@ class TestRestrictedAssembly:
         """asm on a subset plus asm on its complement equals the global."""
         physics = _make_physics(
             numpy_bkd,
-            diffusivity=lambda x: 1.0 + 0.25 * x[1] ** 2,
+            diffusivity=TimeIndependent(lambda x: 1.0 + 0.25 * x[1] ** 2),
             velocity=numpy_bkd.array([0.5, 1.0]),
         )
         skfem_basis = physics.basis().skfem_basis()
@@ -269,7 +270,7 @@ class TestCachingUnchanged:
         the cache is keyed on coefficient-function versions, and only a
         set_dofs mutation (nodal fields) bumps a version."""
         physics = _make_physics(
-            numpy_bkd, diffusivity=lambda x: 1.0 + 0.0 * x[0]
+            numpy_bkd, diffusivity=TimeIndependent(lambda x: 1.0 + 0.0 * x[0])
         )
         zeros = numpy_bkd.zeros((physics.nstates(),))
         operator = compose_galerkin_system(physics).spatial_operator()

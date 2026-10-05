@@ -742,7 +742,7 @@ class TestTimeModulatedControl:
         assert abs(acting - quiet) > 1e-8
 
     def test_the_modes_have_one_holder(self) -> None:
-        """A2: the field's modes and the map's jacobian must be the
+        """The field's modes and the map's jacobian must be the
         SAME array. Two copies could disagree with nothing detecting
         it --- the forward solve using one and the gradient the other,
         each self-consistent, with finite differences agreeing because

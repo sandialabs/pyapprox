@@ -41,6 +41,7 @@ from pyapprox.pde.galerkin.time_integration import (
     TimeIntegrationConfig,
     create_galerkin_bc_enforcing_residual,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 from tests._helpers.markers import slow_test
 
@@ -224,7 +225,7 @@ class TestTransientADR2D:
     )
     def test_transient_adr_2d(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bndry_types: List[str],
         vel_strs: List[str],
@@ -393,7 +394,7 @@ class TestTransientADR2D_CN:
     )
     def test_transient_adr_2d_cn(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bndry_types: List[str],
         vel_strs: List[str],
@@ -563,7 +564,7 @@ class TestManualNewtonWithConstraint:
     to the assembled Newton system at a low level.
     """
 
-    def test_manual_newton_backward_euler(self, numpy_bkd) -> None:
+    def test_manual_newton_backward_euler(self, numpy_bkd: NumpyBkd) -> None:
         """Manual Newton with BE + the BC-enforcing residual."""
         bkd = numpy_bkd
         _, _, exact_at_time = _setup_1d_problem(
@@ -646,7 +647,7 @@ class TestManualNewtonWithConstraint:
 
         assert rel_error < 1e-6
 
-    def test_manual_newton_crank_nicolson(self, numpy_bkd) -> None:
+    def test_manual_newton_crank_nicolson(self, numpy_bkd: NumpyBkd) -> None:
         """Manual Newton with CN + the BC-enforcing residual."""
         bkd = numpy_bkd
 

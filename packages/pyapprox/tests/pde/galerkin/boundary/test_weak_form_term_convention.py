@@ -42,7 +42,6 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 )
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import NeumannBC, RobinBC
-from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
     CompositeLinearElasticity,
@@ -103,15 +102,14 @@ class TestWeakFormTermConvention:
     def _setup(self, make_physics: Any, vector: bool, kind: str) -> Any:
         bare, basis = make_physics()
         bc = _make_bc(kind, basis, vector)
-        with_bc = compose_galerkin_system(bare, [bc])
         rng = np.random.default_rng(3)
         state = bare.bkd().asarray(rng.normal(0.0, 1.0, bare.nstates()))
-        return bare, with_bc, bc, state
+        return bare, bc, state
 
     def test_jacobian_matches_finite_differences(
         self, name: str, make_physics: Any, vector: bool, kind: str
     ) -> None:
-        bare, _, bc, state = self._setup(make_physics, vector, kind)
+        bare, bc, state = self._setup(make_physics, vector, kind)
         bkd = bare.bkd()
         n = bare.nstates()
 

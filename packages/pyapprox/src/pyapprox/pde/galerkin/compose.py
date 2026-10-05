@@ -15,6 +15,7 @@ from pyapprox.pde.boundary import (
     NaturalBCOperator,
     split_by_role,
 )
+from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
 from pyapprox.pde.galerkin.protocols.physics import GalerkinPhysicsProtocol
 from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
 from pyapprox.pde.galerkin.system import GalerkinSystem
@@ -44,11 +45,22 @@ def compose_galerkin_system(
     TypeError
         If ``physics`` does not satisfy ``GalerkinPhysicsProtocol``, or a
         condition is in neither role or both.
+    ValueError
+        If ``physics`` was constructed with its own boundary conditions,
+        which composing would silently drop.
     """
     if not isinstance(physics, GalerkinPhysicsProtocol):
         raise TypeError(
             "physics must satisfy GalerkinPhysicsProtocol, got "
             f"{type(physics).__name__}"
+        )
+    if isinstance(physics, GalerkinBCMixin) and (
+        physics.weak_form_bcs() or physics.essential_bcs()
+    ):
+        raise ValueError(
+            f"{type(physics).__name__} was constructed with "
+            "boundary_conditions=, which compose_galerkin_system would "
+            "ignore; construct it without them and pass them here instead"
         )
     roles = split_by_role(boundary_conditions)
     return GalerkinSystem(

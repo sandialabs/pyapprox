@@ -171,10 +171,11 @@ class PeriodicStructuredMesh1D(Generic[Array]):
 
     Conventions and caveats:
 
-    - There are NO named boundaries: ``boundary_nodes`` raises.
-      Physics built on this mesh must pass ``boundary_conditions=None``
-      (``dirichlet_dof_info`` then returns empty arrays and the
-      transient drivers proceed without constraint handling).
+    - There are NO named boundaries: ``boundary_nodes`` raises. A
+      physics on this mesh is composed with no boundary conditions,
+      ``compose_galerkin_system(physics)``, so its constraint set is
+      empty and the transient drivers proceed without constraint
+      handling.
     - ``nodes()`` reports the canonical fundamental-domain coordinates
       ``xmin, xmin+h, ..., xmax-h``; the identified node's coordinate
       is reported as ``xmin`` although it equally represents ``xmax``.

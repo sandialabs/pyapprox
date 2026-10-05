@@ -291,7 +291,7 @@ class TestElasticityRobinLimits:
                 physics, [DirichletBC(basis, "left", 0.0, bkd), bc]
             )
             solutions.append(_solve(system))
-        np.testing.assert_allclose(solutions[0], solutions[1], rtol=1e-10)
+        bkd.assert_allclose(solutions[0], solutions[1], rtol=1e-10)
 
     def test_stiffer_spring_pulls_edge_toward_rest_position(self) -> None:
         """The right edge moves monotonically toward u0 as a increases."""
@@ -309,7 +309,7 @@ class TestElasticityRobinLimits:
         stiffness = -_dense(system.spatial_operator().spatial_jacobian(
             physics.bkd().asarray(np.zeros(physics.nstates())), 0.0
         ))
-        np.testing.assert_allclose(stiffness, stiffness.T, atol=1e-12)
+        physics.bkd().assert_allclose(stiffness, stiffness.T, atol=1e-12)
         interior = _dense(physics.stiffness_matrix())
         assert np.min(np.linalg.eigvalsh(interior)) < 1e-10
         assert np.min(np.linalg.eigvalsh(stiffness)) > 1e-6

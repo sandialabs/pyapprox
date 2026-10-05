@@ -55,13 +55,13 @@ class TestSparsePathADR:
         _bkd = numpy_bkd
         assert issparse(self._physics.mass_matrix())
 
-    def test_spatial_jacobian_is_sparse(self, numpy_bkd) -> None:
+    def test_spatial_jacobian_is_sparse(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._physics.nstates()))
         operator = self._system.spatial_operator()
         assert issparse(operator.spatial_jacobian(u, 0.0))
 
-    def test_jacobian_is_sparse(self, numpy_bkd) -> None:
+    def test_jacobian_is_sparse(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._physics.nstates()))
         view = self._system.steady_snapshot(0.0)
@@ -71,7 +71,7 @@ class TestSparsePathADR:
 class TestSparsePathHelmholtz:
     """Verify Helmholtz physics returns sparse matrices."""
 
-    def test_jacobian_is_sparse(self, numpy_bkd) -> None:
+    def test_jacobian_is_sparse(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         bkd = NumpyBkd()
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -110,7 +110,7 @@ class TestSparsePathElasticity:
         _bkd = numpy_bkd
         assert issparse(self._physics.stiffness_matrix())
 
-    def test_jacobian_is_sparse(self, numpy_bkd) -> None:
+    def test_jacobian_is_sparse(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._physics.nstates()))
         view = self._system.steady_snapshot(0.0)

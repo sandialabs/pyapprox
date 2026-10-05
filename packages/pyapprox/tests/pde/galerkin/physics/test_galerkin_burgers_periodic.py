@@ -74,13 +74,14 @@ class TestPeriodicAssembly:
         assert np.linalg.matrix_rank(mass) == mass.shape[0]
         assert abs(float(mass.sum()) - 1.0) < 1e-13
 
-    def test_no_dirichlet_dofs(self) -> None:
+    def test_periodic_mesh_has_no_boundary(self) -> None:
+        """The endpoints are identified, so there is no boundary on which
+        an essential condition could be imposed."""
         bkd = NumpyBkd()
-        _, physics = _make_periodic_burgers(bkd, nx=16)
-        constraints = compose_galerkin_system(physics).constraint_set()
-        dofs, values = constraints.dofs(), constraints.values(0.0)
-        assert dofs.shape[0] == 0
-        assert values.shape[0] == 0
+        basis, _ = _make_periodic_burgers(bkd, nx=16)
+        assert len(basis.skfem_basis().mesh.boundary_facets()) == 0
+        with pytest.raises(ValueError, match="no boundaries"):
+            basis.get_dofs("left")
 
 
 class TestDiscreteConservation:

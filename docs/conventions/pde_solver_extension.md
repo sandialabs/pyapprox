@@ -11,9 +11,14 @@ reference implementations.
 
 ## Seam 1 — physics assemblies and BC classification
 
-The physics owns the residual and its typed derivative assemblies:
+The physics owns the residual and its typed derivative assemblies. Where
+the boundary conditions live differs between the two families (last
+bullet):
 
-- `residual(state, time)` / `jacobian(state, time)`.
+- `residual(state, time)` / `jacobian(state, time)` (collocation), or
+  the interior operator `interior_residual(state, time)` /
+  `interior_jacobian(state, time)` (Galerkin, whose physics holds no
+  boundary conditions).
 - Per parameterizable coefficient field `g`: a full-matrix assembly
   `residual_<coef>_jacobian(state)` returning
   `S(u) = ∂R/∂g` (shape `(nstates, nfield)`), and — when the term is
@@ -26,14 +31,24 @@ The physics owns the residual and its typed derivative assemblies:
   BCs), a boundary assembly with the consumer-pinned signature
   `(state, time, bc_indices, normals) -> (n_bc, nfield)` where
   `bc_indices` are the BC's replaced state rows.
-- `boundary_conditions()`, `apply_boundary_conditions(residual,
-  jacobian, state, time)` (the public 4-arg surface; `time` is
-  required — a defaulted t=0 silently corrupts transient BC values),
-  `apply_bc_to_mass(mass)`, and `bc_dof_classification()` returning
-  essential and row-replaced DOF lists with the invariant
-  `essential ⊆ row_replaced`. Sparse and dense assemblies are both
-  supported: the engine keeps dense backend arrays in backend space
-  and crosses to numpy only for scipy-sparse operands.
+- Boundary conditions.
+  - **Collocation:** the physics holds them and exposes
+    `boundary_conditions()`, `apply_boundary_conditions(residual,
+    jacobian, state, time)` (the public 4-arg surface; `time` is
+    required — a defaulted t=0 silently corrupts transient BC values),
+    `apply_bc_to_mass(mass)`, and `bc_dof_classification()` returning
+    essential and row-replaced DOF lists with the invariant
+    `essential ⊆ row_replaced`.
+  - **Galerkin:** `compose_galerkin_system(physics, bcs)` splits the
+    list by role into a system: `spatial_operator()` adds the natural
+    terms to the interior, and `constraint_set()` holds the essential
+    rows (`dofs`, `values`, `apply_to_residual`, `apply_to_jacobian`,
+    `inject`). Models, adapters and solvers take the system, never the
+    physics.
+
+  Sparse and dense assemblies are both supported: the engine keeps
+  dense backend arrays in backend space and crosses to numpy only for
+  scipy-sparse operands.
 
 ## Seam 2 — facade-over-engine parameterization
 

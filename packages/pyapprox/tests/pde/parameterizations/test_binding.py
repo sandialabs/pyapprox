@@ -108,10 +108,11 @@ class TestOwnership:
     def test_system_owns_its_interior_and_terms(
         self, bkd: Backend[Array]
     ) -> None:
-        physics, system, _ = _physics_and_system(bkd)
+        physics, system, robin = _physics_and_system(bkd)
         assert owns(system, physics)
-        for term in system.spatial_operator().natural_bcs().terms():
-            assert owns(system, term)
+        assert owns(system, robin)
+        _, _, foreign_robin = _physics_and_system(bkd)
+        assert not owns(system, foreign_robin)
         assert not owns(system, _physics(bkd))
 
     def test_object_without_owns_owns_only_itself(self) -> None:

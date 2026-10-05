@@ -20,6 +20,7 @@ if not package_available("skfem"):
 from typing import Callable, Dict, List, Tuple
 
 import numpy as np
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured import (
@@ -32,6 +33,7 @@ from pyapprox.pde.manufactured import (
     ManufacturedAdvectionDiffusionReaction,
     ManufacturedHelmholtz,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
 from scipy.sparse import issparse
 
@@ -104,7 +106,7 @@ class TestHelmholtzBase:
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_1d_stiffness_symmetric(self, numpy_bkd) -> None:
+    def test_1d_stiffness_symmetric(self, numpy_bkd: NumpyBkd) -> None:
         """Test stiffness matrix is symmetric in 1D."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -120,7 +122,7 @@ class TestHelmholtzBase:
         K = -jac_np
         np.testing.assert_array_almost_equal(K, K.T, decimal=10)
 
-    def test_1d_residual_shape(self, numpy_bkd) -> None:
+    def test_1d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -133,7 +135,7 @@ class TestHelmholtzBase:
 
         assert res.shape == (physics.nstates(),)
 
-    def test_1d_jacobian_shape(self, numpy_bkd) -> None:
+    def test_1d_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test Jacobian has correct shape."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -146,7 +148,7 @@ class TestHelmholtzBase:
 
         assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_2d_physics(self, numpy_bkd) -> None:
+    def test_2d_physics(self, numpy_bkd: NumpyBkd) -> None:
         """Test Helmholtz works in 2D."""
         bkd = numpy_bkd
         mesh = StructuredMesh2D(
@@ -167,7 +169,7 @@ class TestHelmholtzBase:
         res = system.steady_snapshot(0.0).steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
-    def test_with_forcing(self, numpy_bkd) -> None:
+    def test_with_forcing(self, numpy_bkd: NumpyBkd) -> None:
         """Test Helmholtz with forcing term."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -177,7 +179,10 @@ class TestHelmholtzBase:
             return np.ones(x.shape[1])
 
         physics = Helmholtz(
-            basis=basis, wavenumber=2 * np.pi, forcing=forcing, bkd=bkd
+            basis=basis,
+            wavenumber=2 * np.pi,
+            forcing=TimeIndependent(forcing),
+            bkd=bkd,
         )
         system = compose_galerkin_system(physics)
 
@@ -198,7 +203,7 @@ class TestHelmholtzBase:
 
         assert physics.wavenumber() == k
 
-    def test_steady_state_solve(self, numpy_bkd) -> None:
+    def test_steady_state_solve(self, numpy_bkd: NumpyBkd) -> None:
         """Test solving steady-state Helmholtz with forcing."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=20, bounds=(0.0, 1.0), bkd=bkd)
@@ -268,7 +273,7 @@ class TestParametrizedHelmholtzManufactured:
     )
     def test_manufactured_helmholtz(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bounds: List[float],
         sol_str: str,

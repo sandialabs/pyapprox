@@ -51,10 +51,13 @@ with one job:
 | **Physics** | the equation: coefficients, forcing, and the interior weak form |
 | **Boundary conditions** | what happens on each side of the domain |
 
-The split is what makes the rest of this tutorial short. Refining the mesh
-does not change the physics; changing the boundary conditions does not change
-the mesh; and, as the closing section shows, changing the equation entirely
-leaves the other three untouched.
+They are built in order: the mesh, then a basis on it, then a physics and
+boundary conditions on that basis. Each depends only on what comes before it,
+which is what makes the rest of this tutorial short. Swapping a boundary
+condition, or a coefficient of the equation, replaces that one object.
+Refining the mesh changes everything built on it, so the basis, physics and
+conditions are rebuilt --- with the same constructor calls, as long as the
+boundary names they use exist on the new mesh.
 
 Nothing in that list mentions parameters. A physics object describes one
 fixed PDE with definite coefficients. Making those coefficients depend on a
@@ -415,12 +418,13 @@ solution to the other as a coefficient.
 ## Summary
 
 - A steady solve is a mesh, a basis, a physics, and boundary conditions,
-  joined by `compose_galerkin_system`. The equation and the boundary
-  conditions can each be changed without touching the other. The mesh
-  cannot: the basis is built on it, the physics and the conditions are
-  built on the basis, and the conditions name the mesh's boundaries, which
-  differ between meshes (a rectangle has four sides, a triangle three).
-  Changing the mesh means rebuilding everything downstream of it.
+  joined by `compose_galerkin_system`. Changing a coefficient of the
+  equation, or the type or data of a boundary condition, replaces only that
+  object. The mesh is different: the basis is built on it, the physics and
+  the conditions are built on the basis, and the conditions name the mesh's
+  boundaries, which differ between meshes (a rectangle has four sides, a
+  triangle three). Changing the mesh means rebuilding everything downstream
+  of it.
 - Natural conditions are added to the assembled system; essential conditions
   replace rows of it. The composed system reports which are which.
 - Removing cells from a mesh creates new named boundaries, and each one needs

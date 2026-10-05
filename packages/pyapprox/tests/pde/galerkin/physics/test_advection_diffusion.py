@@ -18,6 +18,7 @@ from typing import Any, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import (
@@ -69,7 +70,7 @@ class TestLinearADRBase:
         eigenvalues = np.linalg.eigvalsh(M_np)
         assert np.all(eigenvalues > 0)
 
-    def test_1d_stiffness_assembly(self, numpy_bkd) -> None:
+    def test_1d_stiffness_assembly(self, numpy_bkd: NumpyBkd) -> None:
         """Test stiffness matrix assembly in 1D."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -88,7 +89,7 @@ class TestLinearADRBase:
         K = -jac_np
         np.testing.assert_array_almost_equal(K, K.T, decimal=10)
 
-    def test_1d_residual_shape(self, numpy_bkd) -> None:
+    def test_1d_residual_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test residual has correct shape."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -103,7 +104,7 @@ class TestLinearADRBase:
 
         assert res.shape == (physics.nstates(),)
 
-    def test_1d_jacobian_shape(self, numpy_bkd) -> None:
+    def test_1d_jacobian_shape(self, numpy_bkd: NumpyBkd) -> None:
         """Test Jacobian has correct shape."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -118,7 +119,7 @@ class TestLinearADRBase:
 
         assert jac.shape == (physics.nstates(), physics.nstates())
 
-    def test_2d_physics(self, numpy_bkd) -> None:
+    def test_2d_physics(self, numpy_bkd: NumpyBkd) -> None:
         """Test physics works in 2D."""
         bkd = numpy_bkd
         mesh = StructuredMesh2D(nx=5, ny=5, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd)
@@ -139,7 +140,7 @@ class TestLinearADRBase:
         res = system.steady_snapshot(0.0).steady_residual(u0)
         assert res.shape == (physics.nstates(),)
 
-    def test_with_forcing(self, numpy_bkd) -> None:
+    def test_with_forcing(self, numpy_bkd: NumpyBkd) -> None:
         """Test physics with forcing term."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -149,7 +150,10 @@ class TestLinearADRBase:
             return np.ones(x.shape[1])
 
         physics = LinearAdvectionDiffusionReaction(
-            basis=basis, diffusivity=0.01, forcing=forcing, bkd=bkd
+            basis=basis,
+            diffusivity=0.01,
+            forcing=TimeIndependent(forcing),
+            bkd=bkd,
         )
         system = compose_galerkin_system(physics)
 
@@ -160,7 +164,7 @@ class TestLinearADRBase:
         # With forcing and u=0, residual should be non-zero
         assert np.linalg.norm(res_np) > 0
 
-    def test_3d_physics(self, numpy_bkd) -> None:
+    def test_3d_physics(self, numpy_bkd: NumpyBkd) -> None:
         """Test physics works in 3D."""
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
@@ -211,7 +215,7 @@ class TestLinearADRBase:
 
         np.testing.assert_array_almost_equal(M_np, M_np.T)
 
-    def test_3d_stiffness_symmetric(self, numpy_bkd) -> None:
+    def test_3d_stiffness_symmetric(self, numpy_bkd: NumpyBkd) -> None:
         """Test stiffness matrix is symmetric in 3D (pure diffusion)."""
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
@@ -235,7 +239,7 @@ class TestLinearADRBase:
         K = -jac_np
         np.testing.assert_array_almost_equal(K, K.T, decimal=10)
 
-    def test_3d_steady_state_solve(self, numpy_bkd) -> None:
+    def test_3d_steady_state_solve(self, numpy_bkd: NumpyBkd) -> None:
         """Test steady-state solve in 3D."""
         bkd = numpy_bkd
         mesh = StructuredMesh3D(
@@ -262,7 +266,7 @@ class TestLinearADRBase:
         assert result.converged
         assert result.residual_norm < 1e-8
 
-    def test_manufactured_solution_1d(self, numpy_bkd) -> None:
+    def test_manufactured_solution_1d(self, numpy_bkd: NumpyBkd) -> None:
         """Test convergence using manufactured solution in 1D.
 
         Use u_exact = cos(pi*x), which satisfies zero Neumann BCs at x=0,1.
@@ -320,7 +324,7 @@ class TestLinearADRBase:
         # P1 elements should have convergence rate ~2
         assert np.all(rates > 1.5), f"Rates: {rates}"
 
-    def test_manufactured_solution_2d(self, numpy_bkd) -> None:
+    def test_manufactured_solution_2d(self, numpy_bkd: NumpyBkd) -> None:
         """Test convergence using manufactured solution in 2D.
 
         Use u_exact = cos(pi*x)*cos(pi*y), which satisfies zero Neumann BCs.
@@ -383,7 +387,7 @@ class TestLinearADRBase:
         # P1 elements should have convergence rate ~2
         assert np.all(rates > 1.5), f"Rates: {rates}"
 
-    def test_manufactured_solution_3d(self, numpy_bkd) -> None:
+    def test_manufactured_solution_3d(self, numpy_bkd: NumpyBkd) -> None:
         """Test convergence using manufactured solution in 3D.
 
         Use u_exact = cos(pi*x)*cos(pi*y)*cos(pi*z), which satisfies zero Neumann BCs.
@@ -513,7 +517,7 @@ class TestParametrizedADR1DConvergence:
     )
     def test_convergence_rate(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         wavenumber: int,
         diffusivity: float,
@@ -608,7 +612,7 @@ class TestParametrizedADR2DConvergence:
     )
     def test_convergence_rate(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         wavenumber_x: int,
         wavenumber_y: int,
@@ -883,7 +887,7 @@ class TestParametrizedADR1DExact:
     )
     def test_exact_reproduction(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -1001,7 +1005,7 @@ class TestParametrizedADR1DConservative:
     )
     def test_exact_reproduction(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -1090,7 +1094,7 @@ class TestParametrizedADR2DExact:
     )
     def test_exact_reproduction(
         self,
-        numpy_bkd,
+        numpy_bkd: NumpyBkd,
         name: str,
         bounds: List[float],
         bndry_types: List[str],
@@ -1174,7 +1178,7 @@ class TestParametrizedADR2DExact:
         assert rel_error < 1e-8
 
     def test_exact_reproduction_varying_robin_alpha(
-        self, numpy_bkd
+        self, numpy_bkd: NumpyBkd
     ) -> None:
         """Robin BCs with a SPATIALLY VARYING coefficient alpha(x)
         reproduce a quadratic solution exactly. alpha varies ALONG the
@@ -1305,12 +1309,12 @@ class TestDiffusivityPositivity:
         with pytest.raises(ValueError, match="must be positive"):
             physics._assemble_stiffness(state, 0.0)
 
-    def test_checks_quadrature_values_not_dofs(self, numpy_bkd) -> None:
+    def test_checks_quadrature_values_not_dofs(self, numpy_bkd: NumpyBkd) -> None:
         """The check is on what the operator integrates.
 
         A single zero DOF does NOT make the interpolant zero at any
         quadrature point --- the surrounding positive nodes carry it ---
-        so this assembles. That is the correct behaviour and a real
+        so this assembles. That is the correct behavior and a real
         difference from checking DOFs: what matters is the field the
         integrand sees, not the coefficients that generate it. Making
         the whole field zero does raise.
@@ -1407,8 +1411,8 @@ class TestLinearReactionSelectedByCapability:
     def test_a_modulated_reaction_reassembles_per_time(
         self, numpy_bkd
     ) -> None:
-        """The end-to-end property step 5 exists for: a control that
-        varies in time must change the operator it enters."""
+        """The end-to-end property time-modulated reactions exist for: a
+        control that varies in time must change the operator it enters."""
         from pyapprox.pde.constitutive.coefficient_functions import (
             TimeModulatedNodalFieldLinearReaction,
         )
@@ -1425,8 +1429,8 @@ class TestLinearReactionSelectedByCapability:
         coords = numpy_bkd.to_numpy(basis.dof_coordinates())
         modes = np.stack(
             [
-                np.exp(-20.0 * (coords[0] - centre) ** 2)
-                for centre in (0.25, 0.5, 0.75)
+                np.exp(-20.0 * (coords[0] - center) ** 2)
+                for center in (0.25, 0.5, 0.75)
             ],
             axis=1,
         )

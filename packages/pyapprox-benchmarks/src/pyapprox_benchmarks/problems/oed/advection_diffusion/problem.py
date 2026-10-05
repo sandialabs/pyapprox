@@ -366,6 +366,9 @@ class AdvectionDiffusionOEDProblem(
     ) -> Tuple[Array, Array]:
         """Run the ADR transient using a precomputed Stokes result."""
         from pyapprox.ode.config import TimeIntegrationConfig
+        from pyapprox.pde.constitutive.coefficient_functions import (
+            TimeIndependent,
+        )
         from pyapprox.pde.galerkin.boundary.implementations import RobinBC
         from pyapprox.pde.galerkin.compose import compose_galerkin_system
         from pyapprox.pde.galerkin.physics.advection_diffusion import (
@@ -418,8 +421,10 @@ class AdvectionDiffusionOEDProblem(
             basis=self._adr_basis,
             diffusivity=self._diffusivity,
             bkd=bkd,
-            velocity=vel_callable,
-            forcing=forcing_func,
+            velocity=TimeIndependent(vel_callable),
+            forcing=(
+                None if forcing_func is None else TimeIndependent(forcing_func)
+            ),
         )
 
         model = GalerkinModel(compose_galerkin_system(adr, robin_bcs), bkd)

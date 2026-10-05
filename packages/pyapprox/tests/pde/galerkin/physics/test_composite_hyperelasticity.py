@@ -486,7 +486,7 @@ class TestCompositeMultiMaterial:
             .steady_snapshot(0.0)
             .steady_residual(state)
         )
-        np.testing.assert_array_almost_equal(res, 0.0)
+        bkd.assert_allclose(res, np.zeros_like(res), rtol=0.0, atol=1.5e-6)
 
     def test_small_strain_matches_linear_elasticity(
         self, numpy_bkd: NumpyBkd
@@ -613,7 +613,7 @@ class TestCompositeMultiMaterial:
             bkd=bkd,
         )
         M = _to_dense(physics.mass_matrix(), bkd)
-        np.testing.assert_array_almost_equal(M, M.T)
+        bkd.assert_allclose(M, M.T, rtol=0.0, atol=1.5e-6)
 
 
 class TestCompositeHyperelasticity3D:

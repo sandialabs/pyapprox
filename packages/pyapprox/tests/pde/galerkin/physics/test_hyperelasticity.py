@@ -489,7 +489,7 @@ class TestHyperelasticityShapes:
         basis = VectorLagrangeBasis(mesh, degree=1)
         physics = HyperelasticityPhysics(basis, stress, bkd)
         M = _to_dense(physics.mass_matrix(), bkd)
-        np.testing.assert_array_almost_equal(M, M.T)
+        bkd.assert_allclose(M, M.T, rtol=0.0, atol=1.5e-6)
 
     def test_zero_state_zero_residual(self, numpy_bkd: NumpyBkd) -> None:
         """With no body force, u=0 gives zero residual (F=I, P=0)."""
@@ -502,7 +502,7 @@ class TestHyperelasticityShapes:
         system = compose_galerkin_system(physics)
         state = bkd.asarray(np.zeros(physics.nstates()))
         res = bkd.to_numpy(system.steady_snapshot(0.0).steady_residual(state))
-        np.testing.assert_array_almost_equal(res, 0.0)
+        bkd.assert_allclose(res, np.zeros_like(res), rtol=0.0, atol=1.5e-6)
 
     def test_3d_shapes(self, numpy_bkd: NumpyBkd) -> None:
         """3D residual, Jacobian, and mass matrix have correct shapes."""

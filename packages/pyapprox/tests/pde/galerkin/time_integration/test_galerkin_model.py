@@ -26,6 +26,7 @@ from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinModel,
+    GalerkinPhysicsToODEResidualAdapter,
     TimeIntegrationConfig,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
@@ -312,3 +313,30 @@ class TestExplicitUnifiedPipeline:
         u_num = bkd.to_numpy(solutions[:, -1])
         rel_error = np.linalg.norm(u_num - u_exact) / np.linalg.norm(u_exact)
         assert rel_error < 1e-12
+
+
+class TestGalerkinModelConstruction:
+    def test_rejects_a_non_system(self, numpy_bkd: NumpyBkd) -> None:
+        with pytest.raises(TypeError, match="GalerkinTransientSystemProtocol"):
+            GalerkinModel(object(), numpy_bkd)  # type: ignore[arg-type]
+
+    def test_rejects_adapter_of_another_system(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """An injected adapter must wrap the very system the model solves,
+        or the model would integrate one system and report another."""
+        system, _ = _setup_adr_system(numpy_bkd, nx=4)
+        other, _ = _setup_adr_system(numpy_bkd, nx=4)
+        with pytest.raises(ValueError, match="different system"):
+            GalerkinModel(
+                system,
+                numpy_bkd,
+                adapter=GalerkinPhysicsToODEResidualAdapter(other),
+            )
+
+    def test_accepts_adapter_of_its_system(self, numpy_bkd: NumpyBkd) -> None:
+        system, _ = _setup_adr_system(numpy_bkd, nx=4)
+        adapter = GalerkinPhysicsToODEResidualAdapter(system)
+        model = GalerkinModel(system, numpy_bkd, adapter=adapter)
+        assert model.system() is system
+        assert model.adapter() is adapter
