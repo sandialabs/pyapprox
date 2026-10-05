@@ -139,11 +139,13 @@ class TestBinaryDesignSubsetObjective:
         )
         assert isinstance(subset_objective, SubsetObjectiveProtocol)
         assert subset_objective.ncandidates() == 6
-        for subset in _subsets(6):
-            expected = getattr(problem, oracle)(list(subset))
-            assert subset_objective.value(subset) == pytest.approx(
-                expected, rel=1e-10, abs=1e-12
-            )
+        subsets = _subsets(6)
+        bkd.assert_allclose(
+            bkd.asarray([subset_objective.value(subset) for subset in subsets]),
+            bkd.asarray([getattr(problem, oracle)(list(subset)) for subset in subsets]),
+            rtol=1e-10,
+            atol=1e-12,
+        )
 
     def test_groups_choose_all_their_observations(self, bkd: Backend[Array]) -> None:
         problem = _Problem()
@@ -152,11 +154,15 @@ class TestBinaryDesignSubsetObjective:
             ParameterizedObjective(problem.objective(bkd, AOptimal()), design)
         )
         assert subset_objective.ncandidates() == 3
-        for subset in _subsets(3):
-            rows = sorted(ii for jj in subset for ii in _BY_SENSOR[jj])
-            assert subset_objective.value(subset) == pytest.approx(
-                problem.a_optimal(rows), rel=1e-10
-            )
+        subsets = _subsets(3)
+        rows = [
+            sorted(ii for jj in subset for ii in _BY_SENSOR[jj]) for subset in subsets
+        ]
+        bkd.assert_allclose(
+            bkd.asarray([subset_objective.value(subset) for subset in subsets]),
+            bkd.asarray([problem.a_optimal(chosen) for chosen in rows]),
+            rtol=1e-10,
+        )
 
     def test_design_is_zero_one(self, bkd: Backend[Array]) -> None:
         subset_objective = BinaryDesignSubsetObjective(
