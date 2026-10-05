@@ -850,7 +850,9 @@ def _mixed_ceiling_panel(ax, bkd, benchmark):
     mfmc_template = MFMCEstimator(stat_ref, costs)
     mfmc_c, mfmc_r = [], []
     for f in factors:
-        nps = bkd.asarray(nhf * np.hstack((1, base_ratio[:M] * 2**f)))
+        nps = bkd.asarray(
+            nhf * np.hstack((1, base_ratio[:M] * 2**f)), dtype=float
+        )
         mfmc_c.append(bkd.to_float(mfmc_template._estimator_cost(nps)))
         ec = mfmc_template._covariance_from_npartition_samples(nps)
         mfmc_r.append(bkd.to_float(ec[0, 0]) / mc_var)

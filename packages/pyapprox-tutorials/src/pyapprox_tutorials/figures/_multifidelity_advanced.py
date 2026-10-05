@@ -281,6 +281,7 @@ def plot_mlblue_ceiling(ax):
                 nhf_samples * np.hstack(
                     (1, npartition_ratio_base[:est_template._npartitions - 1]
                      * 2**factor)),
+                dtype=float,
             )
             est_cov = est_template._covariance_from_npartition_samples(
                 npartition_samples)
