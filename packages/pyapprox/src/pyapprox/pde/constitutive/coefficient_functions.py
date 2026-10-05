@@ -27,6 +27,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Generic,
     Optional,
     Protocol,
     runtime_checkable,
@@ -34,11 +35,18 @@ from typing import (
 
 import numpy as np
 from numpy.typing import NDArray
+from typing_extensions import TypeVar
 
 if TYPE_CHECKING:
     from skfem import Basis
 
 _Quad = NDArray[np.floating[Any]]
+
+# The array type a time-aware supplier maps. It defaults to NumPy, the
+# skfem quadrature arrays most suppliers see, so a bare annotation means
+# that; backend-generic suppliers (manufactured solutions evaluated on
+# torch) bind it to their own array type.
+_T = TypeVar("_T", default=_Quad)
 
 
 # =====================================================================
@@ -114,10 +122,10 @@ class VersionedProtocol(Protocol):
 
 
 @runtime_checkable
-class TimeAwareCallableProtocol(Protocol):
+class TimeAwareCallableProtocol(Protocol[_T]):
     """A coefficient supplier that states whether it consults time."""
 
-    def __call__(self, coords: _Quad, time: float) -> _Quad:
+    def __call__(self, coords: _T, time: float) -> _T:
         """Evaluate at coordinates and time."""
         ...
 
@@ -132,7 +140,7 @@ class TimeAwareCallableProtocol(Protocol):
         ...
 
 
-class TimeIndependent:
+class TimeIndependent(Generic[_T]):
     """Adapt a ``f(coords)`` supplier to the ``f(coords, time)`` call.
 
     Bare one-argument callables are permanent public API for
@@ -142,16 +150,16 @@ class TimeIndependent:
     that already was not).
     """
 
-    def __init__(self, func: Callable[[_Quad], _Quad]) -> None:
+    def __init__(self, func: Callable[[_T], _T]) -> None:
         self._func = func
 
-    def __call__(self, coords: _Quad, time: float) -> _Quad:
+    def __call__(self, coords: _T, time: float) -> _T:
         return self._func(coords)
 
     def is_time_dependent(self) -> bool:
         return False
 
-    def func(self) -> Callable[[_Quad], _Quad]:
+    def func(self) -> Callable[[_T], _T]:
         """Return the wrapped supplier."""
         return self._func
 
@@ -159,7 +167,7 @@ class TimeIndependent:
         return f"TimeIndependent({self._func!r})"
 
 
-class TimeDependent:
+class TimeDependent(Generic[_T]):
     """Declare a ``f(coords, time)`` supplier as consulting time.
 
     Wrap when time is real: a supplier that genuinely varies in time
@@ -167,16 +175,16 @@ class TimeDependent:
     dropped time produces wrong numbers rather than an error.
     """
 
-    def __init__(self, func: Callable[[_Quad, float], _Quad]) -> None:
+    def __init__(self, func: Callable[[_T, float], _T]) -> None:
         self._func = func
 
-    def __call__(self, coords: _Quad, time: float) -> _Quad:
+    def __call__(self, coords: _T, time: float) -> _T:
         return self._func(coords, time)
 
     def is_time_dependent(self) -> bool:
         return True
 
-    def func(self) -> Callable[[_Quad, float], _Quad]:
+    def func(self) -> Callable[[_T, float], _T]:
         """Return the wrapped supplier."""
         return self._func
 
