@@ -7,18 +7,18 @@ For stacked outputs :math:`\chi_k` with weights :math:`\omega_k`,
     \mu_\chi = \sum_k \omega_k \chi_k, \qquad
     \Gamma_{\chi\chi} = \sum_k \omega_k (\chi_k - \mu_\chi)(\chi_k - \mu_\chi)^\top .
 
-Each batch keeps its sums about its own centre
+Each batch keeps its sums about its own center
 :math:`c = \sum |\omega| \chi / \sum |\omega|`:
 :math:`W = \sum \omega`, :math:`s = \sum \omega (\chi - c)` and
 :math:`S = \sum \omega (\chi - c)(\chi - c)^\top`, so that
 :math:`\mu_\chi = c + s / W` and :math:`\Gamma_{\chi\chi} = S - s s^\top / W`.
 For positive weights :math:`c` is the weighted mean, so :math:`s = 0` and
 one batch is as accurate as the two-pass formula; the raw form
-:math:`\sum \omega \chi \chi^\top - \mu \mu^\top`, or a centre far from the
+:math:`\sum \omega \chi \chi^\top - \mu \mu^\top`, or a center far from the
 mean, cancels catastrophically instead. The absolute weights keep the
-centre defined when negative weights make :math:`W` small.
+center defined when negative weights make :math:`W` small.
 
-Two batches merge by moving both to a common centre :math:`c'` with the
+Two batches merge by moving both to a common center :math:`c'` with the
 exact identities :math:`s' = s + W d` and
 :math:`S' = S + d s^\top + s d^\top + W d d^\top`, :math:`d = c - c'`, and
 adding. Nothing divides by a batch's total weight, which a rule with

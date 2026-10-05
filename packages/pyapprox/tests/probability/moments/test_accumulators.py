@@ -80,7 +80,7 @@ class TestAccumulators:
     def test_outlying_first_sample_does_not_cancel(self, bkd: Backend[Array]) -> None:
         """A far-out first point with a tiny weight, as a Gauss rule's corner.
 
-        Centring on the first sample would cancel here; the centre is the
+        Centering on the first sample would cancel here; the center is the
         batch's weighted mean, which is unaffected.
         """
         _, weights, stacked = self._data(bkd)

@@ -53,7 +53,7 @@ def plot_fd_error_sweep(
         One ``DerivativeChecker.check_v_shape`` report per curve. Each
         curve then shows, in its color, a triangle at the bottom of its V
         and a shaded band over the steps its order was fitted on; its
-        legend entry gives the fitted order and pass or fail. A labelled
+        legend entry gives the fitted order and pass or fail. A labeled
         dotted line marks the largest step a bottom may sit at, drawn once
         per distinct value (in black when several curves share it).
 
@@ -128,7 +128,7 @@ def _draw_v_shape(
 def _draw_bottom_bounds(
     ax: Axes, reports: Sequence[VShapeReport], colors: Sequence[ColorType]
 ) -> None:
-    """One dotted, labelled line per distinct largest bottom step.
+    """One dotted, labeled line per distinct largest bottom step.
 
     Curves usually share the bound (forward and central have one each),
     and drawing it per curve would stack identical lines. A bound shared
