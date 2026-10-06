@@ -7,7 +7,6 @@ from pyapprox.interface.functions.autograd import WithAutogradJacobian
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
 )
@@ -24,8 +23,6 @@ from pyapprox.statest.groupacv.optimization import (
     GroupACVCostObjective,
     GroupACVLogDetObjective,
     GroupACVRequirementConstraint,
-    GroupACVToleranceConstraint,
-    GroupACVTraceObjective,
 )
 from pyapprox.statest.groupacv.tolerance_allocation import (
     GroupACVToleranceAllocator,
@@ -173,105 +170,6 @@ class TestGroupACVCostObjective:
             obj.nvars()
 
 
-class TestGroupACVToleranceConstraint:
-    """The criterion held at or below a tolerance."""
-
-    def _make(self, bkd, tolerance=-2.0):
-        est = _make_estimator(bkd)
-        criterion = GroupACVLogDetObjective(bkd)
-        con = GroupACVToleranceConstraint(criterion, bkd)
-        con.set_estimator(est)
-        con.set_tolerance(tolerance, 1)
-        return est, criterion, con
-
-    def test_row_layout_matches_cost_constraint(self, bkd) -> None:
-        """Two rows, so the existing bound handling applies unchanged."""
-        _, _, con = self._make(bkd)
-        bkd.assert_allclose(bkd.asarray([con.nqoi()]), bkd.asarray([2]))
-
-    def test_bounds_are_lower_only(self, bkd) -> None:
-        """The requirement rides in the value, not in a finite upper
-        bound: the SLSQP adapter drops an upper bound unless every row
-        has one, and the sample-count row has none."""
-        _, _, con = self._make(bkd)
-        bkd.assert_allclose(con.lb(), bkd.zeros((2,)))
-        assert bool(np.all(np.isinf(bkd.to_numpy(con.ub()))))
-
-    def test_first_row_is_tolerance_minus_criterion(self, bkd) -> None:
-        est, criterion, con = self._make(bkd, tolerance=-2.0)
-        iterate = est._init_guess(100.0)
-        bkd.assert_allclose(
-            con(iterate)[0, 0],
-            -2.0 - criterion(iterate)[0, 0],
-            rtol=1e-12,
-        )
-
-    def test_second_row_matches_cost_constraint(self, bkd) -> None:
-        """The minimum-sample row is shared with the budget direction."""
-        est, _, con = self._make(bkd)
-        cost_con = GroupACVCostConstraint(bkd)
-        cost_con.set_estimator(est)
-        cost_con.set_budget(100.0, 1)
-        iterate = est._init_guess(100.0)
-        bkd.assert_allclose(
-            con(iterate)[1, 0], cost_con(iterate)[1, 0], rtol=1e-12
-        )
-
-    def test_jacobian_negates_the_criterion(self, bkd) -> None:
-        est, criterion, con = self._make(bkd)
-        iterate = est._init_guess(100.0)
-        jac = con.derivatives().jacobian(iterate)
-        bkd.assert_allclose(
-            jac[0:1, :],
-            -criterion.derivatives().jacobian(iterate),
-            rtol=1e-10,
-        )
-
-    def test_whvp_is_nonzero(self, bkd) -> None:
-        """The criterion has curvature, unlike the cost constraint.
-
-        A zero weighted Hessian here would be the wrapper bug the
-        variable-space chain rules were fixed for, reintroduced at the
-        constraint itself.
-        """
-        est, _, con = self._make(bkd)
-        iterate = est._init_guess(100.0)
-        vec = bkd.full((con.nvars(), 1), 0.5)
-        weights = bkd.array([[1.0], [0.0]])
-        whvp = con.derivatives().whvp(iterate, vec, weights)
-        assert float(bkd.max(bkd.abs(whvp))) > 1e-8
-
-    def test_capability_absent_without_criterion_derivatives(
-        self, bkd
-    ) -> None:
-        """A criterion without analytical derivatives yields no bundle
-        fields, rather than zero-valued ones.
-
-        GroupACV objectives report no derivatives unless the statistic
-        supplies sigma-block derivatives and the estimator is
-        independent-sample, so a nested estimator exercises this.
-        """
-        est = _make_estimator(bkd)
-        criterion = GroupACVLogDetObjective(bkd)
-
-        class _NoDerivatives(type(criterion)):
-            def _build_derivatives(self):
-                return Derivatives.none()
-
-        bare = _NoDerivatives(bkd)
-        bare.set_estimator(est)
-        assert bare.derivatives().jacobian is None
-        con = GroupACVToleranceConstraint(bare, bkd)
-        con.set_estimator(est)
-        assert con.derivatives().jacobian is None
-        assert con.derivatives().whvp is None
-
-    def test_normalization_survives_signed_tolerance(self, bkd) -> None:
-        """Log-scale tolerances are signed and may sit near zero."""
-        for tolerance in (-12.0, 0.0, 3.0):
-            _, _, con = self._make(bkd, tolerance=tolerance)
-            norm = con.normalization()
-            assert bool(np.all(bkd.to_numpy(norm) > 0))
 
 
 class TestGroupACVToleranceAllocator:
@@ -296,12 +194,13 @@ class TestGroupACVToleranceAllocator:
         """The solver is injected, so a different one still applies."""
         est = _make_estimator(bkd)
         tolerance = -2.0
+        requirement = LogDeterminantConstraint(tolerance, bkd)
         default = GroupACVToleranceAllocator(est).allocate_for_tolerance(
-            tolerance, round_nsamples=False
+            requirement, round_nsamples=False
         )
         swapped = GroupACVToleranceAllocator(
             est, optimizer=ScipySLSQPOptimizer(maxiter=2000, ftol=1e-10)
-        ).allocate_for_tolerance(tolerance, round_nsamples=False)
+        ).allocate_for_tolerance(requirement, round_nsamples=False)
         assert swapped.success
         assert float(swapped.constraint_value[0]) <= tolerance + 1e-6
         assert swapped.total_cost <= default.total_cost * (1 + 1e-2)
@@ -310,7 +209,9 @@ class TestGroupACVToleranceAllocator:
         est = _make_estimator(bkd)
         alloc = GroupACVToleranceAllocator(est)
         tolerance = -2.0
-        result = alloc.allocate_for_tolerance(tolerance)
+        result = alloc.allocate_for_tolerance(
+            LogDeterminantConstraint(tolerance, bkd)
+        )
         assert result.success
         assert float(result.constraint_value[0]) <= tolerance + 1e-9
 
@@ -320,19 +221,22 @@ class TestGroupACVToleranceAllocator:
         """Flooring the relaxed solution would violate the tolerance.
 
         The relaxed optimum sits on the boundary, so discarding
-        fractional parts moves the criterion the wrong way. This is the
+        fractional parts moves the requirement the wrong way. This is the
         opposite of the budget-driven path, which floors to stay under
         budget.
         """
         est = _make_estimator(bkd)
         alloc = GroupACVToleranceAllocator(est)
         tolerance = -2.0
+        requirement = LogDeterminantConstraint(tolerance, bkd)
         relaxed = alloc.allocate_for_tolerance(
-            tolerance, round_nsamples=False
+            requirement, round_nsamples=False
         )
         floored = bkd.floor(relaxed.npartition_samples)
-        floored_value = alloc._criterion_value(floored)
-        rounded = alloc.allocate_for_tolerance(tolerance)
+        floored_value = bkd.to_float(
+            requirement.value(est._covariance_from_npartition_samples(floored))
+        )
+        rounded = alloc.allocate_for_tolerance(requirement)
         assert float(rounded.constraint_value[0]) <= tolerance + 1e-9
         assert floored_value > tolerance
 
@@ -340,7 +244,9 @@ class TestGroupACVToleranceAllocator:
         """A loose tolerance returns the cheapest feasible allocation."""
         est = _make_estimator(bkd)
         alloc = GroupACVToleranceAllocator(est)
-        result = alloc.allocate_for_tolerance(1e6)
+        result = alloc.allocate_for_tolerance(
+            LogDeterminantConstraint(1e6, bkd)
+        )
         assert result.success
         assert "minimum feasible allocation" in result.message
 
@@ -348,15 +254,16 @@ class TestGroupACVToleranceAllocator:
         est = _make_estimator(bkd)
         alloc = GroupACVToleranceAllocator(est)
         with pytest.raises(ValueError, match="not achievable"):
-            alloc.allocate_for_tolerance(-1e9)
+            alloc.allocate_for_tolerance(LogDeterminantConstraint(-1e9, bkd))
 
     def test_max_cost_skips_the_reference_search(self, bkd) -> None:
         """Supplying a ceiling avoids probing for a feasible reference."""
         est = _make_estimator(bkd)
         alloc = GroupACVToleranceAllocator(est)
-        unbounded = alloc.allocate_for_tolerance(-2.0)
+        requirement = LogDeterminantConstraint(-2.0, bkd)
+        unbounded = alloc.allocate_for_tolerance(requirement)
         bounded = alloc.allocate_for_tolerance(
-            -2.0, max_cost=10.0 * unbounded.total_cost
+            requirement, max_cost=10.0 * unbounded.total_cost
         )
         assert bounded.success
         assert float(bounded.constraint_value[0]) <= -2.0 + 1e-9
@@ -365,7 +272,7 @@ class TestGroupACVToleranceAllocator:
         """The minimized quantity and the guarantee are separate fields."""
         est = _make_estimator(bkd)
         alloc = GroupACVToleranceAllocator(est)
-        result = alloc.allocate_for_tolerance(-2.0)
+        result = alloc.allocate_for_tolerance(LogDeterminantConstraint(-2.0, bkd))
         bkd.assert_allclose(
             bkd.asarray([result.total_cost]),
             bkd.asarray(
@@ -386,12 +293,12 @@ class TestGroupACVToleranceAllocator:
 
 
 class TestAutogradComposition:
-    """Derivatives absent from a criterion are composed, not skipped.
+    """Derivatives absent from the covariance are composed, not skipped.
 
     Analytical derivatives require the statistic to supply sigma-block
     derivatives and the estimator to be independent-sample, so a nested
     estimator has none. In the budget-driven direction only the
-    objective can lack them; here the criterion sits in the constraint
+    objective can lack them; here the requirement sits in the constraint
     role, so the constraint can lack them too.
     """
 
@@ -413,15 +320,15 @@ class TestAutogradComposition:
         wrapped = WithAutogradJacobian(criterion, torch_bkd)
         assert wrapped.derivatives().jacobian is not None
 
-    def test_constraint_capability_follows_the_criterion(
+    def test_constraint_capability_follows_the_covariance(
         self, torch_bkd
     ) -> None:
         """Absent stays absent rather than becoming a zero stub."""
         est = _make_nested_estimator(torch_bkd)
-        criterion = GroupACVLogDetObjective(torch_bkd)
-        constraint = GroupACVToleranceConstraint(criterion, torch_bkd)
+        constraint = GroupACVRequirementConstraint(
+            LogDeterminantConstraint(-1.0, torch_bkd)
+        )
         constraint.set_estimator(est)
-        constraint.set_tolerance(-1.0, 1)
         assert constraint.derivatives().jacobian is None
         assert constraint.derivatives().whvp is None
 
@@ -440,7 +347,9 @@ class TestAutogradComposition:
             est, optimizer=ScipySLSQPOptimizer(maxiter=2000, ftol=1e-10)
         )
         tolerance = -2.0
-        result = alloc.allocate_for_tolerance(tolerance)
+        result = alloc.allocate_for_tolerance(
+            LogDeterminantConstraint(tolerance, torch_bkd)
+        )
         assert result.success
         assert float(result.constraint_value[0]) <= tolerance + 1e-9
 
@@ -514,7 +423,8 @@ class TestFeasibilityIsVerifiedNotAssumed:
         )
         tolerance = -2.0
         result = alloc.allocate_for_tolerance(
-            tolerance, round_nsamples=False
+            LogDeterminantConstraint(tolerance, torch_bkd),
+            round_nsamples=False,
         )
         assert not result.success
         assert "misses the tolerance" in result.message
@@ -535,7 +445,9 @@ class TestFeasibilityIsVerifiedNotAssumed:
         ):
             result = GroupACVToleranceAllocator(
                 est, optimizer=optimizer
-            ).allocate_for_tolerance(-2.0, round_nsamples=False)
+            ).allocate_for_tolerance(
+                LogDeterminantConstraint(-2.0, torch_bkd), round_nsamples=False
+            )
             assert result.success
             assert float(result.constraint_value[0]) <= -2.0 + 1e-6
 
@@ -557,7 +469,7 @@ class TestDuality:
         )
         tolerance = float(forward.objective_value[0])
         inverse = GroupACVToleranceAllocator(est).allocate_for_tolerance(
-            tolerance, round_nsamples=False
+            LogDeterminantConstraint(tolerance, bkd), round_nsamples=False
         )
         assert inverse.success
         assert inverse.total_cost <= forward.actual_cost * (1 + 1e-3)
@@ -578,7 +490,7 @@ class TestDuality:
         alloc = GroupACVToleranceAllocator(est)
         tolerance = -2.0
         result = alloc.allocate_for_tolerance(
-            tolerance, round_nsamples=False
+            LogDeterminantConstraint(tolerance, bkd), round_nsamples=False
         )
         assert result.success
         achieved = float(result.constraint_value[0])
@@ -600,12 +512,14 @@ class TestDuality:
         est = _make_estimator(bkd)
         alloc = GroupACVToleranceAllocator(est)
         tolerance = -2.0
-        result = alloc.allocate_for_tolerance(tolerance)
+        requirement = LogDeterminantConstraint(tolerance, bkd)
+        result = alloc.allocate_for_tolerance(requirement)
         assert result.success
         samples = bkd.asarray(
             result.npartition_samples, dtype=bkd.double_dtype()
         )
-        assert alloc._criterion_value(0.9 * samples) > tolerance
+        smaller = est._covariance_from_npartition_samples(0.9 * samples)
+        assert bkd.to_float(requirement.value(smaller)) > tolerance
 
 
 class TestCrossFamilyEquivalence:
@@ -671,22 +585,13 @@ class TestCrossFamilyEquivalence:
     def test_same_cost_for_the_same_requirement(self, bkd) -> None:
         """Both families reach an accuracy target at the same cost."""
         mlblue, cv = _make_all_known_mlblue(bkd)
-        target_se = 0.02
+        requirement = MaxMarginalStandardErrorConstraint(0.02, bkd)
         cv_result = CVToleranceAllocator(cv).allocate_for_tolerance(
-            MaxMarginalStandardErrorConstraint(target_se, bkd)
+            requirement
         )
-        # The criterion path's row is the squared standard error itself,
-        # about 4e-4, which the trust-region default converges on only
-        # slowly; this test is about cost, so it names the solver.
-        groupacv = GroupACVToleranceAllocator(
-            mlblue,
-            criterion=GroupACVTraceObjective(bkd),
-            optimizer=ScipySLSQPOptimizer(maxiter=2000, ftol=1e-10),
-        )
-        # nqoi is 1, so the trace of the estimator covariance is the
-        # variance and the requirement is the squared standard error.
-        result = groupacv.allocate_for_tolerance(
-            target_se**2, round_nsamples=False
+        # The same requirement object prices both families.
+        result = GroupACVToleranceAllocator(mlblue).allocate_for_tolerance(
+            requirement, round_nsamples=False
         )
         assert result.success
         # The control-variate allocator must take whole samples of every
@@ -710,7 +615,9 @@ class TestVariableSpaceConsistency:
             ),
         )
         tolerance = -2.0
-        result = alloc.allocate_for_tolerance(tolerance)
+        result = alloc.allocate_for_tolerance(
+            LogDeterminantConstraint(tolerance, bkd)
+        )
         assert result.success
         assert float(result.constraint_value[0]) <= tolerance + 1e-9
 
@@ -762,6 +669,34 @@ class TestGroupACVRequirementConstraint:
         assert float(checker.error_ratio(errors[0])) <= 1e-6
         assert float(checker.error_ratio(errors[1])) <= 1e-6
 
+    def test_bounds_are_lower_only(self, bkd) -> None:
+        """The requirement rides in the values, not in finite upper
+        bounds, and the floor row has none."""
+        est = _make_scaled_estimator(bkd, [1.0, 5.0])
+        constraint = GroupACVRequirementConstraint(
+            MaxMarginalStandardErrorConstraint(0.05, bkd)
+        )
+        constraint.set_estimator(est)
+        bkd.assert_allclose(constraint.lb(), bkd.zeros((constraint.nqoi(),)))
+        assert bool(np.all(np.isinf(bkd.to_numpy(constraint.ub()))))
+
+    def test_floor_row_matches_the_cost_constraint(self, bkd) -> None:
+        """The minimum-sample row is shared with the budget direction."""
+        est = _make_scaled_estimator(bkd, [1.0, 5.0])
+        constraint = GroupACVRequirementConstraint(
+            MaxMarginalStandardErrorConstraint(0.05, bkd)
+        )
+        constraint.set_estimator(est)
+        constraint.set_min_nhf_samples(1)
+        cost_constraint = GroupACVCostConstraint(bkd)
+        cost_constraint.set_estimator(est)
+        cost_constraint.set_budget(100.0, 1)
+        iterate = est._init_guess(100.0)
+        bkd.assert_allclose(
+            constraint(iterate)[-1, 0], cost_constraint(iterate)[1, 0],
+            rtol=1e-12,
+        )
+
     def test_one_row_per_statistic_then_the_floor(self, bkd) -> None:
         est = _make_scaled_estimator(bkd, [1.0, 5.0, 25.0])
         constraint = GroupACVRequirementConstraint(
@@ -788,7 +723,7 @@ class TestAllocateForRequirement:
     def test_requirement_is_met(self, bkd, make) -> None:
         req = make(bkd)
         est = _make_scaled_estimator(bkd, [1.0, 5.0])
-        result = GroupACVToleranceAllocator(est).allocate_for_requirement(req)
+        result = GroupACVToleranceAllocator(est).allocate_for_tolerance(req)
         assert result.success
         covariance = est._covariance_from_npartition_samples(
             bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
@@ -802,10 +737,10 @@ class TestAllocateForRequirement:
         eps = 0.05
         est = _make_scaled_estimator(bkd, [1.0, 5.0, 25.0])
         alloc = GroupACVToleranceAllocator(est)
-        per_statistic = alloc.allocate_for_requirement(
+        per_statistic = alloc.allocate_for_tolerance(
             MaxMarginalStandardErrorConstraint(eps, bkd)
         )
-        total = alloc.allocate_for_requirement(TraceConstraint(3 * eps**2, bkd))
+        total = alloc.allocate_for_tolerance(TraceConstraint(3 * eps**2, bkd))
 
         def worst(result):
             covariance = est._covariance_from_npartition_samples(
@@ -818,36 +753,6 @@ class TestAllocateForRequirement:
         assert per_statistic.success and total.success
         assert worst(per_statistic) <= eps
         assert worst(total) > eps
-
-    @pytest.mark.parametrize(
-        "make,criterion_cls,tolerance",
-        [
-            (lambda bkd: TraceConstraint(0.01, bkd), GroupACVTraceObjective, 0.01),
-            (
-                lambda bkd: LogDeterminantConstraint(-12.0, bkd),
-                GroupACVLogDetObjective,
-                -12.0,
-            ),
-        ],
-        ids=["trace", "log-det"],
-    )
-    def test_a_single_row_agrees_with_the_criterion(
-        self, bkd, make, criterion_cls, tolerance
-    ) -> None:
-        """The scalar case is the old criterion path, reached by rows."""
-        est = _make_scaled_estimator(bkd, [1.0, 5.0])
-        by_rows = GroupACVToleranceAllocator(est).allocate_for_requirement(
-            make(bkd), round_nsamples=False
-        )
-        by_criterion = GroupACVToleranceAllocator(
-            est, criterion=criterion_cls(bkd)
-        ).allocate_for_tolerance(tolerance, round_nsamples=False)
-        assert by_rows.success and by_criterion.success
-        bkd.assert_allclose(
-            bkd.asarray([by_rows.total_cost]),
-            bkd.asarray([by_criterion.total_cost]),
-            rtol=1e-3,
-        )
 
     def test_without_analytical_derivatives(self, torch_bkd) -> None:
         """A nested estimator solves through the autograd jacobian.
@@ -864,11 +769,11 @@ class TestAllocateForRequirement:
         req = LogDeterminantConstraint(-12.0, bkd)
         result = GroupACVToleranceAllocator(
             est, optimizer=ScipySLSQPOptimizer(maxiter=2000, ftol=1e-10)
-        ).allocate_for_requirement(req)
+        ).allocate_for_tolerance(req)
         assert result.success
         assert float(result.constraint_value[0]) <= -12.0
 
     def test_requirement_must_satisfy_the_protocol(self, numpy_bkd) -> None:
         alloc = GroupACVToleranceAllocator(_make_estimator(numpy_bkd))
         with pytest.raises(TypeError, match="ToleranceConstraintProtocol"):
-            alloc.allocate_for_requirement(0.05)
+            alloc.allocate_for_tolerance(0.05)

@@ -8,14 +8,17 @@ have.
 
 The two directions are separate classes rather than two methods on one.
 They put different objects in the objective and constraint roles -- cost
-becomes the objective and the criterion becomes the constraint -- so a
-single class would carry four role-slots of which any one call uses two,
-and its ``_objective`` attribute would mean the minimized quantity in one
-method and the constrained quantity in the other.
+becomes the objective and the accuracy requirement the constraint -- so
+a single class would carry four role-slots of which any one call uses
+two, and its ``_objective`` attribute would mean the minimized quantity
+in one method and the constrained quantity in the other.
+
+The requirement is the same object the Monte Carlo and control variate
+allocators take (:class:`~pyapprox.statest.tolerance.ToleranceConstraintProtocol`),
+so every estimator family is priced on one tolerance.
 """
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Generic, Optional, Union
+from typing import TYPE_CHECKING, Callable, Generic, Optional
 
 from pyapprox.statest.groupacv._allocation_common import (
     raw_bounds,
@@ -23,10 +26,7 @@ from pyapprox.statest.groupacv._allocation_common import (
 )
 from pyapprox.statest.groupacv.optimization import (
     GroupACVCostObjective,
-    GroupACVLogDetObjective,
-    GroupACVObjective,
     GroupACVRequirementConstraint,
-    GroupACVToleranceConstraint,
 )
 from pyapprox.statest.groupacv.result import GroupACVToleranceResult
 from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig
@@ -53,35 +53,6 @@ _MAX_REFERENCE_DOUBLINGS = 60
 # ~1e-1. Anything between those leaves the result reported as a
 # failure, which is the safe direction.
 _FEASIBILITY_RTOL = 1e-8
-
-
-@dataclass(frozen=True)
-class _Requirement(Generic[Array]):
-    """What the shared search needs to know about a requirement.
-
-    Attributes
-    ----------
-    constraint : GroupACVToleranceConstraint or GroupACVRequirementConstraint
-        The smooth constraint the solver holds, bound to the estimator.
-    excess : callable
-        How far a 1D allocation is from meeting it; met at or below
-        zero.
-    slack_scale : float
-        The scale of ``excess``, for the relative slack the post-solve
-        check allows a converged answer sitting on the boundary.
-    report : callable
-        The achieved value at a 1D allocation, shape ``(1,)``.
-    description : str
-        The requirement, for messages.
-    """
-
-    constraint: Union[
-        GroupACVToleranceConstraint[Array], GroupACVRequirementConstraint[Array]
-    ]
-    excess: Callable[[Array], float]
-    slack_scale: float
-    report: Callable[[Array], Array]
-    description: str
 
 
 def default_tolerance_optimizer() -> "BindableOptimizerProtocol[Array]":
@@ -136,24 +107,15 @@ class GroupACVToleranceAllocator(Generic[Array]):
     def __init__(
         self,
         estimator: "BaseGroupACVEstimator[Array]",
-        criterion: Optional[GroupACVObjective[Array]] = None,
         optimizer: Optional["BindableOptimizerProtocol[Array]"] = None,
         problem_config: Optional[AllocationProblemConfig] = None,
     ) -> None:
         self._est = estimator
         self._bkd = estimator._bkd
-        if criterion is None:
-            criterion = GroupACVLogDetObjective(self._bkd)
-        criterion.set_estimator(estimator)
-        self._criterion = criterion
         self._cost_objective: GroupACVCostObjective[Array] = (
             GroupACVCostObjective(self._bkd)
         )
         self._cost_objective.set_estimator(estimator)
-        self._constraint: GroupACVToleranceConstraint[Array] = (
-            GroupACVToleranceConstraint(criterion, self._bkd)
-        )
-        self._constraint.set_estimator(estimator)
         if optimizer is None:
             optimizer = default_tolerance_optimizer()
         self._optimizer = optimizer
@@ -168,16 +130,6 @@ class GroupACVToleranceAllocator(Generic[Array]):
             # log-space reaches the optimum.
             problem_config = AllocationProblemConfig(variable_scaling="log")
         self._config = problem_config
-
-    def criterion(self) -> GroupACVObjective[Array]:
-        """Return the criterion the tolerance is applied to."""
-        return self._criterion
-
-    def _criterion_value(self, npartition_samples_1d: Array) -> float:
-        """Criterion value at a 1D allocation."""
-        return self._bkd.to_float(
-            self._criterion(npartition_samples_1d[:, None])
-        )
 
     def _uniform_allocation(self, multiplier: float) -> Array:
         """Uniform allocation with ``multiplier`` samples per partition."""
@@ -286,70 +238,6 @@ class GroupACVToleranceAllocator(Generic[Array]):
 
     def allocate_for_tolerance(
         self,
-        tolerance: float,
-        min_nhf_samples: int = 1,
-        init_guess: Optional[Array] = None,
-        round_nsamples: bool = True,
-        max_cost: Optional[float] = None,
-    ) -> GroupACVToleranceResult[Array]:
-        """Find the cheapest allocation whose criterion is at or below
-        ``tolerance``.
-
-        Parameters
-        ----------
-        tolerance : float
-            Largest acceptable criterion value, in the units of this
-            allocator's criterion. With the default log-determinant
-            criterion the value is on a log scale and is normally
-            negative.
-        min_nhf_samples : int, optional
-            Minimum high-fidelity samples. Default is 1.
-        init_guess : Array, optional
-            Initial guess, shape (npartitions, 1). Defaults to a
-            feasible uniform allocation found by scaling.
-        round_nsamples : bool, optional
-            Whether to round the result to integers. Default is True.
-        max_cost : float, optional
-            Cost ceiling for the search. Supplying it skips the search
-            for a feasible reference allocation.
-
-        Returns
-        -------
-        GroupACVToleranceResult
-            The allocation, its cost, and its achieved criterion value.
-
-        Raises
-        ------
-        ValueError
-            If no allocation attains the tolerance.
-        """
-        min_nhf = max(self._est._stat.min_nsamples(), min_nhf_samples)
-        self._constraint.set_tolerance(tolerance, min_nhf)
-
-        def excess(npartition_samples_1d: Array) -> float:
-            return self._criterion_value(npartition_samples_1d) - tolerance
-
-        def report(npartition_samples_1d: Array) -> Array:
-            return self._bkd.flatten(
-                self._criterion(npartition_samples_1d[:, None])
-            )
-
-        return self._solve(
-            _Requirement(
-                self._constraint,
-                excess,
-                max(abs(tolerance), 1.0),
-                report,
-                f"tolerance {tolerance} on the criterion",
-            ),
-            min_nhf,
-            init_guess,
-            round_nsamples,
-            max_cost,
-        )
-
-    def allocate_for_requirement(
-        self,
         requirement: ToleranceConstraintProtocol[Array],
         min_nhf_samples: int = 1,
         init_guess: Optional[Array] = None,
@@ -418,9 +306,10 @@ class GroupACVToleranceAllocator(Generic[Array]):
             )
 
         return self._solve(
-            _Requirement(
-                constraint, excess, 1.0, report, requirement.description()
-            ),
+            constraint,
+            excess,
+            report,
+            requirement.description(),
             min_nhf,
             init_guess,
             round_nsamples,
@@ -429,25 +318,26 @@ class GroupACVToleranceAllocator(Generic[Array]):
 
     def _solve(
         self,
-        requirement: _Requirement[Array],
+        constraint: GroupACVRequirementConstraint[Array],
+        excess: Callable[[Array], float],
+        report: Callable[[Array], Array],
+        description: str,
         min_nhf: int,
         init_guess: Optional[Array],
         round_nsamples: bool,
         max_cost: Optional[float],
     ) -> GroupACVToleranceResult[Array]:
-        """The search both requirement forms share.
+        """Bracket, solve, and check the answer against the requirement.
 
         Bracket with a feasible reference, return the floor allocation
         if it already suffices, solve, and check the answer -- relaxed,
         then rounded up -- against the requirement rather than trusting
-        the solver's own status.
+        the solver's own status. ``excess`` is the requirement's largest
+        row at an allocation, met at or below zero; ``report`` its value
+        in the units it states.
         """
         bkd = self._bkd
-        excess = requirement.excess
-        report = requirement.report
-        reference = self._feasible_reference(
-            excess, requirement.description, min_nhf
-        )
+        reference = self._feasible_reference(excess, description, min_nhf)
         if max_cost is None:
             cost_ceiling = 2.0 * bkd.to_float(
                 self._est._estimator_cost(reference)
@@ -473,7 +363,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
             init_guess = reference[:, None]
         solution = solve_in_variable_space(
             self._cost_objective,
-            requirement.constraint,
+            constraint,
             n_bounds,
             init_guess,
             self._optimizer,
@@ -504,7 +394,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
         # where a converged answer lands within rounding of it; without
         # that, an exact test rejects good solutions over a difference
         # of order 1e-13. Genuine breakdowns miss by many orders more.
-        if excess(relaxed) > _FEASIBILITY_RTOL * requirement.slack_scale:
+        if excess(relaxed) > _FEASIBILITY_RTOL:
             return self._build_result(
                 reference,
                 reference,

@@ -29,9 +29,10 @@ from pyapprox.statest.groupacv.mlblue_optimizer import (
 from pyapprox.statest.groupacv.optimization import (
     GroupACVCostConstraint,
     GroupACVCostObjective,
+    GroupACVCovarianceDerivatives,
     GroupACVLogDetObjective,
     GroupACVObjective,
-    GroupACVToleranceConstraint,
+    GroupACVRequirementConstraint,
     GroupACVTraceObjective,
     MLBLUEObjective,
 )
@@ -91,7 +92,8 @@ __all__ = [
     "default_groupacv_optimizer",
     # Tolerance-driven (inverse) allocation
     "GroupACVCostObjective",
-    "GroupACVToleranceConstraint",
+    "GroupACVCovarianceDerivatives",
+    "GroupACVRequirementConstraint",
     "GroupACVToleranceResult",
     "GroupACVToleranceAllocator",
     "default_tolerance_optimizer",
