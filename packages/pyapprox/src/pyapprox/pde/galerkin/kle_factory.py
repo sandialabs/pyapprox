@@ -31,7 +31,10 @@ from pyapprox.pde.field_maps.transformed import (
     _ExpTransform,
 )
 from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
-from pyapprox.pde.galerkin.noise_mass import ConsistentNoiseMass
+from pyapprox.pde.galerkin.noise_mass import (
+    ConsistentNoiseMass,
+    NoiseMassProtocol,
+)
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.surrogates.kle.spde_kle import SPDEMaternKLE
 from pyapprox.surrogates.kle.utils import (
@@ -101,6 +104,7 @@ def create_spde_matern_kle(
     bkd: Backend[Array],
     xi: Optional[float] = None,
     mean_field: Union[float, Array] = 0.0,
+    noise_mass: Optional[NoiseMassProtocol[Array]] = None,
 ) -> SPDEMaternKLE[Array]:
     r"""Create a KLE via the SPDE representation of a Matern random field.
 
@@ -149,6 +153,12 @@ def create_spde_matern_kle(
         Robin BC coefficient.  Default: ``sqrt(gamma * delta)``.
     mean_field : float or Array, optional
         Mean field.  Scalar is broadcast to all nodes.  Default: 0.
+    noise_mass : NoiseMassProtocol, optional
+        The mass :math:`M` of the white noise, hence of the covariance
+        :math:`A^{-1} M A^{-1}` and the eigenproblem. Default:
+        ``ConsistentNoiseMass(basis, bkd)``. ``LumpedNoiseMass`` gives
+        the KLE of the prior's default (lumped) samples; the two agree
+        as the mesh is refined.
 
     Returns
     -------
@@ -157,16 +167,18 @@ def create_spde_matern_kle(
     """
     if xi is None:
         xi = np.sqrt(gamma * delta)
+    if noise_mass is None:
+        noise_mass = ConsistentNoiseMass(basis, bkd)
 
-    # The precision operator A and the consistent mass M, both from the
-    # prior; it solves A phi = mu M phi for the n_modes smallest mu.
+    # The precision operator A and the mass M, both from the prior; it
+    # solves A phi = mu M phi for the n_modes smallest mu.
     prior = BiLaplacianPrior.with_uniform_robin(
         basis,
         gamma=gamma,
         delta=delta,
         bkd=bkd,
         robin_alpha=xi,
-        noise_mass=ConsistentNoiseMass(basis, bkd),
+        noise_mass=noise_mass,
     )
     mu_array, phi_array = prior.generalized_eigenpairs(n_modes)
     mu_vals = bkd.to_numpy(mu_array)
@@ -209,6 +221,7 @@ def create_spde_lognormal_kle_field_map(
     delta: float,
     sigma: float,
     xi: Optional[float] = None,
+    noise_mass: Optional[NoiseMassProtocol[Array]] = None,
 ) -> TransformedFieldMap[Array]:
     r"""Create a lognormal field map using the SPDE-based Matern KLE.
 
@@ -237,6 +250,9 @@ def create_spde_lognormal_kle_field_map(
         Standard deviation of the log-field.
     xi : float, optional
         Robin BC coefficient.  Default: ``sqrt(gamma * delta)``.
+    noise_mass : NoiseMassProtocol, optional
+        White-noise mass, passed to ``create_spde_matern_kle``.
+        Default: ``ConsistentNoiseMass(basis, bkd)``.
 
     Returns
     -------
@@ -251,6 +267,7 @@ def create_spde_lognormal_kle_field_map(
         sigma=sigma,
         bkd=bkd,
         xi=xi,
+        noise_mass=noise_mass,
     )
 
     inner = MeshKLEFieldMap(

@@ -215,6 +215,7 @@ from pyapprox.pde.field_maps.kle_factory import (
     create_fem_nystrom_nodes_kle,
 )
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
 from pyapprox.pde.galerkin.kle_factory import (
     create_spde_lognormal_kle_field_map,
     create_spde_matern_kle,
@@ -223,7 +224,12 @@ from pyapprox.pde.galerkin.mesh.structured import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
+from pyapprox.pde.galerkin.noise_mass import (
+    ConsistentNoiseMass,
+    LumpedNoiseMass,
+)
 from pyapprox.surrogates.kle.protocols import KLEProtocol
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 def _make_2d_kle(
@@ -764,3 +770,68 @@ class TestSPDEMaternKLE:
 
         # At L=40, error should be modest (< 5%)
         assert max_errors[2] < 0.05
+
+
+class TestSPDEKLENoiseMass:
+    """The KLE's covariance is that of the prior with the same noise
+    mass. On a full-rank expansion (``n_modes = ndofs``) it equals
+    ``c K^{-1} M K^{-1}`` exactly, with one constant ``c`` (the
+    variance scaling, independent of the mass) for both masses."""
+
+    def test_full_rank_kle_matches_prior_covariance(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        bkd = numpy_bkd
+        mesh = StructuredMesh2D(
+            nx=3, ny=3, bounds=[[0, 1], [0, 1]], bkd=bkd
+        )
+        basis = LagrangeBasis(mesh, degree=1)
+        gamma, delta, xi = 1.0, 4.0, 1.5
+        kle_cov, prior_cov = {}, {}
+        for name, noise_mass in (
+            ("consistent", ConsistentNoiseMass(basis, bkd)),
+            ("lumped", LumpedNoiseMass(basis, bkd)),
+        ):
+            kle = create_spde_matern_kle(
+                basis,
+                n_modes=basis.ndofs(),
+                gamma=gamma,
+                delta=delta,
+                sigma=0.7,
+                bkd=bkd,
+                xi=xi,
+                noise_mass=noise_mass,
+            )
+            weighted = kle.weighted_eigenvectors()
+            kle_cov[name] = weighted @ weighted.T
+            prior_cov[name] = BiLaplacianPrior.with_uniform_robin(
+                basis, gamma=gamma, delta=delta, bkd=bkd, robin_alpha=xi,
+                noise_mass=noise_mass,
+            ).covariance()
+        scale = kle_cov["consistent"][0, 0] / prior_cov["consistent"][0, 0]
+        for name in ("consistent", "lumped"):
+            bkd.assert_allclose(
+                kle_cov[name], scale * prior_cov[name], rtol=1e-10
+            )
+        # The choice is used: the two covariances differ at this mesh.
+        assert not bkd.allclose(
+            kle_cov["lumped"], kle_cov["consistent"], rtol=1e-3
+        )
+
+    def test_default_is_consistent(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        kle_default, basis = _make_2d_kle(bkd, n_modes=4, nx=6, ny=6)
+        kle_consistent = create_spde_matern_kle(
+            basis,
+            n_modes=4,
+            gamma=1.0,
+            delta=1.0,
+            sigma=1.0,
+            bkd=bkd,
+            noise_mass=ConsistentNoiseMass(basis, bkd),
+        )
+        bkd.assert_allclose(
+            kle_default.weighted_eigenvectors(),
+            kle_consistent.weighted_eigenvectors(),
+            rtol=1e-12,
+        )
