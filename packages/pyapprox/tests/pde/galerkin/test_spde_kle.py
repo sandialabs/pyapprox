@@ -320,7 +320,10 @@ class TestSPDEMaternKLE:
             atol=1e-10,
         )
 
-    def test_pointwise_variance_matches_target(self, numpy_bkd) -> None:
+    @pytest.mark.parametrize("sigma", [0.5, 1.0, 2.0])
+    def test_pointwise_variance_matches_target(
+        self, numpy_bkd: NumpyBkd, sigma: float
+    ) -> None:
         """Interior pointwise variance is approximately sigma^2.
 
         The SPDE with Robin BCs on a bounded domain has reduced variance
@@ -332,9 +335,11 @@ class TestSPDEMaternKLE:
         Greater agreement can be achieved by increasing n_modes toward
         ndofs or by using a larger domain with the same correlation
         length, at the cost of longer test runtime.
+
+        Sigma other than 1 separates sigma^2 from sigma^4, which a
+        double-applied sigma would give.
         """
         bkd = numpy_bkd
-        sigma = 1.0
         kle, basis = _make_2d_kle(
             bkd,
             n_modes=60,
@@ -358,7 +363,7 @@ class TestSPDEMaternKLE:
         interior_var = var[interior]
         mean_interior_var = np.mean(interior_var)
 
-        assert abs(mean_interior_var - sigma**2) < 3e-2
+        assert abs(mean_interior_var / sigma**2 - 1.0) < 3e-2
 
     def test_robin_bc_affects_boundary_variance(self, numpy_bkd) -> None:
         """Robin BC parameter changes boundary variance profile.
@@ -656,7 +661,7 @@ class TestSPDEMaternKLE:
         from skfem import asm
         from skfem.models.poisson import mass
 
-        gamma, delta, sigma = 4.0, 1.0, 1.0
+        gamma, delta = 4.0, 1.0
         nx = 50
         n_modes = 10
 
@@ -679,7 +684,7 @@ class TestSPDEMaternKLE:
 
         # Compute tau^2
         d = basis.mesh().ndim()
-        tau_sq = _compute_spde_tau_squared(sigma, gamma, delta, d)
+        tau_sq = _compute_spde_tau_squared(gamma, delta, d)
 
         # Formula eigenvalues: lambda_k = gamma^2 / (tau^2 * mu_k^2)
         lambda_formula = gamma**2 / (tau_sq * mu_vals**2)

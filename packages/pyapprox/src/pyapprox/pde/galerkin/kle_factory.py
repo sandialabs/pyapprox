@@ -45,31 +45,30 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _compute_spde_tau_squared(
-    sigma: float,
     gamma: float,
     delta: float,
     d: int,
     alpha: int = 2,
 ) -> float:
-    r"""Compute :math:`\tau^2` from the SPDE-Matern variance formula.
+    r"""Compute :math:`\tau^2` giving unit marginal variance.
 
     The SPDE covariance is :math:`\Sigma = \tau^{-2} A^{-1} M A^{-1}`.
-    The parameter :math:`\tau` is determined by requiring the marginal
-    variance to equal :math:`\sigma^2`:
+    The parameter :math:`\tau` is determined by requiring the stationary
+    marginal variance to equal 1:
 
     .. math::
 
-        \sigma^2 = \frac{\Gamma(\nu)}
-                        {\Gamma(\nu + d/2)\,(4\pi)^{d/2}\,
-                         \kappa^{2\nu}\,\tau^2}
+        1 = \frac{\Gamma(\nu)}
+                 {\Gamma(\nu + d/2)\,(4\pi)^{d/2}\,
+                  \kappa^{2\nu}\,\tau^2}
 
     where :math:`\kappa = \sqrt{\delta/\gamma}` and
-    :math:`\nu = \alpha - d/2`.
+    :math:`\nu = \alpha - d/2`. A target standard deviation
+    :math:`\sigma` is applied once, by ``SPDEMaternKLE``; folding it in
+    here as well would give variance :math:`\sigma^4`.
 
     Parameters
     ----------
-    sigma : float
-        Target marginal standard deviation.
     gamma : float
         Diffusion coefficient.
     delta : float
@@ -90,7 +89,6 @@ def _compute_spde_tau_squared(
         gamma_func(nu + d / 2.0)
         * (4 * np.pi) ** (d / 2.0)
         * kappa ** (2 * nu)
-        * sigma**2
     )
     return float(tau_sq)
 
@@ -118,17 +116,20 @@ def create_spde_matern_kle(
     for the smallest eigenvalues :math:`\mu_k`.  The KLE eigenvalues are
     :math:`\lambda_k = \gamma^2/(\tau^2 \mu_k^2)` (the :math:`\gamma^2`
     arises because :math:`A = \gamma L_h`), where :math:`\tau` is computed
-    analytically from the SPDE-Matern variance formula:
+    analytically from the SPDE-Matern variance formula so that the
+    stationary marginal variance is 1:
 
     .. math::
 
-        \sigma^2 = \frac{\Gamma(\nu)}
-                        {\Gamma(\nu + d/2)\,(4\pi)^{d/2}\,
-                         \kappa^{2\nu}\,\tau^2}
+        1 = \frac{\Gamma(\nu)}
+                 {\Gamma(\nu + d/2)\,(4\pi)^{d/2}\,
+                  \kappa^{2\nu}\,\tau^2}
 
     with :math:`\kappa = \sqrt{\delta/\gamma}` and
-    :math:`\nu = \alpha - d/2`.  This ensures the SPDE eigenvalues
-    match the kernel-based eigenvalues mode-by-mode (up to
+    :math:`\nu = \alpha - d/2`.  ``SPDEMaternKLE`` then scales the
+    field by :math:`\sigma`, so the marginal variance is
+    :math:`\sigma^2`.  This ensures the SPDE eigenvalues match the
+    kernel-based unit-variance eigenvalues mode-by-mode (up to
     discretization and boundary effects).
 
     This uses only sparse matrices and a partial eigensolve, giving
@@ -183,9 +184,9 @@ def create_spde_matern_kle(
     mu_array, phi_array = prior.generalized_eigenpairs(n_modes)
     mu_vals = bkd.to_numpy(mu_array)
 
-    # Compute tau^2 analytically from the SPDE-Matern variance formula
+    # tau^2 for unit variance; SPDEMaternKLE scales by sigma.
     d = basis.mesh().ndim()
-    tau_sq = _compute_spde_tau_squared(sigma, gamma, delta, d)
+    tau_sq = _compute_spde_tau_squared(gamma, delta, d)
 
     # KLE eigenvalues: lambda_k = gamma^2 / (tau^2 * mu_k^2)
     # The gamma^2 factor arises because A = gamma * L_h where L_h is the
