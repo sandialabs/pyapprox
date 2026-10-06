@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Any, Dict, Generic, List, Optional, Self
+from typing import Any, Dict, Generic, List, Optional, Self, Tuple
 
 import numpy as np
 from scipy.optimize import Bounds
@@ -40,18 +40,8 @@ def _linear_fun_minus_bound(
     return np.asarray(matrix @ x - bound)
 
 
-def _linear_bound_minus_fun(
-    matrix: NumpyArray, bound: NumpyArray, x: NumpyArray
-) -> NumpyArray:
-    return np.asarray(bound - matrix @ x)
-
-
 def _linear_jac(matrix: NumpyArray, x: NumpyArray) -> NumpyArray:
     return matrix
-
-
-def _linear_neg_jac(matrix: NumpyArray, x: NumpyArray) -> NumpyArray:
-    return np.asarray(-matrix)
 
 
 def _nonlinear_fun_minus_bound(
@@ -62,20 +52,55 @@ def _nonlinear_fun_minus_bound(
     return np.asarray(adapter(x[:, None])[:, 0] - bound)
 
 
-def _nonlinear_bound_minus_fun(
-    adapter: NumpyDerivativesAdapter[Array],
-    bound: NumpyArray,
-    x: NumpyArray,
-) -> NumpyArray:
-    return np.asarray(bound - adapter(x[:, None])[:, 0])
-
-
 def _nonlinear_jac(np_jac: NumpyFn, x: NumpyArray) -> NumpyArray:
     return np_jac(x[:, None])
 
 
-def _nonlinear_neg_jac(np_jac: NumpyFn, x: NumpyArray) -> NumpyArray:
-    return np.asarray(-np_jac(x[:, None]))
+def _nonlinear_stacked(
+    adapter: NumpyDerivativesAdapter[Array],
+    lower: NumpyArray,
+    upper: NumpyArray,
+    lb: NumpyArray,
+    ub: NumpyArray,
+    x: NumpyArray,
+) -> NumpyArray:
+    """``f(x)[lower] - lb`` then ``ub - f(x)[upper]``, from one evaluation."""
+    values = adapter(x[:, None])[:, 0]
+    return np.concatenate((values[lower] - lb, ub - values[upper]))
+
+
+def _nonlinear_stacked_jac(
+    np_jac: NumpyFn, lower: NumpyArray, upper: NumpyArray, x: NumpyArray
+) -> NumpyArray:
+    jac = np_jac(x[:, None])
+    return np.vstack((jac[lower], -jac[upper]))
+
+
+def _bounded_rows(
+    lb: NumpyArray, ub: NumpyArray
+) -> Tuple[bool, NumpyArray, NumpyArray]:
+    """Whether every row is an equality, else the rows bounded each way.
+
+    A constraint whose rows are all equalities is held as one equality.
+    Otherwise every finite bound is held row by row, whatever the other
+    rows' bounds are -- an equality row in a mixed constraint by both of
+    its bounds.
+    """
+    finite_lb, finite_ub = np.isfinite(lb), np.isfinite(ub)
+    all_equal = bool(np.all(finite_lb & finite_ub) and np.allclose(lb, ub))
+    return all_equal, np.flatnonzero(finite_lb), np.flatnonzero(finite_ub)
+
+
+def _unbounded(constraint: object) -> ValueError:
+    """A constraint none of whose rows has a finite bound constrains nothing.
+
+    Almost always a wrong or swapped bound array, so it is refused rather
+    than dropped: dropping it is how a constraint can be ignored silently.
+    """
+    return ValueError(
+        f"{type(constraint).__name__} has no finite bound on any row, so "
+        "it constrains nothing; check its lb() and ub()"
+    )
 
 
 def _convert_constraints_for_slsqp(
@@ -87,10 +112,21 @@ def _convert_constraints_for_slsqp(
     optionally 'jac'. Inequality constraints must satisfy fun(x) >= 0,
     equality constraints must satisfy fun(x) == 0.
 
-    For a constraint lb <= f(x) <= ub:
-    - If lb == ub (equality): one eq constraint f(x) - lb == 0
-    - If lb is finite: ineq constraint f(x) - lb >= 0
-    - If ub is finite: ineq constraint ub - f(x) >= 0
+    Each constraint ``lb <= f(x) <= ub`` becomes exactly one dict, so it
+    is evaluated once per point -- SciPy calls every dict separately, so
+    splitting one constraint into several would evaluate it once each:
+
+    - every row an equality: ``f(x) - lb == 0``;
+    - otherwise one inequality stacking ``f_i(x) - lb_i >= 0`` over the
+      rows with a finite lower bound and ``ub_i - f_i(x) >= 0`` over
+      those with a finite upper bound, so each finite bound is held
+      whatever the other rows' bounds are.
+
+    An equality row in a constraint that also has inequality rows is
+    therefore held as two opposing inequalities, which SLSQP converges
+    on more slowly than on a true equality. Passing equality rows as a
+    constraint of their own holds them as equalities, at the price of a
+    second evaluation if they share work with the other rows.
     """
     slsqp_constraints: List[Dict[str, Any]] = []
 
@@ -100,9 +136,8 @@ def _convert_constraints_for_slsqp(
             matrix_np = bkd.to_numpy(constraint.A())
             lb_np = bkd.to_numpy(constraint.lb())
             ub_np = bkd.to_numpy(constraint.ub())
-
-            is_eq = np.allclose(lb_np, ub_np)
-            if is_eq:
+            all_equal, lower, upper = _bounded_rows(lb_np, ub_np)
+            if all_equal:
                 slsqp_constraints.append(
                     {
                         "type": "eq",
@@ -112,27 +147,20 @@ def _convert_constraints_for_slsqp(
                         "jac": partial(_linear_jac, matrix_np),
                     }
                 )
-            else:
-                if np.all(np.isfinite(lb_np)):
-                    slsqp_constraints.append(
-                        {
-                            "type": "ineq",
-                            "fun": partial(
-                                _linear_fun_minus_bound, matrix_np, lb_np
-                            ),
-                            "jac": partial(_linear_jac, matrix_np),
-                        }
-                    )
-                if np.all(np.isfinite(ub_np)):
-                    slsqp_constraints.append(
-                        {
-                            "type": "ineq",
-                            "fun": partial(
-                                _linear_bound_minus_fun, matrix_np, ub_np
-                            ),
-                            "jac": partial(_linear_neg_jac, matrix_np),
-                        }
-                    )
+                continue
+            if lower.size + upper.size == 0:
+                raise _unbounded(constraint)
+            # The stacked inequality is itself linear:
+            # [A_lower; -A_upper] x - [lb_lower; -ub_upper] >= 0.
+            stacked = np.vstack((matrix_np[lower], -matrix_np[upper]))
+            offsets = np.concatenate((lb_np[lower], -ub_np[upper]))
+            slsqp_constraints.append(
+                {
+                    "type": "ineq",
+                    "fun": partial(_linear_fun_minus_bound, stacked, offsets),
+                    "jac": partial(_linear_jac, stacked),
+                }
+            )
             continue
 
         # Nonlinear constraint: capability read from its Derivatives bundle
@@ -148,9 +176,8 @@ def _convert_constraints_for_slsqp(
         con_bkd = constraint.bkd()
         lb_np = con_bkd.to_numpy(constraint.lb())
         ub_np = con_bkd.to_numpy(constraint.ub())
-
-        is_eq = np.allclose(lb_np, ub_np)
-        if is_eq:
+        all_equal, lower, upper = _bounded_rows(lb_np, ub_np)
+        if all_equal:
             entry: Dict[str, Any] = {
                 "type": "eq",
                 "fun": partial(_nonlinear_fun_minus_bound, adapter, lb_np),
@@ -158,27 +185,23 @@ def _convert_constraints_for_slsqp(
             if np_jac is not None:
                 entry["jac"] = partial(_nonlinear_jac, np_jac)
             slsqp_constraints.append(entry)
-        else:
-            if np.all(np.isfinite(lb_np)):
-                entry = {
-                    "type": "ineq",
-                    "fun": partial(
-                        _nonlinear_fun_minus_bound, adapter, lb_np
-                    ),
-                }
-                if np_jac is not None:
-                    entry["jac"] = partial(_nonlinear_jac, np_jac)
-                slsqp_constraints.append(entry)
-            if np.all(np.isfinite(ub_np)):
-                entry = {
-                    "type": "ineq",
-                    "fun": partial(
-                        _nonlinear_bound_minus_fun, adapter, ub_np
-                    ),
-                }
-                if np_jac is not None:
-                    entry["jac"] = partial(_nonlinear_neg_jac, np_jac)
-                slsqp_constraints.append(entry)
+            continue
+        if lower.size + upper.size == 0:
+            raise _unbounded(constraint)
+        entry = {
+            "type": "ineq",
+            "fun": partial(
+                _nonlinear_stacked,
+                adapter,
+                lower,
+                upper,
+                lb_np[lower],
+                ub_np[upper],
+            ),
+        }
+        if np_jac is not None:
+            entry["jac"] = partial(_nonlinear_stacked_jac, np_jac, lower, upper)
+        slsqp_constraints.append(entry)
 
     return slsqp_constraints
 

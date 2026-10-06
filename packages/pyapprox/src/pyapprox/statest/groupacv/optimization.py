@@ -1048,9 +1048,6 @@ class GroupACVRequirementConstraint(Generic[Array]):
     Rows ``0..J-1`` are :math:`-g_j(\Sigma(n))`, the requirement's rows
     negated so that feasibility is ``>= 0`` as for every GroupACV
     constraint, and row ``J`` is the minimum-high-fidelity-sample slack.
-    Shifted values with lower bounds of zero rather than finite upper
-    bounds, because the SLSQP adapter admits an upper bound only when
-    every row has one, and the floor row is unbounded above.
     A requirement with one row is the scalar case; one with a row per
     statistic bounds each statistic separately, which a scalar such as
     a trace cannot. Derivatives compose the requirement's, taken along
