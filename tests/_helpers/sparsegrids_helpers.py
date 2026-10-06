@@ -17,7 +17,6 @@ Example usage:
 from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
-
 from pyapprox.probability import (
     BetaMarginal,
     GammaMarginal,
@@ -41,6 +40,11 @@ from pyapprox.surrogates.affine.indices import (
 from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
     PhysicalDomainBasis1DProtocol,
+)
+from pyapprox.surrogates.affine.univariate.piecewisepoly import (
+    PiecewiseCubic,
+    PiecewiseLinear,
+    PiecewiseQuadratic,
 )
 from pyapprox.surrogates.sparsegrids import (
     TensorProductSubspace,
@@ -382,9 +386,12 @@ def create_test_tensor_product_subspace_mixed(
             factory = GaussLagrangeFactory(marginal, bkd)
         elif btype == "leja":
             factory = LejaLagrangeFactory(marginal, bkd)
-        elif btype.startswith("piecewise_"):
-            poly_type = btype.replace("piecewise_", "")
-            factory = PiecewiseFactory(marginal, bkd, poly_type=poly_type)
+        elif btype == "piecewise_linear":
+            factory = PiecewiseFactory(marginal, bkd, PiecewiseLinear)
+        elif btype == "piecewise_quadratic":
+            factory = PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
+        elif btype == "piecewise_cubic":
+            factory = PiecewiseFactory(marginal, bkd, PiecewiseCubic)
         else:
             raise ValueError(f"Unknown basis_type: {btype}")
         factories.append(factory)

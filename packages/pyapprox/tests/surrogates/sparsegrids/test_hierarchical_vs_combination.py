@@ -10,6 +10,10 @@ from pyapprox.surrogates.affine.indices.admissibility import (
 from pyapprox.surrogates.affine.indices.growth_rules import (
     ClenshawCurtisGrowthRule,
 )
+from pyapprox.surrogates.affine.univariate.piecewisepoly import (
+    PiecewiseLinear,
+    PiecewiseQuadratic,
+)
 from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d import (
     HierarchicalBasis1D,
 )
@@ -29,11 +33,9 @@ from pyapprox.surrogates.sparsegrids.subspace_factory import (
 )
 
 
-def _build_combination_fitter(bkd, nvars, level, poly_type):
+def _build_combination_fitter(bkd, nvars, level, basis_class):
     marginals = [UniformMarginal(0.0, 1.0, bkd) for _ in range(nvars)]
-    factories = [
-        PiecewiseFactory(m, bkd, poly_type=poly_type) for m in marginals
-    ]
+    factories = [PiecewiseFactory(m, bkd, basis_class) for m in marginals]
     growth = ClenshawCurtisGrowthRule()
     sub_factory = TensorProductSubspaceFactory(bkd, factories, growth)
     return IsotropicSparseGridFitter(
@@ -54,21 +56,21 @@ def _build_hierarchical_fitter(bkd, nvars, level, p_max):
 
 class TestHierarchicalVsCombination:
     @pytest.mark.parametrize(
-        "nvars,level,poly_type,p_max",
+        "nvars,level,basis_class,p_max",
         [
-            (1, 3, "linear", 1),
-            (2, 3, "linear", 1),
-            (3, 2, "linear", 1),
-            (1, 3, "quadratic", 2),
-            (2, 3, "quadratic", 2),
-            (3, 2, "quadratic", 2),
+            (1, 3, PiecewiseLinear, 1),
+            (2, 3, PiecewiseLinear, 1),
+            (3, 2, PiecewiseLinear, 1),
+            (1, 3, PiecewiseQuadratic, 2),
+            (2, 3, PiecewiseQuadratic, 2),
+            (3, 2, PiecewiseQuadratic, 2),
         ],
     )
-    def test_equivalence(self, bkd, nvars, level, poly_type, p_max):
+    def test_equivalence(self, bkd, nvars, level, basis_class, p_max):
         def fun(X):
             return bkd.sum(X**2, axis=0, keepdims=True)
 
-        combo_fitter = _build_combination_fitter(bkd, nvars, level, poly_type)
+        combo_fitter = _build_combination_fitter(bkd, nvars, level, basis_class)
         combo_samples = combo_fitter.get_samples()
         combo_result = combo_fitter.fit(fun(combo_samples))
 

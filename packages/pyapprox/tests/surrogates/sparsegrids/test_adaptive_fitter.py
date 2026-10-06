@@ -21,6 +21,7 @@ from pyapprox.surrogates.affine.indices import (
     MaxLevelCriteria,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.affine.univariate.piecewisepoly import PiecewiseQuadratic
 from pyapprox.surrogates.sparsegrids import create_basis_factories
 from pyapprox.surrogates.sparsegrids.adaptive_fitter import (
     SingleFidelityAdaptiveSparseGridFitter,
@@ -601,7 +602,7 @@ class TestSeparableFunctionRefinement:
     def _run_adaptive(self, bkd, indicator, max_cost=300, max_level=8):
         marginal = UniformMarginal(-1.0, 1.0, bkd)
         factories = [
-            PiecewiseFactory(marginal, bkd, poly_type="quadratic")
+            PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
             for _ in range(2)
         ]
         growth = ClenshawCurtisGrowthRule()

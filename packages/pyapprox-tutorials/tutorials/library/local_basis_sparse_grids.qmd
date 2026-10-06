@@ -226,16 +226,16 @@ between adaptive strategies.
 exact_smooth = bkd.to_numpy(smooth_fn(test_samples))[0]
 
 basis_configs = [
-    ("Linear",    "linear",    ClenshawCurtisGrowthRule(), "o-"),
-    ("Quadratic", "quadratic", ClenshawCurtisGrowthRule(), "s--"),
-    ("Cubic",     "cubic",     CubicNestedGrowthRule(),    "D:"),
+    ("Linear",    PiecewiseLinear,    ClenshawCurtisGrowthRule(), "o-"),
+    ("Quadratic", PiecewiseQuadratic, ClenshawCurtisGrowthRule(), "s--"),
+    ("Cubic",     PiecewiseCubic,     CubicNestedGrowthRule(),    "D:"),
 ]
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-for label, poly_type, growth, style in basis_configs:
+for label, basis_class, growth, style in basis_configs:
     npts_list, rmse_list = [], []
     for lev in range(1, 10):
-        facs = [PiecewiseFactory(marginal, bkd, poly_type=poly_type)
+        facs = [PiecewiseFactory(marginal, bkd, basis_class)
                 for _ in range(2)]
         tp = TensorProductSubspaceFactory(bkd, facs, growth)
         fitter = IsotropicSparseGridFitter(bkd, tp, level=lev)
@@ -333,8 +333,8 @@ def make_lagrange_factories(nvars=2):
     return [ClenshawCurtisLagrangeFactory(marginal, bkd) for _ in range(nvars)]
 
 
-def make_piecewise_factories(poly_type, nvars=2):
-    return [PiecewiseFactory(marginal, bkd, poly_type=poly_type)
+def make_piecewise_factories(basis_class, nvars=2):
+    return [PiecewiseFactory(marginal, bkd, basis_class)
             for _ in range(nvars)]
 ```
 
@@ -352,19 +352,19 @@ exact_kink = bkd.to_numpy(kink_fn(test_samples))[0]
 
 iso_configs = [
     ("Lagrange",          None,         ClenshawCurtisGrowthRule(), "^-",  "#E6550D"),
-    ("Local linear",      "linear",     ClenshawCurtisGrowthRule(), "o--", None),
-    ("Local quadratic",   "quadratic",  ClenshawCurtisGrowthRule(), "s--", None),
-    ("Local cubic",       "cubic",      CubicNestedGrowthRule(),    "D:",  None),
+    ("Local linear",      PiecewiseLinear,    ClenshawCurtisGrowthRule(), "o--", None),
+    ("Local quadratic",   PiecewiseQuadratic, ClenshawCurtisGrowthRule(), "s--", None),
+    ("Local cubic",       PiecewiseCubic,     CubicNestedGrowthRule(),    "D:",  None),
 ]
 
 fig, ax = plt.subplots(figsize=(7, 4.5))
-for label, poly_type, growth, style, color in iso_configs:
+for label, basis_class, growth, style, color in iso_configs:
     npts_list, rmse_list = [], []
     for lev in range(1, 10):
-        if poly_type is None:
+        if basis_class is None:
             facs = make_lagrange_factories()
         else:
-            facs = make_piecewise_factories(poly_type)
+            facs = make_piecewise_factories(basis_class)
         tp = TensorProductSubspaceFactory(bkd, facs, growth)
         fitter = IsotropicSparseGridFitter(bkd, tp, level=lev)
         samps = fitter.get_samples()
@@ -525,14 +525,14 @@ fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
 
 # Panel 1: isotropic piecewise degrees on smooth function
 ax = axes[0]
-for label, poly_type, growth, style in [
-    ("Linear",    "linear",    ClenshawCurtisGrowthRule(), "o-"),
-    ("Quadratic", "quadratic", ClenshawCurtisGrowthRule(), "s--"),
-    ("Cubic",     "cubic",     CubicNestedGrowthRule(),    "D:"),
+for label, basis_class, growth, style in [
+    ("Linear",    PiecewiseLinear,    ClenshawCurtisGrowthRule(), "o-"),
+    ("Quadratic", PiecewiseQuadratic, ClenshawCurtisGrowthRule(), "s--"),
+    ("Cubic",     PiecewiseCubic,     CubicNestedGrowthRule(),    "D:"),
 ]:
     npts_list, rmse_list = [], []
     for lev in range(1, 10):
-        facs = [PiecewiseFactory(marginal, bkd, poly_type=poly_type)
+        facs = [PiecewiseFactory(marginal, bkd, basis_class)
                 for _ in range(2)]
         tp = TensorProductSubspaceFactory(bkd, facs, growth)
         fitter = IsotropicSparseGridFitter(bkd, tp, level=lev)
@@ -590,21 +590,23 @@ plt.show()
 
 ## Integration with Piecewise Bases
 
-Each piecewise basis has a built-in quadrature rule (trapezoidal for linear,
-Simpson for quadratic, Simpson 3/8 for cubic).  The `mean()` method on the
-surrogate uses these weights.
+In a sparse grid, each piecewise basis's quadrature weights integrate its
+basis functions against the marginal's density, so they are probability
+weights (on a uniform marginal, the trapezoidal, Simpson and Simpson 3/8
+weights divided by the interval length).  The `mean()` method on the
+surrogate uses these weights, so it is an expectation.
 
 ```{python}
-# Exact mean of cos(pi*z1)*cos(pi*z2/2) over [-1,1]^2 with uniform measure is 0.
-print(f"{'Basis':<12} {'Level':>5} {'Npts':>6} {'Mean':>12} {'Error':>10}")
-print("-" * 50)
-for poly_type, growth in [
-    ("linear",    ClenshawCurtisGrowthRule()),
-    ("quadratic", ClenshawCurtisGrowthRule()),
-    ("cubic",     CubicNestedGrowthRule()),
+# Exact mean of cos(pi*z1)*cos(pi*z2/2) for z ~ U[-1,1]^2 is 0.
+print(f"{'Basis':<18} {'Level':>5} {'Npts':>6} {'Mean':>12} {'Error':>10}")
+print("-" * 56)
+for basis_class, growth in [
+    (PiecewiseLinear,    ClenshawCurtisGrowthRule()),
+    (PiecewiseQuadratic, ClenshawCurtisGrowthRule()),
+    (PiecewiseCubic,     CubicNestedGrowthRule()),
 ]:
     for lev in [3, 5, 7]:
-        facs = [PiecewiseFactory(marginal, bkd, poly_type=poly_type)
+        facs = [PiecewiseFactory(marginal, bkd, basis_class)
                 for _ in range(2)]
         tp = TensorProductSubspaceFactory(bkd, facs, growth)
         fitter = IsotropicSparseGridFitter(bkd, tp, level=lev)
@@ -615,7 +617,7 @@ for poly_type, growth in [
             bkd.to_numpy(QuadratureMoments(result.surrogate).mean())
         )
         print(
-            f"{poly_type:<12} {lev:>5} {samps.shape[1]:>6}"
+            f"{basis_class.__name__:<18} {lev:>5} {samps.shape[1]:>6}"
             f" {mean_val:>12.6e} {abs(mean_val):>10.2e}"
         )
 ```
@@ -673,7 +675,7 @@ for poly_type, growth in [
    ```python
    factories = [
        ClenshawCurtisLagrangeFactory(marginal, bkd),       # dim 1
-       PiecewiseFactory(marginal, bkd, poly_type="cubic"),  # dim 2
+       PiecewiseFactory(marginal, bkd, PiecewiseCubic),  # dim 2
    ]
    growth_rules = [
        ClenshawCurtisGrowthRule(),  # for Lagrange

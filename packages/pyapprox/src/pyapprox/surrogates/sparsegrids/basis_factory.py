@@ -72,6 +72,8 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     EquidistantNodeGenerator,
     PiecewiseCubic,
     PiecewiseLinear,
+    PiecewiseMeasureQuadratureRule,
+    PiecewisePolynomialProtocol,
     PiecewiseQuadratic,
 )
 from pyapprox.surrogates.affine.univariate.registry import (
@@ -465,8 +467,12 @@ class ClenshawCurtisLagrangeFactory(Generic[Array]):
 class PiecewiseFactory(Generic[Array]):
     """Factory that creates piecewise polynomial basis from marginal.
 
-    This is a placeholder for future implementation of piecewise
-    polynomial bases (linear, quadratic, cubic) for local adaptivity.
+    The bases interpolate on equidistant nodes spanning the marginal's
+    support, or all but ``eps`` of its mass when it is unbounded. Their
+    quadrature weights are probability weights under the marginal, from
+    one ``PiecewiseMeasureQuadratureRule`` shared by every basis the
+    factory creates and cached by node count, so sparse-grid quadrature
+    gives expectations under the input measure.
 
     Parameters
     ----------
@@ -474,9 +480,12 @@ class PiecewiseFactory(Generic[Array]):
         Univariate marginal distribution.
     bkd : Backend[Array]
         Computational backend.
-    poly_type : str, optional
-        Type of piecewise polynomial. One of "linear", "quadratic",
-        "cubic". Default: "quadratic".
+    basis_class : Callable[[Array, Backend[Array]], PiecewisePolynomialProtocol[Array]]
+        Builds the piecewise basis from nodes: ``PiecewiseLinear``,
+        ``PiecewiseQuadratic``, ``PiecewiseCubic`` or any constructor of
+        that form. Its node-count requirements (odd for quadratic,
+        ``3k + 1`` for cubic) constrain the growth rule. Default
+        ``PiecewiseQuadratic``.
     eps : float, optional
         Probability mass for bounds of unbounded distributions.
         Default: 1e-6.
@@ -486,49 +495,46 @@ class PiecewiseFactory(Generic[Array]):
         self,
         marginal: MarginalProtocol[Array],
         bkd: Backend[Array],
-        poly_type: str = "quadratic",
+        basis_class: Callable[
+            [Array, Backend[Array]], PiecewisePolynomialProtocol[Array]
+        ] = PiecewiseQuadratic,
         eps: float = 1e-6,
     ) -> None:
         self._marginal = marginal
         self._bkd = bkd
-        self._poly_type = poly_type
+        self._basis_class = basis_class
         self._eps = eps
+        self._node_gen: Optional[EquidistantNodeGenerator[Array]] = None
+        self._rule: Optional[PiecewiseMeasureQuadratureRule[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
 
+    def _setup(self) -> None:
+        """Build the node generator and the shared weighted rule (lazy)."""
+        if self._rule is None:
+            bounds = get_bounds_from_marginal(self._marginal, self._eps)
+            self._node_gen = EquidistantNodeGenerator(self._bkd, bounds)
+            self._rule = PiecewiseMeasureQuadratureRule(
+                self._marginal, self._basis_class, self._node_gen
+            )
+
     def create_basis(self) -> InterpolationBasis1DProtocol[Array]:
-        """Create a piecewise polynomial basis.
+        """Create a piecewise polynomial basis with probability weights.
 
         Returns
         -------
         InterpolationBasis1DProtocol[Array]
-            Piecewise polynomial basis with dynamic node count support.
+            Piecewise polynomial basis with dynamic node count support,
+            whose quadrature weights come from the shared weighted rule.
             Satisfies InterpolationBasis1DProtocol.
-
-        Raises
-        ------
-        ValueError
-            If poly_type is not one of "linear", "quadratic", "cubic".
         """
-
-        bounds = get_bounds_from_marginal(self._marginal, self._eps)
-        node_gen = EquidistantNodeGenerator(self._bkd, bounds)
-
-        basis_classes = {
-            "linear": PiecewiseLinear,
-            "quadratic": PiecewiseQuadratic,
-            "cubic": PiecewiseCubic,
-        }
-        if self._poly_type not in basis_classes:
-            raise ValueError(
-                f"Unknown poly_type: {self._poly_type}. "
-                f"Expected one of: {list(basis_classes.keys())}"
-            )
-
+        self._setup()
+        if self._node_gen is None or self._rule is None:
+            raise RuntimeError("_setup() failed to build the weighted rule")
         return DynamicPiecewiseBasis(
-            self._bkd, basis_classes[self._poly_type], node_gen
+            self._bkd, self._basis_class, self._node_gen, quadrature=self._rule
         )
 
     def is_nested(self) -> bool:
@@ -538,7 +544,7 @@ class PiecewiseFactory(Generic[Array]):
     def __repr__(self) -> str:
         return (
             f"PiecewiseFactory(marginal={self._marginal!r}, "
-            f"poly_type={self._poly_type!r})"
+            f"basis_class={getattr(self._basis_class, '__name__', self._basis_class)})"
         )
 
 
@@ -843,13 +849,16 @@ def _create_clenshaw_curtis_factory(
 
 
 def _create_piecewise_factory(
-    marginal: Any, bkd: Backend[Array], poly_type: str, **kwargs: Any
+    marginal: Any,
+    bkd: Backend[Array],
+    basis_class: Callable[[Array, Backend[Array]], PiecewisePolynomialProtocol[Array]],
+    **kwargs: Any,
 ) -> PiecewiseFactory[Array]:
     """Factory creator for piecewise polynomial basis."""
     return PiecewiseFactory(
         marginal,
         bkd,
-        poly_type=poly_type,
+        basis_class=basis_class,
         eps=kwargs.get("eps", 1e-6),
     )
 
@@ -859,14 +868,16 @@ register_basis_factory("gauss", _create_gauss_factory)
 register_basis_factory("leja", _create_leja_factory)
 register_basis_factory("clenshaw_curtis", _create_clenshaw_curtis_factory)
 register_basis_factory(
-    "piecewise_linear", partial(_create_piecewise_factory, poly_type="linear")
+    "piecewise_linear",
+    partial(_create_piecewise_factory, basis_class=PiecewiseLinear),
 )
 register_basis_factory(
     "piecewise_quadratic",
-    partial(_create_piecewise_factory, poly_type="quadratic"),
+    partial(_create_piecewise_factory, basis_class=PiecewiseQuadratic),
 )
 register_basis_factory(
-    "piecewise_cubic", partial(_create_piecewise_factory, poly_type="cubic")
+    "piecewise_cubic",
+    partial(_create_piecewise_factory, basis_class=PiecewiseCubic),
 )
 
 

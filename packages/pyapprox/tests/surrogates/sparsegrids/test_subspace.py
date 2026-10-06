@@ -427,11 +427,11 @@ class TestTensorProductSubspace:
     def test_subspace_piecewise_quadratic_interpolation(self, bkd):
         """Test subspace with piecewise quadratic basis.
 
-        Uses Simpson's rule quadrature for integration of exactly
-        representable functions.
+        Piecewise quadrature weights are probability weights under the
+        marginal, so the subspace mean is an expectation.
         """
         marginal = UniformMarginal(-1.0, 1.0, bkd)
-        factory = PiecewiseFactory(marginal, bkd, poly_type="quadratic")
+        factory = PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
 
         # Growth rule: level 2 -> 5 nodes (must be odd for quadratic)
         growth = LinearGrowthRule(scale=2, shift=1)  # n(l) = 2*l + 1
@@ -445,20 +445,19 @@ class TestTensorProductSubspace:
         values = bkd.reshape(x**2, (1, -1))
         subspace.set_values(values)
 
-        # Integrate x^2 over [-1, 1] with uniform measure
-        # Integral = int_{-1}^{1} x^2 dx = 2/3
+        # E[x^2] for x ~ U[-1, 1] is 1/3
         integral = subspace_mean(subspace)
-        expected = bkd.asarray([2.0 / 3.0])
+        expected = bkd.asarray([1.0 / 3.0])
         bkd.assert_allclose(integral, expected, rtol=1e-10)
 
     def test_subspace_piecewise_quadratic_2d(self, bkd):
         """Test 2D piecewise quadratic integration.
 
-        Integrates f(x, y) = x^2 * y^2 over [-1, 1]^2.
-        Integral = (2/3) * (2/3) = 4/9
+        Takes the mean of f(x, y) = x^2 * y^2 for x, y ~ U[-1, 1]:
+        E[x^2] E[y^2] = (1/3) * (1/3) = 1/9
         """
         marginal = UniformMarginal(-1.0, 1.0, bkd)
-        factory = PiecewiseFactory(marginal, bkd, poly_type="quadratic")
+        factory = PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
 
         # Growth rule: level 2 -> 5 nodes (must be odd for quadratic)
         growth = LinearGrowthRule(scale=2, shift=1)  # n(l) = 2*l + 1
@@ -472,8 +471,8 @@ class TestTensorProductSubspace:
         subspace.set_values(values)
 
         integral = subspace_mean(subspace)
-        # int x^2 dx * int y^2 dy = (2/3) * (2/3) = 4/9
-        expected = bkd.asarray([4.0 / 9.0])
+        # E[x^2] * E[y^2] = (1/3) * (1/3) = 1/9
+        expected = bkd.asarray([1.0 / 9.0])
         bkd.assert_allclose(integral, expected, rtol=1e-10)
 
     def test_subspace_mixed_piecewise_gauss(self, bkd):
@@ -482,14 +481,12 @@ class TestTensorProductSubspace:
         Dimension 0: Piecewise quadratic on [-1, 1]
         Dimension 1: Gauss-Legendre quadrature
 
-        Integrates f(x, y) = x^2 * y^2.
-        For piecewise (uniform measure): int x^2 dx = 2/3
-        For Gauss-Legendre (probability measure): E[y^2] = 1/3
-        Combined: (2/3) * (1/3) = 2/9
+        Takes the mean of f(x, y) = x^2 * y^2. Both bases give probability
+        weights under U[-1, 1]: E[x^2] E[y^2] = (1/3) * (1/3) = 1/9.
         """
         # Dimension 0: Dynamic piecewise quadratic
         marginal = UniformMarginal(-1.0, 1.0, bkd)
-        piecewise_factory = PiecewiseFactory(marginal, bkd, poly_type="quadratic")
+        piecewise_factory = PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
 
         # Dimension 1: Gauss-Legendre (probability measure)
         gauss_factory = GaussLagrangeFactory(marginal, bkd)
@@ -510,9 +507,8 @@ class TestTensorProductSubspace:
         subspace.set_values(values)
 
         integral = subspace_mean(subspace)
-        # piecewise x^2: 2/3, gauss E[y^2]: 1/3
-        # Combined: 2/9
-        expected = bkd.asarray([2.0 / 9.0])
+        # E[x^2] * E[y^2] = (1/3) * (1/3) = 1/9
+        expected = bkd.asarray([1.0 / 9.0])
         bkd.assert_allclose(integral, expected, rtol=1e-10)
 
 

@@ -24,6 +24,11 @@ from pyapprox.surrogates.affine.protocols import (
     IndexGrowthRuleProtocol,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
+from pyapprox.surrogates.affine.univariate.piecewisepoly import (
+    PiecewiseCubic,
+    PiecewiseLinear,
+    PiecewiseQuadratic,
+)
 from pyapprox.surrogates.sparsegrids import (
     create_basis_factories,
     is_downward_closed,
@@ -199,9 +204,12 @@ def _create_fitter_mixed(
             factory = LejaLagrangeFactory(marginal, bkd)
         elif btype == "clenshaw_curtis":
             factory = ClenshawCurtisLagrangeFactory(marginal, bkd)
-        elif btype.startswith("piecewise_"):
-            poly_type = btype.replace("piecewise_", "")
-            factory = PiecewiseFactory(marginal, bkd, poly_type=poly_type)
+        elif btype == "piecewise_linear":
+            factory = PiecewiseFactory(marginal, bkd, PiecewiseLinear)
+        elif btype == "piecewise_quadratic":
+            factory = PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
+        elif btype == "piecewise_cubic":
+            factory = PiecewiseFactory(marginal, bkd, PiecewiseCubic)
         else:
             raise ValueError(f"Unknown basis_type: {btype}")
         factories_list.append(factory)

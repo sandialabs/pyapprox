@@ -56,6 +56,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.surrogates.affine.univariate.piecewisepoly import (
+    PiecewiseLinear,
+    PiecewiseQuadratic,
+)
 from pyapprox.surrogates.sparsegrids import (
     SingleFidelityAdaptiveSparseGridFitter,
     TensorProductSubspaceFactory,
@@ -124,8 +128,8 @@ axis to the next level — adding nodes uniformly even in regions
 where the function is smooth.
 
 ```{python}
-def make_piecewise_factories(poly_type):
-    return [PiecewiseFactory(marginal, bkd, poly_type=poly_type)
+def make_piecewise_factories(basis_class):
+    return [PiecewiseFactory(marginal, bkd, basis_class)
             for _ in range(2)]
 
 def make_lagrange_factories():
@@ -200,8 +204,10 @@ def run_local(p_max, max_level=15):
 
 ```{python}
 ns_comb_lag, err_comb_lag = run_combination(make_lagrange_factories())
-ns_comb_lin, err_comb_lin = run_combination(make_piecewise_factories("linear"))
-ns_comb_quad, err_comb_quad = run_combination(make_piecewise_factories("quadratic"))
+ns_comb_lin, err_comb_lin = run_combination(make_piecewise_factories(PiecewiseLinear))
+ns_comb_quad, err_comb_quad = run_combination(
+    make_piecewise_factories(PiecewiseQuadratic)
+)
 ns_loc_lin, err_loc_lin, fitter_loc_lin = run_local(p_max=1)
 ns_loc_quad, err_loc_quad, fitter_loc_quad = run_local(p_max=2)
 ```
@@ -243,7 +249,7 @@ clusters points along the ridge $\xi_1^2 + \xi_2^2 = 0.3$.
 #| echo: false
 #| fig-cap: "Selected nodes.  Left: dimension-adaptive combination technique with piecewise linear basis — uniform refinement along each axis.  Right: locally adaptive hierarchical grid — refinement concentrated on the ridge."
 #| label: fig-points
-_factories = make_piecewise_factories("linear")
+_factories = make_piecewise_factories(PiecewiseLinear)
 _growth = ClenshawCurtisGrowthRule()
 _tp = TensorProductSubspaceFactory(bkd, _factories, _growth)
 _admis = MaxLevelCriteria(max_level=15, pnorm=1.0, bkd=bkd)

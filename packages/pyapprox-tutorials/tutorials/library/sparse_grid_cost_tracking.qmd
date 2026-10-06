@@ -81,6 +81,7 @@ from pyapprox.surrogates.sparsegrids import (
     SingleFidelityAdaptiveSparseGridFitter,
     TensorProductSubspaceFactory,
 )
+from pyapprox.surrogates.affine.univariate.piecewisepoly import PiecewiseQuadratic
 from pyapprox.surrogates.sparsegrids.basis_factory import PiecewiseFactory
 from pyapprox.surrogates.sparsegrids.model_factory import (
     DictModelFactory,
@@ -135,7 +136,7 @@ equivalent to budgeting by evaluation count.
 ```{python}
 def run_with_sample_budget(max_samples):
     """Sample-count budget using the default unit cost model."""
-    facs = [PiecewiseFactory(marginal, bkd, poly_type="quadratic")
+    facs = [PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
             for _ in range(2)]
     tp = TensorProductSubspaceFactory(bkd, facs, ClenshawCurtisGrowthRule())
     adm = MaxLevelCriteria(max_level=15, pnorm=1.0, bkd=bkd)
@@ -184,7 +185,7 @@ def run_with_walltime_budget(max_wall_seconds):
     # The timed closure: every call records wall time to the factory's timer.
     timed_simulator = timed_factory.get_model(())
 
-    facs = [PiecewiseFactory(marginal, bkd, poly_type="quadratic")
+    facs = [PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
             for _ in range(2)]
     tp = TensorProductSubspaceFactory(bkd, facs, ClenshawCurtisGrowthRule())
     adm = MaxLevelCriteria(max_level=15, pnorm=1.0, bkd=bkd)

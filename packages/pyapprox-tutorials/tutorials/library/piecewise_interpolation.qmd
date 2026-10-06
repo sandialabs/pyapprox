@@ -286,7 +286,7 @@ from pyapprox.probability.univariate.uniform import UniformMarginal
 marginal = UniformMarginal(-1.0, 1.0, bkd)
 
 # Create a factory for piecewise quadratic bases
-factory = PiecewiseFactory(marginal, bkd, poly_type="quadratic")
+factory = PiecewiseFactory(marginal, bkd, PiecewiseQuadratic)
 
 # The factory creates a basis that can be used in sparse grid construction
 basis_pw = factory.create_basis()

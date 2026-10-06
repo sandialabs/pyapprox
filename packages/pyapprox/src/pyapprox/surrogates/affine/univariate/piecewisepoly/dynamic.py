@@ -10,9 +10,13 @@ which require dynamic node count adjustment via set_nterms().
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Optional, Tuple, Type
+from typing import Callable, Generic, Optional, Tuple
 
+from pyapprox.surrogates.affine.univariate.piecewisepoly.protocols import (
+    PiecewisePolynomialProtocol,
+)
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.protocols.quadrature import UnivariateQuadratureRuleProtocol
 
 
 class NodeGenerator(ABC, Generic[Array]):
@@ -92,10 +96,17 @@ class DynamicPiecewiseBasis(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    basis_class : Type
-        Piecewise basis class (e.g., PiecewiseQuadratic, PiecewiseLinear).
+    basis_class : Callable[[Array, Backend[Array]], PiecewisePolynomialProtocol[Array]]
+        Builds the piecewise basis from nodes (e.g., PiecewiseQuadratic,
+        PiecewiseLinear).
     node_generator : NodeGenerator[Array]
         Generator for creating nodes dynamically.
+    quadrature : UnivariateQuadratureRuleProtocol[Array], optional
+        Rule whose weights ``quadrature_rule`` returns, for example a
+        ``PiecewiseMeasureQuadratureRule`` with the same basis class and
+        node generator, for probability weights under a marginal. Its nodes
+        must be this basis's nodes; a mismatch raises. Default None: the
+        basis's own Lebesgue weights.
 
     Example
     -------
@@ -113,13 +124,17 @@ class DynamicPiecewiseBasis(Generic[Array]):
     def __init__(
         self,
         bkd: Backend[Array],
-        basis_class: Type[Any],
+        basis_class: Callable[
+            [Array, Backend[Array]], PiecewisePolynomialProtocol[Array]
+        ],
         node_generator: NodeGenerator[Array],
+        quadrature: Optional[UnivariateQuadratureRuleProtocol[Array]] = None,
     ):
         self._bkd = bkd
         self._basis_class = basis_class
         self._node_gen = node_generator
-        self._basis: Optional[Any] = None
+        self._quadrature = quadrature
+        self._basis: Optional[PiecewisePolynomialProtocol[Array]] = None
         self._nterms = 0
 
     def set_nterms(self, nterms: int) -> None:
@@ -186,8 +201,10 @@ class DynamicPiecewiseBasis(Generic[Array]):
     def quadrature_rule(self) -> Tuple[Array, Array]:
         """Return quadrature points and weights.
 
-        For the 1-point case (constant basis), returns the midpoint with
-        weight equal to the domain width.
+        With an injected ``quadrature``, its rule for ``nterms`` points.
+        Otherwise the basis's Lebesgue rule; for the 1-point case
+        (constant basis), the midpoint with weight equal to the domain
+        width.
 
         Returns
         -------
@@ -202,6 +219,18 @@ class DynamicPiecewiseBasis(Generic[Array]):
         """
         if self._nterms == 0:
             raise ValueError("Must call set_nterms before quadrature_rule")
+
+        if self._quadrature is not None:
+            points, weights = self._quadrature(self._nterms)
+            points = self._bkd.reshape(points, (1, -1))
+            if not self._bkd.allclose(
+                points, self.get_samples(self._nterms), rtol=1e-12, atol=1e-14
+            ):
+                raise ValueError(
+                    "the injected quadrature's nodes are not this basis's "
+                    "nodes; build both from the same node generator"
+                )
+            return points, self._bkd.reshape(weights, (-1, 1))
 
         # Handle 1-point case: constant basis with weight = domain width
         if self._nterms == 1:
