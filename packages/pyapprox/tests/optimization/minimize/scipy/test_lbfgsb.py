@@ -2,12 +2,14 @@
 API, using legacy-style producers. Written BEFORE the Derivatives-bundle
 consumer rewrite so the rewrite is protected."""
 
+import pytest
+
+from pyapprox.optimization.minimize.scipy.lbfgsb import LBFGSBOptimizer
 from tests._helpers.optimizer_fixtures import (
     QuadraticNoDerivatives,
     QuadraticWithJacobian,
+    SumConstraint,
 )
-
-from pyapprox.optimization.minimize.scipy.lbfgsb import LBFGSBOptimizer
 
 
 class TestLBFGSBOptimizer:
@@ -43,6 +45,25 @@ class TestLBFGSBOptimizer:
         bkd.assert_allclose(
             result.optima(), bkd.asarray([[1.0], [0.0]]), atol=1e-6
         )
+
+    def test_constraints_are_refused_not_ignored(self, bkd) -> None:
+        """Accepting a constraint it cannot hold would return an
+        unconstrained optimum with nothing to say so."""
+        constraint = SumConstraint(bkd, 2, 1.0, float("inf"))
+        with pytest.raises(NotImplementedError, match="box bounds only"):
+            LBFGSBOptimizer().bind(
+                QuadraticWithJacobian(bkd, [0.0, 0.0]),
+                bkd.asarray([[-5.0, 5.0], [-5.0, 5.0]]),
+                [constraint],
+            )
+
+    def test_an_empty_constraint_list_is_no_constraint(self, bkd) -> None:
+        optimizer = LBFGSBOptimizer().bind(
+            QuadraticWithJacobian(bkd, [1.0, -0.5]),
+            bkd.asarray([[-5.0, 5.0], [-5.0, 5.0]]),
+            [],
+        )
+        assert optimizer.is_bound()
 
     def test_minimize_before_bind_raises(self, numpy_bkd):
         optimizer = LBFGSBOptimizer()

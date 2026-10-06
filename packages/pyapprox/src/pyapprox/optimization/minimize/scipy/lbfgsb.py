@@ -91,7 +91,20 @@ class LBFGSBOptimizer(Generic[Array]):
         bounds: Array,
         constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
     ) -> Self:
-        """Bind objective and bounds. Returns self for chaining."""
+        """Bind objective and bounds. Returns self for chaining.
+
+        Raises
+        ------
+        NotImplementedError
+            If constraints are given. L-BFGS-B handles box bounds only,
+            and accepting constraints it cannot honor would return an
+            unconstrained optimum with nothing to say so.
+        """
+        if constraints:
+            raise NotImplementedError(
+                "LBFGSBOptimizer supports box bounds only, not constraints; "
+                "use a constrained optimizer such as ScipyTrustConstrOptimizer"
+            )
         validate_objective(objective)
         adapter = NumpyDerivativesAdapter(
             objective, objective.derivatives()

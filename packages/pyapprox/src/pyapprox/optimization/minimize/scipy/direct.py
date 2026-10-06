@@ -9,6 +9,9 @@ from pyapprox.interface.functions.numpy.adapter import (
 from pyapprox.interface.functions.protocols.objective import (
     ObjectiveProtocol,
 )
+from pyapprox.optimization.minimize.constraints.protocols import (
+    SequenceOfConstraintProtocols,
+)
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
 )
@@ -76,8 +79,23 @@ class ScipyDirectOptimizer(Generic[Array]):
         self,
         objective: ObjectiveProtocol[Array],
         bounds: Array,
-        constraints: Optional[object] = None,
+        constraints: Optional[SequenceOfConstraintProtocols[Array]] = None,
     ) -> Self:
+        """Bind objective and bounds. Returns self for chaining.
+
+        Raises
+        ------
+        NotImplementedError
+            If constraints are given. DIRECT searches a box only, and
+            accepting constraints it cannot honor would return an
+            unconstrained optimum with nothing to say so.
+        """
+        if constraints:
+            raise NotImplementedError(
+                "ScipyDirectOptimizer supports box bounds only, not "
+                "constraints; use a constrained optimizer such as "
+                "ScipyDifferentialEvolutionOptimizer"
+            )
         validate_objective(objective)
         self._objective = NumpyDerivativesAdapter(
             objective, objective.derivatives()
