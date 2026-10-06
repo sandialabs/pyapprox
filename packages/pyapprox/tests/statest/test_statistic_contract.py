@@ -43,6 +43,30 @@ from pyapprox.statest.protocols import (
 from pyapprox.statest.tolerance import MaxMarginalStandardErrorConstraint
 from pyapprox.util.backends.protocols import Array, Backend
 
+def _protocol_members(protocol: type) -> frozenset:
+    """The members a Protocol declares, on every supported Python.
+
+    ``__protocol_attrs__`` would say this directly but was added in
+    3.12, so reading it makes the test fail outright on 3.11 rather
+    than measure anything. Walk the protocol's own bases instead and
+    collect annotations plus callables, skipping the dunders and the
+    typing machinery that ``Protocol`` mixes in.
+    """
+    members: set = set()
+    for base in protocol.__mro__:
+        if base in (object, Generic):
+            continue
+        if getattr(base, "_is_protocol", False) is False and base is not protocol:
+            continue
+        members |= set(getattr(base, "__annotations__", {}))
+        members |= {
+            name
+            for name, value in vars(base).items()
+            if callable(value) and not name.startswith("__")
+        }
+    return frozenset(members)
+
+
 MC_CONTRACT = frozenset(
     {"bkd", "nmodels", "high_fidelity_estimator_covariance", "min_nsamples"}
 )
@@ -366,7 +390,7 @@ class TestTheGroupEstimatorAcceptsAnyConformingStatistic:
         """
         touched: set = set()
         stat = _MinimalGroupStatistic(numpy_bkd, nmodels=3)
-        for name in sorted(GroupBlockStatistic.__protocol_attrs__):
+        for name in sorted(_protocol_members(GroupBlockStatistic)):
             original = getattr(stat, name)
 
             def record(*args: Any, _n: str = name, _o: Any = original) -> Any:
