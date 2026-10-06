@@ -125,9 +125,13 @@ class TestPeriodicSteadyDerivatives:
             bkd.array([0.3, 0.2])[:, None], relative=True
         )
         # The steady solver's default tolerance puts the floor of the
-        # one-sided sweep near 1e-6 (measured worst 1.2e-6).
+        # one-sided sweep near 1e-6. The worst measured value is
+        # 2.4e-6, on CI's macOS runners; this machine stays near 1.2e-6.
+        # The bound sits just above the former so the sweep still has to
+        # reach its floor, rather than being loose enough to pass if the
+        # gradient were wrong.
         for errors in (grad_errors, hvp_errors):
-            assert float(bkd.to_numpy(bkd.min(errors))) <= 2e-6
+            assert float(bkd.to_numpy(bkd.min(errors))) <= 3e-6
             assert float(bkd.to_numpy(checker.error_ratio(errors))) <= 1e-5
 
 

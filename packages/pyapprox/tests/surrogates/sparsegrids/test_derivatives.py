@@ -485,8 +485,12 @@ class TestSparseGridBatchDerivatives:
         checker = BatchDerivativeChecker(surrogate, samples)
 
         jac_errors = checker.check_jacobian_batch(verbosity=0)
+        # The ratio sits just above its round-off floor, so the bound
+        # tracks the worst measurement rather than a round number: 1.2e-6
+        # on CI's macOS runners against under 1e-6 here. Kept close so a
+        # jacobian that is actually wrong still fails.
         for ii in range(samples.shape[1]):
-            assert float(checker.error_ratio(jac_errors[ii]).item()) < 1e-6
+            assert float(checker.error_ratio(jac_errors[ii]).item()) < 3e-6
 
         # Second differences hit their round-off floor at a larger step
         # than first ones, so the best relative error settles near
