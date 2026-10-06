@@ -294,17 +294,35 @@ class ResampledPilotValues(Generic[Array]):
     This models pilot-size variability only. It treats the recorded
     values as exact, which is right when they are direct model
     evaluations.
+
+    By default each replicate holds as many samples as were recorded,
+    answering "how uncertain is this pilot". Passing ``npilot`` answers
+    "how uncertain would a pilot of that total size be" instead -- one
+    point of the pilot-size sweep -- by drawing that many columns from
+    the recorded ones. Nothing is evaluated: larger than the recorded
+    count, this treats the recorded values as the population, so it
+    previews the narrowing a larger pilot would buy rather than
+    measuring it.
     """
 
-    def __init__(self, pilot_values: List[Array], bkd: Backend[Array]):
+    def __init__(
+        self,
+        pilot_values: List[Array],
+        bkd: Backend[Array],
+        npilot: Optional[int] = None,
+    ):
         """
         Parameters
         ----------
         pilot_values : List[Array]
-            One ``(nqoi, npilot)`` array per model, all sharing the same
-            ``npilot`` and drawn at the same inputs.
+            One ``(nqoi, nrecorded)`` array per model, all sharing the
+            same ``nrecorded`` and drawn at the same inputs.
         bkd : Backend
             Backend used to build index arrays.
+        npilot : int, optional
+            The pilot size each replicate stands for: its number of
+            samples, and what :meth:`npilot` returns. Defaults to the
+            recorded count.
         """
         if not isinstance(pilot_values, list) or len(pilot_values) == 0:
             raise ValueError("pilot_values must be a non-empty list")
@@ -316,18 +334,21 @@ class ResampledPilotValues(Generic[Array]):
                     "pilot_values entry must be 2D (nqoi, npilot), got "
                     f"ndim={vals.ndim}"
                 )
-        npilot = pilot_values[0].shape[1]
+        nrecorded = pilot_values[0].shape[1]
         for ii, vals in enumerate(pilot_values):
-            if vals.shape[1] != npilot:
+            if vals.shape[1] != nrecorded:
                 raise ValueError(
                     "every model must supply the same number of pilot "
-                    f"samples; model 0 has {npilot}, model {ii} has "
+                    f"samples; model 0 has {nrecorded}, model {ii} has "
                     f"{vals.shape[1]}. A shared resampling index requires "
                     "values drawn at common inputs."
                 )
+        if npilot is not None and npilot < 1:
+            raise ValueError(f"npilot must be >= 1, got {npilot}")
         self._pilot_values = pilot_values
         self._bkd = bkd
-        self._npilot = int(npilot)
+        self._nrecorded = int(nrecorded)
+        self._npilot = self._nrecorded if npilot is None else npilot
 
     def npilot(self) -> int:
         return self._npilot
@@ -341,7 +362,7 @@ class ResampledPilotValues(Generic[Array]):
     def draw(self) -> List[Array]:
         indices = self._bkd.array(
             np.random.choice(
-                np.arange(self._npilot, dtype=int),
+                np.arange(self._nrecorded, dtype=int),
                 size=self._npilot,
                 replace=True,
             ),

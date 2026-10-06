@@ -40,6 +40,7 @@ from pyapprox.statest.tolerance import (
     MaxMarginalStandardErrorConstraint,
     MCToleranceAllocator,
 )
+from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.markers import slow_test
 
 
@@ -240,6 +241,46 @@ class TestResampledPilotValues:
             assert len(replicate) == pilot.nmodels()
             for vals in replicate:
                 assert vals.shape[1] == pilot.npilot()
+
+    @pytest.mark.parametrize("npilot", [10, 50, 200])
+    def test_a_stated_size_sets_the_replicate_width(
+        self, bkd: Backend[Array], npilot: int
+    ) -> None:
+        pilot = ResampledPilotValues(
+            _pilot_values(bkd, nmodels=2, npilot=50), bkd, npilot=npilot
+        )
+        assert pilot.npilot() == npilot
+        for vals in pilot.draw():
+            assert vals.shape[1] == npilot
+
+    def test_a_larger_pilot_narrows_the_spread(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """The preview a pilot top-up is priced against.
+
+        Both sizes resample the same recorded values, so the spread of
+        the sample variance scales as one over the square root of the
+        size to within finite-size corrections of a few percent: four
+        times the samples halves it. Two thousand replicates hold the
+        Monte Carlo error of the ratio near two percent, so the band is
+        about four standard errors wide.
+        """
+        values = _pilot_values(bkd, nmodels=1, npilot=50)
+
+        def spread(npilot: int) -> float:
+            pilot = ResampledPilotValues(values, bkd, npilot=npilot)
+            variances = [
+                float(bkd.to_numpy(pilot.draw()[0]).var(ddof=1))
+                for _ in range(2000)
+            ]
+            return float(np.std(variances))
+
+        ratio = spread(200) / spread(50)
+        assert 0.45 < ratio < 0.55, f"ratio {ratio:.3f}"
+
+    def test_rejects_a_size_below_one(self, bkd: Backend[Array]) -> None:
+        with pytest.raises(ValueError, match="npilot"):
+            ResampledPilotValues(_pilot_values(bkd), bkd, npilot=0)
 
     def test_satisfies_the_protocol(self, bkd) -> None:
         pilot = ResampledPilotValues(_pilot_values(bkd), bkd)
