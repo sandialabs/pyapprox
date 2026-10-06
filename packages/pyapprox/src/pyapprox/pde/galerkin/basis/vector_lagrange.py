@@ -7,6 +7,7 @@ from typing import Any, Callable, Generic, Optional
 
 import numpy as np
 
+from pyapprox.pde.field_maps.vector_layout import InterleavedLayout
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -132,6 +133,11 @@ class VectorLagrangeBasis(Generic[Array]):
     def ncomponents(self) -> int:
         """Return number of vector components (= spatial dimension)."""
         return self._ndim
+
+    def component_layout(self) -> InterleavedLayout[Array]:
+        """Return the DOF order of the components: interleaved per node,
+        ``(x_0, y_0, x_1, y_1, ...)``."""
+        return InterleavedLayout(self._bkd)
 
     def ndofs_per_component(self) -> int:
         """Return number of DOFs per vector component."""
