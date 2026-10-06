@@ -4,6 +4,15 @@ import pickle
 from typing import Any
 
 import numpy as np
+import pytest
+from pyapprox.util.optional_deps import package_available
+
+# DirectDirichletBC is exported from pyapprox.pde.galerkin.boundary only
+# when skfem is installed, and it is imported at module level below, so
+# without this the module fails to collect rather than skipping.
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
+
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet
 from pyapprox.pde.galerkin.boundary import DirectDirichletBC

@@ -20,10 +20,18 @@ from pyapprox.pde.boundary import (
     time_derivative_functions,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.optional_deps import package_available
 
 from tests._helpers.time_derivative_checks import (
     assert_time_derivatives_match,
 )
+
+# Every test here builds its constraint set from CallableDirichletBC,
+# which pyapprox.pde.galerkin.boundary exports only when skfem is
+# installed. The import sits inside a helper, so without this the module
+# collects cleanly and each test fails on the same ImportError.
+if not package_available("skfem"):
+    pytest.skip("skfem not installed", allow_module_level=True)
 
 _SCALE = np.array([1.0, -2.0, 0.5])
 _OMEGA = 3.0
