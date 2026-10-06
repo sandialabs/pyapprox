@@ -819,7 +819,10 @@ def plot_results(results: List[TrialResult], stat=None, costs=None, bkd=None):
     if len(target_costs) > 1:
         from collections import defaultdict
         set_linestyle = {"local": "-", "de": "--", "spd": ":", "meanguided": "-."}
-        set_marker_edge = {"local": None, "de": "white", "spd": None, "meanguided": "orange"}
+        set_marker_edge = {
+            "local": None, "de": "white", "spd": None,
+            "meanguided": "orange",
+        }
 
         groups: Dict[str, List[TrialResult]] = defaultdict(list)
         for r in successful:

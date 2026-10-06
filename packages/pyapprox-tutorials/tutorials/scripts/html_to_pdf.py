@@ -2,7 +2,8 @@
 """Convert the entire HTML tutorial site to a single PDF using Chrome headless.
 
 Usage:
-    python html_to_pdf.py <site_dir> <output_pdf> [--quarto-yml <path>] [--tmpdir <path>] [--skip N]
+    python html_to_pdf.py <site_dir> <output_pdf> [--quarto-yml <path>]
+        [--tmpdir <path>] [--skip N]
 
 Reads the sidebar order from _quarto.yml to produce pages in tutorial order.
 Uses Chrome headless --print-to-pdf for each HTML file, then merges with pypdf.

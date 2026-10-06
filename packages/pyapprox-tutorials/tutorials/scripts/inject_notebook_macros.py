@@ -184,7 +184,10 @@ def fix_qmd_links(text: str) -> str:
     # Pattern: [text](filename.qmd) -> [text](filename.ipynb)
     text = re.sub(r'\]\(([^)]+)\.qmd\)', r'](\1.ipynb)', text)
     # Remove notebook download links (they point to themselves)
-    text = re.sub(r'::: \{\.callout-tip collapse="true"\}\s*\n## Download Notebook\n\[Download as Jupyter Notebook\]\([^)]+\)\s*\n:::', '', text)
+    text = re.sub(
+        r'::: \{\.callout-tip collapse="true"\}\s*\n## Download Notebook\n'
+        r'\[Download as Jupyter Notebook\]\([^)]+\)\s*\n:::',
+        '', text)
     return text
 
 
@@ -285,7 +288,10 @@ def process_notebook(notebook_path: Path) -> bool:
 
     if modified:
         # Remove any previously injected macro cell
-        cells = [c for c in cells if 'PyApprox Tutorial Macros' not in ''.join(c.get('source', []))]
+        cells = [
+            c for c in cells
+            if 'PyApprox Tutorial Macros' not in ''.join(c.get('source', []))
+        ]
         notebook['cells'] = cells
 
         with open(notebook_path, 'w', encoding='utf-8') as f:

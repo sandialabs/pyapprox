@@ -21,8 +21,10 @@ INSTALL_SOURCE = [
     "    import pyapprox_tutorials\n",
     "except ImportError:\n",
     "    !pip install -q \\\n",
-    '        "pyapprox[runtime-extras] @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox" \\\n',
-    '        "pyapprox-benchmarks @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-benchmarks" \\\n',
+    '        "pyapprox[runtime-extras] @ git+https://github.com/sandialabs'
+    '/pyapprox.git#subdirectory=packages/pyapprox" \\\n',
+    '        "pyapprox-benchmarks @ git+https://github.com/sandialabs'
+    '/pyapprox.git#subdirectory=packages/pyapprox-benchmarks" \\\n',
     '        "pyapprox-tutorials @ git+https://github.com/sandialabs/pyapprox.git#subdirectory=packages/pyapprox-tutorials"\n',
 ]
 

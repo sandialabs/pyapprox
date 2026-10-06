@@ -30,7 +30,7 @@ class TestSobolGFunction:
         assert isinstance(func, FunctionProtocol)
 
     def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
-        """Test that SobolGFunction declares jacobian and hvp via its Derivatives bundle."""
+        """SobolGFunction declares jacobian and hvp in its bundle."""
         func = SobolGFunction(bkd, a=[0, 1, 4.5])
         assert isinstance(func, ObjectiveProtocol)
         assert func.derivatives().jacobian is not None

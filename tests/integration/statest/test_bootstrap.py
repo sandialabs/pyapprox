@@ -323,7 +323,9 @@ class TestEstimatorVariance:
         fitted = allocate_with_allocator(template, target_cost)
 
         # Compute MC variance
-        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), fitted, ntrials)
+        mc_cov = _compute_mc_estimator_variance(
+            self._bkd, bm.problem(), fitted, ntrials
+        )
         analytical_cov = fitted.covariance()
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
@@ -424,10 +426,14 @@ class TestEstimatorVariance:
         stat.set_pilot_quantities(cov)
 
         rec_idx = self._bkd.array(recursion_index, dtype=int)
-        template = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
+        template = _get_estimator(
+            est_type, stat, costs, self._bkd, recursion_index=rec_idx
+        )
         fitted = allocate_with_allocator(template, target_cost)
 
-        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), fitted, ntrials)
+        mc_cov = _compute_mc_estimator_variance(
+            self._bkd, bm.problem(), fitted, ntrials
+        )
         analytical_cov = fitted.covariance()
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=3e-1, atol=5e-2)
@@ -542,7 +548,9 @@ class TestPolynomialEnsemble:
             fitted = allocate_with_allocator(template, target_cost)
 
         analytical_cov = fitted.covariance()
-        mc_cov = _compute_mc_estimator_variance(self._bkd, bm.problem(), fitted, ntrials)
+        mc_cov = _compute_mc_estimator_variance(
+            self._bkd, bm.problem(), fitted, ntrials
+        )
 
         self._bkd.assert_allclose(mc_cov, analytical_cov, rtol=2e-1, atol=1e-2)
 
@@ -577,7 +585,9 @@ class TestInsertPilotSamples:
         costs = self._bkd.array([1.0, 0.5, 0.25])
         rec_idx = self._bkd.array(recursion_index, dtype=int)
 
-        template = _get_estimator(est_type, stat, costs, self._bkd, recursion_index=rec_idx)
+        template = _get_estimator(
+            est_type, stat, costs, self._bkd, recursion_index=rec_idx
+        )
         fitted = allocate_with_allocator(template, 200.0)
 
         nspm = fitted.nsamples_per_model()

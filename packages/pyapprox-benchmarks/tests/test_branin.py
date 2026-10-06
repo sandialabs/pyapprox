@@ -32,7 +32,7 @@ class TestBraninFunction:
         assert isinstance(func, FunctionProtocol)
 
     def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
-        """Test that BraninFunction declares jacobian and hvp via its Derivatives bundle."""
+        """BraninFunction declares jacobian and hvp in its bundle."""
         func = BraninFunction(bkd)
         assert isinstance(func, ObjectiveProtocol)
         assert func.derivatives().jacobian is not None

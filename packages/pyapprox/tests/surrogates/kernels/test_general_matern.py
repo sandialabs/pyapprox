@@ -19,7 +19,8 @@ class TestGeneralMaternKernel:
     def test_kernel_shape(self):
         """Test kernel matrix has correct shape."""
         kernel = GeneralMaternKernel(
-            nu=2.5, lenscale=[1.0, 1.0], lenscale_bounds=(0.1, 10.0), nvars=2, bkd=TorchBkd()
+            nu=2.5, lenscale=[1.0, 1.0], lenscale_bounds=(0.1, 10.0),
+            nvars=2, bkd=TorchBkd()
         )
 
         X1 = torch.randn(2, 10)
@@ -58,7 +59,8 @@ class TestGeneralMaternKernel:
     def test_diagonal_is_one(self):
         """Test diagonal elements are 1."""
         kernel = GeneralMaternKernel(
-            nu=2.5, lenscale=[1.0, 1.0], lenscale_bounds=(0.1, 10.0), nvars=2, bkd=TorchBkd()
+            nu=2.5, lenscale=[1.0, 1.0], lenscale_bounds=(0.1, 10.0),
+            nvars=2, bkd=TorchBkd()
         )
 
         X = torch.randn(2, 10)
@@ -104,7 +106,8 @@ class TestGeneralMaternKernel:
         # Test various nu values that aren't 1.5 or 2.5
         for nu in [0.5, 1.0, 2.0, 2.3, 3.0, 4.5]:
             kernel = GeneralMaternKernel(
-                nu=nu, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
+                nu=nu, lenscale=[1.0], lenscale_bounds=(0.1, 10.0),
+                nvars=1, bkd=TorchBkd()
             )
 
             X = torch.linspace(-2, 2, 10).reshape(1, -1)
@@ -120,7 +123,8 @@ class TestGeneralMaternKernel:
     def test_large_nu_approximates_rbf(self):
         """Test large nu approximates RBF/squared exponential kernel."""
         torch_kernel = GeneralMaternKernel(
-            nu=150.0, lenscale=[1.0], lenscale_bounds=(0.1, 10.0), nvars=1, bkd=TorchBkd()
+            nu=150.0, lenscale=[1.0], lenscale_bounds=(0.1, 10.0),
+            nvars=1, bkd=TorchBkd()
         )
 
         X = torch.linspace(-2, 2, 20).reshape(1, -1)
@@ -174,7 +178,8 @@ class TestGeneralMaternKernel:
     def test_hyp_list(self):
         """Test hyperparameter list."""
         kernel = GeneralMaternKernel(
-            nu=2.5, lenscale=[1.0, 2.0], lenscale_bounds=(0.1, 10.0), nvars=2, bkd=TorchBkd()
+            nu=2.5, lenscale=[1.0, 2.0], lenscale_bounds=(0.1, 10.0),
+            nvars=2, bkd=TorchBkd()
         )
 
         hyp_list = kernel.hyp_list()

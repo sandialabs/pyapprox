@@ -78,7 +78,10 @@ def generate_index_qmd(config: Dict[str, Any], workshop_dir: Path) -> str:
             topic = "**Break**"
         else:
             tutorial_id = item.get("id", "unknown")
-            topic = f"[{_format_tutorial_name(tutorial_id)}](../../library/{tutorial_id}.qmd)"
+            topic = (
+                f"[{_format_tutorial_name(tutorial_id)}]"
+                f"(../../library/{tutorial_id}.qmd)"
+            )
 
         time_str = _format_time(cumulative_minutes)
         lines.append(f"| {time_str} | {topic} | {duration_min} min |")
@@ -100,7 +103,8 @@ def generate_index_qmd(config: Dict[str, Any], workshop_dir: Path) -> str:
             tutorial_id = item.get("id", "unknown")
             notes = item.get("notes", "")
             lines.append(
-                f"- [{_format_tutorial_name(tutorial_id)}](../../library/{tutorial_id}.qmd)"
+                f"- [{_format_tutorial_name(tutorial_id)}]"
+                f"(../../library/{tutorial_id}.qmd)"
                 + (f" - {notes}" if notes else "")
             )
 

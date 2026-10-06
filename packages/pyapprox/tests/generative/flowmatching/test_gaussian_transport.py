@@ -512,7 +512,8 @@ class TestSampleCouplingGaussianIdentities:
     Tests:
     1. Marginal p_t variance: Var(x_t) = (1-t)^2 sigma_0^2 + t^2 sigma_1^2
     2. Conditional variances Var(x_0|x_t), Var(x_1|x_t), Cov(x_0,x_1|x_t)
-    3. Conditional velocity variance is constant: Var(x_1-x_0|x_t) = sigma_0^2 sigma_1^2 / sigma_t^2
+    3. Conditional velocity variance is constant:
+       Var(x_1-x_0|x_t) = sigma_0^2 sigma_1^2 / sigma_t^2
     4. Minimum loss integral: L* = pi * sigma_0 * sigma_1 / 2
     """
 

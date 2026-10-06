@@ -805,7 +805,10 @@ class TestExploreStep:
 
         costs = bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(models, bm.problem().prior().rvs, costs, oracle_stats=None, bkd=bkd)
+        return AETCBLUE(
+            models, bm.problem().prior().rvs, costs, oracle_stats=None,
+            bkd=bkd,
+        )
 
     @slower_test
     def test_explore_step_returns_tuple(self, bkd) -> None:
@@ -876,7 +879,10 @@ class TestExploitProducesMean:
 
         costs = bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(models, bm.problem().prior().rvs, costs, oracle_stats=None, bkd=bkd)
+        return AETCBLUE(
+            models, bm.problem().prior().rvs, costs, oracle_stats=None,
+            bkd=bkd,
+        )
 
     @slower_test
     def test_exploit_returns_scalar(self, bkd) -> None:
@@ -931,7 +937,10 @@ class TestFullEstimatePipeline:
 
         costs = bkd.asarray([10.0 ** (-i) for i in range(len(models))])
 
-        return AETCBLUE(models, bm.problem().prior().rvs, costs, oracle_stats=None, bkd=bkd)
+        return AETCBLUE(
+            models, bm.problem().prior().rvs, costs, oracle_stats=None,
+            bkd=bkd,
+        )
 
     @slow_test
     def test_estimate_returns_tuple(self, bkd) -> None:

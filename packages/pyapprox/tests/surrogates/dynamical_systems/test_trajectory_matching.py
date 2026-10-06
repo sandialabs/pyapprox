@@ -112,7 +112,9 @@ class TestTrajectoryMatchingLoss:
 
         rng = np.random.RandomState(7)
         perturbed = eta + bkd.array(rng.randn(eta.shape[0]) * 0.01)
-        val_perturbed = float(loss(bkd.reshape(perturbed, (perturbed.shape[0], 1)))[0, 0])
+        val_perturbed = float(
+            loss(bkd.reshape(perturbed, (perturbed.shape[0], 1)))[0, 0]
+        )
         assert val_perturbed > val_opt
 
     @pytest.mark.slow_on("TorchBkd")
@@ -147,7 +149,9 @@ class TestTrajectoryMatchingLoss:
 
         # Build batched loss with deterministic observations
         mu_batch = bkd.array([mu_vals])
-        wrapper = BatchedBoundODEResidual(fitted, n_dynamic=n_dynamic, mu_batch=mu_batch)
+        wrapper = BatchedBoundODEResidual(
+            fitted, n_dynamic=n_dynamic, mu_batch=mu_batch
+        )
         init_flat = bkd.array([0.5, 0.3] * k)
 
         # Generate obs at perturbed params

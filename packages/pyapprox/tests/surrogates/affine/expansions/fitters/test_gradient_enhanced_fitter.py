@@ -364,7 +364,9 @@ class TestGradientEnhancedPCEFitter:
 
         # Get exact function values and gradients
         values = target_expansion(samples)
-        target_gradients = target_expansion.derivatives().jacobian_batch(samples)[:, 0, :].T
+        target_gradients = target_expansion.derivatives().jacobian_batch(
+            samples
+        )[:, 0, :].T
 
         # Fit
         fitter = GradientEnhancedPCEFitter(bkd)

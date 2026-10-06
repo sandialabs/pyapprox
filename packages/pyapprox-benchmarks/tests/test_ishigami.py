@@ -30,7 +30,7 @@ class TestIshigamiFunction:
         assert isinstance(func, FunctionProtocol)
 
     def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
-        """Test that IshigamiFunction declares jacobian and hvp via its Derivatives bundle."""
+        """IshigamiFunction declares jacobian and hvp in its bundle."""
         func = IshigamiFunction(bkd)
         assert isinstance(func, ObjectiveProtocol)
         assert func.derivatives().jacobian is not None

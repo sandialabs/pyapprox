@@ -551,7 +551,9 @@ def analyze_tutorial(filepath: Path) -> TutorialMetrics:
     if not metrics.tutorial_type:
         metrics.warnings.append("No tutorial_type specified in frontmatter")
 
-    if metrics.declared_time and abs(metrics.declared_time - metrics.estimated_time) > 5:
+    if metrics.declared_time and (
+        abs(metrics.declared_time - metrics.estimated_time) > 5
+    ):
         metrics.warnings.append(
             f"Declared time ({metrics.declared_time} min) differs significantly "
             f"from estimated ({metrics.estimated_time:.1f} min)"
@@ -607,7 +609,8 @@ def format_report(metrics: TutorialMetrics, verbose: bool = False) -> str:
         lines.append(
             f"  Visible code: {metrics.code_blocks_visible} × "
             f"{TIME_WEIGHTS['code_block_visible']} = "
-            f"{metrics.code_blocks_visible * TIME_WEIGHTS['code_block_visible']:.1f} min"
+            f"{metrics.code_blocks_visible * TIME_WEIGHTS['code_block_visible']:.1f}"
+            " min"
         )
         lines.append(
             f"  Hidden code: {metrics.code_blocks_hidden} × "
@@ -661,7 +664,10 @@ def format_summary_table(all_metrics: list) -> str:
     lines.append("=" * 85)
 
     # Header
-    header = f"{'Tutorial':<35} {'Type':<10} {'Est.':<6} {'Decl.':<6} {'Code':<6} {'Eq':<4} {'Status'}"
+    header = (
+        f"{'Tutorial':<35} {'Type':<10} {'Est.':<6} {'Decl.':<6} "
+        f"{'Code':<6} {'Eq':<4} {'Status'}"
+    )
     lines.append(header)
     lines.append("-" * 85)
 
@@ -680,12 +686,18 @@ def format_summary_table(all_metrics: list) -> str:
         if violations:
             violations_count += 1
 
-        lines.append(f"{name:<35} {ttype:<10} {est:<6} {decl:<6} {code:<6} {eq:<4} {status}")
+        lines.append(
+            f"{name:<35} {ttype:<10} {est:<6} {decl:<6} "
+            f"{code:<6} {eq:<4} {status}"
+        )
         total_time += m.estimated_time
 
     lines.append("-" * 85)
     lines.append(f"Total tutorials: {len(all_metrics)}")
-    lines.append(f"Total estimated time: {total_time:.0f} min ({total_time/60:.1f} hours)")
+    lines.append(
+        f"Total estimated time: {total_time:.0f} min "
+        f"({total_time/60:.1f} hours)"
+    )
     lines.append(f"Tutorials with violations: {violations_count}")
     lines.append("\nCode column shows: visible+hidden blocks")
 

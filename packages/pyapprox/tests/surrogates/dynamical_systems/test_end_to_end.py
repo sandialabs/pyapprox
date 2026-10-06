@@ -1,4 +1,4 @@
-"""End-to-end tests: derivative-matching fit -> ODE integration -> trajectory quality."""
+"""End-to-end: derivative-matching fit, ODE integration, trajectory."""
 
 import numpy as np
 import pytest

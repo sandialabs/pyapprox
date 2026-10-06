@@ -33,7 +33,7 @@ class TestRosenbrockFunction:
         assert isinstance(func, FunctionProtocol)
 
     def test_protocol_compliance_jacobian_hvp(self, bkd) -> None:
-        """Test that RosenbrockFunction declares jacobian and hvp via its Derivatives bundle."""
+        """RosenbrockFunction declares jacobian and hvp in its bundle."""
         func = RosenbrockFunction(bkd, nvars=2)
         assert isinstance(func, ObjectiveProtocol)
         assert func.derivatives().jacobian is not None
