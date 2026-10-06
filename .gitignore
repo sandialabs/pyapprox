@@ -34,8 +34,6 @@ _fixup*.py
 # not scripts/ so the negations can take effect)
 scripts/*
 !scripts/check_prompt_injection.py
-!scripts/check_core_test_imports.sh
-!scripts/mypy_baseline.sh
 !scripts/mypy_diff.sh
 
 # Design spikes

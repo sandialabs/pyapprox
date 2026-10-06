@@ -19,13 +19,26 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff
-      # Both source trees. Linting only pyapprox let 20 findings
-      # accumulate in pyapprox-benchmarks unnoticed, since nothing was
-      # checking it.
+      # The whole tree, not just the source directories. Checking only
+      # pyapprox let 20 findings accumulate in pyapprox-benchmarks;
+      # checking only the two source trees then hid 128 more in tests,
+      # tutorials and scripts -- including a test class declared twice,
+      # which silently stopped six tests from being collected at all. A
+      # linter that reads a fraction of the tree reports on a fraction of
+      # the tree.
+      #
+      # scripts/ is named by its tracked Python file rather than as a
+      # directory: .gitignore holds scripts/* with a few negations, so the
+      # rest is local scratch a fresh checkout never sees. Naming the
+      # directory would make this command noisy to run locally -- ruff
+      # honors .gitignore for a directory but not for a path given
+      # explicitly -- while staying green here.
       - run: >
           ruff check
-          packages/pyapprox/src/pyapprox/
-          packages/pyapprox-benchmarks/src/
+          packages/
+          tests/
+          scripts/check_prompt_injection.py
+          conftest.py
 
   mypy:
     runs-on: ubuntu-latest

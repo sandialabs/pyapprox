@@ -53,7 +53,6 @@ import fnmatch
 import re
 import subprocess
 import sys
-import unicodedata
 from pathlib import Path
 
 ALLOW_MARKER = "prompt-injection-check: allow"
