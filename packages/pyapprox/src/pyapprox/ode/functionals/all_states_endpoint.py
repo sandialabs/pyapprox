@@ -7,6 +7,7 @@ nqoi = nstates.
 
 from typing import Generic
 
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
@@ -105,6 +106,41 @@ class AllStatesEndpointFunctional(Generic[Array]):
         dqdu = self._bkd.copy(dqdu)
         dqdu[:, -1] = 1.0
         return dqdu
+
+    def row_functional(self, qoi_idx: int) -> EndpointFunctional[Array]:
+        """Return QoI ``qoi_idx``, the state ``y_{qoi_idx}(T)``, as a
+        scalar functional."""
+        return EndpointFunctional(
+            qoi_idx, self._nstates, self._nparams, self._bkd
+        )
+
+    def apply_state_jacobian(
+        self, sol: Array, param: Array, time_idx: int, wmat: Array
+    ) -> Array:
+        """
+        Apply dQ/dy at one time: the identity at the final time, zero
+        elsewhere.
+
+        Parameters
+        ----------
+        sol : Array
+            Solution trajectory. Shape: (nstates, ntimes)
+        param : Array
+            Parameters. Shape: (nparams, 1)
+        time_idx : int
+            Time index, in ``[0, ntimes)``.
+        wmat : Array
+            Matrix to apply to. Shape: (nstates, ncols)
+
+        Returns
+        -------
+        Array
+            ``wmat`` at the final time, zeros otherwise.
+            Shape: (nstates, ncols)
+        """
+        if time_idx == sol.shape[1] - 1:
+            return wmat
+        return self._bkd.zeros(wmat.shape)
 
     def param_jacobian(self, sol: Array, param: Array) -> Array:
         """

@@ -19,10 +19,13 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
 from pyapprox.interface.functions.marginalize import ActiveSetFunction
+from pyapprox.ode.functionals.all_states_endpoint import (
+    AllStatesEndpointFunctional,
+)
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.forward_sensitivity import (
-    solve_final_forward_sensitivity,
+    forward_sensitivity_jacobian,
 )
 from pyapprox.ode.stepper_table import create_stepper
 from pyapprox.util.backends.protocols import Array, Backend
@@ -159,8 +162,12 @@ class TestInitialStateParameters:
             residual.set_param(p)
             init = residual.get_initial_condition()
             integrator, sols, times = _integrate(problem, p, init)
-            return solve_final_forward_sensitivity(
-                integrator.time_residual(), sols, times, bkd
+            return forward_sensitivity_jacobian(
+                integrator,
+                AllStatesEndpointFunctional(problem.nstates(), nparams, bkd),
+                sols,
+                times,
+                sample,
             )
 
         _check(

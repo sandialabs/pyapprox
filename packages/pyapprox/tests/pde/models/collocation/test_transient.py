@@ -36,6 +36,7 @@ from pyapprox.pde.models.collocation.transient import (
 from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
@@ -681,14 +682,12 @@ class TestTransientForwardModelTiers:
         assert bkd.to_float(bkd.min(errors[1])) <= 5e-6
         assert checker.error_ratio(errors[1]) <= 1e-5
 
-    def test_vector_rowwise_adjoint_matches_tlm(self, numpy_bkd):
-        """When nparams > nqoi the all-states jacobian dispatches to
-        the row-wise adjoint; it must equal the tangent-linear result
-        computed directly."""
+    def test_vector_adjoint_matches_tlm(self, numpy_bkd: NumpyBkd) -> None:
+        """The all-states jacobian by the caller-chosen adjoint method
+        (one sweep per state) equals the default tangent-linear one,
+        with nparams > nqoi."""
         bkd = numpy_bkd
-        from pyapprox.ode.operator.forward_sensitivity import (
-            solve_final_forward_sensitivity,
-        )
+        from pyapprox.ode.operator.qoi_jacobian import adjoint_jacobian
 
         npts = 8
         (
@@ -704,22 +703,29 @@ class TestTransientForwardModelTiers:
         fm = BasisExpansion(bkd, 2.0, modes)
         param = create_diffusion_parameterization(physics, bkd, fm)
         assert param.nparams() > npts
-        fwd = TransientForwardModel(
+        tlm_model = TransientForwardModel(
             physics,
             bkd,
             init_state,
             time_config,
             parameterization=param,
         )
+        adjoint_model = TransientForwardModel(
+            physics,
+            bkd,
+            init_state,
+            time_config,
+            parameterization=param,
+            jacobian_method=adjoint_jacobian,
+        )
         rng = np.random.default_rng(61)
         sample = bkd.asarray(rng.normal(0.0, 0.05, (param.nparams(), 1)))
-        jac_rowwise = fwd.derivatives().jacobian(sample)
-
-        fwd_sols, times = fwd.forward_solve(sample)
-        w_final = solve_final_forward_sensitivity(
-            fwd.last_integrator().time_residual(), fwd_sols, times, bkd
+        bkd.assert_allclose(
+            adjoint_model.derivatives().jacobian(sample),
+            tlm_model.derivatives().jacobian(sample),
+            rtol=1e-9,
+            atol=1e-12,
         )
-        bkd.assert_allclose(jac_rowwise, w_final, rtol=1e-9, atol=1e-12)
 
     def test_lumped_mass_rejected(self, bkd):
         """Collocation mass is the identity: lumping is rejected."""

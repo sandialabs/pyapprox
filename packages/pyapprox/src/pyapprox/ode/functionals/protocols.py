@@ -129,6 +129,119 @@ class TimeQuadratureAwareFunctionalProtocol(Protocol, Generic[Array]):
 
 
 @runtime_checkable
+class TransientFunctionalWithStateJacobianActionProtocol(
+    Protocol, Generic[Array]
+):
+    """
+    Protocol for transient functionals whose state Jacobian is applied
+    one time step at a time.
+
+    By the chain rule, a functional of the trajectory has the parameter
+    Jacobian
+
+    .. math::
+
+        \\frac{dQ}{dp} = \\sum_n \\frac{\\partial Q}{\\partial y_n} W_n
+        + \\frac{\\partial Q}{\\partial p},
+        \\qquad W_n = \\frac{dy_n}{dp},
+
+    for any number of QoIs. A tangent-linear sweep holds :math:`W_n` at
+    step :math:`n` and hands it to ``apply_state_jacobian``, so the sum
+    is accumulated as the sweep runs and no :math:`W_n` is stored. The
+    functional never forms :math:`\\partial Q/\\partial y_n` unless it
+    chooses to; a sparse observation operator applies directly.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        ...
+
+    def nqoi(self) -> int:
+        """Return the number of QoI outputs."""
+        ...
+
+    def nstates(self) -> int:
+        """Return the number of state variables."""
+        ...
+
+    def nparams(self) -> int:
+        """Return the total number of parameters."""
+        ...
+
+    def nunique_params(self) -> int:
+        """Return number of parameters unique to the functional."""
+        ...
+
+    def __call__(self, sol: Array, param: Array) -> Array:
+        """Evaluate the functional. Shape: (nqoi, 1)."""
+        ...
+
+    def param_jacobian(self, sol: Array, param: Array) -> Array:
+        """Compute the direct dQ/dp. Shape: (nqoi, nparams)."""
+        ...
+
+    def apply_state_jacobian(
+        self, sol: Array, param: Array, time_idx: int, wmat: Array
+    ) -> Array:
+        """
+        Apply :math:`\\partial Q/\\partial y_n` at one time to a matrix.
+
+        Parameters
+        ----------
+        sol : Array
+            Solution trajectory. Shape: (nstates, ntimes)
+        param : Array
+            Parameters. Shape: (nparams, 1)
+        time_idx : int
+            Time index :math:`n`, in ``[0, ntimes)``.
+        wmat : Array
+            Matrix to apply to, typically :math:`W_n`.
+            Shape: (nstates, ncols)
+
+        Returns
+        -------
+        Array
+            :math:`(\\partial Q/\\partial y_n)` ``wmat``; zero at times
+            the functional does not depend on. Shape: (nqoi, ncols)
+        """
+        ...
+
+
+@runtime_checkable
+class TransientFunctionalWithRowsProtocol(Protocol, Generic[Array]):
+    """
+    Protocol for vector transient functionals that expose each QoI as a
+    scalar functional.
+
+    The adjoint method computes one Jacobian row per backward sweep and
+    needs that row as a scalar functional (its ``state_jacobian`` is the
+    gradient shape ``(nstates, ntimes)``).
+    """
+
+    def nqoi(self) -> int:
+        """Return the number of QoI outputs."""
+        ...
+
+    def row_functional(
+        self, qoi_idx: int
+    ) -> TransientFunctionalWithJacobianProtocol[Array]:
+        """
+        Return QoI ``qoi_idx`` as a scalar functional.
+
+        Parameters
+        ----------
+        qoi_idx : int
+            QoI index, in ``[0, nqoi)``.
+
+        Returns
+        -------
+        TransientFunctionalWithJacobianProtocol
+            Scalar functional (nqoi = 1) with the same parameters.
+        """
+        ...
+
+
+@runtime_checkable
 class TransientFunctionalWithJacobianAndHVPProtocol(Protocol, Generic[Array]):
     """
     Protocol for transient functionals with Jacobian and HVP support.

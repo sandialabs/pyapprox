@@ -2,9 +2,9 @@
 
 ``GalerkinTransientForwardModel`` maps PDE parameters to quantities of
 interest extracted from the transient solution. It satisfies
-``FunctionProtocol``: the Jacobian comes from the adjoint method
-(scalar QoI, reusing the already-computed trajectory) or the shared
-tangent-linear sweep (all-states QoI), and scalar QoIs additionally
+``FunctionProtocol``: the Jacobian comes from the caller's choice of
+the adjoint method or the tangent-linear sweep, applied to the
+already-computed trajectory, and scalar QoIs additionally
 expose a Hessian-vector product through the second-order adjoint when
 the parameterization's bundle supports it.
 
@@ -24,8 +24,9 @@ from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
 )
-from pyapprox.ode.operator.forward_sensitivity import (
-    solve_final_forward_sensitivity,
+from pyapprox.ode.operator.qoi_jacobian import (
+    TransientQoIJacobianMethod,
+    default_qoi_jacobian_method,
 )
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
@@ -84,6 +85,13 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
     functional : transient functional, optional
         QoI functional. Defaults to ``AllStatesEndpointFunctional``
         (nqoi = nstates: the full final-time state).
+    jacobian_method : TransientQoIJacobianMethod, optional
+        How ``derivatives().jacobian`` computes dQ/dp: ``adjoint_jacobian``
+        (one backward sweep per QoI) or ``forward_sensitivity_jacobian``
+        (one tangent-linear sweep with a column per parameter), both in
+        ``pyapprox.ode.operator``. The functional must support the
+        chosen method. Default: ``adjoint_jacobian`` when nqoi = 1,
+        ``forward_sensitivity_jacobian`` otherwise.
     """
 
     def __init__(
@@ -94,6 +102,7 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         time_config: TimeIntegrationConfig[Array],
         bkd: Backend[Array],
         functional: Optional[_TransientFunctional[Array]] = None,
+        jacobian_method: Optional[TransientQoIJacobianMethod[Array]] = None,
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
@@ -130,6 +139,9 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
                 f"{type(functional).__name__}"
             )
         self._functional: _TransientFunctional[Array] = functional
+        self._jacobian_method = default_qoi_jacobian_method(
+            functional, jacobian_method
+        )
 
         # Time-integrated functionals get their quadrature from THIS
         # model's scheme (injected after every forward solve, from the
@@ -274,23 +286,12 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
     def _jacobian(self, sample: Array) -> Array:
         """Compute dQ/dp for one sample. Shape: (nqoi, nvars).
 
-        Scalar QoI: adjoint sweep over the just-computed trajectory.
-        All-states QoI: shared tangent-linear sweep for the full
-        ``dy(T)/dp`` matrix. Other vector QoIs are not supported.
+        Applies the constructor's ``jacobian_method`` to the
+        just-computed trajectory.
         """
         fwd_sols, times = self.forward_solve(sample)
-        integrator = self.last_integrator()
-        if self._functional.nqoi() == 1:
-            integrator.set_functional(self._functional)
-            return integrator.gradient(fwd_sols, times, sample)
-        if not isinstance(self._functional, AllStatesEndpointFunctional):
-            raise NotImplementedError(
-                "vector-QoI jacobians are only implemented for "
-                "AllStatesEndpointFunctional (dQ/dy(T) = I); got "
-                f"{type(self._functional).__name__}"
-            )
-        return solve_final_forward_sensitivity(
-            integrator.time_residual(), fwd_sols, times, self._bkd
+        return self._jacobian_method(
+            self.last_integrator(), self._functional, fwd_sols, times, sample
         )
 
     def _hvp(self, sample: Array, vvec: Array) -> Array:

@@ -78,7 +78,7 @@ Implement (or wrap a stepper into)
 replaces residual rows (the collocation `BCEnforcing*` wrappers are
 the reference). Everything above the protocol is shared:
 `TimeIntegrator`, the tangent-linear sweep
-(`solve_final_forward_sensitivity`), and the second-order adjoint
+(`forward_sensitivity_jacobian`), and the second-order adjoint
 (`TimeAdjointOperatorWithHVP`) come for free.
 
 ## Seam 4 — FunctionProtocol forward models

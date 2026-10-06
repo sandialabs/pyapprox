@@ -2,10 +2,9 @@
 
 ``TransientForwardModel`` maps PDE parameters to quantities of
 interest extracted from the transient solution. It satisfies
-``FunctionProtocol``: the Jacobian comes from the adjoint method
-(scalar QoI, reusing the already-computed trajectory) or, for the
-all-states QoI, whichever of the shared tangent-linear sweep and the
-row-wise adjoint costs fewer sweeps; scalar QoIs additionally expose
+``FunctionProtocol``: the Jacobian comes from the caller's choice of
+the adjoint method or the tangent-linear sweep, applied to the
+already-computed trajectory; scalar QoIs additionally expose
 a Hessian-vector product through the second-order adjoint when the
 parameterization's bundle supports it.
 
@@ -20,13 +19,13 @@ from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
-from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
 )
-from pyapprox.ode.operator.forward_sensitivity import (
-    solve_final_forward_sensitivity,
+from pyapprox.ode.operator.qoi_jacobian import (
+    TransientQoIJacobianMethod,
+    default_qoi_jacobian_method,
 )
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
@@ -90,6 +89,13 @@ class TransientForwardModel(CollocationModel[Array]):
     parameterization : ParameterizationProtocol
         Maps parameter vectors to physics coefficients; must be bound
         to the same physics instance.
+    jacobian_method : TransientQoIJacobianMethod, optional
+        How ``derivatives().jacobian`` computes dQ/dp: ``adjoint_jacobian``
+        (one backward sweep per QoI) or ``forward_sensitivity_jacobian``
+        (one tangent-linear sweep with a column per parameter), both in
+        ``pyapprox.ode.operator``. The functional must support the
+        chosen method. Default: ``adjoint_jacobian`` when nqoi = 1,
+        ``forward_sensitivity_jacobian`` otherwise.
     """
 
     def __init__(
@@ -100,6 +106,7 @@ class TransientForwardModel(CollocationModel[Array]):
         time_config: TimeIntegrationConfig[Array],
         functional: Optional[_TransientFunctional[Array]] = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
+        jacobian_method: Optional[TransientQoIJacobianMethod[Array]] = None,
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
             raise TypeError(
@@ -136,6 +143,9 @@ class TransientForwardModel(CollocationModel[Array]):
                 f"{type(functional).__name__}"
             )
         self._functional: _TransientFunctional[Array] = functional
+        self._jacobian_method = default_qoi_jacobian_method(
+            functional, jacobian_method
+        )
 
         bundle = parameterization.param_derivatives()
         self._hvp_functional: Optional[
@@ -270,39 +280,13 @@ class TransientForwardModel(CollocationModel[Array]):
     def _jacobian(self, sample: Array) -> Array:
         """Compute dQ/dp for one sample. Shape: (nqoi, nvars).
 
-        Scalar QoI: adjoint sweep over the just-computed trajectory.
-        All-states QoI: a costed choice — the tangent-linear sweep
-        costs one linear solve per parameter, the row-wise adjoint one
-        backward sweep per QoI, so the smaller of
-        ``(nparams, nqoi)`` decides (a KLE-sized ``nparams`` must not
-        silently pay the O(nparams) factor). Other vector QoIs are
-        not supported.
+        Applies the constructor's ``jacobian_method`` to the
+        just-computed trajectory.
         """
         fwd_sols, times = self.forward_solve(sample)
-        integrator = self.last_integrator()
-        if self._functional.nqoi() == 1:
-            integrator.set_functional(self._functional)
-            return integrator.gradient(fwd_sols, times, sample)
-        if not isinstance(self._functional, AllStatesEndpointFunctional):
-            raise NotImplementedError(
-                "vector-QoI jacobians are only implemented for "
-                "AllStatesEndpointFunctional (dQ/dy(T) = I); got "
-                f"{type(self._functional).__name__}"
-            )
-        nqoi = self._functional.nqoi()
-        if self._nparams <= nqoi:
-            return solve_final_forward_sensitivity(
-                integrator.time_residual(), fwd_sols, times, self._bkd
-            )
-        bkd = self._bkd
-        result = bkd.copy(bkd.zeros((nqoi, self._nparams)))
-        for k in range(nqoi):
-            integrator.set_functional(
-                EndpointFunctional(k, nqoi, self._nparams, bkd)
-            )
-            row = integrator.gradient(fwd_sols, times, sample)
-            result[k, :] = row[0, :]
-        return result
+        return self._jacobian_method(
+            self.last_integrator(), self._functional, fwd_sols, times, sample
+        )
 
     def _hvp(self, sample: Array, vvec: Array) -> Array:
         """Compute (d^2Q/dp^2) v via the second-order adjoint.

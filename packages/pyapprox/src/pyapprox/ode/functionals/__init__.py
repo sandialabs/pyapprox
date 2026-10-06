@@ -10,6 +10,8 @@ from pyapprox.ode.functionals.protocols import (
     TimeQuadratureAwareFunctionalProtocol,
     TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
+    TransientFunctionalWithRowsProtocol,
+    TransientFunctionalWithStateJacobianActionProtocol,
 )
 from pyapprox.ode.functionals.tikhonov import (
     TikhonovAugmentedFunctional,
@@ -26,6 +28,8 @@ __all__ = [
     "TimeQuadratureAwareFunctionalProtocol",
     "TransientFunctionalWithJacobianProtocol",
     "TransientFunctionalWithJacobianAndHVPProtocol",
+    "TransientFunctionalWithRowsProtocol",
+    "TransientFunctionalWithStateJacobianActionProtocol",
     # Implementations
     "EndpointFunctional",
     "TikhonovAugmentedFunctional",
