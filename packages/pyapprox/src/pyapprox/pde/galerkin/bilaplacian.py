@@ -10,6 +10,7 @@ The bilaplacian prior is used as a Gaussian process approximation for
 Bayesian inverse problems.
 """
 
+from math import gamma as gamma_func
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -50,6 +51,56 @@ except ImportError:
 
     import_optional_dependency(
         "skfem", feature_name="Galerkin module", extra_name="fem"
+    )
+
+
+def bilaplacian_stationary_variance(
+    gamma: float, delta: float, ndim: int
+) -> float:
+    r"""Return the marginal variance of the bi-Laplacian prior in free space.
+
+    The prior solves :math:`\gamma(\kappa^2 - \Delta) u = W` with
+    :math:`\kappa^2 = \delta/\gamma`, a Whittle-Matern field of
+    smoothness :math:`\nu = 2 - d/2`, whose variance away from any
+    boundary is
+
+    .. math::
+
+        \sigma^2 = \frac{\Gamma(\nu)}
+                        {\Gamma(\nu + d/2)\,(4\pi)^{d/2}\,
+                         \kappa^{2\nu}\,\gamma^2}.
+
+    In 2D this is :math:`1/(4\pi\gamma\delta)`. The discrete field
+    approaches it in the interior as the mesh is refined; boundary
+    conditions change it near the boundary.
+
+    Parameters
+    ----------
+    gamma : float
+        Diffusion scaling parameter.
+    delta : float
+        Reaction coefficient.
+    ndim : int
+        Spatial dimension, 1, 2 or 3 (the field is defined for
+        :math:`\nu > 0`).
+
+    Returns
+    -------
+    float
+        The stationary marginal variance.
+    """
+    if ndim not in (1, 2, 3):
+        raise ValueError(f"ndim must be 1, 2 or 3, got {ndim}")
+    nu = 2.0 - ndim / 2.0
+    kappa_sq = delta / gamma
+    return float(
+        gamma_func(nu)
+        / (
+            gamma_func(nu + ndim / 2.0)
+            * (4.0 * np.pi) ** (ndim / 2.0)
+            * kappa_sq**nu
+            * gamma**2
+        )
     )
 
 
@@ -237,6 +288,79 @@ class BiLaplacianPrior(Generic[Array]):
             anisotropic_tensor,
             noise_mass=noise_mass,
         )
+
+    @classmethod
+    def from_correlation_length(
+        cls,
+        basis: GalerkinBasisProtocol[Array],
+        length: float,
+        std: float,
+        bkd: Backend[Array],
+        robin_alpha: Optional[float] = None,
+        noise_mass: Optional[NoiseMassProtocol[Array]] = None,
+    ) -> "BiLaplacianPrior[Array]":
+        r"""Create an isotropic prior with a given correlation length and
+        standard deviation, with uniform Robin BCs on all boundaries.
+
+        Chooses :math:`\delta = \gamma/\ell^2` and the :math:`\gamma` for
+        which ``bilaplacian_stationary_variance`` equals
+        :math:`\sigma^2`. Scaling :math:`(\gamma, \delta)` together keeps
+        :math:`\ell` and divides the variance by the square of the
+        scale, so the pair is unique. In 2D,
+        :math:`\gamma\delta = 1/(4\pi\sigma^2)`.
+
+        The standard deviation is the free-space value: the discrete
+        field approaches it in the interior as the mesh is refined, and
+        the Robin coefficient changes it near the boundary.
+
+        Parameters
+        ----------
+        basis : GalerkinBasisProtocol[Array]
+            Finite element basis.
+        length : float
+            Correlation length :math:`\ell = \sqrt{\gamma/\delta}` (the
+            inverse of the Matern :math:`\kappa`, not the practical range
+            :math:`\sqrt{8\nu}\,\ell`).
+        std : float
+            Stationary marginal standard deviation :math:`\sigma`.
+        bkd : Backend[Array]
+            Computational backend.
+        robin_alpha : float, optional
+            Robin BC coefficient. Default: ``sqrt(gamma * delta) * 1.42``.
+        noise_mass : NoiseMassProtocol, optional
+            The white-noise mass. Default: the row-sum lumped mass.
+
+        Returns
+        -------
+        BiLaplacianPrior[Array]
+            Constructed prior.
+        """
+        if length <= 0.0 or std <= 0.0:
+            raise ValueError(
+                f"length and std must be positive, got {length} and {std}"
+            )
+        # At gamma = 1 the variance is v1; it scales as 1/gamma^2 at fixed
+        # kappa = 1/length.
+        unit_variance = bilaplacian_stationary_variance(
+            1.0, 1.0 / length**2, basis.mesh().ndim()
+        )
+        gamma = float(np.sqrt(unit_variance)) / std
+        return cls.with_uniform_robin(
+            basis,
+            gamma=gamma,
+            delta=gamma / length**2,
+            bkd=bkd,
+            robin_alpha=robin_alpha,
+            noise_mass=noise_mass,
+        )
+
+    def gamma(self) -> float:
+        """Return the diffusion scaling parameter."""
+        return self._gamma
+
+    def delta(self) -> float:
+        """Return the reaction coefficient."""
+        return self._delta
 
     def _assemble_system(self) -> None:
         """Lazily assemble stiffness matrix and lumped mass vector."""

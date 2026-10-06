@@ -637,25 +637,21 @@ class TestSPDEMaternKLE:
     def test_spde_internal_consistency(self, numpy_bkd) -> None:
         r"""SPDE eigenvalue formula matches dense covariance eigenvalues.
 
-        On a small mesh (nx=50), form the dense SPDE nodal covariance.
-        The SPDE precision operator is :math:`L_h = A/\gamma` where
-        :math:`A = \gamma K + \delta M + \xi M_\partial`, so
-        :math:`L_h^{-1} = \gamma A^{-1}` and the covariance is:
+        On a small mesh (nx=50), form the dense SPDE nodal covariance
+        normalized to unit stationary variance :math:`v`:
 
         .. math::
 
-            \Sigma = \frac{\gamma^2}{\tau^2}\,A^{-1}\,M\,A^{-1}
+            \Sigma = \frac{1}{v}\,A^{-1}\,M\,A^{-1}
 
         The eigenvalues of :math:`\Sigma M` should match
-        :math:`\gamma^2 / (\tau^2 \mu_k^2)` to machine precision, where
+        :math:`1 / (v \mu_k^2)` to machine precision, where
         :math:`\mu_k` are from :math:`A \phi_k = \mu_k M \phi_k`.
         """
         bkd = numpy_bkd
         from pyapprox.pde.galerkin.bilaplacian import (
             BiLaplacianPrior,
-        )
-        from pyapprox.pde.galerkin.kle_factory import (
-            _compute_spde_tau_squared,
+            bilaplacian_stationary_variance,
         )
         from scipy.sparse.linalg import eigsh, spsolve
         from skfem import asm
@@ -682,12 +678,12 @@ class TestSPDEMaternKLE:
         # Solve generalized eigenproblem A phi = mu M phi
         mu_vals, _ = eigsh(A, k=n_modes, M=M, sigma=0.0, which="LM")
 
-        # Compute tau^2
-        d = basis.mesh().ndim()
-        tau_sq = _compute_spde_tau_squared(gamma, delta, d)
+        variance = bilaplacian_stationary_variance(
+            gamma, delta, basis.mesh().ndim()
+        )
 
-        # Formula eigenvalues: lambda_k = gamma^2 / (tau^2 * mu_k^2)
-        lambda_formula = gamma**2 / (tau_sq * mu_vals**2)
+        # Formula eigenvalues: lambda_k = 1 / (v * mu_k^2)
+        lambda_formula = 1.0 / (variance * mu_vals**2)
         lambda_formula = np.sort(lambda_formula)[::-1]
 
         # Dense A_inv: solve A @ A_inv = I column by column
@@ -699,8 +695,8 @@ class TestSPDEMaternKLE:
             e_j[j] = 1.0
             A_inv[:, j] = spsolve(A, e_j)
 
-        # Dense covariance: Sigma = (gamma^2/tau^2) * A_inv @ M @ A_inv
-        Sigma = (gamma**2 / tau_sq) * A_inv @ M_dense @ A_inv
+        # Dense covariance: Sigma = A_inv @ M @ A_inv / v
+        Sigma = A_inv @ M_dense @ A_inv / variance
 
         # Eigenvalues of Sigma @ M
         # Sigma @ M is not symmetric, so use eig not eigvalsh

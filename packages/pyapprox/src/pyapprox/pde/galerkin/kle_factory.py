@@ -18,7 +18,6 @@ meshes.
 
 from __future__ import annotations
 
-from math import gamma as gamma_func
 from typing import Optional, Union
 
 import numpy as np
@@ -30,7 +29,10 @@ from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
     _ExpTransform,
 )
-from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
+from pyapprox.pde.galerkin.bilaplacian import (
+    BiLaplacianPrior,
+    bilaplacian_stationary_variance,
+)
 from pyapprox.pde.galerkin.noise_mass import (
     ConsistentNoiseMass,
     NoiseMassProtocol,
@@ -42,55 +44,6 @@ from pyapprox.surrogates.kle.utils import (
     sort_eigenpairs,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
-
-def _compute_spde_tau_squared(
-    gamma: float,
-    delta: float,
-    d: int,
-    alpha: int = 2,
-) -> float:
-    r"""Compute :math:`\tau^2` giving unit marginal variance.
-
-    The SPDE covariance is :math:`\Sigma = \tau^{-2} A^{-1} M A^{-1}`.
-    The parameter :math:`\tau` is determined by requiring the stationary
-    marginal variance to equal 1:
-
-    .. math::
-
-        1 = \frac{\Gamma(\nu)}
-                 {\Gamma(\nu + d/2)\,(4\pi)^{d/2}\,
-                  \kappa^{2\nu}\,\tau^2}
-
-    where :math:`\kappa = \sqrt{\delta/\gamma}` and
-    :math:`\nu = \alpha - d/2`. A target standard deviation
-    :math:`\sigma` is applied once, by ``SPDEMaternKLE``; folding it in
-    here as well would give variance :math:`\sigma^4`.
-
-    Parameters
-    ----------
-    gamma : float
-        Diffusion coefficient.
-    delta : float
-        Reaction coefficient.
-    d : int
-        Spatial dimension.
-    alpha : int
-        SPDE order.  Default: 2 (bilaplacian).
-
-    Returns
-    -------
-    float
-        :math:`\tau^2`.
-    """
-    nu = alpha - d / 2.0
-    kappa = np.sqrt(delta / gamma)
-    tau_sq = gamma_func(nu) / (
-        gamma_func(nu + d / 2.0)
-        * (4 * np.pi) ** (d / 2.0)
-        * kappa ** (2 * nu)
-    )
-    return float(tau_sq)
 
 
 def create_spde_matern_kle(
@@ -113,24 +66,20 @@ def create_spde_matern_kle(
 
         A\,\phi_k = \mu_k\,M\,\phi_k
 
-    for the smallest eigenvalues :math:`\mu_k`.  The KLE eigenvalues are
-    :math:`\lambda_k = \gamma^2/(\tau^2 \mu_k^2)` (the :math:`\gamma^2`
-    arises because :math:`A = \gamma L_h`), where :math:`\tau` is computed
-    analytically from the SPDE-Matern variance formula so that the
-    stationary marginal variance is 1:
+    for the smallest eigenvalues :math:`\mu_k`.  The covariance
+    :math:`A^{-1} M A^{-1} = \Phi\,\mathrm{diag}(\mu^{-2})\,\Phi^\top` has
+    the stationary marginal variance :math:`v(\gamma, \delta)` of
+    ``bilaplacian_stationary_variance``, so the KLE eigenvalues
+    :math:`\lambda_k = 1/(v\,\mu_k^2)` are those of the unit-variance
+    field. ``SPDEMaternKLE`` then scales the field by :math:`\sigma`, so
+    the marginal variance is :math:`\sigma^2`. This makes the SPDE
+    eigenvalues match the kernel-based unit-variance eigenvalues
+    mode-by-mode (up to discretization and boundary effects).
 
-    .. math::
-
-        1 = \frac{\Gamma(\nu)}
-                 {\Gamma(\nu + d/2)\,(4\pi)^{d/2}\,
-                  \kappa^{2\nu}\,\tau^2}
-
-    with :math:`\kappa = \sqrt{\delta/\gamma}` and
-    :math:`\nu = \alpha - d/2`.  ``SPDEMaternKLE`` then scales the
-    field by :math:`\sigma`, so the marginal variance is
-    :math:`\sigma^2`.  This ensures the SPDE eigenvalues match the
-    kernel-based unit-variance eigenvalues mode-by-mode (up to
-    discretization and boundary effects).
+    With the same Robin coefficient and noise mass, a full-rank KLE
+    therefore has the covariance of
+    ``BiLaplacianPrior.from_correlation_length(basis, sqrt(gamma/delta),
+    sigma)`` exactly.
 
     This uses only sparse matrices and a partial eigensolve, giving
     O(N) memory instead of the O(N^2) of kernel-based methods.
@@ -184,15 +133,12 @@ def create_spde_matern_kle(
     mu_array, phi_array = prior.generalized_eigenpairs(n_modes)
     mu_vals = bkd.to_numpy(mu_array)
 
-    # tau^2 for unit variance; SPDEMaternKLE scales by sigma.
-    d = basis.mesh().ndim()
-    tau_sq = _compute_spde_tau_squared(gamma, delta, d)
-
-    # KLE eigenvalues: lambda_k = gamma^2 / (tau^2 * mu_k^2)
-    # The gamma^2 factor arises because A = gamma * L_h where L_h is the
-    # SPDE operator, so A^{-1} = (1/gamma) * L_h^{-1} and the covariance
-    # C = tau^{-2} L_h^{-1} M L_h^{-1} = tau^{-2} gamma^2 A^{-1} M A^{-1}
-    lambda_vals = gamma**2 / (tau_sq * mu_vals**2)
+    # Unit-variance eigenvalues: A^{-1} M A^{-1} divided by its stationary
+    # variance. SPDEMaternKLE scales by sigma.
+    variance = bilaplacian_stationary_variance(
+        gamma, delta, basis.mesh().ndim()
+    )
+    lambda_vals = 1.0 / (variance * mu_vals**2)
 
     eig_vals = bkd.asarray(lambda_vals)
     eig_vecs = phi_array

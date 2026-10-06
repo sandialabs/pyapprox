@@ -19,7 +19,11 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
+from pyapprox.pde.galerkin.bilaplacian import (
+    BiLaplacianPrior,
+    bilaplacian_stationary_variance,
+)
+from pyapprox.pde.galerkin.kle_factory import create_spde_matern_kle
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.noise_mass import (
     ConsistentNoiseMass,
@@ -356,3 +360,86 @@ def test_truncation_rank_is_validated(numpy_bkd: Backend[Array]) -> None:
     for rank in (0, ndofs + 1):
         with pytest.raises(ValueError, match="rank must be"):
             prior.truncated_covariance_factor(rank)
+
+
+class TestFromCorrelationLength:
+    def test_parameters(self, numpy_bkd: Backend[Array]) -> None:
+        """gamma / delta = length^2 and the stationary variance is
+        std^2; in 2D that is gamma * delta = 1 / (4 pi std^2)."""
+        basis = _basis(numpy_bkd, 3)
+        length, std = 0.2, 1.7
+        prior = BiLaplacianPrior.from_correlation_length(
+            basis, length, std, numpy_bkd
+        )
+        gamma, delta = prior.gamma(), prior.delta()
+        numpy_bkd.assert_allclose(
+            numpy_bkd.asarray(
+                [
+                    gamma / delta,
+                    bilaplacian_stationary_variance(gamma, delta, 2),
+                    gamma * delta,
+                ]
+            ),
+            numpy_bkd.asarray(
+                [length**2, std**2, 1.0 / (4.0 * np.pi * std**2)]
+            ),
+            rtol=1e-12,
+        )
+
+    @pytest.mark.parametrize("std", [0.5, 2.0])
+    def test_center_std_matches_target(
+        self, numpy_bkd: Backend[Array], std: float
+    ) -> None:
+        """Interior std over the requested std, unit square, tri P1,
+        length 0.1, default Robin coefficient, node nearest (0.5, 0.5):
+        measured 0.9926 (consistent) and 1.0625 (lumped) at 20 x 20
+        elements, 0.9967 and 1.0214 at 40 x 40; the ratio does not depend
+        on std."""
+        basis = _basis(numpy_bkd, 20)
+        center = _center(basis, numpy_bkd)
+        for noise_mass, tol in (
+            (ConsistentNoiseMass(basis, numpy_bkd), 0.01),
+            (LumpedNoiseMass(basis, numpy_bkd), 0.07),
+        ):
+            prior = BiLaplacianPrior.from_correlation_length(
+                basis, 0.1, std, numpy_bkd, noise_mass=noise_mass
+            )
+            ratio = _std_at(prior, [center], numpy_bkd)[0] / std
+            assert abs(ratio - 1.0) < tol
+
+    def test_full_rank_kle_has_the_prior_covariance(
+        self, numpy_bkd: Backend[Array]
+    ) -> None:
+        """The SPDE KLE with the prior's gamma, delta, Robin coefficient
+        and mass, and sigma = std, is the same Gaussian at full rank."""
+        bkd = numpy_bkd
+        basis = _basis(bkd, 3)
+        length, std, robin = 0.3, 1.3, 2.0
+        noise_mass = ConsistentNoiseMass(basis, bkd)
+        prior = BiLaplacianPrior.from_correlation_length(
+            basis, length, std, bkd, robin_alpha=robin, noise_mass=noise_mass
+        )
+        kle = create_spde_matern_kle(
+            basis,
+            n_modes=basis.ndofs(),
+            gamma=prior.gamma(),
+            delta=prior.delta(),
+            sigma=std,
+            bkd=bkd,
+            xi=robin,
+            noise_mass=noise_mass,
+        )
+        weighted = kle.weighted_eigenvectors()
+        bkd.assert_allclose(
+            weighted @ weighted.T, prior.covariance(), rtol=1e-10
+        )
+
+    def test_invalid_arguments_raise(self, numpy_bkd: Backend[Array]) -> None:
+        basis = _basis(numpy_bkd, 3)
+        for length, std in ((0.0, 1.0), (0.1, -1.0)):
+            with pytest.raises(ValueError, match="must be positive"):
+                BiLaplacianPrior.from_correlation_length(
+                    basis, length, std, numpy_bkd
+                )
+        with pytest.raises(ValueError, match="ndim must be"):
+            bilaplacian_stationary_variance(1.0, 1.0, 4)
