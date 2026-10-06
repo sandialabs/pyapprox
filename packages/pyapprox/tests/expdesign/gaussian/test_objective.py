@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.analytical import (
     lognormal_goal_mg_blocks,
     relaxed_lognormal_expected_variance,
@@ -26,7 +27,6 @@ from pyapprox.inverse.joint_gaussian import JointGaussian
 from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
-
 from tests._helpers.inward_direction import inward_direction
 
 

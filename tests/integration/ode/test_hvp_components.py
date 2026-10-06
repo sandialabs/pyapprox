@@ -12,6 +12,7 @@ Uses DerivativeChecker with error_ratio tolerance 1e-6.
 from typing import Generic
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

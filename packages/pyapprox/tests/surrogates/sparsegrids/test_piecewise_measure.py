@@ -11,6 +11,8 @@ Gaussian density.
 from typing import Callable, List
 
 import pytest
+from scipy import stats
+
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.surrogates.affine.indices import ClenshawCurtisGrowthRule
@@ -35,7 +37,6 @@ from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from scipy import stats
 
 _BasisClass = Callable[[Array, Backend[Array]], PiecewisePolynomialProtocol[Array]]
 

@@ -1,4 +1,5 @@
 import numpy as np
+
 from pyapprox.surrogates.kerneloperator.encoders.identity import (
     IdentityFunctionEncoder,
 )

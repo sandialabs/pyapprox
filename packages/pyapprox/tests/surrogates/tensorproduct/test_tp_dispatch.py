@@ -11,6 +11,7 @@ from typing import List
 import numpy as np
 import pytest
 import torch
+
 from pyapprox.surrogates.tensorproduct import TensorProductInterpolant
 from pyapprox.surrogates.tensorproduct.compute import (
     tp_eval_vectorized,

@@ -3,6 +3,7 @@
 import math
 
 import numpy as np
+
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,
@@ -29,7 +30,6 @@ from pyapprox.pde.manufactured import (
     ManufacturedTwoSpeciesReactionDiffusion,
 )
 from pyapprox.util.rootfinding.newton import NewtonSolver
-
 from tests._helpers.physics_test_utils import (
     PhysicsNewtonResidual,
     PhysicsTestBase,

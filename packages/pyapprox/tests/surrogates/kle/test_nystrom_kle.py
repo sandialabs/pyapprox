@@ -18,6 +18,7 @@ the variable, and the precondition is asserted rather than assumed.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
     SquaredExponentialKernel,

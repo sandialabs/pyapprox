@@ -7,8 +7,12 @@ and LinearCoregionalizationKernel with a single GP handling all outputs.
 
 import numpy as np
 import torch
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
+)
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    MultiOutputGPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.gaussianprocess.gp_loss import (
     GPNegativeLogMarginalLikelihoodLoss,
@@ -19,20 +23,16 @@ from pyapprox.surrogates.kernels.matern import (
     Matern52Kernel,
     SquaredExponentialKernel,
 )
+from pyapprox.surrogates.kernels.multioutput import (
+    IndependentMultiOutputKernel,
+    LinearCoregionalizationKernel,
+)
 from pyapprox.surrogates.kernels.multioutput.multilevel import MultiLevelKernel
 from pyapprox.surrogates.kernels.scalings import (
     PolynomialScalingFunction,
     PolynomialScalingKernel,
 )
 from pyapprox.util.backends.torch import TorchBkd
-
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    MultiOutputGPMaximumLikelihoodFitter,
-)
-from pyapprox.surrogates.kernels.multioutput import (
-    IndependentMultiOutputKernel,
-    LinearCoregionalizationKernel,
-)
 from tests._helpers.markers import slow_test
 
 

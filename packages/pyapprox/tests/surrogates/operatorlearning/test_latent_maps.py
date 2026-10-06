@@ -10,6 +10,7 @@ graph makes a fit run, change nothing and report nothing.
 import numpy as np
 import pytest
 import torch
+
 from pyapprox.interface.functions.derivative_checks.base import JVPChecker
 from pyapprox.surrogates.operatorlearning import (
     IdentityFieldEncoder,

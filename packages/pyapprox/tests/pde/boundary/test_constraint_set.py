@@ -5,6 +5,8 @@ from typing import Any, Callable, Optional, Sequence
 
 import numpy as np
 import pytest
+from scipy.sparse import csr_matrix, issparse
+
 from pyapprox.pde.boundary import (
     ConstraintSetProtocol,
     DirichletConstraintSet,
@@ -13,7 +15,6 @@ from pyapprox.pde.boundary import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
-from scipy.sparse import csr_matrix, issparse
 
 
 class _EssentialBC:

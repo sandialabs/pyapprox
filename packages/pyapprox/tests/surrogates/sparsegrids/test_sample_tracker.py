@@ -9,6 +9,7 @@ written exactly once, when the values covering its samples arrive.
 from typing import List
 
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import LinearGrowthRule
 from pyapprox.surrogates.sparsegrids import create_basis_factories

@@ -2,13 +2,6 @@
 
 import copy
 
-from pyapprox.probability import GaussianMarginal, UniformMarginal
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
-)
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.generative.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -22,6 +15,13 @@ from pyapprox.generative.flowmatching.linear_path import LinearPath
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 
 
 def _make_vf(bkd, d, degree, m=0):

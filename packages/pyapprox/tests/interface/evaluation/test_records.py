@@ -14,6 +14,7 @@ distinguishable from evidence about a parameter point.
 """
 
 import pytest
+
 from pyapprox.interface.evaluation.records import (
     ComputeProvenance,
     Cost,

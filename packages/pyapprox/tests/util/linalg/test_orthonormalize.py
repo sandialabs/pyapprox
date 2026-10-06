@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.orthonormalize import (
     CholeskyQR,

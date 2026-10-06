@@ -12,6 +12,7 @@ from typing import Generic
 import numpy as np
 import pytest
 from numpy.typing import NDArray
+
 from pyapprox.expdesign.design_space import (
     BinaryDesignSubsetObjective,
     GroupedDesign,

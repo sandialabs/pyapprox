@@ -1,6 +1,7 @@
 """Tests for split_by_role: every BC has exactly one role."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):

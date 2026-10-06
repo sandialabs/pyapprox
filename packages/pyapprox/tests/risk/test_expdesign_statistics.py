@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 from scipy import stats
 
+from pyapprox.probability.risk import GaussianAnalyticalRiskMeasures
 from pyapprox.risk import (
     SampleAverageEntropicRisk,
     SampleAverageMean,
@@ -19,7 +20,6 @@ from pyapprox.risk import (
     SampleAverageStdev,
     SampleAverageVariance,
 )
-from pyapprox.probability.risk import GaussianAnalyticalRiskMeasures
 
 
 class TestSampleStatistics:

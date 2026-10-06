@@ -10,6 +10,8 @@ error, so the agreement checks below are the real content.
 
 import numpy as np
 import pytest
+from scipy.sparse import csr_matrix, diags
+
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     EuclideanInnerProduct,
@@ -17,7 +19,6 @@ from pyapprox.util.linalg.inner_product import (
     MassInnerProduct,
     m_orthonormality_drift,
 )
-from scipy.sparse import csr_matrix, diags
 
 
 def _vectors(bkd, nstates=6, ncols=3, seed=0):

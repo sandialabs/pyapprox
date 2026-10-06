@@ -10,6 +10,7 @@ blocks cannot).
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -19,6 +20,7 @@ from typing import Any, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -54,7 +56,6 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
-
 from tests._helpers.adjoint_checks import HVPOperatorFunction
 
 _NumpyArray = NDArray[Any]

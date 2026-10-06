@@ -9,6 +9,7 @@ facet normal is one particular choice.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -18,6 +19,7 @@ from typing import Any, Callable, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.pde.constitutive.coefficient_functions import (
     ConstantDiffusion,
     NodalFieldDiffusion,

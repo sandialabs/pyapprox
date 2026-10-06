@@ -15,6 +15,7 @@ array-free.
 import time
 
 import pytest
+
 from pyapprox.interface.evaluation.callable_marshaller import (
     CallableMarshaller,
 )

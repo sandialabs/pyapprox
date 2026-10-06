@@ -21,6 +21,7 @@ import os
 import shutil
 
 import pytest
+
 from pyapprox.interface.evaluation.collection import (
     DEFAULT_SKIP,
     AnomalyKind,

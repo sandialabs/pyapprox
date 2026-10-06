@@ -7,10 +7,6 @@ Integration tests for Gaussian transport with StieltjesFlowVF.
 import numpy as np
 import pytest
 
-from pyapprox.probability import GaussianMarginal, UniformMarginal
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.generative.flowmatching.basis_factory import (
     StieltjesBasisFactory,
 )
@@ -29,6 +25,10 @@ from pyapprox.generative.flowmatching.fitters.least_squares import (
 )
 from pyapprox.generative.flowmatching.linear_path import LinearPath
 from pyapprox.generative.flowmatching.quad_data import FlowMatchingQuadData
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 
 
 def _gauss_hermite_quad(bkd, n):

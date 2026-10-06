@@ -3,6 +3,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.pde.decomposition.interface.basis import (
     LegendreInterfaceBasis1D,
 )

@@ -4,6 +4,7 @@ import itertools
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.affine.indices.admissibility import (
     CompositeCriteria,
     Max1DLevelsCriteria,

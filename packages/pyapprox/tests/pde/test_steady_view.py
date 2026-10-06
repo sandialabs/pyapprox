@@ -1,6 +1,7 @@
 """SteadyView: a time-free steady problem from a time-dependent F(u, t)."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,6 +11,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     TimeDependent,

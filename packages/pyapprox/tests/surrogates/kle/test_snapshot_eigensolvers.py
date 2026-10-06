@@ -13,6 +13,8 @@ import os
 
 import numpy as np
 import pytest
+from scipy.sparse import diags
+
 from pyapprox.surrogates.kle.basis_sinks import (
     ArrayBasisSink,
     MemmapBasisSink,
@@ -32,7 +34,6 @@ from pyapprox.util.linalg.inner_product import (
     m_orthonormality_drift,
 )
 from pyapprox.util.linalg.orthonormalize import HouseholderQR
-from scipy.sparse import diags
 
 
 def _snapshots(bkd, nstates=12, nsamples=8, seed=0):

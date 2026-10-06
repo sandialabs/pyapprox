@@ -7,6 +7,7 @@ original scalar per-QoI loop in SampleAverageSmoothedAVaR.
 import numpy as np
 import pytest
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.risk.avar import SampleAverageSmoothedAVaR
 from pyapprox.risk.avar_compute import (
     avar_jacobian_batch,
@@ -14,7 +15,6 @@ from pyapprox.risk.avar_compute import (
     project_batch,
 )
 from pyapprox.util.optional_deps import package_available
-from pyapprox.interface.functions.derivatives import Derivatives
 
 HAS_NUMBA = package_available("numba")
 

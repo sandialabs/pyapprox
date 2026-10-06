@@ -12,7 +12,6 @@ from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,
 )

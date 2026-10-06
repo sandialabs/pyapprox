@@ -10,12 +10,16 @@ Tests:
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from scipy.sparse import issparse
+from skfem.models.elasticity import lame_parameters
+
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
@@ -40,8 +44,6 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import issparse
-from skfem.models.elasticity import lame_parameters
 
 
 def _to_dense(mat, bkd):

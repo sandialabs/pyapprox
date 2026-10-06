@@ -9,6 +9,7 @@ Those are what is pinned here.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kle.truncation import (
     by_count,
     by_eigenvalue_floor,

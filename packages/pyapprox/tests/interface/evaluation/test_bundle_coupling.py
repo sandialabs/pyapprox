@@ -19,6 +19,7 @@ Shape agreement is the marshaller tests' job.
 from dataclasses import fields
 
 import pytest
+
 from pyapprox.interface.evaluation.records import (
     BUNDLE_FIELD_CARRIERS,
     Decoded,

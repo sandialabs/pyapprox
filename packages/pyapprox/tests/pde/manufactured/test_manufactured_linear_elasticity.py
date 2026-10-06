@@ -12,6 +12,7 @@ residuals for interior points.
 """
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

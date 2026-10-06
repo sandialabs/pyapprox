@@ -5,6 +5,8 @@ Tests bounded and Gaussian parameter sweepers with dual backend support.
 
 import numpy as np
 import pytest
+from scipy.stats import lognorm, uniform
+
 from pyapprox.interface.functions.sweeps import (
     BoundedParameterSweeper,
     GaussianParameterSweeper,
@@ -14,7 +16,6 @@ from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.scipy_continuous import (
     ScipyContinuousMarginal,
 )
-from scipy.stats import lognorm, uniform
 
 
 class TestBoundedParameterSweeper:

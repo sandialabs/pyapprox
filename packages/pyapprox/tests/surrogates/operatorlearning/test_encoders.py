@@ -4,6 +4,8 @@ from typing import Any, List
 
 import numpy as np
 import pytest
+from scipy.sparse import csr_matrix
+
 from pyapprox.surrogates.operatorlearning import (
     FieldEncoderProtocol,
     GramProjectionEncoder,
@@ -17,7 +19,6 @@ from pyapprox.util.linalg.inner_product import (
     EuclideanInnerProduct,
     MassInnerProduct,
 )
-from scipy.sparse import csr_matrix
 
 
 def _fourier_basis(bkd: Backend, ngrid: int, ncodes: int) -> Any:

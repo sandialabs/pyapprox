@@ -11,6 +11,7 @@ Verifies:
 
 import numpy as np
 import sympy as sp
+
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )

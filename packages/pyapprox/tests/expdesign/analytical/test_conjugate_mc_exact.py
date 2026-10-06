@@ -17,10 +17,10 @@ import numpy as np
 from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
     ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
-    ConjugateGaussianOEDExpectedPushforwardKLDivergence,
     ConjugateGaussianOEDDataMeanQoIMeanStdDev,
-    ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDExpectedPushforwardKLDivergence,
     ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
 )
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior

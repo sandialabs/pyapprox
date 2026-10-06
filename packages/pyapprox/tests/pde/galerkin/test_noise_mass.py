@@ -1,6 +1,7 @@
 """Tests for the white-noise mass weightings."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,6 +11,8 @@ from typing import Any, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
+
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
@@ -23,7 +26,6 @@ from pyapprox.probability.covariance.dense import (
     DenseCholeskyCovarianceOperator,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from scipy.sparse import issparse
 
 
 def _dense(matrix: Any) -> NDArray[np.floating[Any]]:

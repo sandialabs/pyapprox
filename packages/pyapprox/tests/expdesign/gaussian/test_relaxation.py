@@ -10,6 +10,7 @@ from typing import Optional
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.analytical import relaxed_linear_target_covariance
 from pyapprox.expdesign.gaussian import BlendedObservation
 from pyapprox.expdesign.protocols import ObservationRelaxationProtocol
@@ -28,7 +29,6 @@ from pyapprox.inverse.joint_gaussian import JointGaussian
 from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import CachedMoments, DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
-
 from tests._helpers.inward_direction import inward_direction
 
 

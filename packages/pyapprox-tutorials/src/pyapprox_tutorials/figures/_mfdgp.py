@@ -13,6 +13,7 @@ Caching keeps the fit cost to one run per Quarto render.
 from __future__ import annotations
 
 import numpy as np
+
 from pyapprox.surrogates.kernels.base import Kernel
 from pyapprox.util.hyperparameter import HyperParameterList
 
@@ -138,6 +139,7 @@ def _fit_ar1():
         return _FIT_CACHE["ar1"]
 
     import networkx as nx
+
     from pyapprox.surrogates.gaussianprocess.fitters.multioutput_fitter import (
         MultiOutputGPMaximumLikelihoodFitter,
     )
@@ -238,6 +240,7 @@ def _fit_nargp():
         return _FIT_CACHE["nargp"]
 
     import networkx as nx
+
     from pyapprox.surrogates.gaussianprocess.fitters import (
         ExactNARGPFitter,
     )
@@ -299,6 +302,7 @@ def _fit_mfdgp_random_inducing():
         return _FIT_CACHE["mfdgp_random"]
 
     import networkx as nx
+
     from pyapprox.optimization.minimize.adam.adam_optimizer import (
         AdamOptimizer,
     )
@@ -574,6 +578,7 @@ def _fit_mfdgp_cutajar_kernel():
         return _FIT_CACHE["mfdgp_cutajar"]
 
     import networkx as nx
+
     from pyapprox.optimization.minimize.adam.adam_optimizer import (
         AdamOptimizer,
     )

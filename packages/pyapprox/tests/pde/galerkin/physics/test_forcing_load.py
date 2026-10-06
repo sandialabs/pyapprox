@@ -21,12 +21,15 @@ handed.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from skfem import LinearForm, asm
+
 from pyapprox.pde.constitutive.coefficient_functions import (
     BasisEvaluableFieldProtocol,
     NodalFieldForcing,
@@ -40,7 +43,6 @@ from pyapprox.pde.galerkin.physics.advection_diffusion import (
     _FieldOnBasisEvaluator,
     _ForcingKernel,
 )
-from skfem import LinearForm, asm
 
 
 def _ramp(coords, time):

@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -8,6 +9,9 @@ from pyapprox.interface.functions.fromcallable.hessian import (
 )
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
+)
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.kernels.base import (
     ProductKernel,
@@ -21,10 +25,6 @@ from pyapprox.surrogates.kernels.matern import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
-
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPMaximumLikelihoodFitter,
-)
 from tests._helpers.markers import slow_test
 
 

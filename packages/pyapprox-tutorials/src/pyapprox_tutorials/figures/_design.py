@@ -65,8 +65,9 @@ def _plot_deformed(ax, basis, coordx, coordy, conn, ext_edges, sol,
     """Plot deformed mesh colored by von Mises stress."""
     from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.colors import Normalize
-    from pyapprox.pde.galerkin.postprocessing import von_mises_stress
     from skfem.models.elasticity import lame_parameters
+
+    from pyapprox.pde.galerkin.postprocessing import von_mises_stress
 
     ux_loc, uy_loc = sol[0::2], sol[1::2]
     tip_val = sol[tip_dof]
@@ -664,6 +665,8 @@ def plot_reference_solution(fig, ax):
     """
     from matplotlib.collections import LineCollection, PolyCollection
     from matplotlib.colors import Normalize
+    from skfem.models.elasticity import lame_parameters
+
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
         NeumannBC,
@@ -673,7 +676,6 @@ def plot_reference_solution(fig, ax):
     from pyapprox.pde.galerkin.postprocessing import von_mises_stress
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
     from pyapprox_benchmarks.pde.cantilever_beam import MESH_PATHS
-    from skfem.models.elasticity import lame_parameters
 
     info = _setup_beam_mesh(MESH_PATHS[2])
     bkd = info["bkd"]

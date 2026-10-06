@@ -10,7 +10,16 @@ import math
 
 import numpy as np
 import pytest
+
 from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
+)
 from pyapprox.surrogates.gaussianprocess.statistics.decompose import (
     _decompose_kernel,
 )
@@ -29,15 +38,6 @@ from pyapprox.surrogates.kernels.protocols import (
 from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
-)
-
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPMaximumLikelihoodFitter,
-)
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    GaussianProcessStatistics,
-    SeparableKernelIntegralCalculator,
 )
 
 

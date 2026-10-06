@@ -8,7 +8,6 @@ from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.beta import BetaMarginal
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.functions.algebraic.cantilever_beam import (
     CantileverBeam1DAnalytical,
 )

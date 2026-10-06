@@ -19,6 +19,7 @@ from typing import Any, Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import TransformedMesh1D

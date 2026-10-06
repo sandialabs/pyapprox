@@ -4,15 +4,13 @@ Tests for Gaussian Process Hessian-vector products with respect to inputs.
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
-from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
-from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
-
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,
@@ -22,7 +20,8 @@ from pyapprox.surrogates.kernels import (
     Matern52Kernel,
     SquaredExponentialKernel,
 )
-
+from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
 
 
 def _gp_hvp(gp):

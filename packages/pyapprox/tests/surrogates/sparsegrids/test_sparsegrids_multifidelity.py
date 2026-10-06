@@ -16,6 +16,7 @@ from typing import Dict, List
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

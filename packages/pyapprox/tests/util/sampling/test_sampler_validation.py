@@ -1,4 +1,5 @@
 import pytest
+
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.sampling import (
     HaltonSampler,

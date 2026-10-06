@@ -17,6 +17,7 @@ from typing import Any, Iterator, Optional, Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kle.basis_operator import (
     ArrayBasis,
     BasisOperatorProtocol,

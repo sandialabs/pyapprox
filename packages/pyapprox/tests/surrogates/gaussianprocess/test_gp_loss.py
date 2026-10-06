@@ -21,7 +21,6 @@ from pyapprox.surrogates.gaussianprocess.gp_loss import (
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
 
-
 def _loss_jacobian(loss):
     jacobian = loss.derivatives().jacobian
     assert jacobian is not None

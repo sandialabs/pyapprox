@@ -2,13 +2,14 @@
 
 import numpy as np
 import pytest
+from scipy.sparse import diags, issparse
+
 from pyapprox.ode.linear_operator import (
     BlockDiagonalLinearOperator,
     LinearOperatorProtocol,
     MatrixOperator,
     SparseMatrixOperator,
 )
-from scipy.sparse import diags, issparse
 
 
 class TestBlockDiagonalLinearOperator:

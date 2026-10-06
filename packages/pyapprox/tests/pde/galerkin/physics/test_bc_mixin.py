@@ -1,6 +1,7 @@
 """Tests for GalerkinBCMixin."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -9,6 +10,7 @@ if not package_available("skfem"):
 from typing import Any, Generic, List, Optional
 
 import numpy as np
+
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
     DirichletBC,

@@ -21,6 +21,7 @@ methods.)
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -30,6 +31,8 @@ from typing import Any, Callable, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -48,7 +51,6 @@ from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
 )
 from pyapprox.pde.galerkin.physics.helmholtz import Helmholtz
 from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import issparse
 
 _Arr = NDArray[np.floating[Any]]
 

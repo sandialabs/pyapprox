@@ -10,16 +10,16 @@ Tests replicate scenarios from the legacy test_benchmark.py:
 
 import numpy as np
 
-from pyapprox_benchmarks.expdesign.linear_gaussian import (
-    LinearGaussianKLOEDBenchmark,
-    build_linear_gaussian_kl_benchmark,
-)
 from pyapprox.expdesign.objective import DOptimalLinearModelObjective
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
+)
+from pyapprox_benchmarks.expdesign.linear_gaussian import (
+    LinearGaussianKLOEDBenchmark,
+    build_linear_gaussian_kl_benchmark,
 )
 
 

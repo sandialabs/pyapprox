@@ -5,6 +5,7 @@ using manufactured solutions with time-dependent displacement fields.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -13,6 +14,7 @@ if not package_available("skfem"):
 from typing import List, Tuple
 
 import numpy as np
+
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,

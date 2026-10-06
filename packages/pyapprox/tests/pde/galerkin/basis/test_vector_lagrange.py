@@ -1,6 +1,7 @@
 """Tests for VectorLagrangeBasis boundary DOF extraction."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -11,6 +12,7 @@ from typing import Any, Union
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D, StructuredMesh3D
 from pyapprox.util.backends.numpy import NumpyBkd

@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
     Matern52Kernel,
@@ -15,7 +16,6 @@ from pyapprox.surrogates.kernels.multioutput.linear_coregionalization import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.interface.functions.derivatives import Derivatives
 
 
 class TestIndependentMultiOutputKernel:

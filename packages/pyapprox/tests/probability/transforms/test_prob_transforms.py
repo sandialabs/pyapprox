@@ -12,7 +12,6 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.util.transforms.affine import AffineTransform
 from pyapprox.probability.transforms import (
     GaussianTransform,
     IndependentGaussianTransform,
@@ -23,6 +22,7 @@ from pyapprox.probability.univariate import (
     GaussianMarginal,
     ScipyContinuousMarginal,
 )
+from pyapprox.util.transforms.affine import AffineTransform
 from tests._helpers.markers import slow_test
 
 # TODO: should tests be split into files that mirror module structure

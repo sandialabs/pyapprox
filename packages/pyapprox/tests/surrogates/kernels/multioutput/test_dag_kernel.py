@@ -4,7 +4,6 @@ Tests for DAGMultiOutputKernel.
 
 import networkx as nx
 import numpy as np
-from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
 
 from pyapprox.surrogates.kernels import (
     Matern52Kernel,
@@ -13,6 +12,7 @@ from pyapprox.surrogates.kernels import (
 from pyapprox.surrogates.kernels.multioutput import (
     DAGMultiOutputKernel,
 )
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
 
 
 def create_matern_kernel(nu, lenscale, lenscale_bounds, nvars, bkd):

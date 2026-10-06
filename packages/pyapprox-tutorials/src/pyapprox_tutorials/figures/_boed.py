@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Sequence, Tuple
 import numpy as np
 import numpy.typing as npt
 from matplotlib.axes import Axes
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 NDArrayFloat = npt.NDArray[np.floating[Any]]

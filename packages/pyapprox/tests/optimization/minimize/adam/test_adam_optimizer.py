@@ -4,12 +4,11 @@ consumer rewrite so the rewrite is protected."""
 
 import pytest
 
+from pyapprox.optimization.minimize.adam.adam_optimizer import AdamOptimizer
 from tests._helpers.optimizer_fixtures import (
     QuadraticNoDerivatives,
     QuadraticWithJacobian,
 )
-
-from pyapprox.optimization.minimize.adam.adam_optimizer import AdamOptimizer
 
 
 class TestAdamOptimizer:

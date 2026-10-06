@@ -1,10 +1,6 @@
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.evutushenko import (
-    EvtushenkoNonLinearConstraint,
-    EvtushenkoObjective,
-)
 from pyapprox.optimization.minimize.chained.chained_optimizer import (
     ChainedOptimizer,
 )
@@ -16,6 +12,10 @@ from pyapprox.optimization.minimize.scipy.diffevol import (
 )
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
+)
+from pyapprox_benchmarks.functions.algebraic.evutushenko import (
+    EvtushenkoNonLinearConstraint,
+    EvtushenkoObjective,
 )
 
 

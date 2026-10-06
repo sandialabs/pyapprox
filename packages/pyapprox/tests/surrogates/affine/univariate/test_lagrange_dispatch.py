@@ -10,6 +10,7 @@ multiprocess tools.
 import pickle
 
 import numpy as np
+
 from pyapprox.surrogates.affine.univariate import (
     LagrangeBasis1D,
     LegendrePolynomial1D,

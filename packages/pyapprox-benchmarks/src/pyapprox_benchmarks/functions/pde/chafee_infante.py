@@ -34,6 +34,7 @@ from typing import Any, Callable, List, Optional
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,

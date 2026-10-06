@@ -28,6 +28,7 @@ from typing import (
 
 if TYPE_CHECKING:
     import skfem
+
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
         VectorLagrangeBasis,
     )
@@ -35,6 +36,7 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 
 import numpy as np
+
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
@@ -322,6 +324,8 @@ def build_shared_field_beam(
     SharedFieldBeamModel
         Callable model: ``(num_kle_terms+1, nsamples) -> (2, nsamples)``.
     """
+    from skfem import Basis as SkfemBasis
+
     from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
     from pyapprox.pde.galerkin.boundary.implementations import (
         DirichletBC,
@@ -330,7 +334,6 @@ def build_shared_field_beam(
     from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.mesh import UnstructuredMesh2D
     from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
-    from skfem import Basis as SkfemBasis
 
     mesh = UnstructuredMesh2D(mesh_path, bkd, rescale_origin=(0.0, 0.0))
     basis = VectorLagrangeBasis(mesh, degree=1)

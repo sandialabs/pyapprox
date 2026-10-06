@@ -7,11 +7,10 @@ configuration, and fixed hyperparameter handling.
 
 import numpy as np
 import pytest
+
 from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
-
 from pyapprox.surrogates.gaussianprocess import (
     ConstantMean,
     ExactGaussianProcess,
@@ -19,6 +18,7 @@ from pyapprox.surrogates.gaussianprocess import (
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,
 )
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
 
 class TestExactGPOptimization:

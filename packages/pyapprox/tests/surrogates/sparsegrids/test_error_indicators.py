@@ -17,6 +17,7 @@ import warnings
 from typing import List, Tuple
 
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import LinearGrowthRule
 from pyapprox.surrogates.sparsegrids import create_basis_factories

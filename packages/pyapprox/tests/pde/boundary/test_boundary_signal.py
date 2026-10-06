@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 import pytest
 from numpy.typing import NDArray
+
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,

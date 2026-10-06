@@ -15,6 +15,7 @@ The discriminating checks:
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -23,6 +24,7 @@ if not package_available("skfem"):
 import math
 
 import numpy as np
+
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (

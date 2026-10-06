@@ -20,6 +20,16 @@ Paired linear coupling: x0 = z, x1 = L_post @ z + mu_post(y).
 import numpy as np
 import pytest
 
+from pyapprox.generative.flowmatching.fitters.least_squares import (
+    LeastSquaresFitter,
+)
+from pyapprox.generative.flowmatching.linear_path import LinearPath
+from pyapprox.generative.flowmatching.ode_adapter import (
+    integrate_flow,
+)
+from pyapprox.generative.flowmatching.quad_data import (
+    FlowMatchingQuadData,
+)
 from pyapprox.inverse.conjugate.gaussian import (
     DenseGaussianConjugatePosterior,
 )
@@ -31,16 +41,6 @@ from pyapprox.surrogates.affine.indices import (
     compute_hyperbolic_indices,
 )
 from pyapprox.surrogates.affine.univariate import create_bases_1d
-from pyapprox.generative.flowmatching.fitters.least_squares import (
-    LeastSquaresFitter,
-)
-from pyapprox.generative.flowmatching.linear_path import LinearPath
-from pyapprox.generative.flowmatching.ode_adapter import (
-    integrate_flow,
-)
-from pyapprox.generative.flowmatching.quad_data import (
-    FlowMatchingQuadData,
-)
 from tests._helpers.markers import slow_test
 
 

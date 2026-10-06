@@ -18,6 +18,7 @@ use the ``bkd`` fixture.
 from typing import Optional, Sequence
 
 import pytest
+
 from pyapprox.interface.evaluation.callable_marshaller import (
     CallableMarshaller,
 )

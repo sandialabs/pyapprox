@@ -9,6 +9,7 @@ defect rather than rounding.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.io import (
     NYSTROM_SCHEMA_VERSION,

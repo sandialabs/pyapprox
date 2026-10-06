@@ -3,20 +3,20 @@ Tests for MultiLevelKernel with new scaling functions.
 """
 
 import numpy as np
+import pytest
+import torch
+
 from pyapprox.surrogates.gaussianprocess.multioutput import (
     MultiOutputGP,
 )
-import pytest
-import torch
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from pyapprox.surrogates.kernels.multioutput import (
+    MultiLevelKernel,
+)
 from pyapprox.surrogates.kernels.scalings import (
     PolynomialScalingFunction,
 )
 from pyapprox.util.backends.torch import TorchBkd
-
-from pyapprox.surrogates.kernels.multioutput import (
-    MultiLevelKernel,
-)
 
 
 class TestMultiLevelKernel:

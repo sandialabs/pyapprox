@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.util.linalg.kernel_operators import KernelMatVecOperator
 from pyapprox.util.linalg.randomized import SymmetricMatVecOperator

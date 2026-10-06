@@ -12,6 +12,7 @@ from typing import Generic
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -44,7 +45,6 @@ from pyapprox.pde.manufactured.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
 )
 from pyapprox.util.backends.protocols import Array
-
 from tests._helpers.markers import slow_test
 
 

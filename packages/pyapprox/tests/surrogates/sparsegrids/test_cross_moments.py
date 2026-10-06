@@ -15,6 +15,7 @@ derivations of the same quantity.
 
 import numpy as np
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     ClenshawCurtisGrowthRule,

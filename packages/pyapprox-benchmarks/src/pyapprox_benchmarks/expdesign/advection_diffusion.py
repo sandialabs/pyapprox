@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from pyapprox.probability.protocols import DistributionProtocol
 
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.problems.oed.advection_diffusion import (
     AdvectionDiffusionOEDProblem,
     FixedVelocityAdvectionDiffusionOEDProblem,

@@ -15,7 +15,6 @@ from pyapprox.ode.protocols.ode_residual import (
 from pyapprox.ode.stepper_table import StepperFactory
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.functions.ode.ode_qoi import (
     AllStatesEndpointODEFunctional,
     ODEFunctionalProtocol,

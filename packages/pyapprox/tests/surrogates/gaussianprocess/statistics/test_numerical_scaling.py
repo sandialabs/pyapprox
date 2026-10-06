@@ -24,10 +24,20 @@ import math
 from itertools import product as iterproduct
 
 import numpy as np
+
 from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
+)
 from pyapprox.surrogates.gaussianprocess.statistics.sensitivity import (
     GaussianProcessSensitivity,
 )
+from pyapprox.surrogates.kernels import IIDGaussianNoise
 from pyapprox.surrogates.kernels.base import (
     SeparableProductKernel,
 )
@@ -38,16 +48,6 @@ from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
-
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPMaximumLikelihoodFitter,
-)
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    GaussianProcessStatistics,
-    SeparableKernelIntegralCalculator,
-)
-from pyapprox.surrogates.kernels import IIDGaussianNoise
 from tests._helpers.markers import slow_test, slower_test
 
 # ===================================================================

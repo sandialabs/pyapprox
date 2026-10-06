@@ -17,6 +17,7 @@ rather than rounding.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.multifidelity import (
     nystrom_kle_on_mesh,

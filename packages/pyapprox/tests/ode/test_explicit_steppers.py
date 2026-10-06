@@ -8,6 +8,7 @@ behavior is covered implicitly: mass.solve degenerates to a no-op.
 from typing import Any
 
 import numpy as np
+
 from pyapprox.ode.explicit_steppers.heun import HeunHVP
 from pyapprox.ode.mass_matrix import MassMatrixProtocol, create_mass_matrix
 from pyapprox.ode.step_context import StepContext

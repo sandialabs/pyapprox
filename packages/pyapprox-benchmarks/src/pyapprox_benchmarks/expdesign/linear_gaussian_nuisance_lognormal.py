@@ -22,6 +22,7 @@ so every ground-truth method is a closed form.
 from typing import Generic
 
 import numpy as np
+
 from pyapprox.expdesign.analytical import (
     LogNormalMGBlocks,
     lognormal_goal_mg_blocks,
@@ -35,7 +36,6 @@ from pyapprox.interface.functions.fromcallable.function import (
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.problems.inverse import GaussianInferenceProblem
 from pyapprox_benchmarks.problems.oed import PredictionOEDProblem
 

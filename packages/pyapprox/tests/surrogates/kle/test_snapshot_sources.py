@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kle.snapshot_sources import (
     ArraySnapshotSource,
     SnapshotSourceOperator,

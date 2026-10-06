@@ -2,6 +2,7 @@
 mass, and the mesh independence of its pointwise standard deviation."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -11,6 +12,8 @@ from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -36,8 +39,6 @@ from pyapprox.probability.covariance.dense import (
     DenseCholeskyCovarianceOperator,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from scipy.sparse import issparse
-
 from tests._helpers.markers import slow_test
 
 _GAMMA, _DELTA = 10.0, 100.0

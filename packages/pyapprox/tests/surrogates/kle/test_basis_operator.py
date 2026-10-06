@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kle.basis_operator import (
     ArrayBasis,
     BasisOperatorProtocol,

@@ -1,6 +1,7 @@
 """Tests for BoxBudgetDesignSpace."""
 
 import pytest
+
 from pyapprox.expdesign.design_space import BoxBudgetDesignSpace
 from pyapprox.expdesign.protocols import DesignSpaceProtocol
 from pyapprox.optimization.minimize.constraints.protocols import (

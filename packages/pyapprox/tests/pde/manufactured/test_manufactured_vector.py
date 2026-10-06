@@ -16,6 +16,7 @@ These tests verify:
 from typing import Generic, Tuple
 
 import sympy as sp
+
 from pyapprox.pde.manufactured import (
     ManufacturedShallowShelfVelocityEquations,
     ManufacturedShallowWave,

@@ -11,6 +11,7 @@ Tests cover:
 import pickle
 
 import numpy as np
+
 from pyapprox.expdesign.likelihood import (
     GaussianOEDInnerLoopLikelihood,
     GaussianOEDOuterLoopLikelihood,

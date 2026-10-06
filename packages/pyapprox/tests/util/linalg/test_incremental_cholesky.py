@@ -4,6 +4,7 @@ import warnings
 
 import numpy as np
 import pytest
+
 from pyapprox.util.linalg.incremental_cholesky import (
     IncrementalCholeskyFactorization,
 )

@@ -12,12 +12,6 @@ Tests validate:
 
 import numpy as np
 import pytest
-from pyapprox.surrogates.functiontrain.compute import (
-    cache_basis_matrices,
-    core_eval_cached,
-    ft_eval_cached,
-    ft_jacobian_wrt_params_cached,
-)
 
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
@@ -27,6 +21,12 @@ from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.functiontrain import (
     create_additive_functiontrain,
     create_pce_functiontrain,
+)
+from pyapprox.surrogates.functiontrain.compute import (
+    cache_basis_matrices,
+    core_eval_cached,
+    ft_eval_cached,
+    ft_jacobian_wrt_params_cached,
 )
 
 

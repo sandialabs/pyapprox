@@ -8,17 +8,10 @@ matches the finite difference of the Jacobian.
 import numpy as np
 import pytest
 
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox_benchmarks.functions.ode.linear_ode import (
-    LinearODEResidual,
-    QuadraticODEResidual,
-)
-from pyapprox_benchmarks.functions.ode.time_modulated_quadratic import (
-    TimeModulatedQuadraticODE,
-)
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerHVP,
 )
@@ -42,6 +35,13 @@ from pyapprox.ode.operator.time_adjoint_hvp import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox_benchmarks.functions.ode.linear_ode import (
+    LinearODEResidual,
+    QuadraticODEResidual,
+)
+from pyapprox_benchmarks.functions.ode.time_modulated_quadratic import (
+    TimeModulatedQuadraticODE,
+)
 
 
 class TimeAdjointOperatorWrapper:

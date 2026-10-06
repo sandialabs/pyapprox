@@ -1,9 +1,8 @@
 """Tests for DGPMaximumLikelihoodFitter (Phase 9)."""
 
+import networkx as nx
 import numpy as np
 import pytest
-
-import networkx as nx
 
 from pyapprox.optimization.minimize.adam.adam_optimizer import AdamOptimizer
 from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (

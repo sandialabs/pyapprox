@@ -24,6 +24,7 @@ from typing import Optional, Sequence
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.evaluation.protocols import (
     BatchProtocol,
     DispatcherProtocol,

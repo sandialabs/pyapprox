@@ -30,12 +30,14 @@ carrying the tight validation.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -78,7 +80,6 @@ from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
     create_quasilinear_diffusivity_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-
 from tests._helpers.adjoint_checks import NumpyArray
 
 _N_KLE_MODES = 4

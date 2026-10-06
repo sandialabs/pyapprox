@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Sequence
 
 import pytest
+
 from pyapprox.interface.evaluation.collection import (
     AnomalyKind,
     OutputSpec,

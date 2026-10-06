@@ -4,6 +4,7 @@ Tests for scaling functions.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.scalings import (
     PolynomialScalingFunction,
     PolynomialScalingKernel,

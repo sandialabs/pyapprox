@@ -8,6 +8,7 @@ an information-gain criterion and a D-optimal one rank designs alike.
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

@@ -9,6 +9,7 @@ rule and Monte Carlo.
 from typing import Tuple
 
 import numpy as np
+
 from pyapprox.interface.functions.joint import SeparateFunctions
 from pyapprox.probability.moments import (
     CovarianceBlocksProtocol,

@@ -6,6 +6,7 @@ as the manual time-stepping loop for all 4 integration methods.
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -15,6 +16,7 @@ from typing import Any, Callable, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
@@ -30,7 +32,6 @@ from pyapprox.pde.galerkin.time_integration import (
     TimeIntegrationConfig,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-
 from tests._helpers.markers import slow_test
 
 _ExactAtTime = Callable[[float], NDArray[np.floating[Any]]]

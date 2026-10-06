@@ -5,6 +5,7 @@ Tests Dirichlet, Neumann, Robin BCs and the ManufacturedSolutionBC factory.
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -14,6 +15,7 @@ from typing import Any, Optional
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.pde.boundary import (
     EssentialBCProtocol,
     WeakFormBCProtocol,

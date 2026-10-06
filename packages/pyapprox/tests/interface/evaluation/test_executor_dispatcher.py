@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 import pytest
+
 from pyapprox.interface.evaluation.executor_dispatcher import (
     ExecutorDispatcher,
     thread_dispatcher,

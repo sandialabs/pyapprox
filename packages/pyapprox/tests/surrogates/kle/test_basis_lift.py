@@ -16,6 +16,7 @@ from typing import Any, Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kle.basis_lift import (
     lift_basis,
     pivot_signs,

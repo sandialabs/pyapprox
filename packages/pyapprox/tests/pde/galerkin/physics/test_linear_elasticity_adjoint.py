@@ -7,12 +7,15 @@ chain-rule Jacobians via physics.residual_lame_jacobian().
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from scipy.sparse import issparse
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -33,7 +36,6 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
-from scipy.sparse import issparse
 
 
 def _to_dense(mat):

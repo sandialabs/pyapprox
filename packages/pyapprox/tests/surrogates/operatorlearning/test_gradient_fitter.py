@@ -14,6 +14,7 @@ chaining a polish after a first-order stage is expressible.
 import numpy as np
 import pytest
 import torch
+
 from pyapprox.surrogates.operatorlearning import (
     IdentityFieldEncoder,
     WeightedLeastSquaresOperatorFitter,

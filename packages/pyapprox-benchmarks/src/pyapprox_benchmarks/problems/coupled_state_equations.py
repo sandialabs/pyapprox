@@ -33,7 +33,6 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (
     NonLinearCoupledStateEquations,
 )

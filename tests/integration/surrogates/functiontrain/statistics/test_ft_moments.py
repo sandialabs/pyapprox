@@ -4,7 +4,6 @@
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.genz import GaussianPeakFunction
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -20,6 +19,7 @@ from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.statistics import (
     FunctionTrainMoments,
 )
+from pyapprox_benchmarks.functions.genz import GaussianPeakFunction
 from tests._helpers.markers import slow_test
 
 

@@ -14,6 +14,7 @@ over them is the true optimum. Two targets:
 from typing import Callable, Generic, Sequence
 
 import pytest
+
 from pyapprox.expdesign.design_space import (
     BinaryDesignSubsetObjective,
     ReevaluatingIncremental,

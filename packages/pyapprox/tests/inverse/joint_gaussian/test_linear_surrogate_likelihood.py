@@ -26,6 +26,7 @@ Monte Carlo samples.
 from typing import Tuple
 
 import numpy as np
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

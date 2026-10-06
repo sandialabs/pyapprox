@@ -7,6 +7,7 @@ Tests:
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -14,6 +15,8 @@ if not package_available("skfem"):
 
 
 import numpy as np
+from scipy.sparse import issparse
+
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
@@ -31,7 +34,6 @@ from pyapprox.pde.galerkin.mesh import (
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import issparse
 
 
 def _to_dense(mat, bkd):

@@ -2,6 +2,7 @@
 what is solved."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -11,6 +12,7 @@ from typing import Any, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import DirichletBC, RobinBC

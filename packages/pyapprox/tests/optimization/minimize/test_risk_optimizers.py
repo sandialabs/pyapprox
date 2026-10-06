@@ -2,6 +2,7 @@
 Tests for minimax and AVaR optimizers.
 """
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.minimize.avar import (
     AVaRConstraint,
     AVaRObjective,
@@ -13,7 +14,6 @@ from pyapprox.optimization.minimize.minimax import (
     MinimaxOptimizer,
 )
 from pyapprox.util.backends.protocols import Backend
-from pyapprox.interface.functions.derivatives import Derivatives
 
 
 class SimpleMultiQoI:

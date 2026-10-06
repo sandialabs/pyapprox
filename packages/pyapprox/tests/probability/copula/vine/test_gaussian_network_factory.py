@@ -13,11 +13,11 @@ import pytest
 
 from pyapprox.inverse.bayesnet.inference import compute_marginal
 from pyapprox.inverse.bayesnet.network import GaussianNetwork
-from tests._helpers.gaussian_network_factory import (
-    dvine_from_gaussian_network,
-)
 from pyapprox.probability.gaussian.dense import (
     DenseCholeskyMultivariateGaussian,
+)
+from tests._helpers.gaussian_network_factory import (
+    dvine_from_gaussian_network,
 )
 
 _SQRT2 = math.sqrt(2.0)

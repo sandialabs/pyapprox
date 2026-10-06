@@ -16,6 +16,7 @@ Euler (1st order) and Crank-Nicolson (2nd order) reproduce the exact solution.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -25,6 +26,8 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import spmatrix
+
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
     TimeIndependent,
@@ -44,7 +47,6 @@ from pyapprox.pde.manufactured.stokes import (
     ManufacturedStokes,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import spmatrix
 
 # These tests are numpy-only (numpy_bkd fixture), so generics are
 # instantiated with the concrete numpy array type rather than erased.

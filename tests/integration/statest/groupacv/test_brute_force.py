@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.optimization.minimize.scipy.slsqp import ScipySLSQPOptimizer
 from pyapprox.statest.groupacv import (
     BruteForceSubsetFitter,
@@ -18,7 +19,6 @@ from pyapprox.statest.statistics import (
     MultiOutputVariance,
 )
 from pyapprox.util.backends.torch import TorchBkd
-
 from tests._helpers.markers import slow_test
 
 

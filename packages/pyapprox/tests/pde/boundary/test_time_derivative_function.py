@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pytest
 from numpy.typing import NDArray
+
 from pyapprox.interface.functions.protocols.objective import (
     ObjectiveProtocol,
 )
@@ -21,7 +22,6 @@ from pyapprox.pde.boundary import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.optional_deps import package_available
-
 from tests._helpers.time_derivative_checks import (
     assert_time_derivatives_match,
 )

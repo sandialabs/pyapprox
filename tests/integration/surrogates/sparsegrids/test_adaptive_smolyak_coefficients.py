@@ -10,6 +10,7 @@ at the end of a run.
 from typing import List, Tuple
 
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     CompositeCriteria,

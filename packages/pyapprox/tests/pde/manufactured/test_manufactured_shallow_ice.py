@@ -24,6 +24,7 @@ No sign negation needed.
 from typing import Generic
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

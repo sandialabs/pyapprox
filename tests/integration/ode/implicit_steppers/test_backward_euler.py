@@ -1,8 +1,5 @@
 
 
-from pyapprox_benchmarks.functions.ode.nonlinear_decoupled import (
-    NonLinearDecoupledODE,
-)
 from pyapprox.ode.implicit_steppers.backward_euler import (
     BackwardEulerHVP,
 )
@@ -11,6 +8,9 @@ from pyapprox.ode.implicit_steppers.integrator import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox_benchmarks.functions.ode.nonlinear_decoupled import (
+    NonLinearDecoupledODE,
+)
 
 
 class TestImplicitTimeIntegration:

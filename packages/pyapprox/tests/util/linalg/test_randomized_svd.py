@@ -9,6 +9,7 @@ constraint.
 
 import numpy as np
 import pytest
+
 from pyapprox.util.linalg import (
     DenseMatVecOperator,
     DenseSymmetricMatVecOperator,

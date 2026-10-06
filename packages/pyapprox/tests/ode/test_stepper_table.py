@@ -1,6 +1,7 @@
 """Tests for the closed stepper table and typed factory handle."""
 
 import pytest
+
 from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerHVP
 from pyapprox.ode.implicit_steppers.backward_euler import BackwardEulerHVP
 from pyapprox.ode.protocols.time_stepping import TimeSteppingResidualProtocol

@@ -7,12 +7,16 @@ constant-coefficient caching behaviour unchanged.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from skfem import BilinearForm, asm
+from skfem.helpers import dot, grad
+
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     NodalFieldForcing,
@@ -24,8 +28,6 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.util.backends.numpy import NumpyBkd
-from skfem import BilinearForm, asm
-from skfem.helpers import dot, grad
 
 
 def _make_physics(

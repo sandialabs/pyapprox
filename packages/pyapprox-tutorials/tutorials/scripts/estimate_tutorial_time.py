@@ -32,7 +32,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-
 # Time weights (minutes per element)
 TIME_WEIGHTS = {
     "code_block_visible": 1.75,   # Visible code block with discussion

@@ -22,6 +22,7 @@ sequences run longer so the cut can be moved without re-recording.
 from typing import Dict, List, Tuple
 
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     ClenshawCurtisGrowthRule,

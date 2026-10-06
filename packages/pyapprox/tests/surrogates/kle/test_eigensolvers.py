@@ -10,6 +10,7 @@ import warnings
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.eigensolvers import (
     _DENSE_WARN_BYTES,

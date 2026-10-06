@@ -17,6 +17,7 @@ Example usage:
 from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
+
 from pyapprox.probability import (
     BetaMarginal,
     GammaMarginal,

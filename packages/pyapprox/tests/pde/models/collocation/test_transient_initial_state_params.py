@@ -15,6 +15,7 @@ import math
 from typing import Any, Tuple
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

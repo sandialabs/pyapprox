@@ -1,19 +1,19 @@
 """Tests for RosenbrockFunction."""
 
-from pyapprox.interface.functions.protocols.objective import (
-    ObjectiveProtocol,
-)
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.rosenbrock import (
-    RosenbrockFunction,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
+)
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
+from pyapprox_benchmarks.functions.algebraic.rosenbrock import (
+    RosenbrockFunction,
 )
 
 # TODO: this test class should be where function is defined

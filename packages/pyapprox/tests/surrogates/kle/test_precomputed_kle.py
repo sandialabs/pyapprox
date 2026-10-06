@@ -10,6 +10,7 @@ defect rather than rounding.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle.mesh_kle import MeshKLE
 from pyapprox.surrogates.kle.nystrom_kle import create_nystrom_kle

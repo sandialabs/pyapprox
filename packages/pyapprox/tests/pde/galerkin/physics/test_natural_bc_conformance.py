@@ -9,6 +9,7 @@ correctness is tested independently.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -18,6 +19,8 @@ from typing import Any, Dict, List
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import csr_matrix, issparse
+
 from pyapprox.pde.boundary import NaturalBCOperator
 from pyapprox.pde.constitutive.coefficient_functions import NodalFieldDiffusion
 from pyapprox.pde.constitutive.neo_hookean import NeoHookeanStress
@@ -40,7 +43,6 @@ from pyapprox.pde.galerkin.physics import (
 )
 from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
 from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import csr_matrix, issparse
 
 _Arr = NDArray[np.floating[Any]]
 _BKD = NumpyBkd()

@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 import pytest
+
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     constant_dirichlet_bc,

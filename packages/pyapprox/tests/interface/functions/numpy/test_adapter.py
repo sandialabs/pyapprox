@@ -6,15 +6,14 @@ import pickle
 import numpy as np
 import pytest
 
+from pyapprox.interface.functions.numpy.adapter import (
+    NumpyDerivativesAdapter,
+)
 from tests._helpers.optimizer_fixtures import (
     QuadraticNoDerivatives,
     QuadraticWithJacobian,
     QuadraticWithJacobianAndHVP,
     SumConstraintWithJacobianAndWHVP,
-)
-
-from pyapprox.interface.functions.numpy.adapter import (
-    NumpyDerivativesAdapter,
 )
 
 

@@ -13,6 +13,7 @@ from typing import List
 
 import numpy as np
 import pytest
+
 from pyapprox.probability import (
     IndependentJoint,
     UniformMarginal,
@@ -53,7 +54,6 @@ from pyapprox.surrogates.sparsegrids.statistics.moments import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
-
 from tests._helpers.markers import slow_test, slower_test, slowest_test
 from tests._helpers.sparsegrids_helpers import (
     BASIS_TYPE_CONFIGS,
@@ -232,11 +232,12 @@ class TestIsotropicFitter:
     @slow_test
     def test_interpolation(self, bkd) -> None:
         """Test sparse grid interpolation via PCE with matching index set."""
+        from scipy import stats
+
         from pyapprox.probability import ScipyContinuousMarginal
         from pyapprox.surrogates.affine.expansions import (
             create_pce_from_marginals,
         )
-        from scipy import stats
 
         nvars = 2
         level = 3

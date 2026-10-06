@@ -7,6 +7,7 @@ from mathematical definitions.
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.autograd import WithAutogradJacobian
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -62,7 +63,6 @@ from pyapprox_benchmarks.statest import (
     MultiOutputEnsembleBenchmark,
     PolynomialEnsembleBenchmark,
 )
-
 from tests._helpers.acv_utils import allocate_with_allocator
 from tests._helpers.markers import slow_test, slower_test
 

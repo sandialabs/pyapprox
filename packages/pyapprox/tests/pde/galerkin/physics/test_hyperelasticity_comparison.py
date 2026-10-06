@@ -7,6 +7,7 @@ the exact solution to high accuracy, they implicitly agree.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -58,7 +59,6 @@ from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.manufactured.hyperelasticity import (
     ManufacturedHyperelasticityEquations,
 )
-
 from tests._helpers.markers import slow_test
 
 # =========================================================================

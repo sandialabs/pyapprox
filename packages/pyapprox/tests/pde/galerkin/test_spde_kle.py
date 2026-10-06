@@ -204,12 +204,14 @@ parameterization and both discretizations are correct
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+
 from pyapprox.pde.field_maps.kle_factory import (
     create_fem_galerkin_kle,
     create_fem_nystrom_nodes_kle,
@@ -642,13 +644,14 @@ class TestSPDEMaternKLE:
         :math:`\mu_k` are from :math:`A \phi_k = \mu_k M \phi_k`.
         """
         bkd = numpy_bkd
+        from scipy.sparse.linalg import eigsh, spsolve
+        from skfem import asm
+        from skfem.models.poisson import mass
+
         from pyapprox.pde.galerkin.bilaplacian import (
             BiLaplacianPrior,
             bilaplacian_stationary_variance,
         )
-        from scipy.sparse.linalg import eigsh, spsolve
-        from skfem import asm
-        from skfem.models.poisson import mass
 
         gamma, delta = 4.0, 1.0
         nx = 50

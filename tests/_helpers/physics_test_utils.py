@@ -6,10 +6,10 @@ and NewtonSolver.
 
 from typing import Generic
 
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.pde.collocation.physics.base import AbstractPhysics
 from pyapprox.util.backends.protocols import Array, Backend
 

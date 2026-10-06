@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 
 import numpy as np
+
 from pyapprox.pde.field_maps.transformed import TransformedFieldMap
 from pyapprox.util.backends.protocols import Array, Backend
 

@@ -5,6 +5,7 @@ and works with the time steppers in typing.pde.time.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -12,6 +13,7 @@ if not package_available("skfem"):
 
 
 import numpy as np
+
 from pyapprox.ode.implicit_steppers import BackwardEulerHVP
 from pyapprox.ode.step_context import StepContext
 from pyapprox.pde.galerkin.basis import LagrangeBasis

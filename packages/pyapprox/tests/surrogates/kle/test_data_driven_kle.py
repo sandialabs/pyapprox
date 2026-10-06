@@ -2,6 +2,8 @@
 
 import numpy as np
 import pytest
+from scipy.sparse import diags
+
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
 )
@@ -20,8 +22,6 @@ from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     MassInnerProduct,
 )
-from scipy.sparse import diags
-
 from tests._helpers.markers import slow_test
 
 

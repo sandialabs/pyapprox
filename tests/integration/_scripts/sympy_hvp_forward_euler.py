@@ -162,13 +162,13 @@ print("="*60)
 # 2. Accumulates: dR/dp^T * s + qps_hvp + rps_hvp + rpp_hvp
 
 # Let's trace what the implementation does
-from pyapprox_benchmarks.functions.ode.linear_ode import QuadraticODEResidual
 from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerHVP
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.time_adjoint_hvp import TimeAdjointOperatorWithHVP
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
+from pyapprox_benchmarks.functions.ode.linear_ode import QuadraticODEResidual
 
 bkd = NumpyBkd
 

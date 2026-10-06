@@ -4,6 +4,7 @@ import pickle
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.sparsegrids import (
     check_admissibility,
     compute_smolyak_coefficients,

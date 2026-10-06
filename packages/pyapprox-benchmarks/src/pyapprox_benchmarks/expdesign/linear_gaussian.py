@@ -13,7 +13,6 @@ from typing import Callable, Generic
 
 from pyapprox.expdesign.utils import compute_exact_eig
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
     _build_vandermonde,
 )

@@ -4,6 +4,7 @@ Dual-backend tests for NumPy and PyTorch.
 """
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

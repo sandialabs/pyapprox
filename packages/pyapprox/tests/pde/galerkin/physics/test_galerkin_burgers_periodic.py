@@ -22,6 +22,7 @@ import sys
 
 import numpy as np
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):

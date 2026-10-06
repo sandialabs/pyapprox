@@ -1,6 +1,7 @@
 from typing import Union
 
 import pytest
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 

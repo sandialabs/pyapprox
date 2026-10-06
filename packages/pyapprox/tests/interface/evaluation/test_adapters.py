@@ -17,6 +17,7 @@ that a marshalled model reaches the blocking half of the library.
 """
 
 import pytest
+
 from pyapprox.interface.evaluation.adapters import (
     BlockingModel,
     EvaluationFailure,

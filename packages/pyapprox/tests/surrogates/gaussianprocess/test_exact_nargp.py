@@ -3,21 +3,21 @@
 import networkx as nx
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.exact_nargp import (
     ExactNARGPModel,
+)
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    ExactNARGPFitResult,
+    ExactNARGPFitter,
+    GPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ParentPassthroughMean,
     ZeroMean,
 )
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
-
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    ExactNARGPFitResult,
-    ExactNARGPFitter,
-    GPMaximumLikelihoodFitter,
-)
 
 
 def _se_factory(nvars, bkd):

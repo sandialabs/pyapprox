@@ -6,12 +6,15 @@ that physics assembly methods return scipy sparse matrices.
 
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from scipy.sparse import issparse
+
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
@@ -34,7 +37,6 @@ from pyapprox.util.linalg.sparse_dispatch import (
     solve_maybe_sparse,
     sparse_or_dense_solve,
 )
-from scipy.sparse import issparse
 
 
 class TestSparsePathADR:

@@ -1,6 +1,7 @@
 """Tests for composed Galerkin systems and physics.system()."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,6 +11,7 @@ from typing import Any, Generic
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet, NaturalBCOperator
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent

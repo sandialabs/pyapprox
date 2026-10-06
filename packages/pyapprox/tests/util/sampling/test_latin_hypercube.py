@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.sampling.latin_hypercube import LatinHypercubeSampler
 

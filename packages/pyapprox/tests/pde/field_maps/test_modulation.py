@@ -10,6 +10,7 @@ genuinely the user's rather than the time integrator's.
 
 import numpy as np
 import pytest
+
 from pyapprox.pde.field_maps.modulation import (
     ConstantModulation,
     NonNegativeModulationProtocol,

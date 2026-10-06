@@ -43,6 +43,7 @@ from pyapprox.statest.protocols import (
 from pyapprox.statest.tolerance import MaxMarginalStandardErrorConstraint
 from pyapprox.util.backends.protocols import Array, Backend
 
+
 def _protocol_members(protocol: type) -> frozenset:
     """The members a Protocol declares, on every supported Python.
 

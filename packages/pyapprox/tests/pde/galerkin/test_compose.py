@@ -1,6 +1,7 @@
 """Tests for composing a Galerkin physics with its boundary conditions."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -9,6 +10,7 @@ if not package_available("skfem"):
 from typing import Any, List
 
 import numpy as np
+
 from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis

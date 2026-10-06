@@ -1,15 +1,6 @@
 """Tests for MultiOutputGP fitters."""
 
 import numpy as np
-from pyapprox.surrogates.gaussianprocess.multioutput import (
-    MultiOutputGP,
-)
-from pyapprox.surrogates.kernels.iid_gaussian_noise import (
-    IIDGaussianNoise,
-)
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
-from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
-from pyapprox.util.backends.torch import TorchBkd
 
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPFitResult,
@@ -17,9 +8,18 @@ from pyapprox.surrogates.gaussianprocess.fitters import (
     MultiOutputGPFixedHyperparameterFitter,
     MultiOutputGPMaximumLikelihoodFitter,
 )
+from pyapprox.surrogates.gaussianprocess.multioutput import (
+    MultiOutputGP,
+)
+from pyapprox.surrogates.kernels.iid_gaussian_noise import (
+    IIDGaussianNoise,
+)
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.surrogates.kernels.multioutput import (
     IndependentMultiOutputKernel,
 )
+from pyapprox.surrogates.kernels.scalings import PolynomialScalingKernel
+from pyapprox.util.backends.torch import TorchBkd
 
 
 class TestMultiOutputGPFixedFitter:

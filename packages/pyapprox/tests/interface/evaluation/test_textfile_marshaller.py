@@ -24,6 +24,7 @@ import time
 from pathlib import Path
 
 import pytest
+
 from pyapprox.interface.evaluation.collection import (
     AnomalyKind,
     EagerCollector,

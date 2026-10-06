@@ -7,6 +7,7 @@ targets the basis reproduces exactly.
 """
 
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

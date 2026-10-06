@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import FunctionFromCallable
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.affine.indices.admissibility import (

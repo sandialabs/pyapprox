@@ -19,6 +19,7 @@ from typing import Optional
 
 import matplotlib.patches as patches
 import numpy as np
+
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin import (
     AdvectionDiffusionReaction,

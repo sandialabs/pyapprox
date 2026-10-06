@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 from numpy.polynomial.hermite_e import hermegauss
 from numpy.typing import NDArray
+
 from pyapprox.expdesign.analytical import (
     relaxed_linear_target_covariance,
     relaxed_linear_target_eig,

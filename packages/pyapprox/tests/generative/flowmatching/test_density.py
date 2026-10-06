@@ -102,8 +102,8 @@ class TestComputeKLDivergence:
             return bkd.asarray(p)
 
         # Quadrature points for the Gaussian target
-        from pyapprox.surrogates.quadrature import gauss_quadrature_rule
         from pyapprox.probability import GaussianMarginal
+        from pyapprox.surrogates.quadrature import gauss_quadrature_rule
 
         marginal = GaussianMarginal(0.0, sigma_q, bkd)
         pts, wts = gauss_quadrature_rule(marginal, 50, bkd)

@@ -10,6 +10,7 @@ of the blended observation instead.
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDExpectedPushforwardKLDivergence,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanVariance,

@@ -22,6 +22,7 @@ exercise arithmetic the nested ones would skip.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import ExponentialKernel
 from pyapprox.surrogates.kle import (
     create_nystrom_kle,

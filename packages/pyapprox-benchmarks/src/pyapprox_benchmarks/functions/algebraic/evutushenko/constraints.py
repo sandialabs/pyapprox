@@ -1,6 +1,7 @@
 from typing import Generic
 
 import numpy as np
+
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_jacobian,

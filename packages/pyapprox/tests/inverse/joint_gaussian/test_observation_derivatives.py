@@ -9,6 +9,7 @@ torch autograd, which also shows the computation graph is intact.
 from typing import Callable, Optional, Tuple
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -19,7 +20,6 @@ from pyapprox.inverse.joint_gaussian import JointGaussian, LinearGaussianObserva
 from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
-
 from tests._helpers.inward_direction import inward_direction
 
 _Value = Callable[[LinearGaussianObservation[Array]], Array]

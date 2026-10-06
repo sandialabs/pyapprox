@@ -8,6 +8,7 @@ falls like ``h`` (forward) or ``h**2`` (central); a wrong one stays flat.
 import math
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

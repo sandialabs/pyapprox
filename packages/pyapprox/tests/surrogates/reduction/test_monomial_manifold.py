@@ -10,6 +10,8 @@ which is quadratic in the candidate pool, stays fast.
 
 import numpy as np
 import pytest
+from scipy.sparse import diags
+
 from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
     StdDecodingEncoderProtocol,
@@ -38,7 +40,6 @@ from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     MassInnerProduct,
 )
-from scipy.sparse import diags
 
 
 def _curved_data(bkd, nstates=25, nsnapshots=80, seed=0, curvature=0.3):

@@ -19,6 +19,7 @@ import sys
 import textwrap
 
 import pytest
+
 from pyapprox.interface.evaluation.records import JobStatus, Resources
 from pyapprox.interface.evaluation.subprocess_dispatcher import (
     DETAIL_TAIL_BYTES,

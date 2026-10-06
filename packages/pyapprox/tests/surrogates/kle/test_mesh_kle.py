@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.affine.univariate.globalpoly import (
     LegendrePolynomial1D,
 )

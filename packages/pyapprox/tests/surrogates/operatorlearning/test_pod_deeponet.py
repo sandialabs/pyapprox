@@ -45,6 +45,7 @@ from typing import Any, Tuple
 import numpy as np
 import pytest
 import torch
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis.orthonormal_poly import (
     OrthonormalPolynomialBasis,
@@ -73,7 +74,6 @@ from pyapprox.surrogates.operatorlearning.latent_maps.torch_optimizers import (
 )
 from pyapprox.util.backends.protocols import Backend
 from pyapprox.util.linalg.inner_product import DiagonalInnerProduct
-
 from tests._helpers.markers import slow_test, slowest_test
 
 NINPUT_MODES = 4

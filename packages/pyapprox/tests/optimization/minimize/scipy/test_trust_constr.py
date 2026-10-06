@@ -2,6 +2,9 @@
 bind/minimize API, using legacy-style producers. Written BEFORE the
 Derivatives-bundle consumer rewrite so the rewrite is protected."""
 
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
 from tests._helpers.optimizer_fixtures import (
     QuadraticNoDerivatives,
     QuadraticWithJacobian,
@@ -9,10 +12,6 @@ from tests._helpers.optimizer_fixtures import (
     SumConstraint,
     SumConstraintWithJacobian,
     SumConstraintWithJacobianAndWHVP,
-)
-
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
 )
 
 

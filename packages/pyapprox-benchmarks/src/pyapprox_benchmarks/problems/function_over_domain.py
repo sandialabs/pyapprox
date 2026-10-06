@@ -9,7 +9,6 @@ from typing import Generic, TypeVar
 
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.util.backends.protocols import Array
-
 from pyapprox_benchmarks.protocols import DomainProtocol
 
 F = TypeVar("F", bound=FunctionProtocol)  # type: ignore[type-arg]

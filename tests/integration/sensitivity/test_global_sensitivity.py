@@ -7,11 +7,11 @@ benchmark functions with known ground truth values.
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.sensitivity import IshigamiBenchmark, SobolGBenchmark
 from pyapprox.sensitivity import (
     MorrisSensitivityAnalysis,
     SobolSequenceSensitivityAnalysis,
 )
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark, SobolGBenchmark
 
 
 class TestSampleBasedSensitivity:

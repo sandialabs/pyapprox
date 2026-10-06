@@ -45,7 +45,6 @@ from pyapprox.pde.zoo.pressurized_cylinder_2d import (
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.problems.forward_uq import ForwardUQProblem
 
 

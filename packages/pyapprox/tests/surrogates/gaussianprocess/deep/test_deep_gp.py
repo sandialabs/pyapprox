@@ -1,9 +1,8 @@
 """Tests for DeepGaussianProcess (Phase 6)."""
 
+import networkx as nx
 import numpy as np
 import pytest
-
-import networkx as nx
 
 from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
     DeepGaussianProcess,

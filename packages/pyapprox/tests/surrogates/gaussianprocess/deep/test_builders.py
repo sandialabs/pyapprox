@@ -5,8 +5,8 @@ import pytest
 
 from pyapprox.optimization.minimize.adam.adam_optimizer import AdamOptimizer
 from pyapprox.surrogates.gaussianprocess.deep.builders import (
-    build_single_fidelity_dgp,
     build_multilevel_dgp,
+    build_single_fidelity_dgp,
 )
 from pyapprox.surrogates.gaussianprocess.fitters.deep_gp_fitter import (
     DGPMaximumLikelihoodFitter,

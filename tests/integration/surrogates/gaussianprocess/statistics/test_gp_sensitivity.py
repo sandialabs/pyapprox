@@ -520,14 +520,14 @@ class TestIshigamiBenchmark:
         pi = float(bkd.to_numpy(bkd.asarray(np.pi)))
 
         # Import utilities
-        from pyapprox_benchmarks.functions.algebraic.ishigami import (
-            IshigamiFunction,
-            IshigamiSensitivityIndices,
-        )
         from pyapprox.probability.joint.independent import (
             IndependentJoint,
         )
         from pyapprox.util.sampling.sobol import SobolSampler
+        from pyapprox_benchmarks.functions.algebraic.ishigami import (
+            IshigamiFunction,
+            IshigamiSensitivityIndices,
+        )
 
         # Use a=0, b=0.01 for cross terms between x1 and x3
         # x2 has no effect, so we only need 1 point in that dimension
@@ -943,14 +943,14 @@ class TestSobolIndicesOfPosteriorMean:
         np.random.seed(42)
         pi = float(bkd.to_numpy(bkd.asarray(np.pi)))
 
-        from pyapprox_benchmarks.functions.algebraic.ishigami import (
-            IshigamiFunction,
-            IshigamiSensitivityIndices,
-        )
         from pyapprox.probability.joint.independent import (
             IndependentJoint,
         )
         from pyapprox.util.sampling.sobol import SobolSampler
+        from pyapprox_benchmarks.functions.algebraic.ishigami import (
+            IshigamiFunction,
+            IshigamiSensitivityIndices,
+        )
 
         a, b = 0.0, 0.01
         ishigami = IshigamiFunction(bkd, a=a, b=b)

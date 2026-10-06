@@ -15,6 +15,7 @@ from typing import Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
@@ -54,7 +55,6 @@ from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-
 from tests._helpers.adjoint_checks import (
     NoHVPQuadraticFieldMap,
     NumpyArray,

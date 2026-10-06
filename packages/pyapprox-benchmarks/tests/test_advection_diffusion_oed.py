@@ -5,6 +5,7 @@ Forward evaluations are slow, so model evaluation tests use @slow_test.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -13,6 +14,7 @@ if not package_available("skfem"):
 import pickle
 
 import numpy as np
+
 from pyapprox.pde.zoo.obstructed_flow import (
     build_obstructed_mesh,
     solve_obstructed_stokes,
@@ -26,7 +28,6 @@ from pyapprox_benchmarks.problems.oed.advection_diffusion import (
     AdvectionDiffusionOEDProblem,
     FixedVelocityAdvectionDiffusionOEDProblem,
 )
-
 from tests._helpers.markers import slow_test
 
 

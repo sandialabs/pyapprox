@@ -1150,7 +1150,6 @@ class TestMSEMatchesLoss:
 
     def _create_aetcblue(self):
         """Create an AETCBLUE instance for testing."""
-        from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
         from pyapprox.optimization.minimize.chained.chained_optimizer import (
             ChainedOptimizer,
         )
@@ -1160,6 +1159,7 @@ class TestMSEMatchesLoss:
         from pyapprox.optimization.minimize.scipy.trust_constr import (
             ScipyTrustConstrOptimizer,
         )
+        from pyapprox_benchmarks.statest import TunableEnsembleBenchmark
 
         shifts = [1.0, 2.0]
         bm = TunableEnsembleBenchmark(self._bkd, theta1=np.pi / 4, shifts=shifts)

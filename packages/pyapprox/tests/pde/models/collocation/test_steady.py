@@ -3,6 +3,7 @@
 import math
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -600,6 +601,7 @@ class TestSteadyForwardModelTiers:
         """A coefficient-dependent flux BC row forces the Jacobian
         tier with a UserWarning."""
         import pytest
+
         from pyapprox.pde.collocation.boundary.robin import (
             flux_neumann_bc,
         )

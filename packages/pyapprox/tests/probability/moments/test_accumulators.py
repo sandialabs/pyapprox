@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.joint import JointOutputs
 from pyapprox.probability.moments import (
     CovarianceBlocksProtocol,

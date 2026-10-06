@@ -5,9 +5,6 @@ from typing import Generic
 
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.ishigami import (
-    IshigamiFunction,
-)
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
@@ -18,6 +15,9 @@ from pyapprox.interface.functions.timing import (
     timed,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox_benchmarks.functions.algebraic.ishigami import (
+    IshigamiFunction,
+)
 
 # ---------------------------------------------------------------------------
 # Test fixtures

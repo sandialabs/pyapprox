@@ -13,6 +13,7 @@ the signs at all.
 """
 
 import numpy as np
+
 from pyapprox.surrogates.kle.utils import adjust_sign_eig
 
 

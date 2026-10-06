@@ -12,6 +12,7 @@ no velocity, and reaction R(u) = -k^2*u so that the forcing matches.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -20,6 +21,8 @@ if not package_available("skfem"):
 from typing import Callable, Dict, List, Tuple
 
 import numpy as np
+from scipy.sparse import issparse
+
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -35,7 +38,6 @@ from pyapprox.pde.manufactured import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
-from scipy.sparse import issparse
 
 
 def _create_screened_poisson_manufactured(

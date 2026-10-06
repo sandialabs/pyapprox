@@ -1,6 +1,7 @@
 """The stream-function velocity map drives a Galerkin transport model."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,6 +11,7 @@ import math
 from typing import Any
 
 import numpy as np
+
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,

@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kle.periodic_random_field import (
     PeriodicReiszGaussianRandomField,
 )

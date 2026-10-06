@@ -12,13 +12,12 @@ import pytest
 from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDDataAVaRQoIMeanAVaRDev,
     ConjugateGaussianOEDDataMeanQoIMeanEntropicDev,
-    ConjugateGaussianOEDExpectedPushforwardKLDivergence,
     ConjugateGaussianOEDDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDExpectedPushforwardKLDivergence,
     ConjugateGaussianOEDForLogNormalDataAVaRQoIMeanStdDev,
-    ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
-    ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIAVaRStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
+    ConjugateGaussianOEDForLogNormalDataMeanStdDevQoIMeanStdDev,
 )
 
 #TODO: rename this file to better differentiate it from test_conjugate_mc.py

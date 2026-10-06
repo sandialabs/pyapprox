@@ -20,6 +20,7 @@ import math
 from typing import Generic
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -52,7 +53,6 @@ from pyapprox.pde.manufactured import (
     ManufacturedLinearElasticityEquations,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
 from tests._helpers.markers import slow_test
 
 

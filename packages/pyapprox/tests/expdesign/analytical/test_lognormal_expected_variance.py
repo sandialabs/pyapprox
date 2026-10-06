@@ -8,6 +8,7 @@ parameter vector marginalizes them exactly.
 """
 
 import numpy as np
+
 from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanStdDev,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanVariance,

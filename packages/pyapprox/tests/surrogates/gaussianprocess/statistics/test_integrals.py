@@ -7,6 +7,12 @@ analytical comparisons, and error handling.
 
 import numpy as np
 import pytest
+
+from pyapprox.probability.univariate import UniformMarginal
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     ConstantMean,
     ZeroMean,
@@ -38,12 +44,6 @@ from pyapprox.surrogates.kernels.matern import (
 )
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
-)
-
-from pyapprox.probability.univariate import UniformMarginal
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPMaximumLikelihoodFitter,
 )
 
 

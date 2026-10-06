@@ -5,12 +5,12 @@ This module tests mean function implementations, focusing on
 Jacobian accuracy using DerivativeChecker.
 """
 
-from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.gaussianprocess.mean_functions import (
     CompositeMean,
     ConstantMean,

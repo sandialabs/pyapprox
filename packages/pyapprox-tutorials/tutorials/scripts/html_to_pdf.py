@@ -10,13 +10,12 @@ Uses Chrome headless --print-to-pdf for each HTML file, then merges with pypdf.
 
 import argparse
 import subprocess
-import tempfile
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
 from pypdf import PdfWriter
-
 
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 

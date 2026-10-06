@@ -16,7 +16,6 @@ from typing import Callable, Generic, Optional
 from pyapprox.expdesign.utils import compute_exact_eig
 from pyapprox.probability.gaussian import DenseCholeskyMultivariateGaussian
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.functions.pde.cantilever_beam_obs_map import (
     build_cantilever_beam_design_matrix,
     build_cantilever_beam_obs_map,

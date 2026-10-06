@@ -9,8 +9,14 @@ Tests are structured progressively:
 
 import numpy as np
 import torch
+from scipy.stats import qmc
+
 from pyapprox.surrogates.gaussianprocess.exact import (
     ExactGaussianProcess,
+)
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+    VariationalGPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.gaussianprocess.inducing import InducingPoints
 from pyapprox.surrogates.gaussianprocess.likelihoods import GaussianLikelihood
@@ -19,12 +25,6 @@ from pyapprox.surrogates.gaussianprocess.variational import (
 )
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 from pyapprox.util.backends.torch import TorchBkd
-from scipy.stats import qmc
-
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPMaximumLikelihoodFitter,
-    VariationalGPMaximumLikelihoodFitter,
-)
 
 
 def _sobol_samples(nvars: int, nsamples: int, lb: float, ub: float):
@@ -444,11 +444,10 @@ class TestTorchVariationalGP:
 
     def test_autograd_loss_jacobian(self) -> None:
         """Verify fitter binds autograd jacobian for torch backend."""
-        from pyapprox.util.backends.torch import TorchBkd
-
         from pyapprox.surrogates.gaussianprocess.fitters import (
             VariationalGPMaximumLikelihoodFitter,
         )
+        from pyapprox.util.backends.torch import TorchBkd
 
         gp = self._make_torch_vgp(kernel_fixed=False, inducing_fixed=True)
 

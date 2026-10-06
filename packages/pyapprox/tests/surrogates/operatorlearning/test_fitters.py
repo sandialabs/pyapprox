@@ -9,6 +9,7 @@ from typing import Any, Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis.orthonormal_poly import (
     OrthonormalPolynomialBasis,

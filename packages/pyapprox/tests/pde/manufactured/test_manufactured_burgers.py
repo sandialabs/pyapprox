@@ -28,6 +28,7 @@ This matches the manufactured solution forcing, so no sign negation is needed.
 from typing import Generic
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

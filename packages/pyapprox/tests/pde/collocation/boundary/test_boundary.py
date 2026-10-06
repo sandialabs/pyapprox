@@ -2,6 +2,7 @@
 
 
 import numpy as np
+
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     DirichletBC,

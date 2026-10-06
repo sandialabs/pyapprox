@@ -9,6 +9,7 @@ strength to noise variance.
 
 import numpy as np
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion

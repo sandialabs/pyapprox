@@ -7,10 +7,6 @@ from typing import Sequence
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.ishigami import (
-    IshigamiFunction,
-    IshigamiSensitivityIndices,
-)
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -26,6 +22,10 @@ from pyapprox.surrogates.functiontrain.core import FunctionTrainCore
 from pyapprox.surrogates.functiontrain.statistics import (
     FunctionTrainMoments,
     FunctionTrainSensitivity,
+)
+from pyapprox_benchmarks.functions.algebraic.ishigami import (
+    IshigamiFunction,
+    IshigamiSensitivityIndices,
 )
 from tests._helpers.markers import slow_test
 

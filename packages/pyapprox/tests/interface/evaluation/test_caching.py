@@ -21,6 +21,7 @@ usable by someone outside it.
 """
 
 import pytest
+
 from pyapprox.interface.evaluation.adapters import (
     EvaluationFailure,
     blocking,

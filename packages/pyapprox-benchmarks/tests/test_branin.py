@@ -1,22 +1,22 @@
 """Tests for BraninFunction."""
 
-from pyapprox.interface.functions.protocols.objective import (
-    ObjectiveProtocol,
-)
 import math
 
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.branin import (
-    BRANIN_GLOBAL_MINIMUM,
-    BRANIN_MINIMIZERS,
-    BraninFunction,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
+)
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
+from pyapprox_benchmarks.functions.algebraic.branin import (
+    BRANIN_GLOBAL_MINIMUM,
+    BRANIN_MINIMIZERS,
+    BraninFunction,
 )
 
 

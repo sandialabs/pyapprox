@@ -8,6 +8,7 @@ rows of a binary design.
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.analytical import (
     ConjugateGaussianOEDExpectedPushforwardKLDivergence,
     ConjugateGaussianOEDForLogNormalDataMeanQoIMeanVariance,

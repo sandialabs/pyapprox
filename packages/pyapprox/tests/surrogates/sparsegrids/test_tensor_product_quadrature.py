@@ -15,10 +15,10 @@ These tests verify:
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.sparsegrids.statistics.subspace_moments import (
     subspace_mean,
 )
-
 from tests._helpers.markers import slow_test, slower_test  # noqa: F401
 from tests._helpers.sparsegrids_helpers import (
     create_tensor_product_pce,

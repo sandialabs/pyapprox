@@ -1,9 +1,8 @@
 """Tests for LayerPropagator (Phase 7)."""
 
+import networkx as nx
 import numpy as np
 import pytest
-
-import networkx as nx
 
 from pyapprox.surrogates.gaussianprocess.deep.layer import DGPLayer
 from pyapprox.surrogates.gaussianprocess.deep.propagator import (

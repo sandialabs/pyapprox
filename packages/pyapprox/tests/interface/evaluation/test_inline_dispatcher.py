@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 import pytest
+
 from pyapprox.interface.evaluation.inline_dispatcher import InlineDispatcher
 from pyapprox.interface.evaluation.protocols import (
     DispatcherProtocol,

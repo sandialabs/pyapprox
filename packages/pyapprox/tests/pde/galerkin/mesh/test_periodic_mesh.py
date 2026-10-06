@@ -2,16 +2,16 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
-from pyapprox.util.backends.numpy import NumpyBkd
-
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.mesh import PeriodicStructuredMesh1D
+from pyapprox.pde.galerkin.protocols.mesh import GalerkinMeshProtocol
+from pyapprox.util.backends.numpy import NumpyBkd
 
 
 class TestPeriodicStructuredMesh1D:

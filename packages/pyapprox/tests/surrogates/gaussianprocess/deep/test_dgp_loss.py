@@ -1,9 +1,8 @@
 """Tests for DGPELBOLoss (Phase 8)."""
 
+import networkx as nx
 import numpy as np
 import pytest
-
-import networkx as nx
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -23,14 +22,11 @@ from pyapprox.surrogates.gaussianprocess.deep_gp_loss import (
     TorchDGPELBOLoss,
 )
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.inducing.titsias import (
-    titsias_optimal_whitened_q_u,
-)
-from pyapprox.surrogates.gaussianprocess.variational import (
-    VariationalGaussianProcess,
-)
 from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (
     InducingPoints,
+)
+from pyapprox.surrogates.gaussianprocess.inducing.titsias import (
+    titsias_optimal_whitened_q_u,
 )
 from pyapprox.surrogates.gaussianprocess.inducing.variational_distribution import (
     GaussianVariationalDistribution,
@@ -39,6 +35,9 @@ from pyapprox.surrogates.gaussianprocess.likelihoods.gaussian import (
     GaussianLikelihood,
 )
 from pyapprox.surrogates.gaussianprocess.mean_functions import ZeroMean
+from pyapprox.surrogates.gaussianprocess.variational import (
+    VariationalGaussianProcess,
+)
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
 

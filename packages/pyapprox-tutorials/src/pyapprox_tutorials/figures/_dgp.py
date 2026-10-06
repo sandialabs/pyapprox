@@ -534,13 +534,14 @@ def plot_predictive_density(axes):
     weighted nodes which is the wrong tool for an empirical density
     plot.
     """
+    from scipy.stats import norm as _norm
+
     from pyapprox.surrogates.gaussianprocess.deep.propagator import (
         LayerPropagator,
     )
     from pyapprox.surrogates.gaussianprocess.deep.quadrature import (
         MonteCarloRule,
     )
-    from scipy.stats import norm as _norm
 
     from ._style import apply_style
 

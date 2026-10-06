@@ -2,14 +2,14 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox_benchmarks.pde.elastic_bar import build_elastic_bar_1d
-
 from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
 )
+from pyapprox_benchmarks.pde.elastic_bar import build_elastic_bar_1d
 
 
 def _make_problem(

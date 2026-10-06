@@ -13,6 +13,7 @@ Crank-Nicolson. Explicit cases use GalerkinModel with CFL-constrained dt.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -21,6 +22,7 @@ if not package_available("skfem"):
 from typing import List, Tuple
 
 import numpy as np
+
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
@@ -42,7 +44,6 @@ from pyapprox.pde.galerkin.time_integration import (
     create_galerkin_bc_enforcing_residual,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-
 from tests._helpers.markers import slow_test
 
 # =========================================================================

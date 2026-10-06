@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.sparsegrids.basis.hierarchical_basis_1d import (
     HierarchicalBasis1D,
 )

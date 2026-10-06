@@ -3,6 +3,7 @@
 import networkx as nx
 import numpy as np
 import pytest
+
 from pyapprox.optimization.minimize.adam.adam_optimizer import AdamOptimizer
 from pyapprox.surrogates.gaussianprocess.deep.deep_gp import (
     DeepGaussianProcess,

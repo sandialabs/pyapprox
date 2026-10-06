@@ -7,6 +7,7 @@ the basis itself decides which counts it accepts.
 from typing import Callable
 
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
     ClenshawCurtisGrowthRule,

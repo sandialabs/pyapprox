@@ -19,7 +19,12 @@ from typing import Any, List
 
 import numpy as np
 import pytest
+
 from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
 from pyapprox.surrogates.gaussianprocess.input_transform import (
     IdentityInputTransform,
     InputBoundsScaler,
@@ -27,6 +32,10 @@ from pyapprox.surrogates.gaussianprocess.input_transform import (
 )
 from pyapprox.surrogates.gaussianprocess.output_transform import (
     OutputStandardScaler,
+)
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    GaussianProcessStatistics,
+    SeparableKernelIntegralCalculator,
 )
 from pyapprox.surrogates.kernels.base import (
     SeparableProductKernel,
@@ -39,15 +48,6 @@ from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
 )
 from pyapprox.util.backends.protocols import Backend
-
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPMaximumLikelihoodFitter,
-)
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    GaussianProcessStatistics,
-    SeparableKernelIntegralCalculator,
-)
 
 _NUGGET = 1e-10
 

@@ -3,11 +3,11 @@ from __future__ import annotations
 
 from typing import Any, Union
 
-from pyapprox.statest.acv.base import ACVEstimator, FittedACVEstimator
 from pyapprox.statest.acv.allocation import default_allocator_factory
+from pyapprox.statest.acv.base import ACVEstimator, FittedACVEstimator
+from pyapprox.statest.allocation import CVAllocator, MCAllocator
 from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
-from pyapprox.statest.mc_estimator import MCEstimator, FittedMCEstimator
-from pyapprox.statest.allocation import MCAllocator, CVAllocator
+from pyapprox.statest.mc_estimator import FittedMCEstimator, MCEstimator
 
 
 def allocate_with_allocator(

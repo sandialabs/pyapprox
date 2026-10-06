@@ -1,9 +1,6 @@
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (  # noqa: E501
-    NonLinearCoupledStateEquations,
-)
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
@@ -14,6 +11,9 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
     AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.util.rootfinding.newton import NewtonSolverOptions
+from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (  # noqa: E501
+    NonLinearCoupledStateEquations,
+)
 
 
 class TestNonLinearCoupledEquations:

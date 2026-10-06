@@ -8,12 +8,12 @@ at sensor locations. Wraps A as a FunctionFromCallable.
 from typing import Optional, Tuple
 
 import numpy as np
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
 from pyapprox.interface.functions.protocols import FunctionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.pde.cantilever_beam import (
     _DEFAULT_MESH_PATH,
     _find_dof,

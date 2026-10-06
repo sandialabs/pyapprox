@@ -5,15 +5,15 @@ Tests Jacobian computation using derivative checker with finite differences.
 """
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
-from pyapprox.surrogates.kernels.matern import Matern52Kernel
-
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,
 )
+from pyapprox.surrogates.kernels.matern import Matern52Kernel
 
 
 class TestExactGPDerivatives:

@@ -7,6 +7,7 @@ from typing import List
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import FunctionFromCallable
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.indices import (
@@ -34,7 +35,6 @@ from pyapprox.surrogates.sparsegrids.statistics.moments import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
-
 from tests._helpers.sparsegrids_helpers import (
     create_test_joint,
     create_test_pce,

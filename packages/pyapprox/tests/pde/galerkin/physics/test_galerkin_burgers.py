@@ -10,6 +10,7 @@ The periodic case is skipped (known legacy bug).
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -18,6 +19,8 @@ if not package_available("skfem"):
 from typing import List, Tuple
 
 import numpy as np
+from scipy.sparse import issparse
+
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
@@ -41,7 +44,6 @@ from pyapprox.pde.manufactured.burgers import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
-from scipy.sparse import issparse
 
 # =========================================================================
 # Part A: Unit Tests

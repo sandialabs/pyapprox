@@ -16,9 +16,6 @@ Tests verify:
 # not at this level which is for integration tests.
 # TODO: these MSE convergence rate tests are good for any
 # function/problem instance that computes statistics
-from pyapprox.interface.functions.protocols.objective import (
-    ObjectiveProtocol,
-)
 import math
 from abc import abstractmethod
 from typing import Any
@@ -26,17 +23,20 @@ from typing import Any
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.genz import (
-    CornerPeakFunction,
-    GaussianPeakFunction,
-    OscillatoryFunction,
-    ProductPeakFunction,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
+)
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
+from pyapprox_benchmarks.functions.genz import (
+    CornerPeakFunction,
+    GaussianPeakFunction,
+    OscillatoryFunction,
+    ProductPeakFunction,
 )
 
 

@@ -12,6 +12,7 @@ import pickle
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,

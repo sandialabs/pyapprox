@@ -19,13 +19,13 @@ from pyapprox.surrogates.affine.univariate.globalpoly.jacobi import (
 from pyapprox.surrogates.affine.univariate.globalpoly.quadrature import (
     GaussQuadratureRule,
 )
-from pyapprox.util.protocols.quadrature import (
-    MultivariateQuadratureRuleProtocol,
-)
 from pyapprox.surrogates.quadrature.tensor_product import (
     TensorProductQuadratureRule,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.protocols.quadrature import (
+    MultivariateQuadratureRuleProtocol,
+)
 
 
 class _AffineRule(Generic[Array]):

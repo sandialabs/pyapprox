@@ -48,7 +48,6 @@ from pyapprox.pde.zoo.hyperelastic_cylinder_2d import (
 from pyapprox.pde.zoo.pressurized_cylinder_2d import (
     create_linear_pressurized_cylinder_2d,
 )
-
 from tests._helpers.markers import slow_test
 
 # ======================================================================

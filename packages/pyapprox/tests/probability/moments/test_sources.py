@@ -9,6 +9,7 @@ from typing import Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

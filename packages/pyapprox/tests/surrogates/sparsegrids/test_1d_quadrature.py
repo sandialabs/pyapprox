@@ -16,6 +16,7 @@ marginals (Beta, Gamma) where interpolation tests pass but integration fails.
 from typing import Any, Dict, Tuple, Union
 
 import pytest
+
 from pyapprox.probability import (
     BetaMarginal,
     GammaMarginal,

@@ -1,8 +1,5 @@
 import numpy as np
 
-from pyapprox_benchmarks.functions.algebraic.linear_state_equation import (
-    LinearStateEquation,
-)
 from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
@@ -14,6 +11,9 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 )
 from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
     AdjointOperatorWithJacobianAndHVP,
+)
+from pyapprox_benchmarks.functions.algebraic.linear_state_equation import (
+    LinearStateEquation,
 )
 
 

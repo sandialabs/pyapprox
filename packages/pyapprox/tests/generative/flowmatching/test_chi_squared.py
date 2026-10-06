@@ -12,14 +12,6 @@ moments at moderate polynomial degree.
 
 import numpy as np
 
-from pyapprox.ode.explicit_steppers.heun import HeunStepper
-from pyapprox.probability import GaussianMarginal, UniformMarginal
-from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.expansions import BasisExpansion
-from pyapprox.surrogates.affine.indices import (
-    compute_hyperbolic_indices,
-)
-from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.generative.flowmatching.fitters.least_squares import (
     LeastSquaresFitter,
 )
@@ -30,6 +22,14 @@ from pyapprox.generative.flowmatching.ode_adapter import (
 from pyapprox.generative.flowmatching.quad_data import (
     FlowMatchingQuadData,
 )
+from pyapprox.ode.explicit_steppers.heun import HeunStepper
+from pyapprox.probability import GaussianMarginal, UniformMarginal
+from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
+from pyapprox.surrogates.affine.expansions import BasisExpansion
+from pyapprox.surrogates.affine.indices import (
+    compute_hyperbolic_indices,
+)
+from pyapprox.surrogates.affine.univariate import create_bases_1d
 from tests._helpers.markers import slow_test
 
 

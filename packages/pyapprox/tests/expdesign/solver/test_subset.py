@@ -13,6 +13,7 @@ from typing import Dict, FrozenSet, Generic, Sequence, Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.design_space import (
     BinaryDesignSubsetObjective,
     GroupedDesign,

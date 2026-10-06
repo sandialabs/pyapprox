@@ -9,9 +9,6 @@ Tests verify:
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.expdesign.linear_gaussian import (
-    build_linear_gaussian_kl_benchmark,
-)
 from pyapprox.expdesign.data import generate_oed_data
 from pyapprox.expdesign.diagnostics import (
     KLOEDDiagnostics,
@@ -24,6 +21,9 @@ from pyapprox.expdesign.quadrature.oed import (
     build_oed_joint_distribution,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox_benchmarks.expdesign.linear_gaussian import (
+    build_linear_gaussian_kl_benchmark,
+)
 from tests._helpers.markers import slow_test
 
 

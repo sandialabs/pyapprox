@@ -21,8 +21,8 @@ from pyapprox.optimization.minimize.differentiable_approximations import (
     SmoothLogBasedMaxFunction,
 )
 from pyapprox.probability import UniformMarginal
-from pyapprox.risk import DisutilitySSD
 from pyapprox.probability.univariate.discrete import CustomDiscreteMarginal
+from pyapprox.risk import DisutilitySSD
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
 from pyapprox.surrogates.affine.expansions.fitters.results import (

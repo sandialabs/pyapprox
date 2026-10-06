@@ -1,6 +1,7 @@
 """Tests for multifidelity benchmark functions and benchmarks."""
 
 import pytest
+
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )

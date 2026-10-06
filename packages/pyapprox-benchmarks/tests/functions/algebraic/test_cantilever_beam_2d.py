@@ -1,12 +1,12 @@
 """Tests for the analytical 2D cantilever beam model."""
 
 
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
     CantileverBeam2DAnalytical,
     CantileverBeam2DConstraints,
     CantileverBeam2DObjective,
 )
-from pyapprox.util.backends.numpy import NumpyBkd
 
 # TODO: Are lazy imports needed to avoid imports of optional deps or cantilever
 # they be moved to top of file

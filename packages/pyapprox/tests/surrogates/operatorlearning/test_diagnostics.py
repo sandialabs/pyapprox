@@ -3,6 +3,7 @@
 from typing import Any
 
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis.orthonormal_poly import (
     OrthonormalPolynomialBasis,

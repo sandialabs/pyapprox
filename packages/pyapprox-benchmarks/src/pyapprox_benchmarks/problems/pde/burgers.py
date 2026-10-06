@@ -20,7 +20,6 @@ from pyapprox.pde.galerkin.protocols.system import (
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.benchmark import BoxDomain
 from pyapprox_benchmarks.functions.pde.burgers import (
     build_periodic_burgers_physics,

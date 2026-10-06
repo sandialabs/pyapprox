@@ -10,16 +10,16 @@ import warnings
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.ishigami import (
-    IshigamiFunction,
-    IshigamiSensitivityIndices,
-)
-from pyapprox_benchmarks.sensitivity import IshigamiBenchmark, SobolGBenchmark
 from pyapprox.probability import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.sensitivity.variance_based.bin_based import (
     BinBasedSensitivityAnalysis,
 )
+from pyapprox_benchmarks.functions.algebraic.ishigami import (
+    IshigamiFunction,
+    IshigamiSensitivityIndices,
+)
+from pyapprox_benchmarks.sensitivity import IshigamiBenchmark, SobolGBenchmark
 from tests._helpers.markers import slow_test, slower_test
 
 

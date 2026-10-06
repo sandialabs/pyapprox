@@ -11,6 +11,7 @@ to the code.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import (
     ExponentialKernel,
     SquaredExponentialKernel,

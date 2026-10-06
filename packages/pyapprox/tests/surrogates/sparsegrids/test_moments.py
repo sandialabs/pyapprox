@@ -18,6 +18,7 @@ compared, since the mean is definition-independent.
 from typing import List, Tuple
 
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.expansions import pce_statistics
 from pyapprox.surrogates.affine.indices import (

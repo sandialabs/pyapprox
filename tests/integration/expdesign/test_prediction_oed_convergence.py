@@ -13,6 +13,16 @@ import numpy as np
 import pytest
 
 from pyapprox.expdesign import create_prediction_oed_objective
+from pyapprox.expdesign.data import generate_oed_data
+from pyapprox.expdesign.diagnostics.prediction_diagnostics import (
+    create_prediction_oed_diagnostics,
+)
+from pyapprox.expdesign.quadrature import MonteCarloSampler
+from pyapprox.expdesign.quadrature.oed import (
+    OEDQuadratureSampler,
+    build_oed_joint_distribution,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox_benchmarks.expdesign.linear_gaussian import (
     build_linear_gaussian_kl_benchmark,
 )
@@ -24,16 +34,6 @@ from pyapprox_benchmarks.expdesign.nonlinear_gaussian import (
     NonLinearGaussianPredOEDBenchmark,
     build_nonlinear_gaussian_pred_benchmark,
 )
-from pyapprox.expdesign.data import generate_oed_data
-from pyapprox.expdesign.diagnostics.prediction_diagnostics import (
-    create_prediction_oed_diagnostics,
-)
-from pyapprox.expdesign.quadrature import MonteCarloSampler
-from pyapprox.expdesign.quadrature.oed import (
-    OEDQuadratureSampler,
-    build_oed_joint_distribution,
-)
-from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.markers import slow_test
 
 

@@ -4,15 +4,15 @@ import pytest
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox_benchmarks.functions.algebraic.evutushenko import (
-    EvtushenkoNonLinearConstraint,
-    EvtushenkoObjective,
-)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.optimization.minimize.scipy.slsqp import (
     ScipySLSQPOptimizer,
+)
+from pyapprox_benchmarks.functions.algebraic.evutushenko import (
+    EvtushenkoNonLinearConstraint,
+    EvtushenkoObjective,
 )
 
 

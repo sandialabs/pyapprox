@@ -1,6 +1,7 @@
 """Tests for CompositeLinearElasticity physics."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -8,6 +9,8 @@ if not package_available("skfem"):
 
 
 import numpy as np
+from scipy.sparse import issparse
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -30,7 +33,6 @@ from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import issparse
 
 
 def _to_dense(mat, bkd):
@@ -104,13 +106,14 @@ class TestCompositeLinearElasticityBase:
 
     def test_1d_manufactured_solution(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
+        from skfem.models.elasticity import lame_parameters as _lame
+
         from pyapprox.pde.galerkin.boundary.implementations import (
             DirichletBC,
         )
         from pyapprox.pde.galerkin.manufactured.adapter import (
             create_elasticity_manufactured_test,
         )
-        from skfem.models.elasticity import lame_parameters as _lame
 
         E, nu = 1.0, 0.3
         lam, mu = _lame(E, nu)

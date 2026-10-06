@@ -1,9 +1,13 @@
 """Tests for SubdomainWrapper class."""
 
 import pytest
+
+from pyapprox.pde.collocation.basis import ChebyshevBasis1D
+from pyapprox.pde.collocation.mesh import TransformedMesh1D
 from pyapprox.pde.collocation.physics.advection_diffusion import (
     create_steady_diffusion,
 )
+from pyapprox.pde.decomposition.interface import Interface1D
 from pyapprox.pde.decomposition.subdomain.flux import (
     FluxComputer,
     compute_flux_mismatch,
@@ -13,10 +17,6 @@ from pyapprox.pde.decomposition.subdomain.wrapper import (
     SubdomainWrapper,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-
-from pyapprox.pde.collocation.basis import ChebyshevBasis1D
-from pyapprox.pde.collocation.mesh import TransformedMesh1D
-from pyapprox.pde.decomposition.interface import Interface1D
 
 
 class TestSubdomainWrapperBasic:

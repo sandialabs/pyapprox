@@ -10,6 +10,7 @@ flag.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.operatorlearning.domains import (
     MetricSpaceProtocol,
     OffGridEvaluatorProtocol,

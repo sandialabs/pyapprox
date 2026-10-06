@@ -11,6 +11,7 @@ from typing import List
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
@@ -47,7 +48,6 @@ from pyapprox.surrogates.sparsegrids.statistics.moments import (
 from pyapprox.surrogates.sparsegrids.subspace_factory import (
     TensorProductSubspaceFactory,
 )
-
 from tests._helpers.markers import slow_test, slower_test
 from tests._helpers.sparsegrids_helpers import (
     GROWTH_RULES,

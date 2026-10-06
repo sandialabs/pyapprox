@@ -5,6 +5,7 @@ and NLL gradient correctness — not just training-point interpolation.
 """
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

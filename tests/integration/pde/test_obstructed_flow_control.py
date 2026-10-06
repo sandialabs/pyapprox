@@ -16,16 +16,18 @@ from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 if TYPE_CHECKING:
+    from skfem.assembly.form.form import FormExtraParams
+
     from pyapprox.pde.models.galerkin.transient import (
         GalerkinTransientForwardModel,
     )
-    from skfem.assembly.form.form import FormExtraParams
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -38,7 +40,6 @@ from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.problems.optimization import (
     ObstructedFlowControlProblem,
 )
-
 from tests._helpers.adjoint_checks import NumpyArray
 from tests._helpers.markers import slow_test
 

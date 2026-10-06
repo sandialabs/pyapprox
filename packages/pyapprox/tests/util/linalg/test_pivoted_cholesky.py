@@ -6,6 +6,7 @@ using the new typing module implementation.
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kernels.matern import (
     Matern32Kernel,
     SquaredExponentialKernel,

@@ -5,6 +5,7 @@ manufactured solutions with non-zero boundary values.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -12,6 +13,7 @@ if not package_available("skfem"):
 
 
 import numpy as np
+
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )

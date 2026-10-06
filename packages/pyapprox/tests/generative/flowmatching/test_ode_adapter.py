@@ -2,16 +2,16 @@
 
 import numpy as np
 
+from pyapprox.generative.flowmatching.ode_adapter import (
+    FlowODEResidual,
+    integrate_flow,
+)
 from pyapprox.ode.explicit_steppers.forward_euler import (
     ForwardEulerStepper,
 )
 from pyapprox.ode.explicit_steppers.heun import HeunStepper
 from pyapprox.ode.protocols.ode_residual import (
     ODEResidualProtocol,
-)
-from pyapprox.generative.flowmatching.ode_adapter import (
-    FlowODEResidual,
-    integrate_flow,
 )
 
 

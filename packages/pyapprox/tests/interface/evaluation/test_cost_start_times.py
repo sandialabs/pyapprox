@@ -17,6 +17,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+
 from pyapprox.interface.evaluation.callable_marshaller import (
     CallableMarshaller,
 )

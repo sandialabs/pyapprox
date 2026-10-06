@@ -3,22 +3,22 @@
 # TODO: this test class should be where function is defined
 # not at this level which is for integration tests.
 
-from pyapprox.interface.functions.protocols.objective import (
-    ObjectiveProtocol,
-)
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.sobol_g import (
-    SobolGFunction,
-    SobolGSensitivityIndices,
-)
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.protocols.function import (
     FunctionProtocol,
 )
+from pyapprox.interface.functions.protocols.objective import (
+    ObjectiveProtocol,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox_benchmarks.functions.algebraic.sobol_g import (
+    SobolGFunction,
+    SobolGSensitivityIndices,
+)
 
 
 class TestSobolGFunction:

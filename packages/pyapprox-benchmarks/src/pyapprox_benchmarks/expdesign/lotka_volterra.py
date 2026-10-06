@@ -10,7 +10,6 @@ from typing import Generic, Tuple
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.functions.ode import (
     ODEFunctionalProtocol,
     ODEQoIFunction,

@@ -1,8 +1,9 @@
 """Tests for Leja weighting strategies."""
 
 import pytest
-from pyapprox.probability import ScipyContinuousMarginal
 from scipy import stats
+
+from pyapprox.probability import ScipyContinuousMarginal
 
 
 class TestChristoffelWeighting:

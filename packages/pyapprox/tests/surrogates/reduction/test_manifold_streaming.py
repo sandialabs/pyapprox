@@ -18,6 +18,7 @@ from typing import Any, List
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.kle.basis_operator import ArrayBasis
 from pyapprox.surrogates.kle.basis_sinks import (
     ArrayBasisSink,

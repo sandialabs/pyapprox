@@ -12,6 +12,7 @@ benchmark's own QoI function.
 from typing import Any, Callable, Tuple
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

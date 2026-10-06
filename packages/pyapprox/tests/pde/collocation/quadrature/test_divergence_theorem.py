@@ -20,6 +20,7 @@ with the ray edges (:math:`x = 0`) contributing exactly zero.
 import math
 
 import numpy as np
+
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D, ChebyshevBasis2D
 from pyapprox.pde.collocation.mesh import TransformedMesh1D, TransformedMesh2D
 from pyapprox.pde.collocation.mesh.transforms import PolarTransform

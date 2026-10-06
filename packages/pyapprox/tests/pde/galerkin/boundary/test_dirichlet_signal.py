@@ -1,6 +1,7 @@
 """Galerkin DirichletBC as a selection of DOFs times a BoundarySignal."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -11,6 +12,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+
 from pyapprox.pde.boundary import (
     BoundarySignal,
     DirichletConstraintSet,

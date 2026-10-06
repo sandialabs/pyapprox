@@ -14,6 +14,7 @@ import math
 from typing import Any
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

@@ -13,6 +13,7 @@ also pinned.
 import numpy as np
 import pytest
 import scipy.linalg
+
 from pyapprox.util.linalg import TruncatedPivotedQRFactorizer
 
 

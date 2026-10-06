@@ -12,15 +12,15 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
-from pyapprox_benchmarks.functions.algebraic.evutushenko import (
-    EvtushenkoNonLinearConstraint,
-    EvtushenkoObjective,
-)
 from pyapprox.optimization.minimize.constraints.linear import (
     PyApproxLinearConstraint,
 )
 from pyapprox.optimization.minimize.rol.rol_optimizer import (
     ROLOptimizer,
+)
+from pyapprox_benchmarks.functions.algebraic.evutushenko import (
+    EvtushenkoNonLinearConstraint,
+    EvtushenkoObjective,
 )
 
 

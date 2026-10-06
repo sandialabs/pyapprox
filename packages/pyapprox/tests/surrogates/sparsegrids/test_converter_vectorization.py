@@ -13,6 +13,7 @@ contraction order the implementation uses.
 from typing import List
 
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import (

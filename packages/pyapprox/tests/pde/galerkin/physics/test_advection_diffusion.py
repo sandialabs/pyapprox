@@ -9,6 +9,7 @@ This module contains:
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -18,6 +19,8 @@ from typing import Any, List, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
+
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -29,7 +32,6 @@ from pyapprox.pde.galerkin.mesh import (
 from pyapprox.pde.galerkin.physics import LinearAdvectionDiffusionReaction
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import issparse
 
 
 class TestLinearADRBase:

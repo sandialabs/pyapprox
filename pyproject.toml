@@ -60,6 +60,19 @@ line-length = 88
 select = ["E", "F", "W", "I"]
 ignore = ["E402"]  # intentional lazy imports to reduce module load times
 
+[tool.ruff.lint.isort]
+# State the workspace packages rather than letting ruff infer them. It
+# infers from directories beside this file, so what counts as first-party
+# depended on what happened to be lying in the checkout: a stale
+# root-level "pyapprox/" from an old editable install made one worktree
+# report thirty-two import-order errors that no other worktree saw, on
+# identical config and identical code.
+known-first-party = [
+    "pyapprox",
+    "pyapprox_benchmarks",
+    "pyapprox_tutorials",
+]
+
 [tool.mypy]
 strict = true
 ignore_missing_imports = true

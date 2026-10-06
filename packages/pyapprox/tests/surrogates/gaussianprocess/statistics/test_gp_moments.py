@@ -9,16 +9,8 @@ import math
 
 import numpy as np
 import pytest
-from pyapprox.probability.univariate.uniform import UniformMarginal
-from pyapprox.surrogates.kernels.base import SeparableProductKernel
-from pyapprox.surrogates.kernels.matern import (
-    Matern52Kernel,
-    SquaredExponentialKernel,
-)
-from pyapprox.surrogates.sparsegrids.basis_factory import (
-    create_basis_factories,
-)
 
+from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,
@@ -26,6 +18,14 @@ from pyapprox.surrogates.gaussianprocess.fitters import (
 from pyapprox.surrogates.gaussianprocess.statistics import (
     GaussianProcessStatistics,
     SeparableKernelIntegralCalculator,
+)
+from pyapprox.surrogates.kernels.base import SeparableProductKernel
+from pyapprox.surrogates.kernels.matern import (
+    Matern52Kernel,
+    SquaredExponentialKernel,
+)
+from pyapprox.surrogates.sparsegrids.basis_factory import (
+    create_basis_factories,
 )
 from tests._helpers.markers import slow_test
 

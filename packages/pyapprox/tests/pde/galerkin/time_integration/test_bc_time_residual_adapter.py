@@ -1,6 +1,7 @@
 """Tests for the Galerkin BC-enforcing time residual wrapper."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -10,6 +11,8 @@ from typing import Any, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.sparse import issparse
+
 from pyapprox.ode.protocols.ode_residual import ODEResidualProtocol
 from pyapprox.ode.protocols.time_stepping import (
     SensitivityStepperProtocol,
@@ -40,7 +43,6 @@ from pyapprox.pde.galerkin.time_integration.physics_adapter import (
     GalerkinPhysicsToODEResidualAdapter,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from scipy.sparse import issparse
 
 
 def _setup_adr(

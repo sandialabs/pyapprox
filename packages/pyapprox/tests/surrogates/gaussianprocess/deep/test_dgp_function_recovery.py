@@ -7,8 +7,6 @@ produces accurate predictions on known test functions.
 import numpy as np
 import pytest
 
-from tests._helpers.markers import slow_test
-
 from pyapprox.optimization.minimize.adam.adam_optimizer import AdamOptimizer
 from pyapprox.optimization.minimize.chained.chained_optimizer import (
     ChainedOptimizer,
@@ -33,6 +31,7 @@ from pyapprox.surrogates.gaussianprocess.fitters.deep_gp_fitter import (
 )
 from pyapprox.surrogates.kernels.iid_gaussian_noise import IIDGaussianNoise
 from pyapprox.surrogates.kernels.matern import Matern52Kernel
+from tests._helpers.markers import slow_test
 
 _TRAIN_NPROP = 1
 _PRED_NPROP = 10

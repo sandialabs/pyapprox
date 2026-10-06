@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     )
 
 import numpy as np
+
 from pyapprox.util.backends.protocols import Array, Backend
 
 # Extraction-device layout: label -> center. Footprints sit in the gap

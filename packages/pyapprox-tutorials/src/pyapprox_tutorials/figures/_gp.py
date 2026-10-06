@@ -111,6 +111,7 @@ def plot_nlml_landscape(ax, bkd, nvars, samples_train, values_train_tip):
     NLML contour as a function of the first two length scales.
     """
     import matplotlib.pyplot as plt
+
     from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
     from pyapprox.surrogates.gaussianprocess.fitters import (
         GPFixedHyperparameterFitter,

@@ -12,7 +12,6 @@ from pyapprox.expdesign.diagnostics import (
     get_utility_factory,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
     _build_vandermonde,
     build_linear_qoi_map,

@@ -25,6 +25,7 @@ For the exact manufactured solution with correct forcing, residual = 0.
 from typing import Generic
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -39,7 +40,6 @@ from pyapprox.pde.manufactured import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array
-
 from tests._helpers.markers import slow_test
 
 

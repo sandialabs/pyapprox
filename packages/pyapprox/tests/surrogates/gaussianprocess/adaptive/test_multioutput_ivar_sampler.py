@@ -14,6 +14,7 @@ from typing import List
 
 import numpy as np
 import pytest
+
 from pyapprox.surrogates.gaussianprocess.adaptive.multioutput_ivar_sampler import (
     MultiOutputIVARSampler,
 )
@@ -27,7 +28,6 @@ from pyapprox.surrogates.kernels.multioutput.multilevel import (
     MultiLevelKernel,
 )
 from pyapprox.surrogates.kernels.scalings import PolynomialScalingFunction
-
 from tests._helpers.markers import slow_test
 
 

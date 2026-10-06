@@ -4,6 +4,7 @@ from typing import Callable
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -31,7 +32,6 @@ from pyapprox.pde.manufactured.shallow_shelf import (
     ManufacturedShallowShelfVelocityEquations,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-
 from tests._helpers.markers import slow_test
 from tests._helpers.physics_test_utils import (
     PhysicsTestBase,

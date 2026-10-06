@@ -1,15 +1,14 @@
 """End-to-end tests for ROL with inexact gradients."""
 
-from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 import pytest
 
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("pyrol"):
     pytest.skip("pyrol not installed", allow_module_level=True)
 
-from pyapprox.risk import SampleAverageMean
 from pyapprox.optimization.minimize.inexact.fixed import (
     FixedSampleStrategy,
 )
@@ -25,6 +24,7 @@ from pyapprox.optimization.minimize.inexact.wrapper import (
 from pyapprox.optimization.minimize.rol.rol_optimizer import (
     ROLOptimizer,
 )
+from pyapprox.risk import SampleAverageMean
 
 
 class _QuadraticObjectiveModel:

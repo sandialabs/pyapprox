@@ -12,6 +12,7 @@ and no parallelism.
 """
 
 import pytest
+
 from pyapprox.interface.evaluation.callable_marshaller import (
     UNBOUNDED_SAMPLES_PER_TASK,
     CallableMarshaller,

@@ -3,6 +3,7 @@
 
 import numpy as np
 import pytest
+
 from pyapprox.pde.decomposition.interface.interpolation import (
     InterpolationOperator,
     RestrictionOperator,

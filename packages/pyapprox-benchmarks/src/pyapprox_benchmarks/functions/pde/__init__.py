@@ -1,7 +1,6 @@
 """PDE-based function builders."""
 
 from pyapprox.util.optional_deps import package_available
-
 from pyapprox_benchmarks.functions.pde.cantilever_beam_obs_map import (
     build_cantilever_beam_design_matrix,
     build_cantilever_beam_obs_map,

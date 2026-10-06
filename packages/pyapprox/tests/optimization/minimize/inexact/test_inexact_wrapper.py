@@ -1,15 +1,14 @@
 """Dual-backend tests for InexactWrapper."""
 
-from pyapprox.interface.functions.protocols.constraint import (
-    NonlinearConstraintProtocol,
-)
-from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 import pytest
 
-from pyapprox.risk import SampleAverageMean
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
+)
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.protocols.constraint import (
+    NonlinearConstraintProtocol,
 )
 from pyapprox.optimization.minimize.inexact.fixed import (
     FixedSampleStrategy,
@@ -23,6 +22,7 @@ from pyapprox.optimization.minimize.inexact.protocols import (
 from pyapprox.optimization.minimize.inexact.wrapper import (
     InexactWrapper,
 )
+from pyapprox.risk import SampleAverageMean
 
 
 class _QuadraticModel:

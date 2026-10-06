@@ -9,12 +9,6 @@ from typing import Tuple
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
-    _build_vandermonde,
-)
-from pyapprox_benchmarks.expdesign.linear_gaussian import (
-    build_linear_gaussian_kl_benchmark,
-)
 from pyapprox.expdesign.diagnostics import (
     KLOEDDiagnostics,
     compute_convergence_rate,
@@ -25,6 +19,12 @@ from pyapprox.expdesign.diagnostics.prediction_diagnostics import (
     get_registered_utility_types,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox_benchmarks.expdesign.linear_gaussian import (
+    build_linear_gaussian_kl_benchmark,
+)
+from pyapprox_benchmarks.functions.algebraic.linear_gaussian_oed import (
+    _build_vandermonde,
+)
 
 
 def _generate_samples(

@@ -7,6 +7,7 @@ fastest), the per-step state Jacobian action, and the scalar rows.
 
 import numpy as np
 import pytest
+
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
     TransientFunctionalWithRowsProtocol,

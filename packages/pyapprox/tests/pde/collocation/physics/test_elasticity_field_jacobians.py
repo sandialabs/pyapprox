@@ -9,6 +9,7 @@ component-stacked row convention from the public derivative matrices.
 from typing import Callable
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

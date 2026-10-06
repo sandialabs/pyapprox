@@ -2,6 +2,8 @@
 
 import numpy as np
 import pytest
+from scipy.sparse import issparse
+
 from pyapprox.ode.mass_matrix import (
     ConstantDenseMassMatrix,
     ConstantSparseMassMatrix,
@@ -9,7 +11,6 @@ from pyapprox.ode.mass_matrix import (
     MassMatrixProtocol,
     create_mass_matrix,
 )
-from scipy.sparse import issparse
 
 
 class TestIdentityMassMatrix:

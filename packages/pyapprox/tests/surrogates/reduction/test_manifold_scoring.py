@@ -10,6 +10,8 @@ candidate sweep to scoring each candidate independently.
 
 import numpy as np
 import pytest
+from scipy.sparse import diags
+
 from pyapprox.surrogates.kle.snapshot_eigensolvers import (
     MethodOfSnapshotsSolver,
 )
@@ -22,7 +24,6 @@ from pyapprox.surrogates.reduction.manifold_scoring import (
     center_and_decompose,
 )
 from pyapprox.util.linalg.inner_product import MassInnerProduct
-from scipy.sparse import diags
 
 
 def _coords(rank, nsnapshots, seed, bkd):

@@ -7,6 +7,7 @@ against the relaxed-weight oracles of the analytical module.
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.analytical import (
     relaxed_linear_target_covariance,
     relaxed_linear_target_eig,

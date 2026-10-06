@@ -11,6 +11,8 @@ import os
 
 import numpy as np
 import pytest
+from scipy.sparse import diags
+
 from pyapprox.surrogates.kerneloperator.protocols import (
     FunctionEncoderProtocol,
     StdDecodingEncoderProtocol,
@@ -35,7 +37,6 @@ from pyapprox.util.linalg.inner_product import (
     MassInnerProduct,
     m_orthonormality_drift,
 )
-from scipy.sparse import diags
 
 
 def _centered(bkd, nstates=12, nsamples=8, seed=0):

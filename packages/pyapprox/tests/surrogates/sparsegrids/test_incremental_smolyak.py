@@ -10,6 +10,7 @@ import random
 from typing import List
 
 import pytest
+
 from pyapprox.surrogates.sparsegrids.smolyak import (
     IncrementalSmolyakCoefficients,
     SubspaceKey,

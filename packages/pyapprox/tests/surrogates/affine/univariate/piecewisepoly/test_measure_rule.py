@@ -9,6 +9,8 @@ from typing import Callable, List, Tuple
 
 import numpy as np
 import pytest
+from scipy import integrate, stats
+
 from pyapprox.probability.protocols.distribution import MarginalProtocol
 from pyapprox.probability.univariate.beta import BetaMarginal
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
@@ -25,7 +27,6 @@ from pyapprox.surrogates.affine.univariate.piecewisepoly import (
     PiecewiseQuadratic,
 )
 from pyapprox.util.backends.protocols import Array, Backend
-from scipy import integrate, stats
 
 _BasisClass = Callable[[Array, Backend[Array]], PiecewisePolynomialProtocol[Array]]
 

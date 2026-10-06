@@ -10,6 +10,7 @@ Tests cover:
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.design_space import BoxBudgetDesignSpace
 from pyapprox.expdesign.likelihood import GaussianOEDInnerLoopLikelihood
 from pyapprox.expdesign.objective import KLOEDObjective

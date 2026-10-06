@@ -7,6 +7,7 @@ adjoint suites, which construct single-map facades.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -15,6 +16,7 @@ if not package_available("skfem"):
 from typing import Tuple
 
 import numpy as np
+
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
@@ -49,7 +51,6 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-
 from tests._helpers.adjoint_checks import NumpyArray
 
 

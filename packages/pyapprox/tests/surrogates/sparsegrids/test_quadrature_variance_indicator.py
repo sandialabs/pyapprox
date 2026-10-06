@@ -10,6 +10,7 @@ makes it a genuine cross-check rather than a restatement.
 from typing import List, Tuple
 
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

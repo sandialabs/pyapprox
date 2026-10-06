@@ -6,14 +6,14 @@ Tests for ExactGaussianProcess autograd-fallback derivatives on TorchBkd
 import math
 
 import torch
-from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
-from pyapprox.surrogates.kernels.general_matern import GeneralMaternKernel
-from pyapprox.util.backends.torch import TorchBkd
 
+from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.fitters import (
     GPMaximumLikelihoodFitter,
 )
 from pyapprox.surrogates.kernels import Matern52Kernel
+from pyapprox.surrogates.kernels.general_matern import GeneralMaternKernel
+from pyapprox.util.backends.torch import TorchBkd
 
 
 def _make_gp(nu=2.5, nvars=1, lenscale=None, nugget=1e-6):

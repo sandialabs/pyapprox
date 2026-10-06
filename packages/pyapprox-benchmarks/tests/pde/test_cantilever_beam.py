@@ -1,12 +1,14 @@
 """Integration tests for the cantilever beam forward UQ problems."""
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -28,7 +30,6 @@ from pyapprox_benchmarks.pde.cantilever_beam import (
 from pyapprox_benchmarks.pde.cantilever_beam_1d_analytical import (
     build_cantilever_beam_1d_analytical,
 )
-
 from tests._helpers.markers import slower_test  # noqa: F401
 
 _TEST_MESH = MESH_PATHS[2]  # h=2 for fast tests

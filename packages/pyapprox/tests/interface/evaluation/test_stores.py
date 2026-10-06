@@ -14,6 +14,7 @@ are wrong in a way nothing announces.
 import os
 
 import pytest
+
 from pyapprox.interface.evaluation.protocols import ResultStore
 from pyapprox.interface.evaluation.records import (
     ComputeProvenance,

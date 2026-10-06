@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 
 import numpy as np
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )
@@ -53,7 +54,6 @@ from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.probability.univariate.uniform import UniformMarginal
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.problems.inverse import BayesianInferenceProblem
 from pyapprox_benchmarks.problems.oed.advection_diffusion._kle import (
     _create_subdomain_kle_forcing,

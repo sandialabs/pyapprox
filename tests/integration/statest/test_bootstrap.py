@@ -15,10 +15,6 @@ import numpy as np
 import pytest
 import torch
 
-from pyapprox_benchmarks.statest import (
-    MultiOutputEnsembleBenchmark,
-    PolynomialEnsembleBenchmark,
-)
 from pyapprox.statest.acv.variants import (
     GISEstimator,
     GMFEstimator,
@@ -34,8 +30,12 @@ from pyapprox.statest.statistics import (
     MultiOutputVariance,
 )
 from pyapprox.util.backends.torch import TorchBkd
-from tests._helpers.markers import slow_test, slower_test
+from pyapprox_benchmarks.statest import (
+    MultiOutputEnsembleBenchmark,
+    PolynomialEnsembleBenchmark,
+)
 from tests._helpers.acv_utils import allocate_with_allocator
+from tests._helpers.markers import slow_test, slower_test
 
 
 def _allocate_with_slsqp(est, target_cost: float):

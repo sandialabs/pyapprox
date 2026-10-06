@@ -6,6 +6,7 @@ alone, and so cost policy is not repeated in every indicator.
 """
 
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import (
     FunctionFromCallable,
 )

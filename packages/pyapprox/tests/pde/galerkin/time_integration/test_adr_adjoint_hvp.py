@@ -10,6 +10,7 @@ second-derivative pathway of the HVP recursion is exercised.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -18,6 +19,7 @@ if not package_available("skfem"):
 from typing import Any, Optional, Tuple
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -56,7 +58,6 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
-
 from tests._helpers.adjoint_checks import HVPOperatorFunction, NumpyArray
 
 _NPARAMS = 3

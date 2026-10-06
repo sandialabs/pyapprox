@@ -92,10 +92,10 @@ class TestSampleAverageConstraint:
         constraint_lb=None,
         constraint_ub=None,
     ):
-        from pyapprox.risk import SampleAverageMean
         from pyapprox.optimization.minimize.constraints.sample_average import (
             SampleAverageConstraint,
         )
+        from pyapprox.risk import SampleAverageMean
 
         if model is None:
             model = _QuadraticModel(bkd)
@@ -267,11 +267,11 @@ class TestSampleAverageConstraint:
 
     def test_with_mean_plus_stdev_derivative_checker(self, bkd):
         """Validate mean+stdev jacobian via DerivativeChecker."""
-        from pyapprox.risk import (
-            SampleAverageMeanPlusStdev,
-        )
         from pyapprox.interface.functions.derivative_checks.derivative_checker import (
             DerivativeChecker,
+        )
+        from pyapprox.risk import (
+            SampleAverageMeanPlusStdev,
         )
 
         stat = SampleAverageMeanPlusStdev(2.0, bkd)
@@ -300,13 +300,13 @@ class TestSampleAverageConstraint:
         Uses CantileverBeam2DConstraints with uncertainty in X and Y
         (random variables) and design variables w and t.
         """
+        from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+            DerivativeChecker,
+        )
+        from pyapprox.risk import SampleAverageMean
         from pyapprox_benchmarks.functions.algebraic.cantilever_beam_2d import (
             CantileverBeam2DAnalytical,
             CantileverBeam2DConstraints,
-        )
-        from pyapprox.risk import SampleAverageMean
-        from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-            DerivativeChecker,
         )
 
         # Build beam constraint model

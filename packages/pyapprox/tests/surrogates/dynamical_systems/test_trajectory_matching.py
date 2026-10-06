@@ -8,6 +8,9 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.ode.explicit_steppers.forward_euler import ForwardEulerAdjoint
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.optimization.minimize.scipy.trust_constr import (
+    ScipyTrustConstrOptimizer,
+)
 from pyapprox.probability import UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
 from pyapprox.surrogates.affine.expansions import BasisExpansion
@@ -18,14 +21,11 @@ from pyapprox.surrogates.affine.univariate import create_bases_1d
 from pyapprox.surrogates.dynamical_systems.batched_ode_residual import (
     BatchedBoundODEResidual,
 )
-from pyapprox.surrogates.dynamical_systems.losses.trajectory_matching import (
-    TrajectoryMatchingLoss,
-)
 from pyapprox.surrogates.dynamical_systems.fitters import (
     TrajectoryMatchingFitter,
 )
-from pyapprox.optimization.minimize.scipy.trust_constr import (
-    ScipyTrustConstrOptimizer,
+from pyapprox.surrogates.dynamical_systems.losses.trajectory_matching import (
+    TrajectoryMatchingLoss,
 )
 from pyapprox.util.rootfinding.newton import NewtonSolver
 

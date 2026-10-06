@@ -12,6 +12,7 @@ Verifies:
 import math
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

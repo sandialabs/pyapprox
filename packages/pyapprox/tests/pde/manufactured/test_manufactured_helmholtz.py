@@ -22,6 +22,7 @@ To make them compatible, we negate the wave number squared when passing to physi
 from typing import Generic
 
 import pytest
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )

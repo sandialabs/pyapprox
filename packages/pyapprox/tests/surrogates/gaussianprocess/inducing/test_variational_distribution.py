@@ -1,16 +1,16 @@
 """Tests for GaussianVariationalDistribution."""
 
-from pyapprox.interface.functions.derivatives import Derivatives
 import numpy as np
 import torch
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.surrogates.gaussianprocess.inducing.variational_distribution import (
     GaussianVariationalDistribution,
 )
 from pyapprox.util.backends.torch import TorchBkd
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
 
 
 class TestGaussianVariationalDistribution:

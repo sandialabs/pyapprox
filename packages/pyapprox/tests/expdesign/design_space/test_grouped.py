@@ -9,6 +9,7 @@ import pickle
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.design_space import (
     BoxBudgetDesignSpace,
     GroupedDesign,
@@ -32,7 +33,6 @@ from pyapprox.inverse.joint_gaussian import JointGaussian
 from pyapprox.probability.covariance import DenseCholeskyCovarianceOperator
 from pyapprox.probability.moments import DenseBlocks
 from pyapprox.util.backends.protocols import Array, Backend
-
 from tests._helpers.inward_direction import inward_direction
 
 _BY_SENSOR = [[0, 3], [1, 4], [2, 5]]

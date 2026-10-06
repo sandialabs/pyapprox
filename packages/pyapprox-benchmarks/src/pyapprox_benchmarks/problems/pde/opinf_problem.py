@@ -23,7 +23,6 @@ from pyapprox.pde.galerkin.time_integration.galerkin_model import (
 )
 from pyapprox.probability.protocols.distribution import DistributionProtocol
 from pyapprox.util.backends.protocols import Array, Backend
-
 from pyapprox_benchmarks.protocols import DomainProtocol
 
 

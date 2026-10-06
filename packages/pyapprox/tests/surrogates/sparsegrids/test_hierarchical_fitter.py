@@ -4,6 +4,7 @@ from typing import Tuple
 
 import numpy as np
 import pytest
+
 from pyapprox.interface.functions.fromcallable.function import FunctionFromCallable
 from pyapprox.surrogates.affine.indices.admissibility import (
     AlwaysAdmissible,

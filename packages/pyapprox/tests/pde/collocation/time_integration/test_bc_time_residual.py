@@ -8,7 +8,6 @@ from pyapprox.ode.implicit_steppers.backward_euler import (
     BackwardEulerStepper,
 )
 from pyapprox.ode.step_context import StepContext
-
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     zero_dirichlet_bc,

@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+
 from pyapprox.probability import UniformMarginal
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.surrogates.affine.basis.orthonormal_poly import (

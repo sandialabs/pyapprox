@@ -11,6 +11,7 @@ genuinely multi-iteration Newton.
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -19,6 +20,7 @@ if not package_available("skfem"):
 from typing import Any, Dict, Tuple
 
 import numpy as np
+
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
@@ -40,7 +42,6 @@ from pyapprox.pde.models.galerkin.physics_adapter import (
 from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
-
 from tests._helpers.adjoint_checks import NumpyArray
 
 _FINAL_TIME, _DELTAT = 0.3, 0.1

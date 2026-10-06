@@ -9,6 +9,7 @@ a selected subset.
 
 import numpy as np
 import pytest
+
 from pyapprox.expdesign.analytical import relaxed_linear_target_covariance
 from pyapprox.inverse.bayesnet import GaussianFactor
 from pyapprox.inverse.conjugate.gaussian import DenseGaussianConjugatePosterior

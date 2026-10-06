@@ -4,6 +4,7 @@ Tests run on both NumPy and PyTorch backends using the base class pattern.
 """
 
 import pytest
+
 from pyapprox.probability.univariate import (
     BetaMarginal,
     GaussianMarginal,

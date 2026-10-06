@@ -19,7 +19,6 @@ from pyapprox.pde.collocation.time_integration import (
 from pyapprox.pde.manufactured import (
     ManufacturedShallowWave,
 )
-
 from tests._helpers.physics_test_utils import (
     PhysicsTestBase,
 )

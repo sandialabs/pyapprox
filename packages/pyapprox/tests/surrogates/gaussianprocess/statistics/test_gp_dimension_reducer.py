@@ -3,11 +3,19 @@
 import math
 
 import numpy as np
+
 from pyapprox.interface.functions.marginalize import (
     DimensionReducerProtocol,
     FunctionMarginalizer,
 )
 from pyapprox.probability.univariate.uniform import UniformMarginal
+from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
+from pyapprox.surrogates.gaussianprocess.fitters import (
+    GPMaximumLikelihoodFitter,
+)
+from pyapprox.surrogates.gaussianprocess.statistics import (
+    SeparableKernelIntegralCalculator,
+)
 from pyapprox.surrogates.gaussianprocess.statistics.gp_dimension_reducer import (
     GPMeanDimensionReducer,
 )
@@ -20,14 +28,6 @@ from pyapprox.surrogates.kernels.base import (
 from pyapprox.surrogates.kernels.matern import SquaredExponentialKernel
 from pyapprox.surrogates.sparsegrids.basis_factory import (
     create_basis_factories,
-)
-
-from pyapprox.surrogates.gaussianprocess import ExactGaussianProcess
-from pyapprox.surrogates.gaussianprocess.fitters import (
-    GPMaximumLikelihoodFitter,
-)
-from pyapprox.surrogates.gaussianprocess.statistics import (
-    SeparableKernelIntegralCalculator,
 )
 
 

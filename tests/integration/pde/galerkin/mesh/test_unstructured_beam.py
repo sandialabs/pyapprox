@@ -14,6 +14,7 @@ Behaviour that needs no named regions is covered by the inline meshes in
 """
 
 import pytest
+
 from pyapprox.util.optional_deps import package_available
 
 if not package_available("skfem"):
@@ -22,6 +23,7 @@ if not package_available("skfem"):
 import os
 
 import numpy as np
+
 import pyapprox_benchmarks
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.mesh.unstructured import UnstructuredMesh2D

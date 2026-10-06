@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pytest
 import torch
+
 from pyapprox.statest.acv.base import FittedACVEstimator
 from pyapprox.statest.acv.search import ACVSearch
 from pyapprox.statest.acv.strategies import TreeDepthRecursionStrategy
@@ -36,7 +37,6 @@ from pyapprox_benchmarks.statest import (
     MultiOutputEnsembleBenchmark,
     PolynomialEnsembleBenchmark,
 )
-
 from tests._helpers.acv_utils import allocate_with_allocator
 from tests._helpers.markers import slow_test, slower_test
 

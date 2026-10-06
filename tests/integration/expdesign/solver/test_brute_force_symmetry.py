@@ -13,10 +13,6 @@ from typing import Any, Generic, List, Tuple
 import numpy as np
 import pytest
 
-from pyapprox_benchmarks.expdesign.linear_gaussian import (
-    LinearGaussianKLOEDBenchmark,
-    build_linear_gaussian_kl_benchmark,
-)
 from pyapprox.expdesign.objective import (
     create_kl_oed_objective,
 )
@@ -24,6 +20,10 @@ from pyapprox.expdesign.solver import BruteForceKLOEDSolver
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox_benchmarks.expdesign.linear_gaussian import (
+    LinearGaussianKLOEDBenchmark,
+    build_linear_gaussian_kl_benchmark,
+)
 
 # =============================================================================
 # Test Utilities
