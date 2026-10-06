@@ -11,7 +11,6 @@ Uses Chrome headless --print-to-pdf for each HTML file, then merges with pypdf.
 import argparse
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import yaml
@@ -102,12 +101,10 @@ def main():
     if args.tmpdir:
         tmpdir = args.tmpdir
         tmpdir.mkdir(parents=True, exist_ok=True)
-        cleanup = False
     else:
         import tempfile as _tmp
         _td = _tmp.mkdtemp()
         tmpdir = Path(_td)
-        cleanup = True
 
     print(f"Working dir: {tmpdir}")
 

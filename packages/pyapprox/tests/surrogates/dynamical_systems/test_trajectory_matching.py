@@ -240,8 +240,10 @@ class TestTrajectoryMatchingLoss:
         eps = 1e-5
         H = np.zeros((nparams, nparams))
         for i in range(nparams):
-            e_plus = true_eta.copy(); e_plus[i] += eps
-            e_minus = true_eta.copy(); e_minus[i] -= eps
+            e_plus = true_eta.copy()
+            e_plus[i] += eps
+            e_minus = true_eta.copy()
+            e_minus[i] -= eps
             g_plus = bkd.to_numpy(loss.jacobian(
                 bkd.reshape(bkd.array(e_plus), (nparams, 1))))
             g_minus = bkd.to_numpy(loss.jacobian(

@@ -5,7 +5,7 @@ from typing import Generic
 import pytest
 
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.util.backends.protocols import Array, Backend
+from pyapprox.util.backends.protocols import Array
 from pyapprox.util.optional_deps import package_available
 from pyapprox_benchmarks.functions.algebraic.quadratic import (
     DiagonalQuadraticFunction,

@@ -12,7 +12,6 @@ from pyapprox.risk.avar import SampleAverageSmoothedAVaR
 from pyapprox.risk.avar_compute import (
     avar_jacobian_batch,
     avar_values_batch,
-    project_batch,
 )
 from pyapprox.util.optional_deps import package_available
 

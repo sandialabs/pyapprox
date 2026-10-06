@@ -52,7 +52,7 @@ def _svgp_titsias_posterior(
     Returns latent posterior mean and std.
     """
     M = Z.shape[1]
-    N = X_train.shape[1]
+    X_train.shape[1]
     K_uu = _rbf_kernel(Z, Z, lengthscale) + 1e-6 * np.eye(M)
     K_uf = _rbf_kernel(Z, X_train, lengthscale)
     K_us = _rbf_kernel(Z, X_test, lengthscale)

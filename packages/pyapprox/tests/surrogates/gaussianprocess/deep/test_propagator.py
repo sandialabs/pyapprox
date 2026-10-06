@@ -2,11 +2,9 @@
 
 import networkx as nx
 import numpy as np
-import pytest
 
 from pyapprox.surrogates.gaussianprocess.deep.layer import DGPLayer
 from pyapprox.surrogates.gaussianprocess.deep.propagator import (
-    LayerOutputDist,
     LayerPropagator,
 )
 from pyapprox.surrogates.gaussianprocess.inducing.inducing_points import (

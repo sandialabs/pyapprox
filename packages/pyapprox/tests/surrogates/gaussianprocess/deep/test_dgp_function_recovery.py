@@ -5,7 +5,6 @@ produces accurate predictions on known test functions.
 """
 
 import numpy as np
-import pytest
 
 from pyapprox.optimization.minimize.adam.adam_optimizer import AdamOptimizer
 from pyapprox.optimization.minimize.chained.chained_optimizer import (

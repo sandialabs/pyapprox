@@ -165,7 +165,7 @@ class TestDGPELBOLossChain:
         data = {0: (X, y)}
 
         loss = DGPELBOLoss(dgp, data, n_propagation=1)
-        neg_elbo = loss(dgp.hyp_list().get_active_values())
+        loss(dgp.hyp_list().get_active_values())
 
         kl = dgp.kl_total()
         kl_np = bkd.to_numpy(bkd.reshape(kl, (1,)))

@@ -1,6 +1,5 @@
 """Tests for InputBuilder strategies."""
 
-import numpy as np
 import pytest
 
 from pyapprox.surrogates.gaussianprocess.deep.input_builder import (

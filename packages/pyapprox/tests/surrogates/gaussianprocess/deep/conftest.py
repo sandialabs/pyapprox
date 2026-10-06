@@ -1,9 +1,8 @@
 """Test fixtures for Deep GP tests."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
-import pytest
 
 from pyapprox.surrogates.gaussianprocess.inducing import InducingPoints
 from pyapprox.surrogates.gaussianprocess.likelihoods import GaussianLikelihood

@@ -7,7 +7,7 @@ from pyapprox.statest.acv.allocation import default_allocator_factory
 from pyapprox.statest.acv.base import ACVEstimator, FittedACVEstimator
 from pyapprox.statest.allocation import CVAllocator, MCAllocator
 from pyapprox.statest.cv_estimator import CVEstimator, FittedCVEstimator
-from pyapprox.statest.mc_estimator import FittedMCEstimator, MCEstimator
+from pyapprox.statest.mc_estimator import FittedMCEstimator
 
 
 def allocate_with_allocator(

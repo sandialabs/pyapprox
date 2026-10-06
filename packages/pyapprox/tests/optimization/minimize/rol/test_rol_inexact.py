@@ -222,7 +222,7 @@ class _ConstrainedModel:
     def jacobian_batch(self, samples):
         # samples: (3, K) -> return (K, 2, 3)
         bkd = self._bkd
-        K = samples.shape[1]
+        samples.shape[1]
         z = samples[0, :]  # (K,)
         zeros = 0.0 * z
         ones = zeros + 1.0

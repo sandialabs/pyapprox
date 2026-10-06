@@ -25,7 +25,7 @@ All flags accept comma-separated values. Defaults run everything.
 import argparse
 import json
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -555,7 +555,7 @@ def run_sweep(
 
     def _run_or_cached(key, runner):
         if key in cache:
-            print(f"    [cached] ", end="")
+            print("    [cached] ", end="")
             _print_trial(cache[key])
             return cache[key]
         trial = runner()
@@ -572,7 +572,7 @@ def run_sweep(
         print(f"{'='*80}")
 
         if "local" in set_names:
-            print(f"\n  [LOCAL] (from default init guess)")
+            print("\n  [LOCAL] (from default init guess)")
             for opt_name in optimizer_names:
                 if opt_name not in local_optimizers:
                     continue
@@ -591,7 +591,7 @@ def run_sweep(
                     results.append(trial)
 
         if "de" in set_names:
-            print(f"\n  [DE+LOCAL] (differential evolution -> local refinement)")
+            print("\n  [DE+LOCAL] (differential evolution -> local refinement)")
             for opt_name in optimizer_names:
                 if opt_name not in local_optimizers:
                     continue
@@ -611,7 +611,7 @@ def run_sweep(
                     results.append(trial)
 
         if run_spd:
-            print(f"\n  [SPD] (convex SDP reference)")
+            print("\n  [SPD] (convex SDP reference)")
             key = f"spd|spd|convex_sdp|{target_cost}"
             try:
                 trial = _run_or_cached(key, lambda: (
@@ -624,11 +624,11 @@ def run_sweep(
                 print(f"    SPD skipped: {e}")
 
         if run_mean_guided and stat_name == "mean":
-            print(f"\n  [MEAN-GUIDED] skipped (no-op for Mean stat; "
-                  f"use --stat variance)")
+            print("\n  [MEAN-GUIDED] skipped (no-op for Mean stat; "
+                  "use --stat variance)")
 
         if run_mean_guided and stat_name != "mean":
-            print(f"\n  [MEAN-GUIDED] (mean screening -> reduced target-stat solve)")
+            print("\n  [MEAN-GUIDED] (mean screening -> reduced target-stat solve)")
             for opt_name in optimizer_names:
                 if opt_name not in local_optimizers:
                     continue
@@ -684,7 +684,7 @@ def plot_results(results: List[TrialResult], stat=None, costs=None, bkd=None):
         return
 
     target_costs = sorted(set(r.target_cost for r in successful))
-    set_names = sorted(set(r.set_name for r in successful))
+    sorted(set(r.set_name for r in successful))
 
     # Marker by optimizer, color by config
     optimizer_markers = {
@@ -697,7 +697,6 @@ def plot_results(results: List[TrialResult], stat=None, costs=None, bkd=None):
         "log/ineq": "C6", "log/eq": "C8",
         "convex_sdp": "C7",
     }
-    set_linestyles = {"local": "none", "de": "none", "spd": "none", "meanguided": "none"}
     set_edge = {"local": "black", "de": "red", "spd": "green", "meanguided": "orange"}
 
     # --- Figure 1: Variance vs wall time (one panel per budget) ---
@@ -774,10 +773,10 @@ def plot_results(results: List[TrialResult], stat=None, costs=None, bkd=None):
     # --- Figure 2: Cost per iteration bar chart ---
     with_cpi = [r for r in successful if r.cost_per_iter() is not None]
     if with_cpi:
-        labels = [f"{r.set_name}/{r.optimizer_name}\n{r.config_name}" for r in with_cpi]
-        cpis = [r.cost_per_iter() for r in with_cpi]
-        nits = [r.nit for r in with_cpi]
-        budgets = [r.target_cost for r in with_cpi]
+        [f"{r.set_name}/{r.optimizer_name}\n{r.config_name}" for r in with_cpi]
+        [r.cost_per_iter() for r in with_cpi]
+        [r.nit for r in with_cpi]
+        [r.target_cost for r in with_cpi]
 
         # Group by budget
         fig2, axes2 = plt.subplots(
@@ -1036,9 +1035,9 @@ def main():
     print(f"  Plot:        {not args.no_plot}")
     print(f"  Cache:       {cache_path}")
     if _ROL_AVAILABLE:
-        print(f"  ROL:         available")
+        print("  ROL:         available")
     else:
-        print(f"  ROL:         not installed (skipped)")
+        print("  ROL:         not installed (skipped)")
 
     bkd = NumpyBkd()
     costs, stat = _setup_problem(bkd, stat_name=stat_name)

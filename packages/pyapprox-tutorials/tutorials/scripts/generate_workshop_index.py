@@ -15,7 +15,7 @@ This reads workshops/<workshop_name>/workshop.yml and generates:
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import yaml
 
@@ -76,7 +76,6 @@ def generate_index_qmd(config: Dict[str, Any], workshop_dir: Path) -> str:
 
         if item.get("type") == "break":
             topic = "**Break**"
-            link = ""
         else:
             tutorial_id = item.get("id", "unknown")
             topic = f"[{_format_tutorial_name(tutorial_id)}](../../library/{tutorial_id}.qmd)"

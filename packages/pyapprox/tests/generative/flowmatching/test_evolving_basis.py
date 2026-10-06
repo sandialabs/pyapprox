@@ -4,7 +4,6 @@ Unit tests for basis_state, basis_factory, basis_interp.
 Integration tests for Gaussian transport with StieltjesFlowVF.
 """
 
-import numpy as np
 import pytest
 
 from pyapprox.generative.flowmatching.basis_factory import (
@@ -13,11 +12,7 @@ from pyapprox.generative.flowmatching.basis_factory import (
 from pyapprox.generative.flowmatching.basis_interp import (
     IdentityInterpolator,
 )
-from pyapprox.generative.flowmatching.basis_state import StieltjesBasisState
 from pyapprox.generative.flowmatching.evolving_vf import (
-    KroneckerStrategy,
-    PerSliceStrategy,
-    StieltjesFlowVF,
     build_stieltjes_flow_vf,
 )
 from pyapprox.generative.flowmatching.fitters.least_squares import (
@@ -27,7 +22,6 @@ from pyapprox.generative.flowmatching.linear_path import LinearPath
 from pyapprox.generative.flowmatching.quad_data import FlowMatchingQuadData
 from pyapprox.probability import GaussianMarginal, UniformMarginal
 from pyapprox.surrogates.affine.basis import OrthonormalPolynomialBasis
-from pyapprox.surrogates.affine.indices import compute_hyperbolic_indices
 from pyapprox.surrogates.affine.univariate import create_bases_1d
 
 
@@ -297,7 +291,8 @@ class TestLegendreTimeExpansion:
             f"n_legendre={n_leg}: loss {result.training_loss():.2e} >= 1e-8"
         )
 
-class TestIdentityInterpolator:
+
+class TestIdentityInterpolatorPerSlice:
     def test_raises_at_non_training_t(self, bkd) -> None:
         """IdentityInterpolator raises at non-training t values."""
         nterms = 3

@@ -1250,7 +1250,6 @@ def plot_advec_diff_velocity(
 
     skfemplot(scalar_vel_skfem_basis, vel_magnitude, ax=ax, shading="gouraud")
     # Quiver on mesh nodes
-    coords = stokes_skfem_mesh.p
     doflocs = scalar_vel_skfem_basis.doflocs
     vx_at_nodes = scalar_vel_skfem_basis.interpolator(vel_x)(doflocs)
     vy_at_nodes = scalar_vel_skfem_basis.interpolator(vel_y)(doflocs)

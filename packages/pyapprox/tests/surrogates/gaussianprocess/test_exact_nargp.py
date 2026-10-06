@@ -2,7 +2,6 @@
 
 import networkx as nx
 import numpy as np
-import pytest
 
 from pyapprox.surrogates.gaussianprocess.exact import ExactGaussianProcess
 from pyapprox.surrogates.gaussianprocess.exact_nargp import (

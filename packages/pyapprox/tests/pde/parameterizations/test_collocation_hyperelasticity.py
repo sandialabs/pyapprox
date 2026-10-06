@@ -207,7 +207,7 @@ class TestStagedFirstOrder:
             fd.param_jacobian(state, 0.0, params),
             rtol=1e-14,
         )
-        npts = physics.npts()
+        physics.npts()
         bc_indices = bkd.array([0, 3], dtype=int)
         raw = rng.normal(0.0, 1.0, (2, 2))
         raw /= np.linalg.norm(raw, axis=1)[:, None]

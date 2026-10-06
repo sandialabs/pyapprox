@@ -192,7 +192,7 @@ class TestSecondOrderCapability:
             model, bkd, parameterization=facade
         )
         nstates = physics.nstates()
-        npts = basis.npts()
+        basis.npts()
         constrained = set(
             int(i)
             for i in bkd.to_numpy(

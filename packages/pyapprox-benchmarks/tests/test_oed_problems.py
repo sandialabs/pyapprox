@@ -18,7 +18,6 @@ from pyapprox.interface.functions.fromcallable.hessian import (
     FunctionWithJacobianAndHVPFromCallable,
 )
 from pyapprox_benchmarks.expdesign.linear_gaussian import (
-    LinearGaussianKLOEDBenchmark,
     build_linear_gaussian_kl_benchmark,
 )
 

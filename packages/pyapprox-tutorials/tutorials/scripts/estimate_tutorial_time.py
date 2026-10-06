@@ -339,7 +339,7 @@ def _classify_equation_difficulty(eq_text: str) -> str:
     """
     text = eq_text.strip()
     char_len = len(text)
-    nlines = len([l for l in text.splitlines() if l.strip()])
+    nlines = len([line for line in text.splitlines() if line.strip()])
 
     # Feature detection
     has_sum_int = bool(re.search(r"\\(sum|prod|int|iint|oint)", text))
@@ -603,7 +603,7 @@ def format_report(metrics: TutorialMetrics, verbose: bool = False) -> str:
                 f"[{diff_summary}] = {eq_time:.1f} min"
             )
         else:
-            lines.append(f"  Equations: 0 blocks = 0.0 min")
+            lines.append("  Equations: 0 blocks = 0.0 min")
         lines.append(
             f"  Visible code: {metrics.code_blocks_visible} × "
             f"{TIME_WEIGHTS['code_block_visible']} = "
