@@ -14,9 +14,6 @@ Memory: the SPDE approach uses only sparse matrices and a partial
 eigensolve, giving O(N) memory — prefer it over the dense kernel-based
 factories in :mod:`pyapprox.pde.field_maps.kle_factory` for large
 meshes.
-
-skfem imports are function-local because skfem is an optional
-dependency (the convention throughout ``pde.galerkin``).
 """
 
 from __future__ import annotations
@@ -25,7 +22,6 @@ from math import gamma as gamma_func
 from typing import Optional, Union
 
 import numpy as np
-from scipy.sparse.linalg import eigsh
 
 from pyapprox.pde.field_maps.mesh_kle_field_map import (
     MeshKLEFieldMap,
@@ -35,6 +31,7 @@ from pyapprox.pde.field_maps.transformed import (
     _ExpTransform,
 )
 from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
+from pyapprox.pde.galerkin.noise_mass import ConsistentNoiseMass
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.surrogates.kle.spde_kle import SPDEMaternKLE
 from pyapprox.surrogates.kle.utils import (
@@ -158,28 +155,21 @@ def create_spde_matern_kle(
     SPDEMaternKLE
         KLE with M-orthonormal eigenvectors and scaled eigenvalues.
     """
-    from skfem import asm
-    from skfem.models.poisson import mass
-
     if xi is None:
         xi = np.sqrt(gamma * delta)
 
-    # Use BiLaplacianPrior to assemble the precision operator A
+    # The precision operator A and the consistent mass M, both from the
+    # prior; it solves A phi = mu M phi for the n_modes smallest mu.
     prior = BiLaplacianPrior.with_uniform_robin(
         basis,
         gamma=gamma,
         delta=delta,
         bkd=bkd,
         robin_alpha=xi,
+        noise_mass=ConsistentNoiseMass(basis, bkd),
     )
-    A = prior.stiffness_matrix()
-
-    # Assemble consistent mass matrix M
-    M = asm(mass, basis.skfem_basis())
-
-    # Solve generalized eigenvalue problem A phi = mu M phi
-    # for the n_modes smallest eigenvalues (shift-invert with sigma=0)
-    mu_vals, phi_vecs = eigsh(A, k=n_modes, M=M, sigma=0.0, which="LM")
+    mu_array, phi_array = prior.generalized_eigenpairs(n_modes)
+    mu_vals = bkd.to_numpy(mu_array)
 
     # Compute tau^2 analytically from the SPDE-Matern variance formula
     d = basis.mesh().ndim()
@@ -191,9 +181,8 @@ def create_spde_matern_kle(
     # C = tau^{-2} L_h^{-1} M L_h^{-1} = tau^{-2} gamma^2 A^{-1} M A^{-1}
     lambda_vals = gamma**2 / (tau_sq * mu_vals**2)
 
-    # Convert to backend arrays
     eig_vals = bkd.asarray(lambda_vals)
-    eig_vecs = bkd.asarray(phi_vecs)
+    eig_vecs = phi_array
 
     # Sort descending and fix sign convention
     eig_vals, eig_vecs, _ = sort_eigenpairs(eig_vals, eig_vecs, n_modes, bkd)

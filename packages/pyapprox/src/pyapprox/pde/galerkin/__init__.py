@@ -75,6 +75,12 @@ if package_available("skfem"):
         StructuredMesh3D,
         UnstructuredMesh2D,
     )
+    from pyapprox.pde.galerkin.noise_mass import (
+        ConsistentNoiseMass,
+        CovarianceOperatorNoiseMass,
+        LumpedNoiseMass,
+        NoiseMassProtocol,
+    )
     from pyapprox.pde.galerkin.physics import (
         AdvectionDiffusionReaction,
         BurgersPhysics,
@@ -118,6 +124,10 @@ if package_available("skfem"):
         "EulerBernoulliBeamFEM",
         "StokesPhysics",
         "BiLaplacianPrior",
+        "NoiseMassProtocol",
+        "LumpedNoiseMass",
+        "ConsistentNoiseMass",
+        "CovarianceOperatorNoiseMass",
         # Boundary condition implementations
         "DirectDirichletBC",
         "CallableDirichletBC",
