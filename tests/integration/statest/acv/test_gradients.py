@@ -9,6 +9,7 @@ Tests use typing array convention: (nqoi, nsamples) for outputs.
 import numpy as np
 import pytest
 import torch
+
 from pyapprox.interface.functions.autograd import (
     WithAutogradJacobian,
     WithAutogradJacobianConstraint,
@@ -33,7 +34,6 @@ from pyapprox.statest.acv.variants import (
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.util.backends.torch import TorchBkd
 from pyapprox_benchmarks.statest import PolynomialEnsembleBenchmark
-
 from tests._helpers.markers import slow_test
 
 
@@ -204,11 +204,9 @@ class TestACVPartitionConstraintGradients:
         checker = DerivativeChecker(
             WithAutogradJacobianConstraint(constraint, self._bkd)
         )
-        # Need weights for multi-qoi constraint
-        weights = self._bkd.ones((constraint.nqoi(), 1))
-        errors = checker.check_derivatives(
-            partition_ratios, weights=weights, verbosity=0
-        )
+        # The constraint declares no hessian, so only its jacobian is
+        # checked and no weights are needed.
+        errors = checker.check_derivatives(partition_ratios, verbosity=0)
 
         # Check Jacobian accuracy (use 1e-5 tolerance for numerical precision)
         assert float(checker.error_ratio(errors[0])) <= 1e-5

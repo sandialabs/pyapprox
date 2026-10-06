@@ -134,11 +134,23 @@ class FunctionWithJVPFromHVP(Generic[Array]):
             actions.append(explicit_jvp(sample, vec))
         return self.bkd().hstack(actions)
 
+    def _weighted(self) -> bool:
+        """Whether the check is of the weighted gradient.
+
+        Decided once, so the function and its derivative agree: the
+        gradient is differenced and the (w)hvp compared against it, and
+        weighting one but not the other makes them differ by exactly the
+        weight. A single QoI is weighted too whenever weights are given --
+        a constraint's multiplier is its weight -- and is unweighted only
+        when it is checked through its hvp with none.
+        """
+        return self._weights is not None or self.nqoi() != 1
+
     def __call__(self, samples: Array) -> Array:
         jacobian = self._jacobian
         if jacobian is None:
             return self._jacobian_from_apply(samples)
-        if self.nqoi() == 1:
+        if not self._weighted():
             return jacobian(samples)
         weights = self._weights
         if weights is None:
@@ -151,15 +163,18 @@ class FunctionWithJVPFromHVP(Generic[Array]):
 
     def jvp(self, sample: Array, vec: Array) -> Array:
         hvp = self._hvp
-        if self.nqoi() == 1 and hvp is not None:
+        weights = self._weights
+        if not self._weighted() and hvp is not None:
             return hvp(sample, vec)
         whvp = self._whvp
-        weights = self._weights
-        if whvp is None or weights is None:
-            raise RuntimeError(
-                "jvp requires an hvp (nqoi == 1) or a whvp with weights"
-            )
-        return whvp(sample, vec, weights)
+        if whvp is not None and weights is not None:
+            return whvp(sample, vec, weights)
+        if hvp is not None and weights is not None and self.nqoi() == 1:
+            # One QoI, so the weighted hessian is its weight times the hvp.
+            return weights[0, 0] * hvp(sample, vec)
+        raise RuntimeError(
+            "jvp requires an hvp (nqoi == 1) or a whvp with weights"
+        )
 
     def __repr__(self) -> str:
         """
