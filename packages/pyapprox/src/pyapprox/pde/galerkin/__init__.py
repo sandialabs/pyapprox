@@ -81,6 +81,10 @@ if package_available("skfem"):
         LumpedNoiseMass,
         NoiseMassProtocol,
     )
+    from pyapprox.pde.galerkin.observations import (
+        nodal_outflux_functional,
+        probe_observation_functional,
+    )
     from pyapprox.pde.galerkin.physics import (
         AdvectionDiffusionReaction,
         BurgersPhysics,
@@ -128,6 +132,9 @@ if package_available("skfem"):
         "LumpedNoiseMass",
         "ConsistentNoiseMass",
         "CovarianceOperatorNoiseMass",
+        # Observation functionals
+        "probe_observation_functional",
+        "nodal_outflux_functional",
         # Boundary condition implementations
         "DirectDirichletBC",
         "CallableDirichletBC",

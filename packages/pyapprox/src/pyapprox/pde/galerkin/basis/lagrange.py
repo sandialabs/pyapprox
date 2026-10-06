@@ -3,7 +3,7 @@
 Wraps scikit-fem element and basis objects with backend abstraction.
 """
 
-from typing import Any, Callable, Generic, Optional
+from typing import Any, Callable, Generic, Optional, Tuple
 
 import numpy as np
 
@@ -182,6 +182,42 @@ class LagrangeBasis(Generic[Array]):
         values = probes @ coeffs_np
 
         return self._bkd.asarray(np.asarray(values).astype(np.float64))
+
+    def probe_rows(self, points: Array) -> Tuple[Array, Array]:
+        """Return the point-evaluation operator as DOF indices and weights.
+
+        Row ``s`` evaluates the finite element function at point ``s``:
+        ``u(x_s) = sum_k weights[s, k] * coeffs[indices[s, k]]``, the
+        basis functions of the element containing the point. Rows with
+        fewer terms are padded with weight 0. Built once, it applies to
+        any backend's arrays by gathering, without an ``(npts, ndofs)``
+        matrix.
+
+        Parameters
+        ----------
+        points : Array
+            Evaluation points. Shape: (ndim, npts)
+
+        Returns
+        -------
+        indices : Array
+            DOF indices. Integer, shape: (npts, k)
+        weights : Array
+            Basis function values. Shape: (npts, k)
+        """
+        probes = self._skfem_basis.probes(self._bkd.to_numpy(points)).tocsr()
+        nterms = int(np.diff(probes.indptr).max())
+        npts = probes.shape[0]
+        indices = np.zeros((npts, nterms), dtype=np.int64)
+        weights = np.zeros((npts, nterms))
+        for row in range(npts):
+            start, stop = probes.indptr[row], probes.indptr[row + 1]
+            indices[row, : stop - start] = probes.indices[start:stop]
+            weights[row, : stop - start] = probes.data[start:stop]
+        return (
+            self._bkd.asarray(indices, dtype=self._bkd.int64_dtype()),
+            self._bkd.asarray(weights),
+        )
 
     def dof_coordinates(self) -> Array:
         """Return coordinates of DOF locations.

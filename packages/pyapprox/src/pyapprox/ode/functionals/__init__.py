@@ -16,6 +16,9 @@ from pyapprox.ode.functionals.protocols import (
 from pyapprox.ode.functionals.tikhonov import (
     TikhonovAugmentedFunctional,
 )
+from pyapprox.ode.functionals.time_indexed_observation import (
+    TimeIndexedObservationFunctional,
+)
 from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
     TimeIntegratedWeightedL2Functional,
 )
@@ -33,6 +36,7 @@ __all__ = [
     # Implementations
     "EndpointFunctional",
     "TikhonovAugmentedFunctional",
+    "TimeIndexedObservationFunctional",
     "TimeIntegratedWeightedL2Functional",
     "TransientMSEFunctional",
     "WeightedEndpointFunctional",
