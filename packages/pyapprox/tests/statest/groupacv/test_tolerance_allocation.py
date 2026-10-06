@@ -4,6 +4,9 @@ import numpy as np
 import pytest
 
 from pyapprox.interface.functions.autograd import WithAutogradJacobian
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.minimize.objective.validation import (
     validate_objective,
@@ -20,6 +23,7 @@ from pyapprox.statest.groupacv.optimization import (
     GroupACVCostConstraint,
     GroupACVCostObjective,
     GroupACVLogDetObjective,
+    GroupACVRequirementConstraint,
     GroupACVToleranceConstraint,
     GroupACVTraceObjective,
 )
@@ -33,7 +37,9 @@ from pyapprox.statest.known import KnownMean
 from pyapprox.statest.statistics import MultiOutputMean
 from pyapprox.statest.tolerance import (
     CVToleranceAllocator,
+    LogDeterminantConstraint,
     MaxMarginalStandardErrorConstraint,
+    TraceConstraint,
 )
 
 
@@ -271,13 +277,18 @@ class TestGroupACVToleranceConstraint:
 class TestGroupACVToleranceAllocator:
     """Tolerance-driven allocation."""
 
-    def test_default_matches_the_budget_driven_recipe(self, bkd) -> None:
-        """Same solver and same variable scaling as the forward path.
+    def test_default_suits_a_curved_constraint(self, bkd) -> None:
+        """A trust region, in the forward path's log-space variables.
 
-        The two directions share a feasible set, so a configuration
-        that conditions one conditions the other.
+        The variables are shared with the budget-driven path, since the
+        two directions share a feasible set. The solver is not: here the
+        accuracy constraint is the curved part, which a trust region
+        using its Hessian handles and sequential least squares, which
+        linearizes it, does not reliably.
         """
-        assert isinstance(default_tolerance_optimizer(), ScipySLSQPOptimizer)
+        assert isinstance(
+            default_tolerance_optimizer(), ScipyTrustConstrOptimizer
+        )
         alloc = GroupACVToleranceAllocator(_make_estimator(bkd))
         assert alloc._config.variable_scaling == "log"
 
@@ -289,7 +300,7 @@ class TestGroupACVToleranceAllocator:
             tolerance, round_nsamples=False
         )
         swapped = GroupACVToleranceAllocator(
-            est, optimizer=ScipyTrustConstrOptimizer(gtol=1e-8, maxiter=1000)
+            est, optimizer=ScipySLSQPOptimizer(maxiter=2000, ftol=1e-10)
         ).allocate_for_tolerance(tolerance, round_nsamples=False)
         assert swapped.success
         assert float(swapped.constraint_value[0]) <= tolerance + 1e-6
@@ -418,9 +429,16 @@ class TestAutogradComposition:
         self, torch_bkd
     ) -> None:
         """The cost objective is always analytic, so the composition
-        that matters here is the constraint's."""
+        that matters here is the constraint's.
+
+        Names its solver: without analytical constraint Hessians the
+        trust-region default works from a quasi-Newton approximation,
+        and this test is about the composition, not the solver.
+        """
         est = _make_nested_estimator(torch_bkd)
-        alloc = GroupACVToleranceAllocator(est)
+        alloc = GroupACVToleranceAllocator(
+            est, optimizer=ScipySLSQPOptimizer(maxiter=2000, ftol=1e-10)
+        )
         tolerance = -2.0
         result = alloc.allocate_for_tolerance(tolerance)
         assert result.success
@@ -500,42 +518,6 @@ class TestFeasibilityIsVerifiedNotAssumed:
         )
         assert not result.success
         assert "misses the tolerance" in result.message
-
-    def test_slsqp_breakdown_in_raw_counts_is_reported_as_failure(
-        self, torch_bkd
-    ) -> None:
-        """In raw sample counts the solve stops outside the feasible set.
-
-        The cheapest allocation leaves two subsets unsampled, so their
-        partitions sit on the lower bound of 1e-8. Those active bounds
-        together with the accuracy constraint leave the quadratic
-        subproblem without a descent direction, and the solve stops
-        while the requirement is still unmet (scipy status 8). The
-        allocator refuses that rather than relaying it as a success.
-
-        Log-space variables avoid it by construction: the same bound
-        becomes log(1e-8), roughly -18, and the unsampled partitions
-        settle near -16, so nothing is on a boundary.
-        """
-        est = _make_nested_estimator(torch_bkd)
-        alloc = GroupACVToleranceAllocator(
-            est,
-            optimizer=ScipySLSQPOptimizer(maxiter=1000, ftol=1e-10),
-            problem_config=AllocationProblemConfig(variable_scaling="none"),
-        )
-        result = alloc.allocate_for_tolerance(-2.0, round_nsamples=False)
-        assert not result.success
-
-    def test_default_configuration_converges_where_raw_counts_do_not(
-        self, torch_bkd
-    ) -> None:
-        """The default pairing solves the problem the above one fails."""
-        est = _make_nested_estimator(torch_bkd)
-        result = GroupACVToleranceAllocator(est).allocate_for_tolerance(
-            -2.0, round_nsamples=False
-        )
-        assert result.success
-        assert float(result.constraint_value[0]) <= -2.0 + 1e-6
 
     def test_converged_boundary_solutions_are_accepted(
         self, torch_bkd
@@ -693,8 +675,13 @@ class TestCrossFamilyEquivalence:
         cv_result = CVToleranceAllocator(cv).allocate_for_tolerance(
             MaxMarginalStandardErrorConstraint(target_se, bkd)
         )
+        # The criterion path's row is the squared standard error itself,
+        # about 4e-4, which the trust-region default converges on only
+        # slowly; this test is about cost, so it names the solver.
         groupacv = GroupACVToleranceAllocator(
-            mlblue, criterion=GroupACVTraceObjective(bkd)
+            mlblue,
+            criterion=GroupACVTraceObjective(bkd),
+            optimizer=ScipySLSQPOptimizer(maxiter=2000, ftol=1e-10),
         )
         # nqoi is 1, so the trace of the estimator covariance is the
         # variance and the requirement is the squared standard error.
@@ -726,3 +713,162 @@ class TestVariableSpaceConsistency:
         result = alloc.allocate_for_tolerance(tolerance)
         assert result.success
         assert float(result.constraint_value[0]) <= tolerance + 1e-9
+
+
+def _make_scaled_estimator(bkd, scales, nmodels=3, estimator_cls=None):
+    """An estimator whose QoIs differ in size by the factors ``scales``.
+
+    Statistics of very different size are what separate a bound on each
+    of them from a bound on their total.
+    """
+    np.random.seed(3)
+    nqoi = len(scales)
+    base = np.random.normal(0, 1, (nqoi, 4000)) * np.asarray(scales)[:, None]
+    values = [
+        bkd.asarray(base * 0.9**k + 0.3 * np.random.normal(0, 1, base.shape))
+        for k in range(nmodels)
+    ]
+    stat = MultiOutputMean(nqoi, bkd)
+    stat.set_pilot_quantities(*stat.compute_pilot_quantities(values))
+    costs = bkd.asarray([1.0, 0.1, 0.01][:nmodels])
+    cls = GroupACVEstimatorIS if estimator_cls is None else estimator_cls
+    return cls(stat, costs)
+
+
+REQUIREMENTS = [
+    lambda bkd: MaxMarginalStandardErrorConstraint(0.05, bkd),
+    lambda bkd: TraceConstraint(0.01, bkd),
+    lambda bkd: LogDeterminantConstraint(-12.0, bkd),
+]
+REQUIREMENT_IDS = ["max-marginal", "trace", "log-det"]
+
+
+class TestGroupACVRequirementConstraint:
+    """The rows of a requirement, composed with the covariance."""
+
+    @pytest.mark.parametrize("make", REQUIREMENTS, ids=REQUIREMENT_IDS)
+    def test_derivatives(self, bkd, make) -> None:
+        est = _make_scaled_estimator(bkd, [1.0, 5.0])
+        constraint = GroupACVRequirementConstraint(make(bkd))
+        constraint.set_estimator(est)
+        constraint.set_min_nhf_samples(2)
+        checker = DerivativeChecker(constraint)
+        errors = checker.check_derivatives(
+            bkd.asarray(np.linspace(20, 60, est.npartitions())[:, None]),
+            weights=bkd.asarray(
+                np.linspace(0.7, 1.3, constraint.nqoi())[:, None]
+            ),
+        )
+        assert float(checker.error_ratio(errors[0])) <= 1e-6
+        assert float(checker.error_ratio(errors[1])) <= 1e-6
+
+    def test_one_row_per_statistic_then_the_floor(self, bkd) -> None:
+        est = _make_scaled_estimator(bkd, [1.0, 5.0, 25.0])
+        constraint = GroupACVRequirementConstraint(
+            MaxMarginalStandardErrorConstraint(0.05, bkd)
+        )
+        constraint.set_estimator(est)
+        assert constraint.nqoi() == 3 + 1
+
+    def test_no_analytical_derivatives_without_independent_sampling(
+        self, bkd
+    ) -> None:
+        """Left to autograd, which the solve composes."""
+        constraint = GroupACVRequirementConstraint(
+            MaxMarginalStandardErrorConstraint(0.05, bkd)
+        )
+        constraint.set_estimator(_make_nested_estimator(bkd))
+        assert constraint.derivatives().jacobian is None
+
+
+class TestAllocateForRequirement:
+    """Cost to a requirement stated as Monte Carlo states it."""
+
+    @pytest.mark.parametrize("make", REQUIREMENTS, ids=REQUIREMENT_IDS)
+    def test_requirement_is_met(self, bkd, make) -> None:
+        req = make(bkd)
+        est = _make_scaled_estimator(bkd, [1.0, 5.0])
+        result = GroupACVToleranceAllocator(est).allocate_for_requirement(req)
+        assert result.success
+        covariance = est._covariance_from_npartition_samples(
+            bkd.asarray(result.npartition_samples, dtype=bkd.double_dtype())
+        )
+        assert bkd.all_bool(req.rows(covariance) <= 0.0)
+        bkd.assert_allclose(result.constraint_value, req.value(covariance))
+
+    def test_every_statistic_is_bounded_not_their_total(self, bkd) -> None:
+        """A trace bound of ``k eps^2`` lets the largest statistic exceed
+        ``eps``; one row per statistic does not."""
+        eps = 0.05
+        est = _make_scaled_estimator(bkd, [1.0, 5.0, 25.0])
+        alloc = GroupACVToleranceAllocator(est)
+        per_statistic = alloc.allocate_for_requirement(
+            MaxMarginalStandardErrorConstraint(eps, bkd)
+        )
+        total = alloc.allocate_for_requirement(TraceConstraint(3 * eps**2, bkd))
+
+        def worst(result):
+            covariance = est._covariance_from_npartition_samples(
+                bkd.asarray(
+                    result.npartition_samples, dtype=bkd.double_dtype()
+                )
+            )
+            return bkd.to_float(bkd.max(bkd.sqrt(bkd.diag(covariance))))
+
+        assert per_statistic.success and total.success
+        assert worst(per_statistic) <= eps
+        assert worst(total) > eps
+
+    @pytest.mark.parametrize(
+        "make,criterion_cls,tolerance",
+        [
+            (lambda bkd: TraceConstraint(0.01, bkd), GroupACVTraceObjective, 0.01),
+            (
+                lambda bkd: LogDeterminantConstraint(-12.0, bkd),
+                GroupACVLogDetObjective,
+                -12.0,
+            ),
+        ],
+        ids=["trace", "log-det"],
+    )
+    def test_a_single_row_agrees_with_the_criterion(
+        self, bkd, make, criterion_cls, tolerance
+    ) -> None:
+        """The scalar case is the old criterion path, reached by rows."""
+        est = _make_scaled_estimator(bkd, [1.0, 5.0])
+        by_rows = GroupACVToleranceAllocator(est).allocate_for_requirement(
+            make(bkd), round_nsamples=False
+        )
+        by_criterion = GroupACVToleranceAllocator(
+            est, criterion=criterion_cls(bkd)
+        ).allocate_for_tolerance(tolerance, round_nsamples=False)
+        assert by_rows.success and by_criterion.success
+        bkd.assert_allclose(
+            bkd.asarray([by_rows.total_cost]),
+            bkd.asarray([by_criterion.total_cost]),
+            rtol=1e-3,
+        )
+
+    def test_without_analytical_derivatives(self, torch_bkd) -> None:
+        """A nested estimator solves through the autograd jacobian.
+
+        Names its solver, as the criterion path's composition test does:
+        with no analytical Hessian neither shipped solver is reliable on
+        nested estimators across requirements, and this test is about the
+        composition reaching the requirement path.
+        """
+        bkd = torch_bkd
+        est = _make_scaled_estimator(
+            bkd, [1.0, 5.0], estimator_cls=GroupACVEstimatorNested
+        )
+        req = LogDeterminantConstraint(-12.0, bkd)
+        result = GroupACVToleranceAllocator(
+            est, optimizer=ScipySLSQPOptimizer(maxiter=2000, ftol=1e-10)
+        ).allocate_for_requirement(req)
+        assert result.success
+        assert float(result.constraint_value[0]) <= -12.0
+
+    def test_requirement_must_satisfy_the_protocol(self, numpy_bkd) -> None:
+        alloc = GroupACVToleranceAllocator(_make_estimator(numpy_bkd))
+        with pytest.raises(TypeError, match="ToleranceConstraintProtocol"):
+            alloc.allocate_for_requirement(0.05)

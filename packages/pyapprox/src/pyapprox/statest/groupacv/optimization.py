@@ -24,6 +24,83 @@ from pyapprox.util.backends.protocols import Array, Backend
 
 if TYPE_CHECKING:
     from pyapprox.statest.groupacv.base import BaseGroupACVEstimator
+    from pyapprox.statest.tolerance import ToleranceConstraintProtocol
+
+
+def _supports_analytical_derivatives(
+    est: BaseGroupACVEstimator[Array],
+) -> bool:
+    """Whether the estimator covariance has analytical derivatives in n.
+
+    Only for independent sampling, whose allocation matrix is the
+    identity so each partition contributes its own block, and only when
+    the statistic supplies its sigma-block derivatives.
+    """
+    amat = est._allocation_mat
+    bkd = est._bkd
+    if amat.shape[0] != amat.shape[1]:
+        return False
+    if not bkd.allclose(amat, bkd.eye(amat.shape[0])):
+        return False
+    try:
+        subset = est._subsets[0]
+        est._stat._group_acv_sigma_block_derivs(subset, bkd.asarray(10.0))
+        return True
+    except NotImplementedError:
+        return False
+
+
+def _psi_and_derivatives(
+    est: BaseGroupACVEstimator[Array], npartition_samples_1d: Array
+) -> Tuple[Array, Array, Array, Array]:
+    r"""Ψ, Ψ⁻¹, and Ψ's first and second derivatives in each n_m.
+
+    For an IS estimator Σ is block-diagonal, so each partition's sigma
+    block, its inverse, and derivatives are computed once and serve
+    both Ψ and its derivative blocks.
+
+    Returns (psi, psi_inv, dpsi_stack, d2psi_stack) where:
+      dpsi_stack[m] = ∂_m Ψ = -R_m Σ_m⁻¹ (∂_m Σ_m) Σ_m⁻¹ R_mᵀ
+      d2psi_stack[m] = ∂²_m Ψ
+    Ψ is a sum of one term per partition, so its mixed second
+    derivatives are zero.
+    """
+    bkd = est._bkd
+    npartitions = npartition_samples_1d.shape[0]
+    Rmats = est._restriction_matrices
+    dpsi_blocks: List[Array] = []
+    d2psi_blocks: List[Array] = []
+    # Build Ψ = Σ_m R_m Σ_m⁻¹ R_mᵀ + λI incrementally
+    nT = est._nT_stats
+    psi = bkd.eye(nT) * est._reg_blue
+    zero_block = bkd.zeros((nT, nT))
+    for m in range(npartitions):
+        n_m = npartition_samples_1d[m]
+        subset = est._subsets[m]
+        sigma_m = _grouped_acv_sigma_block(
+            subset, subset, n_m, n_m, n_m, est._stat
+        )
+        if bkd.allclose(sigma_m, bkd.zeros_like(sigma_m), rtol=0.0, atol=0.0):
+            dpsi_blocks.append(zero_block)
+            d2psi_blocks.append(zero_block)
+            continue
+        sigma_m_inv = est._inv(sigma_m)
+        R_m = Rmats[m]
+        # Accumulate Ψ = Σ R_m Σ_m⁻¹ R_mᵀ
+        psi = psi + R_m @ sigma_m_inv @ R_m.T
+        d1_m, d2_m = est._stat._group_acv_sigma_block_derivs(subset, n_m)
+        sinv_d1_sinv = sigma_m_inv @ d1_m @ sigma_m_inv
+        dpsi_m = -R_m @ sinv_d1_sinv @ R_m.T
+        # d²(Σ⁻¹)/dn² = 2 Σ⁻¹ Σ' Σ⁻¹ Σ' Σ⁻¹ - Σ⁻¹ Σ'' Σ⁻¹
+        d2_sinv = (
+            2 * sinv_d1_sinv @ d1_m @ sigma_m_inv
+            - sigma_m_inv @ d2_m @ sigma_m_inv
+        )
+        d2psi_m = R_m @ d2_sinv @ R_m.T
+        dpsi_blocks.append(dpsi_m)
+        d2psi_blocks.append(d2psi_m)
+    psi_inv = est._inv(psi)
+    return psi, psi_inv, bkd.stack(dpsi_blocks), bkd.stack(d2psi_blocks)
 
 
 class GroupACVObjective(ABC, Generic[Array]):
@@ -55,21 +132,7 @@ class GroupACVObjective(ABC, Generic[Array]):
     def _check_analytical_support(self) -> bool:
         """Check if analytical derivatives are available for IS estimators."""
         _, est = self._ensure_bound()
-        # Only support IS (allocation_mat is identity)
-        amat = est._allocation_mat
-        bkd = est._bkd
-        if amat.shape[0] != amat.shape[1]:
-            return False
-        if not bkd.allclose(amat, bkd.eye(amat.shape[0])):
-            return False
-        try:
-            subset = est._subsets[0]
-            est._stat._group_acv_sigma_block_derivs(
-                subset, bkd.asarray(10.0)
-            )
-            return True
-        except NotImplementedError:
-            return False
+        return _supports_analytical_derivatives(est)
 
     def set_estimator(self, estimator: BaseGroupACVEstimator[Array]) -> None:
         """Set the estimator and update backend.
@@ -185,45 +248,8 @@ class GroupACVObjective(ABC, Generic[Array]):
         cached = self._psi_cache_get(npartition_samples_1d)
         if cached is not None:
             return cached
-
-        bkd, est = self._ensure_bound()
-        npartitions = npartition_samples_1d.shape[0]
-        Rmats = est._restriction_matrices
-        dpsi_blocks: List[Array] = []
-        d2psi_blocks: List[Array] = []
-        # Build Ψ = Σ_m R_m Σ_m⁻¹ R_mᵀ + λI incrementally
-        nT = est._nT_stats
-        psi = bkd.eye(nT) * est._reg_blue
-        zero_block = bkd.zeros((nT, nT))
-        for m in range(npartitions):
-            n_m = npartition_samples_1d[m]
-            subset = est._subsets[m]
-            sigma_m = _grouped_acv_sigma_block(
-                subset, subset, n_m, n_m, n_m, est._stat
-            )
-            if bkd.allclose(
-                sigma_m, bkd.zeros_like(sigma_m), rtol=0.0, atol=0.0
-            ):
-                dpsi_blocks.append(zero_block)
-                d2psi_blocks.append(zero_block)
-                continue
-            sigma_m_inv = est._inv(sigma_m)
-            R_m = Rmats[m]
-            # Accumulate Ψ = Σ R_m Σ_m⁻¹ R_mᵀ
-            psi = psi + R_m @ sigma_m_inv @ R_m.T
-            d1_m, d2_m = est._stat._group_acv_sigma_block_derivs(subset, n_m)
-            sinv_d1_sinv = sigma_m_inv @ d1_m @ sigma_m_inv
-            dpsi_m = -R_m @ sinv_d1_sinv @ R_m.T
-            # d²(Σ⁻¹)/dn² = 2 Σ⁻¹ Σ' Σ⁻¹ Σ' Σ⁻¹ - Σ⁻¹ Σ'' Σ⁻¹
-            d2_sinv = (
-                2 * sinv_d1_sinv @ d1_m @ sigma_m_inv
-                - sigma_m_inv @ d2_m @ sigma_m_inv
-            )
-            d2psi_m = R_m @ d2_sinv @ R_m.T
-            dpsi_blocks.append(dpsi_m)
-            d2psi_blocks.append(d2psi_m)
-        psi_inv = est._inv(psi)
-        result = (psi, psi_inv, bkd.stack(dpsi_blocks), bkd.stack(d2psi_blocks))
+        _, est = self._ensure_bound()
+        result = _psi_and_derivatives(est, npartition_samples_1d)
         self._psi_cache_put(npartition_samples_1d, result)
         return result
 
@@ -1090,3 +1116,263 @@ class GroupACVToleranceConstraint(Generic[Array]):
                 "whvp is unavailable; check derivatives() before calling"
             )
         return -weights[0, 0] * crit_hvp(npartition_samples, vec)
+
+
+class GroupACVCovarianceDerivatives(Generic[Array]):
+    r"""The estimator covariance and its derivatives in the sample counts.
+
+    What an accuracy requirement is composed with: the requirement knows
+    its rows as functions of the covariance :math:`\Sigma`, this knows
+    :math:`\Sigma(n)`, and the chain rule joins them. Analytical for an
+    independent-sampling estimator whose statistic supplies its
+    sigma-block derivatives, where :math:`\Sigma = A\Psi^{-1}A^\top` and
+    :math:`\Psi` is a sum of one term per partition; otherwise only the
+    covariance itself is available, and derivatives come from autograd
+    composed by the caller.
+
+    Parameters
+    ----------
+    estimator : BaseGroupACVEstimator
+        The estimator whose covariance is differentiated.
+    """
+
+    def __init__(self, estimator: BaseGroupACVEstimator[Array]) -> None:
+        self._est = estimator
+        self._bkd: Backend[Array] = estimator._bkd
+        self._analytical = _supports_analytical_derivatives(estimator)
+        self._cache_key: Optional[int] = None
+        self._cache_val: Optional[Tuple[Array, Array, Array, Array]] = None
+
+    def analytical(self) -> bool:
+        """Whether :meth:`first` and :meth:`second_along` are available."""
+        return self._analytical
+
+    def _psi(self, n1d: Array) -> Tuple[Array, Array, Array, Array]:
+        """Ψ and its derivatives, reused across one iterate's calls.
+
+        An array carrying an autograd graph is never served from the
+        cache: the cached results are wired to the array that built
+        them, so a different array would get no path through the graph.
+        """
+        bkd = self._bkd
+        if bkd.tracks_gradient(n1d):
+            return _psi_and_derivatives(self._est, n1d)
+        key = hash(bkd.to_numpy(n1d).tobytes())
+        if key != self._cache_key or self._cache_val is None:
+            self._cache_val = _psi_and_derivatives(self._est, n1d)
+            self._cache_key = key
+        return self._cache_val
+
+    def covariance(self, n1d: Array) -> Array:
+        """The estimator covariance at ``n1d``, shape ``(nstats, nstats)``."""
+        if not self._analytical:
+            return self._est._covariance_from_npartition_samples(n1d)
+        _, psi_inv, _, _ = self._psi(n1d)
+        sketch = self._est._asketch
+        return sketch @ psi_inv @ sketch.T
+
+    def _require_analytical(self) -> None:
+        if not self._analytical:
+            raise RuntimeError(
+                "the covariance has no analytical derivatives for this "
+                "estimator; check analytical() before calling"
+            )
+
+    def first(self, n1d: Array) -> Array:
+        r""":math:`\partial_m\Sigma = -A\Psi^{-1}(\partial_m\Psi)\Psi^{-1}A^\top`.
+
+        Shape ``(npartitions, nstats, nstats)``.
+        """
+        self._require_analytical()
+        bkd = self._bkd
+        _, psi_inv, dpsi, _ = self._psi(n1d)
+        left = self._est._asketch @ psi_inv
+        return -bkd.einsum("ij,mjk,lk->mil", left, dpsi, left)
+
+    def second_along(self, n1d: Array, vec: Array) -> Array:
+        r"""Each :math:`\partial_m\Sigma` differentiated along ``vec``.
+
+        :math:`\sum_p v_p\,\partial^2_{mp}\Sigma
+        = A[\Psi^{-1}\dot\Psi\Psi^{-1}\Psi_m\Psi^{-1}
+        + \Psi^{-1}\Psi_m\Psi^{-1}\dot\Psi\Psi^{-1}
+        - v_m\Psi^{-1}\Psi_{mm}\Psi^{-1}]A^\top`, with
+        :math:`\dot\Psi = \sum_p v_p\Psi_p`. :math:`\Psi` has no mixed
+        second derivatives, being a sum of one term per partition. What
+        a weighted Hessian-vector product needs, without forming the
+        second derivatives for every pair of partitions.
+
+        Parameters
+        ----------
+        n1d : Array
+            Shape ``(npartitions,)``.
+        vec : Array
+            The direction, shape ``(npartitions,)``.
+
+        Returns
+        -------
+        Array
+            Shape ``(npartitions, nstats, nstats)``.
+        """
+        self._require_analytical()
+        bkd = self._bkd
+        _, psi_inv, dpsi, d2psi = self._psi(n1d)
+        dpsi_dot = bkd.einsum("p,pij->ij", vec, dpsi)
+        # Ψ⁻¹ Ψ_m Ψ⁻¹, one per partition
+        sandwiched = bkd.einsum("ij,mjk,kl->mil", psi_inv, dpsi, psi_inv)
+        inner = (
+            bkd.einsum("ij,jk,mkl->mil", psi_inv, dpsi_dot, sandwiched)
+            + bkd.einsum("mij,jk,kl->mil", sandwiched, dpsi_dot, psi_inv)
+            - bkd.einsum(
+                "m,ij,mjk,kl->mil", vec, psi_inv, d2psi, psi_inv
+            )
+        )
+        sketch = self._est._asketch
+        return bkd.einsum("ij,mjk,lk->mil", sketch, inner, sketch)
+
+
+class GroupACVRequirementConstraint(Generic[Array]):
+    r"""Hold an accuracy requirement's every row at or below zero.
+
+    Rows ``0..J-1`` are :math:`-g_j(\Sigma(n))`, the requirement's rows
+    negated so that feasibility is ``>= 0`` as for every GroupACV
+    constraint, and row ``J`` is the minimum-high-fidelity-sample slack.
+    A requirement with one row is the scalar case; one with a row per
+    statistic bounds each statistic separately, which a scalar such as
+    a trace cannot. Derivatives compose the requirement's, taken along
+    the covariance's own, with the estimator's covariance derivatives.
+
+    Parameters
+    ----------
+    requirement : ToleranceConstraintProtocol
+        The accuracy requirement, in the units it states.
+    """
+
+    def __init__(self, requirement: ToleranceConstraintProtocol[Array]) -> None:
+        self._req = requirement
+        self._bkd: Optional[Backend[Array]] = None
+        self._est: Optional[BaseGroupACVEstimator[Array]] = None
+        self._cov: Optional[GroupACVCovarianceDerivatives[Array]] = None
+        self._nrows = 0
+        self._min_nhf_samples: Optional[int] = None
+        self._derivs: Derivatives[Array] = Derivatives.none()
+
+    def _ensure_bound(
+        self,
+    ) -> Tuple[
+        Backend[Array],
+        BaseGroupACVEstimator[Array],
+        GroupACVCovarianceDerivatives[Array],
+    ]:
+        if self._bkd is None or self._est is None or self._cov is None:
+            raise RuntimeError("Call set_estimator() before using constraint")
+        return self._bkd, self._est, self._cov
+
+    def _ensure_floor(self) -> int:
+        if self._min_nhf_samples is None:
+            raise RuntimeError(
+                "Call set_min_nhf_samples() before using constraint"
+            )
+        return self._min_nhf_samples
+
+    def set_estimator(self, estimator: BaseGroupACVEstimator[Array]) -> None:
+        """Bind to an estimator and build the derivative bundle."""
+        self._est = estimator
+        self._bkd = estimator._bkd
+        self._cov = GroupACVCovarianceDerivatives(estimator)
+        self._nrows = self._req.nrows(estimator._stat.nstats())
+        self._derivs = (
+            Derivatives(jacobian=self._jacobian, whvp=self._whvp)
+            if self._cov.analytical()
+            else Derivatives.none()
+        )
+
+    def set_min_nhf_samples(self, min_nhf_samples: int) -> None:
+        """Set the sample-count floor on the high-fidelity model."""
+        self._min_nhf_samples = min_nhf_samples
+
+    def requirement(self) -> ToleranceConstraintProtocol[Array]:
+        """Return the accuracy requirement."""
+        return self._req
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle."""
+        return self._derivs
+
+    def bkd(self) -> Backend[Array]:
+        """Return the backend."""
+        bkd, _, _ = self._ensure_bound()
+        return bkd
+
+    def nvars(self) -> int:
+        """Number of optimization variables (npartitions)."""
+        _, est, _ = self._ensure_bound()
+        return int(est.npartitions())
+
+    def nqoi(self) -> int:
+        """The requirement's rows, then the high-fidelity floor."""
+        return self._nrows + 1
+
+    def lb(self) -> Array:
+        """Lower bounds: every row is feasible at or above zero."""
+        bkd, _, _ = self._ensure_bound()
+        return bkd.zeros((self.nqoi(),))
+
+    def ub(self) -> Array:
+        """Upper bounds: none."""
+        bkd, _, _ = self._ensure_bound()
+        return bkd.full((self.nqoi(),), float("inf"))
+
+    def is_affine(self) -> bool:
+        """The covariance curves in the sample counts, so the rows do."""
+        return False
+
+    def normalization(self) -> Array:
+        """Ones: requirement rows are already of order one near the bound."""
+        bkd, _, _ = self._ensure_bound()
+        return bkd.ones((self.nqoi(),))
+
+    def covariance(self, n1d: Array) -> Array:
+        """The estimator covariance the rows are evaluated on."""
+        _, _, cov = self._ensure_bound()
+        return cov.covariance(n1d)
+
+    def __call__(self, samples: Array) -> Array:
+        """Constraint values at ``samples`` ``(nvars, 1)``, shape
+        ``(nqoi, 1)``; non-negative when feasible."""
+        bkd, est, cov = self._ensure_bound()
+        min_nhf_samples = self._ensure_floor()
+        n1d = samples[:, 0]
+        rows = self._req.rows(cov.covariance(n1d))
+        nhf = bkd.sum(est._partitions_per_model[0] * n1d)
+        return bkd.hstack(
+            (-rows, bkd.atleast_1d(nhf - min_nhf_samples))
+        )[:, None]
+
+    def _jacobian(self, samples: Array) -> Array:
+        """Shape ``(nqoi, nvars)``: the rows by the chain rule, then the
+        floor's constant row."""
+        bkd, est, cov = self._ensure_bound()
+        n1d = samples[:, 0]
+        sigma = cov.covariance(n1d)
+        rows = -self._req.row_derivatives(sigma, cov.first(n1d))
+        return bkd.vstack((rows, est._partitions_per_model[0][None, :]))
+
+    def _whvp(self, samples: Array, vec: Array, weights: Array) -> Array:
+        r"""Weighted Hessian-vector product, shape ``(nvars, 1)``.
+
+        For row :math:`j`, :math:`\nabla^2 g_j\,v` is the row's derivative
+        along :math:`\sum_p v_p\partial^2_{mp}\Sigma` plus its own
+        curvature along pairs of :math:`\partial_m\Sigma`, contracted
+        with :math:`v`. The floor row is linear and adds nothing.
+        """
+        bkd, _, cov = self._ensure_bound()
+        n1d = samples[:, 0]
+        v = vec[:, 0]
+        sigma = cov.covariance(n1d)
+        first = cov.first(n1d)
+        along = self._req.row_derivatives(sigma, cov.second_along(n1d, v))
+        curvature = bkd.einsum(
+            "jmp,p->jm", self._req.row_second_derivatives(sigma, first), v
+        )
+        row_weights = weights[: self._nrows, 0]
+        return -bkd.einsum("j,jm->m", row_weights, along + curvature)[:, None]

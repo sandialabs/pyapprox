@@ -14,7 +14,8 @@ and its ``_objective`` attribute would mean the minimized quantity in one
 method and the constrained quantity in the other.
 """
 
-from typing import TYPE_CHECKING, Generic, Optional
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, Generic, Optional, Union
 
 from pyapprox.statest.groupacv._allocation_common import (
     raw_bounds,
@@ -24,10 +25,12 @@ from pyapprox.statest.groupacv.optimization import (
     GroupACVCostObjective,
     GroupACVLogDetObjective,
     GroupACVObjective,
+    GroupACVRequirementConstraint,
     GroupACVToleranceConstraint,
 )
 from pyapprox.statest.groupacv.result import GroupACVToleranceResult
 from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig
+from pyapprox.statest.tolerance import ToleranceConstraintProtocol
 from pyapprox.util.backends.protocols import Array
 
 if TYPE_CHECKING:
@@ -52,46 +55,69 @@ _MAX_REFERENCE_DOUBLINGS = 60
 _FEASIBILITY_RTOL = 1e-8
 
 
+@dataclass(frozen=True)
+class _Requirement(Generic[Array]):
+    """What the shared search needs to know about a requirement.
+
+    Attributes
+    ----------
+    constraint : GroupACVToleranceConstraint or GroupACVRequirementConstraint
+        The smooth constraint the solver holds, bound to the estimator.
+    excess : callable
+        How far a 1D allocation is from meeting it; met at or below
+        zero.
+    slack_scale : float
+        The scale of ``excess``, for the relative slack the post-solve
+        check allows a converged answer sitting on the boundary.
+    report : callable
+        The achieved value at a 1D allocation, shape ``(1,)``.
+    description : str
+        The requirement, for messages.
+    """
+
+    constraint: Union[
+        GroupACVToleranceConstraint[Array], GroupACVRequirementConstraint[Array]
+    ]
+    excess: Callable[[Array], float]
+    slack_scale: float
+    report: Callable[[Array], Array]
+    description: str
+
+
 def default_tolerance_optimizer() -> "BindableOptimizerProtocol[Array]":
     """Create the default optimizer for tolerance-driven allocation.
 
-    Sequential least squares, the same local solver the budget-driven
-    path uses, and without that path's global phase: cost is linear in
-    the sample counts, so there are no local minima for a global search
-    to escape, and the feasible reference allocation already starts the
-    solve inside the constraint.
+    A trust region using the constraints' second derivatives, without
+    the budget-driven path's global phase: cost is linear in the sample
+    counts, so there are no local minima for a global search to escape,
+    and the feasible reference allocation already starts the solve
+    inside the constraint.
 
-    ``ftol`` sits well below the scipy default deliberately. It is an
-    absolute tolerance on the objective, and on the budget-driven path
-    the objective is an estimator variance small enough that the
-    default exceeds its scale, so the solver reports convergence
-    without having moved. The value is kept the same here.
+    Not the budget-driven path's sequential least squares. That path
+    minimizes a curved criterion under a *linear* cost constraint, which
+    sequential least squares handles well; this one minimizes linear
+    cost under a *curved* accuracy constraint, and sequential least
+    squares linearizes the constraints at every step, so all of the
+    difficulty sits where it approximates. Measured on independent-
+    sampling estimators with one, two and three statistics of very
+    different size, under trace, log-determinant and per-statistic
+    standard-error requirements: the trust region, using the analytical
+    constraint Hessians, reached the optimum in all six, while
+    sequential least squares failed between one and three of them
+    depending on how the constraint rows were scaled.
 
-    Pairs with the log-space variables the allocator configures by
-    default. Measured on a nested estimator: this solver reaches the
-    optimum under log scaling and stalls at the reference allocation
-    without it, while a trust region does the reverse. Neither
-    dominates, which is why both the solver and the variable scaling
-    are caller-replaceable.
-
-    ``maxiter`` is well above what a converged solve needs on any one
-    machine because the iteration count is platform dependent. The
-    objective is flat near its optimum -- it moves in the sixth
-    significant figure while the iterate is still travelling -- so the
-    search direction there is shaped by rounding, and two BLAS
-    implementations take different paths. The same nested estimator
-    converges in 305 iterations on macOS arm64 and 1598 on x86_64
-    Linux, to objectives agreeing to six figures. At 1000 the Linux
-    solve was cut off mid-descent and reported failure despite having
-    found a feasible allocation. Raising the ceiling costs nothing when
-    the solve converges early.
+    Paired with the log-space variables the allocator configures by
+    default. Estimators without analytical derivatives (nested and tree
+    sampling) give it a quasi-Newton Hessian instead, and neither solver
+    is reliable there; both the solver and the variable scaling are
+    caller-replaceable.
     """
-    from pyapprox.optimization.minimize.scipy.slsqp import (
-        ScipySLSQPOptimizer,
+    from pyapprox.optimization.minimize.scipy.trust_constr import (
+        ScipyTrustConstrOptimizer,
     )
 
-    optimizer: ScipySLSQPOptimizer[Array] = ScipySLSQPOptimizer(
-        maxiter=2000, ftol=1e-10
+    optimizer: ScipyTrustConstrOptimizer[Array] = ScipyTrustConstrOptimizer(
+        gtol=1e-8, maxiter=3000
     )
     return optimizer
 
@@ -158,7 +184,10 @@ class GroupACVToleranceAllocator(Generic[Array]):
         return self._bkd.full((self._est.npartitions(),), multiplier)
 
     def _feasible_reference(
-        self, tolerance: float, min_nhf_samples: int
+        self,
+        excess: Callable[[Array], float],
+        description: str,
+        min_nhf_samples: int,
     ) -> Array:
         """Return a uniform allocation meeting the requirement.
 
@@ -168,6 +197,9 @@ class GroupACVToleranceAllocator(Generic[Array]):
         does. The result bounds the optimum from above -- it is
         feasible, so the cheapest feasible allocation costs no more --
         and is a feasible starting point for the solve.
+
+        ``excess`` is how far an allocation is from meeting the
+        requirement, at or below zero when it does.
         """
         multiplier = float(
             max(min_nhf_samples, self._config.resolve_bounds_lb(self._est._stat))
@@ -175,18 +207,18 @@ class GroupACVToleranceAllocator(Generic[Array]):
         multiplier = max(multiplier, 1.0)
         for _ in range(_MAX_REFERENCE_DOUBLINGS):
             allocation = self._uniform_allocation(multiplier)
-            if self._criterion_value(allocation) <= tolerance:
+            if excess(allocation) <= 0.0:
                 return allocation
             multiplier *= 2.0
         raise ValueError(
-            f"tolerance {tolerance} is not achievable: the criterion is "
-            f"still unmet at {multiplier:g} samples in every partition. The "
+            f"{description} is not achievable: it is still unmet at "
+            f"{multiplier:g} samples in every partition. The "
             "estimator covariance has a nonzero infimum for this model set, "
             "so no budget attains this tolerance; loosen it or add models."
         )
 
     def _round_up_to_tolerance(
-        self, relaxed: Array, tolerance: float, min_nhf_samples: int
+        self, relaxed: Array, min_nhf_samples: int
     ) -> Array:
         """Round up to integer sample counts.
 
@@ -221,8 +253,12 @@ class GroupACVToleranceAllocator(Generic[Array]):
         success: bool,
         message: str,
         round_nsamples: bool,
+        report: Callable[[Array], Array],
     ) -> GroupACVToleranceResult[Array]:
-        """Assemble a result from a final allocation."""
+        """Assemble a result from a final allocation.
+
+        ``report`` gives the requirement's achieved value, shape ``(1,)``.
+        """
         bkd = self._bkd
         nsamples_per_model = self._est._compute_nsamples_per_model(
             npartition_samples
@@ -230,9 +266,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
         total_cost = bkd.to_float(
             self._est._estimator_cost(npartition_samples)
         )
-        constraint_value = bkd.flatten(
-            self._criterion(npartition_samples[:, None])
-        )
+        constraint_value = report(npartition_samples)
         if round_nsamples:
             npartition_samples = bkd.asarray(
                 npartition_samples, dtype=bkd.int64_dtype()
@@ -289,11 +323,131 @@ class GroupACVToleranceAllocator(Generic[Array]):
         ValueError
             If no allocation attains the tolerance.
         """
-        bkd = self._bkd
         min_nhf = max(self._est._stat.min_nsamples(), min_nhf_samples)
         self._constraint.set_tolerance(tolerance, min_nhf)
 
-        reference = self._feasible_reference(tolerance, min_nhf)
+        def excess(npartition_samples_1d: Array) -> float:
+            return self._criterion_value(npartition_samples_1d) - tolerance
+
+        def report(npartition_samples_1d: Array) -> Array:
+            return self._bkd.flatten(
+                self._criterion(npartition_samples_1d[:, None])
+            )
+
+        return self._solve(
+            _Requirement(
+                self._constraint,
+                excess,
+                max(abs(tolerance), 1.0),
+                report,
+                f"tolerance {tolerance} on the criterion",
+            ),
+            min_nhf,
+            init_guess,
+            round_nsamples,
+            max_cost,
+        )
+
+    def allocate_for_requirement(
+        self,
+        requirement: ToleranceConstraintProtocol[Array],
+        min_nhf_samples: int = 1,
+        init_guess: Optional[Array] = None,
+        round_nsamples: bool = True,
+        max_cost: Optional[float] = None,
+    ) -> GroupACVToleranceResult[Array]:
+        """Find the cheapest allocation meeting an accuracy requirement.
+
+        The requirement is the same object the Monte Carlo and control
+        variate allocators take, so every estimator family is priced on
+        one tolerance. Each of its rows becomes a smooth constraint, so a
+        requirement on every statistic separately -- every marginal
+        standard error within tolerance -- is held exactly, where a
+        scalar criterion could let one statistic exceed it inside an
+        acceptable aggregate.
+
+        Parameters
+        ----------
+        requirement : ToleranceConstraintProtocol
+            The accuracy requirement, carrying its own tolerance and
+            units.
+        min_nhf_samples : int, optional
+            Minimum high-fidelity samples. Default is 1.
+        init_guess : Array, optional
+            Initial guess, shape (npartitions, 1). Defaults to a
+            feasible uniform allocation found by scaling.
+        round_nsamples : bool, optional
+            Whether to round the result to integers. Default is True.
+        max_cost : float, optional
+            Cost ceiling for the search. Supplying it skips the search
+            for a feasible reference allocation.
+
+        Returns
+        -------
+        GroupACVToleranceResult
+            The allocation, its cost, and the requirement's achieved
+            value, in the units it states.
+
+        Raises
+        ------
+        TypeError
+            If ``requirement`` does not satisfy the protocol.
+        ValueError
+            If no allocation attains the requirement.
+        """
+        if not isinstance(requirement, ToleranceConstraintProtocol):
+            raise TypeError(
+                "requirement must satisfy ToleranceConstraintProtocol, got "
+                f"{type(requirement).__name__}"
+            )
+        bkd = self._bkd
+        min_nhf = max(self._est._stat.min_nsamples(), min_nhf_samples)
+        constraint = GroupACVRequirementConstraint(requirement)
+        constraint.set_estimator(self._est)
+        constraint.set_min_nhf_samples(min_nhf)
+
+        def excess(npartition_samples_1d: Array) -> float:
+            rows = requirement.rows(
+                constraint.covariance(npartition_samples_1d)
+            )
+            return bkd.to_float(bkd.max(rows))
+
+        def report(npartition_samples_1d: Array) -> Array:
+            return requirement.value(
+                constraint.covariance(npartition_samples_1d)
+            )
+
+        return self._solve(
+            _Requirement(
+                constraint, excess, 1.0, report, requirement.description()
+            ),
+            min_nhf,
+            init_guess,
+            round_nsamples,
+            max_cost,
+        )
+
+    def _solve(
+        self,
+        requirement: _Requirement[Array],
+        min_nhf: int,
+        init_guess: Optional[Array],
+        round_nsamples: bool,
+        max_cost: Optional[float],
+    ) -> GroupACVToleranceResult[Array]:
+        """The search both requirement forms share.
+
+        Bracket with a feasible reference, return the floor allocation
+        if it already suffices, solve, and check the answer -- relaxed,
+        then rounded up -- against the requirement rather than trusting
+        the solver's own status.
+        """
+        bkd = self._bkd
+        excess = requirement.excess
+        report = requirement.report
+        reference = self._feasible_reference(
+            excess, requirement.description, min_nhf
+        )
         if max_cost is None:
             cost_ceiling = 2.0 * bkd.to_float(
                 self._est._estimator_cost(reference)
@@ -304,13 +458,14 @@ class GroupACVToleranceAllocator(Generic[Array]):
         floor_allocation = self._uniform_allocation(
             max(float(min_nhf), self._config.resolve_bounds_lb(self._est._stat))
         )
-        if self._criterion_value(floor_allocation) <= tolerance:
+        if excess(floor_allocation) <= 0.0:
             return self._build_result(
                 floor_allocation,
                 floor_allocation,
                 True,
                 "tolerance met at the minimum feasible allocation",
                 round_nsamples,
+                report,
             )
 
         n_bounds = raw_bounds(self._est, self._config, cost_ceiling)
@@ -318,7 +473,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
             init_guess = reference[:, None]
         solution = solve_in_variable_space(
             self._cost_objective,
-            self._constraint,
+            requirement.constraint,
             n_bounds,
             init_guess,
             self._optimizer,
@@ -335,6 +490,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
                 False,
                 solution.message(),
                 round_nsamples,
+                report,
             )
 
         relaxed = solution.npartition_samples()
@@ -348,9 +504,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
         # where a converged answer lands within rounding of it; without
         # that, an exact test rejects good solutions over a difference
         # of order 1e-13. Genuine breakdowns miss by many orders more.
-        if self._criterion_value(relaxed) > tolerance + _FEASIBILITY_RTOL * max(
-            abs(tolerance), 1.0
-        ):
+        if excess(relaxed) > _FEASIBILITY_RTOL * requirement.slack_scale:
             return self._build_result(
                 reference,
                 reference,
@@ -358,12 +512,13 @@ class GroupACVToleranceAllocator(Generic[Array]):
                 "optimizer stopped at an allocation that misses the "
                 "tolerance",
                 round_nsamples,
+                report,
             )
         if not round_nsamples:
-            return self._build_result(relaxed, relaxed, True, "", False)
+            return self._build_result(relaxed, relaxed, True, "", False, report)
 
-        rounded = self._round_up_to_tolerance(relaxed, tolerance, min_nhf)
-        if self._criterion_value(rounded) > tolerance:
+        rounded = self._round_up_to_tolerance(relaxed, min_nhf)
+        if excess(rounded) > 0.0:
             return self._build_result(
                 rounded,
                 relaxed,
@@ -373,5 +528,6 @@ class GroupACVToleranceAllocator(Generic[Array]):
                 "fractional sample, so the optimizer stopped short of "
                 "the accuracy constraint",
                 True,
+                report,
             )
-        return self._build_result(rounded, relaxed, True, "", True)
+        return self._build_result(rounded, relaxed, True, "", True, report)
