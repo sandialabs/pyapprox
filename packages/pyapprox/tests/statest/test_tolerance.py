@@ -3,6 +3,10 @@
 import numpy as np
 import pytest
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
+from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.statest.allocation import CVAllocator, MCAllocator
 from pyapprox.statest.cv_estimator import CVEstimator
 from pyapprox.statest.mc_estimator import MCEstimator
@@ -132,6 +136,187 @@ class _WorstQoIVariance:
 
     def description(self):
         return f"worst per-QoI variance <= {self._tolerance}"
+
+    def nrows(self, nstats):
+        return nstats
+
+    def rows(self, covariance):
+        return self._bkd.diag(covariance) / self._tolerance - 1.0
+
+    def row_derivatives(self, covariance, directions):
+        return self._bkd.einsum("dii->id", directions) / self._tolerance
+
+    def row_second_derivatives(self, covariance, directions):
+        n, d = covariance.shape[0], directions.shape[0]
+        return self._bkd.zeros((n, d, d))
+
+
+REQUIREMENTS = [
+    lambda bkd: MaxMarginalStandardErrorConstraint(1.2, bkd),
+    lambda bkd: TraceConstraint(4.0, bkd),
+    lambda bkd: LogDeterminantConstraint(0.5, bkd),
+    lambda bkd: _WorstQoIVariance(1.5, bkd),
+]
+REQUIREMENT_IDS = ["max-marginal", "trace", "log-det", "caller-defined"]
+NSTATS = 3
+NDIRECTIONS = 2
+
+
+def _covariance_and_directions(bkd):
+    """A well-conditioned covariance, and symmetric directions about it."""
+    rng = np.random.RandomState(7)
+    factor = rng.normal(0, 1, (NSTATS, NSTATS))
+    covariance = factor @ factor.T / NSTATS + np.eye(NSTATS)
+
+    def symmetric(scale):
+        raw = rng.normal(0, scale, (NDIRECTIONS, NSTATS, NSTATS))
+        return raw + np.transpose(raw, (0, 2, 1))
+
+    return (
+        bkd.asarray(covariance),
+        bkd.asarray(symmetric(0.2)),
+        bkd.asarray(symmetric(0.1)),
+    )
+
+
+class _RowsAlongACurve:
+    r"""A requirement's rows as a function of coefficients ``x``.
+
+    ``Sigma(x) = Sigma0 + sum_m (x_m V_m + x_m^2 W_m + x_m^3 W_m)``:
+    nonlinear in ``x``, so even a row linear in the covariance has a
+    second derivative here, and the derivatives below exercise the chain
+    rule an allocator uses -- the rows along the covariance's first
+    derivatives, plus along its second derivatives, plus the rows' own
+    curvature along pairs of first derivatives. The cubic term keeps
+    that second derivative varying with ``x``: with only the quadratic
+    one, a row linear in the covariance has an exactly linear gradient,
+    whose finite difference is exact and so tests nothing.
+    """
+
+    def __init__(self, requirement, covariance, linear, quadratic, bkd):
+        self._req = requirement
+        self._covariance = covariance
+        self._linear = linear
+        self._quadratic = quadratic
+        self._bkd = bkd
+        self._derivs = Derivatives.second_order_weighted(
+            jacobian=self.jacobian, whvp=self.whvp
+        )
+
+    def derivatives(self):
+        return self._derivs
+
+    def bkd(self):
+        return self._bkd
+
+    def nvars(self):
+        return NDIRECTIONS
+
+    def nqoi(self):
+        return self._req.nrows(NSTATS)
+
+    def _sigma(self, x):
+        return (
+            self._covariance
+            + self._bkd.einsum("m,mij->ij", x, self._linear)
+            + self._bkd.einsum("m,mij->ij", x**2 + x**3, self._quadratic)
+        )
+
+    def _first(self, x):
+        """``d Sigma / d x_m``, one per coefficient."""
+        return self._linear + (2.0 * x + 3.0 * x**2)[:, None, None] * (
+            self._quadratic
+        )
+
+    def _second(self, x):
+        """``d2 Sigma / d x_m^2``; the mixed ones are zero."""
+        return (2.0 + 6.0 * x)[:, None, None] * self._quadratic
+
+    def __call__(self, samples):
+        return self._req.rows(self._sigma(samples[:, 0]))[:, None]
+
+    def jacobian(self, sample):
+        x = sample[:, 0]
+        return self._req.row_derivatives(self._sigma(x), self._first(x))
+
+    def whvp(self, sample, vec, weights):
+        x = sample[:, 0]
+        sigma = self._sigma(x)
+        curvature = self._req.row_second_derivatives(sigma, self._first(x))
+        # d2 Sigma / dx_m dx_p is nonzero on the diagonal only.
+        along_second = self._req.row_derivatives(sigma, self._second(x))
+        hessians = curvature + self._bkd.einsum(
+            "jm,mp->jmp", along_second, self._bkd.eye(NDIRECTIONS)
+        )
+        weighted = self._bkd.einsum("j,jmp->mp", weights[:, 0], hessians)
+        return weighted @ vec
+
+
+class TestRowContract:
+    """What every requirement must satisfy, shipped or caller-defined.
+
+    A new requirement joins ``REQUIREMENTS`` and is held to the same
+    checks; nothing in an allocator changes.
+    """
+
+    @pytest.mark.parametrize("make", REQUIREMENTS, ids=REQUIREMENT_IDS)
+    def test_shapes(self, bkd, make) -> None:
+        req = make(bkd)
+        covariance, directions, _ = _covariance_and_directions(bkd)
+        nrows = req.nrows(NSTATS)
+        assert req.rows(covariance).shape == (nrows,)
+        assert req.row_derivatives(covariance, directions).shape == (
+            nrows,
+            NDIRECTIONS,
+        )
+        assert req.row_second_derivatives(covariance, directions).shape == (
+            nrows,
+            NDIRECTIONS,
+            NDIRECTIONS,
+        )
+
+    @pytest.mark.parametrize("make", REQUIREMENTS, ids=REQUIREMENT_IDS)
+    def test_rows_and_value_agree_on_what_is_met(self, bkd, make) -> None:
+        """Across the boundary, from far inside to far outside it."""
+        req = make(bkd)
+        covariance, _, _ = _covariance_and_directions(bkd)
+        verdicts = []
+        for scale in np.logspace(-3, 3, 61):
+            scaled = covariance * scale
+            by_rows = bool(bkd.all_bool(req.rows(scaled) <= 0.0))
+            by_value = bkd.to_float(req.value(scaled)) <= req.tolerance()
+            assert by_rows == by_value
+            verdicts.append(by_rows)
+        assert any(verdicts) and not all(verdicts)
+
+    @pytest.mark.parametrize("make", REQUIREMENTS, ids=REQUIREMENT_IDS)
+    def test_rows_do_not_rise_as_the_covariance_shrinks(
+        self, bkd, make
+    ) -> None:
+        req = make(bkd)
+        covariance, _, _ = _covariance_and_directions(bkd)
+        shrunk = covariance - 0.5 * covariance
+        assert bkd.all_bool(req.rows(shrunk) <= req.rows(covariance))
+
+    @pytest.mark.parametrize("make", REQUIREMENTS, ids=REQUIREMENT_IDS)
+    def test_derivatives(self, bkd, make) -> None:
+        covariance, linear, quadratic = _covariance_and_directions(bkd)
+        curve = _RowsAlongACurve(make(bkd), covariance, linear, quadratic, bkd)
+        checker = DerivativeChecker(curve)
+        errors = checker.check_derivatives(
+            bkd.asarray([[0.3], [-0.2]]),
+            weights=bkd.asarray(
+                np.linspace(0.5, 1.5, curve.nqoi())[:, None]
+            ),
+        )
+        assert float(checker.error_ratio(errors[0])) <= 1e-6
+        assert float(checker.error_ratio(errors[1])) <= 1e-6
+
+    def test_directions_must_be_a_stack(self, numpy_bkd) -> None:
+        req = MaxMarginalStandardErrorConstraint(1.0, numpy_bkd)
+        covariance, directions, _ = _covariance_and_directions(numpy_bkd)
+        with pytest.raises(ValueError, match="ndirections"):
+            req.row_derivatives(covariance, directions[0])
 
 
 class TestCallerDefinedRequirements:

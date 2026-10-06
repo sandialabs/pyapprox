@@ -26,12 +26,29 @@ from pyapprox.util.backends.protocols import Array, ArrayProtocol, Backend
 class ToleranceConstraintProtocol(Protocol, Generic[Array]):
     """An accuracy requirement on an estimator covariance matrix.
 
+    Two views of the same requirement. :meth:`value` against
+    :meth:`tolerance` is the summary in the units the user stated -- what
+    a study reports as the accuracy it achieved. :meth:`rows` is how it
+    is solved: smooth functions of the covariance, met when every one is
+    at or below zero. An allocator optimizing many sample counts at once
+    needs that form, because a requirement such as "every marginal
+    standard error within tolerance" is a maximum, which is not smooth;
+    one row per component is, and holds exactly when the maximum does.
+    The two views agree: every row is at or below zero exactly when
+    :meth:`value` is at or below :meth:`tolerance`.
+
+    Derivatives are taken along given directions of the covariance, not
+    formed as a gradient with respect to it. An allocator needs only
+    each row's rate of change along the covariance's own derivatives,
+    one direction per sample count, and for most requirements a gradient
+    would be a large array holding a few useful entries.
+
     Implementations must be **monotone decreasing in the sample count**:
-    drawing more samples may never increase :meth:`value`. The inverse
-    allocation brackets and then solves for the smallest sample count
-    meeting the requirement, and both steps rely on that monotonicity.
-    A non-monotone requirement makes the problem ill-posed rather than
-    merely harder to solve.
+    drawing more samples may never increase :meth:`value` or any row. The
+    inverse allocation brackets and then solves for the smallest sample
+    count meeting the requirement, and both steps rely on that
+    monotonicity. A non-monotone requirement makes the problem ill-posed
+    rather than merely harder to solve.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -48,6 +65,54 @@ class ToleranceConstraintProtocol(Protocol, Generic[Array]):
 
     def description(self) -> str:
         """Human-readable requirement, used in error messages."""
+        ...
+
+    def nrows(self, nstats: int) -> int:
+        """How many rows the requirement has for ``nstats`` statistics."""
+        ...
+
+    def rows(self, covariance: Array) -> Array:
+        """The rows at ``covariance``, shape ``(nrows,)``; met when all <= 0."""
+        ...
+
+    def row_derivatives(self, covariance: Array, directions: Array) -> Array:
+        """Each row's derivative along each direction.
+
+        Parameters
+        ----------
+        covariance : Array
+            Shape ``(nstats, nstats)``.
+        directions : Array
+            Symmetric directions in covariance space, shape
+            ``(ndirections, nstats, nstats)``.
+
+        Returns
+        -------
+        Array
+            Shape ``(nrows, ndirections)``.
+        """
+        ...
+
+    def row_second_derivatives(
+        self, covariance: Array, directions: Array
+    ) -> Array:
+        """Each row's second derivative along each pair of directions.
+
+        The curvature of the rows themselves, as functions of the
+        covariance: zero for a row linear in it.
+
+        Parameters
+        ----------
+        covariance : Array
+            Shape ``(nstats, nstats)``.
+        directions : Array
+            Shape ``(ndirections, nstats, nstats)``.
+
+        Returns
+        -------
+        Array
+            Shape ``(nrows, ndirections, ndirections)``.
+        """
         ...
 
 
@@ -105,6 +170,30 @@ class MaxMarginalStandardErrorConstraint(Generic[Array]):
     def description(self) -> str:
         return f"max marginal standard error <= {self._tolerance}"
 
+    def nrows(self, nstats: int) -> int:
+        """One row per statistic."""
+        return nstats
+
+    def rows(self, covariance: Array) -> Array:
+        r""":math:`\Sigma_{ii}/\varepsilon^2 - 1`, one per statistic.
+
+        Dimensionless, so statistics of very different size are equally
+        well conditioned, and linear in the covariance.
+        """
+        return self._bkd.diag(covariance) / self._tolerance**2 - 1.0
+
+    def row_derivatives(self, covariance: Array, directions: Array) -> Array:
+        _check_directions(directions)
+        bkd = self._bkd
+        return bkd.einsum("dii->id", directions) / self._tolerance**2
+
+    def row_second_derivatives(
+        self, covariance: Array, directions: Array
+    ) -> Array:
+        _check_directions(directions)
+        nstats, ndirections = covariance.shape[0], directions.shape[0]
+        return self._bkd.zeros((nstats, ndirections, ndirections))
+
 
 class TraceConstraint(Generic[Array]):
     """Require the trace of the estimator covariance to be at or below a
@@ -133,6 +222,26 @@ class TraceConstraint(Generic[Array]):
 
     def description(self) -> str:
         return f"trace of estimator covariance <= {self._tolerance}"
+
+    def nrows(self, nstats: int) -> int:
+        """A single aggregate row."""
+        return 1
+
+    def rows(self, covariance: Array) -> Array:
+        r""":math:`\operatorname{tr}\Sigma/\tau - 1`: dimensionless, linear."""
+        return self.value(covariance) / self._tolerance - 1.0
+
+    def row_derivatives(self, covariance: Array, directions: Array) -> Array:
+        _check_directions(directions)
+        bkd = self._bkd
+        return bkd.einsum("dii->d", directions)[None, :] / self._tolerance
+
+    def row_second_derivatives(
+        self, covariance: Array, directions: Array
+    ) -> Array:
+        _check_directions(directions)
+        ndirections = directions.shape[0]
+        return self._bkd.zeros((1, ndirections, ndirections))
 
 
 class LogDeterminantConstraint(Generic[Array]):
@@ -181,6 +290,59 @@ class LogDeterminantConstraint(Generic[Array]):
     def description(self) -> str:
         return f"log determinant of estimator covariance <= {self._tolerance}"
 
+    def nrows(self, nstats: int) -> int:
+        """A single aggregate row."""
+        return 1
+
+    def rows(self, covariance: Array) -> Array:
+        r""":math:`\log\det\Sigma - \tau`, over the kept eigenvalues.
+
+        Already on a log scale, so it is left unnormalized.
+        """
+        return self.value(covariance) - self._tolerance
+
+    def _pseudo_inverse(self, covariance: Array) -> Array:
+        """The inverse on the eigenvalues :meth:`value` keeps."""
+        bkd = self._bkd
+        eigvals, eigvecs = bkd.eigh(covariance)
+        kept = eigvals > 1e-14
+        vectors = eigvecs[:, kept]
+        return (vectors / eigvals[kept]) @ vectors.T
+
+    def row_derivatives(self, covariance: Array, directions: Array) -> Array:
+        r""":math:`\operatorname{tr}(\Sigma^+ V)` along each direction ``V``.
+
+        Exact while the kept eigenvalues stay above the floor, the same
+        condition under which the requirement is monotone.
+        """
+        _check_directions(directions)
+        pinv = self._pseudo_inverse(covariance)
+        return self._bkd.einsum("ij,dji->d", pinv, directions)[None, :]
+
+    def row_second_derivatives(
+        self, covariance: Array, directions: Array
+    ) -> Array:
+        r""":math:`-\operatorname{tr}(\Sigma^+ V \Sigma^+ U)` for each pair.
+
+        Exact for a covariance of full rank. Where the floor discards
+        directions the true curvature also couples the kept eigenvalues
+        to the discarded ones, which this omits.
+        """
+        _check_directions(directions)
+        bkd = self._bkd
+        pinv = self._pseudo_inverse(covariance)
+        products = bkd.einsum("ij,djk->dik", pinv, directions)
+        return -bkd.einsum("aij,bji->ab", products, products)[None, :, :]
+
+
+def _check_directions(directions: Array) -> None:
+    """Directions are a stack of covariance-shaped matrices."""
+    if directions.ndim != 3:
+        raise ValueError(
+            "directions must have shape (ndirections, nstats, nstats), got "
+            f"{tuple(directions.shape)}"
+        )
+
 
 # Bound on the search for the smallest sufficient sample count. The
 # bracket doubles from the sample floor, so the cap admits sample counts
@@ -213,9 +375,15 @@ class ToleranceAllocatorMixin(Generic[Array]):
     def _slack(
         self, constraint: ToleranceConstraintProtocol[Array], nsamples: float
     ) -> float:
-        """Signed distance to the requirement; non-negative is feasible."""
-        value = constraint.value(self._covariance(nsamples))
-        return constraint.tolerance() - self._bkd.to_float(value)
+        """Signed distance to the requirement; non-negative is feasible.
+
+        Read from the rows, the one definition of "met" every allocator
+        shares. Their largest is continuous in the sample count, which is
+        all the root-finding needs; the rows' smoothness matters only to
+        allocators that take gradients.
+        """
+        rows = constraint.rows(self._covariance(nsamples))
+        return -self._bkd.to_float(self._bkd.max(rows))
 
     def _bracket(
         self, constraint: ToleranceConstraintProtocol[Array]
