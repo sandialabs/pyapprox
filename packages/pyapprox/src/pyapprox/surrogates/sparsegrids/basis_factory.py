@@ -9,7 +9,8 @@ Key classes:
 - GaussLagrangeFactory: Creates Lagrange basis with Gauss quadrature
 - LejaLagrangeFactory: Creates Lagrange basis with Leja quadrature (cached)
 - ClenshawCurtisLagrangeFactory: Creates Lagrange basis with CC quadrature (nested)
-- PiecewiseFactory: Creates piecewise polynomial basis (placeholder)
+- PiecewiseFactory: Creates piecewise polynomial basis of an injected class,
+  with probability weights under the marginal
 - PrebuiltBasisFactory: Wraps existing basis for migration
 
 Key functions:

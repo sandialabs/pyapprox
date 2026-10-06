@@ -81,13 +81,15 @@ def validate_piecewise_growth_compatibility(
     growth_rules: Union[object, Sequence[object]],
     max_level: int = 5,
 ) -> None:
-    """Validate that growth rules are compatible with piecewise basis factories.
+    """Validate that growth rules give node counts each basis accepts.
 
-    Piecewise polynomial bases have specific node count requirements:
-    - piecewise_quadratic: Requires odd number of nodes
-    - piecewise_cubic: Requires (n - 4) % 3 == 0
-
-    This function checks the first few levels to catch incompatibilities early.
+    Each factory's basis is built at the node count of every level up to
+    ``max_level``, and the basis itself rejects counts it cannot use, so
+    the check needs no knowledge of basis types and covers any injected
+    basis. For example a piecewise quadratic basis needs an odd count
+    (``ClenshawCurtisGrowthRule`` gives 1, 3, 5, 9, 17, ...) and a piecewise
+    cubic one ``3k + 1`` (``CubicNestedGrowthRule`` gives 1, 4, 7, 13, 25,
+    ...); a piecewise linear basis accepts any count.
 
     Parameters
     ----------
@@ -101,49 +103,28 @@ def validate_piecewise_growth_compatibility(
     Raises
     ------
     ValueError
-        If a growth rule produces incompatible node counts for a piecewise basis.
-
-    Notes
-    -----
-    Growth rule requirements by basis type:
-
-    - piecewise_linear: Any growth rule works
-    - piecewise_quadratic: Use ClenshawCurtisGrowthRule() (produces 1, 3, 5, 9, 17, ...)
-    - piecewise_cubic: Use CubicNestedGrowthRule() (produces 1, 4, 7, 13, 25, ...)
-    - gauss, leja, clenshaw_curtis: LinearGrowthRule or ClenshawCurtisGrowthRule
+        If a growth rule gives a node count a factory's basis rejects.
     """
-    # Import here to avoid circular imports
-    from pyapprox.surrogates.sparsegrids.basis_factory import PiecewiseFactory
-
-    # Normalize growth_rules to a list
+    validate_basis_factories(factories)
+    validate_growth_rules(growth_rules)
     if isinstance(growth_rules, list):
         rules_list = growth_rules
     else:
         rules_list = [growth_rules] * len(factories)
 
     for dim, (factory, rule) in enumerate(zip(factories, rules_list)):
-        # Only check PiecewiseFactory instances
-        if not isinstance(factory, PiecewiseFactory):
-            continue
-
-        poly_type = getattr(factory, "_poly_type", None)
-        if poly_type is None:
-            continue
-
-        # Check node counts for first few levels
+        if not isinstance(factory, BasisFactoryProtocol) or not isinstance(
+            rule, IndexGrowthRuleProtocol
+        ):
+            continue  # unreachable: both were validated above
+        basis = factory.create_basis()
         for level in range(1, max_level + 1):
             npts = rule(level)
-
-            if poly_type == "quadratic" and npts > 1 and npts % 2 == 0:
+            try:
+                basis.set_nterms(npts)
+            except ValueError as error:
                 raise ValueError(
-                    f"piecewise_quadratic (dimension {dim}) requires odd number "
-                    f"of nodes, but growth_rule({level}) = {npts}. "
-                    f"Use ClenshawCurtisGrowthRule() instead of {rule!r}."
-                )
-
-            if poly_type == "cubic" and npts > 1 and (npts - 4) % 3 != 0:
-                raise ValueError(
-                    f"piecewise_cubic (dimension {dim}) requires (n - 4) % 3 == 0, "
-                    f"but growth_rule({level}) = {npts}. "
-                    f"Use CubicNestedGrowthRule() instead of {rule!r}."
-                )
+                    f"the basis of dimension {dim} rejects growth_rule({level}) "
+                    f"= {npts} nodes from {rule!r}: {error}. Use a growth rule "
+                    "whose node counts this basis accepts."
+                ) from error
