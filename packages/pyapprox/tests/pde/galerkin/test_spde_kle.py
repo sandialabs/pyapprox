@@ -324,46 +324,39 @@ class TestSPDEMaternKLE:
     def test_pointwise_variance_matches_target(
         self, numpy_bkd: NumpyBkd, sigma: float
     ) -> None:
-        """Interior pointwise variance is approximately sigma^2.
+        """Interior pointwise variance is sigma^2 up to the mesh error.
 
-        The SPDE with Robin BCs on a bounded domain has reduced variance
-        near boundaries.  Using a short correlation length
-        (l_c = sqrt(gamma/delta) = 0.224) relative to the unit square
-        makes boundary effects marginal at interior nodes.
-
-        Remaining error comes from KLE mode truncation (60 of 169 DOFs).
-        Greater agreement can be achieved by increasing n_modes toward
-        ndofs or by using a larger domain with the same correlation
-        length, at the cost of longer test runtime.
+        Setup: unit square 24 x 24, correlation length
+        l = sqrt(gamma/delta) = 0.125 (3 elements), all 625 modes (no
+        truncation error), default Robin coefficient, nodes at least 3 l
+        from the boundary. There the variance is flat (spread below
+        1e-3), so the boundary no longer reaches it, and the remaining
+        +2.3% is discretization error (measured: +3.1% at 24 x 24 and
+        +2.0% at 32 x 32 for l = 0.1).
 
         Sigma other than 1 separates sigma^2 from sigma^4, which a
         double-applied sigma would give.
         """
         bkd = numpy_bkd
+        length = 0.125
         kle, basis = _make_2d_kle(
             bkd,
-            n_modes=60,
-            nx=12,
-            ny=12,
-            gamma=0.05,
+            n_modes=625,
+            nx=24,
+            ny=24,
+            gamma=length**2,
             delta=1.0,
             sigma=sigma,
         )
         var = bkd.to_numpy(kle.pointwise_variance())
 
-        # Get interior nodes (away from boundaries)
         coords = bkd.to_numpy(basis.dof_coordinates())
-        margin = 0.15
-        interior = (
-            (coords[0] > margin)
-            & (coords[0] < 1 - margin)
-            & (coords[1] > margin)
-            & (coords[1] < 1 - margin)
-        )
-        interior_var = var[interior]
-        mean_interior_var = np.mean(interior_var)
+        margin = 3.0 * length
+        interior = np.all((coords > margin) & (coords < 1 - margin), axis=0)
+        interior_var = var[interior] / sigma**2
 
-        assert abs(mean_interior_var / sigma**2 - 1.0) < 3e-2
+        assert np.ptp(interior_var) < 1e-3
+        assert abs(np.mean(interior_var) - 1.0) < 3e-2
 
     def test_robin_bc_affects_boundary_variance(self, numpy_bkd) -> None:
         """Robin BC parameter changes boundary variance profile.

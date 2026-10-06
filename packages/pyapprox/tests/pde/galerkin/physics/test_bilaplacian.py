@@ -81,10 +81,12 @@ class TestBiLaplacianPrior:
         basis = LagrangeBasis(mesh_wrapper, degree=1)
         return basis
 
-    def test_regression_matches_legacy(self, numpy_bkd):
+    def test_regression_matches_legacy(self, numpy_bkd: NumpyBkd) -> None:
         """Regression test matching legacy BiLaplacianPrior output.
 
-        Replicates test_finite_elements.py:1242-1292.
+        Replicates test_finite_elements.py:1242-1292. The legacy prior
+        used the Robin coefficient sqrt(gamma delta) * 1.42, so it is
+        passed explicitly to compare like with like.
         """
         bkd = numpy_bkd
         basis = self._make_legacy_mesh_and_basis(bkd)
@@ -92,7 +94,12 @@ class TestBiLaplacianPrior:
         aniso = np.array([[1.0, 0.0], [0.0, 1 / 20.0]])
 
         prior = BiLaplacianPrior.with_uniform_robin(
-            basis, gamma, delta, bkd, anisotropic_tensor=aniso
+            basis,
+            gamma,
+            delta,
+            bkd,
+            anisotropic_tensor=aniso,
+            robin_alpha=float(np.sqrt(gamma * delta) * 1.42),
         )
 
         np.random.seed(1)

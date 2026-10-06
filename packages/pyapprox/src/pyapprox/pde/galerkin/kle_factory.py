@@ -20,8 +20,6 @@ from __future__ import annotations
 
 from typing import Optional, Union
 
-import numpy as np
-
 from pyapprox.pde.field_maps.mesh_kle_field_map import (
     MeshKLEFieldMap,
 )
@@ -32,6 +30,7 @@ from pyapprox.pde.field_maps.transformed import (
 from pyapprox.pde.galerkin.bilaplacian import (
     BiLaplacianPrior,
     bilaplacian_stationary_variance,
+    default_robin_coefficient,
 )
 from pyapprox.pde.galerkin.noise_mass import (
     ConsistentNoiseMass,
@@ -100,7 +99,8 @@ def create_spde_matern_kle(
     bkd : Backend[Array]
         Computational backend.
     xi : float, optional
-        Robin BC coefficient.  Default: ``sqrt(gamma * delta)``.
+        Robin BC coefficient.  Default:
+        ``default_robin_coefficient(gamma, delta)``, the prior's.
     mean_field : float or Array, optional
         Mean field.  Scalar is broadcast to all nodes.  Default: 0.
     noise_mass : NoiseMassProtocol, optional
@@ -116,7 +116,7 @@ def create_spde_matern_kle(
         KLE with M-orthonormal eigenvectors and scaled eigenvalues.
     """
     if xi is None:
-        xi = np.sqrt(gamma * delta)
+        xi = default_robin_coefficient(gamma, delta)
     if noise_mass is None:
         noise_mass = ConsistentNoiseMass(basis, bkd)
 
@@ -196,7 +196,8 @@ def create_spde_lognormal_kle_field_map(
     sigma : float
         Standard deviation of the log-field.
     xi : float, optional
-        Robin BC coefficient.  Default: ``sqrt(gamma * delta)``.
+        Robin BC coefficient.  Default:
+        ``default_robin_coefficient(gamma, delta)``, the prior's.
     noise_mass : NoiseMassProtocol, optional
         White-noise mass, passed to ``create_spde_matern_kle``.
         Default: ``ConsistentNoiseMass(basis, bkd)``.

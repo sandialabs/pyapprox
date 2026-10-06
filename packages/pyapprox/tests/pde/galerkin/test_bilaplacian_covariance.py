@@ -22,6 +22,7 @@ from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.bilaplacian import (
     BiLaplacianPrior,
     bilaplacian_stationary_variance,
+    default_robin_coefficient,
 )
 from pyapprox.pde.galerkin.kle_factory import create_spde_matern_kle
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
@@ -290,8 +291,9 @@ def test_center_std_under_refinement(
     Setup: unit square, ``StructuredMesh2D(nelem, nelem,
     element_type="tri")``, P1, gamma = 10, delta = 100, the node nearest
     (0.5, 0.5), exact diagonal through ``apply_covariance``. Neumann is no
-    boundary term; Robin is ``with_uniform_robin``'s default coefficient,
-    ``sqrt(gamma * delta) * 1.42``.
+    boundary term; Robin uses the coefficient ``sqrt(gamma * delta) *
+    1.42`` explicitly (the values were measured with it; the default is
+    now ``default_robin_coefficient``).
     """
     basis = _basis(numpy_bkd, nelem)
     center = _center(basis, numpy_bkd)
@@ -304,7 +306,12 @@ def test_center_std_under_refinement(
     for bcs, noise_mass, expected in cases:
         if bcs is None:
             prior = BiLaplacianPrior.with_uniform_robin(
-                basis, _GAMMA, _DELTA, numpy_bkd, noise_mass=noise_mass
+                basis,
+                _GAMMA,
+                _DELTA,
+                numpy_bkd,
+                robin_alpha=float(np.sqrt(_GAMMA * _DELTA) * 1.42),
+                noise_mass=noise_mass,
             )
         else:
             prior = BiLaplacianPrior(
@@ -320,8 +327,8 @@ def test_center_std_under_refinement(
 def test_robin_edges_and_corners_near_free_space(
     numpy_bkd: Backend[Array],
 ) -> None:
-    """With Robin coefficient sqrt(gamma delta)/1.42 (lumped mass,
-    h = 1/39, gamma = 10, delta = 100), the std at the bottom-edge
+    """With the default Robin coefficient sqrt(gamma delta)/1.42 (lumped
+    mass, h = 1/39, gamma = 10, delta = 100), the std at the bottom-edge
     midpoint and the corner (0, 0) is within 10% of the free-space value
     1/sqrt(4 pi gamma delta)."""
     basis = _basis(numpy_bkd, 39)
@@ -329,13 +336,16 @@ def test_robin_edges_and_corners_near_free_space(
     edge = int(np.argmin((coords[0] - 0.5) ** 2 + coords[1] ** 2))
     corner = int(np.argmin(coords[0] ** 2 + coords[1] ** 2))
     prior = BiLaplacianPrior.with_uniform_robin(
-        basis,
-        _GAMMA,
-        _DELTA,
-        numpy_bkd,
-        robin_alpha=float(np.sqrt(_GAMMA * _DELTA) / 1.42),
+        basis, _GAMMA, _DELTA, numpy_bkd
     )
-    free_space = 1.0 / np.sqrt(4.0 * np.pi * _GAMMA * _DELTA)
+    numpy_bkd.assert_allclose(
+        numpy_bkd.asarray([default_robin_coefficient(_GAMMA, _DELTA)]),
+        numpy_bkd.asarray([np.sqrt(_GAMMA * _DELTA) / 1.42]),
+        rtol=1e-15,
+    )
+    free_space = float(
+        np.sqrt(bilaplacian_stationary_variance(_GAMMA, _DELTA, 2))
+    )
     ratios = _std_at(prior, [edge, corner], numpy_bkd) / free_space
     numpy_bkd.assert_allclose(
         numpy_bkd.asarray(ratios), numpy_bkd.asarray([1.0, 1.0]), atol=0.1

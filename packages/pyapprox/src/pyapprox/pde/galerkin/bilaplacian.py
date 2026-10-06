@@ -104,6 +104,33 @@ def bilaplacian_stationary_variance(
     )
 
 
+def default_robin_coefficient(gamma: float, delta: float) -> float:
+    r"""Return the default Robin coefficient :math:`\sqrt{\gamma\delta}/1.42`.
+
+    Without a boundary condition that mimics the unbounded domain, the
+    prior's variance is distorted near the boundary. This coefficient
+    keeps it close to the interior value in 2D: on the unit square
+    (40 x 40 tri P1, correlation length 0.1 and 0.25, either noise mass)
+    the std at an edge midpoint is 0.93-0.96 and at a corner 0.90-0.93
+    of the free-space value, against 0.70 and 0.56 for
+    :math:`1.42\sqrt{\gamma\delta}`. The constant is tuned for 2D; in 1D
+    the endpoint std is 0.83 of the interior value.
+
+    Parameters
+    ----------
+    gamma : float
+        Diffusion scaling parameter.
+    delta : float
+        Reaction coefficient.
+
+    Returns
+    -------
+    float
+        The Robin coefficient.
+    """
+    return float(np.sqrt(gamma * delta) / 1.42)
+
+
 def _dense(matrix: Any) -> NDArray[np.floating[Any]]:
     """A sparse or dense matrix as a dense NumPy array."""
     if issparse(matrix):
@@ -263,7 +290,8 @@ class BiLaplacianPrior(Generic[Array]):
         anisotropic_tensor : np.ndarray, optional
             Anisotropy tensor. Default: identity.
         robin_alpha : float, optional
-            Robin BC coefficient. Default: ``sqrt(gamma * delta) * 1.42``.
+            Robin BC coefficient. Default:
+            ``default_robin_coefficient(gamma, delta)``.
         noise_mass : NoiseMassProtocol, optional
             The white-noise mass. Default: the row-sum lumped mass.
 
@@ -273,7 +301,7 @@ class BiLaplacianPrior(Generic[Array]):
             Constructed prior.
         """
         if robin_alpha is None:
-            robin_alpha = np.sqrt(gamma * delta) * 1.42
+            robin_alpha = default_robin_coefficient(gamma, delta)
         boundaries = list(basis.skfem_basis().mesh.boundaries.keys())
         robin_bcs: List[WeakFormBCProtocol[Array]] = [
             RobinBC(basis, name, alpha=robin_alpha, value_func=0.0, bkd=bkd)
@@ -326,7 +354,8 @@ class BiLaplacianPrior(Generic[Array]):
         bkd : Backend[Array]
             Computational backend.
         robin_alpha : float, optional
-            Robin BC coefficient. Default: ``sqrt(gamma * delta) * 1.42``.
+            Robin BC coefficient. Default:
+            ``default_robin_coefficient(gamma, delta)``.
         noise_mass : NoiseMassProtocol, optional
             The white-noise mass. Default: the row-sum lumped mass.
 
