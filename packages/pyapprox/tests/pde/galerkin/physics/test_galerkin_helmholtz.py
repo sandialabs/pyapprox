@@ -225,7 +225,7 @@ class TestHelmholtzBase:
         solver = SteadyStateSolver(
             compose_galerkin_system(physics).steady(), tol=1e-10
         )
-        result = solver.solve_linear()
+        result = solver.solve()
 
         assert result.converged
         assert result.residual_norm < 1e-8
@@ -325,7 +325,7 @@ class TestParametrizedHelmholtzManufactured:
 
         # Solve
         solver = SteadyStateSolver(system.steady(), tol=1e-12)
-        result = solver.solve_linear()
+        result = solver.solve()
 
         # Compute error at DOF locations
         dof_coords = bkd.to_numpy(basis.dof_coordinates())

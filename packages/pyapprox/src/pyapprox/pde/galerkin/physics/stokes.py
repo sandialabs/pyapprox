@@ -737,7 +737,7 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         solver: SteadyStateSolver[Array] = SteadyStateSolver(
             linear_physics.system().steady_snapshot(time), tol=1e-12
         )
-        result = solver.solve_linear()
+        result = solver.solve()
         return result.solution
 
     def __repr__(self) -> str:

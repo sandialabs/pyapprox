@@ -175,6 +175,7 @@ class GalerkinModel(Generic[Array]):
         initial_guess: Array,
         tol: float = 1e-10,
         maxiter: int = 50,
+        rtol: float = 0.0,
     ) -> Array:
         """Solve the steady-state problem F(u) = 0 with constraints.
 
@@ -188,9 +189,13 @@ class GalerkinModel(Generic[Array]):
         initial_guess : Array
             Initial guess for solution. Shape: (nstates,)
         tol : float
-            Convergence tolerance on residual norm.
+            Absolute tolerance on the residual norm.
         maxiter : int
             Maximum Newton iterations.
+        rtol : float
+            Tolerance relative to the initial residual norm; Newton stops
+            when ``||F|| <= tol + rtol * ||F(u_0)||``. An operator declared
+            linear is solved in one step without either test.
 
         Returns
         -------
@@ -205,7 +210,7 @@ class GalerkinModel(Generic[Array]):
             If Newton iteration fails to converge.
         """
         solver = SteadyStateSolver(
-            self._system.steady(), tol=tol, max_iter=maxiter
+            self._system.steady(), tol=tol, max_iter=maxiter, rtol=rtol
         )
         result = solver.solve(initial_guess)
         if not result.converged:

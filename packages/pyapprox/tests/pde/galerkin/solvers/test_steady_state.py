@@ -45,7 +45,7 @@ class TestSteadyStateSolverBase:
         )
 
         solver = SteadyStateSolver(compose_galerkin_system(physics).steady(), tol=1e-12)
-        result = solver.solve_linear()
+        result = solver.solve()
 
         assert result.converged
         assert result.residual_norm < 1e-10
@@ -83,7 +83,7 @@ class TestSteadyStateSolverBase:
         assert result.iterations == 1
 
     def test_solver_result_attributes(self, numpy_bkd: NumpyBkd) -> None:
-        """Test SolverResult has expected attributes."""
+        """Test the result has the expected attributes."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -98,7 +98,7 @@ class TestSteadyStateSolverBase:
         )
 
         solver = SteadyStateSolver(compose_galerkin_system(physics).steady())
-        result = solver.solve_linear()
+        result = solver.solve()
 
         # Check all attributes exist
         assert hasattr(result, "solution")
@@ -128,7 +128,7 @@ class TestSteadyStateSolverBase:
         )
 
         solver = SteadyStateSolver(compose_galerkin_system(physics).steady(), tol=1e-10)
-        result = solver.solve_linear()
+        result = solver.solve()
 
         assert result.converged
         assert result.residual_norm < 1e-8
@@ -162,3 +162,75 @@ class TestSteadyStateSolverBase:
 
 
 # Try to import torch for dual-backend testing
+
+
+_NSTATES = 20
+
+
+def _affine_system() -> tuple[np.ndarray, np.ndarray]:
+    """A 20 x 20 SPD system scaled by 1e12: after an exact solve its
+    residual stays near 1e-3 (round-off), never below 1e-10."""
+    rng = np.random.default_rng(0)
+    A = rng.normal(size=(_NSTATES, _NSTATES))
+    return (
+        1e12 * (A @ A.T + _NSTATES * np.eye(_NSTATES)),
+        1e12 * rng.normal(size=_NSTATES),
+    )
+
+
+class _AffineSteadyOperator:
+    """``F(u) = b - K u`` from ``_affine_system``, declared linear or
+    not."""
+
+    def __init__(self, bkd: NumpyBkd, linear: bool) -> None:
+        self._bkd = bkd
+        self._linear = linear
+        K, b = _affine_system()
+        self._K = bkd.asarray(K)
+        self._b = bkd.asarray(b)
+
+    def bkd(self) -> NumpyBkd:
+        return self._bkd
+
+    def nstates(self) -> int:
+        return _NSTATES
+
+    def steady_residual(self, state: np.ndarray) -> np.ndarray:
+        return self._b - self._K @ state
+
+    def steady_jacobian(self, state: np.ndarray) -> np.ndarray:
+        return -self._K
+
+    def is_linear(self) -> bool:
+        return self._linear
+
+
+class TestSteadyStateSolverStopping:
+    def test_declared_linear_takes_one_step(self, numpy_bkd: NumpyBkd) -> None:
+        """One exact step, accepted without the absolute test; the
+        residual norm is still reported."""
+        bkd = numpy_bkd
+        result = SteadyStateSolver(_AffineSteadyOperator(bkd, True)).solve(
+            bkd.zeros((_NSTATES,))
+        )
+        assert result.converged
+        assert result.iterations == 1
+        assert result.residual_norm is not None
+        K, b = _affine_system()
+        bkd.assert_allclose(
+            result.solution, bkd.asarray(np.linalg.solve(K, b)), rtol=1e-10
+        )
+
+    def test_rtol_reaches_round_off(self, numpy_bkd: NumpyBkd) -> None:
+        """Not declared linear: Newton with only the absolute tolerance
+        cannot stop at round-off of order 1e-3; rtol can."""
+        bkd = numpy_bkd
+        operator = _AffineSteadyOperator(bkd, False)
+        guess = bkd.zeros((_NSTATES,))
+        assert not SteadyStateSolver(operator, tol=1e-10, max_iter=5).solve(
+            guess
+        ).converged
+        result = SteadyStateSolver(
+            operator, tol=1e-10, max_iter=5, rtol=1e-12
+        ).solve(guess)
+        assert result.converged

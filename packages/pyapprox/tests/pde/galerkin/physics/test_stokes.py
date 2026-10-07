@@ -467,7 +467,7 @@ class TestParametrizedSteadyStokes:
             init_guess = physics.init_guess()
             result = solver.solve(init_guess)
         else:
-            result = solver.solve_linear()
+            result = solver.solve()
 
         assert result.converged, (
             f"Test {name}: solver did not converge "

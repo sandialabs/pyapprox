@@ -263,7 +263,7 @@ class TestLinearADRBase:
         )
 
         solver = SteadyStateSolver(compose_galerkin_system(physics).steady(), tol=1e-10)
-        result = solver.solve_linear()
+        result = solver.solve()
 
         assert result.converged
         assert result.residual_norm < 1e-8
@@ -310,7 +310,7 @@ class TestLinearADRBase:
             solver = SteadyStateSolver(
                 compose_galerkin_system(physics).steady(), tol=1e-12
             )
-            result = solver.solve_linear()
+            result = solver.solve()
 
             # Compute L2 error at DOF locations
             u_num = bkd.to_numpy(result.solution)
@@ -373,7 +373,7 @@ class TestLinearADRBase:
             solver = SteadyStateSolver(
                 compose_galerkin_system(physics).steady(), tol=1e-12
             )
-            result = solver.solve_linear()
+            result = solver.solve()
 
             # Compute L2 error at DOF locations
             u_num = bkd.to_numpy(result.solution)
@@ -437,7 +437,7 @@ class TestLinearADRBase:
             solver = SteadyStateSolver(
                 compose_galerkin_system(physics).steady(), tol=1e-12
             )
-            result = solver.solve_linear()
+            result = solver.solve()
 
             # Compute L2 error at DOF locations
             u_num = bkd.to_numpy(result.solution)
@@ -576,7 +576,7 @@ class TestParametrizedADR1DConvergence:
             solver = SteadyStateSolver(
                 compose_galerkin_system(physics).steady(), tol=1e-12
             )
-            result = solver.solve_linear()
+            result = solver.solve()
 
             # Compute L2 error at DOF locations
             dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -677,7 +677,7 @@ class TestParametrizedADR2DConvergence:
             solver = SteadyStateSolver(
                 compose_galerkin_system(physics).steady(), tol=1e-12
             )
-            result = solver.solve_linear()
+            result = solver.solve()
 
             # Compute L2 error at DOF locations
             dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -949,7 +949,7 @@ class TestParametrizedADR1DExact:
 
         # Solve
         solver = SteadyStateSolver(system.steady(), tol=1e-12)
-        result = solver.solve_linear()
+        result = solver.solve()
 
         # Compute error
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -1062,7 +1062,7 @@ class TestParametrizedADR1DConservative:
         system = compose_galerkin_system(physics, bc_set.all_conditions())
 
         solver = SteadyStateSolver(system.steady(), tol=1e-12)
-        result = solver.solve_linear()
+        result = solver.solve()
 
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
         u_num = bkd.to_numpy(result.solution)
@@ -1160,7 +1160,7 @@ class TestParametrizedADR2DExact:
 
         # Solve
         solver = SteadyStateSolver(system.steady(), tol=1e-12)
-        result = solver.solve_linear()
+        result = solver.solve()
 
         # Compute error
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
@@ -1223,7 +1223,7 @@ class TestParametrizedADR2DExact:
             bkd=bkd,
         )
         system = compose_galerkin_system(physics, bc_set.all_conditions())
-        result = SteadyStateSolver(system.steady(), tol=1e-12).solve_linear()
+        result = SteadyStateSolver(system.steady(), tol=1e-12).solve()
 
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
         u_num = bkd.to_numpy(result.solution)

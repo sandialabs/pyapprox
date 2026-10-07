@@ -15,6 +15,9 @@ Field signatures:
   --- ``lambda^T (d^2 F/du^2) w`` of the raw operator (no constraint
   handling). Zero must be declared (``StateDerivatives.linear``), never
   assumed from absence.
+- ``affine``: ``True`` only when built by ``StateDerivatives.linear``,
+  the declaration that ``F`` is affine in the state. A steady solver
+  then needs one linear solve, not a Newton iteration.
 """
 
 from __future__ import annotations
@@ -51,6 +54,7 @@ class StateDerivatives(Generic[Array]):
     """
 
     state_state_hvp: Optional[StateStateHVPFn[Array]] = None
+    affine: bool = False
 
     @staticmethod
     def none() -> "StateDerivatives[Array]":
@@ -67,4 +71,6 @@ class StateDerivatives(Generic[Array]):
     @staticmethod
     def linear(bkd: Backend[Array]) -> "StateDerivatives[Array]":
         """Exact zero curvature, declared for an operator linear in u."""
-        return StateDerivatives(state_state_hvp=_ZeroStateStateHVP(bkd))
+        return StateDerivatives(
+            state_state_hvp=_ZeroStateStateHVP(bkd), affine=True
+        )

@@ -382,7 +382,7 @@ class TestGalerkinLameParameterizationFactory:
                     tol=1e-12,
                     max_iter=5,
                     line_search=False,
-                ).solve_linear()
+                ).solve()
                 u_np = bkd.to_numpy(r.solution)
                 Q = c_np @ u_np
                 results.append(Q)
@@ -397,7 +397,7 @@ class TestGalerkinLameParameterizationFactory:
                 tol=1e-12,
                 max_iter=5,
                 line_search=False,
-            ).solve_linear()
+            ).solve()
             u_sol = r.solution
 
             # Solve adjoint: J^T lambda = -c

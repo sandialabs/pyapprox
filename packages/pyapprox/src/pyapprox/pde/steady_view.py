@@ -45,6 +45,11 @@ class SteadyOperatorProtocol(Protocol, Generic[Array]):
         """``dF/du`` with identity rows at constrained DOFs."""
         ...
 
+    def is_linear(self) -> bool:
+        """Whether ``F`` is declared affine in the state (the constraint
+        rows ``u_d - g`` always are), so one linear solve is exact."""
+        ...
+
 
 @runtime_checkable
 class SteadyViewProtocol(SteadyOperatorProtocol[Array], Protocol):
@@ -178,6 +183,10 @@ class SteadyView(Generic[Array]):
         return self._constraint_set.apply_to_jacobian(
             self._spatial_operator.spatial_jacobian(state, self._time)
         )
+
+    def is_linear(self) -> bool:
+        """Whether the operator declares ``StateDerivatives.linear``."""
+        return self._spatial_operator.state_derivatives().affine
 
     def __repr__(self) -> str:
         return (

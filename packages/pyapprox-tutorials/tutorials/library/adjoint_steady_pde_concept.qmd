@@ -294,7 +294,7 @@ from scipy.sparse.linalg import spsolve
 
 # Step 1: forward solve.
 parameterization.apply(param)
-state = SteadyStateSolver(system.steady(), tol=1e-12).solve_linear().solution
+state = SteadyStateSolver(system.steady(), tol=1e-12).solve().solution
 print(f"Q = {bkd.to_numpy(state)[sensor]:.6e}")
 
 # Step 2: adjoint solve. dQ/du for a point sensor is a unit vector;

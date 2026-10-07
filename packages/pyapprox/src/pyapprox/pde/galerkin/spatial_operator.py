@@ -131,7 +131,12 @@ class ComposedSpatialOperator(Generic[Array]):
         return self._state_derivatives
 
     def _compose_state_derivatives(self) -> StateDerivatives[Array]:
-        interior_hvp = self._interior.interior_state_derivatives().state_state_hvp
+        interior = self._interior.interior_state_derivatives()
+        terms = [term.state_derivatives() for term in self._natural_bcs.terms()]
+        # A sum of affine parts is affine.
+        if interior.affine and all(term.affine for term in terms):
+            return StateDerivatives.linear(self._interior.bkd())
+        interior_hvp = interior.state_state_hvp
         term_hvps: List[StateStateHVPFn[Array]] = []
         for term in self._natural_bcs.terms():
             term_hvp = term.state_derivatives().state_state_hvp

@@ -158,7 +158,7 @@ class TestLinearElasticityAdjoint:
             max_iter=5,
             line_search=False,
         )
-        result = solver.solve_linear()
+        result = solver.solve()
         assert result.converged
         u = result.solution
         nstates = physics.nstates()
@@ -215,7 +215,7 @@ class TestLinearElasticityAdjoint:
             max_iter=5,
             line_search=False,
         )
-        result = solver.solve_linear()
+        result = solver.solve()
         assert result.converged
 
         # Random QoI direction
@@ -234,7 +234,7 @@ class TestLinearElasticityAdjoint:
                     tol=1e-12,
                     max_iter=5,
                     line_search=False,
-                ).solve_linear()
+                ).solve()
                 u_np = bkd.to_numpy(r.solution)
                 Q = c_np @ u_np
                 results.append(Q)
@@ -249,7 +249,7 @@ class TestLinearElasticityAdjoint:
                 tol=1e-12,
                 max_iter=5,
                 line_search=False,
-            ).solve_linear()
+            ).solve()
             u_sol = r.solution
 
             # Solve adjoint: J^T lambda = -c

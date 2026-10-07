@@ -1114,17 +1114,17 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     def interior_state_derivatives(self) -> StateDerivatives[Array]:
         """Return the interior curvature, decided once.
 
-        Only the reaction is nonlinear in u. A nonlinear reaction
+        Only the reaction is nonlinear in u. Without one, or with a
+        linear one, the interior is affine and declared so (a steady
+        solve is then one exact Newton step). A nonlinear reaction
         without an analytic second derivative has no curvature to
         supply, so the bundle says so here rather than ``state_state_hvp``
         raising mid-solve.
         """
         reaction = self._reaction_function
-        if (
-            reaction is not None
-            and not reaction.is_linear()
-            and reaction.second_derivative_function() is None
-        ):
+        if reaction is None or reaction.is_linear():
+            return StateDerivatives.linear(self._bkd)
+        if reaction.second_derivative_function() is None:
             return StateDerivatives.none()
         return StateDerivatives.second_order(self.state_state_hvp)
 

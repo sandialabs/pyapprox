@@ -169,7 +169,7 @@ def solve_adr(nx, degree, sol_str):
         forcing=adapter.forcing_for_galerkin(), bkd=bkd,
     )
     system = compose_galerkin_system(physics, bc_set.all_conditions())
-    result = SteadyStateSolver(system.steady(), tol=1e-13).solve_linear()
+    result = SteadyStateSolver(system.steady(), tol=1e-13).solve()
     return l2_error(basis, bkd.to_numpy(result.solution),
                     adapter.solution_function())
 ```
@@ -389,7 +389,8 @@ for degree in (1, 2):
 
 Both tiers pass for a nonlinear equation with no change to the protocol. The
 only thing that differed was constructing a different physics object and
-calling `solve` with an initial guess instead of `solve_linear`.
+passing `solve` an initial guess: for the linear equation one exact Newton
+step from zero suffices, while the nonlinear one iterates.
 
 
 ## Verifying Your Own Physics
