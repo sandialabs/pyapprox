@@ -238,8 +238,8 @@ class GroupACVToleranceAllocator(Generic[Array]):
 
     def allocate_for_tolerance(
         self,
-        requirement: ToleranceConstraintProtocol[Array],
-        min_nhf_samples: int = 1,
+        constraint: ToleranceConstraintProtocol[Array],
+        *,
         init_guess: Optional[Array] = None,
         round_nsamples: bool = True,
         max_cost: Optional[float] = None,
@@ -254,13 +254,16 @@ class GroupACVToleranceAllocator(Generic[Array]):
         scalar criterion could let one statistic exceed it inside an
         acceptable aggregate.
 
+        The high-fidelity model gets at least the statistic's
+        ``min_nsamples()``: the fewest samples it can be estimated from,
+        two for a variance. The Monte Carlo and control variate
+        allocators take their floor from the statistic alike.
+
         Parameters
         ----------
-        requirement : ToleranceConstraintProtocol
+        constraint : ToleranceConstraintProtocol
             The accuracy requirement, carrying its own tolerance and
             units.
-        min_nhf_samples : int, optional
-            Minimum high-fidelity samples. Default is 1.
         init_guess : Array, optional
             Initial guess, shape (npartitions, 1). Defaults to a
             feasible uniform allocation found by scaling.
@@ -279,37 +282,37 @@ class GroupACVToleranceAllocator(Generic[Array]):
         Raises
         ------
         TypeError
-            If ``requirement`` does not satisfy the protocol.
+            If ``constraint`` does not satisfy the protocol.
         ValueError
             If no allocation attains the requirement.
         """
-        if not isinstance(requirement, ToleranceConstraintProtocol):
+        if not isinstance(constraint, ToleranceConstraintProtocol):
             raise TypeError(
-                "requirement must satisfy ToleranceConstraintProtocol, got "
-                f"{type(requirement).__name__}"
+                "constraint must satisfy ToleranceConstraintProtocol, got "
+                f"{type(constraint).__name__}"
             )
         bkd = self._bkd
-        min_nhf = max(self._est._stat.min_nsamples(), min_nhf_samples)
-        constraint = GroupACVRequirementConstraint(requirement)
-        constraint.set_estimator(self._est)
-        constraint.set_min_nhf_samples(min_nhf)
+        min_nhf = self._est._stat.min_nsamples()
+        row_constraint = GroupACVRequirementConstraint(constraint)
+        row_constraint.set_estimator(self._est)
+        row_constraint.set_min_nhf_samples(min_nhf)
 
         def excess(npartition_samples_1d: Array) -> float:
-            rows = requirement.rows(
-                constraint.covariance(npartition_samples_1d)
+            rows = constraint.rows(
+                row_constraint.covariance(npartition_samples_1d)
             )
             return bkd.to_float(bkd.max(rows))
 
         def report(npartition_samples_1d: Array) -> Array:
-            return requirement.value(
-                constraint.covariance(npartition_samples_1d)
+            return constraint.value(
+                row_constraint.covariance(npartition_samples_1d)
             )
 
         return self._solve(
-            constraint,
+            row_constraint,
             excess,
             report,
-            requirement.description(),
+            constraint.description(),
             min_nhf,
             init_guess,
             round_nsamples,

@@ -231,6 +231,7 @@ class _PartitionAllocator(Protocol[Array]):
     def allocate_for_tolerance(
         self,
         constraint: "ToleranceConstraintProtocol[Array]",
+        *,
         round_nsamples: bool = ...,
     ) -> "_PartitionResult[Array]":
         ...

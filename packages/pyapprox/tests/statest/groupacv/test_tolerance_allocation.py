@@ -31,7 +31,7 @@ from pyapprox.statest.groupacv.tolerance_allocation import (
 from pyapprox.statest.groupacv.variable_space import AllocationProblemConfig
 from pyapprox.statest.groupacv.variants import GroupACVEstimatorNested
 from pyapprox.statest.known import KnownMean
-from pyapprox.statest.statistics import MultiOutputMean
+from pyapprox.statest.statistics import MultiOutputMean, MultiOutputVariance
 from pyapprox.statest.tolerance import (
     CVToleranceAllocator,
     LogDeterminantConstraint,
@@ -730,6 +730,30 @@ class TestAllocateForRequirement:
         )
         assert bkd.all_bool(req.rows(covariance) <= 0.0)
         bkd.assert_allclose(result.constraint_value, req.value(covariance))
+
+    def test_the_statistic_sets_the_high_fidelity_floor(self, bkd) -> None:
+        """A variance needs two samples however loose the requirement:
+        its estimator divides by ``n - 1``."""
+        np.random.seed(1)
+        pilot = np.random.normal(0, 1, (1, 200))
+        values = [bkd.asarray(pilot), bkd.asarray(pilot + 0.1 * pilot**2)]
+        stat = MultiOutputVariance(1, bkd)
+        stat.set_pilot_quantities(*stat.compute_pilot_quantities(values))
+        est = GroupACVEstimatorIS(stat, bkd.asarray([1.0, 0.1]))
+        result = GroupACVToleranceAllocator(est).allocate_for_tolerance(
+            MaxMarginalStandardErrorConstraint(1e6, bkd)
+        )
+        assert result.success
+        assert int(result.nsamples_per_model[0]) >= stat.min_nsamples() == 2
+
+    def test_options_are_keyword_only(self, numpy_bkd) -> None:
+        """Three options of different types, all defaulted: a positional
+        call would be unreadable, and is refused."""
+        alloc = GroupACVToleranceAllocator(_make_estimator(numpy_bkd))
+        with pytest.raises(TypeError, match="positional"):
+            alloc.allocate_for_tolerance(
+                MaxMarginalStandardErrorConstraint(1.0, numpy_bkd), None
+            )
 
     def test_every_statistic_is_bounded_not_their_total(self, bkd) -> None:
         """A trace bound of ``k eps^2`` lets the largest statistic exceed
