@@ -746,6 +746,61 @@ class TestAllocateForRequirement:
         assert result.success
         assert int(result.nsamples_per_model[0]) >= stat.min_nsamples() == 2
 
+    def test_a_useless_model_gets_no_samples(self, bkd) -> None:
+        """A model uncorrelated with the expensive one buys nothing, so
+        the allocation with it costs what the allocation without it does.
+        Rounding the solver's idle partitions up to one sample each would
+        bill it for partitions the solution does not use."""
+        np.random.seed(1)
+        x = np.random.normal(0.0, 1.0, (2, 50))
+        model = (x**2).sum(axis=0)[None, :]
+        useful = model + 0.3 * np.random.normal(0.0, 1.0, model.shape)
+        # Uncorrelated with the model: every cross moment is odd in x.
+        useless = x.sum(axis=0)[None, :]
+        known = [
+            KnownMean(1, bkd.asarray([2.0])),
+            KnownMean(2, bkd.asarray([0.0])),
+        ]
+        requirement = MaxMarginalStandardErrorConstraint(0.1, bkd)
+
+        def allocate(values, costs):
+            stat = MultiOutputMean(1, bkd)
+            stat.set_pilot_quantities(
+                *stat.compute_pilot_quantities([bkd.asarray(v) for v in values])
+            )
+            est = GroupACVEstimatorIS(
+                stat,
+                bkd.asarray(costs),
+                known_quantities=known[: len(values) - 1],
+            )
+            return GroupACVToleranceAllocator(est).allocate_for_tolerance(
+                requirement
+            )
+
+        with_it = allocate([model, useful, useless], [1.0, 0.01, 0.01])
+        without = allocate([model, useful], [1.0, 0.01])
+        assert with_it.success and without.success
+        assert int(with_it.nsamples_per_model[2]) == 0
+        bkd.assert_allclose(
+            bkd.asarray([with_it.total_cost]),
+            bkd.asarray([without.total_cost]),
+            rtol=1e-12,
+        )
+
+    def test_a_loose_requirement_buys_only_the_floor(self, bkd) -> None:
+        """Met with one sample in every partition, it is met with the one
+        high-fidelity sample the statistic needs and nothing else."""
+        est = _make_estimator(bkd)
+        result = GroupACVToleranceAllocator(est).allocate_for_tolerance(
+            MaxMarginalStandardErrorConstraint(1e6, bkd)
+        )
+        assert result.success
+        assert int(result.nsamples_per_model[0]) == 1
+        bkd.assert_allclose(
+            bkd.asarray([result.total_cost]),
+            bkd.asarray([bkd.to_float(est._costs[0])]),
+        )
+
     def test_options_are_keyword_only(self, numpy_bkd) -> None:
         """Three options of different types, all defaulted: a positional
         call would be unreadable, and is refused."""

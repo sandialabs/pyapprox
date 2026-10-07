@@ -198,6 +198,53 @@ class GroupACVToleranceAllocator(Generic[Array]):
             npartition_samples, bkd.full(relaxed.shape, float(bounds_lb))
         )
 
+    def _drop_idle_partitions(
+        self,
+        allocation: Array,
+        relaxed: Array,
+        excess: Callable[[Array], float],
+        min_nhf_samples: int,
+    ) -> Array:
+        """Zero the partitions the solver left idle, where that stays feasible.
+
+        Sample counts are solved in log space, so a partition cannot reach
+        zero: one that does not help is driven to its lower bound instead,
+        and rounding up turns that fraction of a sample into a whole one
+        -- billing a partition the solution does not use. A partition
+        within one sample of its lower bound is a candidate. Candidates
+        are tried most expensive first, and each is dropped only if the
+        requirement and the high-fidelity floor still hold without it, so
+        the result is feasible and never costs more than ``allocation``.
+        """
+        bkd = self._bkd
+        npartitions = int(allocation.shape[0])
+        bounds_lb = self._config.resolve_bounds_lb(self._est._stat)
+
+        def without(current: Array, partition: int) -> Array:
+            mask = bkd.asarray(
+                [0.0 if jj == partition else 1.0 for jj in range(npartitions)]
+            )
+            return current * mask
+
+        def saving(partition: int) -> float:
+            return bkd.to_float(
+                self._est._estimator_cost(allocation)
+                - self._est._estimator_cost(without(allocation, partition))
+            )
+
+        candidates = [
+            partition
+            for partition in range(npartitions)
+            if bkd.to_float(relaxed[partition]) - bounds_lb < 1.0
+            and bkd.to_float(allocation[partition]) > 0.0
+        ]
+        for partition in sorted(candidates, key=saving, reverse=True):
+            trial = without(allocation, partition)
+            nhf = self._est._compute_nsamples_per_model(trial)[0]
+            if bkd.to_float(nhf) >= min_nhf_samples and excess(trial) <= 0.0:
+                allocation = trial
+        return allocation
+
     def _build_result(
         self,
         npartition_samples: Array,
@@ -352,6 +399,11 @@ class GroupACVToleranceAllocator(Generic[Array]):
             max(float(min_nhf), self._config.resolve_bounds_lb(self._est._stat))
         )
         if excess(floor_allocation) <= 0.0:
+            # Every partition at the floor suffices, but not every
+            # partition is needed to.
+            floor_allocation = self._drop_idle_partitions(
+                floor_allocation, floor_allocation, excess, min_nhf
+            )
             return self._build_result(
                 floor_allocation,
                 floor_allocation,
@@ -423,4 +475,5 @@ class GroupACVToleranceAllocator(Generic[Array]):
                 True,
                 report,
             )
+        rounded = self._drop_idle_partitions(rounded, relaxed, excess, min_nhf)
         return self._build_result(rounded, relaxed, True, "", True, report)
