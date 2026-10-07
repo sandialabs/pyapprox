@@ -75,8 +75,8 @@ class BudgetSolverProtocol(Protocol[Array]):
     Narrower than an allocator: it reports only a cost and the
     allocation that achieved it. The shipped allocators disagree on
     their return type -- the Monte Carlo and control variate ones report
-    cost through a method, the group one through an attribute, and they
-    signal failure differently. Rather than force one shape on them,
+    cost through a method, the group one through an attribute, and
+    their allocations differ in shape. Rather than force one on them,
     which would change a public return type as a side effect of adding
     bootstrapping, each family adapts to this protocol through a small
     wrapper below.
@@ -150,9 +150,9 @@ class PartitionBudgetSolver(Generic[Array]):
     Selected by the *convention* the allocator follows rather than by
     which family it belongs to: cost reported through the attribute
     ``total_cost``, an allocation of one sample count per partition, and
-    failure reported through a ``success`` flag rather than by raising,
-    which is converted here into the exception the loop counts. The
-    group allocator follows it today; an approximate control variate
+    an unreachable requirement or a failed solve signalled by raising,
+    which the loop already counts as a failed replicate. The group
+    allocator follows it today; an approximate control variate
     allocator adopting the same convention would be served by this
     class unchanged, there being no tolerance-driven one at present.
     """
@@ -179,8 +179,6 @@ class PartitionBudgetSolver(Generic[Array]):
         result = self._allocator_factory(statistic).allocate_for_tolerance(
             self._constraint, round_nsamples=self._round_nsamples
         )
-        if not result.success:
-            raise RuntimeError(result.message)
         return float(result.total_cost), result.npartition_samples
 
 
@@ -217,12 +215,6 @@ class _PartitionResult(Protocol[Array_co]):
 
     @property
     def npartition_samples(self) -> Array_co: ...
-
-    @property
-    def success(self) -> bool: ...
-
-    @property
-    def message(self) -> str: ...
 
 
 class _PartitionAllocator(Protocol[Array]):

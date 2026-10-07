@@ -89,9 +89,17 @@ class GroupACVToleranceResult(Generic[Array]):
         Achieved value of the accuracy requirement. Shape (1,). At or
         below the requested tolerance whenever ``success`` is True.
     success : bool
-        Whether allocation succeeded.
+        Whether allocation succeeded: the optimizer converged to an
+        allocation meeting the requirement. When False, the allocation
+        still meets it -- it is the best feasible one available -- but
+        is not shown to be the cheapest.
     message : str
-        Status message.
+        Status message, including the optimizer's own reason on failure.
+    final_iterate : Array or None
+        Where the optimizer stopped, in sample counts, shape
+        (npartitions,), whether or not it succeeded; None when no solve
+        ran. Restarting from it (``init_guess=final_iterate[:, None]``)
+        shows whether more steps would finish a failed solve.
     """
 
     npartition_samples: Array
@@ -101,3 +109,4 @@ class GroupACVToleranceResult(Generic[Array]):
     success: bool
     message: str = ""
     relaxed_npartition_samples: Optional[Array] = None
+    final_iterate: Optional[Array] = None

@@ -18,7 +18,7 @@ allocators take (:class:`~pyapprox.statest.tolerance.ToleranceConstraintProtocol
 so every estimator family is priced on one tolerance.
 """
 
-from typing import TYPE_CHECKING, Callable, Generic, Optional
+from typing import TYPE_CHECKING, Callable, Generic, Optional, Tuple
 
 from pyapprox.statest.groupacv._allocation_common import (
     raw_bounds,
@@ -253,10 +253,12 @@ class GroupACVToleranceAllocator(Generic[Array]):
         message: str,
         round_nsamples: bool,
         report: Callable[[Array], Array],
+        final_iterate: Optional[Array] = None,
     ) -> GroupACVToleranceResult[Array]:
         """Assemble a result from a final allocation.
 
-        ``report`` gives the requirement's achieved value, shape ``(1,)``.
+        ``report`` gives the requirement's achieved value, shape ``(1,)``;
+        ``final_iterate`` is where the optimizer stopped, if it ran.
         """
         bkd = self._bkd
         nsamples_per_model = self._est._compute_nsamples_per_model(
@@ -281,6 +283,102 @@ class GroupACVToleranceAllocator(Generic[Array]):
             success=success,
             message=message,
             relaxed_npartition_samples=relaxed,
+            final_iterate=final_iterate,
+        )
+
+    def _best_feasible(
+        self,
+        reference: Array,
+        final_iterate: Optional[Array],
+        excess: Callable[[Array], float],
+        min_nhf_samples: int,
+        round_nsamples: bool,
+    ) -> Tuple[Array, Array]:
+        """The cheapest allocation known to meet the requirement.
+
+        A failed solve can still stop at a point that, rounded up, meets
+        the requirement -- a solver out of iterations is often most of the
+        way there -- and that is a better allocation than the reference.
+        It is used only if it meets the requirement and the high-fidelity
+        floor and costs less; otherwise the reference, which meets the
+        requirement by construction. Returns the allocation and the
+        continuous one it came from.
+        """
+        if final_iterate is None:
+            return reference, reference
+        candidate = final_iterate
+        if round_nsamples:
+            candidate = self._round_up_to_tolerance(final_iterate, min_nhf_samples)
+        nhf = self._bkd.to_float(
+            self._est._compute_nsamples_per_model(candidate)[0]
+        )
+        # Written so that a NaN excess, from a solver that wandered off,
+        # rejects the candidate rather than accepting it.
+        if nhf < min_nhf_samples or not excess(candidate) <= 0.0:
+            return reference, reference
+        if round_nsamples:
+            candidate = self._drop_idle_partitions(
+                candidate, final_iterate, excess, min_nhf_samples
+            )
+        if self._cost(candidate) < self._cost(reference):
+            return candidate, final_iterate
+        return reference, reference
+
+    def _cost(self, allocation: Array) -> float:
+        return self._bkd.to_float(self._est._estimator_cost(allocation))
+
+    def _fail(
+        self,
+        reference: Array,
+        start: Array,
+        final_iterate: Optional[Array],
+        message: str,
+        round_nsamples: bool,
+        report: Callable[[Array], Array],
+        excess: Callable[[Array], float],
+        min_nhf_samples: int,
+        allow_failures: bool,
+    ) -> GroupACVToleranceResult[Array]:
+        """Report a failed solve: return it if allowed, otherwise raise.
+
+        The returned allocation is the best feasible one available, so
+        its cost is a real number and nothing in the result looks wrong
+        but the flag; where the optimizer stopped is kept beside it as
+        ``final_iterate``. The error states the costs side by side, so
+        how far the fallback is from an answer is read off the message,
+        not inferred later.
+        """
+        allocation, relaxed = self._best_feasible(
+            reference, final_iterate, excess, min_nhf_samples, round_nsamples
+        )
+        result = self._build_result(
+            allocation,
+            relaxed,
+            False,
+            message,
+            round_nsamples,
+            report,
+            final_iterate,
+        )
+        if allow_failures:
+            return result
+        detail = (
+            f"{message}. The best feasible allocation found costs "
+            f"{result.total_cost:.6g}; the feasible reference costs "
+            f"{self._cost(reference):.6g}"
+        )
+        if final_iterate is not None:
+            detail += (
+                "; the optimizer stopped at an allocation costing "
+                f"{self._cost(final_iterate):.6g}"
+            )
+            # Whether it stepped at all, for any optimizer: a solve that
+            # broke down on its first step stops where it started.
+            if self._bkd.allclose(final_iterate, start, rtol=1e-8, atol=0.0):
+                detail += ", which is where it started: it took no step"
+        raise RuntimeError(
+            f"{detail}. Pass allow_failures=True to receive the best "
+            "feasible allocation and the final iterate."
         )
 
     def allocate_for_tolerance(
@@ -290,6 +388,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
         init_guess: Optional[Array] = None,
         round_nsamples: bool = True,
         max_cost: Optional[float] = None,
+        allow_failures: bool = False,
     ) -> GroupACVToleranceResult[Array]:
         """Find the cheapest allocation meeting an accuracy requirement.
 
@@ -319,6 +418,16 @@ class GroupACVToleranceAllocator(Generic[Array]):
         max_cost : float, optional
             Cost ceiling for the search. Supplying it skips the search
             for a feasible reference allocation.
+        allow_failures : bool, optional
+            Return a failed solve instead of raising: the result then has
+            ``success=False``, holds the cheapest allocation known to meet
+            the requirement -- the optimizer's final iterate rounded up if
+            that meets it and costs less, otherwise the feasible
+            reference -- and keeps the final iterate itself as
+            ``final_iterate``, to restart from. Default is False, because
+            that allocation meets the requirement and has a real cost: a
+            caller reading the cost without checking ``success`` would
+            take a possibly much dearer allocation for the answer.
 
         Returns
         -------
@@ -332,6 +441,15 @@ class GroupACVToleranceAllocator(Generic[Array]):
             If ``constraint`` does not satisfy the protocol.
         ValueError
             If no allocation attains the requirement.
+        RuntimeError
+            If the optimizer fails, stops at an allocation missing the
+            requirement, or stops short of it by more than rounding up
+            repairs, unless ``allow_failures``. The message carries the
+            solver's reason (for SciPy solvers, with its status code and
+            iteration count), whether the optimizer moved from its
+            starting allocation, and the costs of the best feasible
+            allocation found, of the feasible reference, and of the final
+            iterate.
         """
         if not isinstance(constraint, ToleranceConstraintProtocol):
             raise TypeError(
@@ -364,6 +482,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
             init_guess,
             round_nsamples,
             max_cost,
+            allow_failures,
         )
 
     def _solve(
@@ -376,6 +495,7 @@ class GroupACVToleranceAllocator(Generic[Array]):
         init_guess: Optional[Array],
         round_nsamples: bool,
         max_cost: Optional[float],
+        allow_failures: bool,
     ) -> GroupACVToleranceResult[Array]:
         """Bracket, solve, and check the answer against the requirement.
 
@@ -429,13 +549,16 @@ class GroupACVToleranceAllocator(Generic[Array]):
             # Unlike the budget-driven path, the fallback allocation is
             # known to meet the tolerance, so its criterion is a real
             # number rather than an infinity.
-            return self._build_result(
+            return self._fail(
                 reference,
-                reference,
-                False,
+                init_guess[:, 0],
+                solution.last_iterate(),
                 solution.message(),
                 round_nsamples,
                 report,
+                excess,
+                min_nhf,
+                allow_failures,
             )
 
         relaxed = solution.npartition_samples()
@@ -450,30 +573,40 @@ class GroupACVToleranceAllocator(Generic[Array]):
         # that, an exact test rejects good solutions over a difference
         # of order 1e-13. Genuine breakdowns miss by many orders more.
         if excess(relaxed) > _FEASIBILITY_RTOL:
-            return self._build_result(
+            return self._fail(
                 reference,
-                reference,
-                False,
+                init_guess[:, 0],
+                relaxed,
                 "optimizer stopped at an allocation that misses the "
                 "tolerance",
                 round_nsamples,
                 report,
+                excess,
+                min_nhf,
+                allow_failures,
             )
         if not round_nsamples:
-            return self._build_result(relaxed, relaxed, True, "", False, report)
+            return self._build_result(
+                relaxed, relaxed, True, "", False, report, relaxed
+            )
 
         rounded = self._round_up_to_tolerance(relaxed, min_nhf)
         if excess(rounded) > 0.0:
-            return self._build_result(
-                rounded,
+            return self._fail(
+                reference,
+                init_guess[:, 0],
                 relaxed,
-                False,
                 "tolerance not met after rounding up to integer sample "
                 "counts: the relaxed solution missed it by more than a "
                 "fractional sample, so the optimizer stopped short of "
                 "the accuracy constraint",
                 True,
                 report,
+                excess,
+                min_nhf,
+                allow_failures,
             )
         rounded = self._drop_idle_partitions(rounded, relaxed, excess, min_nhf)
-        return self._build_result(rounded, relaxed, True, "", True, report)
+        return self._build_result(
+            rounded, relaxed, True, "", True, report, relaxed
+        )

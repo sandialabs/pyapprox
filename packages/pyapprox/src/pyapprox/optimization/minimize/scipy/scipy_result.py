@@ -100,12 +100,26 @@ class ScipyOptimizerResultWrapper(Generic[Array]):
         """
         Get the termination message from the optimizer.
 
+        SciPy's status code and iteration count are appended where it
+        reports them. The text names the failure mode, but not whether
+        the solver took any step: zero iterations means the first step
+        broke down (often a bad derivative), many means it ran and
+        stalled, and those want opposite fixes.
+
         Returns
         -------
         str
             Message describing why the optimizer terminated.
         """
-        return getattr(self._scipy_result, "message", "No message available")
+        text = str(self._scipy_result.get("message", "No message available"))
+        details = [
+            f"{key} {self._scipy_result[key]}"
+            for key in ("status", "nit")
+            if key in self._scipy_result
+        ]
+        if not details:
+            return text
+        return f"{text} ({', '.join(details)})"
 
     def __repr__(self) -> str:
         """

@@ -396,6 +396,84 @@ class _InfeasibleOptimizer:
         return self._bkd
 
 
+class _FailedResult:
+    """Optimizer result reporting failure where it started."""
+
+    def __init__(self, optima):
+        self._optima = optima
+
+    def success(self) -> bool:
+        return False
+
+    def optima(self):
+        return self._optima
+
+    def message(self) -> str:
+        return "Positive directional derivative for linesearch"
+
+
+class _FailingOptimizer(_InfeasibleOptimizer):
+    """Fails without taking a step, as a solver given a bad gradient does."""
+
+    def minimize(self, init_guess):
+        return _FailedResult(init_guess)
+
+
+class TestFailureRaisesByDefault:
+    """A failed solve raises: its fallback looks like an answer.
+
+    The fallback is the feasible reference, so it meets the requirement
+    and has a real cost; returned with only a flag to say otherwise, a
+    caller reading the cost gets a needlessly expensive allocation.
+    """
+
+    def test_the_error_carries_the_solvers_reason_and_both_costs(
+        self, bkd
+    ) -> None:
+        alloc = GroupACVToleranceAllocator(
+            _make_estimator(bkd), optimizer=_FailingOptimizer(bkd)
+        )
+        with pytest.raises(RuntimeError) as raised:
+            alloc.allocate_for_tolerance(LogDeterminantConstraint(-2.0, bkd))
+        message = str(raised.value)
+        assert "Positive directional derivative" in message
+        assert "best feasible allocation found costs" in message
+        assert "feasible reference costs" in message
+        assert "it took no step" in message
+        assert "allow_failures=True" in message
+
+    def test_a_failed_solve_can_be_restarted_from_its_final_iterate(
+        self, bkd
+    ) -> None:
+        """Whether more steps would finish the job: cut a solve short,
+        restart from where it stopped, and it completes at the cost an
+        uninterrupted solve reaches."""
+        from pyapprox.optimization.minimize.scipy.trust_constr import (
+            ScipyTrustConstrOptimizer,
+        )
+
+        requirement = MaxMarginalStandardErrorConstraint(0.05, bkd)
+        cut_short = GroupACVToleranceAllocator(
+            _make_estimator(bkd),
+            optimizer=ScipyTrustConstrOptimizer(maxiter=3),
+        ).allocate_for_tolerance(requirement, allow_failures=True)
+        assert not cut_short.success
+        assert "nit 3" in cut_short.message
+        assert cut_short.final_iterate is not None
+
+        allocator = GroupACVToleranceAllocator(_make_estimator(bkd))
+        restarted = allocator.allocate_for_tolerance(
+            requirement, init_guess=cut_short.final_iterate[:, None]
+        )
+        fresh = allocator.allocate_for_tolerance(requirement)
+        assert restarted.success
+        bkd.assert_allclose(
+            bkd.asarray([restarted.total_cost]),
+            bkd.asarray([fresh.total_cost]),
+            rtol=1e-6,
+        )
+
+
 class TestFeasibilityIsVerifiedNotAssumed:
     """A reported success must meet the tolerance, whatever the solver says.
 
@@ -421,13 +499,36 @@ class TestFeasibilityIsVerifiedNotAssumed:
         alloc = GroupACVToleranceAllocator(
             est, optimizer=_InfeasibleOptimizer(torch_bkd)
         )
-        tolerance = -2.0
+        with pytest.raises(RuntimeError, match="misses the tolerance"):
+            alloc.allocate_for_tolerance(
+                LogDeterminantConstraint(-2.0, torch_bkd),
+                round_nsamples=False,
+            )
+
+    def test_allow_failures_returns_the_fallback(self, torch_bkd) -> None:
+        """The opt-out: the failure is returned, flagged, holding the
+        feasible fallback, with the optimizer's own allocation recorded
+        beside it rather than a copy of the fallback."""
+        est = _make_estimator(torch_bkd)
+        alloc = GroupACVToleranceAllocator(
+            est, optimizer=_InfeasibleOptimizer(torch_bkd)
+        )
+        requirement = LogDeterminantConstraint(-2.0, torch_bkd)
         result = alloc.allocate_for_tolerance(
-            LogDeterminantConstraint(tolerance, torch_bkd),
-            round_nsamples=False,
+            requirement, round_nsamples=False, allow_failures=True
         )
         assert not result.success
         assert "misses the tolerance" in result.message
+        # The returned allocation meets the requirement ...
+        assert float(result.constraint_value[0]) <= -2.0
+        # ... and where the optimizer stopped is kept beside it, missing
+        # the requirement, to debug or restart from.
+        stopped = result.final_iterate
+        assert stopped is not None
+        missed = requirement.value(
+            est._covariance_from_npartition_samples(stopped)
+        )
+        assert float(missed[0]) > -2.0
 
     def test_converged_boundary_solutions_are_accepted(
         self, torch_bkd

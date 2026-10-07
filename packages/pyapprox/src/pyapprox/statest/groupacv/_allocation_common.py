@@ -63,15 +63,21 @@ class VariableSpaceSolution(Generic[Array]):
     differently -- they build different result types from different
     fallback allocations -- so this reports the outcome and leaves that
     to the caller.
+
+    ``last_iterate`` is where the optimizer stopped, kept whether or not
+    it succeeded: a failed solve's last point is what a caller restarts
+    from to see whether more steps would finish the job.
     """
 
     def __init__(
         self,
         npartition_samples: Optional[Array],
         message: str,
+        last_iterate: Optional[Array] = None,
     ) -> None:
         self._npartition_samples = npartition_samples
         self._message = message
+        self._last_iterate = last_iterate
 
     def succeeded(self) -> bool:
         """Whether the solve produced a usable allocation."""
@@ -88,6 +94,10 @@ class VariableSpaceSolution(Generic[Array]):
     def message(self) -> str:
         """Failure reason, empty when the solve succeeded."""
         return self._message
+
+    def last_iterate(self) -> Optional[Array]:
+        """Where the optimizer stopped, in n-space; None if it gave none."""
+        return self._last_iterate
 
 
 def partition_costs(
@@ -236,14 +246,20 @@ def solve_in_variable_space(
 
     optimizer.bind(wrapped_obj, opt_bounds, [solver_con])
     result = optimizer.minimize(opt_guess)
-    if not result.success():
-        return VariableSpaceSolution(None, "Optimization failed")
-
     npartition_samples = space.transform_from_optimizer(
         result.optima()[:, 0], scale
     )
+    if not result.success():
+        # The solver's own reason, not a generic one: whether it stopped
+        # at its iteration limit or failed to take a step at all is the
+        # first thing a failure needs to say.
+        return VariableSpaceSolution(
+            None,
+            f"Optimization failed: {result.message()}",
+            npartition_samples,
+        )
     if bkd.any_bool(npartition_samples < 0):
         return VariableSpaceSolution(
-            None, "Negative sample counts in n-space"
+            None, "Negative sample counts in n-space", npartition_samples
         )
-    return VariableSpaceSolution(npartition_samples, "")
+    return VariableSpaceSolution(npartition_samples, "", npartition_samples)
