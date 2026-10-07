@@ -356,15 +356,13 @@ class ContaminantTransportOEDProblem(Generic[Array]):
         self._vel_basis = VectorLagrangeBasis(self._mesh, degree=1)
         nnodes = self._basis.ndofs()
 
-        log_prior = BiLaplacianPrior.from_correlation_length(
+        self._log_prior = BiLaplacianPrior.from_correlation_length(
             self._basis, correlation_length, log_diffusivity_std, bkd
         )
+        self._log_mean = bkd.full((nnodes,), log_diffusivity_mean)
+        self._log_factor = self._log_prior.covariance_factor()
         diffusivity_map = TransformedFieldMap(
-            MeshKLEFieldMap(
-                bkd,
-                bkd.full((nnodes,), log_diffusivity_mean),
-                log_prior.covariance_factor(),
-            ),
+            MeshKLEFieldMap(bkd, self._log_mean, self._log_factor),
             transform=bkd.exp,
             transform_deriv=bkd.exp,
             bkd=bkd,
@@ -556,6 +554,28 @@ class ContaminantTransportOEDProblem(Generic[Array]):
     def nvars(self) -> int:
         """Total number of inputs, log-diffusivity then nuisance."""
         return self._nparams + self._velocity_model.nvars()
+
+    def log_diffusivity(self, samples: Array) -> Array:
+        r"""Nodal :math:`\kappa = \kappa_0 + W\zeta` of input samples.
+
+        Parameters
+        ----------
+        samples : Array
+            Inputs; only the leading ``nparams`` rows are read. Shape:
+            (nvars, nsamples)
+
+        Returns
+        -------
+        Array
+            Shape: (nnodes, nsamples)
+        """
+        zeta = samples[: self._nparams]
+        return self._log_mean[:, None] + self._log_factor @ zeta
+
+    def log_diffusivity_prior(self) -> BiLaplacianPrior[Array]:
+        """The bi-Laplacian prior of the log-diffusivity, whose
+        ``covariance()`` is the exact nodal prior covariance."""
+        return self._log_prior
 
     def evaluate_both(self, samples: Array) -> Tuple[Array, Array]:
         """Observations and outflux from one solve per sample.

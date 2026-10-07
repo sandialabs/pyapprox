@@ -178,6 +178,26 @@ class TestContaminantTransportOEDProblem:
         ]
         bkd.assert_allclose(states[partner, -1], states[:, -1], rtol=1e-10)
 
+    def test_log_diffusivity_matches_prior(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        bench = _coarse(bkd, UncertainVelocity(_flow(bkd)))
+        samples = bench.prior().rvs(3)
+        kappa = bench.log_diffusivity(samples)
+        assert tuple(kappa.shape) == (100, 3)
+        bkd.assert_allclose(
+            bench.log_diffusivity(bkd.zeros((bench.nvars(), 1))),
+            bkd.full((100, 1), -3.0),
+        )
+        # kappa - kappa_0 = W zeta, and W W^T is the prior covariance.
+        factor = bench.log_diffusivity(
+            bkd.vstack([bkd.eye(100), bkd.zeros((36, 100))])
+        ) + 3.0
+        bkd.assert_allclose(
+            factor @ factor.T,
+            bench.log_diffusivity_prior().covariance(),
+            rtol=1e-10,
+        )
+
     def test_truth_is_reproducible(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         bench = _coarse(bkd, FixedVelocity(_flow(bkd), bkd.zeros((36,))))
