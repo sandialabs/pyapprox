@@ -15,7 +15,7 @@ The FEM formulation uses cubic Hermite (C1) elements with DOFs
 for all test functions v in the Hermite finite element space.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, Union
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -26,19 +26,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import NaturalBCOperator
-from pyapprox.pde.galerkin.boundary.implementations import DirectDirichletBC
-from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
-from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
-from pyapprox.pde.galerkin.system import GalerkinSystem
+from pyapprox.pde.galerkin.basis.hermite import CubicHermiteBasis
 from pyapprox.util.backends.protocols import Array, Backend
 
 try:
-    from skfem import Basis, BilinearForm, LinearForm, asm
-    from skfem.element import ElementLineHermite
-    from skfem.mesh import MeshLine
-    from skfem.utils import condense
-    from skfem.utils import solve as skfem_solve
+    from skfem import BilinearForm, LinearForm, asm
 except ImportError:
     from pyapprox.util.optional_deps import import_optional_dependency
 
@@ -147,11 +139,11 @@ class EulerBernoulliBeamAnalytical(Generic[Array]):
             # w'(x) = q0/(6*EI) * x * (3*L^2 - 3*L*x + x^2)
             return (q0 / (6.0 * EI)) * x * (3.0 * L**2 - 3.0 * L * x + x**2)
         else:
-            # w'(x) = q0/(120*L*EI) * x * (40*L^3 - 30*L^2*x + 4*x^3)
+            # w'(x) = q0/(120*L*EI) * x * (40*L^3 - 30*L^2*x + 5*x^3)
             return (
                 (q0 / (120.0 * L * EI))
                 * x
-                * (40.0 * L**3 - 30.0 * L**2 * x + 4.0 * x**3)
+                * (40.0 * L**3 - 30.0 * L**2 * x + 5.0 * x**3)
             )
 
     def tip_deflection(self) -> float:
@@ -173,124 +165,93 @@ class EulerBernoulliBeamAnalytical(Generic[Array]):
             return 11.0 * q0 * L**4 / (120.0 * EI)
 
 
-class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
-    """FEM solution for Euler-Bernoulli beam using Hermite elements.
+class EulerBernoulliBeamFEM(Generic[Array]):
+    r"""Euler-Bernoulli beam interior operator on a cubic Hermite basis.
 
-    Uses cubic Hermite (C1) elements with DOFs [w, dw/dx] at each node.
-    Cantilever boundary conditions: clamped at x=0 (w=0, w'=0),
-    free at x=L (natural BCs from weak form).
+    The interior residual is :math:`F_\Omega(u) = b - K u` with
+    :math:`K_{ij} = \int EI\, \phi_i'' \phi_j''` and
+    :math:`b_i = \int q\, \phi_i`. The physics holds no boundary
+    conditions: compose it with them, e.g. a cantilever clamped at the
+    left end,
 
-    The physics interface follows the standard pattern:
-    - ``residual(state, time) = b - K*u`` with Dirichlet rows replaced
-    - ``jacobian(state, time) = -K`` with Dirichlet rows replaced
+    .. code-block:: python
+
+        system = compose_galerkin_system(
+            beam, [DirichletBC(basis, "left", 0.0, bkd)]
+        )
+
+    and solve the system (``GalerkinModel(system, bkd).solve_steady``).
+    An end with no condition is free (zero moment and shear, natural in
+    the weak form). Read results through the basis:
+    ``basis.values(u)``, ``basis.slopes(u)``, ``basis.evaluate(u, x)``.
 
     Parameters
     ----------
-    nx : int
-        Number of elements.
-    length : float
-        Beam length L.
-    EI : Union[float, np.ndarray]
-        Bending stiffness. Scalar for uniform EI, or array of length
-        ``nx`` for per-element EI.
+    basis : CubicHermiteBasis
+        The C1 basis; DOFs ``[w_0, w'_0, w_1, w'_1, ...]``.
+    EI : float or np.ndarray
+        Bending stiffness: a scalar, or one value per element.
     load_func : Callable
-        Distributed load function q(x). Takes numpy array of x-coordinates
-        and returns array of load values.
+        Distributed load :math:`q(x)`; takes a NumPy array of
+        x-coordinates and returns the loads.
     bkd : Backend[Array]
         Computational backend.
-    dirichlet_dofs : list of int, optional
-        DOF indices to clamp. Default: clamped left end (DOFs 0, 1).
-    dirichlet_values : list of float, optional
-        Values for clamped DOFs. Default: zeros.
     """
 
     def __init__(
         self,
-        nx: int,
-        length: float,
+        basis: CubicHermiteBasis[Array],
         EI: Union[float, np.ndarray],
         load_func: Callable[..., Any],
         bkd: Backend[Array],
-        dirichlet_dofs: Optional[List[int]] = None,
-        dirichlet_values: Optional[List[float]] = None,
-    ):
-        self._nx = nx
-        self._length = length
-        self._EI = EI
+    ) -> None:
+        if not isinstance(basis, CubicHermiteBasis):
+            raise TypeError(
+                "basis must be a CubicHermiteBasis (the beam needs C1 "
+                f"elements), got {type(basis).__name__}"
+            )
+        self._basis = basis
         self._load_func = load_func
         self._bkd = bkd
-
-        # Build mesh
-        nodes = np.linspace(0, length, nx + 1)
-        self._mesh = MeshLine(nodes).with_boundaries(
-            {
-                "left": lambda x: np.abs(x[0] - 0.0) < 1e-12,
-                "right": lambda x: np.abs(x[0] - length) < 1e-12,
-            }
-        )
-
-        # Build Hermite basis
-        self._element = ElementLineHermite()
-        self._skfem_basis = Basis(self._mesh, self._element)
-
-        # DOF info: 2 per node (w, dw/dx), total = 2*(nx+1)
-        self._ndofs = self._skfem_basis.N
-
-        # Dirichlet DOFs
-        if dirichlet_dofs is not None:
-            dof_indices = np.array(dirichlet_dofs, dtype=np.int64)
-            dof_values = np.array(
-                dirichlet_values
-                if dirichlet_values is not None
-                else [0.0] * len(dirichlet_dofs),
-                dtype=np.float64,
-            )
-        else:
-            # Default: clamped left end (w=0, dw/dx=0)
-            left_dof_indices = self._skfem_basis.get_dofs("left").flatten()
-            dof_indices = left_dof_indices.astype(np.int64)
-            dof_values = np.zeros(len(dof_indices), dtype=np.float64)
-
-        self._boundary_conditions = [DirectDirichletBC(dof_indices, dof_values, bkd)]
-
-        # Assembly caches
         self._stiffness: Optional[Array] = None
         self._mass: Optional[Array] = None
-        self._spatial_operator: Optional[ComposedSpatialOperator[Array]] = None
-        self._solution: Optional[Array] = None
+        self._EI: Union[float, np.ndarray] = 0.0
+        self.set_EI(EI)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
 
+    def basis(self) -> CubicHermiteBasis[Array]:
+        """Return the cubic Hermite basis."""
+        return self._basis
+
     def nstates(self) -> int:
-        """Return total number of DOFs (2 per node)."""
-        return int(self._ndofs)
-
-    def nnodes(self) -> int:
-        """Return number of mesh nodes."""
-        return self._nx + 1
-
-    def length(self) -> float:
-        return self._length
+        """Return the number of DOFs (two per node)."""
+        return self._basis.ndofs()
 
     def EI(self) -> Union[float, np.ndarray]:
         return self._EI
 
     def set_EI(self, EI: Union[float, np.ndarray]) -> None:
-        """Update bending stiffness and invalidate cached matrices/solution."""
+        """Set the bending stiffness and invalidate the stiffness cache.
+
+        Raises
+        ------
+        ValueError
+            If an array ``EI`` does not have one value per element.
+        """
+        nelements = self._basis.mesh().nelements()
+        if isinstance(EI, np.ndarray) and EI.shape != (nelements,):
+            raise ValueError(
+                f"EI must have one value per element, shape ({nelements},), "
+                f"got {EI.shape}"
+            )
         self._EI = EI
         self._stiffness = None
-        self._solution = None
 
     def set_load_func(self, load_func: Callable[..., Any]) -> None:
-        """Update load function and invalidate cached solution."""
+        """Set the distributed load :math:`q(x)`."""
         self._load_func = load_func
-        self._solution = None
-
-    def node_coordinates(self) -> np.ndarray:
-        """Return node x-coordinates. Shape: (nnodes,)"""
-        coords: NDArray[np.floating[Any]] = self._mesh.p[0]
-        return coords
 
     def stiffness_matrix(self) -> Array:
         """Return beam stiffness matrix K_ij = integral(EI * w''_i * w''_j).
@@ -306,7 +267,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         EI_val = self._EI
 
         if isinstance(EI_val, np.ndarray):
-            x_nodes = self.node_coordinates()
+            x_nodes = self._bkd.to_numpy(self._basis.mesh().nodes())[0]
             ei_array = EI_val
 
             def varying_stiffness_form(
@@ -340,31 +301,8 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
 
             beam_stiffness_form = BilinearForm(uniform_stiffness_form)
 
-        self._stiffness = asm(beam_stiffness_form, self._skfem_basis)
+        self._stiffness = asm(beam_stiffness_form, self._basis.skfem_basis())
         return self._stiffness
-
-    def system(self) -> GalerkinSystem[Array]:
-        """Return the composed system: ``F``, constraints, and mass."""
-        return GalerkinSystem(
-            self.spatial_operator(), self.constraint_set(), self
-        )
-
-    def spatial_operator(self) -> ComposedSpatialOperator[Array]:
-        """Return ``F = F_Omega + F_Gamma`` (cached).
-
-        The natural-BC terms come from the BC list; the constructor
-        accepts none yet, so the sum is the interior alone. A tip load or
-        end spring would join here, as for every other physics.
-        """
-        if self._spatial_operator is None:
-            self._spatial_operator = ComposedSpatialOperator(
-                self, NaturalBCOperator(self.weak_form_bcs())
-            )
-        return self._spatial_operator
-
-    def state_derivatives(self) -> StateDerivatives[Array]:
-        """Return the second state derivatives of the composed ``F``."""
-        return self.spatial_operator().state_derivatives()
 
     def interior_state_derivatives(self) -> StateDerivatives[Array]:
         """Exact zero curvature: the interior is linear in u."""
@@ -373,10 +311,6 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
     def interior_is_time_invariant(self) -> bool:
         """Always: the distributed load is ``q(x)``, with no time."""
         return True
-
-    def is_time_invariant(self) -> bool:
-        """Whether the composed ``F`` is declared time-independent."""
-        return self.spatial_operator().is_time_invariant()
 
     def mass_matrix(self) -> Array:
         """Return beam mass matrix M_ij = integral(w_i * w_j).
@@ -397,7 +331,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             ret: NDArray[np.floating[Any]] = u.value * v.value
             return ret
 
-        self._mass = asm(BilinearForm(mass_form), self._skfem_basis)
+        self._mass = asm(BilinearForm(mass_form), self._basis.skfem_basis())
         return self._mass
 
     def interior_load_vector(self) -> Array:
@@ -418,7 +352,7 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
             ret: NDArray[np.floating[Any]] = load_func(x) * v.value
             return ret
 
-        f = asm(LinearForm(load_form), self._skfem_basis)
+        f = asm(LinearForm(load_form), self._basis.skfem_basis())
         return self._bkd.asarray(f.astype(np.float64))
 
     def interior_residual(self, state: Array, time: float = 0.0) -> Array:
@@ -440,29 +374,6 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         b = self.interior_load_vector()
         return b - K @ state
 
-    def spatial_residual(self, state: Array, time: float = 0.0) -> Array:
-        """Compute ``F`` without Dirichlet enforcement. Shape: (ndofs,)."""
-        return self.spatial_operator().spatial_residual(state, time)
-
-    def residual(self, state: Array, time: float = 0.0) -> Array:
-        """Compute residual with Dirichlet BCs enforced.
-
-        At Dirichlet DOFs, the residual is ``state[dof] - g``.
-
-        Parameters
-        ----------
-        state : Array
-            DOF vector. Shape: (ndofs,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Residual. Shape: (ndofs,)
-        """
-        return self.system().steady_snapshot(time).steady_residual(state)
-
     def interior_jacobian(self, state: Array, time: float = 0.0) -> Array:
         """Compute ``dF_Omega/du = -K``.
 
@@ -480,145 +391,31 @@ class EulerBernoulliBeamFEM(GalerkinBCMixin[Array], Generic[Array]):
         """
         return -self.stiffness_matrix()
 
-    def spatial_jacobian(self, state: Array, time: float = 0.0) -> Array:
-        """Compute ``dF/du`` without Dirichlet enforcement."""
-        return self.spatial_operator().spatial_jacobian(state, time)
 
-    def jacobian(self, state: Array, time: float = 0.0) -> Array:
-        """Compute Jacobian with Dirichlet BCs enforced.
+def element_curvatures(
+    basis: CubicHermiteBasis[Array], coeffs: Array
+) -> NDArray[np.floating[Any]]:
+    """Element-wise absolute curvature |w''|, from the nodal slopes.
 
-        At Dirichlet DOFs, the row becomes an identity row.
+    The difference of the slopes at an element's ends over its length,
+    i.e. the element's mean curvature.
 
-        Parameters
-        ----------
-        state : Array
-            DOF vector. Shape: (ndofs,)
-        time : float
-            Current time.
+    Parameters
+    ----------
+    basis : CubicHermiteBasis
+        The beam's basis.
+    coeffs : Array
+        DOF vector. Shape: (ndofs,)
 
-        Returns
-        -------
-        Array
-            Jacobian. Shape: (ndofs, ndofs)
-        """
-        return self.system().steady_snapshot(time).steady_jacobian(state)
-
-    def interpolate_manufactured(
-        self,
-        w_func: Callable[..., Any],
-        dwdx_func: Callable[..., Any],
-    ) -> Array:
-        """Build DOF vector from manufactured solution functions.
-
-        Parameters
-        ----------
-        w_func : Callable
-            Deflection function w(x). Takes array, returns array.
-        dwdx_func : Callable
-            Slope function dw/dx(x). Takes array, returns array.
-
-        Returns
-        -------
-        Array
-            DOF vector. Shape: (ndofs,)
-        """
-        x_nodes = self.node_coordinates()
-        w_vals = w_func(x_nodes)
-        dwdx_vals = dwdx_func(x_nodes)
-
-        # Interleave: [w0, dw0/dx, w1, dw1/dx, ...]
-        dofs = np.zeros(self._ndofs)
-        dofs[0::2] = w_vals
-        dofs[1::2] = dwdx_vals
-        return self._bkd.asarray(dofs.astype(np.float64))
-
-    def solve(self) -> Array:
-        """Solve the static beam problem ``R(u) = 0``.
-
-        Solves the composed spatial operator (interior plus any
-        natural-BC terms) with this beam's essential constraints, so the
-        constrained DOFs are the ones it was built with. The beam is
-        linear, so ``F(u) = F(0) - K u``; the constrained DOFs are
-        eliminated (condensed) and set exactly. The assembly is skfem
-        (scipy sparse) on every backend, so the solve stays at that seam.
-
-        Returns
-        -------
-        Array
-            DOF solution vector [w0, dw0/dx, w1, dw1/dx, ...].
-            Shape: (ndofs,)
-        """
-        if self._solution is not None:
-            return self._solution
-
-        constraint_set = self.constraint_set()
-        zero = self._bkd.zeros((self._ndofs,))
-        stiffness = -self.spatial_jacobian(zero, 0.0)
-        load = self._bkd.to_numpy(self.spatial_residual(zero, 0.0))
-        prescribed = self._bkd.to_numpy(constraint_set.inject(zero, 0.0))
-        dofs = self._bkd.to_numpy(constraint_set.dofs()).astype(np.int64)
-        u = skfem_solve(*condense(stiffness, load, x=prescribed, D=dofs))
-        self._solution = self._bkd.asarray(np.asarray(u, dtype=np.float64))
-        return self._solution
-
-    def deflection_at_nodes(self) -> Array:
-        """Extract deflection values at mesh nodes from solution.
-
-        Returns
-        -------
-        Array
-            Deflection at each node. Shape: (nnodes,)
-        """
-        sol = self.solve()
-        sol_np = self._bkd.to_numpy(sol)
-        w_nodes = sol_np[0::2]
-        return self._bkd.asarray(w_nodes.astype(np.float64))
-
-    def slope_at_nodes(self) -> Array:
-        """Extract slope values at mesh nodes from solution.
-
-        Returns
-        -------
-        Array
-            Slope (dw/dx) at each node. Shape: (nnodes,)
-        """
-        sol = self.solve()
-        sol_np = self._bkd.to_numpy(sol)
-        dwdx_nodes = sol_np[1::2]
-        return self._bkd.asarray(dwdx_nodes.astype(np.float64))
-
-    def tip_deflection(self) -> float:
-        """Compute tip deflection w(L).
-
-        Returns
-        -------
-        float
-            Deflection at x=L.
-        """
-        sol = self.solve()
-        sol_np = self._bkd.to_numpy(sol)
-        return float(sol_np[-2])
-
-    def curvature_at_elements(self) -> np.ndarray:
-        """Element-wise absolute curvature |d^2w/dx^2|.
-
-        Approximated by finite-differencing nodal slopes dw/dx.
-
-        Returns
-        -------
-        np.ndarray
-            Absolute curvature per element, shape (nelements,).
-        """
-        slopes = self._bkd.to_numpy(self.slope_at_nodes())
-        x_nodes = self.node_coordinates()
-        return np.abs(np.diff(slopes) / np.diff(x_nodes))
-
-    def max_curvature(self) -> float:
-        """Compute max absolute curvature max|d^2w/dx^2|.
-
-        Returns
-        -------
-        float
-            Maximum absolute curvature.
-        """
-        return float(np.max(self.curvature_at_elements()))
+    Returns
+    -------
+    np.ndarray
+        Absolute curvature per element. Shape: (nelements,)
+    """
+    bkd = basis.bkd()
+    slopes = bkd.to_numpy(basis.slopes(coeffs))
+    x_nodes = bkd.to_numpy(basis.mesh().nodes())[0]
+    curvatures: NDArray[np.floating[Any]] = np.abs(
+        np.diff(slopes) / np.diff(x_nodes)
+    )
+    return curvatures

@@ -20,6 +20,7 @@ if package_available("skfem"):
     from pyapprox.pde.galerkin.physics.euler_bernoulli import (
         EulerBernoulliBeamAnalytical,
         EulerBernoulliBeamFEM,
+        element_curvatures,
     )
     from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
     from pyapprox.pde.galerkin.physics.helmholtz import Helmholtz
@@ -48,6 +49,7 @@ if package_available("skfem"):
         "CompositeLinearElasticity",
         "EulerBernoulliBeamAnalytical",
         "EulerBernoulliBeamFEM",
+        "element_curvatures",
         "LinearElasticity",
         "QuasilinearDiffusion",
         "StokesPhysics",

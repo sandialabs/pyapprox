@@ -15,7 +15,7 @@ if not package_available("skfem"):
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.basis import CubicHermiteBasis, LagrangeBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
@@ -153,25 +153,22 @@ class TestSparsePathEulerBernoulli:
     def setup_method(self) -> None:
         bkd = NumpyBkd()
         self._beam = EulerBernoulliBeamFEM(
-            nx=5,
-            length=1.0,
-            EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
+            CubicHermiteBasis(StructuredMesh1D(5, (0.0, 1.0), bkd)),
+            1.0,
+            lambda x: np.ones_like(x),
+            bkd,
         )
 
-    def test_stiffness_matrix_is_sparse(self, numpy_bkd) -> None:
-        _bkd = numpy_bkd
+    def test_stiffness_matrix_is_sparse(self, numpy_bkd: NumpyBkd) -> None:
         assert issparse(self._beam.stiffness_matrix())
 
-    def test_mass_matrix_is_sparse(self, numpy_bkd) -> None:
-        _bkd = numpy_bkd
+    def test_mass_matrix_is_sparse(self, numpy_bkd: NumpyBkd) -> None:
         assert issparse(self._beam.mass_matrix())
 
-    def test_jacobian_is_sparse(self, numpy_bkd) -> None:
+    def test_jacobian_is_sparse(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._beam.nstates()))
-        assert issparse(self._beam.jacobian(u))
+        assert issparse(self._beam.interior_jacobian(u))
 
 
 class TestSolveDispatch:

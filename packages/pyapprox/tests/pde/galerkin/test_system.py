@@ -23,9 +23,6 @@ from pyapprox.pde.galerkin.boundary import (
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.physics.euler_bernoulli import (
-    EulerBernoulliBeamFEM,
-)
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinSteadySystemProtocol,
@@ -145,10 +142,6 @@ def _zero(x: NDArray[Any]) -> NDArray[Any]:
     return np.zeros(x.shape[1])
 
 
-def _one(x: NDArray[Any]) -> NDArray[Any]:
-    return np.ones_like(x)
-
-
 class TestPhysicsSystem:
     def _check(self, physics: Any, bkd: Backend[Array]) -> None:
         system = physics.system()
@@ -185,11 +178,5 @@ class TestPhysicsSystem:
             vel_basis=VectorLagrangeBasis(mesh, degree=2),
             pres_basis=LagrangeBasis(mesh, degree=1),
             bkd=numpy_bkd,
-        )
-        self._check(physics, numpy_bkd)
-
-    def test_beam(self, numpy_bkd: Backend[Array]) -> None:
-        physics = EulerBernoulliBeamFEM(
-            nx=5, length=1.0, EI=1.0, load_func=_one, bkd=numpy_bkd
         )
         self._check(physics, numpy_bkd)

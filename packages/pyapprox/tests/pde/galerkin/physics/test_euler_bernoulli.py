@@ -16,14 +16,29 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 
+from typing import Callable, Union
+
 import numpy as np
 from scipy.sparse import issparse
 
+from pyapprox.pde.galerkin.basis import CubicHermiteBasis, LagrangeBasis
+from pyapprox.pde.galerkin.boundary.implementations import (
+    DirectDirichletBC,
+    DirichletBC,
+)
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
+from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.euler_bernoulli import (
     EulerBernoulliBeamAnalytical,
     EulerBernoulliBeamFEM,
+    element_curvatures,
 )
-from pyapprox.util.backends.protocols import Array
+from pyapprox.pde.galerkin.system import GalerkinSystem
+from pyapprox.pde.galerkin.time_integration.galerkin_model import (
+    GalerkinModel,
+)
+from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _to_dense(mat):
@@ -111,6 +126,66 @@ class TestEulerBernoulliAnalytical:
             )
 
 
+    @pytest.mark.parametrize("load_type", ["uniform", "linear"])
+    def test_slope_is_derivative_of_deflection(
+        self, numpy_bkd: NumpyBkd, load_type: str
+    ) -> None:
+        bkd = numpy_bkd
+        beam = EulerBernoulliBeamAnalytical(
+            length=2.0, EI=3.0, q0=1.5, bkd=bkd, load_type=load_type
+        )
+        x, h = np.linspace(0.1, 1.9, 7), 1e-6
+        central = (beam.deflection(x + h) - beam.deflection(x - h)) / (2 * h)
+        bkd.assert_allclose(beam.slope(x), central, rtol=1e-8, atol=1e-10)
+
+
+def _uniform(q0: float) -> Callable[[np.ndarray], np.ndarray]:
+    def load(x: np.ndarray) -> np.ndarray:
+        return q0 * np.ones_like(x)
+
+    return load
+
+
+def _beam(
+    bkd: Backend[Array],
+    nx: int,
+    length: float,
+    EI: Union[float, np.ndarray],
+    load_func: Callable[[np.ndarray], np.ndarray],
+) -> EulerBernoulliBeamFEM[Array]:
+    basis = CubicHermiteBasis(StructuredMesh1D(nx, (0.0, length), bkd))
+    return EulerBernoulliBeamFEM(basis, EI, load_func, bkd)
+
+
+def _cantilever(beam: EulerBernoulliBeamFEM[Array]) -> GalerkinSystem[Array]:
+    """Clamped at the left end, free at the right."""
+    bkd = beam.bkd()
+    return compose_galerkin_system(
+        beam, [DirichletBC(beam.basis(), "left", 0.0, bkd)]
+    )
+
+
+def _solve(system: GalerkinSystem[Array]) -> Array:
+    bkd = system.bkd()
+    return GalerkinModel(system, bkd).solve_steady(
+        bkd.zeros((system.nstates(),))
+    )
+
+
+def _tip(beam: EulerBernoulliBeamFEM[Array], coeffs: Array) -> float:
+    bkd = beam.bkd()
+    length = float(bkd.to_numpy(beam.basis().mesh().nodes())[0, -1])
+    return float(
+        bkd.to_numpy(beam.basis().evaluate(coeffs, bkd.asarray([[length]])))[
+            0
+        ]
+    )
+
+
+def _nodes(beam: EulerBernoulliBeamFEM[Array]) -> Array:
+    return beam.basis().mesh().nodes()[0]
+
+
 class TestEulerBernoulliFEM:
     """Tests for the FEM Euler-Bernoulli beam."""
 
@@ -118,471 +193,190 @@ class TestEulerBernoulliFEM:
     # Basic structure tests
     # ------------------------------------------------------------------
 
-    def test_ndofs(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
+    def test_ndofs(self, numpy_bkd: NumpyBkd) -> None:
         nx = 5
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=1.0, EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
+        beam = _beam(numpy_bkd, nx, 1.0, 1.0, _uniform(1.0))
         assert beam.nstates() == 2 * (nx + 1)
 
-    def test_stiffness_symmetric(self, numpy_bkd) -> None:
+    def test_rejects_non_hermite_basis(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        beam = EulerBernoulliBeamFEM(
-            nx=4, length=1.0, EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-        K = beam.stiffness_matrix()
-        K_np = _to_dense(K)
+        basis = LagrangeBasis(StructuredMesh1D(4, (0.0, 1.0), bkd), degree=2)
+        with pytest.raises(TypeError, match="CubicHermiteBasis"):
+            EulerBernoulliBeamFEM(basis, 1.0, _uniform(1.0), bkd)
+
+    def test_rejects_wrong_EI_shape(self, numpy_bkd: NumpyBkd) -> None:
+        with pytest.raises(ValueError, match="one value per element"):
+            _beam(numpy_bkd, 4, 1.0, np.ones(5), _uniform(1.0))
+
+    def test_stiffness_symmetric(self, numpy_bkd: NumpyBkd) -> None:
+        bkd = numpy_bkd
+        K_np = _to_dense(_beam(bkd, 4, 1.0, 1.0, _uniform(1.0)).stiffness_matrix())
         bkd.assert_allclose(
-            bkd.asarray(K_np),
-            bkd.asarray(K_np.T),
-            atol=1e-14,
+            bkd.asarray(K_np), bkd.asarray(K_np.T), atol=1e-14
         )
 
-    def test_mass_symmetric_positive(self, numpy_bkd) -> None:
+    def test_mass_symmetric_positive(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        beam = EulerBernoulliBeamFEM(
-            nx=4, length=1.0, EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-        M = beam.mass_matrix()
-        M_np = _to_dense(M)
+        M_np = _to_dense(_beam(bkd, 4, 1.0, 1.0, _uniform(1.0)).mass_matrix())
         bkd.assert_allclose(
-            bkd.asarray(M_np),
-            bkd.asarray(M_np.T),
-            atol=1e-14,
+            bkd.asarray(M_np), bkd.asarray(M_np.T), atol=1e-14
         )
-        eigs = np.linalg.eigvalsh(M_np)
-        assert np.all(eigs > -1e-14)
-
-    def test_residual_shape(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
-        nx = 4
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=1.0, EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-        ndofs = beam.nstates()
-        state = bkd.asarray(np.zeros(ndofs))
-        res = beam.residual(state)
-        assert len(bkd.to_numpy(res)) == ndofs
-
-    def test_jacobian_shape(self, numpy_bkd) -> None:
-        bkd = numpy_bkd
-        nx = 4
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=1.0, EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-        ndofs = beam.nstates()
-        state = bkd.asarray(np.zeros(ndofs))
-        jac = beam.jacobian(state)
-        jac_np = _to_dense(jac)
-        assert jac_np.shape == (ndofs, ndofs)
+        assert np.all(np.linalg.eigvalsh(M_np) > -1e-14)
 
     # ------------------------------------------------------------------
-    # Manufactured solution: cubic polynomial (exactly representable)
+    # Solutions of the composed cantilever
     # ------------------------------------------------------------------
 
-    def test_manufactured_solve_recovers_exact_dofs(self, numpy_bkd) -> None:
-        """Solve K*u = b and verify u matches analytical solution at nodes.
-
-        The uniform load cantilever has a degree-4 analytical solution
-        which is NOT in the cubic Hermite space. However, with sufficient
-        elements, Hermite FEM should recover it to high accuracy.
-        """
+    def test_residual_zero_at_solution(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        EI_val = 2.0
-        L = 1.0
-        q0 = 3.0
-        nx = 10
-
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=EI_val,
-            load_func=lambda x: q0 * np.ones_like(x),
-            bkd=bkd,
-        )
-
-        analytical = EulerBernoulliBeamAnalytical(
-            length=L, EI=EI_val, q0=q0, bkd=bkd, load_type="uniform"
-        )
-
-        x_nodes = bkd.asarray(beam.node_coordinates())
-        w_fem = beam.deflection_at_nodes()
-        w_exact = analytical.deflection(x_nodes)
-
-        bkd.assert_allclose(w_fem, w_exact, rtol=1e-10)
-
-    def test_manufactured_residual_at_solution(self, numpy_bkd) -> None:
-        """Residual at the computed FEM solution should be zero."""
-        bkd = numpy_bkd
-        EI_val = 1.5
-        L = 2.0
-        nx = 8
-
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=EI_val,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-
-        sol = beam.solve()
-        res = beam.residual(sol)
+        system = _cantilever(_beam(bkd, 8, 2.0, 1.5, _uniform(1.0)))
+        sol = _solve(system)
         bkd.assert_allclose(
-            res,
-            bkd.asarray(np.zeros(beam.nstates())),
+            system.steady().steady_residual(sol),
+            bkd.zeros((system.nstates(),)),
             atol=1e-10,
         )
 
-    def test_solve_uses_the_constrained_dofs_given(self, numpy_bkd) -> None:
-        """A simply supported beam (deflection pinned at both ends) under
-        uniform load q matches w = q x (L^3 - 2 L x^2 + x^3) / (24 EI).
+    def test_simply_supported_beam(self, numpy_bkd: NumpyBkd) -> None:
+        """Deflection pinned at both ends (value component only), uniform
+        load q: w = q x (L^3 - 2 L x^2 + x^3) / (24 EI) at the nodes.
 
-        Hermite cubics are nodally exact for beams. ``solve`` must honor
-        ``dirichlet_dofs``: clamping the left end instead gives a
-        different beam and fails this.
+        Hermite cubics are nodally exact for beams; clamping instead of
+        pinning gives a different beam and fails this.
         """
         bkd = numpy_bkd
         EI_val, L, nx, q = 1.5, 2.0, 8, 1.0
-        beam = EulerBernoulliBeamFEM(
-            nx=nx,
-            length=L,
-            EI=EI_val,
-            load_func=lambda x: np.full_like(x, q),
-            bkd=bkd,
-            dirichlet_dofs=[0, 2 * nx],
+        beam = _beam(bkd, nx, L, EI_val, _uniform(q))
+        basis = beam.basis()
+        system = compose_galerkin_system(
+            beam,
+            [
+                DirichletBC(basis, "left", 0.0, bkd, components=(0,)),
+                DirichletBC(basis, "right", 0.0, bkd, components=(0,)),
+            ],
         )
-        beam.solve()
-        x = beam.node_coordinates()
+        sol = _solve(system)
+        x = bkd.to_numpy(_nodes(beam))
         w_exact = q * x * (L**3 - 2 * L * x**2 + x**3) / (24 * EI_val)
         bkd.assert_allclose(
-            beam.deflection_at_nodes(), bkd.asarray(w_exact), rtol=1e-10,
+            basis.values(sol), bkd.asarray(w_exact), rtol=1e-10, atol=1e-12
+        )
+
+    def test_all_dofs_prescribed_residual_zero(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """With every DOF prescribed to the interpolant of w = x^2, the
+        residual vanishes there: each row is ``state[dof] - g``."""
+        bkd = numpy_bkd
+        beam = _beam(bkd, 4, 1.0, 1.0, lambda x: np.zeros_like(x))
+        basis = beam.basis()
+
+        def exact(coords: np.ndarray) -> np.ndarray:
+            return np.stack([coords[0] ** 2, 2.0 * coords[0]])
+
+        state = basis.interpolate(exact)
+        system = compose_galerkin_system(
+            beam, [DirectDirichletBC(bkd.arange(beam.nstates()), state, bkd)]
+        )
+        bkd.assert_allclose(
+            system.steady().steady_residual(state),
+            bkd.zeros((beam.nstates(),)),
             atol=1e-12,
         )
 
-    def test_manufactured_exact_solve_recovery(self, numpy_bkd) -> None:
-        """Solve with load from cubic manufactured solution, recover exactly."""
+    def test_jacobian_fd_consistency(self, numpy_bkd: NumpyBkd) -> None:
+        """Jacobian matches finite differences of the residual."""
         bkd = numpy_bkd
-        # w(x) = x^2*(3L-x)/(6L) => a normalized cubic
-        # w(0) = 0, w'(0) = 0
-        # w'' = (6Lx - 6x^2)/(6L) = (L-x)/L... let me use simpler.
-        #
-        # w(x) = x^2, w'(x) = 2x, w''(x) = 2, w''''(x) = 0
-        # EI*w'''' = 0, but b.c.: w(0)=0, w'(0)=0 both satisfied.
-        # The load is q=0. Solve K*u = 0 with w(0)=w'(0)=0.
-        # Solution should be u=0 (trivial), not w=x^2.
-        # We need load that PRODUCES the manufactured solution.
-        #
-        # For uniform q=1, EI=1, L=1: exact w(x) = x^2*(6-4x+x^2)/24
-        # This is degree 4, not exactly representable.
-        # Let's test with enough elements that the error is small.
-        L, EI_val, q0 = 1.0, 1.0, 1.0
-
-        beam = EulerBernoulliBeamFEM(
-            nx=10, length=L, EI=EI_val,
-            load_func=lambda x: q0 * np.ones_like(x),
-            bkd=bkd,
-        )
-
-        analytical = EulerBernoulliBeamAnalytical(
-            length=L, EI=EI_val, q0=q0, bkd=bkd, load_type="uniform"
-        )
-
-        # Compare tip deflection
-        tip_fem = beam.tip_deflection()
-        tip_exact = analytical.tip_deflection()
-        bkd.assert_allclose(
-            bkd.asarray([tip_fem]),
-            bkd.asarray([tip_exact]),
-            rtol=1e-10,
-        )
-
-    def test_all_dirichlet_residual_zero(self, numpy_bkd) -> None:
-        """With all DOFs constrained to exact values, residual is zero.
-
-        When all DOFs are Dirichlet-constrained, residual[dof] = state[dof]-g,
-        which is zero when state matches the prescribed values exactly.
-        """
-        bkd = numpy_bkd
-        L = 1.0
-        EI_val = 1.0
-        nx = 4
-
-        x_nodes = np.linspace(0, L, nx + 1)
-        w_exact = x_nodes**2
-        dwdx_exact = 2.0 * x_nodes
-        all_dofs = list(range(2 * (nx + 1)))
-        all_vals = []
-        for i in range(nx + 1):
-            all_vals.extend([w_exact[i], dwdx_exact[i]])
-
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=EI_val,
-            load_func=lambda x: np.zeros_like(x),
-            bkd=bkd,
-            dirichlet_dofs=all_dofs,
-            dirichlet_values=all_vals,
-        )
-
-        exact_state = beam.interpolate_manufactured(
-            w_func=lambda x: x**2,
-            dwdx_func=lambda x: 2.0 * x,
-        )
-        res = beam.residual(exact_state)
-        bkd.assert_allclose(
-            res,
-            bkd.asarray(np.zeros(beam.nstates())),
-            atol=1e-12,
-        )
-
-    # ------------------------------------------------------------------
-    # Jacobian consistency (finite difference check)
-    # ------------------------------------------------------------------
-
-    def test_jacobian_fd_consistency(self, numpy_bkd) -> None:
-        """Jacobian matches finite-difference approximation of residual."""
-        bkd = numpy_bkd
-        nx = 4
-        L, EI_val = 1.0, 2.0
-
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=EI_val,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-
-        ndofs = beam.nstates()
-        np.random.seed(42)
-        state = bkd.asarray(np.random.randn(ndofs) * 0.01)
-
-        jac = beam.jacobian(state)
-        jac_np = _to_dense(jac)
-
+        steady = _cantilever(_beam(bkd, 4, 1.0, 2.0, _uniform(1.0))).steady()
+        ndofs = steady.nstates()
+        state_np = np.random.default_rng(42).normal(size=ndofs) * 0.01
+        jac_np = _to_dense(steady.steady_jacobian(bkd.asarray(state_np)))
         eps = 1e-7
-        state_np = bkd.to_numpy(state)
         jac_fd = np.zeros((ndofs, ndofs))
         for j in range(ndofs):
-            state_p = state_np.copy()
-            state_m = state_np.copy()
-            state_p[j] += eps
-            state_m[j] -= eps
-            res_p = bkd.to_numpy(
-                beam.residual(bkd.asarray(state_p))
-            )
-            res_m = bkd.to_numpy(
-                beam.residual(bkd.asarray(state_m))
-            )
+            step = np.zeros(ndofs)
+            step[j] = eps
+            res_p = bkd.to_numpy(steady.steady_residual(bkd.asarray(state_np + step)))
+            res_m = bkd.to_numpy(steady.steady_residual(bkd.asarray(state_np - step)))
             jac_fd[:, j] = (res_p - res_m) / (2.0 * eps)
+        bkd.assert_allclose(bkd.asarray(jac_np), bkd.asarray(jac_fd), atol=1e-6)
 
-        bkd.assert_allclose(
-            bkd.asarray(jac_np),
-            bkd.asarray(jac_fd),
-            atol=1e-6,
-        )
-
-    # ------------------------------------------------------------------
-    # Dirichlet BC enforcement
-    # ------------------------------------------------------------------
-
-    def test_jacobian_identity_at_dirichlet_dofs(self, numpy_bkd) -> None:
-        """Dirichlet DOF rows in Jacobian are identity rows."""
+    def test_clamp_constrains_value_and_slope(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """The clamp constrains both left DOFs; their Jacobian rows are
+        identity rows."""
         bkd = numpy_bkd
-        beam = EulerBernoulliBeamFEM(
-            nx=4, length=1.0, EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
+        system = _cantilever(_beam(bkd, 4, 1.0, 1.0, _uniform(1.0)))
+        dofs = bkd.to_numpy(system.constraint_set().dofs())
+        assert sorted(dofs.tolist()) == [0, 1]
+        jac_np = _to_dense(
+            system.steady().steady_jacobian(bkd.zeros((system.nstates(),)))
         )
-        state = bkd.asarray(np.zeros(beam.nstates()))
-        jac = beam.jacobian(state)
-        jac_np = _to_dense(jac)
-
-        dof_indices, _ = beam.dirichlet_dof_info(0.0)
-        dof_indices_np = bkd.to_numpy(dof_indices)
-
-        for dof in dof_indices_np:
-            expected_row = np.zeros(beam.nstates())
+        for dof in dofs:
+            expected_row = np.zeros(system.nstates())
             expected_row[dof] = 1.0
             bkd.assert_allclose(
-                bkd.asarray(jac_np[dof]),
-                bkd.asarray(expected_row),
-                atol=1e-14,
+                bkd.asarray(jac_np[dof]), bkd.asarray(expected_row), atol=1e-14
             )
 
     # ------------------------------------------------------------------
-    # Convergence tests
+    # FEM vs analytical agreement (cubic Hermite is nodally exact)
     # ------------------------------------------------------------------
 
-    def test_uniform_load_convergence(self, numpy_bkd) -> None:
-        """FEM converges to analytical for uniform load under refinement."""
+    @pytest.mark.parametrize("load_type", ["uniform", "linear"])
+    def test_nodal_values_and_slopes_match_analytical(
+        self, numpy_bkd: NumpyBkd, load_type: str
+    ) -> None:
         bkd = numpy_bkd
-        L, EI_val, q0 = 1.0, 1.0, 1.0
-        exact_tip = q0 * L**4 / (8.0 * EI_val)
-
-        errors = []
-        nx_values = [2, 4, 8, 16]
-        for nx in nx_values:
-            beam = EulerBernoulliBeamFEM(
-                nx=nx, length=L, EI=EI_val,
-                load_func=lambda x: q0 * np.ones_like(x),
-                bkd=bkd,
-            )
-            tip = beam.tip_deflection()
-            errors.append(abs(tip - exact_tip))
-
-        # Hermite elements should give very high accuracy even with few
-        # elements for polynomial loads. For uniform load, the exact
-        # solution is degree 4 which is approximated well by cubic Hermite.
-        # With 2 elements the error should already be small.
-        assert errors[-1] < 1e-10
-
-    def test_linear_load_convergence(self, numpy_bkd) -> None:
-        """FEM converges to analytical for linearly increasing load."""
-        bkd = numpy_bkd
-        L, EI_val, q0 = 1.0, 1.0, 1.0
-        exact_tip = 11.0 * q0 * L**4 / (120.0 * EI_val)
-
-        errors = []
-        nx_values = [2, 4, 8, 16]
-        for nx in nx_values:
-            beam = EulerBernoulliBeamFEM(
-                nx=nx, length=L, EI=EI_val,
-                load_func=lambda x: q0 * x / L,
-                bkd=bkd,
-            )
-            tip = beam.tip_deflection()
-            errors.append(abs(tip - exact_tip))
-
-        # Linear load produces degree 5 solution.
-        # With refinement, cubic Hermite converges as O(h^4).
-        # 16 elements should achieve very good accuracy.
-        assert errors[-1] < 1e-10
-
-    # ------------------------------------------------------------------
-    # FEM vs analytical agreement
-    # ------------------------------------------------------------------
-
-    def test_fem_analytical_uniform_load_agreement(self, numpy_bkd) -> None:
-        """FEM deflection at nodes matches analytical values."""
-        bkd = numpy_bkd
-        L, EI_val, q0 = 1.0, 1.0, 1.0
-
+        L, EI_val, q0 = 2.0, 3.0, 1.5
+        load = _uniform(q0) if load_type == "uniform" else (lambda x: q0 * x / L)
+        beam = _beam(bkd, 8, L, EI_val, load)
+        sol = _solve(_cantilever(beam))
         analytical = EulerBernoulliBeamAnalytical(
-            length=L, EI=EI_val, q0=q0, bkd=bkd, load_type="uniform"
+            length=L, EI=EI_val, q0=q0, bkd=bkd, load_type=load_type
         )
-
-        nx = 10
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=EI_val,
-            load_func=lambda x: q0 * np.ones_like(x),
-            bkd=bkd,
+        x = _nodes(beam)
+        basis = beam.basis()
+        # The clamped DOFs are exactly 0; the solve returns them to
+        # round-off (~2e-13 against deflections of order 1).
+        bkd.assert_allclose(
+            basis.values(sol), analytical.deflection(x), rtol=1e-10, atol=1e-11
         )
-
-        x_nodes = bkd.asarray(beam.node_coordinates())
-        w_exact = analytical.deflection(x_nodes)
-        w_fem = beam.deflection_at_nodes()
-
-        bkd.assert_allclose(w_fem, w_exact, rtol=1e-10)
-
-    def test_fem_analytical_linear_load_agreement(self, numpy_bkd) -> None:
-        """FEM deflection at nodes matches analytical for linear load."""
-        bkd = numpy_bkd
-        L, EI_val, q0 = 1.0, 1.0, 1.0
-
-        analytical = EulerBernoulliBeamAnalytical(
-            length=L, EI=EI_val, q0=q0, bkd=bkd, load_type="linear"
+        bkd.assert_allclose(
+            basis.slopes(sol), analytical.slope(x), rtol=1e-10, atol=1e-11
         )
-
-        nx = 10
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=EI_val,
-            load_func=lambda x: q0 * x / L,
-            bkd=bkd,
+        bkd.assert_allclose(
+            bkd.asarray([_tip(beam, sol)]),
+            bkd.asarray([analytical.tip_deflection()]),
+            rtol=1e-10,
         )
-
-        x_nodes = bkd.asarray(beam.node_coordinates())
-        w_exact = analytical.deflection(x_nodes)
-        w_fem = beam.deflection_at_nodes()
-
-        bkd.assert_allclose(w_fem, w_exact, rtol=1e-8)
-
-    def test_fem_analytical_slope_agreement(self, numpy_bkd) -> None:
-        """FEM slope at nodes matches analytical for uniform load."""
-        bkd = numpy_bkd
-        L, EI_val, q0 = 1.0, 1.0, 1.0
-
-        analytical = EulerBernoulliBeamAnalytical(
-            length=L, EI=EI_val, q0=q0, bkd=bkd, load_type="uniform"
-        )
-
-        nx = 10
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=EI_val,
-            load_func=lambda x: q0 * np.ones_like(x),
-            bkd=bkd,
-        )
-
-        x_nodes = bkd.asarray(beam.node_coordinates())
-        dwdx_exact = analytical.slope(x_nodes)
-        dwdx_fem = beam.slope_at_nodes()
-
-        bkd.assert_allclose(dwdx_fem, dwdx_exact, rtol=1e-10)
 
     # ------------------------------------------------------------------
     # Scaling tests
     # ------------------------------------------------------------------
 
-    def test_different_EI_values(self, numpy_bkd) -> None:
+    def test_different_EI_values(self, numpy_bkd: NumpyBkd) -> None:
         """Tip deflection scales as 1/EI for uniform load."""
         bkd = numpy_bkd
-        L, q0, nx = 1.0, 1.0, 10
-
-        tip_vals = []
         EI_values = [1.0, 2.0, 4.0]
+        products = []
         for EI_val in EI_values:
-            beam = EulerBernoulliBeamFEM(
-                nx=nx, length=L, EI=EI_val,
-                load_func=lambda x: q0 * np.ones_like(x),
-                bkd=bkd,
-            )
-            tip_vals.append(beam.tip_deflection())
+            beam = _beam(bkd, 10, 1.0, EI_val, _uniform(1.0))
+            products.append(_tip(beam, _solve(_cantilever(beam))) * EI_val)
+        bkd.assert_allclose(
+            bkd.asarray(products[1:]), bkd.asarray(products[:1] * 2), rtol=1e-10
+        )
 
-        # tip ~ 1/EI, so tip1*EI1 == tip2*EI2
-        for i in range(1, len(EI_values)):
-            bkd.assert_allclose(
-                bkd.asarray([tip_vals[0] * EI_values[0]]),
-                bkd.asarray([tip_vals[i] * EI_values[i]]),
-                rtol=1e-10,
-            )
-
-    def test_different_lengths(self, numpy_bkd) -> None:
+    def test_different_lengths(self, numpy_bkd: NumpyBkd) -> None:
         """Tip deflection scales as L^4 for uniform load."""
         bkd = numpy_bkd
-        EI_val, q0, nx = 1.0, 1.0, 20
-
-        tip_vals = []
-        L_values = [1.0, 2.0]
-        for L in L_values:
-            beam = EulerBernoulliBeamFEM(
-                nx=nx, length=L, EI=EI_val,
-                load_func=lambda x: q0 * np.ones_like(x),
-                bkd=bkd,
-            )
-            tip_vals.append(beam.tip_deflection())
-
-        # tip ~ L^4
-        ratio = tip_vals[1] / tip_vals[0]
-        expected_ratio = (L_values[1] / L_values[0])**4
+        tips = []
+        for L in (1.0, 2.0):
+            beam = _beam(bkd, 20, L, 1.0, _uniform(1.0))
+            tips.append(_tip(beam, _solve(_cantilever(beam))))
         bkd.assert_allclose(
-            bkd.asarray([ratio]),
-            bkd.asarray([expected_ratio]),
-            rtol=1e-8,
+            bkd.asarray([tips[1] / tips[0]]), bkd.asarray([16.0]), rtol=1e-8
         )
 
 
@@ -598,189 +392,97 @@ def _smooth_EI_field(x_nodes: np.ndarray, EI_mean: float) -> np.ndarray:
 
 class TestEulerBernoulliVaryingEI:
     """Tests for Euler-Bernoulli beam with spatially-varying EI(x)."""
+
     def _make_beam(
-        self, bkd, nx: int = 10, L: float = 1.0, EI_mean: float = 1.0,
-    ) -> EulerBernoulliBeamFEM:
+        self, bkd: Backend[Array], nx: int = 10, L: float = 1.0,
+        EI_mean: float = 1.0,
+    ) -> EulerBernoulliBeamFEM[Array]:
         """Create beam with spatially-varying EI from smooth field."""
-        beam = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-        EI_field = _smooth_EI_field(beam.node_coordinates(), EI_mean)
-        beam.set_EI(EI_field)
+        beam = _beam(bkd, nx, L, 1.0, _uniform(1.0))
+        beam.set_EI(_smooth_EI_field(bkd.to_numpy(_nodes(beam)), EI_mean))
         return beam
 
-    # ------------------------------------------------------------------
-    # Residual at exact solution is zero
-    # ------------------------------------------------------------------
-
-    def test_residual_zero_at_solution(self, numpy_bkd) -> None:
-        """Residual at the FEM solution should be zero for varying EI."""
+    def test_residual_zero_at_solution(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        beam = self._make_beam(bkd, nx=10, L=1.0, EI_mean=2.0)
-        sol = beam.solve()
-        res = beam.residual(sol)
+        system = _cantilever(self._make_beam(bkd, nx=10, EI_mean=2.0))
+        sol = _solve(system)
         bkd.assert_allclose(
-            res,
-            bkd.asarray(np.zeros(beam.nstates())),
+            system.steady().steady_residual(sol),
+            bkd.zeros((system.nstates(),)),
             atol=1e-10,
         )
 
-    # ------------------------------------------------------------------
-    # Jacobian via DerivativeChecker
-    # ------------------------------------------------------------------
-
-    def test_jacobian_derivative_checker(self, numpy_bkd) -> None:
+    def test_jacobian_derivative_checker(self, numpy_bkd: NumpyBkd) -> None:
         """Verify Jacobian of residual using DerivativeChecker."""
         bkd = numpy_bkd
-        from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+        from pyapprox.interface.functions.derivative_checks.derivative_checker import (  # noqa: E501
             DerivativeChecker,
         )
         from pyapprox.interface.functions.fromcallable.jacobian import (
             FunctionWithJacobianFromCallable,
         )
 
-        beam = self._make_beam(bkd, nx=6, L=1.0, EI_mean=2.0)
-        ndofs = beam.nstates()
+        steady = _cantilever(self._make_beam(bkd, nx=6, EI_mean=2.0)).steady()
+        ndofs = steady.nstates()
 
         def residual_func(samples: Array) -> Array:
-            state = samples[:, 0]
-            res = beam.residual(state)
-            return bkd.reshape(res, (ndofs, 1))
+            return bkd.reshape(steady.steady_residual(samples[:, 0]), (ndofs, 1))
 
         def jacobian_func(sample: Array) -> Array:
-            state = sample[:, 0]
-            jac = beam.jacobian(state)
-            return bkd.asarray(_to_dense(jac))
+            return bkd.asarray(_to_dense(steady.steady_jacobian(sample[:, 0])))
 
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=ndofs, nvars=ndofs,
             fun=residual_func, jacobian=jacobian_func,
             bkd=bkd,
         )
-
-        np.random.seed(42)
-        sample = bkd.asarray(np.random.randn(ndofs, 1) * 0.01)
+        sample = bkd.asarray(
+            np.random.default_rng(42).normal(size=(ndofs, 1)) * 0.01
+        )
         checker = DerivativeChecker(wrapper)
         errors = checker.check_derivatives(sample, relative=True)[0]
-        ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
-        assert ratio <= 1e-6
+        assert float(bkd.to_numpy(checker.error_ratio(errors))) <= 1e-6
 
-    # ------------------------------------------------------------------
-    # Stiffness matrix symmetry with varying EI
-    # ------------------------------------------------------------------
-
-    def test_stiffness_symmetric_varying_EI(self, numpy_bkd) -> None:
-        """Stiffness matrix with element-wise EI is still symmetric."""
+    def test_stiffness_symmetric_varying_EI(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
-        beam = self._make_beam(bkd, nx=8, L=1.0, EI_mean=3.0)
-        K = beam.stiffness_matrix()
-        K_np = _to_dense(K)
-        bkd.assert_allclose(
-            bkd.asarray(K_np),
-            bkd.asarray(K_np.T),
-            atol=1e-12,
-        )
+        K_np = _to_dense(self._make_beam(bkd, nx=8, EI_mean=3.0).stiffness_matrix())
+        bkd.assert_allclose(bkd.asarray(K_np), bkd.asarray(K_np.T), atol=1e-12)
 
-    # ------------------------------------------------------------------
-    # Recovery of exact solution under mesh refinement (convergence)
-    # ------------------------------------------------------------------
-
-    def test_convergence_varying_EI(self, numpy_bkd) -> None:
-        """FEM with varying EI converges under mesh refinement.
-
-        Uses the same beam problem with increasing nx and verifies
-        that the tip deflection converges (successive differences shrink).
-        The piecewise-constant EI approximation converges as O(h^2).
-        """
+    def test_convergence_varying_EI(self, numpy_bkd: NumpyBkd) -> None:
+        """Tip deflection converges under refinement: successive
+        differences shrink (piecewise-constant EI converges as O(h^2))."""
         bkd = numpy_bkd
-        L, EI_mean = 1.0, 2.0
         tip_vals = []
-        nx_values = [8, 16, 32, 64, 128, 256]
-        for nx in nx_values:
-            beam = EulerBernoulliBeamFEM(
-                nx=nx, length=L, EI=1.0,
-                load_func=lambda x: np.ones_like(x),
-                bkd=bkd,
-            )
-            EI_field = _smooth_EI_field(beam.node_coordinates(), EI_mean)
-            beam.set_EI(EI_field)
-            tip_vals.append(beam.tip_deflection())
-
-        # Check convergence: successive differences should decrease
-        diffs = [abs(tip_vals[i+1] - tip_vals[i]) for i in range(len(tip_vals)-1)]
-        for i in range(len(diffs) - 1):
-            assert diffs[i + 1] < diffs[i]
-        # Final refinement difference should be small (O(h^2) convergence)
+        for nx in [8, 16, 32, 64, 128, 256]:
+            beam = self._make_beam(bkd, nx=nx, EI_mean=2.0)
+            tip_vals.append(_tip(beam, _solve(_cantilever(beam))))
+        diffs = np.abs(np.diff(tip_vals))
+        assert np.all(diffs[1:] < diffs[:-1])
         assert diffs[-1] < 5e-6
 
-    # ------------------------------------------------------------------
-    # Varying EI reduces to uniform when constant
-    # ------------------------------------------------------------------
-
-    def test_constant_field_matches_scalar(self, numpy_bkd) -> None:
-        """Element-wise EI array with constant value gives same result as scalar."""
+    def test_constant_field_matches_scalar(self, numpy_bkd: NumpyBkd) -> None:
+        """An element-wise EI array with a constant value matches a scalar."""
         bkd = numpy_bkd
-        nx = 10
-        L, EI_val = 1.0, 3.0
+        nx, EI_val = 10, 3.0
+        sols = [
+            _solve(_cantilever(_beam(bkd, nx, 1.0, EI, _uniform(1.0))))
+            for EI in (EI_val, np.full(nx, EI_val))
+        ]
+        bkd.assert_allclose(sols[1], sols[0], rtol=1e-12)
 
-        beam_scalar = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=EI_val,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-
-        beam_array = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=np.full(nx, EI_val),
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-
-        bkd.assert_allclose(
-            bkd.asarray([beam_array.tip_deflection()]),
-            bkd.asarray([beam_scalar.tip_deflection()]),
-            rtol=1e-12,
-        )
-
-        # Deflections at all nodes should match
-        bkd.assert_allclose(
-            beam_array.deflection_at_nodes(),
-            beam_scalar.deflection_at_nodes(),
-            rtol=1e-12,
-        )
-
-    # ------------------------------------------------------------------
-    # Max curvature
-    # ------------------------------------------------------------------
-
-    def test_max_curvature_positive(self, numpy_bkd) -> None:
-        """Max curvature with varying EI should be positive."""
+    def test_curvature_positive_and_scales_with_EI(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """Curvature is positive under load, and doubling EI halves it."""
         bkd = numpy_bkd
-        beam = self._make_beam(bkd, nx=20, L=1.0, EI_mean=1.0)
-        curv = beam.max_curvature()
-        assert curv > 0.0
-
-    def test_max_curvature_scales_with_EI(self, numpy_bkd) -> None:
-        """Doubling uniform EI halves max curvature (for constant field)."""
-        bkd = numpy_bkd
-        nx, L = 20, 1.0
-
-        beam1 = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=1.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-        beam2 = EulerBernoulliBeamFEM(
-            nx=nx, length=L, EI=2.0,
-            load_func=lambda x: np.ones_like(x),
-            bkd=bkd,
-        )
-
-        curv1 = beam1.max_curvature()
-        curv2 = beam2.max_curvature()
+        curvatures = []
+        for EI_val in (1.0, 2.0):
+            beam = _beam(bkd, 20, 1.0, EI_val, _uniform(1.0))
+            sol = _solve(_cantilever(beam))
+            curvatures.append(element_curvatures(beam.basis(), sol).max())
+        assert curvatures[0] > 0.0
         bkd.assert_allclose(
-            bkd.asarray([curv1]),
-            bkd.asarray([2.0 * curv2]),
+            bkd.asarray([curvatures[0]]),
+            bkd.asarray([2.0 * curvatures[1]]),
             rtol=1e-8,
         )

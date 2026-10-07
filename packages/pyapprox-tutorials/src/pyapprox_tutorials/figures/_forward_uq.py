@@ -68,6 +68,25 @@ def plot_forward_uq_schematic(ax_in, ax_mid, ax_out):
     ax_out.set_xlim(-1, 5)
 
 
+def _clamped_beam(nx, length, EI, load_func, bkd):
+    """Cantilever clamped at x = 0: its basis, beam and steady solver."""
+    from pyapprox.pde.galerkin.basis import CubicHermiteBasis
+    from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+    from pyapprox.pde.galerkin.compose import compose_galerkin_system
+    from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+    from pyapprox.pde.galerkin.physics.euler_bernoulli import (
+        EulerBernoulliBeamFEM,
+    )
+    from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+
+    basis = CubicHermiteBasis(StructuredMesh1D(nx, (0.0, length), bkd))
+    beam = EulerBernoulliBeamFEM(basis, EI, load_func, bkd)
+    system = compose_galerkin_system(
+        beam, [DirichletBC(basis, "left", 0.0, bkd)]
+    )
+    return basis, beam, SteadyStateSolver(system.steady())
+
+
 def plot_linear_propagation(ax_in, ax_mid, ax_out):
     """forward_uq.qmd → fig-linear-propagation
 
@@ -75,9 +94,6 @@ def plot_linear_propagation(ax_in, ax_mid, ax_out):
     """
     from scipy.stats import norm
 
-    from pyapprox.pde.galerkin.physics.euler_bernoulli import (
-        EulerBernoulliBeamFEM,
-    )
     from pyapprox.util.backends.numpy import NumpyBkd
 
     from ._style import apply_style
@@ -89,11 +105,11 @@ def plot_linear_propagation(ax_in, ax_mid, ax_out):
     E_eff = (A_skin * 2e4 + A_core * 5e3) / (A_skin + A_core)
     I_rect = H**3 / 12.0
 
-    beam_ref = EulerBernoulliBeamFEM(
-        nx=40, length=L, EI=E_eff * I_rect,
-        load_func=lambda x: 1.0 * x / L, bkd=bkd,
+    basis, _, solver = _clamped_beam(
+        40, L, E_eff * I_rect, lambda x: 1.0 * x / L, bkd
     )
-    c_linear = bkd.to_float(beam_ref.tip_deflection())
+    coeffs = solver.solve(bkd.zeros((basis.ndofs(),))).solution
+    c_linear = bkd.to_float(basis.evaluate(coeffs, bkd.asarray([[L]]))[0])
 
     rng = np.random.default_rng(42)
     nsamples = 5000
@@ -533,9 +549,6 @@ def plot_beam_deflections(benchmark, bkd, ax1, ax2, cbar_fig=None):
     from pyapprox.pde.field_maps.kle_factory import (
         create_lognormal_kle_field_map,
     )
-    from pyapprox.pde.galerkin.physics.euler_bernoulli import (
-        EulerBernoulliBeamFEM,
-    )
 
     nx, length, EI_mean, q0 = 40, 100.0, 1e6, 1.0
     sigma, corr_len, num_kle = 0.3, 0.3, 2
@@ -552,11 +565,10 @@ def plot_beam_deflections(benchmark, bkd, ax1, ax2, cbar_fig=None):
         quad_weights=elem_lengths,
     )
 
-    beam = EulerBernoulliBeamFEM(
-        nx=nx, length=length, EI=EI_mean,
-        load_func=lambda x: q0 * x / length, bkd=bkd,
+    basis, beam, solver = _clamped_beam(
+        nx, length, EI_mean, lambda x: q0 * x / length, bkd
     )
-    x_nodes = beam.node_coordinates()
+    x_nodes = bkd.to_numpy(basis.mesh().nodes())[0]
 
     xi_vals = [np.array([-1.5, 1.0]), np.array([1.5, -1.0])]
     xi_labels = [
@@ -569,7 +581,8 @@ def plot_beam_deflections(benchmark, bkd, ax1, ax2, cbar_fig=None):
         EI_field = bkd.to_numpy(field_map(bkd.asarray(xi)))
         beam.set_EI(EI_field)
         EI_fields.append(EI_field)
-        deflections.append(bkd.to_numpy(beam.deflection_at_nodes()))
+        coeffs = solver.solve(bkd.zeros((basis.ndofs(),))).solution
+        deflections.append(bkd.to_numpy(basis.values(coeffs)))
 
     all_EI = np.concatenate(EI_fields)
     norm_obj = Normalize(vmin=all_EI.min(), vmax=all_EI.max())

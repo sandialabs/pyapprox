@@ -536,6 +536,73 @@ class CantileverBeam2DForwardModel(Generic[Array]):
 # =========================================================================
 
 
+class _ClampedBeam:
+    """Euler-Bernoulli cantilever: clamped at x = 0, free at x = length.
+
+    Built once; ``solve`` sets the bending stiffness and returns the tip
+    deflection and the element curvatures. The beam is assembled by skfem
+    into scipy sparse matrices, and a sparse solve is NumPy-only (torch
+    refuses it rather than detach the graph), so the beam is built and
+    solved on NumPy whatever the forward model's backend. The models
+    supply no derivatives, so no graph is lost.
+    """
+
+    def __init__(
+        self,
+        nx: int,
+        length: float,
+        EI: Union[float, np.ndarray],
+        load_func: Callable[[np.ndarray], np.ndarray],
+    ) -> None:
+        from pyapprox.pde.galerkin.basis import CubicHermiteBasis
+        from pyapprox.pde.galerkin.boundary.implementations import (
+            DirichletBC,
+        )
+        from pyapprox.pde.galerkin.compose import compose_galerkin_system
+        from pyapprox.pde.galerkin.mesh import StructuredMesh1D
+        from pyapprox.pde.galerkin.physics.euler_bernoulli import (
+            EulerBernoulliBeamFEM,
+        )
+        from pyapprox.pde.galerkin.solvers.steady_state import (
+            SteadyStateSolver,
+        )
+        from pyapprox.util.backends.numpy import NumpyBkd
+
+        bkd = NumpyBkd()
+        self._bkd = bkd
+        self._length = length
+        self._nelements = nx
+        self._basis = CubicHermiteBasis(StructuredMesh1D(nx, (0.0, length), bkd))
+        self._beam = EulerBernoulliBeamFEM(self._basis, EI, load_func, bkd)
+        system = compose_galerkin_system(
+            self._beam, [DirichletBC(self._basis, "left", 0.0, bkd)]
+        )
+        self._solver = SteadyStateSolver(system.steady())
+
+    def nelements(self) -> int:
+        return self._nelements
+
+    def element_length(self) -> float:
+        return self._length / self._nelements
+
+    def solve(
+        self, EI: Union[float, np.ndarray]
+    ) -> Tuple[float, np.ndarray]:
+        """Return the tip deflection and the per-element |w''| for ``EI``
+        (a scalar, or one value per element)."""
+        from pyapprox.pde.galerkin.physics.euler_bernoulli import (
+            element_curvatures,
+        )
+
+        bkd = self._bkd
+        self._beam.set_EI(EI)
+        coeffs = self._solver.solve(bkd.zeros((self._beam.nstates(),))).solution
+        tip = bkd.to_numpy(
+            self._basis.evaluate(coeffs, bkd.asarray([[self._length]]))
+        )
+        return float(tip[0]), element_curvatures(self._basis, coeffs)
+
+
 class CompositeBeam1DForwardModel(Generic[Array]):
     """Forward model: physical (E1, E2) -> [tip deflection, max curvature].
 
@@ -579,11 +646,7 @@ class CompositeBeam1DForwardModel(Generic[Array]):
         skin_thickness: float,
         load_func: Callable[[np.ndarray], np.ndarray],
         bkd: Backend[Array],
-    ):
-        from pyapprox.pde.galerkin.physics.euler_bernoulli import (
-            EulerBernoulliBeamFEM,
-        )
-
+    ) -> None:
         self._bkd = bkd
 
         # Cross-section geometry
@@ -593,14 +656,8 @@ class CompositeBeam1DForwardModel(Generic[Array]):
         self._I_rect = height**3 / 12.0
         self._stress_coeff = 6.0 / height**2  # EI*kappa * 6/H^2 = sigma
 
-        # Build beam once; set_EI updates stiffness per sample
-        self._beam = EulerBernoulliBeamFEM(
-            nx=nx,
-            length=length,
-            EI=1.0,
-            load_func=load_func,
-            bkd=bkd,
-        )
+        # Build the beam once; each sample sets its stiffness
+        self._beam = _ClampedBeam(nx, length, 1.0, load_func)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -635,16 +692,14 @@ class CompositeBeam1DForwardModel(Generic[Array]):
         samples_np = bkd.to_numpy(samples)
         nsamples = samples_np.shape[1]
         results = np.empty((3, nsamples))
-        le = self._beam.length() / (self._beam.nnodes() - 1)
+        le = self._beam.element_length()
 
         for ii in range(nsamples):
             E_eff = (
                 self._A_skin * samples_np[0, ii] + self._A_core * samples_np[1, ii]
             ) / (self._A_skin + self._A_core)
             EI = E_eff * self._I_rect
-            self._beam.set_EI(EI)
-            results[0, ii] = self._beam.tip_deflection()
-            curv = self._beam.curvature_at_elements()
+            results[0, ii], curv = self._beam.solve(EI)
             results[1, ii] = np.sum(EI * curv * self._stress_coeff * le)
             results[2, ii] = float(np.max(curv))
 
@@ -673,22 +728,12 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
         field_map: TransformedFieldMap[Array],
         bkd: Backend[Array],
     ) -> None:
-        from pyapprox.pde.galerkin.physics.euler_bernoulli import (
-            EulerBernoulliBeamFEM,
-        )
-
         self._field_map = field_map
         self._bkd = bkd
         self._stress_coeff = 6.0 / height**2  # EI*kappa * 6/H^2 = sigma
 
-        # Build beam once; set_EI updates stiffness per sample
-        self._beam = EulerBernoulliBeamFEM(
-            nx=nx,
-            length=length,
-            EI=EI_mean,
-            load_func=load_func,
-            bkd=bkd,
-        )
+        # Build the beam once; each sample sets its stiffness
+        self._beam = _ClampedBeam(nx, length, EI_mean, load_func)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -723,21 +768,20 @@ class CantileverBeam1DKLEForwardModel(Generic[Array]):
         samples_np = bkd.to_numpy(samples)
         nsamples = samples_np.shape[1]
         results = np.zeros((3, nsamples))
-        le = self._beam.length() / (self._beam.nnodes() - 1)
-
-        nelem = self._beam.nnodes() - 1
+        le = self._beam.element_length()
+        nelem = self._beam.nelements()
 
         for ii in range(nsamples):
             xi = samples_np[:, ii]
             EI_field = bkd.to_numpy(self._field_map(bkd.asarray(xi)))
-            self._beam.set_EI(EI_field)
-            results[0, ii] = self._beam.tip_deflection()
-            curv = self._beam.curvature_at_elements()
-            # EI_field may be nodal (nx+1) or elemental (nx)
+            # EI_field may be nodal (nx+1) or elemental (nx); the beam
+            # takes one value per element, the midpoint average of a
+            # nodal field.
             if len(EI_field) == nelem + 1:
                 EI_elem = 0.5 * (EI_field[:-1] + EI_field[1:])
             else:
                 EI_elem = EI_field
+            results[0, ii], curv = self._beam.solve(EI_elem)
             results[1, ii] = np.sum(EI_elem * curv * self._stress_coeff * le)
             results[2, ii] = float(np.max(curv))
 
