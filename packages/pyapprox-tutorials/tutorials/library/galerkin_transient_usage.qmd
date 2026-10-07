@@ -333,6 +333,7 @@ that it must be re-evaluated at every step.
 import numpy as np
 
 from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
+from pyapprox.pde.galerkin.basis import MixedBasis
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 
 geom = {"L": 11.0, "H": 4.1, "cx": 2.0, "cy": 2.0, "R": 0.5}
@@ -340,11 +341,14 @@ UMAX, T_RAMP, RE = 1.5, 2.0, 150.0
 
 
 def ramped_inlet(coords, time):
-    """Parabolic profile, amplitude ramping to full over ``T_RAMP``."""
+    """Parabolic profile, amplitude ramping to full over ``T_RAMP``.
+
+    One row per velocity component: shape ``(2, npts)``.
+    """
     y = coords[1]
     amplitude = min(1.0, time / T_RAMP)
-    values = np.zeros((coords.shape[1], 2))
-    values[:, 0] = amplitude * 4 * UMAX * y * (geom["H"] - y) / geom["H"] ** 2
+    values = np.zeros((2, coords.shape[1]))
+    values[0] = amplitude * 4 * UMAX * y * (geom["H"] - y) / geom["H"] ** 2
     return values
 
 
@@ -355,20 +359,25 @@ def no_slip(coords):
     ignore it --- and pyapprox refuses to guess. Either take coordinates
     only, as here, or wrap in ``TimeDependent`` / ``TimeIndependent``.
     """
-    return np.zeros((coords.shape[1], 2))
+    return np.zeros((2, coords.shape[1]))
 
 
 mean_speed = 2.0 * UMAX / 3.0
 viscosity = mean_speed * (2 * geom["R"]) / RE
 
+# Velocity then pressure, in one state vector; each field's view
+# selects its own boundary DOFs.
+cyl_basis = MixedBasis([("velocity", vel_basis), ("pressure", pres_basis)])
+velocity = cyl_basis.field("velocity")
 cyl_physics = StokesPhysics(
-    vel_basis, pres_basis, bkd,
-    navier_stokes=True,
-    viscosity=viscosity,
-    vel_dirichlet_bcs=[
-        ("inlet", TimeDependent(ramped_inlet)),
-        ("wall", no_slip),
-        ("cylinder", no_slip),
+    cyl_basis, bkd, navier_stokes=True, viscosity=viscosity
+)
+cyl_system = compose_galerkin_system(
+    cyl_physics,
+    [
+        DirichletBC(velocity, "inlet", TimeDependent(ramped_inlet), bkd),
+        DirichletBC(velocity, "wall", no_slip, bkd),
+        DirichletBC(velocity, "cylinder", no_slip, bkd),
     ],
 )
 print(f"Re = {RE:.0f}, viscosity = {viscosity:.5f}")
@@ -429,7 +438,7 @@ cyl_config = TimeIntegrationConfig(
     verbosity=0,
 )
 
-cyl_solutions, cyl_times = GalerkinModel(cyl_physics.system(), bkd).solve_transient(
+cyl_solutions, cyl_times = GalerkinModel(cyl_system, bkd).solve_transient(
     bkd.asarray(np.zeros(cyl_physics.nstates())), cyl_config
 )
 print(f"{len(cyl_times)} steps to t = {cyl_times[-1]:.0f}")

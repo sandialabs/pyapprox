@@ -51,14 +51,21 @@ class TestObstructedMeshBuilder:
 
 
 class TestInletProfiles:
-    def test_parabolic_inlet_shape_and_walls(self) -> None:
+    def test_parabolic_inlet_shape_and_walls(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """One row per velocity component: x-velocity vanishes at the
+        walls and is positive between them; y-velocity is zero."""
+        bkd = numpy_bkd
         inlet = ParabolicInlet(2.5, 2.5)
         pts = np.vstack([np.zeros(5), np.linspace(0.0, 1.0, 5)])
         vals = inlet(pts)
-        assert vals.shape == (5, 2)
-        np.testing.assert_allclose(vals[[0, -1], 0], 0.0, atol=1e-14)
-        assert np.all(vals[1:-1, 0] > 0.0)
-        np.testing.assert_allclose(vals[:, 1], 0.0, atol=1e-14)
+        assert vals.shape == (2, 5)
+        bkd.assert_allclose(
+            bkd.asarray(vals[0, [0, -1]]), bkd.zeros((2,)), atol=1e-14
+        )
+        assert np.all(vals[0, 1:-1] > 0.0)
+        bkd.assert_allclose(bkd.asarray(vals[1]), bkd.zeros((5,)), atol=1e-14)
 
     def test_zero_velocity(self) -> None:
         pts = np.random.default_rng(3).uniform(0, 1, (2, 4))

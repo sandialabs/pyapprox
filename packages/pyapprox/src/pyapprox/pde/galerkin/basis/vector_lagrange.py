@@ -134,6 +134,11 @@ class VectorLagrangeBasis(Generic[Array]):
         """Return number of vector components (= spatial dimension)."""
         return self._ndim
 
+    def dof_components(self, dofs: Array) -> Array:
+        """Return the component of each DOF: DOFs are interleaved per
+        node, so DOF ``d`` belongs to component ``d % ncomponents``."""
+        return dofs - self._ndim * self._bkd.floor_divide(dofs, self._ndim)
+
     def component_layout(self) -> InterleavedLayout[Array]:
         """Return the DOF order of the components: interleaved per node,
         ``(x_0, y_0, x_1, y_1, ...)``."""

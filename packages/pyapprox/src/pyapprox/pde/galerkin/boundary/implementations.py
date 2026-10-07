@@ -32,6 +32,7 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     as_time_aware,
 )
 from pyapprox.pde.galerkin.protocols.basis import (
+    BoundaryDofsProtocol,
     ComponentDofsBasisProtocol,
     GalerkinBasisProtocol,
 )
@@ -72,8 +73,9 @@ class DirichletBC(Generic[Array]):
 
     Parameters
     ----------
-    basis : GalerkinBasisProtocol[Array]
-        Finite element basis.
+    basis : BoundaryDofsProtocol[Array]
+        Finite element basis, or a field of a ``MixedBasis``
+        (``mixed.field("pressure")``), whose DOFs are then global.
     boundary_name : str
         Name of the boundary (e.g., "left", "right", "bottom", "top").
     value_func : float, Callable or BoundarySignal
@@ -88,8 +90,8 @@ class DirichletBC(Generic[Array]):
         a time is rejected, so time dependence is never guessed.
         Coordinates have shape (ndim, npts); g returns either per-DOF
         values (npts,) or, for vector bases, per-component values
-        (ncomponents, npts) from which each DOF's component is selected
-        automatically.
+        (ncomponents, npts) from which each DOF's component, as the
+        basis's ``dof_components`` assigns it, is selected.
     bkd : Backend[Array]
         Computational backend.
     components : tuple of int, optional
@@ -111,7 +113,7 @@ class DirichletBC(Generic[Array]):
 
     def __init__(
         self,
-        basis: GalerkinBasisProtocol[Array],
+        basis: BoundaryDofsProtocol[Array],
         boundary_name: str,
         value_func: Union[Callable[..., Any], float, BoundarySignal],
         bkd: Backend[Array],
@@ -126,7 +128,12 @@ class DirichletBC(Generic[Array]):
             else BoundarySignal(value_func)
         )
 
+        # A component basis says which component each DOF belongs to.
+        self._component_basis: Optional[
+            ComponentDofsBasisProtocol[Array]
+        ] = None
         if isinstance(basis, ComponentDofsBasisProtocol):
+            self._component_basis = basis
             self._ncomponents = basis.ncomponents()
         else:
             self._ncomponents = 1
@@ -224,9 +231,8 @@ class DirichletBC(Generic[Array]):
 
         if values_np.ndim == 2:
             # Vector-valued return (ncomponents, nboundary_dofs): select
-            # each DOF's own component. skfem interleaves vector-element
-            # DOFs, so DOF d belongs to component d % ncomponents.
-            if self._ncomponents == 1:
+            # each DOF's own component, as the basis assigns them.
+            if self._component_basis is None or self._ncomponents == 1:
                 raise ValueError(
                     "value_func must return a 1D array for scalar bases, "
                     f"got shape {values_np.shape}"
@@ -240,7 +246,9 @@ class DirichletBC(Generic[Array]):
                     f"({self._ncomponents}, {bndry_dofs_np.shape[0]}), "
                     f"got {values_np.shape}"
                 )
-            dof_components = bndry_dofs_np % self._ncomponents
+            dof_components = self._bkd.to_numpy(
+                self._component_basis.dof_components(self._boundary_dofs)
+            )
             values_np = values_np[
                 dof_components, np.arange(bndry_dofs_np.shape[0])
             ]
@@ -598,7 +606,11 @@ class RobinBC(Generic[Array]):
         """
         bndry_basis = self._get_boundary_basis()
         alpha_at_quadrature = self._alpha_at_quadrature
-        ncomps = getattr(self._basis, "ncomponents", lambda: 1)()
+        ncomps = (
+            self._basis.ncomponents()
+            if isinstance(self._basis, ComponentDofsBasisProtocol)
+            else 1
+        )
 
         if ncomps > 1:
 

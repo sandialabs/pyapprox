@@ -86,6 +86,11 @@ class CubicHermiteBasis(Generic[Array]):
         """Return the number of DOF components: value and slope."""
         return 2
 
+    def dof_components(self, dofs: Array) -> Array:
+        """Return the component of each DOF: 0 for a value, 1 for a
+        slope (they alternate)."""
+        return dofs - 2 * self._bkd.floor_divide(dofs, 2)
+
     def skfem_basis(self) -> Basis:
         """Return the underlying skfem Basis object."""
         return self._skfem_basis

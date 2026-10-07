@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet, NaturalBCOperator
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
-from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
+from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import (
     DirectDirichletBC,
     DirichletBC,
@@ -23,7 +23,6 @@ from pyapprox.pde.galerkin.boundary import (
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
-from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinSteadySystemProtocol,
     GalerkinTransientSystemProtocol,
@@ -171,12 +170,3 @@ class TestPhysicsSystem:
         self._check(physics, bkd)
         assert physics.system() is physics.system()
         assert physics.system().spatial_operator() is physics.spatial_operator()
-
-    def test_stokes(self, numpy_bkd: Backend[Array]) -> None:
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=numpy_bkd)
-        physics = StokesPhysics(
-            vel_basis=VectorLagrangeBasis(mesh, degree=2),
-            pres_basis=LagrangeBasis(mesh, degree=1),
-            bkd=numpy_bkd,
-        )
-        self._check(physics, numpy_bkd)

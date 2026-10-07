@@ -141,6 +141,44 @@ class ComponentDofsBasisProtocol(Protocol, Generic[Array]):
         """
         ...
 
+    def dof_components(self, dofs: Array) -> Array:
+        """Return the component of each DOF.
+
+        Parameters
+        ----------
+        dofs : Array
+            DOF indices, as returned by ``get_dofs``. Integer.
+
+        Returns
+        -------
+        Array
+            Component index of each DOF, in ``[0, ncomponents)``.
+        """
+        ...
+
+
+@runtime_checkable
+class BoundaryDofsProtocol(Protocol, Generic[Array]):
+    """What an essential boundary condition needs from a basis: the DOFs
+    on a named boundary and the coordinates of every DOF.
+
+    Satisfied by every Galerkin basis and by the field views of a
+    ``MixedBasis``, which answer in the mixed system's global indices.
+    """
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        ...
+
+    def get_dofs(self, boundary_name: str) -> Array:
+        """Return DOF indices on a named boundary. Integer."""
+        ...
+
+    def dof_coordinates(self) -> Array:
+        """Return the coordinates of every DOF, indexable by the indices
+        ``get_dofs`` returns. Shape: (ndim, ndofs)."""
+        ...
+
 
 @runtime_checkable
 class VectorBasisProtocol(Protocol, Generic[Array]):

@@ -7,11 +7,13 @@ __all__: list[str]
 if package_available("skfem"):
     from pyapprox.pde.galerkin.basis.hermite import CubicHermiteBasis
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+    from pyapprox.pde.galerkin.basis.mixed import MixedBasis
     from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
 
     __all__ = [
         "CubicHermiteBasis",
         "LagrangeBasis",
+        "MixedBasis",
         "VectorLagrangeBasis",
     ]
 else:

@@ -30,9 +30,16 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.stepper_table import create_stepper
-from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
+from pyapprox.pde.galerkin.basis import (
+    LagrangeBasis,
+    MixedBasis,
+    VectorLagrangeBasis,
+)
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration.bc_time_residual_adapter import (
     create_galerkin_bc_enforcing_residual,
 )
@@ -101,16 +108,16 @@ class _ViscosityForcingParameterization:
         # Viscosity column (affine; amplitude terms cancel in the
         # difference).
         self._physics.set_viscosity(1.0)
-        r_nu_one = self._physics.spatial_residual(state, time)
+        r_nu_one = self._physics.interior_residual(state, time)
         self._physics.set_viscosity(0.0)
-        r_nu_zero = self._physics.spatial_residual(state, time)
+        r_nu_zero = self._physics.interior_residual(state, time)
         self._physics.set_viscosity(float(params_1d[0]))
         # Amplitude column (affine; viscous terms cancel).
         old_amp = self._amplitude["value"]
         self._amplitude["value"] = 1.0
-        r_amp_one = self._physics.spatial_residual(state, time)
+        r_amp_one = self._physics.interior_residual(state, time)
         self._amplitude["value"] = 0.0
-        r_amp_zero = self._physics.spatial_residual(state, time)
+        r_amp_zero = self._physics.interior_residual(state, time)
         self._amplitude["value"] = old_amp
         return np.stack(
             [r_nu_one - r_nu_zero, r_amp_one - r_amp_zero], axis=1
@@ -135,41 +142,49 @@ def _build_pipeline(
     method: str,
     navier_stokes: bool,
     param_cls: type = _ViscosityForcingParameterization,
-) -> Tuple[TimeIntegrator[NumpyArray], Any, StokesPhysics[NumpyArray]]:
+) -> Tuple[
+    TimeIntegrator[NumpyArray],
+    Any,
+    StokesPhysics[NumpyArray],
+    GalerkinSystem[NumpyArray],
+]:
     mesh = StructuredMesh1D(nx=8, bounds=(0.0, 1.0), bkd=bkd)
-    vel_basis = VectorLagrangeBasis(mesh, degree=2)
-    pres_basis = LagrangeBasis(mesh, degree=1)
+    basis = MixedBasis(
+        [
+            ("velocity", VectorLagrangeBasis(mesh, degree=2)),
+            ("pressure", LagrangeBasis(mesh, degree=1)),
+        ]
+    )
     amplitude = {"value": 1.0}
 
     def vel_forcing(x: NumpyArray) -> NumpyArray:
         return amplitude["value"] * np.sin(np.pi * x)[:, None]
 
-    def zero_vel(x: NumpyArray) -> NumpyArray:
-        return np.zeros((x.shape[1], 1))
-
-    def zero_pres(x: NumpyArray) -> NumpyArray:
-        return np.zeros(x.shape[1])
-
     physics = StokesPhysics(
-        vel_basis,
-        pres_basis,
+        basis,
         bkd,
         navier_stokes=navier_stokes,
         viscosity=1.0,
         vel_forcing=vel_forcing,
-        vel_dirichlet_bcs=[("left", zero_vel), ("right", zero_vel)],
-        pres_dirichlet_bcs=[("left", zero_pres)],
+    )
+    system = compose_galerkin_system(
+        physics,
+        [
+            DirichletBC(basis.field("velocity"), "left", 0.0, bkd),
+            DirichletBC(basis.field("velocity"), "right", 0.0, bkd),
+            DirichletBC(basis.field("pressure"), "left", 0.0, bkd),
+        ],
     )
     param_obj = param_cls(physics, amplitude, bkd)
-    adapter = create_galerkin_physics_ode_residual(physics.system(), param_obj)
+    adapter = create_galerkin_physics_ode_residual(system, param_obj)
     stepper = create_stepper(method, adapter)
     wrapper = create_galerkin_bc_enforcing_residual(
-        stepper, physics.constraint_set(), bkd
+        stepper, system.constraint_set(), bkd
     )
     newton = NewtonSolver(wrapper)
     newton.set_options(maxiters=50, atol=1e-12, rtol=0.0)
     integrator = TimeIntegrator(0.0, _FINAL_TIME, _DELTAT, newton)
-    return integrator, adapter, physics
+    return integrator, adapter, physics, system
 
 
 class TestStokesAdjointGradient:
@@ -179,12 +194,12 @@ class TestStokesAdjointGradient:
         self, numpy_bkd: NumpyBkd, method: str, navier_stokes: bool
     ) -> None:
         bkd = numpy_bkd
-        integrator, adapter, physics = _build_pipeline(
+        integrator, adapter, physics, system = _build_pipeline(
             bkd, method, navier_stokes
         )
         nstates = physics.nstates()
         constrained = set(
-            int(d) for d in bkd.to_numpy(physics.constraint_set().dofs())
+            int(d) for d in bkd.to_numpy(system.constraint_set().dofs())
         )
         state_idx = next(
             ii for ii in range(physics.vel_ndofs()) if ii not in constrained
@@ -238,7 +253,7 @@ class TestStokesAdjointGradient:
         """An IC parameterization with support on algebraic (pressure)
         DOFs is rejected by the DAE lambda_0 handling."""
         bkd = numpy_bkd
-        integrator, adapter, physics = _build_pipeline(
+        integrator, adapter, physics, _ = _build_pipeline(
             bkd, "backward_euler", False, param_cls=_BadICParameterization
         )
         nstates = physics.nstates()

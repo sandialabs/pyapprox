@@ -12,7 +12,7 @@ Uses Taylor-Hood elements: P2 velocity, P1 pressure.
 State vector layout: [vel_dofs | pres_dofs].
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, Tuple
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -24,18 +24,12 @@ from scipy.sparse import block_diag as sp_block_diag
 from scipy.sparse import csr_matrix
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import NaturalBCOperator
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+from pyapprox.pde.galerkin.basis.mixed import MixedBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
-from pyapprox.pde.galerkin.boundary.implementations import (
-    CallableDirichletBC,
-)
-from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
-from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
-from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
@@ -51,66 +45,7 @@ except ImportError:
     )
 
 
-class _VelComponentBCValueFunc:
-    """Picklable adapter that extracts a single velocity component.
-
-    Wraps a user-supplied BC callable ``func(crds, time) -> vals`` so
-    that the returned array is a 1D slice corresponding to component
-    ``comp_idx``. Replaces the local ``value_func`` closure previously
-    built inside
-    :meth:`StokesPhysics._build_boundary_conditions`; keeps
-    ``StokesPhysics`` picklable when the underlying BC callable is
-    itself picklable.
-    """
-
-    def __init__(
-        self,
-        func: Callable[..., np.ndarray],
-        crds: np.ndarray,
-        comp_idx: int,
-    ) -> None:
-        self._func = as_time_aware(func)
-        self._crds = crds
-        self._comp_idx = int(comp_idx)
-
-    def __call__(self, time: float) -> np.ndarray:
-        vals = self._func(self._crds, time)
-        if vals.ndim == 2:
-            return vals[:, self._comp_idx]
-        return vals
-
-    def is_time_dependent(self) -> bool:
-        """The wrapped supplier's declaration."""
-        return self._func.is_time_dependent()
-
-
-class _PresBCValueFunc:
-    """Picklable adapter for scalar pressure BC callables.
-
-    Replaces the local ``value_func`` closure previously built inside
-    :meth:`StokesPhysics._build_boundary_conditions`.
-    """
-
-    def __init__(
-        self,
-        func: Callable[..., np.ndarray],
-        crds: np.ndarray,
-    ) -> None:
-        self._func = as_time_aware(func)
-        self._crds = crds
-
-    def __call__(self, time: float) -> np.ndarray:
-        vals = self._func(self._crds, time)
-        if vals.ndim == 2:
-            return vals.flatten()
-        return vals
-
-    def is_time_dependent(self) -> bool:
-        """The wrapped supplier's declaration."""
-        return self._func.is_time_dependent()
-
-
-class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
+class StokesPhysics(Generic[Array]):
     """Stokes/Navier-Stokes physics for Galerkin FEM.
 
     Solves the Stokes equations:
@@ -120,14 +55,27 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
     or Navier-Stokes (adds convective term (u . grad)u).
 
     Uses Taylor-Hood elements (P2 velocity, P1 pressure).
-    State vector layout: [vel_dofs | pres_dofs].
+    State vector layout: [vel_dofs | pres_dofs], the order of the mixed
+    basis.
+
+    The physics holds no boundary conditions. Constrain each field
+    through its view of the mixed basis and compose:
+
+    .. code-block:: python
+
+        system = compose_galerkin_system(physics, [
+            DirichletBC(basis.field("velocity"), "left", inflow, bkd),
+            DirichletBC(basis.field("pressure"), "right", 0.0, bkd),
+        ])
+
+    A velocity boundary function returns ``(ndim, npts)``, one row per
+    component.
 
     Parameters
     ----------
-    vel_basis : VectorLagrangeBasis
-        Vector finite element basis for velocity (typically P2).
-    pres_basis : LagrangeBasis
-        Scalar finite element basis for pressure (typically P1).
+    basis : MixedBasis
+        Fields ``"velocity"`` (``VectorLagrangeBasis``, typically P2) then
+        ``"pressure"`` (``LagrangeBasis``, typically P1).
     bkd : Backend
         Computational backend.
     navier_stokes : bool
@@ -142,28 +90,36 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         Pressure (continuity) forcing function. Takes (npts,) or
         (npts, ndim) points and returns (npts,). For transient, takes
         points and float time.
-    vel_dirichlet_bcs : list of (str, Callable), optional
-        Velocity Dirichlet BCs. Each tuple is (boundary_name, func) where
-        func takes (ndim, npts) coordinates (and optional time) and returns
-        (npts, nvars) velocity values at boundary nodes.
-    pres_dirichlet_bcs : list of (str, Callable), optional
-        Pressure Dirichlet BCs. Each tuple is (boundary_name, func) where
-        func takes (ndim, npts) coordinates (and optional time) and returns
-        (npts,) pressure values.
+
+    Raises
+    ------
+    ValueError
+        If the mixed basis is not ``[velocity, pressure]`` with a vector
+        Lagrange velocity and a scalar Lagrange pressure.
     """
 
     def __init__(
         self,
-        vel_basis: VectorLagrangeBasis[Array],
-        pres_basis: LagrangeBasis[Array],
+        basis: MixedBasis[Array],
         bkd: Backend[Array],
         navier_stokes: bool = False,
         viscosity: float = 1.0,
         vel_forcing: Optional[Callable[..., Any]] = None,
         pres_forcing: Optional[Callable[..., Any]] = None,
-        vel_dirichlet_bcs: Optional[List[Tuple[str, Callable[..., Any]]]] = None,
-        pres_dirichlet_bcs: Optional[List[Tuple[str, Callable[..., Any]]]] = None,
     ):
+        vel_basis = basis.field_basis("velocity")
+        pres_basis = basis.field_basis("pressure")
+        if (
+            basis.field_names() != ["velocity", "pressure"]
+            or not isinstance(vel_basis, VectorLagrangeBasis)
+            or not isinstance(pres_basis, LagrangeBasis)
+        ):
+            raise ValueError(
+                "StokesPhysics needs MixedBasis([('velocity', "
+                "VectorLagrangeBasis), ('pressure', LagrangeBasis)]), got "
+                f"{basis!r}"
+            )
+        self._basis = basis
         self._vel_basis = vel_basis
         self._pres_basis = pres_basis
         self._bkd = bkd
@@ -179,8 +135,6 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         self._pres_forcing_eval = (
             None if pres_forcing is None else as_time_aware(pres_forcing)
         )
-        self._vel_dirichlet_bcs = vel_dirichlet_bcs or []
-        self._pres_dirichlet_bcs = pres_dirichlet_bcs or []
 
         self._ndim = vel_basis.ncomponents()
 
@@ -199,59 +153,17 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         self._vel_mass_cached: Optional[Array] = None
         self._mass_cached: Optional[Array] = None
 
-        # Convert tuple BCs to CallableDirichletBC objects for mixin
-        self._boundary_conditions = self._build_boundary_conditions()
-        self._spatial_operator: Optional[ComposedSpatialOperator[Array]] = None
-
-    def _build_boundary_conditions(self) -> List[Any]:
-        """Convert tuple-based BCs to CallableDirichletBC objects."""
-        bcs = []
-        nvars = self._ndim
-
-        for bndry_name, bndry_func in self._vel_dirichlet_bcs:
-            for idx in range(nvars):
-                # Extract DOF indices for this component
-                if nvars >= 2:
-                    dofnames = self._vel_skfem_basis.get_dofs().obj.element.dofnames
-                    skip = dofnames[nvars - idx - 1]
-                    bndry_dofs = self._vel_skfem_basis.get_dofs(bndry_name, skip=skip)
-                else:
-                    bndry_dofs = self._vel_skfem_basis.get_dofs(bndry_name)
-
-                dof_arr = np.asarray(bndry_dofs).flatten()
-                coords = self._vel_skfem_basis.doflocs[:, dof_arr]
-
-                bcs.append(
-                    CallableDirichletBC(
-                        dof_arr,
-                        _VelComponentBCValueFunc(bndry_func, coords, idx),
-                        self._bkd,
-                    )
-                )
-
-        for bndry_name, bndry_func in self._pres_dirichlet_bcs:
-            p_dofs = self._pres_skfem_basis.get_dofs(bndry_name)
-            p_dofs_arr = np.asarray(p_dofs).flatten()
-            shifted_p_dofs = p_dofs_arr + self.vel_ndofs()
-            coords = self._pres_skfem_basis.doflocs[:, p_dofs_arr]
-
-            bcs.append(
-                CallableDirichletBC(
-                    shifted_p_dofs,
-                    _PresBCValueFunc(bndry_func, coords),
-                    self._bkd,
-                )
-            )
-
-        return bcs
-
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
         return self._bkd
 
+    def basis(self) -> MixedBasis[Array]:
+        """Return the mixed velocity-pressure basis."""
+        return self._basis
+
     def nstates(self) -> int:
         """Return total number of DOFs (velocity + pressure)."""
-        return self._vel_basis.ndofs() + self._pres_basis.ndofs()
+        return self._basis.ndofs()
 
     def ndim(self) -> int:
         """Return spatial dimension."""
@@ -560,73 +472,6 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             for forcing in (self._vel_forcing_eval, self._pres_forcing_eval)
         )
 
-    def is_time_invariant(self) -> bool:
-        """Whether the composed ``F`` is declared time-independent."""
-        return self.spatial_operator().is_time_invariant()
-
-    def spatial_operator(self) -> ComposedSpatialOperator[Array]:
-        """Return ``F = F_Omega + F_Gamma`` (cached).
-
-        The natural-BC terms come from the BC list; the constructor
-        accepts none yet, so the sum is the interior alone. A traction
-        term would join here, as for every other physics.
-        """
-        if self._spatial_operator is None:
-            self._spatial_operator = ComposedSpatialOperator(
-                self, NaturalBCOperator(self.weak_form_bcs())
-            )
-        return self._spatial_operator
-
-    def spatial_residual(self, state: Array, time: float) -> Array:
-        """Compute ``F`` without Dirichlet enforcement. Shape: (nstates,)."""
-        return self.spatial_operator().spatial_residual(state, time)
-
-    def spatial_jacobian(self, state: Array, time: float) -> Array:
-        """Compute ``dF/du`` without Dirichlet enforcement."""
-        return self.spatial_operator().spatial_jacobian(state, time)
-
-    def state_derivatives(self) -> StateDerivatives[Array]:
-        """Return the second state derivatives of the composed ``F``."""
-        return self.spatial_operator().state_derivatives()
-
-    def residual(self, state: Array, time: float) -> Array:
-        """Compute residual F(u, t) = load - K*u with BCs applied.
-
-        Dirichlet BCs replace rows with: state[dof] - exact_value.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state [vel_dofs | pres_dofs]. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Residual vector. Shape: (nstates,)
-        """
-        return self.system().steady_snapshot(time).steady_residual(state)
-
-    def jacobian(self, state: Array, time: float) -> Array:
-        """Compute Jacobian dF/du = -K with BCs applied.
-
-        For Dirichlet BC rows, the Jacobian is set to identity.
-
-        Parameters
-        ----------
-        state : Array
-            Solution state [vel_dofs | pres_dofs]. Shape: (nstates,)
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Jacobian matrix. Shape: (nstates, nstates)
-        """
-        return self.system().steady_snapshot(time).steady_jacobian(state)
-
     def vel_mass_matrix(self) -> Array:
         """Return velocity mass matrix M_vel.
 
@@ -648,12 +493,6 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
             BilinearForm(vector_mass_form), self._vel_skfem_basis
         )
         return self._vel_mass_cached
-
-    def system(self) -> GalerkinSystem[Array]:
-        """Return the composed system: ``F``, constraints, and mass."""
-        return GalerkinSystem(
-            self.spatial_operator(), self.constraint_set(), self
-        )
 
     def mass_matrix(self) -> Array:
         """Return block mass matrix [M_vel, 0; 0, 0].
@@ -703,42 +542,6 @@ class StokesPhysics(GalerkinBCMixin[Array], Generic[Array]):
         result[n_vel:] = rhs_np[n_vel:]
 
         return self._bkd.asarray(result.astype(np.float64))
-
-    def init_guess(self, time: float = 0.0) -> Array:
-        """Compute initial guess by solving linear Stokes.
-
-        Solves the linear Stokes system (no NS terms) directly.
-        Used as initial guess for Newton iteration on Navier-Stokes.
-
-        Parameters
-        ----------
-        time : float
-            Time for evaluation.
-
-        Returns
-        -------
-        Array
-            Initial guess [vel_dofs | pres_dofs]. Shape: (nstates,)
-        """
-        from pyapprox.pde.galerkin.solvers import SteadyStateSolver
-
-        # Create a linear Stokes physics (no NS terms)
-        linear_physics = StokesPhysics(
-            vel_basis=self._vel_basis,
-            pres_basis=self._pres_basis,
-            bkd=self._bkd,
-            navier_stokes=False,
-            viscosity=self._viscosity,
-            vel_forcing=self._vel_forcing,
-            pres_forcing=self._pres_forcing,
-            vel_dirichlet_bcs=self._vel_dirichlet_bcs,
-            pres_dirichlet_bcs=self._pres_dirichlet_bcs,
-        )
-        solver: SteadyStateSolver[Array] = SteadyStateSolver(
-            linear_physics.system().steady_snapshot(time), tol=1e-12
-        )
-        result = solver.solve()
-        return result.solution
 
     def __repr__(self) -> str:
         return (

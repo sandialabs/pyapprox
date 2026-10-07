@@ -22,15 +22,17 @@ Provides:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
+    from pyapprox.pde.boundary import BoundaryConditionRole
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
         VectorLagrangeBasis,
     )
     from pyapprox.pde.galerkin.mesh.obstructed import ObstructedMesh2D
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
+    from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 
 import numpy as np
 
@@ -153,8 +155,9 @@ class ParabolicInlet:
     """Inlet velocity profile ``y^(a-1) * (1-y)^(b-1)`` in x-direction.
 
     Picklable (a class, not a closure: stored BC callables must
-    survive ``pickle.dumps``). Callable signature matches skfem BC
-    expectations: ``(x: np.ndarray, time: float = 0.0) -> np.ndarray``.
+    survive ``pickle.dumps``). Called as ``(x, time)`` with ``x`` of
+    shape ``(2, npts)``; returns one row per velocity component,
+    ``(2, npts)``, as ``DirichletBC`` expects of a vector field.
     """
 
     def __init__(self, a: float, b: float) -> None:
@@ -165,8 +168,8 @@ class ParabolicInlet:
         self, x: np.ndarray, time: float = 0.0,
     ) -> np.ndarray:
         y = x[1]
-        vals = np.zeros((x.shape[1], 2))
-        vals[:, 0] = y ** (self._a - 1) * (1 - y) ** (self._b - 1)
+        vals = np.zeros((2, x.shape[1]))
+        vals[0] = y ** (self._a - 1) * (1 - y) ** (self._b - 1)
         return vals
 
     def is_time_dependent(self) -> bool:
@@ -175,12 +178,13 @@ class ParabolicInlet:
 
 
 class ZeroVelocity:
-    """Zero-velocity BC (a picklable class, not a closure)."""
+    """Zero-velocity BC (a picklable class, not a closure); returns one
+    row per component, ``(2, npts)``."""
 
     def __call__(
         self, x: np.ndarray, time: float = 0.0,
     ) -> np.ndarray:
-        return np.zeros((x.shape[1], 2))
+        return np.zeros((2, x.shape[1]))
 
     def is_time_dependent(self) -> bool:
         """Identically zero; the accepted time is ignored."""
@@ -221,9 +225,12 @@ def solve_obstructed_stokes(
         pressure bases.
     """
     from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
+    from pyapprox.pde.galerkin.basis.mixed import MixedBasis
     from pyapprox.pde.galerkin.basis.vector_lagrange import (
         VectorLagrangeBasis,
     )
+    from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+    from pyapprox.pde.galerkin.compose import compose_galerkin_system
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
     from pyapprox.pde.galerkin.time_integration.galerkin_model import (
         GalerkinModel,
@@ -231,34 +238,37 @@ def solve_obstructed_stokes(
 
     vel_basis = VectorLagrangeBasis(mesh, degree=2)
     pres_basis = LagrangeBasis(mesh, degree=1)
+    fields: List[Tuple[str, GalerkinBasisProtocol[Array]]] = [
+        ("velocity", vel_basis),
+        ("pressure", pres_basis),
+    ]
+    basis = MixedBasis(fields)
+    velocity = basis.field("velocity")
 
     a, b = vel_shape_params
-    inlet_func = ParabolicInlet(a, b)
     zero_vel = ZeroVelocity()
-
     # No-slip on obs, bottom, top; parabolic inlet on left.
-    vel_bcs: List[Tuple[str, Callable[..., Any]]] = [
-        ("left", inlet_func),
-        ("bottom", zero_vel),
-        ("top", zero_vel),
-        ("obs0", zero_vel),
-        ("obs1", zero_vel),
-        ("obs2", zero_vel),
+    bcs: Sequence[BoundaryConditionRole[Array]] = [
+        DirichletBC(velocity, "left", ParabolicInlet(a, b), bkd)
+    ] + [
+        DirichletBC(velocity, name, zero_vel, bkd)
+        for name in ("bottom", "top", "obs0", "obs1", "obs2")
     ]
 
     viscosity = 1.0 / reynolds_num
-
     stokes = StokesPhysics(
-        vel_basis,
-        pres_basis,
-        bkd,
-        navier_stokes=navier_stokes,
-        viscosity=viscosity,
-        vel_dirichlet_bcs=vel_bcs,
+        basis, bkd, navier_stokes=navier_stokes, viscosity=viscosity
     )
 
-    model = GalerkinModel(stokes.system(), bkd)
-    init_guess = stokes.init_guess(0.0)
+    # Start from the linear Stokes flow with the same boundary data.
+    zero_guess = bkd.zeros((basis.ndofs(),))
+    init_guess = GalerkinModel(
+        compose_galerkin_system(
+            StokesPhysics(basis, bkd, viscosity=viscosity), bcs
+        ),
+        bkd,
+    ).solve_steady(zero_guess)
+    model = GalerkinModel(compose_galerkin_system(stokes, bcs), bkd)
     sol = model.solve_steady(init_guess, tol=1e-10, maxiter=50)
 
     return sol, stokes, vel_basis, pres_basis

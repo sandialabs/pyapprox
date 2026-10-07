@@ -32,13 +32,16 @@ from pyapprox.pde.constitutive.coefficient_functions import (
     TimeDependent,
     TimeIndependent,
 )
-from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.basis import LagrangeBasis, MixedBasis
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.galerkin.time_integration import (
     GalerkinModel,
     TimeIntegrationConfig,
@@ -121,16 +124,29 @@ def _get_exact_state(
     )
 
 
+def _stokes(
+    mesh: Any, bkd: NumpyBkd, **kwargs: Any
+) -> StokesPhysics[_NumpyArray]:
+    """Taylor-Hood Stokes on ``mesh``: P2 velocity, P1 pressure."""
+    basis = MixedBasis(
+        [
+            ("velocity", VectorLagrangeBasis(mesh, degree=2)),
+            ("pressure", LagrangeBasis(mesh, degree=1)),
+        ]
+    )
+    return StokesPhysics(basis, bkd, **kwargs)
+
+
 def _build_stokes_from_manufactured(
     funcs: _ManufacturedFuncs,
     nvars: int,
-    vel_basis: VectorLagrangeBasis[_NumpyArray],
-    pres_basis: LagrangeBasis[_NumpyArray],
+    basis: MixedBasis[_NumpyArray],
     bkd: NumpyBkd,
     navier_stokes: bool = False,
     transient: bool = False,
-) -> StokesPhysics[_NumpyArray]:
-    """Create StokesPhysics from manufactured solution functions.
+) -> Tuple[GalerkinSystem[_NumpyArray], List[Any]]:
+    """Compose Stokes with the manufactured forcing and Dirichlet data on
+    every boundary, for both fields. Returns the system and its BCs.
 
     Parameters
     ----------
@@ -153,7 +169,10 @@ def _build_stokes_from_manufactured(
                 vals = funcs["solution"](x_eval, time)
             else:
                 vals = funcs["solution"](x_eval)
-            return np.asarray(vals[:, :nvars])
+            # One row per component (a 1D velocity is scalar-valued).
+            if nvars == 1:
+                return np.asarray(vals[:, 0])
+            return np.asarray(vals[:, :nvars].T)
 
         return (
             TimeDependent(vel_bc) if transient else TimeIndependent(vel_bc)
@@ -216,17 +235,22 @@ def _build_stokes_from_manufactured(
     vel_forcing = _make_vel_forcing(funcs, nvars)
     pres_forcing = _make_pres_forcing(funcs, nvars)
 
-    return StokesPhysics(
-        vel_basis=vel_basis,
-        pres_basis=pres_basis,
-        bkd=bkd,
+    physics = StokesPhysics(
+        basis,
+        bkd,
         navier_stokes=navier_stokes,
         viscosity=1.0,
         vel_forcing=vel_forcing,
         pres_forcing=pres_forcing,
-        vel_dirichlet_bcs=[(bn, vel_bc) for bn in bc_names],
-        pres_dirichlet_bcs=[(bn, pres_bc) for bn in bc_names],
     )
+    bcs: List[Any] = [
+        DirichletBC(basis.field("velocity"), bn, vel_bc, bkd)
+        for bn in bc_names
+    ] + [
+        DirichletBC(basis.field("pressure"), bn, pres_bc, bkd)
+        for bn in bc_names
+    ]
+    return compose_galerkin_system(physics, bcs), bcs
 
 
 # ---------------------------------------------------------------------------
@@ -234,114 +258,107 @@ def _build_stokes_from_manufactured(
 # ---------------------------------------------------------------------------
 
 
+def _mesh_2d(bkd: NumpyBkd) -> StructuredMesh2D[_NumpyArray]:
+    return StructuredMesh2D(
+        nx=3, ny=3, bounds=[(0.0, 1.0), (0.0, 1.0)], bkd=bkd
+    )
+
+
 class TestStokesBase:
     """Base test class for Stokes physics."""
-    def test_nstates_1d(self, numpy_bkd: NumpyBkd) -> None:
-        """Test nstates matches vel_ndofs + pres_ndofs in 1D."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        vel_basis = VectorLagrangeBasis(mesh, degree=2)
-        pres_basis = LagrangeBasis(mesh, degree=1)
-        physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
-        )
-        assert physics.nstates() == physics.vel_ndofs() + physics.pres_ndofs()
 
-    def test_nstates_2d(self, numpy_bkd: NumpyBkd) -> None:
-        """Test nstates matches vel_ndofs + pres_ndofs in 2D."""
+    def test_nstates(self, numpy_bkd: NumpyBkd) -> None:
+        """nstates is vel_ndofs + pres_ndofs, the mixed basis size."""
         bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=3,
-            ny=3,
-            bounds=[(0.0, 1.0), (0.0, 1.0)],
-            bkd=bkd,
-        )
-        vel_basis = VectorLagrangeBasis(mesh, degree=2)
-        pres_basis = LagrangeBasis(mesh, degree=1)
-        physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
-        )
-        assert physics.nstates() == physics.vel_ndofs() + physics.pres_ndofs()
+        for mesh in (
+            StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd),
+            _mesh_2d(bkd),
+        ):
+            physics = _stokes(mesh, bkd)
+            assert (
+                physics.nstates()
+                == physics.vel_ndofs() + physics.pres_ndofs()
+                == physics.basis().ndofs()
+            )
 
-    def test_residual_shape_1d(self, numpy_bkd: NumpyBkd) -> None:
-        """Test residual has correct shape in 1D."""
+    def test_requires_velocity_then_pressure(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        vel_basis = VectorLagrangeBasis(mesh, degree=2)
-        pres_basis = LagrangeBasis(mesh, degree=1)
-        physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
+        mesh = _mesh_2d(bkd)
+        swapped = MixedBasis(
+            [
+                ("pressure", LagrangeBasis(mesh, degree=1)),
+                ("velocity", VectorLagrangeBasis(mesh, degree=2)),
+            ]
         )
-        u0 = bkd.asarray(np.zeros(physics.nstates(), dtype=np.float64))
-        res = physics.residual(u0, 0.0)
-        assert res.shape == (physics.nstates(),)
+        with pytest.raises(ValueError, match="velocity"):
+            StokesPhysics(swapped, bkd)
 
-    def test_jacobian_shape_1d(self, numpy_bkd: NumpyBkd) -> None:
-        """Test Jacobian has correct shape in 1D."""
+    def test_composed_shapes(self, numpy_bkd: NumpyBkd) -> None:
+        """The composed steady residual and Jacobian have the state size."""
         bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        vel_basis = VectorLagrangeBasis(mesh, degree=2)
-        pres_basis = LagrangeBasis(mesh, degree=1)
-        physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
+        physics = _stokes(StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd), bkd)
+        steady = compose_galerkin_system(physics).steady()
+        u0 = bkd.zeros((physics.nstates(),))
+        assert steady.steady_residual(u0).shape == (physics.nstates(),)
+        assert steady.steady_jacobian(u0).shape == (
+            physics.nstates(),
+            physics.nstates(),
         )
-        u0 = bkd.asarray(np.zeros(physics.nstates(), dtype=np.float64))
-        jac = physics.jacobian(u0, 0.0)
-        assert jac.shape == (physics.nstates(), physics.nstates())
-
-    def test_mass_matrix_shape_1d(self, numpy_bkd: NumpyBkd) -> None:
-        """Test mass matrix has correct shape."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        vel_basis = VectorLagrangeBasis(mesh, degree=2)
-        pres_basis = LagrangeBasis(mesh, degree=1)
-        physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
-        )
-        M = physics.mass_matrix()
-        assert M.shape == (physics.nstates(), physics.nstates())
 
     def test_mass_matrix_block_structure(self, numpy_bkd: NumpyBkd) -> None:
         """Test mass matrix has [M_vel, 0; 0, 0] block structure."""
         bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        vel_basis = VectorLagrangeBasis(mesh, degree=2)
-        pres_basis = LagrangeBasis(mesh, degree=1)
-        physics = StokesPhysics(
-            vel_basis=vel_basis, pres_basis=pres_basis, bkd=bkd
-        )
+        physics = _stokes(StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd), bkd)
         M = _to_dense(physics.mass_matrix())
         n_vel = physics.vel_ndofs()
+        assert M.shape == (physics.nstates(), physics.nstates())
 
         # Pressure block should be zero
-        np.testing.assert_array_equal(M[n_vel:, :], 0.0)
-        np.testing.assert_array_equal(M[:, n_vel:], 0.0)
+        bkd.assert_allclose(bkd.asarray(M[n_vel:, :]), bkd.zeros(M[n_vel:, :].shape))
+        bkd.assert_allclose(bkd.asarray(M[:, n_vel:]), bkd.zeros(M[:, n_vel:].shape))
 
         # Velocity block should be symmetric positive definite
         M_vel = M[:n_vel, :n_vel]
-        np.testing.assert_array_almost_equal(M_vel, M_vel.T)
-        eigenvalues = np.linalg.eigvalsh(M_vel)
-        assert np.all(eigenvalues > 0)
+        bkd.assert_allclose(bkd.asarray(M_vel), bkd.asarray(M_vel.T), atol=1e-14)
+        assert np.all(np.linalg.eigvalsh(M_vel) > 0)
 
     def test_ndim(self, numpy_bkd: NumpyBkd) -> None:
         """Test ndim returns spatial dimension."""
         bkd = numpy_bkd
         mesh1d = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
-        vel1d = VectorLagrangeBasis(mesh1d, degree=2)
-        pres1d = LagrangeBasis(mesh1d, degree=1)
-        physics1d = StokesPhysics(vel_basis=vel1d, pres_basis=pres1d, bkd=bkd)
-        assert physics1d.ndim() == 1
+        assert _stokes(mesh1d, bkd).ndim() == 1
+        assert _stokes(_mesh_2d(bkd), bkd).ndim() == 2
 
-        mesh2d = StructuredMesh2D(
-            nx=3,
-            ny=3,
-            bounds=[(0.0, 1.0), (0.0, 1.0)],
-            bkd=bkd,
+    def test_field_bcs_constrain_global_dofs(self, numpy_bkd: NumpyBkd) -> None:
+        """A pressure BC constrains pressure DOFs (offset by the velocity
+        DOFs) and a velocity BC velocity DOFs, with each value taken
+        from its own component row."""
+        bkd = numpy_bkd
+        physics = _stokes(_mesh_2d(bkd), bkd)
+        basis = physics.basis()
+        n_vel = physics.vel_ndofs()
+
+        def inflow(coords: _NumpyArray) -> _NumpyArray:
+            return np.stack([1.0 + coords[1], -2.0 + 0.0 * coords[0]])
+
+        vel_bc = DirichletBC(basis.field("velocity"), "left", inflow, bkd)
+        pres_bc = DirichletBC(basis.field("pressure"), "right", 3.0, bkd)
+        vel_dofs = bkd.to_numpy(vel_bc.constrained_dofs())
+        pres_dofs = bkd.to_numpy(pres_bc.constrained_dofs())
+        assert np.all(vel_dofs < n_vel) and np.all(pres_dofs >= n_vel)
+
+        coords = bkd.to_numpy(basis.dof_coordinates())
+        values = bkd.to_numpy(vel_bc.constrained_values(0.0))
+        expected = np.where(
+            vel_dofs % 2 == 0, 1.0 + coords[1, vel_dofs], -2.0
         )
-        vel2d = VectorLagrangeBasis(mesh2d, degree=2)
-        pres2d = LagrangeBasis(mesh2d, degree=1)
-        physics2d = StokesPhysics(vel_basis=vel2d, pres_basis=pres2d, bkd=bkd)
-        assert physics2d.ndim() == 2
+        bkd.assert_allclose(bkd.asarray(values), bkd.asarray(expected))
+        bkd.assert_allclose(
+            pres_bc.constrained_values(0.0),
+            bkd.full((pres_dofs.shape[0],), 3.0),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -449,25 +466,21 @@ class TestParametrizedSteadyStokes:
 
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
         pres_basis = LagrangeBasis(mesh, degree=1)
+        basis = MixedBasis([("velocity", vel_basis), ("pressure", pres_basis)])
 
-        # Build physics from manufactured solution
-        physics = _build_stokes_from_manufactured(
-            funcs,
-            nvars,
-            vel_basis,
-            pres_basis,
-            bkd,
-            navier_stokes=navier_stokes,
-            transient=False,
+        system, _ = _build_stokes_from_manufactured(
+            funcs, nvars, basis, bkd, navier_stokes=navier_stokes
         )
 
-        # Solve
-        solver = SteadyStateSolver(physics.system().steady(), tol=1e-12)
+        # Navier-Stokes starts from the linear Stokes solution with the
+        # same forcing and boundary data.
+        guess = None
         if navier_stokes:
-            init_guess = physics.init_guess()
-            result = solver.solve(init_guess)
-        else:
-            result = solver.solve()
+            linear_system, _ = _build_stokes_from_manufactured(
+                funcs, nvars, basis, bkd, navier_stokes=False
+            )
+            guess = SteadyStateSolver(linear_system.steady()).solve().solution
+        result = SteadyStateSolver(system.steady(), tol=1e-12).solve(guess)
 
         assert result.converged, (
             f"Test {name}: solver did not converge "
@@ -598,20 +611,20 @@ class TestParametrizedTransientStokes:
 
         vel_basis = VectorLagrangeBasis(mesh, degree=2)
         pres_basis = LagrangeBasis(mesh, degree=1)
+        basis = MixedBasis([("velocity", vel_basis), ("pressure", pres_basis)])
 
         # Build physics with full (transient) forcing
-        physics = _build_stokes_from_manufactured(
+        system, _ = _build_stokes_from_manufactured(
             funcs,
             nvars,
-            vel_basis,
-            pres_basis,
+            basis,
             bkd,
             navier_stokes=navier_stokes,
             transient=True,
         )
 
         # Time stepping through the unified DAE pipeline
-        model = GalerkinModel(physics.system(), bkd)
+        model = GalerkinModel(system, bkd)
         y0 = bkd.asarray(
             _get_exact_state(
                 funcs,

@@ -15,7 +15,11 @@ if not package_available("skfem"):
 import numpy as np
 from scipy.sparse import issparse
 
-from pyapprox.pde.galerkin.basis import CubicHermiteBasis, LagrangeBasis
+from pyapprox.pde.galerkin.basis import (
+    CubicHermiteBasis,
+    LagrangeBasis,
+    MixedBasis,
+)
 from pyapprox.pde.galerkin.basis.vector_lagrange import (
     VectorLagrangeBasis,
 )
@@ -125,13 +129,13 @@ class TestSparsePathStokes:
     def setup_method(self) -> None:
         bkd = NumpyBkd()
         mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
-        vel_basis = VectorLagrangeBasis(mesh, degree=2)
-        pres_basis = LagrangeBasis(mesh, degree=1)
-        self._physics = StokesPhysics(
-            vel_basis=vel_basis,
-            pres_basis=pres_basis,
-            bkd=bkd,
+        basis = MixedBasis(
+            [
+                ("velocity", VectorLagrangeBasis(mesh, degree=2)),
+                ("pressure", LagrangeBasis(mesh, degree=1)),
+            ]
         )
+        self._physics = StokesPhysics(basis, bkd)
 
     def test_mass_matrix_is_sparse(self, numpy_bkd) -> None:
         _bkd = numpy_bkd
@@ -144,7 +148,7 @@ class TestSparsePathStokes:
     def test_jacobian_is_sparse(self, numpy_bkd) -> None:
         bkd = numpy_bkd
         u = bkd.asarray(np.zeros(self._physics.nstates()))
-        assert issparse(self._physics.jacobian(u, 0.0))
+        assert issparse(self._physics.interior_jacobian(u, 0.0))
 
 
 class TestSparsePathEulerBernoulli:
