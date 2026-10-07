@@ -9,6 +9,8 @@ Benchmarks (have analytical ground truth):
 
 Problem wrappers (no ground truth):
 - ``LotkaVolterraPredictionOEDProblem`` — nonlinear ODE-based prediction OED
+- ``ContaminantTransportOEDProblem`` — plume transport with a random field
+  diffusivity and a fixed or uncertain stream-function velocity
 - ``ObstructedAdvectionDiffusionOEDProblemWrapper`` — PDE-based OED
 - ``FixedVelocityObstructedAdvectionDiffusionOEDProblemWrapper``
 """
@@ -22,6 +24,15 @@ from pyapprox_benchmarks.expdesign.advection_diffusion import (
 from pyapprox_benchmarks.expdesign.cantilever_beam import (
     CantileverBeam2DLoadOEDBenchmark,
     build_cantilever_beam_oed_benchmark,
+)
+from pyapprox_benchmarks.expdesign.contaminant_transport import (
+    CellsPlusUniformStreamFunction,
+    ContaminantTransportOEDProblem,
+    FixedVelocity,
+    GaussianPlume,
+    StreamFunctionFlow,
+    UncertainVelocity,
+    VelocityModelProtocol,
 )
 from pyapprox_benchmarks.expdesign.linear_gaussian import (
     LinearGaussianKLOEDBenchmark,
@@ -59,4 +70,11 @@ __all__ = [
     "build_fixed_velocity_obstructed_advection_diffusion_oed_problem",
     "CantileverBeam2DLoadOEDBenchmark",
     "build_cantilever_beam_oed_benchmark",
+    "ContaminantTransportOEDProblem",
+    "CellsPlusUniformStreamFunction",
+    "FixedVelocity",
+    "GaussianPlume",
+    "StreamFunctionFlow",
+    "UncertainVelocity",
+    "VelocityModelProtocol",
 ]
