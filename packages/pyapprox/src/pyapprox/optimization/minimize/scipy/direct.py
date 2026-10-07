@@ -145,7 +145,7 @@ class ScipyDirectOptimizer(Generic[Array]):
         assert self._bounds is not None
 
         kwargs = {
-            "func": lambda x: float(self._objective(x[:, None])[:, 0]),
+            "func": lambda x: float(self._objective(x[:, None])[0, 0]),
             "bounds": self._bounds,
             "maxiter": self._maxiter,
             "vol_tol": self._vol_tol,
