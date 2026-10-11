@@ -35,7 +35,17 @@ on:
         default: ""
 
 concurrency:
-  group: tests-${{ github.ref }}
+  # Keyed on the event as well as the ref, so a dispatched run and a
+  # pushed one on the same branch are independent. Without the event a
+  # dispatch joins the push's group and cancels it: debugging one test
+  # on dev/main threw away a full suite that was ten minutes in.
+  #
+  # Push still supersedes push, which is the behavior worth keeping --
+  # results for a commit that has been overtaken are not worth the
+  # runners. Dispatch still supersedes dispatch on the same ref, so
+  # firing a second experiment before the first finishes loses the
+  # first; use a separate debug/* branch per question if that matters.
+  group: tests-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:

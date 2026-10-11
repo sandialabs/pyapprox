@@ -8,7 +8,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: docs-${{ github.ref }}
+  # Keyed on the event as well as the ref, for the reason given in
+  # tests.yml: a dispatched run and a pushed one on the same branch
+  # should not cancel each other.
+  group: docs-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
