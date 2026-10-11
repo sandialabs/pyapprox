@@ -33,6 +33,30 @@ on:
         description: "Paths, node ids or -k expression (empty runs all)"
         type: string
         default: ""
+      os:
+        # Narrow the fast matrix when only one platform fails. The other
+        # five jobs confirm what is already known, and macOS minutes bill
+        # at ten times Linux on a private repository, so a run restricted
+        # to the platform in question is both quicker to read and far
+        # cheaper. Defaults to both, which is what every push uses.
+        description: "Fast-job platforms"
+        type: choice
+        default: both
+        options:
+          - both
+          - ubuntu-latest
+          - macos-latest
+      python:
+        # Same reasoning for the interpreter. A failure that only appears
+        # on 3.11 needs 3.11, not three versions of the same answer.
+        description: "Fast-job Python versions"
+        type: choice
+        default: all
+        options:
+          - all
+          - "3.11"
+          - "3.12"
+          - "3.13"
 
 concurrency:
   # Keyed on the event as well as the ref, so a dispatched run and a
@@ -57,9 +81,23 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # Taken from an expression so a dispatch can narrow it; the
+      # defaults reproduce the full matrix, which is what every push
+      # gets. A matrix cannot be filtered by an input directly, so each
+      # axis is a JSON list chosen by its input.
+      # Written as "narrow && one || all" rather than the more obvious
+      # "is-default || all || one": && binds tighter than ||, so the
+      # latter returns the comparison's own true value on a push, where
+      # the input is null, and fromJSON(true) then fails.
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
-        os: [ubuntu-latest, macos-latest]
+        python-version: >-
+          ${{ fromJSON((inputs.python && inputs.python != 'all')
+          && format('["{0}"]', inputs.python)
+          || '["3.11","3.12","3.13"]') }}
+        os: >-
+          ${{ fromJSON((inputs.os && inputs.os != 'both')
+          && format('["{0}"]', inputs.os)
+          || '["ubuntu-latest","macos-latest"]') }}
     steps:
       - uses: actions/checkout@v4
         with:
