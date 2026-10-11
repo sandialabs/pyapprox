@@ -20,6 +20,19 @@ on:
           - all
           - fast
           - slow
+      tests:
+        # For reproducing a failure that only happens here. Without this
+        # the only way to see one CI test again is the whole suite, ten
+        # minutes a time, which is slow enough to discourage checking
+        # whether a fix actually worked. Passed through to pytest, so it
+        # takes paths, node ids, or a -k expression.
+        #
+        # Empty by default, and the default is what every push uses, so
+        # the normal run is unchanged. Remember to set tier=fast: the
+        # tier default is slow, which skips the fast jobs entirely.
+        description: "Paths, node ids or -k expression (empty runs all)"
+        type: string
+        default: ""
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -54,10 +67,10 @@ jobs:
           python -m pip install -e "packages/pyapprox[fem,umbridge,test]" -e packages/pyapprox-benchmarks
       - name: Run fast tests (PR — fail-fast)
         if: github.event_name == 'pull_request'
-        run: pytest -n 4 --dist loadfile -v --tb=short --timeout=300
+        run: pytest -n 4 --dist loadfile -v --tb=short --timeout=300 ${{ inputs.tests }}
       - name: Run fast tests (push — show all failures)
         if: github.event_name != 'pull_request'
-        run: pytest -n 4 --dist loadfile -v --tb=short --timeout=300
+        run: pytest -n 4 --dist loadfile -v --tb=short --timeout=300 ${{ inputs.tests }}
 
   minimal:
     name: Minimal install (no optional deps)
@@ -85,7 +98,7 @@ jobs:
       - name: Verify package imports
         run: python -c "import pyapprox; print('Core import OK')"
       - name: Run fast tests (no optional deps)
-        run: pytest -n 4 --dist loadfile -v --tb=short --timeout=300
+        run: pytest -n 4 --dist loadfile -v --tb=short --timeout=300 ${{ inputs.tests }}
 
   slow:
     name: Slow tests (>5s)
@@ -113,7 +126,7 @@ jobs:
       - name: Run slow tests only
         env:
           PYAPPROX_RUN_SLOW: "1"
-        run: pytest -n 4 --dist loadfile -v --tb=short -m slow_on --timeout=600
+        run: pytest -n 4 --dist loadfile -v --tb=short -m slow_on --timeout=600 ${{ inputs.tests }}
 
   slower:
     name: Slower tests (>30s)
@@ -141,7 +154,7 @@ jobs:
       - name: Run slower tests only
         env:
           PYAPPROX_RUN_SLOWER: "1"
-        run: pytest -n 4 --dist loadfile -v --tb=short -m slower_on --timeout=1200
+        run: pytest -n 4 --dist loadfile -v --tb=short -m slower_on --timeout=1200 ${{ inputs.tests }}
 
   slowest:
     name: Slowest tests (>60s)
@@ -169,4 +182,4 @@ jobs:
       - name: Run slowest tests only
         env:
           PYAPPROX_RUN_SLOWEST: "1"
-        run: pytest -n 4 --dist loadfile -v --tb=short -m slowest_on --timeout=1800
+        run: pytest -n 4 --dist loadfile -v --tb=short -m slowest_on --timeout=1800 ${{ inputs.tests }}
