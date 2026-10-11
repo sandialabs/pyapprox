@@ -64,11 +64,15 @@ def sample_log_diffusion_field(
     w = np.ones(ngrid) * dx
     w[0] /= 2
     w[-1] /= 2
+    # Let the KLE choose how many terms it can support rather than
+    # asking for one per grid point. A squared-exponential kernel this
+    # smooth has only a couple of dozen modes above rounding error on
+    # [0, 1], and the rest would be columns of zeros.
     kle = MeshKLE(
-        mesh_coords, kernel, sigma=sigma, nterms=ngrid,
+        mesh_coords, kernel, sigma=sigma,
         quad_weights=bkd.array(w), bkd=bkd,
     )
-    coef = bkd.array(rng.standard_normal((ngrid, N)))
+    coef = bkd.array(rng.standard_normal((kle.nterms(), N)))
     return bkd.to_numpy(kle(coef))
 
 
