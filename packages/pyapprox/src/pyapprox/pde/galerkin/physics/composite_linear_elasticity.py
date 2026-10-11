@@ -17,7 +17,16 @@ When used with a single material covering all elements, this class
 is functionally equivalent to the legacy LinearElasticity class.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+)
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -28,14 +37,12 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.galerkin.basis.vector_lagrange import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.flux_law import (
     LinearElasticTraction,
     NormalFluxLawProtocol,
 )
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import PerElementField
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -71,7 +78,7 @@ def _elastic_form_impl(u: Any, v: Any, w: Any) -> Any:
 _elastic_form = BilinearForm(_elastic_form_impl)
 
 
-class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
+class CompositeLinearElasticity(Generic[Array]):
     """Linear elasticity with per-element material properties.
 
     Supports multi-material composites where each subdomain has its own
@@ -103,8 +110,6 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         varies in time must declare itself by wrapping in
         ``TimeDependent``; ``TimeIndependent`` declares the opposite for
         a callable that could accept a time but ignores it.
-    boundary_conditions : list of BoundaryConditionRole, optional
-        Boundary conditions (Dirichlet, Neumann, Robin).
 
     Examples
     --------
@@ -132,7 +137,6 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         poisson_ratio: float,
         bkd: Backend[Array],
         body_force: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ) -> "CompositeLinearElasticity[Array]":
         """Create from uniform material properties.
 
@@ -152,8 +156,6 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
             Computational backend.
         body_force : Callable, optional
             Body force function.
-        boundary_conditions : list of BoundaryConditionRole, optional
-            Boundary conditions.
         """
         nelems = basis.skfem_basis().mesh.nelements
         return cls(
@@ -162,15 +164,7 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
             element_materials={"uniform": np.arange(nelems)},
             bkd=bkd,
             body_force=body_force,
-            boundary_conditions=boundary_conditions,
         )
-
-    # The base class stores the basis as the scalar
-    # GalerkinBasisProtocol, which has no ncomponents(). This physics is
-    # vector-valued by construction, so narrow the attribute back to
-    # what the constructor already requires rather than casting at each
-    # use.
-    _basis: VectorLagrangeBasis[Array]
 
     def __init__(
         self,
@@ -179,9 +173,9 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
         element_materials: Dict[str, np.ndarray],
         bkd: Backend[Array],
         body_force: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
-        super().__init__(basis, bkd, boundary_conditions)
+        self._basis = basis
+        self._bkd = bkd
         # Keep the raw supplier (consumers may inspect its type) and a
         # normalized companion that assembly evaluates uniformly as
         # f(coords, time).
@@ -642,6 +636,18 @@ class CompositeLinearElasticity(GalerkinPhysicsBase[Array]):
             lam_per_elem[elem_idx] = values[2 * i]
             mu_per_elem[elem_idx] = values[2 * i + 1]
         self.set_lame_parameters(lam_per_elem, mu_per_elem)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def basis(self) -> VectorLagrangeBasis[Array]:
+        """Return the vector finite element basis."""
+        return self._basis
+
+    def nstates(self) -> int:
+        """Return the number of DOFs."""
+        return self._basis.ndofs()
 
     def __repr__(self) -> str:
         materials_str = ", ".join(

@@ -22,7 +22,7 @@ Uses the NeoHookeanStress model from the collocation module for stress
 and tangent computation at quadrature points.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -33,7 +33,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.constitutive.protocols import (
     StressModelProtocol,
@@ -46,7 +45,6 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     NormalFluxLawProtocol,
     PK1Traction,
 )
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
@@ -61,7 +59,7 @@ except ImportError:
     )
 
 
-class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
+class HyperelasticityPhysics(Generic[Array]):
     """Nonlinear hyperelasticity physics for Galerkin FEM.
 
     Solves the quasi-static balance of linear momentum:
@@ -100,16 +98,7 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         varies in time must declare itself by wrapping in
         ``TimeDependent``; ``TimeIndependent`` declares the opposite for
         a callable that could accept a time but ignores it.
-    boundary_conditions : list of BoundaryConditionRole, optional
-        Boundary conditions (Dirichlet, Neumann, Robin).
     """
-
-    # The base class stores the basis as the scalar
-    # GalerkinBasisProtocol, which has no ncomponents(). This physics is
-    # vector-valued by construction, so narrow the attribute back to
-    # what the constructor already requires rather than casting at each
-    # use.
-    _basis: VectorLagrangeBasis[Array]
 
     def __init__(
         self,
@@ -117,9 +106,9 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         stress_model: StressModelProtocol[NDArray[Any]],
         bkd: Backend[Array],
         body_force: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
-        super().__init__(basis, bkd, boundary_conditions)
+        self._basis = basis
+        self._bkd = bkd
         # skfem assembles in NumPy: the quadrature-point deformation
         # gradients handed to the stress model are NumPy arrays whatever
         # Array is, and _numpy_bkd below is the backend passed alongside
@@ -490,6 +479,18 @@ class HyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             DOF values. Shape: (nstates,)
         """
         return self._basis.interpolate(func)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def basis(self) -> VectorLagrangeBasis[Array]:
+        """Return the vector finite element basis."""
+        return self._basis
+
+    def nstates(self) -> int:
+        """Return the number of DOFs."""
+        return self._basis.ndofs()
 
     def __repr__(self) -> str:
         return (

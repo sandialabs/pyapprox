@@ -59,21 +59,6 @@ def _physics_and_system(
     return physics, system, robin
 
 
-def _legacy_physics(bkd: Backend[Array]) -> AdvectionDiffusionReaction[Array]:
-    """A physics holding its BCs through the physics-level kwarg."""
-    basis = LagrangeBasis(StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd), 1)
-    return AdvectionDiffusionReaction(
-        basis=basis,
-        diffusivity=1.0,
-        bkd=bkd,
-        forcing=TimeIndependent(_zero),
-        boundary_conditions=[
-            DirichletBC(basis, "left", 0.0, bkd),
-            RobinBC(basis, "right", alpha=1.0, value_func=0.0, bkd=bkd),
-        ],
-    )
-
-
 class _Param:
     """A parameterization writing ``coefficient`` of each target."""
 
@@ -98,14 +83,12 @@ class _Param:
 
 
 class TestOwnership:
-    def test_physics_owns_itself_and_its_bcs(
-        self, bkd: Backend[Array]
-    ) -> None:
-        physics = _legacy_physics(bkd)
+    def test_physics_owns_only_itself(self, bkd: Backend[Array]) -> None:
+        """A BC-free physics owns no boundary term; the system does."""
+        physics, _, robin = _physics_and_system(bkd)
         assert owns(physics, physics)
-        for bc in physics._boundary_conditions:
-            assert owns(physics, bc)
-        assert not owns(physics, _legacy_physics(bkd))
+        assert not owns(physics, robin)
+        assert not owns(physics, _physics(bkd))
 
     def test_system_owns_its_interior_and_terms(
         self, bkd: Backend[Array]

@@ -15,7 +15,7 @@ Linear form (residual/load):
     f*v - ν*grad(u_prev)·grad(v) - v*u_prev*du_prev/dx
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, Union
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -26,7 +26,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     ConstantDiffusion,
     CoordinateDiffusion,
@@ -36,7 +35,6 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     DiffusiveFlux,
     NormalFluxLawProtocol,
 )
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -52,7 +50,7 @@ except ImportError:
     )
 
 
-class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
+class BurgersPhysics(Generic[Array]):
     """Viscous Burgers equation physics for Galerkin FEM.
 
     Solves:
@@ -86,8 +84,6 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
     forcing : Callable, optional
         Forcing/source term f. Takes coordinates and returns (npts,).
         For time-dependent problems, takes (coordinates, time).
-    boundary_conditions : List[BoundaryConditionRole], optional
-        List of boundary conditions.
     """
 
     def __init__(
@@ -96,9 +92,9 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
         viscosity: Union[float, Callable[..., Any]],
         bkd: Backend[Array],
         forcing: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
-        super().__init__(basis, bkd, boundary_conditions)
+        self._basis = basis
+        self._bkd = bkd
         self._mass = ScalarMassAssembler(basis, bkd)
         self._viscosity = viscosity
         # Keep the raw supplier (consumers may inspect its type) and a
@@ -289,6 +285,18 @@ class BurgersPhysics(GalerkinPhysicsBase[Array], Generic[Array]):
             Initial DOF values. Shape: (nstates,)
         """
         return self._basis.interpolate(func)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def basis(self) -> GalerkinBasisProtocol[Array]:
+        """Return the finite element basis."""
+        return self._basis
+
+    def nstates(self) -> int:
+        """Return the number of DOFs."""
+        return self._basis.ndofs()
 
     def __repr__(self) -> str:
         return f"BurgersPhysics(nstates={self.nstates()}, viscosity={self._viscosity})"

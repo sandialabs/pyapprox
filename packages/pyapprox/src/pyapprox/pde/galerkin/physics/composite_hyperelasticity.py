@@ -14,7 +14,16 @@ When used with a single material covering all elements, this class is
 functionally equivalent to the legacy HyperelasticityPhysics class.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Tuple,
+)
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -26,7 +35,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import as_time_aware
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
@@ -38,7 +46,6 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     NeoHookeanTraction,
     NormalFluxLawProtocol,
 )
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import PerElementField
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -55,7 +62,7 @@ except ImportError:
     )
 
 
-class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
+class CompositeHyperelasticityPhysics(Generic[Array]):
     """Nonlinear hyperelasticity with per-element material properties.
 
     Supports multi-material composites where each subdomain has its own
@@ -87,8 +94,6 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         varies in time must declare itself by wrapping in
         ``TimeDependent``; ``TimeIndependent`` declares the opposite for
         a callable that could accept a time but ignores it.
-    boundary_conditions : list of BoundaryConditionRole, optional
-        Boundary conditions (Dirichlet, Neumann, Robin).
 
     Examples
     --------
@@ -116,7 +121,6 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         poisson_ratio: float,
         bkd: Backend[Array],
         body_force: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ) -> "CompositeHyperelasticityPhysics[Array]":
         """Create from uniform material properties.
 
@@ -130,15 +134,7 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             element_materials={"uniform": np.arange(nelems)},
             bkd=bkd,
             body_force=body_force,
-            boundary_conditions=boundary_conditions,
         )
-
-    # The base class stores the basis as the scalar
-    # GalerkinBasisProtocol, which has no ncomponents(). This physics is
-    # vector-valued by construction, so narrow the attribute back to
-    # what the constructor already requires rather than casting at each
-    # use.
-    _basis: VectorLagrangeBasis[Array]
 
     def __init__(
         self,
@@ -147,9 +143,9 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
         element_materials: Dict[str, np.ndarray],
         bkd: Backend[Array],
         body_force: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
-        super().__init__(basis, bkd, boundary_conditions)
+        self._basis = basis
+        self._bkd = bkd
         # Keep the raw supplier (consumers may inspect its type) and a
         # normalized companion that assembly evaluates uniformly as
         # f(coords, time).
@@ -749,6 +745,18 @@ class CompositeHyperelasticityPhysics(GalerkinPhysicsBase[Array]):
             )
         E, nu = self._material_map[self._material_names[0]]
         return float(lame_parameters(E, nu)[1])
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def basis(self) -> VectorLagrangeBasis[Array]:
+        """Return the vector finite element basis."""
+        return self._basis
+
+    def nstates(self) -> int:
+        """Return the number of DOFs."""
+        return self._basis.ndofs()
 
     def __repr__(self) -> str:
         materials_str = ", ".join(

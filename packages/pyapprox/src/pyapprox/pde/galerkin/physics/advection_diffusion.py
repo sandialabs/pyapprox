@@ -24,6 +24,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Generic,
     List,
     Optional,
     Protocol,
@@ -41,7 +42,6 @@ from numpy.typing import NDArray
 from scipy.sparse import csr_matrix
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     BasisEvaluableFieldProtocol,
     ConstantDiffusion,
@@ -67,7 +67,6 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     NormalFluxLawProtocol,
     SumFlux,
 )
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -507,7 +506,7 @@ class _ReactionJacobianKernel:
         return ret
 
 
-class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
+class AdvectionDiffusionReaction(Generic[Array]):
     """Advection-diffusion-reaction physics with general reaction term.
 
     Solves:
@@ -570,8 +569,6 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
     forcing : Callable, optional
         Forcing/source term f. Takes coordinates and returns (npts,).
         For time-dependent problems, takes (coordinates, time).
-    boundary_conditions : List[BoundaryConditionRole], optional
-        List of boundary conditions.
     conservative : bool, default=False
         If True, use conservative advection form div(v*u) with weak form
         bilinear term -(v*u, grad(w)). If False, use non-conservative
@@ -618,10 +615,10 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
         ] = None,
         reaction: Optional[Union[float, ReactionFunctionProtocol]] = None,
         forcing: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
         conservative: bool = False,
     ):
-        super().__init__(basis, bkd, boundary_conditions)
+        self._basis = basis
+        self._bkd = bkd
         self._mass = ScalarMassAssembler(basis, bkd)
 
         # Coerce coefficient inputs to function objects at the boundary;
@@ -1528,6 +1525,18 @@ class AdvectionDiffusionReaction(GalerkinPhysicsBase[Array]):
             Initial DOF values. Shape: (nstates,)
         """
         return self._basis.interpolate(func)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def basis(self) -> GalerkinBasisProtocol[Array]:
+        """Return the finite element basis."""
+        return self._basis
+
+    def nstates(self) -> int:
+        """Return the number of DOFs."""
+        return self._basis.ndofs()
 
     def __repr__(self) -> str:
         return (

@@ -92,8 +92,6 @@ if package_available("skfem"):
         CompositeLinearElasticity,
         EulerBernoulliBeamAnalytical,
         EulerBernoulliBeamFEM,
-        GalerkinBCMixin,
-        GalerkinPhysicsBase,
         Helmholtz,
         HyperelasticityPhysics,
         LinearAdvectionDiffusionReaction,
@@ -112,8 +110,6 @@ if package_available("skfem"):
         "LagrangeBasis",
         "VectorLagrangeBasis",
         # Physics infrastructure
-        "GalerkinBCMixin",
-        "GalerkinPhysicsBase",
         "ScalarMassAssembler",
         # Physics implementations
         "AdvectionDiffusionReaction",

@@ -18,7 +18,7 @@ identities that suffice for the ADR coefficients — this physics is the
 exemplar for the engine's callable mixed slots.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Generic, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -29,7 +29,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     as_time_aware,
@@ -38,7 +37,6 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     DiffusiveFlux,
     NormalFluxLawProtocol,
 )
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -58,7 +56,7 @@ _KappaFn = Callable[
 ]
 
 
-class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
+class QuasilinearDiffusion(Generic[Array]):
     """Quasilinear diffusion :math:`-\\nabla\\cdot(a(x)\\kappa(u)\\nabla u) = f`.
 
     TIME THREADING (partial). The forcing is normalized through
@@ -91,8 +89,6 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
     forcing : Callable, optional
         Forcing f. Takes coordinates (ndim, npts) and returns (npts,);
         time-dependent variants take (coordinates, time).
-    boundary_conditions : List[BoundaryConditionRole], optional
-        Boundary conditions.
     """
 
     def __init__(
@@ -104,11 +100,9 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
         kappa_deriv: _KappaFn,
         kappa_second_deriv: _KappaFn,
         forcing: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[
-            List[BoundaryConditionRole[Array]]
-        ] = None,
     ):
-        super().__init__(basis, bkd, boundary_conditions)
+        self._basis = basis
+        self._bkd = bkd
         if not isinstance(diffusivity, NodalFieldDiffusion):
             raise TypeError(
                 "diffusivity must be a NodalFieldDiffusion, got "
@@ -412,6 +406,18 @@ class QuasilinearDiffusion(GalerkinPhysicsBase[Array], Generic[Array]):
     def initial_condition(self, func: Callable[..., Any]) -> Array:
         """Create initial condition by interpolating a function."""
         return self._basis.interpolate(func)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def basis(self) -> GalerkinBasisProtocol[Array]:
+        """Return the finite element basis."""
+        return self._basis
+
+    def nstates(self) -> int:
+        """Return the number of DOFs."""
+        return self._basis.ndofs()
 
     def __repr__(self) -> str:
         return f"QuasilinearDiffusion(nstates={self.nstates()})"

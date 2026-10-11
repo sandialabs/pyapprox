@@ -1,4 +1,4 @@
-"""Tests for composed Galerkin systems and physics.system()."""
+"""Tests for composed Galerkin systems."""
 
 import pytest
 
@@ -9,20 +9,12 @@ if not package_available("skfem"):
 
 from typing import Any, Generic
 
-import numpy as np
-from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet, NaturalBCOperator
-from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
-from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import (
     DirectDirichletBC,
-    DirichletBC,
-    RobinBC,
 )
-from pyapprox.pde.galerkin.mesh import StructuredMesh1D
-from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinSteadySystemProtocol,
     GalerkinTransientSystemProtocol,
@@ -135,38 +127,3 @@ class TestGalerkinSystem:
         )
         with pytest.raises(ValueError, match="mass matrix has shape"):
             system.mass_matrix()
-
-
-def _zero(x: NDArray[Any]) -> NDArray[Any]:
-    return np.zeros(x.shape[1])
-
-
-class TestPhysicsSystem:
-    def _check(self, physics: Any, bkd: Backend[Array]) -> None:
-        system = physics.system()
-        assert isinstance(system, GalerkinTransientSystemProtocol)
-        assert system.nstates() == physics.nstates()
-        assert system.constraint_set() is physics.constraint_set()
-        state = bkd.linspace(-1.0, 1.0, physics.nstates())
-        bkd.assert_allclose(
-            system.spatial_operator().spatial_residual(state, 0.0),
-            physics.spatial_residual(state, 0.0),
-        )
-        assert system.mass_matrix() is physics.mass_matrix()
-
-    def test_adr(self, bkd: Backend[Array]) -> None:
-        mesh = StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-        physics = AdvectionDiffusionReaction(
-            basis=basis,
-            diffusivity=1.0,
-            bkd=bkd,
-            forcing=TimeIndependent(_zero),
-            boundary_conditions=[
-                DirichletBC(basis, "left", 1.0, bkd),
-                RobinBC(basis, "right", alpha=2.0, value_func=1.0, bkd=bkd),
-            ],
-        )
-        self._check(physics, bkd)
-        assert physics.system() is physics.system()
-        assert physics.system().spatial_operator() is physics.spatial_operator()

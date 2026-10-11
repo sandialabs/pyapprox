@@ -9,7 +9,6 @@ if package_available("skfem"):
         AdvectionDiffusionReaction,
         LinearAdvectionDiffusionReaction,
     )
-    from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
     from pyapprox.pde.galerkin.physics.bilaplacian_operator import (
         BiLaplacianOperator,
     )
@@ -25,7 +24,6 @@ if package_available("skfem"):
         EulerBernoulliBeamFEM,
         element_curvatures,
     )
-    from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
     from pyapprox.pde.galerkin.physics.helmholtz import Helmholtz
     from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
     from pyapprox.pde.galerkin.physics.hyperelasticity import (
@@ -40,8 +38,6 @@ if package_available("skfem"):
     from pyapprox.pde.galerkin.physics.stokes import StokesPhysics
 
     __all__ = [
-        "GalerkinBCMixin",
-        "GalerkinPhysicsBase",
         "ScalarMassAssembler",
         "AdvectionDiffusionReaction",
         "BiLaplacianOperator",

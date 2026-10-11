@@ -11,7 +11,7 @@ This is a frequency-domain wave equation that arises in acoustics,
 electromagnetics, and other wave phenomena.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Generic, Optional, Union
 
 if TYPE_CHECKING:
     from skfem.assembly.form.form import FormExtraParams
@@ -22,7 +22,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import (
     ConstantDiffusion,
     TimeVaryingProtocol,
@@ -32,7 +31,6 @@ from pyapprox.pde.galerkin.boundary.flux_law import (
     DiffusiveFlux,
     NormalFluxLawProtocol,
 )
-from pyapprox.pde.galerkin.physics.galerkin_base import GalerkinPhysicsBase
 from pyapprox.pde.galerkin.physics.helpers import ScalarMassAssembler
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -49,7 +47,7 @@ except ImportError:
     )
 
 
-class Helmholtz(GalerkinPhysicsBase[Array]):
+class Helmholtz(Generic[Array]):
     """Helmholtz equation physics.
 
     Solves:
@@ -89,8 +87,6 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         Computational backend.
     forcing : Callable, optional
         Source term. Takes coordinates (ndim, npts) and returns (npts,).
-    boundary_conditions : List[BoundaryConditionRole], optional
-        List of boundary conditions.
 
     Examples
     --------
@@ -114,9 +110,9 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
         wavenumber: Union[float, Callable[..., Any]],
         bkd: Backend[Array],
         forcing: Optional[Callable[..., Any]] = None,
-        boundary_conditions: Optional[List[BoundaryConditionRole[Array]]] = None,
     ):
-        super().__init__(basis, bkd, boundary_conditions)
+        self._basis = basis
+        self._bkd = bkd
         self._mass = ScalarMassAssembler(basis, bkd)
 
         # Store wavenumber
@@ -361,6 +357,18 @@ class Helmholtz(GalerkinPhysicsBase[Array]):
             DOF values. Shape: (nstates,)
         """
         return self._basis.interpolate(func)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def basis(self) -> GalerkinBasisProtocol[Array]:
+        """Return the finite element basis."""
+        return self._basis
+
+    def nstates(self) -> int:
+        """Return the number of DOFs."""
+        return self._basis.ndofs()
 
     def __repr__(self) -> str:
         return f"Helmholtz(nstates={self.nstates()}, wavenumber={self._wavenumber})"
