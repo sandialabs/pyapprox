@@ -37,7 +37,7 @@ if not package_available("skfem"):
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured import (
-    GalerkinManufacturedSolutionAdapter,
+    GalerkinManufacturedSolution,
     create_adr_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
@@ -70,10 +70,7 @@ def _build(bkd, diff_str, vel_strs, nx=8, diffusivity_override=None):
     )
     mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
-    adapter = GalerkinManufacturedSolutionAdapter(
-        basis, functions, bkd, time_dependent=True
-    )
-    bc_set = adapter.create_boundary_conditions(["D", "D"])
+    ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
     # The coefficients themselves, not constants standing in for them.
     physics = AdvectionDiffusionReaction(
@@ -83,13 +80,15 @@ def _build(bkd, diff_str, vel_strs, nx=8, diffusivity_override=None):
             if diffusivity_override is None
             else diffusivity_override
         ),
-        velocity=adapter.velocity_for_galerkin(),
-        forcing=adapter.forcing_for_galerkin(),
+        velocity=ms.velocity(),
+        forcing=ms.forcing(),
         bkd=bkd,
     )
-    system = compose_galerkin_system(physics, bc_set.all_conditions())
+    system = compose_galerkin_system(
+        physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+    )
 
-    exact_func = adapter.solution_function()
+    exact_func = functions["solution"]
     coords = bkd.to_numpy(basis.dof_coordinates())
 
     def exact_at_time(time):

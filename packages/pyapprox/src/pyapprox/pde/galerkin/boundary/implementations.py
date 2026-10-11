@@ -12,7 +12,9 @@ from typing import (
     Generic,
     List,
     Optional,
+    Protocol,
     Union,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
@@ -63,6 +65,105 @@ class _ConstantBoundaryValue:
         self, x: np.ndarray, t: Optional[float] = None
     ) -> np.ndarray:
         return np.full(x.shape[1], self._value)
+
+
+_FacetPts = npt.NDArray[np.floating[Any]]
+
+
+@runtime_checkable
+class NormalDependentDataProtocol(Protocol):
+    """Natural-BC data that depends on the outward unit normal.
+
+    ``g(x, n, t)`` is evaluated only at facet quadrature points, where the
+    assembly supplies the mesh's own facet normals, so the data is correct
+    on any boundary shape, curved facets included.
+    """
+
+    def evaluate(
+        self, coords: _FacetPts, normal: _FacetPts, time: float
+    ) -> _FacetPts:
+        """Return ``g`` at the points.
+
+        Parameters
+        ----------
+        coords : NDArray
+            Shape: ``(ndim, npts)``.
+        normal : NDArray
+            Unit outward normals. Shape: ``(ndim, npts)``.
+        time : float
+            Current time.
+
+        Returns
+        -------
+        NDArray
+            ``(npts,)`` for scalar data, ``(ndim, npts)`` for vector data.
+        """
+        ...
+
+    def is_time_dependent(self) -> bool:
+        """Whether the data varies in time (declared, not inferred)."""
+        ...
+
+
+class _NormalFreeData:
+    """Coordinate-only data seen as normal-dependent data that ignores n."""
+
+    def __init__(self, func: TimeAwareCallableProtocol) -> None:
+        self._func = func
+
+    def evaluate(
+        self, coords: _FacetPts, normal: _FacetPts, time: float
+    ) -> _FacetPts:
+        return np.asarray(self._func(coords, time))
+
+    def is_time_dependent(self) -> bool:
+        return self._func.is_time_dependent()
+
+
+def _as_facet_data(
+    data: Union[Callable[..., Any], float, NormalDependentDataProtocol],
+) -> NormalDependentDataProtocol:
+    """Normalize natural-BC data to the ``g(x, n, t)`` convention.
+
+    Time dependence is declared, never inferred: a bare ``g(coords)`` is
+    time-independent, a declared ``TimeIndependent``/``TimeDependent``
+    says which it is, and a bare callable that could take a time is
+    rejected by ``as_time_aware``.
+    """
+    if isinstance(data, NormalDependentDataProtocol):
+        return data
+    if callable(data):
+        return _NormalFreeData(as_time_aware(data))
+    return _NormalFreeData(TimeIndependent(_ConstantBoundaryValue(float(data))))
+
+
+def _boundary_load(
+    boundary_basis: Basis, data: NormalDependentDataProtocol, time: float
+) -> _FacetPts:
+    """Assemble ``integral_Gamma g . phi ds`` with the facet normals.
+
+    Scalar data ``(npts,)`` gives ``g * v``; vector data ``(ndim, npts)``
+    gives ``sum_i g_i * v_i``.
+    """
+
+    def form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
+        x_np = np.asarray(w.x)
+        ndim = x_np.shape[0]
+        trailing = x_np.shape[1:]
+        vals = np.asarray(
+            data.evaluate(
+                x_np.reshape(ndim, -1),
+                np.asarray(w.n).reshape(ndim, -1),
+                time,
+            )
+        )
+        if vals.ndim == 2 and vals.shape[0] == ndim:
+            vector_vals = vals.reshape(ndim, *trailing)
+            return np.asarray(sum(vector_vals[i] * v[i] for i in range(ndim)))
+        return np.asarray(vals.reshape(trailing) * v)
+
+    load: _FacetPts = asm(LinearForm(form), boundary_basis)
+    return load
 
 
 class DirichletBC(Generic[Array]):
@@ -274,13 +375,14 @@ class NeumannBC(Generic[Array]):
         Finite element basis.
     boundary_name : str
         Name of the boundary.
-    flux_func : Callable or float
+    flux_func : Callable, float or NormalDependentDataProtocol
         Flux values: a constant; a bare ``g(coords)`` (time-independent);
-        or a declared ``TimeIndependent(g)`` / ``TimeDependent(g)`` for
-        ``g(coords, time)``. A bare callable that could take a time is
-        rejected, so time dependence is never guessed. Coordinates have
-        shape (ndim, npts); values (npts,) for scalar and (ndim, npts)
-        for vector bases.
+        a declared ``TimeIndependent(g)`` / ``TimeDependent(g)`` for
+        ``g(coords, time)``; or ``NormalDependentDataProtocol`` data
+        ``g(coords, normal, time)``, given the mesh's facet normals. A
+        bare callable that could take a time is rejected, so time
+        dependence is never guessed. Coordinates have shape (ndim, npts);
+        values (npts,) for scalar and (ndim, npts) for vector bases.
     bkd : Backend[Array]
         Computational backend.
     """
@@ -289,22 +391,13 @@ class NeumannBC(Generic[Array]):
         self,
         basis: GalerkinBasisProtocol[Array],
         boundary_name: str,
-        flux_func: Union[Callable[..., Any], float],
+        flux_func: Union[Callable[..., Any], float, NormalDependentDataProtocol],
         bkd: Backend[Array],
     ):
         self._basis = basis
         self._boundary_name = boundary_name
         self._bkd = bkd
-
-        # Time dependence is declared, never inferred: a bare f(coords) is
-        # time-independent, a declared TimeIndependent/TimeDependent says
-        # which it is, and a bare callable that could take a time is
-        # rejected by as_time_aware.
-        self._flux_func: TimeAwareCallableProtocol = (
-            as_time_aware(flux_func)
-            if callable(flux_func)
-            else TimeIndependent(_ConstantBoundaryValue(float(flux_func)))
-        )
+        self._flux_data = _as_facet_data(flux_func)
 
         # Get boundary DOFs
         self._boundary_dofs = basis.get_dofs(boundary_name)
@@ -326,45 +419,23 @@ class NeumannBC(Generic[Array]):
 
     def is_time_dependent(self) -> bool:
         """Whether the flux data varies in time (declared, not inferred)."""
-        return self._flux_func.is_time_dependent()
+        return self._flux_data.is_time_dependent()
 
     def is_time_invariant(self) -> bool:
         """Whether the term is declared time-independent."""
         return not self.is_time_dependent()
 
-    def set_flux_func(self, flux_func: Union[Callable[..., Any], float]) -> None:
+    def set_flux_func(
+        self,
+        flux_func: Union[Callable[..., Any], float, NormalDependentDataProtocol],
+    ) -> None:
         """Replace the flux data, under the same declaration rule as the
         constructor (a bare callable that could take a time is rejected).
 
         Lets a caller vary the data between solves (e.g. a load per
-        sample) without rebuilding the physics that holds this BC.
+        sample) without rebuilding the system that holds this BC.
         """
-        self._flux_func = (
-            as_time_aware(flux_func)
-            if callable(flux_func)
-            else TimeIndependent(_ConstantBoundaryValue(float(flux_func)))
-        )
-
-    def flux_values(self, time: float = 0.0) -> Array:
-        """Return Neumann flux values at given time.
-
-        Parameters
-        ----------
-        time : float
-            Current time.
-
-        Returns
-        -------
-        Array
-            Flux values. Shape: (nboundary_dofs,)
-        """
-        dof_coords = self._basis.dof_coordinates()
-        dof_coords_np = self._bkd.to_numpy(dof_coords)
-        bndry_dofs_np = self._bkd.to_numpy(self._boundary_dofs)
-        bndry_coords = dof_coords_np[:, bndry_dofs_np]
-
-        values_np = self._flux_func(bndry_coords, time)
-        return self._bkd.asarray(values_np.astype(np.float64))
+        self._flux_data = _as_facet_data(flux_func)
 
     def _get_boundary_basis(self) -> Basis:
         """Get or create the boundary basis for assembly."""
@@ -395,37 +466,9 @@ class NeumannBC(Generic[Array]):
             Modified load vector. Shape: (nstates,)
         """
         load_np = self._bkd.to_numpy(load).copy()
-        bndry_basis = self._get_boundary_basis()
-
-        # Store flux function for closure
-        flux_func = self._flux_func
-        current_time = time
-
-        def neumann_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            x_np = np.asarray(w.x)
-            x_shape = x_np.shape
-            if len(x_shape) == 3:
-                ndim, nelem, nquad = x_shape
-                x_flat = x_np.reshape(ndim, -1)
-                flux_flat = np.asarray(flux_func(x_flat, current_time))
-                # Detect vector flux: shape (ndim, npts) vs scalar (npts,)
-                if flux_flat.ndim == 2 and flux_flat.shape[0] == ndim:
-                    # Vector: flux_flat is (ndim, npts)
-                    flux_3d = flux_flat.reshape(ndim, nelem, nquad)
-                    return np.asarray(sum(flux_3d[i] * v[i] for i in range(ndim)))
-                else:
-                    flux_2d = flux_flat.reshape(nelem, nquad)
-                    return np.asarray(flux_2d * v)
-            else:
-                flux = np.asarray(flux_func(x_np, current_time))
-                if flux.ndim == 2:
-                    ndim = flux.shape[0]
-                    return np.asarray(sum(flux[i] * v[i] for i in range(ndim)))
-                return np.asarray(flux * v)
-
-        contribution = asm(LinearForm(neumann_form), bndry_basis)
-        load_np += contribution
-
+        load_np += _boundary_load(
+            self._get_boundary_basis(), self._flux_data, time
+        )
         return self._bkd.asarray(load_np.astype(np.float64))
 
     def apply_to_stiffness(
@@ -500,11 +543,13 @@ class RobinBC(Generic[Array]):
         coordinates of shape ``(ndim, npts)`` and returning ``(npts,)``
         values at boundary quadrature points (time-independent; time
         dependence belongs to ``value_func``).
-    value_func : Callable or float
+    value_func : Callable, float or NormalDependentDataProtocol
         Robin data g: a constant; a bare ``g(coords)`` (time-independent);
-        or a declared ``TimeIndependent(g)`` / ``TimeDependent(g)`` for
-        ``g(coords, time)``. A bare callable that could take a time is
-        rejected, so time dependence is never guessed.
+        a declared ``TimeIndependent(g)`` / ``TimeDependent(g)`` for
+        ``g(coords, time)``; or ``NormalDependentDataProtocol`` data
+        ``g(coords, normal, time)``, given the mesh's facet normals. A
+        bare callable that could take a time is rejected, so time
+        dependence is never guessed.
     bkd : Backend[Array]
         Computational backend.
     """
@@ -514,7 +559,7 @@ class RobinBC(Generic[Array]):
         basis: GalerkinBasisProtocol[Array],
         boundary_name: str,
         alpha: Union[float, Callable[[np.ndarray], np.ndarray]],
-        value_func: Union[Callable[..., Any], float],
+        value_func: Union[Callable[..., Any], float, NormalDependentDataProtocol],
         bkd: Backend[Array],
     ):
         self._basis = basis
@@ -523,13 +568,7 @@ class RobinBC(Generic[Array]):
             alpha = float(alpha)
         self._alpha = alpha
         self._bkd = bkd
-
-        # Time dependence is declared, never inferred (see NeumannBC).
-        self._value_func: TimeAwareCallableProtocol = (
-            as_time_aware(value_func)
-            if callable(value_func)
-            else TimeIndependent(_ConstantBoundaryValue(float(value_func)))
-        )
+        self._value_data = _as_facet_data(value_func)
 
         # Get boundary DOFs
         self._boundary_dofs = basis.get_dofs(boundary_name)
@@ -554,7 +593,7 @@ class RobinBC(Generic[Array]):
 
         The coefficient alpha is time-independent by construction.
         """
-        return self._value_func.is_time_dependent()
+        return self._value_data.is_time_dependent()
 
     def is_time_invariant(self) -> bool:
         """Whether the term is declared time-independent."""
@@ -581,16 +620,6 @@ class RobinBC(Generic[Array]):
             vals = np.asarray(self._alpha(x_np.reshape(ndim, -1)))
             return vals.reshape(nelem, nquad)
         return np.asarray(self._alpha(x_np))
-
-    def boundary_values(self, time: float = 0.0) -> Array:
-        """Return Robin boundary values g at given time."""
-        dof_coords = self._basis.dof_coordinates()
-        dof_coords_np = self._bkd.to_numpy(dof_coords)
-        bndry_dofs_np = self._bkd.to_numpy(self._boundary_dofs)
-        bndry_coords = dof_coords_np[:, bndry_dofs_np]
-
-        values_np = self._value_func(bndry_coords, time)
-        return self._bkd.asarray(values_np.astype(np.float64))
 
     def _get_boundary_basis(self) -> Basis:
         """Get or create the boundary basis for assembly."""
@@ -690,33 +719,9 @@ class RobinBC(Generic[Array]):
             Modified load vector.
         """
         load_np = self._bkd.to_numpy(load).copy()
-        bndry_basis = self._get_boundary_basis()
-        value_func = self._value_func
-        current_time = time
-
-        def robin_linear(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            x_np = np.asarray(w.x)
-            x_shape = x_np.shape
-            if len(x_shape) == 3:
-                ndim, nelem, nquad = x_shape
-                x_flat = x_np.reshape(ndim, -1)
-                vals_flat = np.asarray(value_func(x_flat, current_time))
-                if vals_flat.ndim == 2 and vals_flat.shape[0] == ndim:
-                    vals_3d = vals_flat.reshape(ndim, nelem, nquad)
-                    return np.asarray(sum(vals_3d[i] * v[i] for i in range(ndim)))
-                else:
-                    vals_2d = vals_flat.reshape(nelem, nquad)
-                    return np.asarray(vals_2d * v)
-            else:
-                vals = np.asarray(value_func(x_np, current_time))
-                if vals.ndim == 2:
-                    ndim = vals.shape[0]
-                    return np.asarray(sum(vals[i] * v[i] for i in range(ndim)))
-                return np.asarray(vals * v)
-
-        contribution = asm(LinearForm(robin_linear), bndry_basis)
-        load_np += contribution
-
+        load_np += _boundary_load(
+            self._get_boundary_basis(), self._value_data, time
+        )
         return self._bkd.asarray(load_np.astype(np.float64))
 
     def apply_to_residual(self, residual: Array, state: Array, time: float) -> Array:

@@ -18,16 +18,19 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import issparse
 
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured import (
-    GalerkinManufacturedSolutionAdapter,
+    GalerkinManufacturedSolution,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
 from pyapprox.pde.galerkin.physics import Helmholtz
@@ -38,6 +41,43 @@ from pyapprox.pde.manufactured import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Backend
+
+_BOUNDARY_NAMES = ["left", "right", "bottom", "top"]
+_ROBIN_ALPHA = 1.0
+
+
+def _dirichlet(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.dirichlet(name)
+
+
+def _neumann(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.neumann(name, law)
+
+
+def _robin(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.robin(name, _ROBIN_ALPHA, law)
+
+
+# Test cases name BC types by code, in boundary order.
+_BC_BUILDERS: Dict[
+    str,
+    Callable[
+        [GalerkinManufacturedSolution[NDArray[Any]], str, NormalFluxLawProtocol],
+        BoundaryConditionRole[NDArray[Any]],
+    ],
+] = {"D": _dirichlet, "N": _neumann, "R": _robin}
 
 
 def _create_screened_poisson_manufactured(
@@ -306,22 +346,23 @@ class TestParametrizedHelmholtzManufactured:
             )
         basis = LagrangeBasis(mesh, degree=2)  # P2 elements
 
-        # Create adapter and boundary conditions
-        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, bkd)
-        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
-
-        # Get exact solution and forcing adapted for Galerkin
-        exact_sol_func = adapter.solution_function()
-        forcing_func = adapter.forcing_for_galerkin()
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
+        exact_sol_func = functions["solution"]
 
         # Create Helmholtz physics with callable squared wavenumber
         physics = Helmholtz(
             basis=basis,
             wavenumber=sqwavenum_func,
-            forcing=forcing_func,
+            forcing=ms.forcing(),
             bkd=bkd,
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        # Natural data from the physics' own flux law.
+        law = physics.flux_law()
+        bcs = [
+            _BC_BUILDERS[code](ms, name, law)
+            for code, name in zip(bndry_types, _BOUNDARY_NAMES)
+        ]
+        system = compose_galerkin_system(physics, bcs)
 
         # Solve
         solver = SteadyStateSolver(system.steady(), tol=1e-12)

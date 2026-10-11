@@ -9,16 +9,14 @@ __all__: list[str]
 
 if package_available("skfem"):
     from pyapprox.pde.galerkin.manufactured.adapter import (
-        GalerkinHyperelasticityAdapter,
-        GalerkinManufacturedSolutionAdapter,
+        GalerkinManufacturedSolution,
         create_adr_manufactured_test,
         create_helmholtz_manufactured_test,
         create_hyperelasticity_manufactured_test,
     )
 
     __all__ = [
-        "GalerkinManufacturedSolutionAdapter",
-        "GalerkinHyperelasticityAdapter",
+        "GalerkinManufacturedSolution",
         "create_adr_manufactured_test",
         "create_helmholtz_manufactured_test",
         "create_hyperelasticity_manufactured_test",

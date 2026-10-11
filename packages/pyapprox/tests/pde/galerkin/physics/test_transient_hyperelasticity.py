@@ -31,7 +31,7 @@ from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinHyperelasticityAdapter,
+    GalerkinManufacturedSolution,
     create_hyperelasticity_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
@@ -116,13 +116,8 @@ class TestTransientHyperelasticity1D:
         mesh = StructuredMesh1D(nx=30, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=2)
 
-        adapter = GalerkinHyperelasticityAdapter(
-            basis,
-            functions,
-            bkd,
-            time_dependent=True,
-        )
-        body_force = adapter.forcing_for_galerkin()
+        # Time dependence is read from the manufactured functions.
+        body_force = GalerkinManufacturedSolution(basis, functions, bkd).forcing()
 
         sol_func = functions["solution"]
         value_func = TimeDependent(
@@ -237,13 +232,8 @@ class TestTransientHyperelasticity2D:
         )
         basis = VectorLagrangeBasis(mesh, degree=2)
 
-        adapter = GalerkinHyperelasticityAdapter(
-            basis,
-            functions,
-            bkd,
-            time_dependent=True,
-        )
-        body_force = adapter.forcing_for_galerkin()
+        # Time dependence is read from the manufactured functions.
+        body_force = GalerkinManufacturedSolution(basis, functions, bkd).forcing()
 
         sol_func = functions["solution"]
         value_func = TimeDependent(

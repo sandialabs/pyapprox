@@ -16,9 +16,10 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.sparse import issparse
 
 from pyapprox.ode.implicit_steppers import (
@@ -26,12 +27,15 @@ from pyapprox.ode.implicit_steppers import (
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
-from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
-from pyapprox.pde.galerkin.basis import LagrangeBasis
-from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinManufacturedSolutionAdapter,
+from pyapprox.pde.boundary import BoundaryConditionRole
+from pyapprox.pde.constitutive.coefficient_functions import (
+    TimeDependent,
+    TimeIndependent,
 )
+from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
+from pyapprox.pde.galerkin.manufactured import GalerkinManufacturedSolution
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
@@ -44,6 +48,58 @@ from pyapprox.pde.manufactured.burgers import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.rootfinding.newton import NewtonSolver
+
+_BOUNDARY_NAMES = ["left", "right"]
+
+
+def _dirichlet(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: float,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.dirichlet(name)
+
+
+def _neumann(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: float,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.neumann(name, law)
+
+
+def _robin(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: float,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.robin(name, alpha, law)
+
+
+# Test-data codes for the boundary kinds, in boundary order.
+_BC_BUILDERS: Dict[
+    str,
+    Callable[
+        [GalerkinManufacturedSolution[NDArray[Any]], str, float, NormalFluxLawProtocol],
+        BoundaryConditionRole[NDArray[Any]],
+    ],
+] = {"D": _dirichlet, "N": _neumann, "R": _robin}
+
+
+def _manufactured_bcs(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    codes: List[str],
+    alpha: float,
+    law: NormalFluxLawProtocol,
+) -> List[BoundaryConditionRole[NDArray[Any]]]:
+    """Build the conditions named by ``codes``, one per boundary."""
+    return [
+        _BC_BUILDERS[code](ms, name, alpha, law)
+        for code, name in zip(codes, _BOUNDARY_NAMES)
+    ]
 
 # =========================================================================
 # Part A: Unit Tests
@@ -138,7 +194,7 @@ def _viscosity_for_galerkin(funcs):
             vals = vals[:, 0] if vals.shape[1] == 1 else vals.flatten()
         return vals.reshape(trailing)
 
-    return adapted_viscosity
+    return TimeIndependent(adapted_viscosity)
 
 
 # Format: (name, bounds, bndry_types, sol_str, visc_str)
@@ -180,33 +236,21 @@ class TestParametrizedBurgersSteady:
         man_sol = ManufacturedBurgers1D(sol_str, visc_str, bkd, oned=True)
         funcs = man_sol.functions
 
-        # Create adapter and boundary conditions
-        adapter = GalerkinManufacturedSolutionAdapter(basis, funcs, bkd)
-        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
-
-        # Get functions for physics
-        exact_sol_func = adapter.solution_function()
-        forcing_func = adapter.forcing_for_galerkin()
-        viscosity_func = _viscosity_for_galerkin(funcs)
+        ms = GalerkinManufacturedSolution(basis, funcs, bkd)
 
         # Create physics
         physics = BurgersPhysics(
             basis=basis,
-            viscosity=viscosity_func,
+            viscosity=_viscosity_for_galerkin(funcs),
             bkd=bkd,
-            forcing=forcing_func,
+            forcing=ms.forcing(),
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        bcs = _manufactured_bcs(ms, bndry_types, 1.0, physics.flux_law())
+        system = compose_galerkin_system(physics, bcs)
 
         # Initial guess: exact + 1 perturbation
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
-        u_exact_vals = exact_sol_func(dof_coords)
-        if u_exact_vals.ndim > 1:
-            u_exact_vals = (
-                u_exact_vals[:, 0]
-                if u_exact_vals.shape[1] == 1
-                else u_exact_vals.flatten()
-            )
+        u_exact_vals = ms.solution()(dof_coords, 0.0)
         init_guess = bkd.asarray(u_exact_vals + 1.0)
 
         # Solve with Newton
@@ -291,25 +335,19 @@ class TestParametrizedBurgersTransient:
         man_sol = ManufacturedBurgers1D(sol_str, visc_str, bkd, oned=True)
         funcs = man_sol.functions
 
-        # Create adapter with time_dependent=True
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, funcs, bkd, time_dependent=True
-        )
-        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
+        # Time dependence is read from the manufactured functions.
+        ms = GalerkinManufacturedSolution(basis, funcs, bkd)
 
-        # Get functions for physics
-        # Use full forcing (includes du/dT) for transient Galerkin
-        forcing_func = adapter.forcing_for_galerkin()
-        viscosity_func = _viscosity_for_galerkin(funcs)
-
-        # Create physics with time-dependent forcing and BCs
+        # Create physics with time-dependent forcing and BCs. The full
+        # forcing includes du/dT, as transient Galerkin needs.
         physics = BurgersPhysics(
             basis=basis,
-            viscosity=viscosity_func,
+            viscosity=_viscosity_for_galerkin(funcs),
             bkd=bkd,
-            forcing=forcing_func,
+            forcing=ms.forcing(),
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        bcs = _manufactured_bcs(ms, bndry_types, 1.0, physics.flux_law())
+        system = compose_galerkin_system(physics, bcs)
 
         # Create ODE adapter and time stepper with constrained wrapper
         ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
@@ -325,14 +363,11 @@ class TestParametrizedBurgersTransient:
         newton.set_options(maxiters=20, atol=1e-10, rtol=0.0)
 
         # Initial condition from exact solution at t=0
-        exact_sol_func = adapter.solution_function()
+        exact_sol_func = ms.solution()
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
-        def exact_at_time(t):
-            u = exact_sol_func(dof_coords, t)
-            if hasattr(u, "shape") and u.ndim > 1:
-                return u[:, 0] if u.shape[1] == 1 else u.flatten()
-            return u
+        def exact_at_time(t: float) -> NDArray[np.floating[Any]]:
+            return exact_sol_func(dof_coords, t)
 
         y = bkd.asarray(exact_at_time(0.0))
 
@@ -371,3 +406,47 @@ class TestParametrizedBurgersTransient:
         # Transient tolerance is looser than steady-state due to
         # backward Euler temporal discretization error (dt=1.0)
         assert rel_error < 1e-6
+
+
+class _LinearInTimeViscosity:
+    """nu(x, t) = 0.5 + t, the same at every point."""
+
+    def __call__(
+        self, coords: NDArray[np.floating[Any]], time: float
+    ) -> NDArray[np.floating[Any]]:
+        return np.full(coords.shape[1], 0.5 + time)
+
+
+class TestTimeDependentViscosity:
+    """The assembly passes its time to the viscosity."""
+
+    def test_matches_constant_viscosity_at_that_time(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        bkd = numpy_bkd
+        basis = LagrangeBasis(
+            StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd), degree=2
+        )
+        varying = BurgersPhysics(
+            basis=basis,
+            viscosity=TimeDependent(_LinearInTimeViscosity()),
+            bkd=bkd,
+        )
+        assert not varying.interior_is_time_invariant()
+        assert varying.flux_law().is_time_dependent()
+        state = bkd.asarray(np.sin(np.linspace(0.0, 3.0, basis.ndofs())))
+        time = 1.5
+        frozen = BurgersPhysics(basis=basis, viscosity=0.5 + time, bkd=bkd)
+        assert frozen.interior_is_time_invariant()
+        bkd.assert_allclose(
+            varying.interior_residual(state, time),
+            frozen.interior_residual(state, time),
+            rtol=1e-13,
+        )
+        jac_varying = varying.interior_jacobian(state, time)
+        jac_frozen = frozen.interior_jacobian(state, time)
+        bkd.assert_allclose(
+            bkd.asarray(jac_varying.toarray()),
+            bkd.asarray(jac_frozen.toarray()),
+            rtol=1e-13,
+        )

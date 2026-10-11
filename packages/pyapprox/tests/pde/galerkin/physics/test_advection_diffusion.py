@@ -15,7 +15,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
 from numpy.typing import NDArray
@@ -724,10 +724,70 @@ class TestParametrizedADR2DConvergence:
 # =============================================================================
 
 # Import manufactured solution infrastructure
+from pyapprox.pde.boundary import BoundaryConditionRole
+from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
 from pyapprox.pde.galerkin.manufactured import (
-    GalerkinManufacturedSolutionAdapter,
+    GalerkinManufacturedSolution,
     create_adr_manufactured_test,
 )
+
+_BOUNDARY_NAMES = ["left", "right", "bottom", "top"]
+_Alpha = Union[float, Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]]
+
+
+def _dirichlet(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: _Alpha,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.dirichlet(name)
+
+
+def _neumann(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: _Alpha,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.neumann(name, law)
+
+
+def _robin(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: _Alpha,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.robin(name, alpha, law)
+
+
+# Test-data codes for the boundary kinds, in boundary order.
+_BC_BUILDERS: Dict[
+    str,
+    Callable[
+        [
+            GalerkinManufacturedSolution[NDArray[Any]],
+            str,
+            _Alpha,
+            NormalFluxLawProtocol,
+        ],
+        BoundaryConditionRole[NDArray[Any]],
+    ],
+] = {"D": _dirichlet, "N": _neumann, "R": _robin}
+
+
+def _manufactured_bcs(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    codes: List[str],
+    alpha: _Alpha,
+    law: NormalFluxLawProtocol,
+) -> List[BoundaryConditionRole[NDArray[Any]]]:
+    """Build the conditions named by ``codes``, one per boundary."""
+    return [
+        _BC_BUILDERS[code](ms, name, alpha, law)
+        for code, name in zip(codes, _BOUNDARY_NAMES)
+    ]
 
 # 1D exact reproduction test cases with various BCs
 # Format: (name, bounds, bndry_types, sol_str, diffusivity, vel_str, reaction)
@@ -922,30 +982,21 @@ class TestParametrizedADR1DExact:
             bkd=bkd,
         )
 
-        # Create adapter and boundary conditions
-        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, bkd)
-        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
-
-        # Get exact solution and forcing
-        exact_sol_func = adapter.solution_function()
-        forcing_func = adapter.forcing_for_galerkin()
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
         # Get velocity function adapted for Galerkin (skfem) shape convention
-        if "1e-16" in vel_str:
-            velocity = None
-        else:
-            velocity = adapter.velocity_for_galerkin()
+        velocity = None if "1e-16" in vel_str else ms.velocity()
 
-        # Create physics with boundary conditions
         physics = LinearAdvectionDiffusionReaction(
             basis=basis,
             diffusivity=diffusivity,
             velocity=velocity,
             reaction=reaction,
-            forcing=forcing_func,
+            forcing=ms.forcing(),
             bkd=bkd,
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        bcs = _manufactured_bcs(ms, bndry_types, 1.0, physics.flux_law())
+        system = compose_galerkin_system(physics, bcs)
 
         # Solve
         solver = SteadyStateSolver(system.steady(), tol=1e-12)
@@ -954,9 +1005,7 @@ class TestParametrizedADR1DExact:
         # Compute error
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
         u_num = bkd.to_numpy(result.solution)
-        u_exact = exact_sol_func(dof_coords)
-        if u_exact.ndim > 1:
-            u_exact = u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
+        u_exact = ms.solution()(dof_coords, 0.0)
 
         # Compute relative error (handle near-zero solutions)
         u_norm = np.linalg.norm(u_exact)
@@ -988,8 +1037,9 @@ class TestParametrizedADR1DConservative:
 
     Uses P2 elements with linear solutions and conservative advection form
     div(v*u). The manufactured solution is created with conservative=True to
-    match the PDE. The adapter uses only the diffusive flux for BCs because
-    the Galerkin weak form drops the advective boundary term from IBP.
+    match the PDE, and the natural data comes from the conservative
+    physics' flux law, which includes the advective boundary term the
+    weak form integrates by parts.
 
     TODO: that dropped IBP term means a DO-NOTHING boundary under the
     conservative form enforces zero TOTAL flux, not zero diffusive
@@ -1038,37 +1088,28 @@ class TestParametrizedADR1DConservative:
             conservative=True,
         )
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis,
-            functions,
-            bkd,
-            conservative=True,
-        )
-        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
-        exact_sol_func = adapter.solution_function()
-        forcing_func = adapter.forcing_for_galerkin()
-        velocity = adapter.velocity_for_galerkin()
-
+        # The physics carries the conservative choice, so its flux law
+        # includes the advective boundary term the data must match.
         physics = LinearAdvectionDiffusionReaction(
             basis=basis,
             diffusivity=diffusivity,
-            velocity=velocity,
+            velocity=ms.velocity(),
             reaction=reaction,
-            forcing=forcing_func,
+            forcing=ms.forcing(),
             bkd=bkd,
             conservative=True,
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        bcs = _manufactured_bcs(ms, bndry_types, 1.0, physics.flux_law())
+        system = compose_galerkin_system(physics, bcs)
 
         solver = SteadyStateSolver(system.steady(), tol=1e-12)
         result = solver.solve()
 
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
         u_num = bkd.to_numpy(result.solution)
-        u_exact = exact_sol_func(dof_coords)
-        if u_exact.ndim > 1:
-            u_exact = u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
+        u_exact = ms.solution()(dof_coords, 0.0)
 
         u_norm = np.linalg.norm(u_exact)
         if u_norm > 1e-10:
@@ -1132,13 +1173,7 @@ class TestParametrizedADR2DExact:
             bkd=bkd,
         )
 
-        # Create adapter and boundary conditions
-        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, bkd)
-        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
-
-        # Get exact solution and forcing
-        exact_sol_func = adapter.solution_function()
-        forcing_func = adapter.forcing_for_galerkin()
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
         # Parse velocity (check if effectively zero)
         has_velocity = any("1e-16" not in v for v in vel_strs)
@@ -1153,10 +1188,11 @@ class TestParametrizedADR2DExact:
             diffusivity=diffusivity,
             velocity=velocity,
             reaction=reaction,
-            forcing=forcing_func,
+            forcing=ms.forcing(),
             bkd=bkd,
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        bcs = _manufactured_bcs(ms, bndry_types, 1.0, physics.flux_law())
+        system = compose_galerkin_system(physics, bcs)
 
         # Solve
         solver = SteadyStateSolver(system.steady(), tol=1e-12)
@@ -1165,9 +1201,7 @@ class TestParametrizedADR2DExact:
         # Compute error
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
         u_num = bkd.to_numpy(result.solution)
-        u_exact = exact_sol_func(dof_coords)
-        if u_exact.ndim > 1:
-            u_exact = u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
+        u_exact = ms.solution()(dof_coords, 0.0)
 
         # Compute relative error
         u_norm = np.linalg.norm(u_exact)
@@ -1210,28 +1244,30 @@ class TestParametrizedADR2DExact:
         def alpha(x: NDArray[np.floating[Any]]) -> NDArray[np.floating[Any]]:
             return np.asarray(1.0 + x[1] + x[0])
 
-        adapter = GalerkinManufacturedSolutionAdapter(basis, functions, bkd)
-        bc_set = adapter.create_boundary_conditions(
-            ["R", "R", "D", "D"], robin_alpha=alpha
-        )
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
         physics = LinearAdvectionDiffusionReaction(
             basis=basis,
             diffusivity=diffusivity,
             velocity=None,
             reaction=0.0,
-            forcing=adapter.forcing_for_galerkin(),
+            forcing=ms.forcing(),
             bkd=bkd,
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        law = physics.flux_law()
+        system = compose_galerkin_system(
+            physics,
+            [
+                ms.robin("left", alpha, law),
+                ms.robin("right", alpha, law),
+                ms.dirichlet("bottom"),
+                ms.dirichlet("top"),
+            ],
+        )
         result = SteadyStateSolver(system.steady(), tol=1e-12).solve()
 
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
         u_num = bkd.to_numpy(result.solution)
-        u_exact = adapter.solution_function()(dof_coords)
-        if u_exact.ndim > 1:
-            u_exact = (
-                u_exact[:, 0] if u_exact.shape[1] == 1 else u_exact.flatten()
-            )
+        u_exact = ms.solution()(dof_coords, 0.0)
         rel_error = np.linalg.norm(u_num - u_exact) / np.linalg.norm(u_exact)
         assert rel_error < 1e-8
 

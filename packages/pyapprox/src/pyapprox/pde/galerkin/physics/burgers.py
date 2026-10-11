@@ -29,6 +29,7 @@ from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.constitutive.coefficient_functions import (
     ConstantDiffusion,
     CoordinateDiffusion,
+    DiffusionFunctionProtocol,
     as_time_aware,
 )
 from pyapprox.pde.galerkin.boundary.flux_law import (
@@ -50,6 +51,17 @@ except ImportError:
     )
 
 
+def _as_diffusion_function(
+    viscosity: Union[float, Callable[..., Any], DiffusionFunctionProtocol],
+) -> DiffusionFunctionProtocol:
+    """Coerce a constant or a coordinate supplier to a diffusion function."""
+    if isinstance(viscosity, DiffusionFunctionProtocol):
+        return viscosity
+    if callable(viscosity):
+        return CoordinateDiffusion(viscosity)
+    return ConstantDiffusion(float(viscosity))
+
+
 class BurgersPhysics(Generic[Array]):
     """Viscous Burgers equation physics for Galerkin FEM.
 
@@ -60,25 +72,19 @@ class BurgersPhysics(Generic[Array]):
         du/dt + u * du/dx = ν * d²u/dx² + f
 
     The Newton linearization produces state-dependent bilinear and linear
-    forms that are reassembled at every Newton iteration.
-
-    TIME THREADING (partial). The forcing is normalized through
-    ``as_time_aware`` and evaluated at the assembly's time, so a
-    ``TimeDependent`` source works. The VISCOSITY is not:
-    ``_get_viscosity`` calls it with coordinates alone, so a viscosity
-    declaring time-dependence would fail on the wrong-arity call.
-    Nothing here caches an assembled operator across times --- the forms
-    are rebuilt every Newton iteration --- so there is no stale-cache
-    hazard, only a missing capability. Extend it if a time-varying
-    viscosity is ever needed, following the forcing's pattern.
+    forms that are reassembled at every Newton iteration, so nothing is
+    cached across times. The viscosity and the forcing are evaluated at
+    the assembly's time.
 
     Parameters
     ----------
     basis : GalerkinBasisProtocol
         Finite element basis.
-    viscosity : float or Callable
-        Kinematic viscosity ν. If callable, takes coordinates (ndim, npts)
-        and returns values (npts,).
+    viscosity : float, Callable or DiffusionFunctionProtocol
+        Kinematic viscosity ν: a constant; a bare ``nu(coords)``
+        (time-independent); a declared ``TimeIndependent(nu)`` /
+        ``TimeDependent(nu)`` for ``nu(coords, time)``; or a diffusion
+        function. Coordinates have shape (ndim, npts); values (npts,).
     bkd : Backend
         Computational backend.
     forcing : Callable, optional
@@ -89,14 +95,14 @@ class BurgersPhysics(Generic[Array]):
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        viscosity: Union[float, Callable[..., Any]],
+        viscosity: Union[float, Callable[..., Any], DiffusionFunctionProtocol],
         bkd: Backend[Array],
         forcing: Optional[Callable[..., Any]] = None,
     ):
         self._basis = basis
         self._bkd = bkd
         self._mass = ScalarMassAssembler(basis, bkd)
-        self._viscosity = viscosity
+        self._viscosity = _as_diffusion_function(viscosity)
         # Keep the raw supplier (consumers may inspect its type) and a
         # normalized companion that assembly evaluates uniformly as
         # f(coords, time).
@@ -108,14 +114,6 @@ class BurgersPhysics(Generic[Array]):
     def is_linear(self) -> bool:
         """Burgers equation is always nonlinear."""
         return False
-
-    def _get_viscosity(self, coords: np.ndarray) -> np.ndarray:
-        """Get viscosity values at given coordinates."""
-        if callable(self._viscosity):
-            ret: NDArray[np.floating[Any]] = self._viscosity(coords)
-            return ret
-        else:
-            return np.full(coords.shape[-1], self._viscosity)
 
     def _get_forcing(self, coords: np.ndarray, time: float = 0.0) -> np.ndarray:
         """Get forcing values at given coordinates and time.
@@ -135,9 +133,9 @@ class BurgersPhysics(Generic[Array]):
         return StateDerivatives.none()
 
     def interior_is_time_invariant(self) -> bool:
-        """Whether the forcing is declared time-independent (the
-        viscosity cannot depend on time)."""
-        return (
+        """Whether the viscosity and the forcing are declared
+        time-independent."""
+        return not self._viscosity.is_time_dependent() and (
             self._forcing_eval is None
             or not self._forcing_eval.is_time_dependent()
         )
@@ -149,10 +147,7 @@ class BurgersPhysics(Generic[Array]):
         The advective term is assembled as :math:`u\,\partial_x u\,v`, not
         integrated by parts, so it adds no boundary term.
         """
-        viscosity = self._viscosity
-        if callable(viscosity):
-            return DiffusiveFlux(CoordinateDiffusion(viscosity))
-        return DiffusiveFlux(ConstantDiffusion(viscosity))
+        return DiffusiveFlux(self._viscosity)
 
     def mass_matrix(self) -> Array:
         """Return the scalar mass matrix."""
@@ -181,11 +176,7 @@ class BurgersPhysics(Generic[Array]):
             v: "DiscreteField",
             w: "FormExtraParams",
         ) -> np.ndarray:
-            visc = (
-                viscosity(np.asarray(w.x))
-                if callable(viscosity)
-                else viscosity
-            )
+            visc = viscosity.values(np.asarray(w.x), time)
             ret: NDArray[np.floating[Any]] = (
                 dot(visc * grad(u), grad(v))
                 + v * w.u_prev * u.grad[0]
@@ -214,11 +205,7 @@ class BurgersPhysics(Generic[Array]):
         current_time = time
 
         def linear_form(v: "DiscreteField", w: "FormExtraParams") -> np.ndarray:
-            visc = (
-                viscosity(np.asarray(w.x))
-                if callable(viscosity)
-                else viscosity
-            )
+            visc = viscosity.values(np.asarray(w.x), current_time)
 
             x_np = np.asarray(w.x)
             x_shape = x_np.shape

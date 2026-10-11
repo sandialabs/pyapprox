@@ -28,8 +28,8 @@ from pyapprox.pde.constitutive.coefficient_functions import (
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.boundary import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinManufacturedSolutionAdapter,
+from pyapprox.pde.galerkin.manufactured import (
+    GalerkinManufacturedSolution,
     create_adr_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
@@ -47,7 +47,7 @@ from pyapprox.util.backends.numpy import NumpyBkd
 
 def _setup_adr(
     bkd: NumpyBkd, nx: int = 8
-) -> Tuple[GalerkinSystem[Any], Any]:
+) -> Tuple[GalerkinSystem[NDArray[Any]], GalerkinManufacturedSolution[NDArray[Any]]]:
     """1D ADR system with time-dependent Dirichlet-friendly solution."""
     bounds = [0.0, 1.0]
     functions, _ = create_adr_manufactured_test(
@@ -61,24 +61,24 @@ def _setup_adr(
     )
     mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
-    adapter = GalerkinManufacturedSolutionAdapter(
-        basis, functions, bkd, time_dependent=True
-    )
-    bc_set = adapter.create_boundary_conditions(["D", "D"], robin_alpha=1.0)
+    ms = GalerkinManufacturedSolution(basis, functions, bkd)
     physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=4.0,
         bkd=bkd,
-        forcing=adapter.forcing_for_galerkin(),
+        forcing=ms.forcing(),
     )
-    return compose_galerkin_system(physics, bc_set.all_conditions()), adapter
+    system = compose_galerkin_system(
+        physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+    )
+    return system, ms
 
 
 def _wrapped_backward_euler(
     bkd: NumpyBkd, nx: int = 8
 ) -> Tuple[
     GalerkinBCEnforcingForwardResidual[Any],
-    GalerkinSystem[Any],
+    GalerkinSystem[NDArray[Any]],
 ]:
     system, _ = _setup_adr(bkd, nx)
     ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
@@ -300,7 +300,7 @@ class TestStageBCRequirement:
 
     def _system_with_callable_bc(
         self, bkd: NumpyBkd, with_derivative: bool
-    ) -> GalerkinSystem[Any]:
+    ) -> GalerkinSystem[NDArray[Any]]:
         from pyapprox.pde.galerkin.boundary import CallableDirichletBC
         from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 
@@ -375,7 +375,7 @@ class TestStageBCRequirement:
 
     def _system_with_dirichlet(
         self, bkd: NumpyBkd, value_func: Any
-    ) -> GalerkinSystem[Any]:
+    ) -> GalerkinSystem[NDArray[Any]]:
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
         bc = DirichletBC(basis, "left", value_func, bkd)

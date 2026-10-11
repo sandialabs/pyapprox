@@ -26,7 +26,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 
-from typing import Any, List, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -38,6 +38,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import (
@@ -47,7 +48,7 @@ from pyapprox.pde.galerkin.boundary.implementations import (
 )
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinHyperelasticityAdapter,
+    GalerkinManufacturedSolution,
     create_elasticity_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
@@ -69,8 +70,6 @@ _SOL_STRS = [
     "0.1*sin(x + 0.5*y) + 0.05",
     "0.05*cos(0.3*x + y) + 0.02",
 ]
-# BC order for the adapter: [left, right, bottom, top].
-_BC_TYPES = ["D", "R", "D", "D"]
 
 # Spring rest position and body force for the derivation-free tests.
 _U0 = np.array([0.05, -0.02])
@@ -108,7 +107,9 @@ class _RobinDataAsNeumann:
     condition with its spring term ``a u`` dropped.
     """
 
-    def __init__(self, functions: Any, alpha: float) -> None:
+    def __init__(
+        self, functions: Mapping[str, Callable[..., Any]], alpha: float
+    ) -> None:
         self._solution = functions["solution"]
         self._flux = functions["flux"]
         self._alpha = alpha
@@ -124,7 +125,7 @@ def _mms_physics(nx: int, wrong_model: bool) -> Tuple[
     CompositeLinearElasticity[_Arr],
     GalerkinSystem[_Arr],
     VectorLagrangeBasis[_Arr],
-    Any,
+    Dict[str, Callable[..., Any]],
 ]:
     bkd = NumpyBkd()
     functions, _ = create_elasticity_manufactured_test(
@@ -136,26 +137,31 @@ def _mms_physics(nx: int, wrong_model: bool) -> Tuple[
     )
     mesh = StructuredMesh2D(nx=nx, ny=nx, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
     basis = VectorLagrangeBasis(mesh, degree=1)
-    adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
-    bc_set = adapter.create_boundary_conditions(_BC_TYPES, robin_alpha=_ROBIN_A)
-    bcs: List[Any] = bc_set.all_conditions()
-    if wrong_model:
-        bcs = list(bc_set.essential_bcs())
-        bcs.append(
-            NeumannBC(
-                basis,
-                "right",
-                TimeIndependent(_RobinDataAsNeumann(functions, _ROBIN_A)),
-                bkd,
-            )
-        )
+    ms = GalerkinManufacturedSolution(basis, functions, bkd)
     physics = CompositeLinearElasticity.from_uniform(
         basis=basis,
         youngs_modulus=1.0,  # replaced by the manufactured Lame values
         poisson_ratio=0.3,
         bkd=bkd,
-        body_force=adapter.forcing_for_galerkin(),
+        body_force=ms.forcing(),
     )
+    # The Robin edge is x = 1; the other three edges are clamped.
+    right: BoundaryConditionRole[_Arr] = (
+        NeumannBC(
+            basis,
+            "right",
+            TimeIndependent(_RobinDataAsNeumann(functions, _ROBIN_A)),
+            bkd,
+        )
+        if wrong_model
+        else ms.robin("right", _ROBIN_A, physics.flux_law())
+    )
+    bcs: List[BoundaryConditionRole[_Arr]] = [
+        ms.dirichlet("left"),
+        right,
+        ms.dirichlet("bottom"),
+        ms.dirichlet("top"),
+    ]
     system = compose_galerkin_system(physics, bcs)
     _set_exact_lame(physics)
     return physics, system, basis, functions

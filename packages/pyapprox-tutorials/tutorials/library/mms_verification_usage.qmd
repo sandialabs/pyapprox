@@ -74,9 +74,7 @@ sympy:
 ```{python}
 import sympy as sp
 
-from pyapprox.pde.galerkin.manufactured import (
-    GalerkinManufacturedSolutionAdapter,
-)
+from pyapprox.pde.galerkin.manufactured import GalerkinManufacturedSolution
 from pyapprox.pde.manufactured import ManufacturedAdvectionDiffusionReaction
 from pyapprox.util.backends.numpy import NumpyBkd
 
@@ -159,19 +157,20 @@ def solve_adr(nx, degree, sol_str):
         sol_str=sol_str, nvars=2, diff_str="1.0", react_str="1.0*u",
         vel_strs=["0", "0"], bkd=bkd, oned=True,
     )
-    # The adapter turns the symbolic functions into the shapes the finite
-    # element code wants, including boundary data consistent with sol_str.
-    adapter = GalerkinManufacturedSolutionAdapter(basis, man.functions, bkd)
-    bc_set = adapter.create_boundary_conditions(["D", "D", "D", "D"])
+    # GalerkinManufacturedSolution turns the symbolic functions into the
+    # shapes the finite element code wants, and builds boundary conditions
+    # whose data is consistent with sol_str.
+    ms = GalerkinManufacturedSolution(basis, man.functions, bkd)
 
     physics = AdvectionDiffusionReaction(
         basis=basis, diffusivity=1.0, reaction=1.0,
-        forcing=adapter.forcing_for_galerkin(), bkd=bkd,
+        forcing=ms.forcing(), bkd=bkd,
     )
-    system = compose_galerkin_system(physics, bc_set.all_conditions())
+    bcs = [ms.dirichlet(name) for name in ("left", "right", "bottom", "top")]
+    system = compose_galerkin_system(physics, bcs)
     result = SteadyStateSolver(system.steady(), tol=1e-13).solve()
     return l2_error(basis, bkd.to_numpy(result.solution),
-                    adapter.solution_function())
+                    man.functions["solution"])
 ```
 
 
@@ -306,6 +305,7 @@ $$ {#eq-burgers}
 and the manufactured machinery differentiates it just the same.
 
 ```{python}
+from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
 from pyapprox.pde.manufactured import ManufacturedBurgers1D
@@ -333,7 +333,7 @@ def viscosity_for_galerkin(functions):
                       else values.flatten())
         return values.reshape(trailing)
 
-    return adapted
+    return TimeIndependent(adapted)
 
 
 def solve_burgers(nx, degree, sol_str):
@@ -342,17 +342,18 @@ def solve_burgers(nx, degree, sol_str):
     basis = LagrangeBasis(mesh, degree=degree)
 
     man = ManufacturedBurgers1D(sol_str, "0.1", bkd, oned=True)
-    adapter = GalerkinManufacturedSolutionAdapter(basis, man.functions, bkd)
-    bc_set = adapter.create_boundary_conditions(["D", "D"])
+    ms = GalerkinManufacturedSolution(basis, man.functions, bkd)
 
     physics = BurgersPhysics(
         basis=basis, viscosity=viscosity_for_galerkin(man.functions),
-        bkd=bkd, forcing=adapter.forcing_for_galerkin(),
+        bkd=bkd, forcing=ms.forcing(),
     )
-    system = compose_galerkin_system(physics, bc_set.all_conditions())
+    system = compose_galerkin_system(
+        physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+    )
 
     # Start away from the answer so the Newton iteration has work to do.
-    exact = adapter.solution_function()
+    exact = man.functions["solution"]
     guess = np.asarray(
         exact(bkd.to_numpy(basis.dof_coordinates()))
     ).flatten() + 1.0
@@ -398,8 +399,8 @@ step from zero suffices, while the nonlinear one iterates.
 The protocol is not specific to the Galerkin finite element method used
 here. `pyapprox.pde.manufactured` is a shared symbolic module covering
 several physics families, and it derives forcing terms without knowing how
-they will be discretized; the Galerkin adapter used above is a thin layer
-over it, and the collocation module has its own. A collocation solver, a
+they will be discretized; `GalerkinManufacturedSolution` used above is a
+thin layer over it, and the collocation module has its own. A collocation solver, a
 finite volume solver, or a spectral solver is verified the same way, with the
 same two tiers and the same expectations --- only $p+1$ changes to whatever
 that method's theory predicts.
@@ -414,7 +415,12 @@ To verify a solver you have written yourself:
    order against theory.
 3. Repeat both with every boundary condition type your solver supports.
    Inconsistent boundary treatment is the classic cause of a code that
-   passes T1 but silently drops to first order in T2.
+   passes T1 but silently drops to first order in T2. For Neumann and Robin
+   conditions, `ms.neumann(name, physics.flux_law())` and
+   `ms.robin(name, alpha, physics.flux_law())` build the data from the
+   physics' own flux law --- the flux its weak form integrates by parts ---
+   evaluated at the exact solution with the mesh's facet normals, so the
+   data matches what the physics enforces on any boundary shape.
 
 `docs/conventions/pde_solver_extension.md` describes the testing contract a
 new physics implementation is expected to satisfy; this tutorial is the

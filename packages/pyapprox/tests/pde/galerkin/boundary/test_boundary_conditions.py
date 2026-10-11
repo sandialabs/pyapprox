@@ -1,6 +1,6 @@
 """Tests for boundary condition implementations.
 
-Tests Dirichlet, Neumann, Robin BCs and the ManufacturedSolutionBC factory.
+Tests Dirichlet, Neumann and Robin BCs and the BoundaryConditionSet.
 """
 
 
@@ -11,7 +11,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -26,16 +26,30 @@ from pyapprox.pde.galerkin.boundary import (
     CallableDirichletBC,
     DirectDirichletBC,
     DirichletBC,
-    ManufacturedSolutionBC,
     NeumannBC,
+    NormalDependentDataProtocol,
     RobinBC,
-    canonical_boundary_normal,
 )
 from pyapprox.pde.galerkin.mesh import (
     StructuredMesh1D,
     StructuredMesh2D,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+
+
+class _NormalX:
+    """Time-independent data equal to the normal's first component."""
+
+    def evaluate(
+        self,
+        coords: NDArray[np.floating[Any]],
+        normal: NDArray[np.floating[Any]],
+        time: float,
+    ) -> NDArray[np.floating[Any]]:
+        return np.asarray(normal[0])
+
+    def is_time_dependent(self) -> bool:
+        return False
 
 
 class TestDirichletBCBase:
@@ -110,10 +124,30 @@ class TestNeumannBCBase:
 
         bc = NeumannBC(basis, "right", flux_func=1.0, bkd=bkd)
 
-        # Check flux values
-        values = bc.flux_values(time=0.0)
-        expected = bkd.asarray(np.array([1.0], dtype=np.float64))
-        bkd.assert_allclose(values, expected)
+        # A point boundary integrates g * phi to g at its node.
+        load = bc.apply_to_load(bkd.zeros((basis.ndofs(),)), time=0.0)
+        expected = np.zeros(basis.ndofs())
+        expected[-1] = 1.0
+        bkd.assert_allclose(load, bkd.asarray(expected))
+
+    def test_normal_dependent_data_gets_outward_normal(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """Data g(x, n, t) = n_x is -1 at the left end and +1 at the right."""
+        bkd = numpy_bkd
+        mesh = StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd)
+        basis = LagrangeBasis(mesh, degree=1)
+        assert isinstance(_NormalX(), NormalDependentDataProtocol)
+        zeros = bkd.zeros((basis.ndofs(),))
+        left = NeumannBC(basis, "left", flux_func=_NormalX(), bkd=bkd)
+        right = NeumannBC(basis, "right", flux_func=_NormalX(), bkd=bkd)
+        bkd.assert_allclose(
+            left.apply_to_load(zeros, 0.0)[0:1], bkd.asarray([-1.0])
+        )
+        bkd.assert_allclose(
+            right.apply_to_load(zeros, 0.0)[-1:], bkd.asarray([1.0])
+        )
+        assert not left.is_time_dependent()
 
     def test_1d_neumann_apply_to_load(self, numpy_bkd: NumpyBkd) -> None:
         """Test Neumann BC adds to load vector."""
@@ -219,192 +253,6 @@ class TestBoundaryConditionSetBase:
 
         assert len(dofs) == 2
         assert len(values) == 2
-
-
-class TestCanonicalBoundaryNormal:
-    """Tests for canonical_boundary_normal function."""
-
-    def test_1d_normals(self, numpy_bkd: NumpyBkd) -> None:
-        """Test 1D boundary normals."""
-        _bkd = numpy_bkd
-        x = np.array([[0.0, 0.5, 1.0]])  # Shape: (1, 3)
-
-        # Left boundary (index 0): normal = -1
-        n_left = canonical_boundary_normal(0, x)
-        np.testing.assert_array_almost_equal(n_left, [[-1, -1, -1]])
-
-        # Right boundary (index 1): normal = +1
-        n_right = canonical_boundary_normal(1, x)
-        np.testing.assert_array_almost_equal(n_right, [[1, 1, 1]])
-
-    def test_2d_normals(self, numpy_bkd: NumpyBkd) -> None:
-        """Test 2D boundary normals."""
-        _bkd = numpy_bkd
-        x = np.array([[0.0, 0.5], [0.0, 0.5]])  # Shape: (2, 2)
-
-        # Left (x=xmin): normal = [-1, 0]
-        n_left = canonical_boundary_normal(0, x)
-        np.testing.assert_array_almost_equal(n_left[0, :], [-1, -1])
-        np.testing.assert_array_almost_equal(n_left[1, :], [0, 0])
-
-        # Right (x=xmax): normal = [+1, 0]
-        n_right = canonical_boundary_normal(1, x)
-        np.testing.assert_array_almost_equal(n_right[0, :], [1, 1])
-        np.testing.assert_array_almost_equal(n_right[1, :], [0, 0])
-
-        # Bottom (y=ymin): normal = [0, -1]
-        n_bottom = canonical_boundary_normal(2, x)
-        np.testing.assert_array_almost_equal(n_bottom[0, :], [0, 0])
-        np.testing.assert_array_almost_equal(n_bottom[1, :], [-1, -1])
-
-        # Top (y=ymax): normal = [0, +1]
-        n_top = canonical_boundary_normal(3, x)
-        np.testing.assert_array_almost_equal(n_top[0, :], [0, 0])
-        np.testing.assert_array_almost_equal(n_top[1, :], [1, 1])
-
-
-class TestManufacturedSolutionBCBase:
-    """Tests for ManufacturedSolutionBC."""
-
-    def test_1d_all_dirichlet(self, numpy_bkd: NumpyBkd) -> None:
-        """Test creating all Dirichlet BCs from manufactured solution."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-
-        # u = x
-        def sol(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.asarray(x[0])
-
-        # flux = D * grad(u) = 1 * [1] = [1]
-        def flux(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.ones_like(x)
-
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
-        bc_set = ms_bc.create_boundary_conditions(["D", "D"])
-
-        assert bc_set.ndirichlet() == 2
-        assert bc_set.nneumann() == 0
-        assert bc_set.nrobin() == 0
-
-    def test_1d_mixed_bcs(self, numpy_bkd: NumpyBkd) -> None:
-        """Test creating mixed BCs from manufactured solution."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-
-        def sol(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.asarray(x[0] ** 2)
-
-        def flux(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return 2 * x  # D * grad(u) = 1 * 2x
-
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
-        bc_set = ms_bc.create_boundary_conditions(["D", "N"])
-
-        assert bc_set.ndirichlet() == 1
-        assert bc_set.nneumann() == 1
-
-    def test_1d_robin_bcs(self, numpy_bkd: NumpyBkd) -> None:
-        """Test creating Robin BCs from manufactured solution."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-
-        def sol(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.asarray(x[0])
-
-        def flux(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.ones_like(x)
-
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
-        bc_set = ms_bc.create_boundary_conditions(["R", "R"], robin_alpha=1.0)
-
-        assert bc_set.nrobin() == 2
-
-    def test_2d_all_dirichlet(self, numpy_bkd: NumpyBkd) -> None:
-        """Test 2D manufactured solution BCs."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh2D(
-            nx=5,
-            ny=5,
-            bounds=[(0.0, 1.0), (0.0, 1.0)],
-            bkd=bkd,
-        )
-        basis = LagrangeBasis(mesh, degree=1)
-
-        # u = x + y
-        def sol(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.asarray(x[0] + x[1])
-
-        # flux = D * grad(u) = 1 * [1, 1]
-        def flux(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.ones_like(x)
-
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
-        bc_set = ms_bc.create_boundary_conditions(["D", "D", "D", "D"])
-
-        assert bc_set.ndirichlet() == 4
-
-    def test_invalid_bc_type(self, numpy_bkd: NumpyBkd) -> None:
-        """Test error on invalid BC type."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-
-        def sol(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.asarray(x[0])
-
-        def flux(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.ones_like(x)
-
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
-
-        with pytest.raises(ValueError):
-            ms_bc.create_boundary_conditions(["X", "D"])
-
-    def test_wrong_number_bc_types(self, numpy_bkd: NumpyBkd) -> None:
-        """Test error on wrong number of BC types."""
-        bkd = numpy_bkd
-        mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-        basis = LagrangeBasis(mesh, degree=1)
-
-        def sol(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.asarray(x[0])
-
-        def flux(
-            x: NDArray[np.floating[Any]], t: Optional[float] = None
-        ) -> NDArray[np.floating[Any]]:
-            return np.ones_like(x)
-
-        ms_bc = ManufacturedSolutionBC(basis, sol, flux, bkd)
-
-        with pytest.raises(ValueError):
-            ms_bc.create_boundary_conditions(["D"])  # Need 2 for 1D
-
-
 
 
 class TestRoleProtocols:

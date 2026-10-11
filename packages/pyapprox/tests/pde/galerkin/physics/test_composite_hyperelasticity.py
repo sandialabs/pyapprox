@@ -27,7 +27,7 @@ from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinHyperelasticityAdapter,
+    GalerkinManufacturedSolution,
     create_hyperelasticity_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import (
@@ -235,8 +235,7 @@ class TestCompositeHyperelasticity1D:
         mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=degree)
 
-        adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
-        body_force = adapter.forcing_for_galerkin()
+        body_force = GalerkinManufacturedSolution(basis, functions, bkd).forcing()
         value_func = _make_vector_dirichlet_value_func(functions["solution"], nvars)
         bc_list = [
             DirichletBC(basis, name, value_func, bkd) for name in ["left", "right"]
@@ -329,8 +328,7 @@ class TestCompositeHyperelasticity2D:
         )
         basis = VectorLagrangeBasis(mesh, degree=degree)
 
-        adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
-        body_force = adapter.forcing_for_galerkin()
+        body_force = GalerkinManufacturedSolution(basis, functions, bkd).forcing()
         value_func = _make_vector_dirichlet_value_func(functions["solution"], nvars)
         bc_list = [
             DirichletBC(basis, name, value_func, bkd)
@@ -648,8 +646,7 @@ class TestCompositeHyperelasticity3D:
         )
         basis = VectorLagrangeBasis(mesh, degree=degree)
 
-        adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
-        body_force = adapter.forcing_for_galerkin()
+        body_force = GalerkinManufacturedSolution(basis, functions, bkd).forcing()
         value_func = _make_vector_dirichlet_value_func(functions["solution"], nvars)
         bc_list = [
             DirichletBC(basis, name, value_func, bkd)

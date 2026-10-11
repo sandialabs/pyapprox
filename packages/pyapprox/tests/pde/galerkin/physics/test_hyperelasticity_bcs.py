@@ -12,15 +12,20 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 
-import numpy as np
+from typing import Any, Callable, Dict, List, Tuple
 
+import numpy as np
+from numpy.typing import NDArray
+
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.neo_hookean import (
     NeoHookeanStress,
 )
 from pyapprox.pde.galerkin.basis import VectorLagrangeBasis
+from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinHyperelasticityAdapter,
+    GalerkinManufacturedSolution,
     create_hyperelasticity_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import (
@@ -29,7 +34,77 @@ from pyapprox.pde.galerkin.mesh import (
 )
 from pyapprox.pde.galerkin.physics import HyperelasticityPhysics
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
+from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.numpy import NumpyBkd
+
+_BOUNDARY_NAMES = ["left", "right", "bottom", "top", "front", "back"]
+
+_Problem = Tuple[
+    GalerkinSystem[NDArray[Any]],
+    Dict[str, Callable[..., Any]],
+    VectorLagrangeBasis[NDArray[Any]],
+]
+
+
+def _dirichlet(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: float,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.dirichlet(name)
+
+
+def _neumann(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: float,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.neumann(name, law)
+
+
+def _robin(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    alpha: float,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.robin(name, alpha, law)
+
+
+# Test-data codes for the boundary kinds, in boundary order.
+_BC_BUILDERS: Dict[
+    str,
+    Callable[
+        [GalerkinManufacturedSolution[NDArray[Any]], str, float, NormalFluxLawProtocol],
+        BoundaryConditionRole[NDArray[Any]],
+    ],
+] = {"D": _dirichlet, "N": _neumann, "R": _robin}
+
+
+def _manufactured_system(
+    basis: VectorLagrangeBasis[NDArray[Any]],
+    functions: Dict[str, Callable[..., Any]],
+    stress: NeoHookeanStress,
+    bc_types: List[str],
+    robin_alpha: float,
+    bkd: NumpyBkd,
+) -> GalerkinSystem[NDArray[Any]]:
+    """Hyperelasticity with the manufactured forcing and conditions."""
+    ms = GalerkinManufacturedSolution(basis, functions, bkd)
+    physics = HyperelasticityPhysics(
+        basis=basis,
+        stress_model=stress,
+        bkd=bkd,
+        body_force=ms.forcing(),
+    )
+    law = physics.flux_law()
+    bcs = [
+        _BC_BUILDERS[code](ms, name, robin_alpha, law)
+        for code, name in zip(bc_types, _BOUNDARY_NAMES)
+    ]
+    return compose_galerkin_system(physics, bcs)
 
 
 def _get_exact_displacement(funcs, basis, bkd):
@@ -57,7 +132,14 @@ class TestHyperelasticityBCs1DBase:
         # Solution non-zero at x=1: u(0)=0, u(1)=0.05
         self._sol_strs = ["0.1*x**2*(1-x) + 0.05*x"]
 
-    def _setup_problem(self, bkd, bc_types, nx=30, degree=2, robin_alpha=1.0) :
+    def _setup_problem(
+        self,
+        bkd: NumpyBkd,
+        bc_types: List[str],
+        nx: int = 30,
+        degree: int = 2,
+        robin_alpha: float = 1.0,
+    ) -> _Problem:
         functions, nvars = create_hyperelasticity_manufactured_test(
             bounds=[0.0, 1.0],
             sol_strs=self._sol_strs,
@@ -66,16 +148,9 @@ class TestHyperelasticityBCs1DBase:
         )
         mesh = StructuredMesh1D(nx=nx, bounds=(0.0, 1.0), bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=degree)
-        adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
-        body_force = adapter.forcing_for_galerkin()
-        bc_set = adapter.create_boundary_conditions(bc_types, robin_alpha=robin_alpha)
-        physics = HyperelasticityPhysics(
-            basis=basis,
-            stress_model=self._stress,
-            bkd=bkd,
-            body_force=body_force,
+        system = _manufactured_system(
+            basis, functions, self._stress, bc_types, robin_alpha, bkd
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
         return system, functions, basis
 
     def _check_newton_solve(self, bkd, system, functions, basis, tol=1e-4) :
@@ -142,7 +217,15 @@ class TestHyperelasticityBCs2DBase:
             "0.05*x**2*(1-x)*y**2*(1-y) + 0.01*x*y",
         ]
 
-    def _setup_problem(self, bkd, bc_types, nx=12, ny=12, degree=2, robin_alpha=1.0) :
+    def _setup_problem(
+        self,
+        bkd: NumpyBkd,
+        bc_types: List[str],
+        nx: int = 12,
+        ny: int = 12,
+        degree: int = 2,
+        robin_alpha: float = 1.0,
+    ) -> _Problem:
         functions, nvars = create_hyperelasticity_manufactured_test(
             bounds=[0.0, 1.0, 0.0, 1.0],
             sol_strs=self._sol_strs,
@@ -151,16 +234,9 @@ class TestHyperelasticityBCs2DBase:
         )
         mesh = StructuredMesh2D(nx=nx, ny=ny, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd)
         basis = VectorLagrangeBasis(mesh, degree=degree)
-        adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
-        body_force = adapter.forcing_for_galerkin()
-        bc_set = adapter.create_boundary_conditions(bc_types, robin_alpha=robin_alpha)
-        physics = HyperelasticityPhysics(
-            basis=basis,
-            stress_model=self._stress,
-            bkd=bkd,
-            body_force=body_force,
+        system = _manufactured_system(
+            basis, functions, self._stress, bc_types, robin_alpha, bkd
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
         return system, functions, basis
 
     def _check_newton_solve(self, bkd, system, functions, basis, tol=1e-3) :
@@ -220,8 +296,8 @@ class TestHyperelasticityBCs3DBase:
     """3D boundary condition tests with non-zero boundary values.
 
     All prior 3D coverage was Dirichlet-only; these exercise the
-    traction (Neumann) and Robin paths of the manufactured adapter,
-    which compute t = P.n from the PK1 flux on the 6 canonical faces.
+    traction (Neumann) and Robin paths, whose data t = P.n comes from the
+    physics' flux law with the facet normals of the 6 faces.
     """
 
     def _setup(self, bkd) -> None:
@@ -233,7 +309,14 @@ class TestHyperelasticityBCs3DBase:
             "0.005*x*z + 0.015*y**2",
         ]
 
-    def _setup_problem(self, bkd, bc_types, nx=2, degree=2, robin_alpha=1.0):
+    def _setup_problem(
+        self,
+        bkd: NumpyBkd,
+        bc_types: List[str],
+        nx: int = 2,
+        degree: int = 2,
+        robin_alpha: float = 1.0,
+    ) -> _Problem:
         from pyapprox.pde.galerkin.mesh import StructuredMesh3D
 
         functions, nvars = create_hyperelasticity_manufactured_test(
@@ -250,16 +333,9 @@ class TestHyperelasticityBCs3DBase:
             bkd=bkd,
         )
         basis = VectorLagrangeBasis(mesh, degree=degree)
-        adapter = GalerkinHyperelasticityAdapter(basis, functions, bkd)
-        body_force = adapter.forcing_for_galerkin()
-        bc_set = adapter.create_boundary_conditions(bc_types, robin_alpha=robin_alpha)
-        physics = HyperelasticityPhysics(
-            basis=basis,
-            stress_model=self._stress,
-            bkd=bkd,
-            body_force=body_force,
+        system = _manufactured_system(
+            basis, functions, self._stress, bc_types, robin_alpha, bkd
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
         return system, functions, basis
 
     def _check_newton_solve(self, bkd, system, functions, basis, tol=1e-3):

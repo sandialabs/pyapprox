@@ -37,11 +37,8 @@ if package_available("skfem"):
         DirectDirichletBC,
         DirichletBC,
         NeumannBC,
+        NormalDependentDataProtocol,
         RobinBC,
-    )
-    from pyapprox.pde.galerkin.boundary.manufactured import (
-        ManufacturedSolutionBC,
-        canonical_boundary_normal,
     )
 
     __all__ += [
@@ -49,8 +46,7 @@ if package_available("skfem"):
         "DirichletBC",
         "DirectDirichletBC",
         "NeumannBC",
+        "NormalDependentDataProtocol",
         "RobinBC",
         "BoundaryConditionSet",
-        "ManufacturedSolutionBC",
-        "canonical_boundary_normal",
     ]

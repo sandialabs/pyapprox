@@ -19,20 +19,23 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.ode.implicit_steppers import (
     BackwardEulerHVP,
     CrankNicolsonHVP,
 )
 from pyapprox.ode.step_context import StepContext
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.constitutive.coefficient_functions import CallableReaction
 from pyapprox.pde.galerkin.basis import LagrangeBasis
+from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinManufacturedSolutionAdapter,
+from pyapprox.pde.galerkin.manufactured import (
+    GalerkinManufacturedSolution,
     create_adr_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D, StructuredMesh2D
@@ -70,6 +73,57 @@ def _has_velocity(vel_strs):
     return not all("1e-16" in v for v in vel_strs)
 
 
+_ROBIN_ALPHA = 1.0
+_BOUNDARY_NAMES = ["left", "right", "bottom", "top"]
+
+
+def _dirichlet(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.dirichlet(name)
+
+
+def _neumann(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.neumann(name, law)
+
+
+def _robin(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    name: str,
+    law: NormalFluxLawProtocol,
+) -> BoundaryConditionRole[NDArray[Any]]:
+    return ms.robin(name, _ROBIN_ALPHA, law)
+
+
+# Test-data codes for the boundary types, in [left, right, bottom, top].
+_BC_BY_CODE: Dict[
+    str,
+    Callable[
+        [GalerkinManufacturedSolution[NDArray[Any]], str, NormalFluxLawProtocol],
+        BoundaryConditionRole[NDArray[Any]],
+    ],
+] = {"D": _dirichlet, "N": _neumann, "R": _robin}
+
+
+def _manufactured_bcs(
+    ms: GalerkinManufacturedSolution[NDArray[Any]],
+    physics: AdvectionDiffusionReaction[NDArray[Any]],
+    bndry_types: List[str],
+) -> List[BoundaryConditionRole[NDArray[Any]]]:
+    """Build the manufactured BCs named by ``bndry_types``."""
+    law = physics.flux_law()
+    return [
+        _BC_BY_CODE[code](ms, name, law)
+        for code, name in zip(bndry_types, _BOUNDARY_NAMES)
+    ]
+
+
 def _setup_1d_problem(
     bkd, bounds, sol_str, diff_str, react_str, vel_strs, bndry_types, nx, diffusivity
 ):
@@ -87,12 +141,9 @@ def _setup_1d_problem(
     mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
 
-    adapter = GalerkinManufacturedSolutionAdapter(
-        basis, functions, bkd, time_dependent=True
-    )
-    bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
+    ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
-    velocity = adapter.velocity_for_galerkin() if _has_velocity(vel_strs) else None
+    velocity = ms.velocity() if _has_velocity(vel_strs) else None
     reaction = _parse_reaction(react_str)
 
     physics = AdvectionDiffusionReaction(
@@ -101,13 +152,15 @@ def _setup_1d_problem(
         bkd=bkd,
         velocity=velocity,
         reaction=reaction,
-        forcing=adapter.forcing_for_galerkin(),
+        forcing=ms.forcing(),
     )
-    system = compose_galerkin_system(physics, bc_set.all_conditions())
+    system = compose_galerkin_system(
+        physics, _manufactured_bcs(ms, physics, bndry_types)
+    )
 
     model = GalerkinModel(system, bkd)
 
-    exact_sol_func = adapter.solution_function()
+    exact_sol_func = functions["solution"]
     dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
     def exact_at_time(t):
@@ -256,25 +309,24 @@ class TestTransientADR2D:
         )
         basis = LagrangeBasis(mesh, degree=2)
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, bkd, time_dependent=True
-        )
-        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
-        velocity = adapter.velocity_for_galerkin() if _has_velocity(vel_strs) else None
+        velocity = ms.velocity() if _has_velocity(vel_strs) else None
 
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=4.0,
             bkd=bkd,
             velocity=velocity,
-            forcing=adapter.forcing_for_galerkin(),
+            forcing=ms.forcing(),
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        system = compose_galerkin_system(
+            physics, _manufactured_bcs(ms, physics, bndry_types)
+        )
 
         model = GalerkinModel(system, bkd)
 
-        exact_sol_func = adapter.solution_function()
+        exact_sol_func = functions["solution"]
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
         def exact_at_time(t):
@@ -424,25 +476,24 @@ class TestTransientADR2D_CN:
         )
         basis = LagrangeBasis(mesh, degree=2)
 
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, bkd, time_dependent=True
-        )
-        bc_set = adapter.create_boundary_conditions(bndry_types, robin_alpha=1.0)
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
-        velocity = adapter.velocity_for_galerkin() if _has_velocity(vel_strs) else None
+        velocity = ms.velocity() if _has_velocity(vel_strs) else None
 
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=4.0,
             bkd=bkd,
             velocity=velocity,
-            forcing=adapter.forcing_for_galerkin(),
+            forcing=ms.forcing(),
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        system = compose_galerkin_system(
+            physics, _manufactured_bcs(ms, physics, bndry_types)
+        )
 
         model = GalerkinModel(system, bkd)
 
-        exact_sol_func = adapter.solution_function()
+        exact_sol_func = functions["solution"]
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
         def exact_at_time(t):
@@ -592,17 +643,16 @@ class TestManualNewtonWithConstraint:
         )
         mesh = StructuredMesh1D(nx=32, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=2)
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, bkd, time_dependent=True
-        )
-        bc_set = adapter.create_boundary_conditions(["D", "D"])
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=4.0,
             bkd=bkd,
-            forcing=adapter.forcing_for_galerkin(),
+            forcing=ms.forcing(),
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        system = compose_galerkin_system(
+            physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+        )
 
         # Manual setup: adapter + stepper + constrained wrapper
         ode_adapter = GalerkinPhysicsToODEResidualAdapter(system)
@@ -663,19 +713,18 @@ class TestManualNewtonWithConstraint:
         )
         mesh = StructuredMesh1D(nx=32, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=2)
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, bkd, time_dependent=True
-        )
-        bc_set = adapter.create_boundary_conditions(["D", "D"])
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=4.0,
             bkd=bkd,
-            forcing=adapter.forcing_for_galerkin(),
+            forcing=ms.forcing(),
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
+        system = compose_galerkin_system(
+            physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+        )
 
-        exact_sol_func = adapter.solution_function()
+        exact_sol_func = functions["solution"]
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
         def exact_at_time(t):

@@ -23,15 +23,12 @@ from typing import Any, List
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.constitutive.coefficient_functions import TimeDependent
 from pyapprox.pde.constitutive.neo_hookean import NeoHookeanStress
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary.implementations import DirichletBC
-from pyapprox.pde.galerkin.boundary.manufactured import (
-    ManufacturedSolutionBC,
-)
 from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinHyperelasticityAdapter,
-    GalerkinManufacturedSolutionAdapter,
+    GalerkinManufacturedSolution,
     create_adr_manufactured_test,
     create_hyperelasticity_manufactured_test,
 )
@@ -41,8 +38,17 @@ from tests._helpers.time_derivative_checks import (
     assert_time_derivatives_match,
 )
 
+_BOUNDARIES_1D = ["left", "right"]
+_BOUNDARIES_2D = ["left", "right", "bottom", "top"]
 
-def _assert_bcs(bcs: List[DirichletBC[Any]], bkd: NumpyBkd) -> None:
+
+def _dirichlet_all(
+    ms: GalerkinManufacturedSolution[NDArray[Any]], names: List[str]
+) -> List[DirichletBC[NDArray[Any]]]:
+    return [ms.dirichlet(name) for name in names]
+
+
+def _assert_bcs(bcs: List[DirichletBC[NDArray[Any]]], bkd: NumpyBkd) -> None:
     assert bcs, "the builder produced no essential BCs to check"
     for bc in bcs:
         assert not bc.is_time_invariant()
@@ -68,11 +74,10 @@ class TestManufacturedAdapterTimeDerivatives:
             time_dependent=True,
         )
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
-        adapter = GalerkinManufacturedSolutionAdapter(
-            LagrangeBasis(mesh, degree=2), functions, bkd, time_dependent=True
+        ms = GalerkinManufacturedSolution(
+            LagrangeBasis(mesh, degree=2), functions, bkd
         )
-        bc_set = adapter.create_boundary_conditions(["D", "D"])
-        _assert_bcs(bc_set.essential_bcs(), bkd)
+        _assert_bcs(_dirichlet_all(ms, _BOUNDARIES_1D), bkd)
 
     def test_adr_2d(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
@@ -86,11 +91,10 @@ class TestManufacturedAdapterTimeDerivatives:
             time_dependent=True,
         )
         mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0, 1], [0, 1]], bkd=bkd)
-        adapter = GalerkinManufacturedSolutionAdapter(
-            LagrangeBasis(mesh, degree=1), functions, bkd, time_dependent=True
+        ms = GalerkinManufacturedSolution(
+            LagrangeBasis(mesh, degree=1), functions, bkd
         )
-        bc_set = adapter.create_boundary_conditions(["D", "D", "D", "D"])
-        _assert_bcs(bc_set.essential_bcs(), bkd)
+        _assert_bcs(_dirichlet_all(ms, _BOUNDARIES_2D), bkd)
 
     def test_hyperelasticity_1d(self, numpy_bkd: NumpyBkd) -> None:
         bkd = numpy_bkd
@@ -101,14 +105,10 @@ class TestManufacturedAdapterTimeDerivatives:
             bkd=bkd,
         )
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
-        adapter = GalerkinHyperelasticityAdapter(
-            VectorLagrangeBasis(mesh, degree=2),
-            functions,
-            bkd,
-            time_dependent=True,
+        ms = GalerkinManufacturedSolution(
+            VectorLagrangeBasis(mesh, degree=2), functions, bkd
         )
-        bc_set = adapter.create_boundary_conditions(["D", "D"])
-        _assert_bcs(bc_set.essential_bcs(), bkd)
+        _assert_bcs(_dirichlet_all(ms, _BOUNDARIES_1D), bkd)
 
     def test_hyperelasticity_2d(self, numpy_bkd: NumpyBkd) -> None:
         """Vector values: each interleaved DOF takes its own component."""
@@ -123,14 +123,10 @@ class TestManufacturedAdapterTimeDerivatives:
             bkd=bkd,
         )
         mesh = StructuredMesh2D(nx=3, ny=3, bounds=[[0, 1], [0, 1]], bkd=bkd)
-        adapter = GalerkinHyperelasticityAdapter(
-            VectorLagrangeBasis(mesh, degree=1),
-            functions,
-            bkd,
-            time_dependent=True,
+        ms = GalerkinManufacturedSolution(
+            VectorLagrangeBasis(mesh, degree=1), functions, bkd
         )
-        bc_set = adapter.create_boundary_conditions(["D", "D", "D", "D"])
-        _assert_bcs(bc_set.essential_bcs(), bkd)
+        _assert_bcs(_dirichlet_all(ms, _BOUNDARIES_2D), bkd)
 
 
 def _solution(x: NDArray[Any], t: float) -> NDArray[Any]:
@@ -147,24 +143,23 @@ def _solution_dot_missing_chain_rule(
     return (1.0 + x[0]) * np.cos(2.0 * t + 1.0)
 
 
-def _flux(x: NDArray[Any], t: float) -> NDArray[Any]:
-    return np.ones_like(x)
+class TestSuppliedTimeDerivatives:
+    """Hand-written functions: the supplied d/dT is trusted, so the check
+    must catch a wrong one."""
 
-
-class TestManufacturedSolutionBCTimeDerivatives:
     def _bcs(
         self, bkd: NumpyBkd, solution_dot: Any
-    ) -> List[DirichletBC[Any]]:
+    ) -> List[DirichletBC[NDArray[Any]]]:
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
-        builder = ManufacturedSolutionBC(
+        ms = GalerkinManufacturedSolution(
             LagrangeBasis(mesh, degree=1),
-            _solution,
-            _flux,
+            {
+                "solution": TimeDependent(_solution),
+                "solution_time_derivative": TimeDependent(solution_dot),
+            },
             bkd,
-            time_dependent=True,
-            solution_time_derivative_func=solution_dot,
         )
-        return builder.create_boundary_conditions(["D", "D"]).essential_bcs()
+        return _dirichlet_all(ms, _BOUNDARIES_1D)
 
     def test_supplied_derivative_passes(self, numpy_bkd: NumpyBkd) -> None:
         _assert_bcs(self._bcs(numpy_bkd, _solution_dot), numpy_bkd)

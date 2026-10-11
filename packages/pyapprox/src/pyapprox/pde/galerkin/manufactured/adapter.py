@@ -1,33 +1,44 @@
-"""Adapter for using collocation manufactured solutions with Galerkin tests.
+"""Galerkin boundary conditions and suppliers from a manufactured solution.
 
-Bridges the existing manufactured solution infrastructure in
-`pyapprox.pde.manufactured` with the
-Galerkin boundary conditions and physics implementations.
+Bridges the manufactured solutions in ``pyapprox.pde.manufactured``, which
+both discretizations share, to Galerkin physics and boundary conditions.
+Natural boundary data comes from the physics' own flux law
+(``FluxLawProviderProtocol``) evaluated at the exact solution and gradient
+with the mesh's facet normals, so the data is what the physics' weak form
+integrates by parts, on any boundary shape.
 """
 
-from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Mapping,
+    Tuple,
+    Union,
+)
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
-    TimeAwareCallableProtocol,
-    TimeDependent,
-    TimeIndependent,
     TimeVaryingProtocol,
 )
 from pyapprox.pde.constitutive.protocols import (
     SymbolicStressModelProtocol,
 )
 from pyapprox.pde.galerkin.boundary import (
-    BoundaryConditionSet,
     DirichletBC,
     NeumannBC,
+    NormalFluxLawProtocol,
     RobinBC,
-    canonical_boundary_normal,
 )
-from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
+from pyapprox.pde.galerkin.protocols.basis import (
+    ComponentDofsBasisProtocol,
+    GalerkinBasisProtocol,
+)
 from pyapprox.pde.manufactured import (
     ManufacturedAdvectionDiffusionReaction,
     ManufacturedHelmholtz,
@@ -40,72 +51,215 @@ from pyapprox.pde.manufactured.linear_elasticity import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
+_Pts = NDArray[np.floating[Any]]
+_Alpha = Union[float, Callable[[_Pts], _Pts]]
 
-class GalerkinManufacturedSolutionAdapter(Generic[Array]):
-    """Adapter to use manufactured solutions with Galerkin finite elements.
 
-    Takes a manufactured solution object (from collocation module) and
-    provides methods to create boundary conditions and forcing functions
-    compatible with Galerkin physics implementations.
+def _declares_time(func: Callable[..., Any]) -> bool:
+    """Whether a manufactured function is declared time-dependent.
+
+    Manufactured functions of a transient solution are ``TimeDependent``;
+    those of a steady one take coordinates only.
+    """
+    return isinstance(func, TimeVaryingProtocol) and func.is_time_dependent()
+
+
+class _ManufacturedField:
+    """One manufactured function, called with or without time as declared."""
+
+    def __init__(self, func: Callable[..., Any]) -> None:
+        self._func = func
+        self._time_dependent = _declares_time(func)
+
+    def __call__(self, coords: _Pts, time: float) -> _Pts:
+        if self._time_dependent:
+            return np.asarray(self._func(coords, time))
+        return np.asarray(self._func(coords))
+
+    def is_time_dependent(self) -> bool:
+        return self._time_dependent
+
+
+def _components_first(values: _Pts) -> _Pts:
+    """``(npts,)`` or ``(npts, ncomp)`` to ``(ncomp, npts)``."""
+    if values.ndim == 1:
+        return values[None, :]
+    return values.T
+
+
+def _gradient_components_first(values: _Pts) -> _Pts:
+    """Manufactured gradient to the flux law's ``(ncomp, ndim, npts)``.
+
+    Scalar solutions give ``(npts, ndim)``, vector ones
+    ``(ncomp, npts, ndim)``.
+    """
+    if values.ndim == 2:
+        return values.T[None, :, :]
+    return np.transpose(values, (0, 2, 1))
+
+
+class _BasisLayout:
+    """The value layout a basis' suppliers and conditions use.
+
+    A vector basis takes ``(ncomp, npts)``; a scalar basis ``(npts,)``.
+    Essential values are ``(npts,)`` whenever there is one component,
+    which is what ``DirichletBC`` selects from.
+    """
+
+    def __init__(self, basis: GalerkinBasisProtocol[Array]) -> None:
+        self._vector = isinstance(basis, ComponentDofsBasisProtocol)
+        self._ncomponents = (
+            basis.ncomponents()
+            if isinstance(basis, ComponentDofsBasisProtocol)
+            else 1
+        )
+
+    def data(self, values: _Pts) -> _Pts:
+        """Natural-BC data and forcing from ``(ncomp, npts)``."""
+        return values if self._vector else values[0]
+
+    def essential(self, values: _Pts) -> _Pts:
+        """Dirichlet values from ``(ncomp, npts)``."""
+        return values if self._ncomponents > 1 else values[0]
+
+
+class _EssentialValues:
+    """Exact values (or a time derivative) at the boundary DOFs."""
+
+    def __init__(self, field: _ManufacturedField, layout: _BasisLayout) -> None:
+        self._field = field
+        self._layout = layout
+
+    def __call__(self, coords: _Pts, time: float) -> _Pts:
+        return self._layout.essential(
+            _components_first(self._field(coords, time))
+        )
+
+    def is_time_dependent(self) -> bool:
+        return self._field.is_time_dependent()
+
+
+class _NaturalData:
+    """``g = alpha u + law(x, u, grad u, n, t)`` at the exact solution.
+
+    With ``alpha`` zero this is Neumann data, otherwise Robin data. It
+    satisfies ``NormalDependentDataProtocol``, so the assembly supplies
+    the facet normals.
+    """
+
+    def __init__(
+        self,
+        solution: _ManufacturedField,
+        gradient: _ManufacturedField,
+        law: NormalFluxLawProtocol,
+        alpha: _Alpha,
+        layout: _BasisLayout,
+    ) -> None:
+        self._solution = solution
+        self._gradient = gradient
+        self._law = law
+        self._alpha = alpha
+        self._layout = layout
+
+    def evaluate(self, coords: _Pts, normal: _Pts, time: float) -> _Pts:
+        u = _components_first(self._solution(coords, time))
+        grad_u = _gradient_components_first(self._gradient(coords, time))
+        flux = np.asarray(
+            self._law.normal_flux(coords, u, grad_u, normal, time)
+        )
+        alpha = (
+            np.asarray(self._alpha(coords))
+            if callable(self._alpha)
+            else self._alpha
+        )
+        return self._layout.data(alpha * u + flux)
+
+    def is_time_dependent(self) -> bool:
+        return (
+            self._solution.is_time_dependent()
+            or self._law.is_time_dependent()
+        )
+
+
+class _Forcing:
+    """The manufactured forcing in the basis' layout."""
+
+    def __init__(self, field: _ManufacturedField, layout: _BasisLayout) -> None:
+        self._field = field
+        self._layout = layout
+
+    def __call__(self, coords: _Pts, time: float) -> _Pts:
+        return self._layout.data(_components_first(self._field(coords, time)))
+
+    def is_time_dependent(self) -> bool:
+        return self._field.is_time_dependent()
+
+
+class _Velocity:
+    """The manufactured velocity as ``(ndim, ...)``, matching ``coords``.
+
+    The manufactured velocity takes flat ``(ndim, npts)`` points and
+    returns ``(npts, ndim)``; skfem evaluates at ``(ndim, nelem, nquad)``.
+    """
+
+    def __init__(self, field: _ManufacturedField) -> None:
+        self._field = field
+
+    def __call__(self, coords: _Pts, time: float) -> _Pts:
+        ndim = coords.shape[0]
+        values = self._field(coords.reshape(ndim, -1), time)
+        return values.T.reshape(ndim, *coords.shape[1:])
+
+    def is_time_dependent(self) -> bool:
+        return self._field.is_time_dependent()
+
+
+class GalerkinManufacturedSolution(Generic[Array]):
+    """A manufactured solution's boundary conditions and suppliers on a basis.
+
+    Each condition is built on request, so a test lists exactly the
+    conditions it composes::
+
+        ms = GalerkinManufacturedSolution(basis, man_sol.functions, bkd)
+        physics = AdvectionDiffusionReaction(
+            basis, ..., forcing=ms.forcing(), bkd=bkd
+        )
+        system = compose_galerkin_system(physics, [
+            ms.dirichlet("left"),
+            ms.robin("right", 2.0, physics.flux_law()),
+        ])
+
+    Natural data takes the physics' flux law because the physics, which
+    needs the forcing, exists only after this object. Build the physics
+    from the exact coefficients, so the law carries no discretization
+    error. Values and suppliers are declared time-dependent exactly when
+    the manufactured functions are.
 
     Parameters
     ----------
-    basis : GalerkinBasisProtocol[Array]
-        Finite element basis.
-    functions : Dict[str, Callable]
-        Dictionary of manufactured solution functions. Must contain:
-        - "solution": exact solution function
-        - "forcing": forcing function for the PDE
-        Optional:
-        - "flux": flux function D * grad(u) for boundary conditions
-        - "diffusion": diffusion coefficient
-        - "velocity": velocity field for advection
-        - "reaction": reaction coefficient/function
-    bkd : Backend[Array]
+    basis : GalerkinBasisProtocol
+        Finite element basis; a vector basis gets component-first values.
+    functions : Mapping[str, Callable]
+        The manufactured functions. Uses ``"solution"``, and as needed
+        ``"gradient"`` (natural data), ``"solution_time_derivative"``
+        (transient Dirichlet data), ``"forcing"`` and ``"velocity"``.
+    bkd : Backend
         Computational backend.
-    time_dependent : bool, default=False
-        Whether the solution is time-dependent.
-
-    Examples
-    --------
-    >>> from pyapprox.util.backends.numpy import NumpyBkd
-    >>> from pyapprox.pde.manufactured import (
-    ...     ManufacturedAdvectionDiffusionReaction
-    ... )
-    >>> from pyapprox.pde.galerkin.mesh import StructuredMesh1D
-    >>> from pyapprox.pde.galerkin.basis import LagrangeBasis
-    >>> bkd = NumpyBkd()
-    >>> man_sol = ManufacturedAdvectionDiffusionReaction(
-    ...     sol_str="x", nvars=1, diff_str="1.0",
-    ...     react_str="0", vel_strs=["0"], bkd=bkd, oned=True
-    ... )
-    >>> mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
-    >>> basis = LagrangeBasis(mesh, degree=1)
-    >>> adapter = GalerkinManufacturedSolutionAdapter(
-    ...     basis, man_sol.functions, bkd
-    ... )
     """
 
     def __init__(
         self,
         basis: GalerkinBasisProtocol[Array],
-        functions: Dict[str, Callable[..., Any]],
+        functions: Mapping[str, Callable[..., Any]],
         bkd: Backend[Array],
-        time_dependent: bool = False,
-        conservative: bool = False,
-    ):
+    ) -> None:
+        if "solution" not in functions:
+            raise ValueError("functions must contain 'solution'")
         self._basis = basis
         self._functions = functions
         self._bkd = bkd
-        self._time_dependent = time_dependent
-        self._conservative = conservative
-        self._ndim = basis.mesh().ndim()
-
-        # Validate required functions
-        if "solution" not in functions:
-            raise ValueError("functions must contain 'solution'")
-        if "forcing" not in functions:
-            raise ValueError("functions must contain 'forcing'")
+        self._layout = _BasisLayout(basis)
+        self._solution = _ManufacturedField(functions["solution"])
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -115,466 +269,118 @@ class GalerkinManufacturedSolutionAdapter(Generic[Array]):
         """Return the finite element basis."""
         return self._basis
 
-    def _get_boundary_names(self) -> List[str]:
-        """Get ordered list of boundary names for this mesh dimension."""
-        if self._ndim == 1:
-            return ["left", "right"]
-        elif self._ndim == 2:
-            return ["left", "right", "bottom", "top"]
-        elif self._ndim == 3:
-            return ["left", "right", "bottom", "top", "front", "back"]
+    def _field(self, key: str, needed_for: str) -> _ManufacturedField:
+        if key not in self._functions:
+            raise ValueError(
+                f"functions must contain {key!r} for {needed_for}"
+            )
+        return _ManufacturedField(self._functions[key])
+
+    def solution(self) -> _ManufacturedField:
+        """Return the exact solution, called as ``u(coords, time)``.
+
+        Values are in the manufactured layout: ``(npts,)`` scalar,
+        ``(npts, ncomp)`` vector.
+        """
+        return self._solution
+
+    def dirichlet(self, boundary_name: str) -> DirichletBC[Array]:
+        """Return ``u = u*`` on the boundary.
+
+        A transient solution's signal carries the exact first time
+        derivative, which stage-based steppers need.
+        """
+        values = _EssentialValues(self._solution, self._layout)
+        if not self._solution.is_time_dependent():
+            signal = BoundarySignal(values)
         else:
-            raise ValueError(f"Unsupported dimension: {self._ndim}")
+            derivative = _EssentialValues(
+                self._field(
+                    "solution_time_derivative", "transient Dirichlet data"
+                ),
+                self._layout,
+            )
+            signal = BoundarySignal(values, [derivative])
+        return DirichletBC(self._basis, boundary_name, signal, self._bkd)
 
-    def solution_function(self) -> Callable[..., Any]:
-        """Return the exact solution function.
-
-        Returns
-        -------
-        Callable
-            Function u(x) or u(x, t) returning exact solution values.
-        """
-        return self._functions["solution"]
-
-    def forcing_function(self) -> Callable[..., Any]:
-        """Return the forcing function.
-
-        Returns
-        -------
-        Callable
-            Function f(x) or f(x, t) returning forcing values.
-        """
-        return self._functions["forcing"]
-
-    def velocity_for_galerkin(self) -> Optional[Callable[..., Any]]:
-        """Return velocity function adapted for Galerkin physics interface.
-
-        The Galerkin physics (skfem) expects velocity as a callable returning
-        shape matching the input coordinates: (ndim, nelem, nquad) or
-        (ndim, npts). The manufactured solution returns (npts, ndim).
-        This method transposes the output to match the expected convention.
-
-        Returns
-        -------
-        Callable or None
-            Velocity function compatible with Galerkin physics, or None
-            if no velocity is defined.
-        """
-        vel_func = self._functions.get("velocity")
-        if vel_func is None:
-            return None
-
-        # Branch on whether the VELOCITY consults time, not on whether the
-        # problem is transient: a transient problem may well have a steady
-        # velocity, and wrapping that one as TimeDependent would send it a
-        # time it cannot accept.
-        velocity_varies = isinstance(vel_func, TimeVaryingProtocol) and (
-            vel_func.is_time_dependent()
-        )
-
-        def _reshape(
-            vals: NDArray[np.floating[Any]],
-            ndim: int,
-            trailing: Tuple[int, ...],
-        ) -> NDArray[np.floating[Any]]:
-            # Manufactured velocity returns (npts, ndim); skfem wants
-            # (ndim, ...) matching the input coordinate shape.
-            ret: NDArray[np.floating[Any]] = vals.T.reshape(ndim, *trailing)
-            return ret
-
-        if velocity_varies:
-
-            def varying_velocity(
-                x: NDArray[np.floating[Any]],
-                time: float,
-            ) -> NDArray[np.floating[Any]]:
-                ndim = x.shape[0]
-                trailing = x.shape[1:]
-                return _reshape(
-                    vel_func(x.reshape(ndim, -1), time), ndim, trailing
-                )
-
-            return TimeDependent(varying_velocity)
-
-        def steady_velocity(
-            x: NDArray[np.floating[Any]],
-        ) -> NDArray[np.floating[Any]]:
-            ndim = x.shape[0]
-            trailing = x.shape[1:]
-            return _reshape(vel_func(x.reshape(ndim, -1)), ndim, trailing)
-
-        return TimeIndependent(steady_velocity)
-
-    def forcing_for_galerkin(self) -> Callable[..., Any]:
-        """Return forcing function adapted for Galerkin physics interface.
-
-        The Galerkin physics expects forcing as f(x) returning shape (npts,).
-        The manufactured solution returns f(x) with shape (npts, 1).
-
-        Returns
-        -------
-        Callable
-            Forcing function compatible with Galerkin physics.
-        """
-        forcing_func = self._functions["forcing"]
-
-        def _squeeze(
-            vals: NDArray[np.floating[Any]],
-        ) -> NDArray[np.floating[Any]]:
-            # Manufactured forcing is (npts, 1) for scalar problems;
-            # Galerkin physics wants (npts,).
-            if hasattr(vals, "shape") and vals.ndim > 1:
-                ret: NDArray[np.floating[Any]] = (
-                    vals[:, 0] if vals.shape[1] == 1 else vals
-                )
-                return ret
-            ret2: NDArray[np.floating[Any]] = vals
-            return ret2
-
-        # Declare what this adapter already knows. Without it a consumer
-        # normalizing an undeclared callable would take it for
-        # time-independent and freeze a transient forcing at t=0.
-        if self._time_dependent:
-
-            def varying_forcing(
-                x: NDArray[np.floating[Any]],
-                time: float,
-            ) -> NDArray[np.floating[Any]]:
-                return _squeeze(forcing_func(x, time))
-
-            return TimeDependent(varying_forcing)
-
-        def steady_forcing(
-            x: NDArray[np.floating[Any]],
-        ) -> NDArray[np.floating[Any]]:
-            return _squeeze(forcing_func(x))
-
-        return TimeIndependent(steady_forcing)
-
-    def _eval_flux(
-        self,
-        flux_func: Callable[..., Any],
-        coords: NDArray[np.floating[Any]],
-        time: Optional[float] = None,
-    ) -> NDArray[np.floating[Any]]:
-        """Evaluate a flux function and return shape (ndim, npts)."""
-        if self._time_dependent and time is not None:
-            flux = flux_func(coords, time)
-        else:
-            flux = flux_func(coords)
-
-        if flux.ndim == 2:
-            # flux shape: (npts, ndim) - need to transpose
-            if flux.shape[0] == coords.shape[1]:
-                flux = flux.T
-            # flux shape should now be (ndim, npts)
-        ret: NDArray[np.floating[Any]] = flux
-        return ret
-
-    def _compute_natural_bc_value(
-        self,
-        boundary_index: int,
-        coords: NDArray[np.floating[Any]],
-        time: Optional[float] = None,
-    ) -> NDArray[np.floating[Any]]:
-        """Compute the natural BC value at boundary coordinates.
-
-        Returns the quantity that appears as the natural boundary condition
-        in the Galerkin weak form after integration by parts.
-
-        Non-conservative form:
-            Natural BC = D * grad(u) · n
-
-        Conservative form:
-            Natural BC = D * grad(u) · n - v * u · n
-            (includes the advective boundary term from IBP of div(v*u))
-
-        TODO: the conservative weak assembly drops the IBP advective
-        boundary term (this adapter compensates by prescribing the
-        combined quantity), so a DO-NOTHING boundary under the
-        conservative form enforces zero TOTAL flux
-        (D*grad(u)·n - (v·n)u = 0), not zero diffusive flux — a free
-        outflow modeled that way traps contaminant. Implement the
-        advective outflow facet term and extend conservative
-        manufactured coverage beyond 1D/steady/prescribed-BC before
-        using the conservative form with free outflows.
+    def neumann(
+        self, boundary_name: str, law: NormalFluxLawProtocol
+    ) -> NeumannBC[Array]:
+        """Return the Neumann condition with data ``law(u*, grad u*, n)``.
 
         Parameters
         ----------
-        boundary_index : int
-            Boundary index (0=left, 1=right, 2=bottom, etc.).
-        coords : NDArray[np.floating[Any]]
-            Boundary coordinates. Shape: (ndim, npts).
-        time : float, optional
-            Time for transient problems.
-
-        Returns
-        -------
-        NDArray[np.floating[Any]]
-            Natural BC value. Shape: (npts,).
+        boundary_name : str
+            Name of the boundary.
+        law : NormalFluxLawProtocol
+            The physics' ``flux_law()``.
         """
-        # Use diffusive_flux (pure -D*grad(u)) if available
-        flux_func = self._functions.get("diffusive_flux")
-        if flux_func is None:
-            flux_func = self._functions.get("flux")
-        if flux_func is None:
-            raise ValueError(
-                "Manufactured solution must provide 'diffusive_flux' or "
-                "'flux' function to create Neumann or Robin boundary "
-                "conditions"
-            )
-
-        normal = canonical_boundary_normal(boundary_index, coords)
-        diff_flux = self._eval_flux(flux_func, coords, time)
-
-        # D * grad(u) · n  (negate because diffusive flux = -D * grad(u))
-        result = -np.sum(diff_flux * normal, axis=0)
-
-        if self._conservative:
-            # Subtract advective boundary term: v * u · n
-            vel_func = self._functions.get("velocity")
-            sol_func = self._functions["solution"]
-            if vel_func is not None:
-                vel = self._eval_flux(vel_func, coords, time)
-                if self._time_dependent and time is not None:
-                    u_vals = sol_func(coords, time)
-                else:
-                    u_vals = sol_func(coords)
-                if u_vals.ndim > 1:
-                    u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals.flatten()
-                # v * u · n
-                advective_flux_dot_n = np.sum(vel * u_vals * normal, axis=0)
-                result -= advective_flux_dot_n
-
-        ret: NDArray[np.floating[Any]] = result
-        return ret
-
-    def _create_dirichlet_bc(
-        self, boundary_name: str, boundary_index: int
-    ) -> DirichletBC[Array]:
-        """Create a Dirichlet BC from the manufactured solution."""
-        sol_func = self._functions["solution"]
-
-        if self._time_dependent:
-
-            def value_func(
-                x: NDArray[np.floating[Any]],
-                t: Optional[float] = None,
-            ) -> NDArray[np.floating[Any]]:
-                vals = sol_func(x, t)
-                if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = (
-                        vals[:, 0]
-                        if vals.shape[1] == 1
-                        else vals
-                    )
-                    return ret
-                ret2: NDArray[np.floating[Any]] = vals
-                return ret2
-        else:
-
-            def value_func(
-                x: NDArray[np.floating[Any]],
-                t: Optional[float] = None,
-            ) -> NDArray[np.floating[Any]]:
-                vals = sol_func(x)
-                if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = (
-                        vals[:, 0]
-                        if vals.shape[1] == 1
-                        else vals
-                    )
-                    return ret
-                ret2: NDArray[np.floating[Any]] = vals
-                return ret2
-
-        # Analytic boundary velocity: manufactured solutions know their
-        # time dependence (sympy d/dT), so stage-based steppers get the
-        # exact g_dot. Steady problems have g_dot = 0.
-        if self._time_dependent:
-            sol_dot_func = self._functions["solution_time_derivative"]
-
-            def value_time_derivative_func(
-                x: NDArray[np.floating[Any]],
-                t: Optional[float] = None,
-            ) -> NDArray[np.floating[Any]]:
-                vals = sol_dot_func(x, t)
-                if hasattr(vals, "shape") and vals.ndim > 1:
-                    ret: NDArray[np.floating[Any]] = (
-                        vals[:, 0]
-                        if vals.shape[1] == 1
-                        else vals
-                    )
-                    return ret
-                ret2: NDArray[np.floating[Any]] = vals
-                return ret2
-
-            signal = BoundarySignal(
-                TimeDependent(value_func),
-                [TimeDependent(value_time_derivative_func)],
-            )
-        else:
-            signal = BoundarySignal(TimeIndependent(value_func))
-
-        return DirichletBC(
-            basis=self._basis,
-            boundary_name=boundary_name,
-            value_func=signal,
-            bkd=self._bkd,
-        )
-
-    def _create_neumann_bc(
-        self, boundary_name: str, boundary_index: int
-    ) -> NeumannBC[Array]:
-        """Create a Neumann BC from the manufactured solution."""
-        neumann_value: TimeAwareCallableProtocol
-        if self._time_dependent:
-
-            def varying_neumann_value(
-                x: NDArray[np.floating[Any]], t: float
-            ) -> NDArray[np.floating[Any]]:
-                return self._compute_natural_bc_value(boundary_index, x, t)
-
-            neumann_value = TimeDependent(varying_neumann_value)
-        else:
-
-            def steady_neumann_value(
-                x: NDArray[np.floating[Any]],
-            ) -> NDArray[np.floating[Any]]:
-                return self._compute_natural_bc_value(boundary_index, x)
-
-            neumann_value = TimeIndependent(steady_neumann_value)
-
         return NeumannBC(
-            basis=self._basis,
-            boundary_name=boundary_name,
-            flux_func=neumann_value,
-            bkd=self._bkd,
+            self._basis,
+            boundary_name,
+            self._natural_data(law, 0.0),
+            self._bkd,
         )
 
-    def _create_robin_bc(
+    def robin(
         self,
         boundary_name: str,
-        boundary_index: int,
-        alpha: Union[
-            float, Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
-        ] = 1.0,
+        alpha: _Alpha,
+        law: NormalFluxLawProtocol,
     ) -> RobinBC[Array]:
-        """Create a Robin BC from the manufactured solution.
-
-        Robin BC weak form: natural_bc = g - alpha*u
-        So g = alpha(x) * u + natural_bc
-        where natural_bc is D*grad(u)·n for non-conservative, or
-        D*grad(u)·n - v*u·n for conservative advection. A callable
-        alpha is evaluated pointwise at the boundary coordinates.
-        """
-        sol_func = self._functions["solution"]
-
-        def alpha_values(
-            x: NDArray[np.floating[Any]],
-        ) -> Union[float, NDArray[np.floating[Any]]]:
-            if callable(alpha):
-                return np.asarray(alpha(x))
-            return alpha
-
-        robin_value: TimeAwareCallableProtocol
-        if self._time_dependent:
-
-            def varying_robin_value(
-                x: NDArray[np.floating[Any]], t: float
-            ) -> NDArray[np.floating[Any]]:
-                u_vals = sol_func(x, t)
-                if hasattr(u_vals, "shape") and u_vals.ndim > 1:
-                    u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
-                nat_bc = self._compute_natural_bc_value(boundary_index, x, t)
-                ret: NDArray[np.floating[Any]] = (
-                    alpha_values(x) * u_vals + nat_bc
-                )
-                return ret
-
-            robin_value = TimeDependent(varying_robin_value)
-        else:
-
-            def steady_robin_value(
-                x: NDArray[np.floating[Any]],
-            ) -> NDArray[np.floating[Any]]:
-                u_vals = sol_func(x)
-                if hasattr(u_vals, "shape") and u_vals.ndim > 1:
-                    u_vals = u_vals[:, 0] if u_vals.shape[1] == 1 else u_vals
-                nat_bc = self._compute_natural_bc_value(boundary_index, x)
-                ret: NDArray[np.floating[Any]] = (
-                    alpha_values(x) * u_vals + nat_bc
-                )
-                return ret
-
-            robin_value = TimeIndependent(steady_robin_value)
-
-        return RobinBC(
-            basis=self._basis,
-            boundary_name=boundary_name,
-            alpha=alpha,
-            value_func=robin_value,
-            bkd=self._bkd,
-        )
-
-    def create_boundary_conditions(
-        self,
-        bc_types: List[str],
-        robin_alpha: Union[
-            float, Callable[[NDArray[np.floating[Any]]], NDArray[np.floating[Any]]]
-        ] = 1.0,
-    ) -> BoundaryConditionSet[Array]:
-        """Create boundary condition set from type specification.
+        """Return the Robin condition with data
+        ``alpha u* + law(u*, grad u*, n)``.
 
         Parameters
         ----------
-        bc_types : List[str]
-            List of boundary condition types in order
-            [left, right, bottom, top, ...].
-            Valid types:
-            - "D": Dirichlet (u = g)
-            - "N": Neumann (flux . n = g)
-            - "R": Robin (alpha(x) * u - flux . n = g)
-        robin_alpha : float or Callable, default=1.0
-            Coefficient for Robin BCs: constant, or ``alpha(x)``
-            evaluated at boundary coordinates ``(ndim, npts)``.
-
-        Returns
-        -------
-        BoundaryConditionSet[Array]
-            Collection of boundary conditions.
+        boundary_name : str
+            Name of the boundary.
+        alpha : float or Callable
+            The Robin coefficient: a constant, or ``alpha(coords)``.
+        law : NormalFluxLawProtocol
+            The physics' ``flux_law()``.
         """
-        boundary_names = self._get_boundary_names()
+        return RobinBC(
+            self._basis,
+            boundary_name,
+            alpha,
+            self._natural_data(law, alpha),
+            self._bkd,
+        )
 
-        if len(bc_types) != len(boundary_names):
-            raise ValueError(
-                f"Expected {len(boundary_names)} BC types for {self._ndim}D "
-                f"problem, got {len(bc_types)}"
+    def _natural_data(
+        self, law: NormalFluxLawProtocol, alpha: _Alpha
+    ) -> _NaturalData:
+        if not isinstance(law, NormalFluxLawProtocol):
+            raise TypeError(
+                "law must satisfy NormalFluxLawProtocol, got "
+                f"{type(law).__name__}"
             )
+        return _NaturalData(
+            self._solution,
+            self._field("gradient", "natural boundary data"),
+            law,
+            alpha,
+            self._layout,
+        )
 
-        bc_set = BoundaryConditionSet(self._bkd)
+    def forcing(self) -> _Forcing:
+        """Return the forcing as a declared supplier ``f(coords, time)``.
 
-        for i, (bc_type, boundary_name) in enumerate(zip(bc_types, boundary_names)):
-            if bc_type == "D":
-                bc_set.add_dirichlet(self._create_dirichlet_bc(boundary_name, i))
-            elif bc_type == "N":
-                bc_set.add_neumann(self._create_neumann_bc(boundary_name, i))
-            elif bc_type == "R":
-                bc_set.add_robin(
-                    self._create_robin_bc(boundary_name, i, robin_alpha)
-                )
-            else:
-                raise ValueError(
-                    f"Unknown BC type '{bc_type}'. "
-                    "Valid types: 'D' (Dirichlet), 'N' (Neumann), 'R' (Robin)"
-                )
+        ``(npts,)`` for a scalar basis, ``(ncomp, npts)`` for a vector one.
+        """
+        return _Forcing(self._field("forcing", "the forcing"), self._layout)
 
-        return bc_set
+    def velocity(self) -> _Velocity:
+        """Return the velocity as a declared supplier ``v(coords, time)``,
+        shaped ``(ndim, ...)`` like ``coords``."""
+        return _Velocity(self._field("velocity", "the velocity"))
 
     def __repr__(self) -> str:
         return (
-            f"GalerkinManufacturedSolutionAdapter(ndim={self._ndim}, "
-            f"time_dependent={self._time_dependent})"
+            f"GalerkinManufacturedSolution(ndofs={self._basis.ndofs()}, "
+            "time_dependent="
+            f"{self._solution.is_time_dependent()})"
         )
 
 
@@ -762,335 +568,3 @@ def create_hyperelasticity_manufactured_test(
 
     return man_sol.functions, nvars
 
-
-class GalerkinHyperelasticityAdapter(Generic[Array]):
-    """Adapter for vector-valued hyperelasticity manufactured solutions.
-
-    Provides methods to create boundary conditions and forcing functions
-    for hyperelasticity Galerkin tests. Handles the interleaved DOF
-    ordering of VectorLagrangeBasis and vector-valued BC values.
-
-    Parameters
-    ----------
-    basis : GalerkinBasisProtocol[Array]
-        Vector finite element basis (VectorLagrangeBasis).
-    functions : Dict[str, Callable]
-        Manufactured solution functions from
-        ``create_hyperelasticity_manufactured_test()``.
-    bkd : Backend[Array]
-        Computational backend.
-    time_dependent : bool, default=False
-        Whether the solution is time-dependent.
-    """
-
-    def __init__(
-        self,
-        basis: GalerkinBasisProtocol[Array],
-        functions: Dict[str, Callable[..., Any]],
-        bkd: Backend[Array],
-        time_dependent: bool = False,
-    ):
-        self._basis = basis
-        self._functions = functions
-        self._bkd = bkd
-        self._time_dependent = time_dependent
-        self._ndim = basis.mesh().ndim()
-
-    def _get_boundary_names(self) -> List[str]:
-        """Get ordered list of boundary names for this mesh dimension."""
-        if self._ndim == 1:
-            return ["left", "right"]
-        elif self._ndim == 2:
-            return ["left", "right", "bottom", "top"]
-        elif self._ndim == 3:
-            return ["left", "right", "bottom", "top", "front", "back"]
-        else:
-            raise ValueError(f"Unsupported dimension: {self._ndim}")
-
-    def solution_function(self) -> Callable[..., Any]:
-        """Return the exact solution function."""
-        return self._functions["solution"]
-
-    def forcing_for_galerkin(self) -> Callable[..., Any]:
-        """Return body force adapted for Galerkin physics.
-
-        The manufactured solution returns forcing as (npts, ncomponents).
-        Galerkin physics expects a body force returning (ndim, npts).
-
-        Returns
-        -------
-        Callable
-            A declared supplier --- ``TimeDependent`` for a transient
-            problem, ``TimeIndependent`` for a steady one. Declaring
-            which it is keeps a transient body force from being taken
-            for steady and frozen at t=0.
-        """
-        forcing_func = self._functions["forcing"]
-
-        if self._time_dependent:
-
-            def varying_body_force(
-                x: NDArray[np.floating[Any]],
-                time: float,
-            ) -> NDArray[np.floating[Any]]:
-                vals = forcing_func(x, time)  # (npts, ncomponents)
-                ret: NDArray[np.floating[Any]] = vals.T
-                return ret
-
-            return TimeDependent(varying_body_force)
-
-        def steady_body_force(
-            x: NDArray[np.floating[Any]],
-        ) -> NDArray[np.floating[Any]]:
-            vals = forcing_func(x)  # (npts, ncomponents)
-            ret: NDArray[np.floating[Any]] = vals.T
-            return ret
-
-        return TimeIndependent(steady_body_force)
-
-    def _create_dirichlet_bc(self, boundary_name: str) -> DirichletBC[Array]:
-        """Create a Dirichlet BC for vector-valued displacement.
-
-        Handles the interleaved DOF ordering: DOF j corresponds to
-        component j % ndim.
-        """
-        sol_func = self._functions["solution"]
-        ndim = self._ndim
-        time_dep = self._time_dependent
-
-        def value_func(
-            coords: NDArray[np.floating[Any]], time: float = 0.0,
-        ) -> NDArray[np.floating[Any]]:
-            # coords: (ndim, nbndry_dofs) from dof_coordinates
-            nbndry_dofs = coords.shape[1]
-            if time_dep:
-                vals = sol_func(coords, time)  # (nbndry_dofs, ncomponents)
-            else:
-                vals = sol_func(coords)  # (nbndry_dofs, ncomponents)
-            # Extract correct component for each interleaved DOF
-            result = np.zeros(nbndry_dofs)
-            for j in range(nbndry_dofs):
-                result[j] = vals[j, j % ndim]
-            return result
-
-        # Analytic boundary velocity per interleaved DOF (sympy d/dT);
-        # zero for steady problems.
-        if time_dep:
-            sol_dot_func = self._functions["solution_time_derivative"]
-
-            def value_time_derivative_func(
-                coords: NDArray[np.floating[Any]], time: float = 0.0,
-            ) -> NDArray[np.floating[Any]]:
-                nbndry_dofs = coords.shape[1]
-                vals = sol_dot_func(coords, time)
-                result = np.zeros(nbndry_dofs)
-                for j in range(nbndry_dofs):
-                    result[j] = vals[j, j % ndim]
-                return result
-
-            signal = BoundarySignal(
-                TimeDependent(value_func),
-                [TimeDependent(value_time_derivative_func)],
-            )
-        else:
-            signal = BoundarySignal(TimeIndependent(value_func))
-
-        return DirichletBC(
-            basis=self._basis,
-            boundary_name=boundary_name,
-            value_func=signal,
-            bkd=self._bkd,
-        )
-
-    def _compute_traction(
-        self,
-        boundary_index: int,
-        coords: NDArray[np.floating[Any]],
-        time: Optional[float] = None,
-    ) -> NDArray[np.floating[Any]]:
-        """Compute traction t = P.n at boundary coordinates.
-
-        Parameters
-        ----------
-        boundary_index : int
-            Boundary index (0=left, 1=right, 2=bottom, etc.).
-        coords : NDArray[np.floating[Any]]
-            Boundary coordinates. Shape: (ndim, npts).
-        time : float, optional
-            Time for transient problems.
-
-        Returns
-        -------
-        NDArray[np.floating[Any]]
-            Traction components. Shape: (ndim, npts).
-        """
-        flux_func = self._functions.get("flux")
-        if flux_func is None:
-            raise ValueError(
-                "Manufactured solution must provide 'flux' function "
-                "(PK1 stress tensor) for Neumann/Robin BCs."
-            )
-
-        normal = canonical_boundary_normal(boundary_index, coords)
-        ndim = self._ndim
-
-        if self._time_dependent and time is not None:
-            P = flux_func(coords, time)
-        else:
-            P = flux_func(coords)
-        # P may be a backend array (e.g. torch tensor); convert to numpy
-        # since this is called inside skfem assembly which is numpy-based
-        P = self._bkd.to_numpy(P)
-        # P shape: (ncomponents, npts, ncomponents) = (ndim, npts, ndim)
-        # P[i, :, j] = P_{ij} at each point
-
-        # Traction: t_i = sum_j P_{ij} * n_j
-        npts = coords.shape[1]
-        traction = np.zeros((ndim, npts))
-        for i in range(ndim):
-            for j in range(ndim):
-                traction[i] += P[i, :, j] * normal[j]
-
-        return traction
-
-    def _create_neumann_bc(
-        self, boundary_name: str, boundary_index: int
-    ) -> NeumannBC[Array]:
-        """Create a Neumann BC for vector-valued traction.
-
-        The Neumann flux for hyperelasticity is the traction: t = P.n.
-        Returns (ndim, npts) traction at spatial coordinates for
-        quadrature-point assembly in the NeumannBC LinearForm.
-        """
-        time_dep = self._time_dependent
-        bndry_idx = boundary_index
-
-        def neumann_flux(
-            coords: NDArray[np.floating[Any]], time: float,
-        ) -> NDArray[np.floating[Any]]:
-            # coords: (ndim, npts) — quadrature point coordinates
-            traction = self._compute_traction(
-                bndry_idx, coords, time if time_dep else None
-            )
-            return traction  # (ndim, npts)
-
-        flux: TimeAwareCallableProtocol
-        if time_dep:
-            flux = TimeDependent(neumann_flux)
-        else:
-
-            def steady_neumann_flux(
-                coords: NDArray[np.floating[Any]],
-            ) -> NDArray[np.floating[Any]]:
-                return neumann_flux(coords, 0.0)
-
-            flux = TimeIndependent(steady_neumann_flux)
-
-        return NeumannBC(
-            basis=self._basis,
-            boundary_name=boundary_name,
-            flux_func=flux,
-            bkd=self._bkd,
-        )
-
-    def _create_robin_bc(
-        self, boundary_name: str, boundary_index: int, alpha: float = 1.0
-    ) -> RobinBC[Array]:
-        """Create a Robin BC: alpha * u + P.n = g.
-
-        The Robin value g = alpha * u + t where t = P.n (traction).
-        Returns (ndim, npts) at spatial coordinates for
-        quadrature-point assembly in the RobinBC LinearForm.
-        """
-        sol_func = self._functions["solution"]
-        time_dep = self._time_dependent
-        bndry_idx = boundary_index
-        alpha_val = alpha
-
-        def robin_value(
-            coords: NDArray[np.floating[Any]], time: float,
-        ) -> NDArray[np.floating[Any]]:
-            # coords: (ndim, npts)
-            traction = self._compute_traction(
-                bndry_idx, coords, time if time_dep else None
-            )
-            if time_dep:
-                u_vals = sol_func(coords, time)  # (npts, ncomponents)
-            else:
-                u_vals = sol_func(coords)  # (npts, ncomponents)
-            # Convert to numpy since this runs inside skfem assembly
-            u_vals = self._bkd.to_numpy(u_vals)
-            # u_vals: (npts, ndim) → transpose to (ndim, npts)
-            ret: NDArray[np.floating[Any]] = (
-                alpha_val * u_vals.T + traction
-            )
-            return ret
-
-        value: TimeAwareCallableProtocol
-        if time_dep:
-            value = TimeDependent(robin_value)
-        else:
-
-            def steady_robin_value(
-                coords: NDArray[np.floating[Any]],
-            ) -> NDArray[np.floating[Any]]:
-                return robin_value(coords, 0.0)
-
-            value = TimeIndependent(steady_robin_value)
-
-        return RobinBC(
-            basis=self._basis,
-            boundary_name=boundary_name,
-            alpha=alpha_val,
-            value_func=value,
-            bkd=self._bkd,
-        )
-
-    def create_boundary_conditions(
-        self, bc_types: List[str], robin_alpha: float = 1.0
-    ) -> BoundaryConditionSet[Array]:
-        """Create boundary condition set from type specification.
-
-        Parameters
-        ----------
-        bc_types : List[str]
-            List of BC types in order [left, right, ...].
-            "D" for Dirichlet, "N" for Neumann, "R" for Robin.
-        robin_alpha : float, default=1.0
-            Coefficient for Robin BCs.
-
-        Returns
-        -------
-        BoundaryConditionSet[Array]
-        """
-        boundary_names = self._get_boundary_names()
-
-        if len(bc_types) != len(boundary_names):
-            raise ValueError(
-                f"Expected {len(boundary_names)} BC types for "
-                f"{self._ndim}D problem, got {len(bc_types)}"
-            )
-
-        bc_set = BoundaryConditionSet(self._bkd)
-
-        for i, (bc_type, boundary_name) in enumerate(zip(bc_types, boundary_names)):
-            if bc_type == "D":
-                bc_set.add_dirichlet(self._create_dirichlet_bc(boundary_name))
-            elif bc_type == "N":
-                bc_set.add_neumann(self._create_neumann_bc(boundary_name, i))
-            elif bc_type == "R":
-                bc_set.add_robin(
-                    self._create_robin_bc(boundary_name, i, robin_alpha)
-                )
-            else:
-                raise ValueError(
-                    f"Unknown BC type '{bc_type}'. Valid types: 'D', 'N', 'R'"
-                )
-
-        return bc_set
-
-    def __repr__(self) -> str:
-        return (
-            f"GalerkinHyperelasticityAdapter(ndim={self._ndim}, "
-            f"time_dependent={self._time_dependent})"
-        )

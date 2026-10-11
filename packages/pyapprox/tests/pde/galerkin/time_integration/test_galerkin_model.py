@@ -19,8 +19,8 @@ from numpy.typing import NDArray
 
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
-from pyapprox.pde.galerkin.manufactured.adapter import (
-    GalerkinManufacturedSolutionAdapter,
+from pyapprox.pde.galerkin.manufactured import (
+    GalerkinManufacturedSolution,
     create_adr_manufactured_test,
 )
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
@@ -39,7 +39,7 @@ _ExactAtTime = Callable[[float], NDArray[np.floating[Any]]]
 
 def _setup_adr_system(
     bkd: NumpyBkd, nx: int = 32
-) -> Tuple[GalerkinSystem[Any], _ExactAtTime]:
+) -> Tuple[GalerkinSystem[NDArray[Any]], _ExactAtTime]:
     """Create a simple 1D ADR system with manufactured solution."""
     bounds = [0.0, 1.0]
     sol_str = "(1-x)*x*(1+T)"
@@ -60,20 +60,19 @@ def _setup_adr_system(
     mesh = StructuredMesh1D(nx=nx, bounds=(bounds[0], bounds[1]), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=2)
 
-    adapter = GalerkinManufacturedSolutionAdapter(
-        basis, functions, bkd, time_dependent=True
-    )
-    bc_set = adapter.create_boundary_conditions(["D", "D"], robin_alpha=1.0)
+    ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
     physics = AdvectionDiffusionReaction(
         basis=basis,
         diffusivity=4.0,
         bkd=bkd,
-        forcing=adapter.forcing_for_galerkin(),
+        forcing=ms.forcing(),
     )
-    system = compose_galerkin_system(physics, bc_set.all_conditions())
+    system = compose_galerkin_system(
+        physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+    )
 
-    exact_sol_func = adapter.solution_function()
+    exact_sol_func = functions["solution"]
     dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
     def exact_at_time(t: float) -> NDArray[np.floating[Any]]:
@@ -181,7 +180,7 @@ class TestExplicitUnifiedPipeline:
 
     def _setup_constant_in_space(
         self, bkd: NumpyBkd
-    ) -> Tuple[GalerkinSystem[Any], _ExactAtTime]:
+    ) -> Tuple[GalerkinSystem[NDArray[Any]], _ExactAtTime]:
         """u = 1+T: constant in space, so row-sum lumping is exact and
         the Dirichlet values g(t) = 1+t vary in time."""
         bounds = [0.0, 1.0]
@@ -196,18 +195,17 @@ class TestExplicitUnifiedPipeline:
         )
         mesh = StructuredMesh1D(nx=8, bounds=(bounds[0], bounds[1]), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, bkd, time_dependent=True
-        )
-        bc_set = adapter.create_boundary_conditions(["D", "D"])
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=1e-2,
             bkd=bkd,
-            forcing=adapter.forcing_for_galerkin(),
+            forcing=ms.forcing(),
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
-        exact_sol_func = adapter.solution_function()
+        system = compose_galerkin_system(
+            physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+        )
+        exact_sol_func = functions["solution"]
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
         def exact_at_time(t: float) -> NDArray[np.floating[Any]]:
@@ -282,18 +280,17 @@ class TestExplicitUnifiedPipeline:
         )
         mesh = StructuredMesh1D(nx=8, bounds=(bounds[0], bounds[1]), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=2)
-        adapter = GalerkinManufacturedSolutionAdapter(
-            basis, functions, bkd, time_dependent=True
-        )
-        bc_set = adapter.create_boundary_conditions(["D", "D"])
+        ms = GalerkinManufacturedSolution(basis, functions, bkd)
         physics = AdvectionDiffusionReaction(
             basis=basis,
             diffusivity=1e-2,
             bkd=bkd,
-            forcing=adapter.forcing_for_galerkin(),
+            forcing=ms.forcing(),
         )
-        system = compose_galerkin_system(physics, bc_set.all_conditions())
-        exact_sol_func = adapter.solution_function()
+        system = compose_galerkin_system(
+            physics, [ms.dirichlet("left"), ms.dirichlet("right")]
+        )
+        exact_sol_func = functions["solution"]
         dof_coords = bkd.to_numpy(basis.dof_coordinates())
 
         model = GalerkinModel(system, bkd)
