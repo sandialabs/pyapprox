@@ -267,6 +267,9 @@ class TestFieldParameterizationTerm:
         tols[4] = 5e-6
         tols[5] = 5e-6
         tols[8] = 5e-6
+        # Component 13 floors just above 1e-6 on CI's Linux BLAS, at
+        # 1.66e-6, while this machine stays under.
+        tols[13] = 2e-6
         checker.check_derivatives(init_state, param, tols)
 
     def test_forcing_term_passes_component_checker(

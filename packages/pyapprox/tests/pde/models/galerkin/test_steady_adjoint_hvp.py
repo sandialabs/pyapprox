@@ -151,6 +151,11 @@ class TestSteadyADRLogKLEAdjointHVP:
         tols[4] = 5e-6
         tols[5] = 5e-6
         tols[8] = 5e-6
+        # Component 13 floors just above 1e-6 on CI's Linux BLAS, at
+        # 1.66e-6, while this machine stays under. Raised to the next
+        # round number above that measurement rather than to the 5e-6
+        # used above, so the bound still tracks the floor.
+        tols[13] = 2e-6
         checker.check_derivatives(init_state, param, tols)
 
         # FD-noise-immune symmetry identity <Hu, v> = <Hv, u>:
