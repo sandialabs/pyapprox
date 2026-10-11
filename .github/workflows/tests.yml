@@ -20,6 +20,12 @@ on:
           - all
           - fast
           - slow
+          # fast without the minimal-install job. That job runs the same
+          # tests again in an environment without the optional extras,
+          # which is worth having on a push and is noise when chasing one
+          # failure: it has no matrix to narrow, so it cannot be reduced
+          # by the os and python inputs the way the fast jobs can.
+          - fast-only
       tests:
         # For reproducing a failure that only happens here. Without this
         # the only way to see one CI test again is the whole suite, ten
@@ -77,7 +83,7 @@ jobs:
     name: Fast — Python ${{ matrix.python-version }} / ${{ matrix.os }}
     if: >-
       github.event_name != 'workflow_dispatch'
-      || contains(fromJSON('["all","fast"]'), inputs.tier)
+      || contains(fromJSON('["all","fast","fast-only"]'), inputs.tier)
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
