@@ -24,9 +24,11 @@ from pyapprox.pde.field_maps.mesh_kle_field_map import MeshKLEFieldMap
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.bilaplacian import (
     BiLaplacianPrior,
+    bilaplacian_correlation_parameters,
     bilaplacian_stationary_variance,
     default_robin_coefficient,
 )
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.kle_factory import create_spde_matern_kle
 from pyapprox.pde.galerkin.mesh import StructuredMesh2D
 from pyapprox.pde.galerkin.noise_mass import (
@@ -34,6 +36,9 @@ from pyapprox.pde.galerkin.noise_mass import (
     CovarianceOperatorNoiseMass,
     LumpedNoiseMass,
     NoiseMassProtocol,
+)
+from pyapprox.pde.galerkin.physics.bilaplacian_operator import (
+    BiLaplacianOperator,
 )
 from pyapprox.probability.covariance.dense import (
     DenseCholeskyCovarianceOperator,
@@ -316,7 +321,10 @@ def test_center_std_under_refinement(
             )
         else:
             prior = BiLaplacianPrior(
-                basis, _GAMMA, _DELTA, numpy_bkd, bcs, noise_mass=noise_mass
+                compose_galerkin_system(
+                    BiLaplacianOperator(basis, _GAMMA, _DELTA, numpy_bkd), bcs
+                ),
+                noise_mass,
             )
         numpy_bkd.assert_allclose(
             numpy_bkd.asarray(_std_at(prior, [center], numpy_bkd)),
@@ -354,14 +362,11 @@ def test_robin_edges_and_corners_near_free_space(
 
 
 def test_rejects_non_noise_mass(numpy_bkd: Backend[Array]) -> None:
+    operator = BiLaplacianOperator(_basis(numpy_bkd, 3), 1.0, 10.0, numpy_bkd)
     with pytest.raises(TypeError, match="NoiseMassProtocol"):
         BiLaplacianPrior(
-            _basis(numpy_bkd, 3),
-            1.0,
-            10.0,
-            numpy_bkd,
-            [],
-            noise_mass=object(),  # type: ignore[arg-type]
+            compose_galerkin_system(operator),
+            object(),  # type: ignore[arg-type]
         )
 
 
@@ -377,12 +382,8 @@ class TestFromCorrelationLength:
     def test_parameters(self, numpy_bkd: Backend[Array]) -> None:
         """gamma / delta = length^2 and the stationary variance is
         std^2; in 2D that is gamma * delta = 1 / (4 pi std^2)."""
-        basis = _basis(numpy_bkd, 3)
         length, std = 0.2, 1.7
-        prior = BiLaplacianPrior.from_correlation_length(
-            basis, length, std, numpy_bkd
-        )
-        gamma, delta = prior.gamma(), prior.delta()
+        gamma, delta = bilaplacian_correlation_parameters(length, std, 2)
         numpy_bkd.assert_allclose(
             numpy_bkd.asarray(
                 [
@@ -430,11 +431,12 @@ class TestFromCorrelationLength:
         prior = BiLaplacianPrior.from_correlation_length(
             basis, length, std, bkd, robin_alpha=robin, noise_mass=noise_mass
         )
+        gamma, delta = bilaplacian_correlation_parameters(length, std, 2)
         kle = create_spde_matern_kle(
             basis,
             n_modes=basis.ndofs(),
-            gamma=prior.gamma(),
-            delta=prior.delta(),
+            gamma=gamma,
+            delta=delta,
             sigma=std,
             bkd=bkd,
             xi=robin,

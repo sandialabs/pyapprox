@@ -16,10 +16,15 @@ from skfem.element import ElementQuad1  # noqa: F401
 
 from pyapprox.pde.galerkin.basis.lagrange import LagrangeBasis
 from pyapprox.pde.galerkin.bilaplacian import BiLaplacianPrior
-from pyapprox.pde.galerkin.boundary.implementations import RobinBC
+from pyapprox.pde.galerkin.boundary.implementations import DirichletBC, RobinBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh.structured import (
     StructuredMesh1D,
     StructuredMesh2D,
+)
+from pyapprox.pde.galerkin.noise_mass import LumpedNoiseMass
+from pyapprox.pde.galerkin.physics.bilaplacian_operator import (
+    BiLaplacianOperator,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
@@ -323,11 +328,10 @@ class TestBiLaplacianPrior:
             RobinBC(basis, "right", alpha=1.0, value_func=0.0, bkd=bkd),
         ]
         prior = BiLaplacianPrior(
-            basis,
-            gamma=1.0,
-            delta=0.5,
-            bkd=bkd,
-            boundary_conditions=robin_bcs,
+            compose_galerkin_system(
+                BiLaplacianOperator(basis, 1.0, 0.5, bkd), robin_bcs
+            ),
+            LumpedNoiseMass(basis, bkd),
         )
         rng = np.random.default_rng(42)
         samples = prior.rvs(3, rng=rng)
@@ -348,17 +352,17 @@ class TestBiLaplacianPrior:
         def alpha(x: np.ndarray) -> np.ndarray:
             return 1.0 + x[1]
 
+        operator = BiLaplacianOperator(basis, 1.0, 0.5, bkd)
+        noise_mass = LumpedNoiseMass(basis, bkd)
         with_bc = BiLaplacianPrior(
-            basis,
-            gamma=1.0,
-            delta=0.5,
-            bkd=bkd,
-            boundary_conditions=[
-                RobinBC(basis, "left", alpha=alpha, value_func=0.0, bkd=bkd)
-            ],
+            compose_galerkin_system(
+                operator,
+                [RobinBC(basis, "left", alpha=alpha, value_func=0.0, bkd=bkd)],
+            ),
+            noise_mass,
         )
         without_bc = BiLaplacianPrior(
-            basis, gamma=1.0, delta=0.5, bkd=bkd, boundary_conditions=[]
+            compose_galerkin_system(operator), noise_mass
         )
         diff = with_bc.stiffness_matrix() - without_bc.stiffness_matrix()
         ones = np.ones(basis.ndofs())
@@ -403,8 +407,9 @@ class TestBiLaplacianPrior:
                 anisotropic_tensor=np.array([[1.0, 0.0, 0.0]]),
             )
 
-    def test_repr(self, numpy_bkd):
-        """repr includes ndofs, gamma, delta."""
+    def test_repr(self, numpy_bkd: NumpyBkd) -> None:
+        """The prior's repr gives its size and noise mass; the
+        operator's, its parameters."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -414,5 +419,31 @@ class TestBiLaplacianPrior:
         r = repr(prior)
         assert "BiLaplacianPrior" in r
         assert "ndofs=11" in r
-        assert "gamma=1.0" in r
-        assert "delta=0.5" in r
+        assert "LumpedNoiseMass" in r
+        r = repr(BiLaplacianOperator(basis, 1.0, 0.5, bkd))
+        assert "gamma=1.0" in r and "delta=0.5" in r
+
+    def test_rejects_essential_constraints_and_mismatched_mass(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A precision operator takes only natural terms, and the noise
+        mass must live on the system's DOFs."""
+        bkd = numpy_bkd
+        basis = LagrangeBasis(
+            StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd), degree=1
+        )
+        operator = BiLaplacianOperator(basis, 1.0, 0.5, bkd)
+        with pytest.raises(ValueError, match="only natural"):
+            BiLaplacianPrior(
+                compose_galerkin_system(
+                    operator, [DirichletBC(basis, "left", 0.0, bkd)]
+                ),
+                LumpedNoiseMass(basis, bkd),
+            )
+        other = LagrangeBasis(
+            StructuredMesh1D(nx=5, bounds=(0.0, 1.0), bkd=bkd), degree=1
+        )
+        with pytest.raises(ValueError, match="noise mass"):
+            BiLaplacianPrior(
+                compose_galerkin_system(operator), LumpedNoiseMass(other, bkd)
+            )

@@ -96,15 +96,11 @@ class TestLumpedNoiseMass:
             rtol=1e-12,
         )
 
-    def test_matches_prior_lumped_mass(self, bkd: Backend[Array]) -> None:
-        """The default weighting is the prior's existing lumped mass."""
+    def test_lumped_is_the_prior_default(self, bkd: Backend[Array]) -> None:
+        """The convenience constructors default to the lumped mass."""
         basis = _basis(bkd)
         prior = BiLaplacianPrior.with_uniform_robin(basis, 1.0, 10.0, bkd)
-        bkd.assert_allclose(
-            bkd.asarray(np.diag(_dense(prior.noise_mass().mass_matrix()))),
-            prior.lumped_mass(),
-            rtol=1e-12,
-        )
+        assert isinstance(prior.noise_mass(), LumpedNoiseMass)
 
 
 class TestCovarianceOperatorNoiseMass:

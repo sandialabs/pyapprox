@@ -21,8 +21,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from skfem.assembly.form.form import FormExtraParams
-    from skfem.element.discrete_field import DiscreteField
+    pass
 
 import numpy as np
 from numpy.typing import NDArray
@@ -30,28 +29,22 @@ from scipy.linalg import eigh
 from scipy.sparse import csc_matrix, issparse
 from scipy.sparse.linalg import eigsh, splu
 
-from pyapprox.ode.state_derivatives import StateDerivatives
-from pyapprox.pde.boundary import NaturalBCOperator, WeakFormBCProtocol
+from pyapprox.pde.boundary import BoundaryConditionRole
 from pyapprox.pde.galerkin.boundary.implementations import RobinBC
+from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.noise_mass import (
     LumpedNoiseMass,
     NoiseMassProtocol,
 )
+from pyapprox.pde.galerkin.physics.bilaplacian_operator import (
+    BiLaplacianOperator,
+)
 from pyapprox.pde.galerkin.protocols.basis import GalerkinBasisProtocol
-from pyapprox.pde.galerkin.spatial_operator import ComposedSpatialOperator
+from pyapprox.pde.galerkin.protocols.system import (
+    GalerkinSteadySystemProtocol,
+)
 from pyapprox.surrogates.kle.utils import adjust_sign_eig
 from pyapprox.util.backends.protocols import Array, Backend
-
-try:
-    from skfem import BilinearForm, asm
-    from skfem.helpers import dot, grad, mul
-    from skfem.models.poisson import mass
-except ImportError:
-    from pyapprox.util.optional_deps import import_optional_dependency
-
-    import_optional_dependency(
-        "skfem", feature_name="Galerkin module", extra_name="fem"
-    )
 
 
 def bilaplacian_stationary_variance(
@@ -131,6 +124,44 @@ def default_robin_coefficient(gamma: float, delta: float) -> float:
     return float(np.sqrt(gamma * delta) / 1.42)
 
 
+def bilaplacian_correlation_parameters(
+    length: float, std: float, ndim: int
+) -> Tuple[float, float]:
+    r"""Return the :math:`(\gamma, \delta)` of a given correlation length
+    and stationary standard deviation.
+
+    :math:`\delta = \gamma/\ell^2`, and :math:`\gamma` is the value for
+    which ``bilaplacian_stationary_variance`` equals :math:`\sigma^2`.
+    Scaling :math:`(\gamma, \delta)` together keeps :math:`\ell` and
+    divides the variance by the square of the scale, so the pair is
+    unique. In 2D, :math:`\gamma\delta = 1/(4\pi\sigma^2)`.
+
+    Parameters
+    ----------
+    length : float
+        Correlation length :math:`\ell = \sqrt{\gamma/\delta}` (the
+        inverse of the Matern :math:`\kappa`, not the practical range
+        :math:`\sqrt{8\nu}\,\ell`).
+    std : float
+        Stationary marginal standard deviation :math:`\sigma`.
+    ndim : int
+        Spatial dimension, 1, 2 or 3.
+
+    Returns
+    -------
+    gamma, delta : float
+    """
+    if length <= 0.0 or std <= 0.0:
+        raise ValueError(
+            f"length and std must be positive, got {length} and {std}"
+        )
+    # At gamma = 1 the variance is v1; it scales as 1/gamma^2 at fixed
+    # kappa = 1/length.
+    unit_variance = bilaplacian_stationary_variance(1.0, 1.0 / length**2, ndim)
+    gamma = float(np.sqrt(unit_variance)) / std
+    return gamma, gamma / length**2
+
+
 def _dense(matrix: Any) -> NDArray[np.floating[Any]]:
     """A sparse or dense matrix as a dense NumPy array."""
     if issparse(matrix):
@@ -145,39 +176,6 @@ def _sparse(matrix: Any) -> Any:
     return csc_matrix(np.asarray(matrix, dtype=np.float64))
 
 
-class _LinearInterior(Generic[Array]):
-    """Interior operator ``F_Omega(u) = -K u`` for a fixed matrix ``K``.
-
-    Lets an assembled linear operator be composed with natural-BC terms
-    by ``ComposedSpatialOperator``, like any physics. Module-level, so it
-    pickles.
-    """
-
-    def __init__(self, stiffness: Any, bkd: Backend[Array]) -> None:
-        self._stiffness = stiffness
-        self._bkd = bkd
-
-    def bkd(self) -> Backend[Array]:
-        return self._bkd
-
-    def nstates(self) -> int:
-        return int(self._stiffness.shape[0])
-
-    def interior_residual(self, state: Array, time: float) -> Array:
-        residual: Array = -(self._stiffness @ state)
-        return residual
-
-    def interior_jacobian(self, state: Array, time: float) -> Array:
-        jacobian: Array = -self._stiffness
-        return jacobian
-
-    def interior_state_derivatives(self) -> StateDerivatives[Array]:
-        return StateDerivatives.linear(self._bkd)
-
-    def interior_is_time_invariant(self) -> bool:
-        return True
-
-
 class BiLaplacianPrior(Generic[Array]):
     r"""BiLaplacian prior for Gaussian random field generation.
 
@@ -188,79 +186,66 @@ class BiLaplacianPrior(Generic[Array]):
 
         K u = B \xi, \qquad \xi \sim N(0, I), \qquad B B^\top = M,
 
-    so the covariance is :math:`K^{-1} M K^{-1}`. ``M`` is the white-noise
-    mass, supplied by an injected ``NoiseMassProtocol`` (default: the
-    row-sum lumped mass). K is the stiffness matrix assembled from:
-        dot(mul(K_tensor, grad(u)), grad(v)) + delta * u * v
+    so the covariance is :math:`K^{-1} M K^{-1}`. ``K`` is minus the
+    Jacobian of a composed system: a ``BiLaplacianOperator`` (the
+    interior :math:`-\nabla\cdot(\gamma T\nabla u) + \delta u`) plus its
+    natural boundary terms, typically Robin to damp the boundary artifact,
+    composed by ``compose_galerkin_system`` like any physics. ``M`` is the
+    white-noise mass, supplied by an injected ``NoiseMassProtocol``.
 
-    plus minus the Jacobian of each natural-BC term (``a`` times the
-    boundary mass for Robin), composed by ``ComposedSpatialOperator``.
-    The ``delta * u * v`` term always uses the consistent mass: it is
-    part of the operator's discretization, not the noise weighting.
+    Most callers use ``with_uniform_robin`` or ``from_correlation_length``,
+    which build the system and default the noise mass to the row-sum
+    lumped mass.
 
     Parameters
     ----------
-    basis : GalerkinBasisProtocol[Array]
-        Finite element basis.
-    gamma : float
-        Diffusion scaling parameter.
-        :math:`\delta \gamma` controls the variance of the prior.
-    delta : float
-        Reaction coefficient.
-        :math:`\gamma / \delta` controls the correlation length.
-    bkd : Backend[Array]
-        Computational backend.
-    boundary_conditions : List[WeakFormBCProtocol[Array]]
-        Natural boundary-condition terms (typically Robin, to damp the
-        boundary artifact). Only their Jacobian enters the precision
-        operator; their data does not.
-    anisotropic_tensor : np.ndarray, optional
-        Anisotropy tensor of shape ``(ndim, ndim)``. Controls directional
-        correlation lengths. Default: identity matrix (isotropic).
-        Stored internally as ``gamma * tensor``.
-    noise_mass : NoiseMassProtocol, optional
-        The white-noise mass ``M`` and its factor ``B``. Default: the
-        row-sum lumped mass (``LumpedNoiseMass``).
+    system : GalerkinSteadySystemProtocol
+        The composed precision operator, declared time-invariant. It must
+        have no essential (Dirichlet) constraints: only natural terms can
+        enter a precision operator.
+    noise_mass : NoiseMassProtocol
+        The white-noise mass ``M`` and its factor ``B``, on the system's
+        DOFs.
+
+    Raises
+    ------
+    TypeError
+        If an argument does not satisfy its protocol.
+    ValueError
+        If the system has essential constraints, or the noise mass is on
+        a different number of DOFs.
     """
 
     def __init__(
         self,
-        basis: GalerkinBasisProtocol[Array],
-        gamma: float,
-        delta: float,
-        bkd: Backend[Array],
-        boundary_conditions: List[WeakFormBCProtocol[Array]],
-        anisotropic_tensor: Optional[np.ndarray] = None,
-        noise_mass: Optional[NoiseMassProtocol[Array]] = None,
+        system: GalerkinSteadySystemProtocol[Array],
+        noise_mass: NoiseMassProtocol[Array],
     ):
-        if noise_mass is not None and not isinstance(
-            noise_mass, NoiseMassProtocol
-        ):
+        if not isinstance(system, GalerkinSteadySystemProtocol):
+            raise TypeError(
+                "system must satisfy GalerkinSteadySystemProtocol, got "
+                f"{type(system).__name__}"
+            )
+        if not isinstance(noise_mass, NoiseMassProtocol):
             raise TypeError(
                 "noise_mass must satisfy NoiseMassProtocol, got "
                 f"{type(noise_mass).__name__}"
             )
-        self._basis = basis
-        self._gamma = gamma
-        self._delta = delta
-        self._bkd = bkd
-        self._boundary_conditions = boundary_conditions
-        self._noise_mass: Optional[NoiseMassProtocol[Array]] = noise_mass
-
-        ndim = basis.mesh().ndim()
-        if anisotropic_tensor is None:
-            self._anisotropic_tensor = np.eye(ndim) * gamma
-        else:
-            anisotropic_tensor = np.asarray(anisotropic_tensor, dtype=float)
-            if anisotropic_tensor.shape != (ndim, ndim):
-                raise ValueError(
-                    f"anisotropic_tensor has incorrect shape "
-                    f"{anisotropic_tensor.shape}, expected ({ndim}, {ndim})"
-                )
-            self._anisotropic_tensor = anisotropic_tensor * gamma
-
+        if system.constraint_set().ndofs() > 0:
+            raise ValueError(
+                "a precision operator takes only natural boundary terms; "
+                f"the system constrains {system.constraint_set().ndofs()} "
+                "DOFs"
+            )
+        if noise_mass.mass_matrix().shape[0] != system.nstates():
+            raise ValueError(
+                f"noise mass is on {noise_mass.mass_matrix().shape[0]} DOFs, "
+                f"the system on {system.nstates()}"
+            )
+        self._system = system
+        self._bkd = system.bkd()
+        self._noise_mass = noise_mass
         self._stiffness: Optional[Array] = None
-        self._lumped_mass: Optional[NDArray[np.floating[Any]]] = None
         # Sparse LU of the stiffness, shared by rvs and apply_covariance.
         self._stiffness_lu: Optional[Any] = None
 
@@ -303,18 +288,16 @@ class BiLaplacianPrior(Generic[Array]):
         if robin_alpha is None:
             robin_alpha = default_robin_coefficient(gamma, delta)
         boundaries = list(basis.skfem_basis().mesh.boundaries.keys())
-        robin_bcs: List[WeakFormBCProtocol[Array]] = [
+        robin_bcs: List[BoundaryConditionRole[Array]] = [
             RobinBC(basis, name, alpha=robin_alpha, value_func=0.0, bkd=bkd)
             for name in boundaries
         ]
+        operator = BiLaplacianOperator(
+            basis, gamma, delta, bkd, anisotropic_tensor=anisotropic_tensor
+        )
         return cls(
-            basis,
-            gamma,
-            delta,
-            bkd,
-            robin_bcs,
-            anisotropic_tensor,
-            noise_mass=noise_mass,
+            compose_galerkin_system(operator, robin_bcs),
+            LumpedNoiseMass(basis, bkd) if noise_mass is None else noise_mass,
         )
 
     @classmethod
@@ -330,12 +313,8 @@ class BiLaplacianPrior(Generic[Array]):
         r"""Create an isotropic prior with a given correlation length and
         standard deviation, with uniform Robin BCs on all boundaries.
 
-        Chooses :math:`\delta = \gamma/\ell^2` and the :math:`\gamma` for
-        which ``bilaplacian_stationary_variance`` equals
-        :math:`\sigma^2`. Scaling :math:`(\gamma, \delta)` together keeps
-        :math:`\ell` and divides the variance by the square of the
-        scale, so the pair is unique. In 2D,
-        :math:`\gamma\delta = 1/(4\pi\sigma^2)`.
+        :math:`(\gamma, \delta)` come from
+        ``bilaplacian_correlation_parameters``.
 
         The standard deviation is the free-space value: the discrete
         field approaches it in the interior as the mesh is refined, and
@@ -364,70 +343,29 @@ class BiLaplacianPrior(Generic[Array]):
         BiLaplacianPrior[Array]
             Constructed prior.
         """
-        if length <= 0.0 or std <= 0.0:
-            raise ValueError(
-                f"length and std must be positive, got {length} and {std}"
-            )
-        # At gamma = 1 the variance is v1; it scales as 1/gamma^2 at fixed
-        # kappa = 1/length.
-        unit_variance = bilaplacian_stationary_variance(
-            1.0, 1.0 / length**2, basis.mesh().ndim()
+        gamma, delta = bilaplacian_correlation_parameters(
+            length, std, basis.mesh().ndim()
         )
-        gamma = float(np.sqrt(unit_variance)) / std
         return cls.with_uniform_robin(
             basis,
             gamma=gamma,
-            delta=gamma / length**2,
+            delta=delta,
             bkd=bkd,
             robin_alpha=robin_alpha,
             noise_mass=noise_mass,
         )
 
-    def gamma(self) -> float:
-        """Return the diffusion scaling parameter."""
-        return self._gamma
-
-    def delta(self) -> float:
-        """Return the reaction coefficient."""
-        return self._delta
+    def system(self) -> GalerkinSteadySystemProtocol[Array]:
+        """Return the composed precision operator."""
+        return self._system
 
     def _assemble_system(self) -> None:
-        """Lazily assemble stiffness matrix and lumped mass vector."""
+        """Take ``K`` once, as minus the system's Jacobian (the system is
+        linear, so any state gives it)."""
         if self._stiffness is not None:
             return
-
-        skfem_basis = self._basis.skfem_basis()
-        K_tensor = self._anisotropic_tensor
-        delta = self._delta
-
-        def bilinear_form(
-            u: "DiscreteField",
-            v: "DiscreteField",
-            w: "FormExtraParams",
-        ) -> np.ndarray:
-            ret: NDArray[np.floating[Any]] = (
-                dot(mul(K_tensor, grad(u)), grad(v))
-                + delta * u * v
-            )
-            return ret
-
-        interior_stiffness = asm(BilinearForm(bilinear_form), skfem_basis)
-
-        # The precision operator is minus the Jacobian of the composed
-        # operator F = -(K + delta M) u + sum_k c_k, so the boundary terms
-        # come from the same composition every physics uses.
-        composed = ComposedSpatialOperator(
-            _LinearInterior(interior_stiffness, self._bkd),
-            NaturalBCOperator(self._boundary_conditions),
-        )
-        zero_state = self._bkd.zeros((composed.nstates(),))
-        stiffness = -composed.spatial_jacobian(zero_state, 0.0)
-
-        self._stiffness = stiffness
-
-        # Lumped mass: row sums of consistent mass matrix
-        mass_mat = asm(mass, skfem_basis)
-        self._lumped_mass = np.asarray(mass_mat.sum(axis=1))[:, 0]
+        zero_state = self._bkd.zeros((self._system.nstates(),))
+        self._stiffness = -self._system.steady().steady_jacobian(zero_state)
 
     def rvs(
         self,
@@ -478,10 +416,7 @@ class BiLaplacianPrior(Generic[Array]):
         return self._stiffness_lu
 
     def noise_mass(self) -> NoiseMassProtocol[Array]:
-        """Return the white-noise mass (the row-sum lumped mass by
-        default)."""
-        if self._noise_mass is None:
-            self._noise_mass = LumpedNoiseMass(self._basis, self._bkd)
+        """Return the white-noise mass."""
         return self._noise_mass
 
     def nnoise(self) -> int:
@@ -524,7 +459,7 @@ class BiLaplacianPrior(Generic[Array]):
         Array
             Shape: ``(ndofs, ncols)``.
         """
-        ndofs = self._basis.ndofs()
+        ndofs = self._system.nstates()
         if vectors.ndim != 2 or vectors.shape[0] != ndofs:
             raise ValueError(
                 f"vectors must have shape ({ndofs}, ncols), got "
@@ -568,7 +503,7 @@ class BiLaplacianPrior(Generic[Array]):
             Shape ``(ndofs, rank)``.
         """
         self._assemble_system()
-        ndofs = self._basis.ndofs()
+        ndofs = self._system.nstates()
         if not 1 <= rank <= ndofs:
             raise ValueError(f"rank must be in [1, {ndofs}], got {rank}")
         mass = self.noise_mass().mass_matrix()
@@ -619,21 +554,8 @@ class BiLaplacianPrior(Generic[Array]):
             raise RuntimeError("Assembly failed")
         return self._stiffness
 
-    def lumped_mass(self) -> Array:
-        """Return the lumped mass vector.
-
-        Returns
-        -------
-        Array
-            Lumped mass. Shape: ``(ndofs,)``.
-        """
-        self._assemble_system()
-        if self._lumped_mass is None:
-            raise RuntimeError("Assembly failed")
-        return self._bkd.asarray(self._lumped_mass.astype(np.float64))
-
     def __repr__(self) -> str:
-        ndofs = self._basis.ndofs()
         return (
-            f"BiLaplacianPrior(ndofs={ndofs}, gamma={self._gamma}, delta={self._delta})"
+            f"BiLaplacianPrior(ndofs={self._system.nstates()}, "
+            f"noise_mass={type(self._noise_mass).__name__})"
         )

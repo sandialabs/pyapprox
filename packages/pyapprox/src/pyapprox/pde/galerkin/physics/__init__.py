@@ -10,6 +10,9 @@ if package_available("skfem"):
         LinearAdvectionDiffusionReaction,
     )
     from pyapprox.pde.galerkin.physics.bc_mixin import GalerkinBCMixin
+    from pyapprox.pde.galerkin.physics.bilaplacian_operator import (
+        BiLaplacianOperator,
+    )
     from pyapprox.pde.galerkin.physics.burgers import BurgersPhysics
     from pyapprox.pde.galerkin.physics.composite_hyperelasticity import (
         CompositeHyperelasticityPhysics,
@@ -41,6 +44,7 @@ if package_available("skfem"):
         "GalerkinPhysicsBase",
         "ScalarMassAssembler",
         "AdvectionDiffusionReaction",
+        "BiLaplacianOperator",
         "BurgersPhysics",
         "HyperelasticityPhysics",
         "LinearAdvectionDiffusionReaction",
