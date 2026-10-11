@@ -15,8 +15,12 @@ from pyapprox.optimization.minimize.scipy.trust_constr import (
     ScipyTrustConstrOptimizer,
 )
 from pyapprox.statest.cv_estimator import CVEstimator
-from pyapprox.statest.groupacv import GroupACVEstimatorIS
+from pyapprox.statest.groupacv import (
+    GroupACVAllocationResult,
+    GroupACVEstimatorIS,
+)
 from pyapprox.statest.groupacv.allocation import GroupACVAllocationOptimizer
+from pyapprox.statest.groupacv.base import FittedGroupACVEstimator
 from pyapprox.statest.groupacv.mlblue import MLBLUEEstimator
 from pyapprox.statest.groupacv.optimization import (
     GroupACVCostConstraint,
@@ -831,6 +835,57 @@ class TestGroupACVRequirementConstraint:
         )
         constraint.set_estimator(_make_nested_estimator(bkd))
         assert constraint.derivatives().jacobian is None
+
+
+class TestFittedFromATolerance:
+    """A tolerance allocation fits an estimator, as a budget one does.
+
+    The two directions stay distinct types, but both are sample counts,
+    and the counts alone fix the fitted estimator.
+    """
+
+    def test_it_fits_and_meets_the_requirement(self, bkd) -> None:
+        est = _make_estimator(bkd)
+        requirement = MaxMarginalStandardErrorConstraint(0.05, bkd)
+        result = GroupACVToleranceAllocator(est).allocate_for_tolerance(
+            requirement
+        )
+        fitted = FittedGroupACVEstimator(est, result)
+        assert bkd.all_bool(requirement.rows(fitted.covariance()) <= 0.0)
+        bkd.assert_allclose(
+            bkd.asarray([fitted.actual_cost()]),
+            bkd.asarray([result.total_cost]),
+            rtol=1e-12,
+        )
+
+    def test_the_same_counts_fit_the_same_estimator(self, bkd) -> None:
+        """Whichever direction chose them."""
+        est = _make_estimator(bkd)
+        tolerance = GroupACVToleranceAllocator(est).allocate_for_tolerance(
+            MaxMarginalStandardErrorConstraint(0.05, bkd)
+        )
+        budget = GroupACVAllocationResult(
+            npartition_samples=tolerance.npartition_samples,
+            nsamples_per_model=tolerance.nsamples_per_model,
+            actual_cost=tolerance.total_cost,
+            objective_value=bkd.asarray([0.0]),
+            success=True,
+        )
+        from_tolerance = FittedGroupACVEstimator(est, tolerance)
+        from_budget = FittedGroupACVEstimator(est, budget)
+        np.random.seed(2)
+        values = [
+            bkd.asarray(np.random.normal(0.0, 1.0, (1, int(nsamples))))
+            for nsamples in bkd.to_numpy(tolerance.nsamples_per_model)
+        ]
+        bkd.assert_allclose(from_tolerance(values), from_budget(values))
+        bkd.assert_allclose(
+            from_tolerance.covariance(), from_budget.covariance()
+        )
+
+    def test_anything_else_is_refused(self, numpy_bkd) -> None:
+        with pytest.raises(TypeError, match="GroupACVAllocationProtocol"):
+            FittedGroupACVEstimator(_make_estimator(numpy_bkd), object())
 
 
 class TestAllocateForRequirement:

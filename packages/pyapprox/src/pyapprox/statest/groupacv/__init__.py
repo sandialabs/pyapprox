@@ -37,6 +37,7 @@ from pyapprox.statest.groupacv.optimization import (
     MLBLUEObjective,
 )
 from pyapprox.statest.groupacv.result import (
+    GroupACVAllocationProtocol,
     GroupACVAllocationResult,
     GroupACVToleranceResult,
 )
@@ -87,6 +88,7 @@ __all__ = [
     # Allocation classes
     "AllocationProblemConfig",
     "LogSpace",
+    "GroupACVAllocationProtocol",
     "GroupACVAllocationResult",
     "GroupACVAllocationOptimizer",
     "default_groupacv_optimizer",

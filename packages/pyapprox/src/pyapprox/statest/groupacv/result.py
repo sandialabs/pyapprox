@@ -1,9 +1,45 @@
-"""GroupACV allocation result dataclass."""
+"""GroupACV allocation result dataclasses."""
 
 from dataclasses import dataclass
-from typing import Generic, Optional
+from typing import Generic, Optional, Protocol, runtime_checkable
 
-from pyapprox.util.backends.protocols import Array
+from pyapprox.util.backends.protocols import Array, Array_co
+
+
+@runtime_checkable
+class GroupACVAllocationProtocol(Protocol[Array_co]):
+    """What a fitted estimator needs from an allocation.
+
+    Whichever direction produced it. A budget-driven allocation and a
+    tolerance-driven one minimize different quantities and stay distinct
+    types -- the searches rank by the budget direction's criterion, and a
+    cost passed off as one would rank wrongly -- but both are sample
+    counts, and the counts alone fix an estimator's weights, its samples
+    and its covariance.
+
+    Covariant in the array type, since it only produces arrays.
+    Read-only properties, so the frozen result dataclasses satisfy it.
+    """
+
+    @property
+    def npartition_samples(self) -> Array_co:
+        """Samples per partition, shape ``(npartitions,)``."""
+        ...
+
+    @property
+    def nsamples_per_model(self) -> Array_co:
+        """Samples per model, shape ``(nmodels,)``."""
+        ...
+
+    @property
+    def success(self) -> bool:
+        """Whether the allocation succeeded."""
+        ...
+
+    @property
+    def message(self) -> str:
+        """Why it did not, when it did not."""
+        ...
 
 
 @dataclass(frozen=True)

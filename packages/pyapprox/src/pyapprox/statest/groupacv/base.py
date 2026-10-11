@@ -10,7 +10,6 @@ Concrete implementations are in variants.py:
 
 from abc import ABC, abstractmethod
 from typing import (
-    TYPE_CHECKING,
     Callable,
     Generic,
     List,
@@ -19,6 +18,7 @@ from typing import (
     Tuple,
 )
 
+from pyapprox.statest.groupacv.result import GroupACVAllocationProtocol
 from pyapprox.statest.groupacv.utils import (
     _grouped_acv_sigma,
     _grouped_acv_sigma_block,
@@ -27,11 +27,6 @@ from pyapprox.statest.groupacv.utils import (
 from pyapprox.statest.known import KnownStatistic
 from pyapprox.statest.protocols import GroupBlockStatistic
 from pyapprox.util.backends.protocols import Array, Backend
-
-if TYPE_CHECKING:
-    from pyapprox.statest.groupacv.result import (
-        GroupACVAllocationResult,
-    )
 
 
 class BaseGroupACVEstimator(ABC, Generic[Array]):
@@ -627,15 +622,24 @@ class BaseGroupACVEstimator(ABC, Generic[Array]):
 class FittedGroupACVEstimator(Generic[Array]):
     """Frozen GroupACV estimator with a fixed allocation.
 
-    Composes (template: BaseGroupACVEstimator, allocation: GroupACVAllocationResult).
-    Eagerly computes covariance and sigma from discrete (post-rounding) counts.
+    Composes a template estimator with an allocation from either
+    direction -- minimizing a criterion at a budget, or cost at a
+    tolerance: anything satisfying
+    :class:`~pyapprox.statest.groupacv.result.GroupACVAllocationProtocol`.
+    Eagerly computes covariance and sigma from discrete (post-rounding)
+    counts.
     """
 
     def __init__(
         self,
         template: BaseGroupACVEstimator[Array],
-        allocation: "GroupACVAllocationResult[Array]",
+        allocation: GroupACVAllocationProtocol[Array],
     ) -> None:
+        if not isinstance(allocation, GroupACVAllocationProtocol):
+            raise TypeError(
+                "allocation must satisfy GroupACVAllocationProtocol, got "
+                f"{type(allocation).__name__}"
+            )
         if not allocation.success:
             raise ValueError(
                 f"Cannot create fitted estimator from failed allocation: "
@@ -684,13 +688,11 @@ class FittedGroupACVEstimator(Generic[Array]):
         """Return the number of samples allocated to each model."""
         return self._allocation.nsamples_per_model
 
-    def objective_value(self) -> Array:
-        """Return the objective value from the allocation."""
-        return self._allocation.objective_value
-
     def actual_cost(self) -> float:
-        """Return the actual cost of the allocation."""
-        return self._allocation.actual_cost
+        """Return the cost of the allocation, from the template's costs."""
+        return self._bkd.to_float(
+            self._template._estimator_cost(self._nps_float)
+        )
 
     def sample_splits(self) -> List[Array]:
         """Return the eagerly-computed sample splits per model."""
@@ -1033,12 +1035,8 @@ class FittedGroupACVEstimator(Generic[Array]):
         return stochastic_est - t._compute_correction(beta)
 
     def __repr__(self) -> str:
-        obj = self._bkd.to_float(
-            self._bkd.flatten(self._allocation.objective_value)[0]
-        )
-        cost = self._allocation.actual_cost
         nsamp = self._allocation.nsamples_per_model
         return (
-            f"{type(self).__name__}(criteria={obj:.3g} "
-            f"cost={cost:.5g} nsamples={nsamp})"
+            f"{type(self).__name__}(cost={self.actual_cost():.5g} "
+            f"nsamples={nsamp})"
         )
