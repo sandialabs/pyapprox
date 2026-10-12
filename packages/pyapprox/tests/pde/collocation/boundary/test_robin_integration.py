@@ -35,6 +35,7 @@ from pyapprox.pde.collocation.time_integration import (
     CollocationModel,
     TimeIntegrationConfig,
 )
+from pyapprox.pde.constitutive.advection import ConservativeAdvection
 from pyapprox.pde.manufactured import (
     ManufacturedAdvectionDiffusionReaction,
 )
@@ -314,7 +315,7 @@ class TestFluxNeumannSolve:
             vel_strs=["2"],
             bkd=bkd,
             oned=True,
-            conservative=True,
+            advection_form=ConservativeAdvection(),
         )
 
         nodes = basis.nodes().reshape(1, -1)
@@ -432,7 +433,7 @@ class TestFluxRobinSolve:
             vel_strs=["3"],
             bkd=bkd,
             oned=True,
-            conservative=True,
+            advection_form=ConservativeAdvection(),
         )
 
         nodes = basis.nodes().reshape(1, -1)
@@ -647,7 +648,9 @@ class TestTransientRobinSolve:
             vel_strs=vel_strs,
             bkd=bkd,
             oned=True,
-            conservative=(velocity_val != 0),
+            # With zero velocity both forms add nothing, so one form
+            # serves every case.
+            advection_form=ConservativeAdvection(),
         )
 
         pts = tmesh.points()

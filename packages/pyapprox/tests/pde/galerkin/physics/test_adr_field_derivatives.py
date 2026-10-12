@@ -24,6 +24,11 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.pde.constitutive.advection import (
+    AdvectionFormProtocol,
+    ConservativeAdvection,
+    NonConservativeAdvection,
+)
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldForcing,
@@ -40,9 +45,13 @@ from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.adjoint_checks import NumpyArray
 
+_FORMS = [NonConservativeAdvection(), ConservativeAdvection()]
+_FORM_IDS = ["nonconservative", "conservative"]
 
 def _build_physics(
-    bkd: NumpyBkd, ndim: int
+    bkd: NumpyBkd,
+    ndim: int,
+    advection_form: AdvectionFormProtocol = NonConservativeAdvection(),
 ) -> Tuple[AdvectionDiffusionReaction[NumpyArray], GalerkinSystem[NumpyArray]]:
     if ndim == 1:
         mesh = StructuredMesh1D(nx=8, bounds=(0.0, 1.0), bkd=bkd)
@@ -67,6 +76,7 @@ def _build_physics(
             basis, dofs=rng.normal(0.0, 0.5, ndofs)
         ),
         forcing=NodalFieldForcing(basis, dofs=rng.normal(0.0, 1.0, ndofs)),
+        advection_form=advection_form,
     )
     system = compose_galerkin_system(
         physics, [DirichletBC(basis, "left", 0.0, bkd)]
@@ -145,12 +155,16 @@ class TestADRFieldDerivatives:
             bkd, system, physics.forcing_function(), analytic, state
         )
 
+    @pytest.mark.parametrize("advection_form", _FORMS, ids=_FORM_IDS)
     @pytest.mark.parametrize("ndim", [1, 2])
     def test_velocity_jacobian_vs_fd(
-        self, numpy_bkd: NumpyBkd, ndim: int
+        self,
+        numpy_bkd: NumpyBkd,
+        ndim: int,
+        advection_form: AdvectionFormProtocol,
     ) -> None:
         bkd = numpy_bkd
-        physics, system = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim, advection_form)
         rng = np.random.default_rng(12)
         state = bkd.asarray(rng.normal(0.0, 0.5, physics.nstates()))
         analytic = np.asarray(
@@ -160,13 +174,17 @@ class TestADRFieldDerivatives:
             bkd, system, physics.velocity_function(), analytic, state
         )
 
+    @pytest.mark.parametrize("advection_form", _FORMS, ids=_FORM_IDS)
     @pytest.mark.parametrize("ndim", [1, 2])
     def test_velocity_state_jacobian_vs_fd(
-        self, numpy_bkd: NumpyBkd, ndim: int
+        self,
+        numpy_bkd: NumpyBkd,
+        ndim: int,
+        advection_form: AdvectionFormProtocol,
     ) -> None:
         """A_a(delta) vs FD of u -> S_a(u) delta (DerivativeChecker)."""
         bkd = numpy_bkd
-        physics, system = _build_physics(bkd, ndim)
+        physics, system = _build_physics(bkd, ndim, advection_form)
         nstates = physics.nstates()
         velocity = physics.velocity_function()
         assert isinstance(velocity, NodalFieldVelocity)

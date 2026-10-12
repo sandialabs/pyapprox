@@ -8,6 +8,8 @@ from typing import Any, Callable, Dict, List, Tuple
 
 import sympy as sp
 
+from pyapprox.pde.constitutive.advection import AdvectionFormProtocol
+
 
 class DiffusionMixin:
     """Mixin for diffusion terms: -div(D * grad(u)).
@@ -121,13 +123,13 @@ class AdvectionMixin:
     """Mixin for advection terms.
 
     Adds advection-related sympy expressions to a manufactured solution.
-
-    Non-conservative form: forcing += v . grad(u)
-    Conservative form: forcing += div(v * u) = v . grad(u) + u * div(v)
+    The advection form supplies the forcing term, ``v . grad(u)`` or
+    ``div(v * u)``, and the advective flux it integrates by parts, which
+    joins ``"flux"``.
     """
 
     _vel_strs: List[str]
-    _conservative: bool
+    _advection_form: AdvectionFormProtocol
     _sol_str: str
     _expressions: Dict[str, Any]
     cartesian_symbols: Callable[..., Any]
@@ -141,20 +143,12 @@ class AdvectionMixin:
 
         self._set_expression("velocity", vel_exprs, ", ".join(self._vel_strs))
 
-        if self._conservative:
-            # Conservative: forcing += div(v * u)
-            advection_expr = sum(
-                (vel_expr * sol_expr).diff(symb, 1)
-                for vel_expr, symb in zip(vel_exprs, cartesian_symbs)
-            )
-            self._expressions["forcing"] += advection_expr
-            # Conservative flux = v * u
-            flux_exprs = [vel_expr * sol_expr for vel_expr in vel_exprs]
+        def derivative(expr: Any, dim: int) -> Any:
+            return expr.diff(cartesian_symbs[dim], 1)
+
+        self._expressions["forcing"] += self._advection_form.strong_term(
+            vel_exprs, sol_expr, derivative
+        )
+        flux_exprs = self._advection_form.flux(vel_exprs, sol_expr)
+        if flux_exprs is not None:
             self._set_expression("flux", flux_exprs, self._sol_str)
-        else:
-            # Non-conservative: forcing += v . grad(u)
-            advection_expr = sum(
-                vel_expr * sol_expr.diff(symb, 1)
-                for vel_expr, symb in zip(vel_exprs, cartesian_symbs)
-            )
-            self._expressions["forcing"] += advection_expr

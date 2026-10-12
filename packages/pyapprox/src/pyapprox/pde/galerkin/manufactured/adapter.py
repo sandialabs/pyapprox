@@ -15,6 +15,7 @@ from typing import (
     Generic,
     List,
     Mapping,
+    Optional,
     Tuple,
     Union,
 )
@@ -23,6 +24,10 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyapprox.pde.boundary import BoundarySignal
+from pyapprox.pde.constitutive.advection import (
+    AdvectionFormProtocol,
+    NonConservativeAdvection,
+)
 from pyapprox.pde.constitutive.coefficient_functions import (
     TimeVaryingProtocol,
 )
@@ -392,7 +397,7 @@ def create_adr_manufactured_test(
     vel_strs: List[str],
     bkd: Backend[Array],
     time_dependent: bool = False,
-    conservative: bool = False,
+    advection_form: Optional[AdvectionFormProtocol] = None,
 ) -> Tuple[Dict[str, Callable[..., Any]], int]:
     """Create ADR manufactured solution functions for Galerkin tests.
 
@@ -412,12 +417,10 @@ def create_adr_manufactured_test(
         Computational backend.
     time_dependent : bool
         Whether solution is time-dependent.
-    conservative : bool
-        If True, the flux includes the advective contribution v*u in
-        addition to the diffusive flux -D*grad(u). If False (default),
-        the flux contains only the diffusive part. Use False for
-        standard Galerkin FEM which uses the non-conservative advection
-        form v.grad(u).
+    advection_form : AdvectionFormProtocol, optional
+        How the advection term is written; it must match the physics'.
+        Defaults to ``NonConservativeAdvection()``, the Galerkin ADR
+        default.
 
     Returns
     -------
@@ -436,7 +439,11 @@ def create_adr_manufactured_test(
         vel_strs=vel_strs,
         bkd=bkd,
         oned=True,  # Return 1D arrays for Galerkin
-        conservative=conservative,
+        advection_form=(
+            NonConservativeAdvection()
+            if advection_form is None
+            else advection_form
+        ),
     )
 
     return man_sol.functions, nvars

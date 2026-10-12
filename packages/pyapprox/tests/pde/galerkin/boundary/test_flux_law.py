@@ -20,8 +20,14 @@ from typing import Any, Callable, Tuple
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.constitutive.advection import (
+    AdvectionFormProtocol,
+    ConservativeAdvection,
+    NonConservativeAdvection,
+)
 from pyapprox.pde.constitutive.coefficient_functions import (
     ConstantDiffusion,
+    ConstantVelocity,
     NodalFieldDiffusion,
 )
 from pyapprox.pde.constitutive.neo_hookean import NeoHookeanStress
@@ -141,10 +147,24 @@ def _lame(E: float, nu: float) -> Tuple[float, float]:
 class TestScalarPhysicsLaws:
     """Diffusion-type physics against the manufactured diffusive flux."""
 
-    @pytest.mark.parametrize("conservative", [False, True])
-    def test_advection_diffusion(self, conservative: bool) -> None:
+    @pytest.mark.parametrize(
+        "advection_form,flux_key",
+        [
+            (NonConservativeAdvection(), "diffusive_flux"),
+            (ConservativeAdvection(), "flux"),
+        ],
+        ids=["nonconservative", "conservative"],
+    )
+    def test_advection_diffusion(
+        self, advection_form: AdvectionFormProtocol, flux_key: str
+    ) -> None:
         """Non-conservative: D grad(u).n. Conservative also has -(v.n)u,
-        so it matches the manufactured total flux -(-D grad u + v u).n."""
+        so it matches the manufactured total flux -(-D grad u + v u).n.
+
+        The advective part comes from the same form object on both sides,
+        so this checks the diffusive part and the sign and normal of the
+        advective part; the assemblies and convergence tests check the
+        form itself."""
         bkd = NumpyBkd()
         man = ManufacturedAdvectionDiffusionReaction(
             sol_str="sin(x)*cos(2*y)+x*y",
@@ -154,7 +174,7 @@ class TestScalarPhysicsLaws:
             vel_strs=["1+y", "x"],
             bkd=bkd,
             oned=True,
-            conservative=conservative,
+            advection_form=advection_form,
         )
 
         def diffusivity(x: _Pts) -> _Pts:
@@ -168,11 +188,10 @@ class TestScalarPhysicsLaws:
             diffusivity=diffusivity,
             bkd=bkd,
             velocity=velocity,
-            conservative=conservative,
+            advection_form=advection_form,
         )
         coords, normal = _points_and_normals(2)
         u, grad_u = _scalar_state(man.functions, coords)
-        flux_key = "flux" if conservative else "diffusive_flux"
         expected = -_scalar_flux_dot_n(man.functions[flux_key], coords, normal)
         _check_law(physics, coords, u, grad_u, normal, expected)
 
@@ -180,7 +199,10 @@ class TestScalarPhysicsLaws:
         """No velocity, no advective boundary term."""
         bkd = NumpyBkd()
         physics = AdvectionDiffusionReaction(
-            basis=_scalar_basis_2d(), diffusivity=2.0, bkd=bkd, conservative=True
+            basis=_scalar_basis_2d(),
+            diffusivity=2.0,
+            bkd=bkd,
+            advection_form=ConservativeAdvection(),
         )
         assert isinstance(physics.flux_law(), DiffusiveFlux)
 
@@ -468,7 +490,15 @@ class TestLawComposition:
         with pytest.raises(TypeError, match="DiffusionFunctionProtocol"):
             DiffusiveFlux(2.0)  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="VelocityFunctionProtocol"):
-            AdvectiveFlux(object())  # type: ignore[arg-type]
+            AdvectiveFlux(
+                object(),  # type: ignore[arg-type]
+                ConservativeAdvection(),
+            )
+        with pytest.raises(TypeError, match="AdvectionFormProtocol"):
+            AdvectiveFlux(
+                ConstantVelocity(np.array([1.0, 0.0])),
+                object(),  # type: ignore[arg-type]
+            )
         with pytest.raises(TypeError, match="StressModelProtocol"):
             PK1Traction(object())  # type: ignore[arg-type]
 

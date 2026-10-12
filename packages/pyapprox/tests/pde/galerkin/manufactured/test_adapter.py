@@ -24,6 +24,11 @@ from scipy.sparse import issparse
 from skfem import MeshTri
 
 from pyapprox.pde.boundary import BoundaryConditionRole
+from pyapprox.pde.constitutive.advection import (
+    AdvectionFormProtocol,
+    ConservativeAdvection,
+    NonConservativeAdvection,
+)
 from pyapprox.pde.galerkin.basis import LagrangeBasis, VectorLagrangeBasis
 from pyapprox.pde.galerkin.boundary import NormalFluxLawProtocol
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -62,7 +67,7 @@ _ADR_REACT = 1.0
 
 
 def _adr_functions(
-    bkd: Backend[Array], conservative: bool
+    bkd: Backend[Array], advection_form: AdvectionFormProtocol
 ) -> Dict[str, Callable[..., Any]]:
     functions, _ = create_adr_manufactured_test(
         bounds=[-1.0, 1.0, -1.0, 1.0],
@@ -71,13 +76,14 @@ def _adr_functions(
         react_str=f"{_ADR_REACT}*u",
         vel_strs=_ADR_VEL,
         bkd=bkd,
-        conservative=conservative,
+        advection_form=advection_form,
     )
     return functions
 
 
 def _adr_physics(
-    ms: GalerkinManufacturedSolution[Array], conservative: bool
+    ms: GalerkinManufacturedSolution[Array],
+    advection_form: AdvectionFormProtocol,
 ) -> AdvectionDiffusionReaction[Array]:
     return AdvectionDiffusionReaction(
         basis=ms.basis(),
@@ -86,7 +92,7 @@ def _adr_physics(
         velocity=ms.velocity(),
         reaction=_ADR_REACT,
         forcing=ms.forcing(),
-        conservative=conservative,
+        advection_form=advection_form,
     )
 
 
@@ -188,7 +194,7 @@ class TestValuesAndSuppliers:
         )
         basis = LagrangeBasis(mesh, degree=2)
         ms = GalerkinManufacturedSolution(
-            basis, _adr_functions(bkd, False), bkd
+            basis, _adr_functions(bkd, NonConservativeAdvection()), bkd
         )
         bc = ms.dirichlet("top")
         coords = bkd.to_numpy(basis.dof_coordinates())[
@@ -259,7 +265,9 @@ class TestValuesAndSuppliers:
         )
         coords = np.random.rand(2, 5)
         scalar = GalerkinManufacturedSolution(
-            LagrangeBasis(mesh, degree=1), _adr_functions(bkd, False), bkd
+            LagrangeBasis(mesh, degree=1),
+            _adr_functions(bkd, NonConservativeAdvection()),
+            bkd,
         )
         assert scalar.forcing()(coords, 0.0).shape == (5,)
         assert not scalar.forcing().is_time_dependent()
@@ -287,7 +295,9 @@ class TestValuesAndSuppliers:
             nx=2, ny=2, bounds=[[0.0, 1.0], [0.0, 1.0]], bkd=bkd
         )
         ms = GalerkinManufacturedSolution(
-            LagrangeBasis(mesh, degree=1), _adr_functions(bkd, False), bkd
+            LagrangeBasis(mesh, degree=1),
+            _adr_functions(bkd, NonConservativeAdvection()),
+            bkd,
         )
         coords = np.random.rand(2, 3, 4)
         values = ms.velocity()(coords, 0.0)
@@ -300,9 +310,9 @@ class TestValuesAndSuppliers:
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
-        functions = dict(_adr_functions(bkd, False))
+        functions = dict(_adr_functions(bkd, NonConservativeAdvection()))
         ms = GalerkinManufacturedSolution(basis, functions, bkd)
-        law = _adr_physics(ms, False).flux_law()
+        law = _adr_physics(ms, NonConservativeAdvection()).flux_law()
         del functions["gradient"]
         no_gradient = GalerkinManufacturedSolution(basis, functions, bkd)
         with pytest.raises(ValueError, match="gradient"):
@@ -314,23 +324,26 @@ class TestValuesAndSuppliers:
             StructuredMesh1D(nx=4, bounds=(0.0, 1.0), bkd=bkd), degree=1
         )
         ms = GalerkinManufacturedSolution(
-            basis, _adr_functions(bkd, False), bkd
+            basis, _adr_functions(bkd, NonConservativeAdvection()), bkd
         )
         with pytest.raises(TypeError, match="NormalFluxLawProtocol"):
             ms.robin("right", 1.0, object())  # type: ignore[arg-type]
 
 
 def _square_adr_error(
-    nx: int, degree: int, conservative: bool, bkd: Backend[Array]
+    nx: int,
+    degree: int,
+    advection_form: AdvectionFormProtocol,
+    bkd: Backend[Array],
 ) -> float:
     mesh = StructuredMesh2D(
         nx=nx, ny=nx, bounds=[[-1.0, 1.0], [-1.0, 1.0]], bkd=bkd
     )
     basis: GalerkinBasisProtocol[Array] = LagrangeBasis(mesh, degree=degree)
     ms = GalerkinManufacturedSolution(
-        basis, _adr_functions(bkd, conservative), bkd
+        basis, _adr_functions(bkd, advection_form), bkd
     )
-    physics = _adr_physics(ms, conservative)
+    physics = _adr_physics(ms, advection_form)
     law = physics.flux_law()
     bcs: List[BoundaryConditionRole[Array]] = [
         ms.dirichlet("left"),
@@ -352,8 +365,9 @@ def _disk_adr_error(
     basis: GalerkinBasisProtocol[Array] = LagrangeBasis(
         _disk_mesh(nrefs, tmp_path, bkd), degree=degree
     )
-    ms = GalerkinManufacturedSolution(basis, _adr_functions(bkd, False), bkd)
-    physics = _adr_physics(ms, False)
+    form = NonConservativeAdvection()
+    ms = GalerkinManufacturedSolution(basis, _adr_functions(bkd, form), bkd)
+    physics = _adr_physics(ms, form)
     law: NormalFluxLawProtocol = physics.flux_law()
     if reverse_normal:
         law = _ReversedNormal(law)
@@ -367,13 +381,20 @@ class TestNaturalDataConverges:
     """The law-built data converges at the element order, so it is the
     data the physics enforces."""
 
-    @pytest.mark.parametrize("conservative", [False, True])
+    @pytest.mark.parametrize(
+        "advection_form",
+        [NonConservativeAdvection(), ConservativeAdvection()],
+        ids=["nonconservative", "conservative"],
+    )
     @pytest.mark.parametrize("degree", [1, 2])
     def test_square_mixed_conditions(
-        self, numpy_bkd: NumpyBkd, degree: int, conservative: bool
+        self,
+        numpy_bkd: NumpyBkd,
+        degree: int,
+        advection_form: AdvectionFormProtocol,
     ) -> None:
         errors = [
-            _square_adr_error(nx, degree, conservative, numpy_bkd)
+            _square_adr_error(nx, degree, advection_form, numpy_bkd)
             for nx in (4, 8, 16)
         ]
         rates = _rates(errors)

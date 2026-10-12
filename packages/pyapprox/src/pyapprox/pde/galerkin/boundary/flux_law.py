@@ -47,6 +47,7 @@ from typing import (
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.pde.constitutive.advection import AdvectionFormProtocol
 from pyapprox.pde.constitutive.coefficient_functions import (
     DiffusionFunctionProtocol,
     VelocityFunctionProtocol,
@@ -143,25 +144,38 @@ class DiffusiveFlux:
 
 
 class AdvectiveFlux:
-    r"""Advective boundary term :math:`-(v \cdot n)\, u`.
+    r"""Advective boundary term :math:`-q_a \cdot n`.
 
-    It is the boundary term of integrating :math:`-\nabla\cdot(v u)` by
-    parts, so it belongs to the conservative advection form only; the
-    non-conservative form :math:`-v\cdot\nabla u` has no boundary term.
+    :math:`q_a` is the flux the advection form integrates by parts:
+    :math:`v u` for the conservative form, whose term is
+    :math:`-(v \cdot n)\, u`. The non-conservative form integrates nothing
+    by parts, so its term is zero.
 
     Parameters
     ----------
     velocity : VelocityFunctionProtocol
         The advecting velocity :math:`v(x, t)`.
+    advection_form : AdvectionFormProtocol
+        The physics' advection form.
     """
 
-    def __init__(self, velocity: VelocityFunctionProtocol) -> None:
+    def __init__(
+        self,
+        velocity: VelocityFunctionProtocol,
+        advection_form: AdvectionFormProtocol,
+    ) -> None:
         if not isinstance(velocity, VelocityFunctionProtocol):
             raise TypeError(
                 "velocity must satisfy VelocityFunctionProtocol, got "
                 f"{type(velocity).__name__}"
             )
+        if not isinstance(advection_form, AdvectionFormProtocol):
+            raise TypeError(
+                "advection_form must satisfy AdvectionFormProtocol, got "
+                f"{type(advection_form).__name__}"
+            )
         self._velocity = velocity
+        self._advection_form = advection_form
 
     def normal_flux(
         self,
@@ -171,15 +185,20 @@ class AdvectiveFlux:
         normal: _Pts,
         time: float,
     ) -> _Pts:
-        velocity = self._velocity.values(coords, time)
-        ret: _Pts = -(np.sum(velocity * normal, axis=0) * u[0])[np.newaxis, :]
+        velocity: _Pts = np.asarray(self._velocity.values(coords, time))
+        flux = self._advection_form.flux(list(velocity), u[0])
+        if flux is None:
+            return np.zeros_like(u)
+        ret: _Pts = -np.sum(np.asarray(flux) * normal, axis=0)[np.newaxis, :]
         return ret
 
     def is_time_dependent(self) -> bool:
         return self._velocity.is_time_dependent()
 
     def __repr__(self) -> str:
-        return f"AdvectiveFlux({self._velocity!r})"
+        return (
+            f"AdvectiveFlux({self._velocity!r}, {self._advection_form!r})"
+        )
 
 
 class SumFlux:

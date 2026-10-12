@@ -3,9 +3,14 @@
 Provides protocols, implementations, and a registry for pluggable
 hyperelastic stress models used by collocation and Galerkin physics,
 plus typed coefficient function families (diffusion, velocity,
-reaction) for ADR-type physics.
+reaction) and the advection formulations for ADR-type physics.
 """
 
+from pyapprox.pde.constitutive.advection import (
+    AdvectionFormProtocol,
+    ConservativeAdvection,
+    NonConservativeAdvection,
+)
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
     ConstantDiffusion,
@@ -66,6 +71,10 @@ __all__ = [
     "LinearReaction",
     "NodalFieldLinearReaction",
     "CallableReaction",
+    # Advection formulations
+    "AdvectionFormProtocol",
+    "ConservativeAdvection",
+    "NonConservativeAdvection",
     # Protocols
     "StressModelProtocol",
     "StressModelWithSensitivityProtocol",

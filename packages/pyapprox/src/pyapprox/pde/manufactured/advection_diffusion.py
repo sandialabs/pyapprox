@@ -5,6 +5,10 @@ Provides manufactured solution classes for verifying ADR physics implementations
 
 from typing import Generic, List, Optional
 
+from pyapprox.pde.constitutive.advection import (
+    AdvectionFormProtocol,
+    ConservativeAdvection,
+)
 from pyapprox.pde.manufactured.base import (
     ManufacturedSolution,
     ScalarSolutionMixin,
@@ -49,8 +53,11 @@ class ManufacturedAdvectionDiffusionReaction(
         Computational backend.
     oned : bool
         If True, return 1D arrays from evaluation functions.
-    conservative : bool
-        If True, store conservative flux (v * u) in addition to advection term.
+    advection_form : AdvectionFormProtocol, optional
+        How the advection term is written. Supplies the forcing term and
+        the advective flux that joins ``"flux"``. Defaults to
+        ``ConservativeAdvection()``: forcing ``div(v * u)``, flux
+        ``-D grad(u) + v u``.
 
     Examples
     --------
@@ -80,12 +87,19 @@ class ManufacturedAdvectionDiffusionReaction(
         vel_strs: List[str],
         bkd: Backend[Array],
         oned: bool = False,
-        conservative: bool = True,
+        advection_form: Optional[AdvectionFormProtocol] = None,
     ):
         self._diff_str = diff_str
         self._react_str = react_str
         self._vel_strs = vel_strs
-        self._conservative = conservative
+        if advection_form is None:
+            advection_form = ConservativeAdvection()
+        if not isinstance(advection_form, AdvectionFormProtocol):
+            raise TypeError(
+                "advection_form must satisfy AdvectionFormProtocol, got "
+                f"{type(advection_form).__name__}"
+            )
+        self._advection_form = advection_form
         super().__init__(sol_str, nvars, bkd, oned)
 
     def sympy_expressions(self) -> None:

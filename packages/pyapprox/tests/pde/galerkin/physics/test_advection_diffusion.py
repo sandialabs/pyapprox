@@ -21,6 +21,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse import issparse
 
+from pyapprox.pde.constitutive.advection import ConservativeAdvection
 from pyapprox.pde.constitutive.coefficient_functions import TimeIndependent
 from pyapprox.pde.galerkin.basis import LagrangeBasis
 from pyapprox.pde.galerkin.compose import compose_galerkin_system
@@ -1036,10 +1037,10 @@ class TestParametrizedADR1DConservative:
     """Parametrized 1D ADR exact reproduction tests with conservative advection.
 
     Uses P2 elements with linear solutions and conservative advection form
-    div(v*u). The manufactured solution is created with conservative=True to
-    match the PDE, and the natural data comes from the conservative
-    physics' flux law, which includes the advective boundary term the
-    weak form integrates by parts.
+    div(v*u). The manufactured solution is created with
+    ``ConservativeAdvection()`` to match the PDE, and the natural data
+    comes from the conservative physics' flux law, which includes the
+    advective boundary term the weak form integrates by parts.
 
     TODO: that dropped IBP term means a DO-NOTHING boundary under the
     conservative form enforces zero TOTAL flux, not zero diffusive
@@ -1085,12 +1086,12 @@ class TestParametrizedADR1DConservative:
             react_str=react_str,
             vel_strs=[vel_str],
             bkd=bkd,
-            conservative=True,
+            advection_form=ConservativeAdvection(),
         )
 
         ms = GalerkinManufacturedSolution(basis, functions, bkd)
 
-        # The physics carries the conservative choice, so its flux law
+        # The physics carries the conservative form, so its flux law
         # includes the advective boundary term the data must match.
         physics = LinearAdvectionDiffusionReaction(
             basis=basis,
@@ -1099,7 +1100,7 @@ class TestParametrizedADR1DConservative:
             reaction=reaction,
             forcing=ms.forcing(),
             bkd=bkd,
-            conservative=True,
+            advection_form=ConservativeAdvection(),
         )
         bcs = _manufactured_bcs(ms, bndry_types, 1.0, physics.flux_law())
         system = compose_galerkin_system(physics, bcs)
