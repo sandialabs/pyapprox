@@ -12,7 +12,7 @@ The whole pipeline (parameterized adapter tier, model) is constructed
 once; per evaluation only the parameter values are rebound.
 """
 
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.config import TimeIntegrationConfig
@@ -20,8 +20,6 @@ from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
 from pyapprox.ode.functionals.protocols import (
-    TimeQuadratureAwareFunctionalProtocol,
-    TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
 )
 from pyapprox.ode.operator.qoi_jacobian import (
@@ -48,11 +46,6 @@ from pyapprox.pde.parameterizations.protocol import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
-_TransientFunctional = Union[
-    TransientFunctionalWithJacobianProtocol[Array],
-    TransientFunctionalWithJacobianAndHVPProtocol[Array],
-]
-
 
 class GalerkinTransientForwardModel(GalerkinModel[Array]):
     """Transient parameterized galerkin PDE forward model.
@@ -62,7 +55,8 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
     for scalar QoIs with a second-order parameterization bundle, the
     second-order-adjoint HVP. Capability is decided once at
     construction from the parameterization's ``ParamDerivatives``
-    bundle and the functional's protocol tier — never by ``hasattr``.
+    bundle and the functional's ``derivatives()`` bundle under this
+    model's time quadrature — never by ``hasattr`` or protocol tier.
 
     Extends :class:`GalerkinModel`, so the plain ``solve_steady`` /
     ``solve_transient`` surface remains available.
@@ -101,7 +95,9 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         init_state: Array,
         time_config: TimeIntegrationConfig[Array],
         bkd: Backend[Array],
-        functional: Optional[_TransientFunctional[Array]] = None,
+        functional: Optional[TransientFunctionalWithJacobianProtocol[Array]] = (
+            None
+        ),
         jacobian_method: Optional[TransientQoIJacobianMethod[Array]] = None,
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
@@ -147,52 +143,41 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
                 f"{functional.time_dependence()} functional; a transient "
                 "model needs one that reads a trajectory"
             )
-        self._functional: _TransientFunctional[Array] = functional
+        self._functional: TransientFunctionalWithJacobianProtocol[Array] = (
+            functional
+        )
         self._jacobian_method = default_qoi_jacobian_method(
             functional, jacobian_method
         )
 
-        # Time-integrated functionals get their quadrature from THIS
-        # model's scheme (injected after every forward solve, from the
-        # times the integrator actually stepped through) — users never
-        # construct time-quadrature weights. The rule's structure is a
-        # scheme property, probed here on a trivial grid: time-coupled
-        # rules (implicit midpoint) make the functional's second
-        # derivative block-tridiagonal in time, which the per-step HVP
-        # machinery does not support, so such models stay gradient-tier.
-        self._quadrature_functional: Optional[
-            TimeQuadratureAwareFunctionalProtocol[Array]
-        ] = None
-        rule_is_time_diagonal = True
-        if isinstance(functional, TimeQuadratureAwareFunctionalProtocol):
-            self._quadrature_functional = functional
-            # create_stepper protocol-checks the instance, so a custom
-            # factory omitting trajectory_quadrature fails there with
-            # an actionable error.
-            rule_is_time_diagonal = (
-                create_stepper(time_config.method, adapter)
-                .trajectory_quadrature(bkd.asarray([0.0, 1.0, 2.0]))
-                .is_time_diagonal()
+        # Functionals get their quadrature from THIS model's scheme
+        # (injected after every forward solve, from the times the
+        # integrator actually stepped through) — users never construct
+        # time-quadrature weights. The rule's structure is a scheme
+        # property, so the scheme's rule on a trivial grid is injected
+        # now, and the functional's bundle then says whether its HVPs
+        # hold under it: a functional that integrates over time drops
+        # them under a rule that couples steps (implicit midpoint), one
+        # that does not keeps them. create_stepper protocol-checks the
+        # instance, so a custom factory omitting trajectory_quadrature
+        # fails there with an actionable error.
+        functional.set_time_quadrature(
+            create_stepper(time_config.method, adapter).trajectory_quadrature(
+                bkd.asarray([0.0, 1.0, 2.0])
             )
+        )
+        functional_hvp = functional.derivatives().state_state_hvp
 
         bundle = parameterization.param_derivatives()
-        self._hvp_functional: Optional[
-            TransientFunctionalWithJacobianAndHVPProtocol[Array]
-        ] = None
         if bundle.param_jacobian is None:
             self._derivs: Derivatives[Array] = Derivatives.none()
         elif (
             self._functional.nqoi() == 1
-            and isinstance(
-                self._functional,
-                TransientFunctionalWithJacobianAndHVPProtocol,
-            )
+            and functional_hvp is not None
             and isinstance(
                 self.adapter(), GalerkinPhysicsToODEResidualWithHVPAdapter
             )
-            and rule_is_time_diagonal
         ):
-            self._hvp_functional = self._functional
             self._derivs = Derivatives.second_order(
                 jacobian=self._jacobian, hvp=self._hvp
             )
@@ -254,15 +239,12 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         solutions, times = self.solve_transient(
             self._init_state, self._time_config
         )
-        if self._quadrature_functional is not None:
-            # Inject the scheme-implied rule from the stepper and times
-            # of THIS solve (never a precomputed grid, which could
-            # drift from the integrator's actual stepping).
-            self._quadrature_functional.set_time_quadrature(
-                self.last_integrator()
-                .time_residual()
-                .trajectory_quadrature(times)
-            )
+        # Inject the scheme-implied rule from the stepper and times of
+        # THIS solve (never a precomputed grid, which could drift from
+        # the integrator's actual stepping).
+        self._functional.set_time_quadrature(
+            self.last_integrator().time_residual().trajectory_quadrature(times)
+        )
         return solutions, times
 
     def __call__(self, samples: Array) -> Array:
@@ -310,13 +292,9 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
         the given parameters (its trajectory storage is cleared here
         because parameter rebinding invalidates it).
         """
-        if self._hvp_functional is None:
-            raise RuntimeError(
-                "hvp is unavailable; check derivatives() before calling"
-            )
         self.forward_solve(sample)
         operator = TimeAdjointOperatorWithHVP(
-            self.last_integrator(), self._hvp_functional
+            self.last_integrator(), self._functional
         )
         return operator.hvp(self._init_state, sample, vvec)
 

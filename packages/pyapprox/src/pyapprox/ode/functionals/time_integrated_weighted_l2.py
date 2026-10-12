@@ -103,7 +103,20 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
         return "transient"
 
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
-        """Return the optional derivatives this functional provides."""
+        """Return the optional derivatives this functional provides.
+
+        The per-step HVPs need a quadrature whose samples are the stored
+        columns; under one that couples steps (implicit midpoint) they
+        are absent. Which holds depends on the scheme, so the answer
+        exists only once its quadrature is injected.
+
+        Raises
+        ------
+        RuntimeError
+            If no quadrature has been injected.
+        """
+        if not self.time_quadrature().is_time_diagonal():
+            return TransientFunctionalDerivatives.none()
         return TransientFunctionalDerivatives.second_order(
             self.state_state_hvp,
             self.state_param_hvp,

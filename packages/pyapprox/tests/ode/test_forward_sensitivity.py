@@ -454,13 +454,13 @@ class TestQoIJacobianMethods:
         param = bkd.ones((_NSTATES, 1))
         # A scalar functional without a state-Jacobian action.
         scalar = EndpointFunctional(0, _NSTATES, _NSTATES, bkd)
-        with pytest.raises(TypeError, match="StateJacobianAction"):
+        with pytest.raises(TypeError, match="apply_state_jacobian"):
             forward_sensitivity_jacobian(
                 integrator, scalar, sols, times, param
             )
         # A vector functional without scalar rows.
         no_rows = _NoRowsFunctional(_final_states(bkd))
-        with pytest.raises(TypeError, match="WithRowsProtocol"):
+        with pytest.raises(TypeError, match="row_functional"):
             adjoint_jacobian(integrator, no_rows, sols, times, param)
 
     def test_default_method(self, numpy_bkd: NumpyBkd) -> None:

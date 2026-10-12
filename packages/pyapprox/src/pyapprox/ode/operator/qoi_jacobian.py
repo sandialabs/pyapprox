@@ -18,7 +18,6 @@ from typing import Generic, Optional, Protocol
 
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
-    TransientFunctionalWithRowsProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.forward_sensitivity import (
@@ -72,8 +71,8 @@ def adjoint_jacobian(
     """Compute a functional's parameter Jacobian by the adjoint method.
 
     Each QoI row costs one backward sweep, independent of ``nparams``.
-    A scalar functional is its own row; a vector functional must
-    satisfy ``TransientFunctionalWithRowsProtocol``.
+    A scalar functional is its own row; a vector functional's
+    ``derivatives()`` must provide ``row_functional``.
 
     The integrator's functional is reset to each row in turn.
 
@@ -98,16 +97,17 @@ def adjoint_jacobian(
     if functional.nqoi() == 1:
         integrator.set_functional(functional)
         return integrator.gradient(fwd_sols, times, param)
-    if not isinstance(functional, TransientFunctionalWithRowsProtocol):
+    row_functional = functional.derivatives().row_functional
+    if row_functional is None:
         raise TypeError(
-            "the adjoint jacobian of a vector QoI requires a functional "
-            "satisfying TransientFunctionalWithRowsProtocol, got "
-            f"{type(functional).__name__}"
+            "the adjoint jacobian of a vector QoI requires the "
+            "functional's derivatives() to provide row_functional; "
+            f"{type(functional).__name__} does not"
         )
     bkd = integrator.bkd()
     rows = []
     for qoi_idx in range(functional.nqoi()):
-        integrator.set_functional(functional.row_functional(qoi_idx))
+        integrator.set_functional(row_functional(qoi_idx))
         rows.append(integrator.gradient(fwd_sols, times, param))
     return bkd.vstack(rows)
 

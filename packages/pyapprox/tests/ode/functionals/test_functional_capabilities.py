@@ -27,7 +27,10 @@ from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
 from pyapprox.ode.functionals.weighted_endpoint import (
     WeightedEndpointFunctional,
 )
-from pyapprox.ode.time_quadrature import trapezoidal_quadrature
+from pyapprox.ode.time_quadrature import (
+    midpoint_quadrature,
+    trapezoidal_quadrature,
+)
 from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (  # noqa: E501
     MSEFunctional,
 )
@@ -41,6 +44,15 @@ from pyapprox.util.backends.numpy import NumpyBkd
 
 _NSTATES, _NPARAMS = 3, 2
 _HVPS = {"state_state_hvp", "state_param_hvp", "param_state_hvp", "param_param_hvp"}
+
+
+def _with_quadrature(functional: Any, bkd: NumpyBkd) -> Any:
+    """Inject a time-diagonal rule, which the functional's capability
+    depends on."""
+    functional.set_time_quadrature(
+        trapezoidal_quadrature(bkd.linspace(0.0, 1.0, 4), bkd)
+    )
+    return functional
 
 
 def _present(functional: Any) -> Set[str]:
@@ -63,8 +75,9 @@ _FACTORIES: Dict[str, Callable[[NumpyBkd], Any]] = {
     "transient_mse": lambda bkd: TransientMSEFunctional(
         _NSTATES, _NPARAMS, [(0, bkd.asarray(np.array([1, 2])))], bkd
     ),
-    "time_integrated_l2": lambda bkd: TimeIntegratedWeightedL2Functional(
-        bkd.eye(_NSTATES), _NPARAMS, bkd
+    "time_integrated_l2": lambda bkd: _with_quadrature(
+        TimeIntegratedWeightedL2Functional(bkd.eye(_NSTATES), _NPARAMS, bkd),
+        bkd,
     ),
     "time_indexed_observation": lambda bkd: TimeIndexedObservationFunctional(
         bkd.asarray(np.array([[0], [1]]), dtype=bkd.int64_dtype()),
@@ -127,6 +140,39 @@ class TestDeclaredCapabilities:
         functional.set_time_quadrature(
             trapezoidal_quadrature(numpy_bkd.linspace(0.0, 1.0, 4), numpy_bkd)
         )
+
+
+class TestQuadratureDependentCapability:
+    """A functional that integrates over time has per-step HVPs only
+    under a rule whose samples are the stored columns."""
+
+    def test_capability_needs_a_quadrature(self, numpy_bkd: NumpyBkd) -> None:
+        functional = TimeIntegratedWeightedL2Functional(
+            numpy_bkd.eye(_NSTATES), _NPARAMS, numpy_bkd
+        )
+        with pytest.raises(RuntimeError, match="time quadrature not set"):
+            functional.derivatives()
+
+    def test_midpoint_rule_drops_the_hvps(self, numpy_bkd: NumpyBkd) -> None:
+        functional = TimeIntegratedWeightedL2Functional(
+            numpy_bkd.eye(_NSTATES), _NPARAMS, numpy_bkd
+        )
+        functional.set_time_quadrature(
+            midpoint_quadrature(numpy_bkd.linspace(0.0, 1.0, 4), numpy_bkd)
+        )
+        assert _present(functional) == set()
+        wrapped = TikhonovAugmentedFunctional(functional, 0.5, numpy_bkd)
+        assert _present(wrapped) == set()
+
+    def test_endpoint_keeps_hvps_under_midpoint_rule(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """An endpoint functional ignores the quadrature."""
+        functional = EndpointFunctional(0, _NSTATES, _NPARAMS, numpy_bkd)
+        functional.set_time_quadrature(
+            midpoint_quadrature(numpy_bkd.linspace(0.0, 1.0, 4), numpy_bkd)
+        )
+        assert _present(functional) == _HVPS
 
 
 class TestTikhonovMirrorsInner:

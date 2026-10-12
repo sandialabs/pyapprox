@@ -11,7 +11,6 @@ the integrator's ``AdjointEnabledTimeSteppingResidualProtocol`` surface.
 
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
-    TransientFunctionalWithStateJacobianActionProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.step_context import StepContext
@@ -44,8 +43,8 @@ def forward_sensitivity_jacobian(
         \\frac{dQ}{dp} = \\sum_n \\frac{\\partial Q}{\\partial y_n} W_n
         + \\frac{\\partial Q}{\\partial p}.
 
-    Each :math:`W_n` is applied through
-    ``functional.apply_state_jacobian`` before the next step overwrites
+    Each :math:`W_n` is applied through the functional's
+    ``apply_state_jacobian`` before the next step overwrites
     it, so memory does not grow with the number of times the functional
     reads. The cost is one linear solve with ``nparams`` right-hand
     sides per step, independent of ``nqoi``.
@@ -56,10 +55,9 @@ def forward_sensitivity_jacobian(
         Integrator that produced ``fwd_sols``; its time-stepping
         residual (bound per step via ``bind``) defines the sweep.
     functional : TransientFunctionalWithJacobianProtocol
-        Quantity of interest; must also satisfy
-        ``TransientFunctionalWithStateJacobianActionProtocol``. Its
-        parameters are its own ``nunique_params()`` followed by the
-        residual's.
+        Quantity of interest; its ``derivatives()`` must provide
+        ``apply_state_jacobian``. Its parameters are its own
+        ``nunique_params()`` followed by the residual's.
     fwd_sols : Array
         Forward trajectory. Shape: ``(nstates, ntimes)``.
     times : Array
@@ -72,19 +70,14 @@ def forward_sensitivity_jacobian(
     Array
         :math:`dQ/dp`. Shape: ``(nqoi, nparams)``.
     """
-    if not isinstance(
-        functional, TransientFunctionalWithStateJacobianActionProtocol
-    ):
+    apply_state_jacobian = functional.derivatives().apply_state_jacobian
+    if apply_state_jacobian is None:
         raise TypeError(
-            "the tangent-linear jacobian requires a functional satisfying "
-            "TransientFunctionalWithStateJacobianActionProtocol, got "
-            f"{type(functional).__name__}"
+            "the tangent-linear jacobian requires the functional's "
+            "derivatives() to provide apply_state_jacobian; "
+            f"{type(functional).__name__} does not"
         )
-    # A runtime check cannot see the type parameter, so isinstance
-    # narrows to ``...[Any]``; rebinding restores ``Array``.
-    action: TransientFunctionalWithStateJacobianActionProtocol[Array] = (
-        functional
-    )
+    action = functional
     bkd = integrator.bkd()
     time_residual = integrator.time_residual()
     ntimes = fwd_sols.shape[1]
@@ -106,7 +99,7 @@ def forward_sensitivity_jacobian(
             f"functional has {action.nparams()} parameters, expected "
             f"{n_unique} of its own plus the residual's {w_prev.shape[1]}"
         )
-    state_part = action.apply_state_jacobian(fwd_sols, param, 0, w_prev)
+    state_part = apply_state_jacobian(fwd_sols, param, 0, w_prev)
 
     for nn in range(1, ntimes):
         ctx_nn = StepContext(
@@ -126,7 +119,7 @@ def forward_sensitivity_jacobian(
         # solve_maybe_sparse handles the multi-column right-hand side.
         rhs = bkd.asarray(drdy_nm1 @ w_prev) + bkd.asarray(drdp_n)
         w_prev = -solve_maybe_sparse(bkd, drdy_n, rhs)
-        state_part = state_part + action.apply_state_jacobian(
+        state_part = state_part + apply_state_jacobian(
             fwd_sols, param, nn, w_prev
         )
 

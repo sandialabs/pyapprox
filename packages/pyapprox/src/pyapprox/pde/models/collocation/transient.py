@@ -12,7 +12,7 @@ The whole pipeline (parameterized adapter tier, model) is constructed
 once; per evaluation only the parameter values are rebound.
 """
 
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.config import TimeIntegrationConfig
@@ -20,7 +20,6 @@ from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
 )
 from pyapprox.ode.operator.qoi_jacobian import (
@@ -50,11 +49,6 @@ from pyapprox.pde.parameterizations.protocol import (
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
-_TransientFunctional = Union[
-    TransientFunctionalWithJacobianProtocol[Array],
-    TransientFunctionalWithJacobianAndHVPProtocol[Array],
-]
-
 
 class TransientForwardModel(CollocationModel[Array]):
     """Transient parameterized collocation PDE forward model.
@@ -64,8 +58,8 @@ class TransientForwardModel(CollocationModel[Array]):
     for scalar QoIs with a second-order parameterization bundle, the
     second-order-adjoint HVP. Capability is decided once at
     construction from the parameterization's ``ParamDerivatives``
-    bundle, the functional's protocol tier, and the adapter tier —
-    never by ``hasattr``.
+    bundle, the functional's ``derivatives()`` bundle, and the adapter
+    tier — never by ``hasattr`` or protocol tier.
 
     Extends :class:`CollocationModel`, so the plain ``solve_steady`` /
     ``solve_transient`` surface remains available.
@@ -104,7 +98,9 @@ class TransientForwardModel(CollocationModel[Array]):
         bkd: Backend[Array],
         init_state: Array,
         time_config: TimeIntegrationConfig[Array],
-        functional: Optional[_TransientFunctional[Array]] = None,
+        functional: Optional[TransientFunctionalWithJacobianProtocol[Array]] = (
+            None
+        ),
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
         jacobian_method: Optional[TransientQoIJacobianMethod[Array]] = None,
     ) -> None:
@@ -151,29 +147,28 @@ class TransientForwardModel(CollocationModel[Array]):
                 f"{functional.time_dependence()} functional; a transient "
                 "model needs one that reads a trajectory"
             )
-        self._functional: _TransientFunctional[Array] = functional
+        self._functional: TransientFunctionalWithJacobianProtocol[Array] = (
+            functional
+        )
         self._jacobian_method = default_qoi_jacobian_method(
             functional, jacobian_method
         )
 
+        # This model injects no time quadrature, so a functional whose
+        # capability depends on one (it integrates over time) raises
+        # here: it could not be evaluated anyway.
+        functional_hvp = functional.derivatives().state_state_hvp
         bundle = parameterization.param_derivatives()
-        self._hvp_functional: Optional[
-            TransientFunctionalWithJacobianAndHVPProtocol[Array]
-        ] = None
         if bundle.param_jacobian is None:
             self._derivs: Derivatives[Array] = Derivatives.none()
         elif (
             self._functional.nqoi() == 1
-            and isinstance(
-                self._functional,
-                TransientFunctionalWithJacobianAndHVPProtocol,
-            )
+            and functional_hvp is not None
             and isinstance(
                 self.adapter(),
                 CollocationPhysicsToODEResidualWithHVPAdapter,
             )
         ):
-            self._hvp_functional = self._functional
             self._derivs = Derivatives.second_order(
                 jacobian=self._jacobian, hvp=self._hvp
             )
@@ -305,13 +300,9 @@ class TransientForwardModel(CollocationModel[Array]):
         trajectory storage would be invalidated by the parameter
         rebinding).
         """
-        if self._hvp_functional is None:
-            raise RuntimeError(
-                "hvp is unavailable; check derivatives() before calling"
-            )
         self.forward_solve(sample)
         operator = TimeAdjointOperatorWithHVP(
-            self.last_integrator(), self._hvp_functional
+            self.last_integrator(), self._functional
         )
         return operator.hvp(self._init_state, sample, vvec)
 

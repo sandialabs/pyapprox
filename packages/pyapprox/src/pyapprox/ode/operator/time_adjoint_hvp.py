@@ -14,8 +14,12 @@ Algorithm:
 
 from typing import Generic, Tuple
 
+from pyapprox.ode.functionals.derivatives import (
+    TransientParamHVPFn,
+    TransientStepHVPFn,
+)
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianAndHVPProtocol,
+    TransientFunctionalWithJacobianProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.storage import TimeTrajectoryStorage
@@ -50,15 +54,40 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
     ----------
     integrator : TimeIntegrator
         Time integrator with adjoint-enabled time stepping residual.
-    functional : TransientFunctionalWithJacobianAndHVPProtocol
-        Functional with state/param Jacobians and HVP methods.
+    functional : TransientFunctionalWithJacobianProtocol
+        Functional whose ``derivatives()`` bundle has all four HVPs.
+
+    Raises
+    ------
+    TypeError
+        If the functional's bundle has no HVPs.
     """
 
     def __init__(
         self,
         integrator: TimeIntegrator[Array],
-        functional: TransientFunctionalWithJacobianAndHVPProtocol[Array],
+        functional: TransientFunctionalWithJacobianProtocol[Array],
     ):
+        derivs = functional.derivatives()
+        state_state_hvp = derivs.state_state_hvp
+        state_param_hvp = derivs.state_param_hvp
+        param_state_hvp = derivs.param_state_hvp
+        param_param_hvp = derivs.param_param_hvp
+        if (
+            state_state_hvp is None
+            or state_param_hvp is None
+            or param_state_hvp is None
+            or param_param_hvp is None
+        ):
+            raise TypeError(
+                f"{type(functional).__name__} provides no HVPs "
+                "(derivatives().state_state_hvp is None); the HVP adjoint "
+                "needs all four"
+            )
+        self._state_state_hvp: TransientStepHVPFn[Array] = state_state_hvp
+        self._state_param_hvp: TransientStepHVPFn[Array] = state_param_hvp
+        self._param_state_hvp: TransientStepHVPFn[Array] = param_state_hvp
+        self._param_param_hvp: TransientParamHVPFn[Array] = param_param_hvp
         self._integrator = integrator
         self._functional = functional
         self._bkd = integrator.bkd()
@@ -301,10 +330,10 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         self._time_residual.bind(ctx_N)
 
         # Functional Hessian terms at final time
-        qss_hvp = self._functional.state_state_hvp(
+        qss_hvp = self._state_state_hvp(
             fwd_sols, param, ntimes - 1, w_sols[:, -1:]
         )
-        qsp_hvp = self._functional.state_param_hvp(fwd_sols, param, ntimes - 1, vvec)
+        qsp_hvp = self._state_param_hvp(fwd_sols, param, ntimes - 1, vvec)
 
         # Residual Hessian at final time: R_N same-step contribution
         rss_hvp = hvp_residual.state_state_hvp(
@@ -355,10 +384,10 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             )
 
             # Functional Hessian terms at y_n
-            qss_hvp = self._functional.state_state_hvp(
+            qss_hvp = self._state_state_hvp(
                 fwd_sols, param, nn, w_sols[:, nn : nn + 1]
             )
-            qsp_hvp = self._functional.state_param_hvp(fwd_sols, param, nn, vvec)
+            qsp_hvp = self._state_param_hvp(fwd_sols, param, nn, vvec)
 
             # R_n same-step contribution
             rss_hvp_n = hvp_residual.state_state_hvp(
@@ -412,8 +441,8 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             ctx_1, fwd_sols[:, 1]
         )
 
-        qss_hvp = self._functional.state_state_hvp(fwd_sols, param, 0, w_sols[:, 0:1])
-        qsp_hvp = self._functional.state_param_hvp(fwd_sols, param, 0, vvec)
+        qss_hvp = self._state_state_hvp(fwd_sols, param, 0, w_sols[:, 0:1])
+        qsp_hvp = self._state_param_hvp(fwd_sols, param, 0, vvec)
 
         # Cross-step HVP: R_1 depends on y_0 as prev_state
         rss_hvp_1 = hvp_residual.prev_state_state_hvp(
@@ -471,7 +500,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         hvp = self._bkd.copy(hvp)
 
         # Direct functional Hessian: d²Q/dp² · v
-        qpp_hvp = self._functional.param_param_hvp(fwd_sols, param, vvec)
+        qpp_hvp = self._param_param_hvp(fwd_sols, param, vvec)
         hvp += qpp_hvp
 
         n_unique = self._functional.nunique_params()
@@ -535,7 +564,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
             hvp += drdp.T @ s_sols[:, nn : nn + 1]
 
             # L_py · w: d²Q/dpdy + λ^T · d²R/dpdy
-            qps_hvp = self._functional.param_state_hvp(
+            qps_hvp = self._param_state_hvp(
                 fwd_sols, param, nn, w_sols[:, nn : nn + 1],
             )
             rps_hvp = hvp_residual.param_state_hvp(
