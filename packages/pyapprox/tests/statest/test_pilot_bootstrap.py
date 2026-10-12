@@ -278,6 +278,38 @@ class TestResampledPilotValues:
         ratio = spread(200) / spread(50)
         assert 0.45 < ratio < 0.55, f"ratio {ratio:.3f}"
 
+    def test_a_generator_alone_fixes_the_replicates(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """Whatever else draws from the global state in between."""
+        values = _pilot_values(bkd, nmodels=2, npilot=50)
+
+        def replicates() -> list:
+            pilot = ResampledPilotValues(
+                values, bkd, rng=np.random.default_rng(7)
+            )
+            drawn = []
+            for _ in range(3):
+                drawn.append(pilot.draw())
+                np.random.uniform(size=17)
+            return drawn
+
+        first, second = replicates(), replicates()
+        for left, right in zip(first, second):
+            for left_model, right_model in zip(left, right):
+                bkd.assert_allclose(left_model, right_model, rtol=0.0)
+
+    def test_without_a_generator_the_global_state_is_used(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """Unchanged for callers that pass none."""
+        values = _pilot_values(bkd, nmodels=1, npilot=50)
+        np.random.seed(3)
+        first = ResampledPilotValues(values, bkd).draw()
+        np.random.seed(3)
+        second = ResampledPilotValues(values, bkd).draw()
+        bkd.assert_allclose(first[0], second[0], rtol=0.0)
+
     def test_rejects_a_size_below_one(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match="npilot"):
             ResampledPilotValues(_pilot_values(bkd), bkd, npilot=0)

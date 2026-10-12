@@ -303,6 +303,7 @@ class ResampledPilotValues(Generic[Array]):
         pilot_values: List[Array],
         bkd: Backend[Array],
         npilot: Optional[int] = None,
+        rng: Optional[np.random.Generator] = None,
     ):
         """
         Parameters
@@ -316,6 +317,11 @@ class ResampledPilotValues(Generic[Array]):
             The pilot size each replicate stands for: its number of
             samples, and what :meth:`npilot` returns. Defaults to the
             recorded count.
+        rng : numpy.random.Generator, optional
+            The source of the resampling indices. Given, the replicates
+            depend on it alone, so the same generator state reproduces
+            them whatever else has drawn random numbers meanwhile.
+            Omitted, they come from numpy's global random state.
         """
         if not isinstance(pilot_values, list) or len(pilot_values) == 0:
             raise ValueError("pilot_values must be a non-empty list")
@@ -342,6 +348,7 @@ class ResampledPilotValues(Generic[Array]):
         self._bkd = bkd
         self._nrecorded = int(nrecorded)
         self._npilot = self._nrecorded if npilot is None else npilot
+        self._rng = rng
 
     def npilot(self) -> int:
         return self._npilot
@@ -353,14 +360,17 @@ class ResampledPilotValues(Generic[Array]):
         return self._bkd
 
     def draw(self) -> List[Array]:
-        indices = self._bkd.array(
-            np.random.choice(
+        if self._rng is None:
+            chosen = np.random.choice(
                 np.arange(self._nrecorded, dtype=int),
                 size=self._npilot,
                 replace=True,
-            ),
-            dtype=int,
-        )
+            )
+        else:
+            chosen = self._rng.choice(
+                self._nrecorded, size=self._npilot, replace=True
+            )
+        indices = self._bkd.array(chosen, dtype=int)
         return [vals[:, indices] for vals in self._pilot_values]
 
 
