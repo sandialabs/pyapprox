@@ -392,10 +392,10 @@ class BetaMarginal(Generic[Array]):
         ValueError
             If input is not 2D or has wrong first dimension
         """
-        samples_1d = self._validate_input(samples)
-
         # Transform from [lb, ub] to [0, 1]
-        samples_01 = (samples_1d - self._lb) / self._scale
+        below, above, samples_01 = self._split_support(
+            self._validate_input(samples)
+        )
 
         alpha = self._get_alpha()
         beta = self._get_beta()
@@ -414,7 +414,32 @@ class BetaMarginal(Generic[Array]):
             - log_beta_func
             - math.log(self._scale)  # Jacobian correction
         )
+        result = self._outside(below, above, -math.inf, result)
         return self._bkd.reshape(result, (1, -1))
+
+    def _split_support(self, samples_1d: Array) -> Tuple[Array, Array, Array]:
+        """Points below and above ``[lb, ub]``, and safe inputs on ``[0, 1]``.
+
+        Outside the support every formula here is meaningless -- a
+        logarithm of a negative number, an integral taken backwards -- so
+        those points are evaluated at the middle of ``[0, 1]`` instead and
+        their results replaced. Evaluating them as given and masking
+        afterwards would still leave the NaN in the autograd graph, where
+        it poisons the gradients of every other point.
+        """
+        samples_01 = (samples_1d - self._lb) / self._scale
+        below = samples_01 < 0.0
+        above = samples_01 > 1.0
+        safe = self._outside(below, above, 0.5, samples_01)
+        return below, above, safe
+
+    def _outside(
+        self, below: Array, above: Array, value: float, inside: Array
+    ) -> Array:
+        """``value`` outside the support, ``inside`` within it."""
+        return self._bkd.where(
+            below, value, self._bkd.where(above, value, inside)
+        )
 
     def _require_quadrature(self) -> None:
         """Raise RuntimeError if quadrature rule was not provided."""
@@ -493,7 +518,18 @@ class BetaMarginal(Generic[Array]):
         samples_1d = self._validate_input(samples)
         # Transform from [lb, ub] to [0, 1]
         samples_01 = (samples_1d - self._lb) / self._scale
-        result = self._betainc(samples_01)
+        # Exactly 0 at and below lb and 1 at and above ub, for every shape:
+        # the quadrature's t^(a-1) is infinite at t = 0 when a < 1.
+        at_or_below = samples_01 <= 0.0
+        at_or_above = samples_01 >= 1.0
+        safe = self._bkd.where(
+            at_or_below, 0.5, self._bkd.where(at_or_above, 0.5, samples_01)
+        )
+        result = self._bkd.where(
+            at_or_below,
+            0.0,
+            self._bkd.where(at_or_above, 1.0, self._betainc(safe)),
+        )
         return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
@@ -755,15 +791,18 @@ class BetaMarginal(Generic[Array]):
         ValueError
             If input is not 2D or has wrong first dimension
         """
-        samples_1d = self._validate_input(samples)
         # Transform to [0, 1]
-        samples_01 = (samples_1d - self._lb) / self._scale
+        below, above, samples_01 = self._split_support(
+            self._validate_input(samples)
+        )
         alpha = self._get_alpha()
         beta = self._get_beta()
         # Derivative w.r.t. t on [0, 1]
         grad_01 = (alpha - 1.0) / samples_01 - (beta - 1.0) / (1.0 - samples_01)
         # Chain rule: d/dx = (1/scale) * d/dt
         grad = grad_01 / self._scale
+        # Constant (-inf) outside the support, so its derivative is zero.
+        grad = self._outside(below, above, 0.0, grad)
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -820,9 +859,10 @@ class BetaMarginal(Generic[Array]):
             Column 0: d(logpdf)/d(log_alpha)
             Column 1: d(logpdf)/d(log_beta)
         """
-        samples_1d = self._validate_input(samples)
         # Transform to [0, 1]
-        samples_01 = (samples_1d - self._lb) / self._scale
+        below, above, samples_01 = self._split_support(
+            self._validate_input(samples)
+        )
 
         alpha = self._get_alpha()
         beta = self._get_beta()
@@ -842,6 +882,10 @@ class BetaMarginal(Generic[Array]):
         # d(logpdf)/d(beta) = log(1-t) - psi(beta) + psi(alpha+beta)
         # d(logpdf)/d(log_beta) = beta * d(logpdf)/d(beta)
         d_log_beta = beta * (log_1mx - psi_beta + psi_sum)
+
+        # The log PDF is -inf outside the support whatever the parameters.
+        d_log_alpha = self._outside(below, above, 0.0, d_log_alpha)
+        d_log_beta = self._outside(below, above, 0.0, d_log_beta)
 
         # Stack columns: shape (nsamples, 2)
         return self._bkd.stack([d_log_alpha, d_log_beta], axis=1)

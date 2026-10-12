@@ -304,7 +304,7 @@ class GammaMarginal(Generic[Array]):
         ValueError
             If input is not 2D or has wrong first dimension
         """
-        samples_1d = self._validate_input(samples)
+        below, safe = self._split_support(self._validate_input(samples))
         shape = self._get_shape()
         rate = self._get_rate()
         # log f(x) = k*log(rate) - gammaln(k) + (k-1)*log(x) - rate*x
@@ -312,9 +312,24 @@ class GammaMarginal(Generic[Array]):
             shape * self._bkd.log(rate)
             - self._bkd.gammaln(shape)
         )
-        log_x = self._bkd.log(samples_1d)
-        result = log_const + (shape - 1.0) * log_x - rate * samples_1d
+        log_x = self._bkd.log(safe)
+        result = log_const + (shape - 1.0) * log_x - rate * safe
+        result = self._bkd.where(below, -math.inf, result)
         return self._bkd.reshape(result, (1, -1))
+
+    def _split_support(self, samples_1d: Array) -> Tuple[Array, Array]:
+        """Points below the support, and inputs safe to evaluate.
+
+        The support is ``x >= 0``. Below it every formula here is
+        meaningless -- a logarithm of a negative number, an integral
+        taken backwards -- so those points are evaluated at ``x = 1``
+        instead and their results replaced. Evaluating them as given and
+        masking afterwards would still leave the NaN in the autograd graph,
+        where it poisons the gradients of every other point.
+        """
+        below = samples_1d < 0.0
+        safe = self._bkd.where(below, 1.0, samples_1d)
+        return below, safe
 
     def _require_quadrature(self) -> None:
         """Raise RuntimeError if quadrature rule was not provided."""
@@ -372,7 +387,11 @@ class GammaMarginal(Generic[Array]):
             If quadrature rule was not provided at construction
         """
         samples_1d = self._validate_input(samples)
-        result = self._gammainc(samples_1d)
+        # Zero at and below the origin, for every shape: the quadrature's
+        # x^(k-1) is infinite there when k < 1.
+        nonpositive = samples_1d <= 0.0
+        safe = self._bkd.where(nonpositive, 1.0, samples_1d)
+        result = self._bkd.where(nonpositive, 0.0, self._gammainc(safe))
         return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
@@ -601,10 +620,12 @@ class GammaMarginal(Generic[Array]):
         ValueError
             If input is not 2D or has wrong first dimension
         """
-        samples_1d = self._validate_input(samples)
+        below, safe = self._split_support(self._validate_input(samples))
         shape = self._get_shape()
         rate = self._get_rate()
-        grad = (shape - 1.0) / samples_1d - rate
+        grad = (shape - 1.0) / safe - rate
+        # Constant (-inf) below the support, so its derivative is zero.
+        grad = self._bkd.where(below, 0.0, grad)
         return self._bkd.reshape(grad, (1, -1))
 
     def pdf_jacobian(self, samples: Array) -> Array:
@@ -655,7 +676,7 @@ class GammaMarginal(Generic[Array]):
             Column 0: d(logpdf)/d(log_shape)
             Column 1: d(logpdf)/d(log_scale)
         """
-        samples_1d = self._validate_input(samples)
+        below, samples_1d = self._split_support(self._validate_input(samples))
         shape = self._get_shape()
         scale = self._get_scale()
 
@@ -672,6 +693,10 @@ class GammaMarginal(Generic[Array]):
         # d(logpdf)/d(scale) = -shape/scale + x/scale^2
         # d(logpdf)/d(log_scale) = scale * d(logpdf)/d(scale) = -shape + x/scale
         d_log_scale = -shape + samples_1d / scale
+
+        # The log PDF is -inf below the support whatever the parameters.
+        d_log_shape = self._bkd.where(below, 0.0, d_log_shape)
+        d_log_scale = self._bkd.where(below, 0.0, d_log_scale)
 
         # Stack columns: shape (nsamples, 2)
         return self._bkd.stack([d_log_shape, d_log_scale], axis=1)

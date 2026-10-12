@@ -145,8 +145,24 @@ class UniformMarginal(Generic[Array]):
         samples_1d = self._validate_input(samples)
         width = self._get_width()
         pdf_val = 1.0 / width
-        result = self._bkd.ones_like(samples_1d) * pdf_val
+        result = self._bkd.where(
+            self._outside(samples_1d), 0.0, self._bkd.ones_like(samples_1d) * pdf_val
+        )
         return self._bkd.reshape(result, (1, -1))
+
+    def _outside(self, samples_1d: Array) -> Array:
+        """Where ``samples_1d`` lies outside ``[lower, upper]``.
+
+        As a 0/1 mask compared against one half, since the backend's
+        boolean arrays have no ``or`` its protocol declares.
+        """
+        below = self._bkd.asarray(
+            samples_1d < self._get_lower(), dtype=self._bkd.double_dtype()
+        )
+        above = self._bkd.asarray(
+            samples_1d > self._get_upper(), dtype=self._bkd.double_dtype()
+        )
+        return below + above > 0.5
 
     def __call__(self, samples: Array) -> Array:
         """Evaluate the PDF (alias for pdf())."""
@@ -174,7 +190,11 @@ class UniformMarginal(Generic[Array]):
         samples_1d = self._validate_input(samples)
         width = self._get_width()
         log_pdf_val = -self._bkd.log(width)
-        result = self._bkd.ones_like(samples_1d) * log_pdf_val
+        result = self._bkd.where(
+            self._outside(samples_1d),
+            -math.inf,
+            self._bkd.ones_like(samples_1d) * log_pdf_val,
+        )
         return self._bkd.reshape(result, (1, -1))
 
     def cdf(self, samples: Array) -> Array:
@@ -199,7 +219,13 @@ class UniformMarginal(Generic[Array]):
         samples_1d = self._validate_input(samples)
         lower = self._get_lower()
         width = self._get_width()
-        result = (samples_1d - lower) / width
+        # Clamped into [lower, upper]: 0 below, 1 above, and the parameter
+        # gradients follow, zero outside the support.
+        clamped = self._bkd.minimum(
+            self._bkd.maximum(samples_1d, lower * self._bkd.ones_like(samples_1d)),
+            self._get_upper() * self._bkd.ones_like(samples_1d),
+        )
+        result = (clamped - lower) / width
         return self._bkd.reshape(result, (1, -1))
 
     def invcdf(self, probs: Array) -> Array:
@@ -460,11 +486,18 @@ class UniformMarginal(Generic[Array]):
         nsamples = len(samples_1d)
         width = self._get_width()
 
+        # The log PDF is -inf outside the support whatever the bounds.
+        outside = self._outside(samples_1d)
+
         # d(logpdf)/d(lower) = 1 / (upper - lower)
-        d_lower = self._bkd.ones((nsamples,)) / width
+        d_lower = self._bkd.where(
+            outside, 0.0, self._bkd.ones((nsamples,)) / width
+        )
 
         # d(logpdf)/d(upper) = -1 / (upper - lower)
-        d_upper = -self._bkd.ones((nsamples,)) / width
+        d_upper = self._bkd.where(
+            outside, 0.0, -self._bkd.ones((nsamples,)) / width
+        )
 
         # Stack columns: shape (nsamples, 2)
         return self._bkd.stack([d_lower, d_upper], axis=1)
