@@ -1,14 +1,19 @@
 """Frozen bundle of a transient functional's optional derivatives.
 
-A transient functional ``Q(y(t), p)`` always provides its value, its
-state Jacobian ``(nstates, ntimes)`` and its parameter Jacobian. What it
-may lack is listed here, so a consumer reads capability from data rather
-than from which protocol the functional satisfies
-(``docs/conventions/optional_methods.md``). Absence is ``None``.
+A transient functional ``Q(y(t), p)`` always provides its value. Its
+derivatives are optional, and listed here, so a consumer reads
+capability from data rather than from which protocol the functional
+satisfies (``docs/conventions/optional_methods.md``). Absence is
+``None``; a functional with no derivatives is evaluated but not
+differentiated.
 
 Field signatures (``sol`` the trajectory, ``(nstates, ntimes)``;
 ``param`` ``(nparams, 1)``; ``time_idx`` a stored-column index):
 
+- ``state_jacobian``: ``(sol, param) -> (nstates, ntimes)`` for a scalar
+  QoI — ``dQ/dy`` at every stored column.
+- ``param_jacobian``: ``(sol, param) -> (nqoi, nparams)`` — the direct
+  ``dQ/dp``.
 - ``state_state_hvp``: ``(sol, param, time_idx, wvec (nstates, 1))
   -> (nstates, 1)`` — ``(d^2 Q/dy_n^2) w``.
 - ``state_param_hvp``: ``(sol, param, time_idx, vvec (nparams, 1))
@@ -23,6 +28,8 @@ Field signatures (``sol`` the trajectory, ``(nstates, ntimes)``;
 - ``row_functional``: ``(qoi_idx) -> functional`` — QoI ``qoi_idx`` as a
   scalar functional, for the adjoint method's one-row sweeps.
 
+The two Jacobians come together, and every other field requires them:
+the HVPs, the action and the rows are all built on first derivatives.
 The four HVPs come together or not at all: the second-order adjoint
 needs every one, so a partial set is not a capability. Per-step HVPs
 index stored columns, so they require a quadrature whose samples are the
@@ -43,6 +50,7 @@ if TYPE_CHECKING:
 
 A = TypeVar("A", bound=ArrayProtocol)
 
+TransientJacobianFn = Callable[[Array, Array], Array]
 TransientStepHVPFn = Callable[[Array, Array, int, Array], Array]
 TransientParamHVPFn = Callable[[Array, Array, Array], Array]
 TransientStateJacobianActionFn = Callable[[Array, Array, int, Array], Array]
@@ -56,7 +64,11 @@ _HVP_FIELDS = (
     "param_state_hvp",
     "param_param_hvp",
 )
-_FIELDS = _HVP_FIELDS + ("apply_state_jacobian", "row_functional")
+_JACOBIAN_FIELDS = ("state_jacobian", "param_jacobian")
+_FIELDS = _JACOBIAN_FIELDS + _HVP_FIELDS + (
+    "apply_state_jacobian",
+    "row_functional",
+)
 
 
 @dataclass(frozen=True)
@@ -68,6 +80,8 @@ class TransientFunctionalDerivatives(Generic[Array]):
     new bundle.
     """
 
+    state_jacobian: Optional[TransientJacobianFn[Array]] = None
+    param_jacobian: Optional[TransientJacobianFn[Array]] = None
     state_state_hvp: Optional[TransientStepHVPFn[Array]] = None
     state_param_hvp: Optional[TransientStepHVPFn[Array]] = None
     param_state_hvp: Optional[TransientStepHVPFn[Array]] = None
@@ -85,6 +99,22 @@ class TransientFunctionalDerivatives(Generic[Array]):
                     f"TransientFunctionalDerivatives field '{name}' must be "
                     f"callable or None; got {type(value).__name__}"
                 )
+        jacobians = [
+            getattr(self, name) is not None for name in _JACOBIAN_FIELDS
+        ]
+        if any(jacobians) and not all(jacobians):
+            raise TypeError(
+                "state_jacobian and param_jacobian must be given together"
+            )
+        if not all(jacobians) and any(
+            getattr(self, name) is not None
+            for name in _FIELDS
+            if name not in _JACOBIAN_FIELDS
+        ):
+            raise TypeError(
+                "the HVPs, apply_state_jacobian and row_functional require "
+                "state_jacobian and param_jacobian"
+            )
         present = [getattr(self, name) is not None for name in _HVP_FIELDS]
         if any(present) and not all(present):
             raise TypeError(
@@ -94,26 +124,32 @@ class TransientFunctionalDerivatives(Generic[Array]):
 
     @staticmethod
     def none() -> "TransientFunctionalDerivatives[A]":
-        """No optional derivatives."""
+        """No derivatives: the functional is evaluated only."""
         return TransientFunctionalDerivatives()
 
     @staticmethod
     def first_order(
+        state_jacobian: TransientJacobianFn[A],
+        param_jacobian: TransientJacobianFn[A],
         *,
         apply_state_jacobian: Optional[
             TransientStateJacobianActionFn[A]
         ] = None,
         row_functional: Optional[RowFunctionalFn[A]] = None,
     ) -> "TransientFunctionalDerivatives[A]":
-        """No curvature; optionally the per-step Jacobian action and the
-        per-QoI rows."""
+        """The Jacobians, and optionally the per-step Jacobian action and
+        the per-QoI rows; no curvature."""
         return TransientFunctionalDerivatives(
+            state_jacobian=state_jacobian,
+            param_jacobian=param_jacobian,
             apply_state_jacobian=apply_state_jacobian,
             row_functional=row_functional,
         )
 
     @staticmethod
     def second_order(
+        state_jacobian: TransientJacobianFn[A],
+        param_jacobian: TransientJacobianFn[A],
         state_state_hvp: TransientStepHVPFn[A],
         state_param_hvp: TransientStepHVPFn[A],
         param_state_hvp: TransientStepHVPFn[A],
@@ -124,8 +160,11 @@ class TransientFunctionalDerivatives(Generic[Array]):
         ] = None,
         row_functional: Optional[RowFunctionalFn[A]] = None,
     ) -> "TransientFunctionalDerivatives[A]":
-        """All four HVPs, and optionally the first-order extras."""
+        """The Jacobians and all four HVPs, and optionally the first-order
+        extras."""
         return TransientFunctionalDerivatives(
+            state_jacobian=state_jacobian,
+            param_jacobian=param_jacobian,
             state_state_hvp=state_state_hvp,
             state_param_hvp=state_param_hvp,
             param_state_hvp=param_state_hvp,

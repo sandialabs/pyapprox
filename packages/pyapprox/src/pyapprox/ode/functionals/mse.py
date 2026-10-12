@@ -95,6 +95,8 @@ class TransientMSEFunctional(Generic[Array]):
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
         return TransientFunctionalDerivatives.second_order(
+            self.state_jacobian,
+            self.param_jacobian,
             self.state_state_hvp,
             self.state_param_hvp,
             self.param_state_hvp,

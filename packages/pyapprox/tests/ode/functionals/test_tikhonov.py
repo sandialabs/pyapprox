@@ -14,11 +14,6 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.ode.functionals.derivatives import (
     TransientFunctionalDerivatives,
 )
-from pyapprox.ode.functionals.protocols import (
-    TimeQuadratureAwareFunctionalProtocol,
-    TransientFunctionalWithJacobianAndHVPProtocol,
-    TransientFunctionalWithJacobianProtocol,
-)
 from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
 from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
     TimeIntegratedWeightedL2Functional,
@@ -115,7 +110,9 @@ class _JacobianOnlyFunctional:
 
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
-        return TransientFunctionalDerivatives.none()
+        return TransientFunctionalDerivatives.first_order(
+            self.state_jacobian, self.param_jacobian
+        )
 
     def set_time_quadrature(
         self, quadrature: TrajectoryQuadratureProtocol[Array]
@@ -134,22 +131,17 @@ class _JacobianOnlyFunctional:
 
 
 class TestTikhonovAugmentedFunctional:
-    def test_wrapper_matches_inner_tier(self, bkd) -> None:
-        """Wrapping an HVP-tier inner yields an HVP-tier wrapper;
-        wrapping a jacobian-tier inner must not fake HVP support."""
-        hvp_tier = _make_functional(bkd)
-        assert isinstance(
-            hvp_tier, TransientFunctionalWithJacobianAndHVPProtocol
-        )
-        jac_tier = TikhonovAugmentedFunctional(
+    def test_wrapper_matches_inner_capability(self, bkd) -> None:
+        """Wrapping an inner with HVPs yields a wrapper with HVPs;
+        wrapping a Jacobian-only inner must not fake HVP support."""
+        hvp_derivs = _make_functional(bkd).derivatives()
+        assert hvp_derivs.state_jacobian is not None
+        assert hvp_derivs.state_state_hvp is not None
+        jac_derivs = TikhonovAugmentedFunctional(
             _JacobianOnlyFunctional(bkd), _ALPHA, bkd
-        )
-        assert isinstance(
-            jac_tier, TransientFunctionalWithJacobianProtocol
-        )
-        assert not isinstance(
-            jac_tier, TransientFunctionalWithJacobianAndHVPProtocol
-        )
+        ).derivatives()
+        assert jac_derivs.state_jacobian is not None
+        assert jac_derivs.state_state_hvp is None
 
     def test_constructor_validation(self, bkd) -> None:
         with pytest.raises(TypeError, match="inner must satisfy"):
@@ -208,7 +200,7 @@ class TestTikhonovAugmentedFunctional:
             + _ALPHA * (wq @ param_np).T
         )
         bkd.assert_allclose(
-            func.param_jacobian(sol, bkd.asarray(param_np)),
+            func.derivatives().param_jacobian(sol, bkd.asarray(param_np)),
             bkd.asarray(expected_jac),
             rtol=1e-12,
         )
@@ -216,7 +208,7 @@ class TestTikhonovAugmentedFunctional:
             _INNER_HESSIAN_NP @ vvec_np + _ALPHA * wq @ vvec_np
         )
         bkd.assert_allclose(
-            func.param_param_hvp(
+            func.derivatives().param_param_hvp(
                 sol, bkd.asarray(param_np), bkd.asarray(vvec_np)
             ),
             bkd.asarray(expected_hvp),
@@ -231,12 +223,12 @@ class TestTikhonovAugmentedFunctional:
         param = bkd.asarray(rng.normal(0.0, 1.0, (_NPARAMS, 1)))
         wvec = bkd.asarray(rng.normal(0.0, 1.0, (_NSTATES, 1)))
         bkd.assert_allclose(
-            func.state_jacobian(sol, param),
+            func.derivatives().state_jacobian(sol, param),
             inner.state_jacobian(sol, param),
             rtol=1e-14,
         )
         bkd.assert_allclose(
-            func.state_state_hvp(sol, param, 0, wvec),
+            func.derivatives().state_state_hvp(sol, param, 0, wvec),
             inner.state_state_hvp(sol, param, 0, wvec),
             rtol=1e-14,
         )
@@ -250,7 +242,6 @@ class TestTikhonovAugmentedFunctional:
         weight = bkd.asarray(_spd_np(_NSTATES, 29))
         inner = TimeIntegratedWeightedL2Functional(weight, _NPARAMS, bkd)
         func = TikhonovAugmentedFunctional(inner, _ALPHA, bkd)
-        assert isinstance(func, TimeQuadratureAwareFunctionalProtocol)
         times = bkd.asarray(np.linspace(0.0, 0.5, _NTIMES))
         func.set_time_quadrature(trapezoidal_quadrature(times, bkd))
         sol = bkd.asarray(
@@ -293,7 +284,7 @@ class TestTikhonovAugmentedFunctional:
             return bkd.hstack(results)
 
         def jac_fn(sample):
-            return func.param_jacobian(sol, sample)
+            return func.derivatives().param_jacobian(sol, sample)
 
         wrapped = FunctionWithJacobianFromCallable(
             nqoi=1, nvars=_NPARAMS, fun=eval_fn, jacobian=jac_fn, bkd=bkd

@@ -157,9 +157,14 @@ class TransientForwardModel(CollocationModel[Array]):
         # This model injects no time quadrature, so a functional whose
         # capability depends on one (it integrates over time) raises
         # here: it could not be evaluated anyway.
-        functional_hvp = functional.derivatives().state_state_hvp
+        functional_derivs = functional.derivatives()
+        functional_hvp = functional_derivs.state_state_hvp
+        # A functional without Jacobians is evaluated, not differentiated.
         bundle = parameterization.param_derivatives()
-        if bundle.param_jacobian is None:
+        if (
+            bundle.param_jacobian is None
+            or functional_derivs.state_jacobian is None
+        ):
             self._derivs: Derivatives[Array] = Derivatives.none()
         elif (
             self._functional.nqoi() == 1

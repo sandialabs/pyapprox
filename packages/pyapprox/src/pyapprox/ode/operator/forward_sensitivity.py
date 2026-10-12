@@ -70,8 +70,10 @@ def forward_sensitivity_jacobian(
     Array
         :math:`dQ/dp`. Shape: ``(nqoi, nparams)``.
     """
-    apply_state_jacobian = functional.derivatives().apply_state_jacobian
-    if apply_state_jacobian is None:
+    derivs = functional.derivatives()
+    apply_state_jacobian = derivs.apply_state_jacobian
+    param_jacobian = derivs.param_jacobian
+    if apply_state_jacobian is None or param_jacobian is None:
         raise TypeError(
             "the tangent-linear jacobian requires the functional's "
             "derivatives() to provide apply_state_jacobian; "
@@ -128,4 +130,4 @@ def forward_sensitivity_jacobian(
         state_part = bkd.hstack(
             (bkd.zeros((action.nqoi(), n_unique)), state_part)
         )
-    return state_part + action.param_jacobian(fwd_sols, param)
+    return state_part + param_jacobian(fwd_sols, param)

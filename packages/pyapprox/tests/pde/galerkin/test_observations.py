@@ -17,7 +17,7 @@ from pyapprox.util.optional_deps import package_available
 if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -25,6 +25,9 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
+)
 from pyapprox.ode.operator.qoi_jacobian import adjoint_jacobian
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
@@ -273,3 +276,57 @@ class TestFunctionalTimeDependence:
                 system, parameterization, init_state, config, bkd,
                 functional=steady,  # type: ignore[arg-type]
             )
+
+    def test_value_only_functional_is_evaluated_not_differentiated(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A functional with no derivatives gives a model with values and
+        no Jacobian."""
+        bkd = numpy_bkd
+        basis, system, parameterization = _problem(bkd)
+        init_state, config = _initial_state_and_config(bkd, basis)
+        model = GalerkinTransientForwardModel(
+            system, parameterization, init_state, config, bkd,
+            functional=_FinalStateSum(
+                basis.ndofs(), parameterization.nparams(), bkd
+            ),
+        )
+        assert model.derivatives().jacobian is None
+        sample = bkd.zeros((model.nvars(), 1))
+        assert model(sample).shape == (1, 1)
+
+
+class _FinalStateSum:
+    """A value-only transient functional: the sum of the final state."""
+
+    def __init__(self, nstates: int, nparams: int, bkd: NumpyBkd) -> None:
+        self._nstates = nstates
+        self._nparams = nparams
+        self._bkd = bkd
+
+    def bkd(self) -> NumpyBkd:
+        return self._bkd
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nstates(self) -> int:
+        return self._nstates
+
+    def nparams(self) -> int:
+        return self._nparams
+
+    def nunique_params(self) -> int:
+        return 0
+
+    def time_dependence(self) -> Literal["transient"]:
+        return "transient"
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Any]:
+        return TransientFunctionalDerivatives.none()
+
+    def set_time_quadrature(self, quadrature: Any) -> None:
+        pass
+
+    def __call__(self, sol: Any, param: Any) -> Any:
+        return self._bkd.reshape(self._bkd.sum(sol[:, -1]), (1, 1))

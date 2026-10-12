@@ -23,10 +23,11 @@ from pyapprox.util.backends.protocols import Array, Backend
 @runtime_checkable
 class TransientFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
     """
-    Protocol for transient functionals with Jacobian support.
+    Protocol for transient functionals.
 
-    This protocol defines the interface for computing Q(y(t), p) and its
-    derivatives for adjoint-based gradient computation.
+    A functional computes Q(y(t), p) from a trajectory. Its derivatives,
+    which adjoint-based gradients need, are optional and come from
+    ``derivatives()``.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -89,42 +90,6 @@ class TransientFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
         -------
         Array
             QoI values. Shape: (nqoi, 1)
-        """
-        ...
-
-    def state_jacobian(self, sol: Array, param: Array) -> Array:
-        """
-        Compute dQ/dy for the solution trajectory.
-
-        Parameters
-        ----------
-        sol : Array
-            Solution trajectory. Shape: (nstates, ntimes)
-        param : Array
-            Parameters. Shape: (nparams, 1)
-
-        Returns
-        -------
-        Array
-            State Jacobian. Shape: (nstates, ntimes)
-        """
-        ...
-
-    def param_jacobian(self, sol: Array, param: Array) -> Array:
-        """
-        Compute dQ/dp.
-
-        Parameters
-        ----------
-        sol : Array
-            Solution trajectory. Shape: (nstates, ntimes)
-        param : Array
-            Parameters. Shape: (nparams, 1)
-
-        Returns
-        -------
-        Array
-            Parameter Jacobian. Shape: (nqoi, nparams)
         """
         ...
 

@@ -1,5 +1,8 @@
 from typing import Generic
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalJacobianFn,
+)
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
@@ -46,6 +49,19 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         """
         self._validate_state_eq(state_eq)
         self._validate_functional(functional)
+        derivs = functional.derivatives()
+        if derivs.state_jacobian is None or derivs.param_jacobian is None:
+            raise TypeError(
+                f"{type(functional).__name__} provides no Jacobians "
+                "(derivatives().state_jacobian is None); the adjoint "
+                "gradient needs them"
+            )
+        self._q_state_jacobian: SteadyFunctionalJacobianFn[Array] = (
+            derivs.state_jacobian
+        )
+        self._q_param_jacobian: SteadyFunctionalJacobianFn[Array] = (
+            derivs.param_jacobian
+        )
         validate_backends([functional.bkd(), state_eq.bkd()])
         self._bkd = state_eq.bkd()
         self._state_eq = state_eq
@@ -182,7 +198,7 @@ class AdjointOperatorWithJacobian(Generic[Array]):
             Adjoint state.
         """
         drdy = self._state_eq.state_jacobian(fwd_state, param)
-        dqdy = self._functional.state_jacobian(fwd_state, param)
+        dqdy = self._q_state_jacobian(fwd_state, param)
         # Sparse-aware: galerkin state equations return sparse Jacobians.
         adj_state = solve_maybe_sparse(
             self._bkd, drdy.T, self._bkd.flatten(-dqdy.T)
@@ -258,7 +274,7 @@ class AdjointOperatorWithJacobian(Generic[Array]):
         adj_state = self.solve_adjoint_equation(fwd_state, param)
         drdp = self._get_state_eq_param_jacobian(fwd_state, param)
         jacobian = (
-            self._functional.param_jacobian(fwd_state, param) + adj_state.T @ drdp
+            self._q_param_jacobian(fwd_state, param) + adj_state.T @ drdp
         )
         return jacobian
 

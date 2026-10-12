@@ -9,8 +9,10 @@ from pyapprox.util.backends.protocols import Array, Backend
 @runtime_checkable
 class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
     """
-    Protocol for adjoint-enabled functionals that compute quantities of
-    interest (QoI).
+    Protocol for steady functionals: quantities of interest Q(u, p).
+
+    Their derivatives, which adjoint-based gradients need, are optional
+    and come from ``derivatives()``.
     """
 
     def bkd(self) -> Backend[Array]:
@@ -94,42 +96,6 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
         -------
         Array
             Values of the functional.
-        """
-        ...
-
-    def state_jacobian(self, state: Array, param: Array) -> Array:
-        """
-        Compute the Jacobian of the QoI with respect to the state.
-
-        Parameters
-        ----------
-        state : Array
-            State of the system.
-        param : Array
-            Parameters of the system.
-
-        Returns
-        -------
-        Array
-            Jacobian matrix with respect to the state.
-        """
-        ...
-
-    def param_jacobian(self, state: Array, param: Array) -> Array:
-        """
-        Compute the Jacobian of the QoI with respect to the parameters.
-
-        Parameters
-        ----------
-        state : Array
-            State of the system.
-        param : Array
-            Parameters of the system.
-
-        Returns
-        -------
-        Array
-            Jacobian matrix with respect to the parameters.
         """
         ...
 

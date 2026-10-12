@@ -277,6 +277,8 @@ class _ObservedTimesFunctional:
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
         return TransientFunctionalDerivatives.first_order(
+            self.state_jacobian,
+            self.param_jacobian,
             apply_state_jacobian=self.apply_state_jacobian,
             row_functional=self.row_functional,
         )
@@ -346,7 +348,9 @@ class _ObservedRowFunctional:
 
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
-        return TransientFunctionalDerivatives.none()
+        return TransientFunctionalDerivatives.first_order(
+            self.state_jacobian, self.param_jacobian
+        )
 
     def set_time_quadrature(
         self, quadrature: TrajectoryQuadratureProtocol[Array]
@@ -508,7 +512,9 @@ class _NoRowsFunctional:
 
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
-        return TransientFunctionalDerivatives.none()
+        return TransientFunctionalDerivatives.first_order(
+            self.state_jacobian, self.param_jacobian
+        )
 
     def set_time_quadrature(
         self, quadrature: TrajectoryQuadratureProtocol[Array]

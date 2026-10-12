@@ -12,7 +12,6 @@ from pyapprox.ode.functionals.derivatives import (
     TransientFunctionalDerivatives,
 )
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
 )
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
@@ -27,9 +26,8 @@ class TikhonovAugmentedFunctional(Generic[Array]):
     Computes :math:`Q(y, p) + (\\alpha/2)\\, p^\\top W_q\\, p` where Q is
     any transient functional. State derivatives delegate to the inner
     functional; the parameter derivatives gain :math:`\\alpha W_q p`
-    (Jacobian) and :math:`\\alpha W_q v` (HVP). Second-order methods are
-    bound only when the inner functional provides them, so the wrapper
-    sits at the same protocol tier as what it wraps.
+    (Jacobian) and :math:`\\alpha W_q v` (HVP). Its ``derivatives()``
+    offers exactly what the inner functional's does.
 
     Parameters
     ----------
@@ -87,18 +85,6 @@ class TikhonovAugmentedFunctional(Generic[Array]):
         self._alpha = alpha
         self._weight = weight
         self._bkd = bkd
-        # Bind second-order methods only when the inner functional has
-        # them, so isinstance checks report the wrapped tier. The
-        # narrowed reference keeps the tier information mypy-visible.
-        self._hvp_inner: Optional[
-            TransientFunctionalWithJacobianAndHVPProtocol[Array]
-        ] = None
-        if isinstance(inner, TransientFunctionalWithJacobianAndHVPProtocol):
-            self._hvp_inner = inner
-            self.state_state_hvp = self._state_state_hvp
-            self.state_param_hvp = self._state_param_hvp
-            self.param_state_hvp = self._param_state_hvp
-            self.param_param_hvp = self._param_param_hvp
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -135,16 +121,6 @@ class TikhonovAugmentedFunctional(Generic[Array]):
         """Return the cost coefficient."""
         return self._alpha
 
-    def _require_hvp_inner(
-        self,
-    ) -> TransientFunctionalWithJacobianAndHVPProtocol[Array]:
-        if self._hvp_inner is None:
-            raise RuntimeError(
-                "HVP method called but the inner functional is not "
-                "HVP-tier; these methods are only bound when it is"
-            )
-        return self._hvp_inner
-
     def set_time_quadrature(
         self, quadrature: TrajectoryQuadratureProtocol[Array]
     ) -> None:
@@ -155,18 +131,24 @@ class TikhonovAugmentedFunctional(Generic[Array]):
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
         """Return the inner functional's capabilities, adjusted.
 
-        The HVPs are present exactly when the inner functional's are, and
-        add the parameter cost. The state-Jacobian action is the inner
-        one, since the cost does not depend on the state. Per-QoI rows
-        are not offered: the wrapper is scalar, and the inner rows would
-        omit the cost.
+        The Jacobians and HVPs are present exactly when the inner
+        functional's are, the parameter ones adding the cost. The
+        state-Jacobian action is the inner one, since the cost does not
+        depend on the state. Per-QoI rows are not offered: the wrapper is
+        scalar, and the inner rows would omit the cost.
         """
         inner = self._inner.derivatives()
+        if inner.state_jacobian is None:
+            return TransientFunctionalDerivatives.none()
         if inner.state_state_hvp is None:
             return TransientFunctionalDerivatives.first_order(
-                apply_state_jacobian=inner.apply_state_jacobian
+                self._state_jacobian,
+                self._param_jacobian,
+                apply_state_jacobian=inner.apply_state_jacobian,
             )
         return TransientFunctionalDerivatives.second_order(
+            self._state_jacobian,
+            self._param_jacobian,
             self._state_state_hvp,
             self._state_param_hvp,
             self._param_state_hvp,
@@ -201,11 +183,20 @@ class TikhonovAugmentedFunctional(Generic[Array]):
         )
         return self._inner(sol, param) + self._bkd.reshape(cost, (1, 1))
 
-    def state_jacobian(self, sol: Array, param: Array) -> Array:
-        """Compute dQ/dy; the parameter cost contributes nothing."""
-        return self._inner.state_jacobian(sol, param)
+    # The derivative methods below read the inner functional's bundle when
+    # called, since an inner functional's capability may depend on its
+    # quadrature, injected after construction. They are reached only
+    # through this wrapper's bundle, which offers each exactly when the
+    # inner one has it; the None checks narrow the type.
 
-    def param_jacobian(self, sol: Array, param: Array) -> Array:
+    def _state_jacobian(self, sol: Array, param: Array) -> Array:
+        """Compute dQ/dy; the parameter cost contributes nothing."""
+        fn = self._inner.derivatives().state_jacobian
+        if fn is None:
+            raise RuntimeError("the inner functional has no Jacobians")
+        return fn(sol, param)
+
+    def _param_jacobian(self, sol: Array, param: Array) -> Array:
         """
         Compute dQ/dp, adding :math:`\\alpha (W_q p)^\\top`.
 
@@ -214,41 +205,46 @@ class TikhonovAugmentedFunctional(Generic[Array]):
         Array
             Parameter Jacobian. Shape: (1, nparams)
         """
-        return self._inner.param_jacobian(
-            sol, param
-        ) + self._alpha * self._weighted(param).T
+        fn = self._inner.derivatives().param_jacobian
+        if fn is None:
+            raise RuntimeError("the inner functional has no Jacobians")
+        return fn(sol, param) + self._alpha * self._weighted(param).T
 
     def _state_state_hvp(
         self, sol: Array, param: Array, time_idx: int, wvec: Array
     ) -> Array:
         """Compute (d^2Q/dy^2)·w; the parameter cost contributes nothing."""
-        return self._require_hvp_inner().state_state_hvp(
-            sol, param, time_idx, wvec
-        )
+        fn = self._inner.derivatives().state_state_hvp
+        if fn is None:
+            raise RuntimeError("the inner functional has no HVPs")
+        return fn(sol, param, time_idx, wvec)
 
     def _state_param_hvp(
         self, sol: Array, param: Array, time_idx: int, vvec: Array
     ) -> Array:
         """Compute (d^2Q/dy dp)·v; the parameter cost contributes nothing."""
-        return self._require_hvp_inner().state_param_hvp(
-            sol, param, time_idx, vvec
-        )
+        fn = self._inner.derivatives().state_param_hvp
+        if fn is None:
+            raise RuntimeError("the inner functional has no HVPs")
+        return fn(sol, param, time_idx, vvec)
 
     def _param_state_hvp(
         self, sol: Array, param: Array, time_idx: int, wvec: Array
     ) -> Array:
         """Compute (d^2Q/dp dy)·w; the parameter cost contributes nothing."""
-        return self._require_hvp_inner().param_state_hvp(
-            sol, param, time_idx, wvec
-        )
+        fn = self._inner.derivatives().param_state_hvp
+        if fn is None:
+            raise RuntimeError("the inner functional has no HVPs")
+        return fn(sol, param, time_idx, wvec)
 
     def _param_param_hvp(
         self, sol: Array, param: Array, vvec: Array
     ) -> Array:
         """Compute (d^2Q/dp^2)·v, adding :math:`\\alpha W_q v`."""
-        return self._require_hvp_inner().param_param_hvp(
-            sol, param, vvec
-        ) + self._alpha * self._weighted(vvec)
+        fn = self._inner.derivatives().param_param_hvp
+        if fn is None:
+            raise RuntimeError("the inner functional has no HVPs")
+        return fn(sol, param, vvec) + self._alpha * self._weighted(vvec)
 
     def __repr__(self) -> str:
         return (

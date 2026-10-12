@@ -166,10 +166,15 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
                 bkd.asarray([0.0, 1.0, 2.0])
             )
         )
-        functional_hvp = functional.derivatives().state_state_hvp
+        functional_derivs = functional.derivatives()
+        functional_hvp = functional_derivs.state_state_hvp
 
+        # A functional without Jacobians is evaluated, not differentiated.
         bundle = parameterization.param_derivatives()
-        if bundle.param_jacobian is None:
+        if (
+            bundle.param_jacobian is None
+            or functional_derivs.state_jacobian is None
+        ):
             self._derivs: Derivatives[Array] = Derivatives.none()
         elif (
             self._functional.nqoi() == 1

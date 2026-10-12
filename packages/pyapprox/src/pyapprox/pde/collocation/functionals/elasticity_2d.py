@@ -95,7 +95,9 @@ class OuterWallRadialDisplacementFunctional(Generic[Array]):
 
     def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
-        return SteadyFunctionalDerivatives.none()
+        return SteadyFunctionalDerivatives.first_order(
+            self.state_jacobian, self.param_jacobian
+        )
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/n_bnd) * sum u_r on boundary.
@@ -194,7 +196,9 @@ class AverageHoopStressFunctional(Generic[Array]):
 
     def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
-        return SteadyFunctionalDerivatives.none()
+        return SteadyFunctionalDerivatives.first_order(
+            self.state_jacobian, self.param_jacobian
+        )
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/A) * integral sigma_tt dA.
@@ -295,7 +299,9 @@ class HyperelasticAverageHoopStressFunctional(Generic[Array]):
 
     def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
-        return SteadyFunctionalDerivatives.none()
+        return SteadyFunctionalDerivatives.first_order(
+            self.state_jacobian, self.param_jacobian
+        )
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/A) * integral sigma_tt dA.
@@ -400,7 +406,9 @@ class StrainEnergyFunctional2D(Generic[Array]):
 
     def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
-        return SteadyFunctionalDerivatives.none()
+        return SteadyFunctionalDerivatives.first_order(
+            self.state_jacobian, self.param_jacobian
+        )
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = integral psi dA.

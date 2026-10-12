@@ -15,6 +15,7 @@ Algorithm:
 from typing import Generic, Tuple
 
 from pyapprox.ode.functionals.derivatives import (
+    TransientJacobianFn,
     TransientParamHVPFn,
     TransientStepHVPFn,
 )
@@ -69,12 +70,15 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         functional: TransientFunctionalWithJacobianProtocol[Array],
     ):
         derivs = functional.derivatives()
+        state_jacobian = derivs.state_jacobian
         state_state_hvp = derivs.state_state_hvp
         state_param_hvp = derivs.state_param_hvp
         param_state_hvp = derivs.param_state_hvp
         param_param_hvp = derivs.param_param_hvp
+        # A bundle with HVPs always has its Jacobians; the check narrows.
         if (
-            state_state_hvp is None
+            state_jacobian is None
+            or state_state_hvp is None
             or state_param_hvp is None
             or param_state_hvp is None
             or param_param_hvp is None
@@ -88,6 +92,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         self._state_param_hvp: TransientStepHVPFn[Array] = state_param_hvp
         self._param_state_hvp: TransientStepHVPFn[Array] = param_state_hvp
         self._param_param_hvp: TransientParamHVPFn[Array] = param_param_hvp
+        self._state_jacobian: TransientJacobianFn[Array] = state_jacobian
         self._integrator = integrator
         self._functional = functional
         self._bkd = integrator.bkd()
@@ -519,7 +524,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
         # Curvature of y_0(p), weighted by the gradient's initial-state
         # sensitivity g = dQ/dy_0 + B_1^T lambda_1 (as in the gradient).
         dqdu_0 = self._time_residual.zero_adjoint_rhs(
-            self._functional.state_jacobian(fwd_sols, param)[:, 0]
+            self._state_jacobian(fwd_sols, param)[:, 0]
         )
         drduT_offdiag = self._time_residual.adjoint_off_diag_jacobian(
             ctx_0, fwd_sols[:, 1]

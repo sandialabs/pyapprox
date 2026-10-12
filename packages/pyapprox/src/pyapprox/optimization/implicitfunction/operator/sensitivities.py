@@ -1,5 +1,8 @@
 from typing import Generic
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalJacobianFn,
+)
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
@@ -52,6 +55,19 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         self._bkd = state_eq.bkd()
         self._state_eq = state_eq
         self._functional = functional
+        derivs = functional.derivatives()
+        if derivs.state_jacobian is None or derivs.param_jacobian is None:
+            raise TypeError(
+                f"{type(functional).__name__} provides no Jacobians "
+                "(derivatives().state_jacobian is None); the sensitivities "
+                "need them"
+            )
+        self._q_state_jacobian: SteadyFunctionalJacobianFn[Array] = (
+            derivs.state_jacobian
+        )
+        self._q_param_jacobian: SteadyFunctionalJacobianFn[Array] = (
+            derivs.param_jacobian
+        )
         self._storage = AdjointOperatorStorage(
             self._state_eq.nstates(), self._state_eq.nparams(), self.bkd()
         )
@@ -233,8 +249,8 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         """
         fwd_state = self._get_forward_state(init_fwd_state, param)
         sens = self._sensitivities(fwd_state, param)
-        dqdy = self._functional.state_jacobian(fwd_state, param)
-        dqdp = self._functional.param_jacobian(fwd_state, param)
+        dqdy = self._q_state_jacobian(fwd_state, param)
+        dqdp = self._q_param_jacobian(fwd_state, param)
         return dqdy @ sens + dqdp
 
     def state_equation(

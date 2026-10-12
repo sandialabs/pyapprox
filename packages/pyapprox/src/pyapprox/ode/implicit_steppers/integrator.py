@@ -8,6 +8,7 @@ Hessian-vector products require HVPEnabledTimeSteppingResidualProtocol.
 
 from typing import Generic, Optional, Tuple
 
+from pyapprox.ode.functionals.derivatives import TransientJacobianFn
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalWithJacobianProtocol,
 )
@@ -69,6 +70,12 @@ class TimeIntegrator(Generic[Array]):
         self._functional: Optional[
             TransientFunctionalWithJacobianProtocol[Array]
         ] = None
+        self._functional_state_jacobian: Optional[
+            TransientJacobianFn[Array]
+        ] = None
+        self._functional_param_jacobian: Optional[
+            TransientJacobianFn[Array]
+        ] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -92,8 +99,23 @@ class TimeIntegrator(Generic[Array]):
         ----------
         functional : TransientFunctionalWithJacobianProtocol
             Functional defining the quantity of interest.
+
+        Raises
+        ------
+        TypeError
+            If the functional's ``derivatives()`` has no Jacobians, which
+            the adjoint gradient needs.
         """
+        derivs = functional.derivatives()
+        if derivs.state_jacobian is None or derivs.param_jacobian is None:
+            raise TypeError(
+                f"{type(functional).__name__} provides no Jacobians "
+                "(derivatives().state_jacobian is None); the adjoint "
+                "gradient needs them"
+            )
         self._functional = functional
+        self._functional_state_jacobian = derivs.state_jacobian
+        self._functional_param_jacobian = derivs.param_jacobian
 
     def step(self, state: Array, deltat: float) -> Array:
         """
@@ -248,11 +270,12 @@ class TimeIntegrator(Generic[Array]):
         ):
             raise ValueError("times array is inconsistent with final_time")
 
-        if self._functional is None:
+        state_jacobian = self._functional_state_jacobian
+        if state_jacobian is None:
             raise RuntimeError("Must call set_functional() first")
 
         # Compute dQ/dy at all time steps
-        dqdu = self._functional.state_jacobian(fwd_sols, param)
+        dqdu = state_jacobian(fwd_sols, param)
 
         adj_sols = self._bkd.zeros(fwd_sols.shape)
 
@@ -368,10 +391,17 @@ class TimeIntegrator(Generic[Array]):
         """
         residual = self._require_adjoint()
 
-        if self._functional is None:
+        functional = self._functional
+        state_jacobian = self._functional_state_jacobian
+        param_jacobian = self._functional_param_jacobian
+        if (
+            functional is None
+            or state_jacobian is None
+            or param_jacobian is None
+        ):
             raise RuntimeError("Must call set_functional() first")
         # Direct parameter dependence of functional
-        dqdp = self._functional.param_jacobian(fwd_sols, param)
+        dqdp = param_jacobian(fwd_sols, param)
         grad = self._bkd.copy(dqdp)
 
         # Initial-state contribution, for an initial state that depends on
@@ -390,7 +420,7 @@ class TimeIntegrator(Generic[Array]):
 
         dy0dp = residual.initial_param_jacobian()
         dqdu_0 = residual.zero_adjoint_rhs(
-            self._functional.state_jacobian(fwd_sols, param)[:, 0]
+            state_jacobian(fwd_sols, param)[:, 0]
         )
         drduT_offdiag = residual.adjoint_off_diag_jacobian(
             ctx_init, fwd_sols[:, 1]
@@ -398,7 +428,7 @@ class TimeIntegrator(Generic[Array]):
         init_sensitivity = drduT_offdiag @ adj_sols[:, 1] + dqdu_0
         grad_init = self._bkd.reshape(init_sensitivity @ dy0dp, (1, -1))
         # Prepend zeros for functional-only parameters
-        n_unique = self._functional.nunique_params()
+        n_unique = functional.nunique_params()
         if n_unique > 0:
             zeros = self._bkd.zeros((1, n_unique))
             grad_init = self._bkd.hstack((zeros, grad_init))
@@ -416,7 +446,7 @@ class TimeIntegrator(Generic[Array]):
                 ctx_ii, fwd_sols[:, ii + 1]
             )
             # Prepend zeros for functional-only parameters
-            n_unique = self._functional.nunique_params()
+            n_unique = functional.nunique_params()
             if n_unique > 0:
                 zeros = self._bkd.zeros((drdp.shape[0], n_unique))
                 drdp = self._bkd.hstack((zeros, drdp))

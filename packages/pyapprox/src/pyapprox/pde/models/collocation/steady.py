@@ -518,8 +518,12 @@ class SteadyForwardModel(Generic[Array]):
         # contraction, no coefficient-dependent BC rows, and a scalar
         # HVP-capable functional (the second-order adjoint contracts
         # the functional's own second derivatives).
+        # A functional without Jacobians is evaluated, not differentiated.
         bundle = parameterization.param_derivatives()
-        self._has_param_jac = bundle.param_jacobian is not None
+        self._has_param_jac = (
+            bundle.param_jacobian is not None
+            and functional.derivatives().state_jacobian is not None
+        )
         second_order_bundle = (
             bundle.param_param_hvp is not None
             and bundle.state_param_hvp is not None

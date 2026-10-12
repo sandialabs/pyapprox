@@ -7,13 +7,16 @@ promise one that raises.
 """
 
 import dataclasses
-from typing import Any, Callable, Dict, Set
+from typing import Any, Callable, Dict, Literal, Set
 
 import numpy as np
 import pytest
 
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
+)
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
 )
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
@@ -43,7 +46,43 @@ from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
 from pyapprox.util.backends.numpy import NumpyBkd
 
 _NSTATES, _NPARAMS = 3, 2
+_JAC = {"state_jacobian", "param_jacobian"}
 _HVPS = {"state_state_hvp", "state_param_hvp", "param_state_hvp", "param_param_hvp"}
+
+
+class _ValueOnlyFunctional:
+    """A transient functional with no derivatives: the sum of the final
+    state."""
+
+    def __init__(self, bkd: NumpyBkd) -> None:
+        self._bkd = bkd
+
+    def bkd(self) -> NumpyBkd:
+        return self._bkd
+
+    def nqoi(self) -> int:
+        return 1
+
+    def nstates(self) -> int:
+        return _NSTATES
+
+    def nparams(self) -> int:
+        return _NPARAMS
+
+    def nunique_params(self) -> int:
+        return 0
+
+    def time_dependence(self) -> Literal["transient"]:
+        return "transient"
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Any]:
+        return TransientFunctionalDerivatives.none()
+
+    def set_time_quadrature(self, quadrature: Any) -> None:
+        pass
+
+    def __call__(self, sol: Any, param: Any) -> Any:
+        return self._bkd.reshape(self._bkd.sum(sol[:, -1]), (1, 1))
 
 
 def _with_quadrature(functional: Any, bkd: NumpyBkd) -> Any:
@@ -97,15 +136,18 @@ _FACTORIES: Dict[str, Callable[[NumpyBkd], Any]] = {
 }
 
 _EXPECTED: Dict[str, Set[str]] = {
-    "endpoint": _HVPS,
-    "all_states_endpoint": _HVPS | {"apply_state_jacobian", "row_functional"},
-    "weighted_endpoint": _HVPS,
-    "transient_mse": _HVPS,
-    "time_integrated_l2": _HVPS,
-    "time_indexed_observation": {"apply_state_jacobian", "row_functional"},
-    "mse": _HVPS,
-    "subset_of_states": set(),
-    "weighted_sum": _HVPS,
+    "endpoint": _JAC | _HVPS,
+    "all_states_endpoint": _JAC
+    | _HVPS
+    | {"apply_state_jacobian", "row_functional"},
+    "weighted_endpoint": _JAC | _HVPS,
+    "transient_mse": _JAC | _HVPS,
+    "time_integrated_l2": _JAC | _HVPS,
+    "time_indexed_observation": _JAC
+    | {"apply_state_jacobian", "row_functional"},
+    "mse": _JAC | _HVPS,
+    "subset_of_states": _JAC,
+    "weighted_sum": _JAC | _HVPS,
 }
 _STEADY = {"mse", "subset_of_states", "weighted_sum"}
 
@@ -160,9 +202,9 @@ class TestQuadratureDependentCapability:
         functional.set_time_quadrature(
             midpoint_quadrature(numpy_bkd.linspace(0.0, 1.0, 4), numpy_bkd)
         )
-        assert _present(functional) == set()
+        assert _present(functional) == _JAC
         wrapped = TikhonovAugmentedFunctional(functional, 0.5, numpy_bkd)
-        assert _present(wrapped) == set()
+        assert _present(wrapped) == _JAC
 
     def test_endpoint_keeps_hvps_under_midpoint_rule(
         self, numpy_bkd: NumpyBkd
@@ -172,7 +214,7 @@ class TestQuadratureDependentCapability:
         functional.set_time_quadrature(
             midpoint_quadrature(numpy_bkd.linspace(0.0, 1.0, 4), numpy_bkd)
         )
-        assert _present(functional) == _HVPS
+        assert _present(functional) == _JAC | _HVPS
 
 
 class TestTikhonovMirrorsInner:
@@ -181,7 +223,16 @@ class TestTikhonovMirrorsInner:
             numpy_bkd.ones((_NSTATES, 1)), _NPARAMS, numpy_bkd
         )
         wrapped = TikhonovAugmentedFunctional(inner, 0.5, numpy_bkd)
-        assert _present(wrapped) == _HVPS
+        assert _present(wrapped) == _JAC | _HVPS
+
+    def test_value_only_inner_gives_no_derivatives(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A value-only inner functional makes a value-only wrapper."""
+        wrapped = TikhonovAugmentedFunctional(
+            _ValueOnlyFunctional(numpy_bkd), 0.5, numpy_bkd
+        )
+        assert _present(wrapped) == set()
 
     def test_action_inner_gives_action_only(
         self, numpy_bkd: NumpyBkd
@@ -197,7 +248,7 @@ class TestTikhonovMirrorsInner:
             numpy_bkd,
         )
         wrapped = TikhonovAugmentedFunctional(inner, 0.5, numpy_bkd)
-        assert _present(wrapped) == {"apply_state_jacobian"}
+        assert _present(wrapped) == _JAC | {"apply_state_jacobian"}
         assert (
             wrapped.derivatives().apply_state_jacobian
             == inner.apply_state_jacobian

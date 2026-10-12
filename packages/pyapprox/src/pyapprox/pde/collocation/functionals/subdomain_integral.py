@@ -116,7 +116,9 @@ class SubdomainIntegralFunctional(Generic[Array]):
 
     def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
-        return SteadyFunctionalDerivatives.none()
+        return SteadyFunctionalDerivatives.first_order(
+            self.state_jacobian, self.param_jacobian
+        )
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate the integral Q(u).

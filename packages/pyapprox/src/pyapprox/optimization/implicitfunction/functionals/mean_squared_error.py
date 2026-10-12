@@ -96,6 +96,8 @@ class MSEFunctional(Generic[Array]):
     def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
         return SteadyFunctionalDerivatives.second_order(
+            self.state_jacobian,
+            self.param_jacobian,
             self.state_state_hvp,
             self.state_param_hvp,
             self.param_state_hvp,

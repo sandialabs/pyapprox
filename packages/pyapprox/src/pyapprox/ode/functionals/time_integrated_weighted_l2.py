@@ -116,8 +116,12 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
             If no quadrature has been injected.
         """
         if not self.time_quadrature().is_time_diagonal():
-            return TransientFunctionalDerivatives.none()
+            return TransientFunctionalDerivatives.first_order(
+                self.state_jacobian, self.param_jacobian
+            )
         return TransientFunctionalDerivatives.second_order(
+            self.state_jacobian,
+            self.param_jacobian,
             self.state_state_hvp,
             self.state_param_hvp,
             self.param_state_hvp,

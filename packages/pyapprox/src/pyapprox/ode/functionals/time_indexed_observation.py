@@ -109,6 +109,8 @@ class TimeIndexedObservationFunctional(Generic[Array]):
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
         """Return the optional derivatives this functional provides."""
         return TransientFunctionalDerivatives.first_order(
+            self.state_jacobian,
+            self.param_jacobian,
             apply_state_jacobian=self.apply_state_jacobian,
             row_functional=self.row_functional,
         )
