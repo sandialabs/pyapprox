@@ -8,8 +8,10 @@ default), adding a direct parameter dependence.
 
 from typing import Generic, Literal, Optional
 
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
+)
 from pyapprox.ode.functionals.protocols import (
-    TimeQuadratureAwareFunctionalProtocol,
     TransientFunctionalWithJacobianAndHVPProtocol,
     TransientFunctionalWithJacobianProtocol,
 )
@@ -86,9 +88,8 @@ class TikhonovAugmentedFunctional(Generic[Array]):
         self._weight = weight
         self._bkd = bkd
         # Bind second-order methods only when the inner functional has
-        # them, so isinstance checks report the wrapped tier; likewise
-        # forward time-quadrature injection to a quadrature-aware inner.
-        # The narrowed references keep the tier information mypy-visible.
+        # them, so isinstance checks report the wrapped tier. The
+        # narrowed reference keeps the tier information mypy-visible.
         self._hvp_inner: Optional[
             TransientFunctionalWithJacobianAndHVPProtocol[Array]
         ] = None
@@ -98,12 +99,6 @@ class TikhonovAugmentedFunctional(Generic[Array]):
             self.state_param_hvp = self._state_param_hvp
             self.param_state_hvp = self._param_state_hvp
             self.param_param_hvp = self._param_param_hvp
-        self._quadrature_inner: Optional[
-            TimeQuadratureAwareFunctionalProtocol[Array]
-        ] = None
-        if isinstance(inner, TimeQuadratureAwareFunctionalProtocol):
-            self._quadrature_inner = inner
-            self.set_time_quadrature = self._set_time_quadrature
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -150,16 +145,34 @@ class TikhonovAugmentedFunctional(Generic[Array]):
             )
         return self._hvp_inner
 
-    def _set_time_quadrature(
+    def set_time_quadrature(
         self, quadrature: TrajectoryQuadratureProtocol[Array]
     ) -> None:
-        """Forward the scheme-implied quadrature to the inner functional."""
-        if self._quadrature_inner is None:
-            raise RuntimeError(
-                "set_time_quadrature called but the inner functional is "
-                "not quadrature-aware; the method is only bound when it is"
+        """Forward the scheme's quadrature to the inner functional, which
+        uses it or ignores it."""
+        self._inner.set_time_quadrature(quadrature)
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the inner functional's capabilities, adjusted.
+
+        The HVPs are present exactly when the inner functional's are, and
+        add the parameter cost. The state-Jacobian action is the inner
+        one, since the cost does not depend on the state. Per-QoI rows
+        are not offered: the wrapper is scalar, and the inner rows would
+        omit the cost.
+        """
+        inner = self._inner.derivatives()
+        if inner.state_state_hvp is None:
+            return TransientFunctionalDerivatives.first_order(
+                apply_state_jacobian=inner.apply_state_jacobian
             )
-        self._quadrature_inner.set_time_quadrature(quadrature)
+        return TransientFunctionalDerivatives.second_order(
+            self._state_state_hvp,
+            self._state_param_hvp,
+            self._param_state_hvp,
+            self._param_param_hvp,
+            apply_state_jacobian=inner.apply_state_jacobian,
+        )
 
     def _weighted(self, vec: Array) -> Array:
         """Return :math:`W_q v` (identity weight when W_q was omitted)."""

@@ -8,6 +8,9 @@ scheme-consistent quadrature approximation of
 
 from typing import Generic, Literal, Optional
 
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
+)
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -98,6 +101,15 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
         A trajectory of states, shape ``(nstates, ntimes)``.
         """
         return "transient"
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return TransientFunctionalDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
 
     def weight_matrix(self) -> Array:
         """Return W. Shape: ``(nstates, nstates)``."""

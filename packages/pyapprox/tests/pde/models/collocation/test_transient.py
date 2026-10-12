@@ -152,15 +152,18 @@ class TestTransientForwardModel:
             bkd.assert_allclose(result[:, ii : ii + 1], single_result, rtol=1e-10)
 
     def test_rejects_steady_functional(self, bkd: Backend[Array]) -> None:
-        """The two functional protocols share every method name, so only
-        the declared time dependence tells them apart."""
+        """A steady functional is rejected at construction."""
         physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
         steady = SubsetOfStatesAdjointFunctional(
             physics.nstates(), 2, bkd.arange(physics.nstates()), bkd
         )
-        with pytest.raises(TypeError, match="steady functional"):
+        # A steady functional lacks set_time_quadrature, so the
+        # protocol check rejects it before the time-dependence check.
+        with pytest.raises(
+            TypeError, match="TransientFunctionalWithJacobianProtocol"
+        ):
             TransientForwardModel(
                 physics,
                 bkd,

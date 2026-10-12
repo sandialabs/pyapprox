@@ -257,15 +257,18 @@ class TestFunctionalTimeDependence:
     def test_transient_model_rejects_steady_functional(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        """The two functional protocols share every method name, so only
-        the declared time dependence tells them apart."""
+        """A steady functional is rejected at construction."""
         bkd = numpy_bkd
         basis, system, parameterization = _problem(bkd)
         init_state, config = _initial_state_and_config(bkd, basis)
         steady = WeightedSumFunctional(
             bkd.ones((basis.ndofs(), 1)), parameterization.nparams(), bkd
         )
-        with pytest.raises(TypeError, match="steady functional"):
+        # A steady functional lacks set_time_quadrature, so the
+        # protocol check rejects it before the time-dependence check.
+        with pytest.raises(
+            TypeError, match="TransientFunctionalWithJacobianProtocol"
+        ):
             GalerkinTransientForwardModel(
                 system, parameterization, init_state, config, bkd,
                 functional=steady,  # type: ignore[arg-type]

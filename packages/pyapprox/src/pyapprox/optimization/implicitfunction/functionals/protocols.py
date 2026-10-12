@@ -1,5 +1,8 @@
 from typing import Generic, Literal, Protocol, runtime_checkable
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -70,6 +73,10 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
 
         One steady state, shape ``(nstates, 1)``.
         """
+        ...
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
         ...
 
     def __call__(self, state: Array, param: Array) -> Array:
@@ -183,6 +190,10 @@ class ParameterizedFunctionalWithJacobianAndHVPProtocol(Protocol, Generic[Array]
 
         One steady state, shape ``(nstates, 1)``.
         """
+        ...
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
         ...
 
     def bkd(self) -> Backend[Array]:

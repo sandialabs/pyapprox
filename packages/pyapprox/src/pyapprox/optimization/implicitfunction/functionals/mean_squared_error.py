@@ -1,5 +1,8 @@
 from typing import Generic, Literal
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
@@ -89,6 +92,15 @@ class MSEFunctional(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
 
     def set_observations(self, obs: Array) -> None:
         """

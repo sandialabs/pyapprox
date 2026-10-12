@@ -11,6 +11,9 @@ projected to collocation nodes.
 
 from typing import Callable, Generic, Literal, Optional, Tuple
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
@@ -110,6 +113,10 @@ class SubdomainIntegralFunctional(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.none()
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate the integral Q(u).

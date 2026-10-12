@@ -6,6 +6,10 @@ Computes Q = y_k(T) where y_k is a specific state variable at final time T.
 
 from typing import Generic, Literal
 
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
+)
+from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
 
@@ -70,6 +74,21 @@ class EndpointFunctional(Generic[Array]):
         A trajectory of states, shape ``(nstates, ntimes)``.
         """
         return "transient"
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return TransientFunctionalDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """Accept the scheme's quadrature; this functional does not
+        integrate over time, so it does not use it."""
 
     def __call__(self, sol: Array, param: Array) -> Array:
         """

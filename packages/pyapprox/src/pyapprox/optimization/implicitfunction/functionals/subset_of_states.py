@@ -1,5 +1,8 @@
 from typing import Generic, Literal
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -62,6 +65,10 @@ class SubsetOfStatesAdjointFunctional(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.none()
 
     def __call__(self, state: Array, param: Array) -> Array:
         return state[self._subset]

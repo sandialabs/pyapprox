@@ -13,6 +13,9 @@ time-dependent problems where:
 
 from typing import Generic, Literal, Protocol, runtime_checkable
 
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
+)
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -50,6 +53,24 @@ class TransientFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
         """Return the kind of state this functional reads.
 
         A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        ...
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        ...
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """
+        Accept the trajectory quadrature of the scheme that produced the
+        trajectory.
+
+        The component that owns the scheme injects it after each solve.
+        A functional that integrates over time must use it, so that its
+        quadrature order matches the scheme's; one that does not ignores
+        it.
         """
         ...
 
@@ -186,6 +207,16 @@ class TransientFunctionalWithStateJacobianActionProtocol(
         """
         ...
 
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        ...
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """Accept the scheme's trajectory quadrature."""
+        ...
+
     def __call__(self, sol: Array, param: Array) -> Array:
         """Evaluate the functional. Shape: (nqoi, 1)."""
         ...
@@ -289,6 +320,16 @@ class TransientFunctionalWithJacobianAndHVPProtocol(Protocol, Generic[Array]):
 
         A trajectory of states, shape ``(nstates, ntimes)``.
         """
+        ...
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        ...
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """Accept the scheme's trajectory quadrature."""
         ...
 
     def __call__(self, sol: Array, param: Array) -> Array:

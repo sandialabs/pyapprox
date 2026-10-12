@@ -12,6 +12,9 @@ All satisfy ParameterizedFunctionalWithJacobianProtocol.
 
 from typing import Generic, Literal
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
     StressPostProcessor2D,
@@ -89,6 +92,10 @@ class OuterWallRadialDisplacementFunctional(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.none()
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/n_bnd) * sum u_r on boundary.
@@ -184,6 +191,10 @@ class AverageHoopStressFunctional(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.none()
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/A) * integral sigma_tt dA.
@@ -281,6 +292,10 @@ class HyperelasticAverageHoopStressFunctional(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.none()
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/A) * integral sigma_tt dA.
@@ -382,6 +397,10 @@ class StrainEnergyFunctional2D(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.none()
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = integral psi dA.

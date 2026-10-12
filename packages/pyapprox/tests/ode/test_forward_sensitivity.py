@@ -22,6 +22,9 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
+)
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.mass_matrix import (
@@ -39,7 +42,9 @@ from pyapprox.ode.operator.qoi_jacobian import (
     default_qoi_jacobian_method,
 )
 from pyapprox.ode.stepper_table import create_stepper
+from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array
 from pyapprox.util.rootfinding.newton import NewtonSolver
 
 _NSTATES = 3
@@ -269,6 +274,19 @@ class _ObservedTimesFunctional:
         """
         return "transient"
 
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return TransientFunctionalDerivatives.first_order(
+            apply_state_jacobian=self.apply_state_jacobian,
+            row_functional=self.row_functional,
+        )
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """Accept the scheme's quadrature; this functional does not
+        integrate over time, so it does not use it."""
+
     def __call__(self, sol, param):
         obs = [p_j @ sol[:, n_j : n_j + 1] for n_j, p_j in self._observations]
         return self._bkd.vstack(obs) + self._shift * param[0, 0]
@@ -325,6 +343,16 @@ class _ObservedRowFunctional:
         A trajectory of states, shape ``(nstates, ntimes)``.
         """
         return "transient"
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return TransientFunctionalDerivatives.none()
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """Accept the scheme's quadrature; this functional does not
+        integrate over time, so it does not use it."""
 
     def __call__(self, sol, param):
         n = self._time_idx
@@ -477,6 +505,16 @@ class _NoRowsFunctional:
         A trajectory of states, shape ``(nstates, ntimes)``.
         """
         return "transient"
+
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return TransientFunctionalDerivatives.none()
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """Accept the scheme's quadrature; this functional does not
+        integrate over time, so it does not use it."""
 
     def __call__(self, sol, param):
         return self._inner(sol, param)

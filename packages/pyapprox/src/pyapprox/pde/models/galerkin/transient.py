@@ -138,9 +138,9 @@ class GalerkinTransientForwardModel(GalerkinModel[Array]):
                 "TransientFunctionalWithJacobianProtocol, got "
                 f"{type(functional).__name__}"
             )
-        # The steady and transient functional protocols share every
-        # method name, so isinstance cannot tell them apart; the declared
-        # time dependence does.
+        # The protocol check above rejects today's steady functionals
+        # (they lack set_time_quadrature), but structure is not what
+        # makes a functional steady; the declared time dependence is.
         if functional.time_dependence() != "transient":
             raise TypeError(
                 f"{type(functional).__name__} is a "

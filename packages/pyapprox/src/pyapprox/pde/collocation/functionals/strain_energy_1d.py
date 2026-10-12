@@ -12,6 +12,9 @@ dW/du = (w * dpsi) @ Dx.
 
 from typing import Callable, Generic, Literal, Optional, Tuple
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
@@ -107,6 +110,10 @@ class StrainEnergyFunctional1D(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.none()
 
     def _compute_arg(self, state: Array) -> Array:
         """Compute the argument to the energy density from state."""

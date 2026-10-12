@@ -9,6 +9,9 @@ state Jacobian.
 
 from typing import Generic, Literal
 
+from pyapprox.optimization.implicitfunction.functionals.derivatives import (
+    SteadyFunctionalDerivatives,
+)
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
 )
@@ -86,6 +89,10 @@ class PointEvaluationFunctional(Generic[Array]):
         One steady state, shape ``(nstates, 1)``.
         """
         return "steady"
+
+    def derivatives(self) -> SteadyFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return SteadyFunctionalDerivatives.none()
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q(u) = u(x*).

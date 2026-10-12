@@ -486,9 +486,9 @@ class SteadyForwardModel(Generic[Array]):
             functional = SubsetOfStatesAdjointFunctional(
                 nstates, nparams, bkd.arange(nstates), bkd
             )
-        # The steady and transient functional protocols share every
-        # method name, so isinstance cannot tell them apart; the declared
-        # time dependence does.
+        # A transient functional has every member of the steady
+        # protocol, so isinstance cannot reject it; the declared time
+        # dependence does.
         if functional.time_dependence() != "steady":
             raise TypeError(
                 f"{type(functional).__name__} is a "

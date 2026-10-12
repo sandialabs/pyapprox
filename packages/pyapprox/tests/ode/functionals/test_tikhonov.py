@@ -11,6 +11,9 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
+)
 from pyapprox.ode.functionals.protocols import (
     TimeQuadratureAwareFunctionalProtocol,
     TransientFunctionalWithJacobianAndHVPProtocol,
@@ -23,10 +26,14 @@ from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
 from pyapprox.ode.functionals.weighted_endpoint import (
     WeightedEndpointFunctional,
 )
-from pyapprox.ode.time_quadrature import trapezoidal_quadrature
+from pyapprox.ode.time_quadrature import (
+    TrajectoryQuadratureProtocol,
+    trapezoidal_quadrature,
+)
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.util.backends.protocols import Array
 
 _NSTATES = 4
 _NTIMES = 6
@@ -106,6 +113,16 @@ class _JacobianOnlyFunctional:
         """
         return "transient"
 
+    def derivatives(self) -> TransientFunctionalDerivatives[Array]:
+        """Return the optional derivatives this functional provides."""
+        return TransientFunctionalDerivatives.none()
+
+    def set_time_quadrature(
+        self, quadrature: TrajectoryQuadratureProtocol[Array]
+    ) -> None:
+        """Accept the scheme's quadrature; this functional does not
+        integrate over time, so it does not use it."""
+
     def __call__(self, sol, param):
         return self._bkd.zeros((self._nqoi, 1))
 
@@ -137,8 +154,10 @@ class TestTikhonovAugmentedFunctional:
     def test_constructor_validation(self, bkd) -> None:
         with pytest.raises(TypeError, match="inner must satisfy"):
             TikhonovAugmentedFunctional(object(), _ALPHA, bkd)
+        # A steady functional lacks set_time_quadrature, so the protocol
+        # check itself rejects it.
         steady = WeightedSumFunctional(bkd.ones((3, 1)), _NPARAMS, bkd)
-        with pytest.raises(TypeError, match="steady functional"):
+        with pytest.raises(TypeError, match="inner must satisfy"):
             TikhonovAugmentedFunctional(
                 steady,  # type: ignore[arg-type]
                 _ALPHA,
@@ -225,9 +244,9 @@ class TestTikhonovAugmentedFunctional:
     def test_time_quadrature_injection_delegates_to_inner(
         self, bkd
     ) -> None:
-        """Wrapping a quadrature-aware inner: the wrapper is itself
-        quadrature-aware and forwards the injected rule; wrapping a
-        non-aware inner must not fake awareness."""
+        """The wrapper forwards the injected rule to the inner functional,
+        which uses it if it integrates over time and ignores it
+        otherwise."""
         weight = bkd.asarray(_spd_np(_NSTATES, 29))
         inner = TimeIntegratedWeightedL2Functional(weight, _NPARAMS, bkd)
         func = TikhonovAugmentedFunctional(inner, _ALPHA, bkd)
@@ -243,11 +262,17 @@ class TestTikhonovAugmentedFunctional:
         bkd.assert_allclose(
             func(sol, param), inner(sol, param), rtol=1e-14
         )
-        not_aware = TikhonovAugmentedFunctional(
-            _make_inner(bkd), _ALPHA, bkd
+        endpoint_inner = _make_inner(bkd)
+        endpoint_wrapped = TikhonovAugmentedFunctional(
+            endpoint_inner, _ALPHA, bkd
         )
-        assert not isinstance(
-            not_aware, TimeQuadratureAwareFunctionalProtocol
+        endpoint_wrapped.set_time_quadrature(
+            trapezoidal_quadrature(times, bkd)
+        )
+        bkd.assert_allclose(
+            endpoint_wrapped(sol, param),
+            endpoint_inner(sol, param),
+            rtol=1e-14,
         )
 
     @pytest.mark.parametrize("weighted", [False, True])
