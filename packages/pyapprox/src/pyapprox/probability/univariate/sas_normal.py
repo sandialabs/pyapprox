@@ -20,7 +20,7 @@ At epsilon=0, delta=1 this reduces exactly to N(xi, eta^2).
 # VI (optional if need arises)
 
 import math
-from typing import Any, Generic
+from typing import TYPE_CHECKING, Any, Generic, Optional
 
 import numpy as np
 
@@ -30,6 +30,9 @@ from pyapprox.util.hyperparameter import (
     HyperParameterList,
     LogHyperParameter,
 )
+
+if TYPE_CHECKING:
+    from pyapprox.probability.univariate.gaussian import GaussianMarginal
 
 
 class SASNormalMarginal(Generic[Array]):
@@ -287,7 +290,7 @@ class SASNormalMarginal(Generic[Array]):
         result = self._sas_forward(n_1d)
         return self._bkd.reshape(result, (1, -1))
 
-    def base_distribution(self) -> "SASNormalMarginal[Array]":
+    def base_distribution(self) -> "GaussianMarginal[Array]":
         """Return the base distribution for reparameterization (standard normal)."""
         from pyapprox.probability.univariate.gaussian import GaussianMarginal
 
@@ -297,7 +300,9 @@ class SASNormalMarginal(Generic[Array]):
         """SAS distribution has unbounded support."""
         return False
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -305,13 +310,19 @@ class SASNormalMarginal(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
         Array
             Random samples. Shape: (1, nsamples)
         """
-        n = self._bkd.asarray(np.random.normal(0, 1, nsamples))
+        if rng is None:
+            normals = np.random.normal(0, 1, nsamples)
+        else:
+            normals = rng.normal(0, 1, nsamples)
+        n = self._bkd.asarray(normals)
         n_2d = self._bkd.reshape(n, (1, nsamples))
         return self.reparameterize(n_2d)
 

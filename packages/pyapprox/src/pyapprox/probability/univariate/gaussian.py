@@ -6,7 +6,7 @@ MarginalWithJacobianProtocol.
 """
 
 import math
-from typing import Any, Generic
+from typing import Any, Generic, Optional
 
 import numpy as np
 
@@ -247,7 +247,9 @@ class GaussianMarginal(Generic[Array]):
         pdf_vals = self(samples)
         return 1.0 / pdf_vals
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -255,13 +257,19 @@ class GaussianMarginal(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
         Array
             Random samples. Shape: (1, nsamples)
         """
-        usamples = self._bkd.asarray(np.random.uniform(0, 1, nsamples))
+        if rng is None:
+            uniforms = np.random.uniform(0, 1, nsamples)
+        else:
+            uniforms = rng.uniform(0, 1, nsamples)
+        usamples = self._bkd.asarray(uniforms)
         # Convert to 2D for invcdf
         usamples_2d = self._bkd.reshape(usamples, (1, nsamples))
         return self.invcdf(usamples_2d)

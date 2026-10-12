@@ -4,7 +4,7 @@ SciPy discrete distribution wrapper.
 Provides a wrapper for SciPy discrete distributions.
 """
 
-from typing import Any, Dict, Generic, Tuple
+from typing import Any, Dict, Generic, Optional, Tuple
 
 import numpy as np
 from scipy.stats import _discrete_distns
@@ -183,7 +183,9 @@ class ScipyDiscreteMarginal(Generic[Array]):
     # Alias for compatibility
     ppf = invcdf
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -191,13 +193,17 @@ class ScipyDiscreteMarginal(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
         Array
             Random samples. Shape: (1, nsamples) for protocol compliance.
         """
-        samples = self._bkd.asarray(self._scipy_rv.rvs(int(nsamples)))
+        samples = self._bkd.asarray(
+            self._scipy_rv.rvs(int(nsamples), random_state=rng)
+        )
         return self._bkd.reshape(samples, (1, nsamples))
 
     def mean_value(self) -> float:

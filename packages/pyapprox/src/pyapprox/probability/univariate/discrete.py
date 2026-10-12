@@ -4,7 +4,7 @@ Discrete univariate distributions.
 Provides discrete distributions that implement MarginalProtocol.
 """
 
-from typing import Any, Generic, Tuple
+from typing import Any, Generic, Optional, Tuple
 
 import numpy as np
 
@@ -288,7 +288,9 @@ class CustomDiscreteMarginal(Generic[Array]):
     # Alias for compatibility
     ppf = invcdf
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -296,13 +298,20 @@ class CustomDiscreteMarginal(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
         Array
             Random samples. Shape: (1, nsamples) for protocol compliance.
         """
-        samples = np.random.choice(self._xk_np, size=nsamples, p=self._pk_np)
+        if rng is None:
+            samples = np.random.choice(
+                self._xk_np, size=nsamples, p=self._pk_np
+            )
+        else:
+            samples = rng.choice(self._xk_np, size=nsamples, p=self._pk_np)
         return self._bkd.reshape(self._bkd.asarray(samples), (1, nsamples))
 
     def mean_value(self) -> float:
@@ -449,8 +458,8 @@ class DiscreteChebyshevMarginal(CustomDiscreteMarginal[Array]):
         self._nmasses_init = nmasses
 
         # Create uniform distribution over {0, 1, ..., nmasses-1}
-        xk = np.arange(nmasses, dtype=float)
-        pk = np.ones(nmasses) / nmasses
+        xk = bkd.arange(nmasses, dtype=bkd.double_dtype())
+        pk = bkd.ones((nmasses,)) / nmasses
 
         super().__init__(xk, pk, bkd)
 

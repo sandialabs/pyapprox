@@ -11,7 +11,10 @@ from typing import Any, Generic, Optional, Tuple
 import numpy as np
 
 from pyapprox.probability.protocols import UniformQuadratureRule01Protocol
-from pyapprox.probability.univariate.beta import ScipyGaussLegendreQuadrature01
+from pyapprox.probability.univariate.beta import (
+    ScipyGaussLegendreQuadrature01,
+    _boundary_split,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameterList,
@@ -403,9 +406,7 @@ class GammaMarginal(Generic[Array]):
         probs_1d = self._validate_input(probs)
 
         # Handle boundary cases
-        idx0 = self._bkd.where(probs_1d == 0.0)[0]
-        idx1 = self._bkd.where(probs_1d == 1.0)[0]
-        jdx = self._bkd.where((probs_1d != 0.0) & (probs_1d != 1.0))[0]
+        idx0, idx1, jdx = _boundary_split(probs_1d, self._bkd)
 
         # Initialize result
         result = self._bkd.zeros_like(probs_1d)
@@ -477,7 +478,9 @@ class GammaMarginal(Generic[Array]):
         pdf_vals = self(samples)
         return 1.0 / pdf_vals
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -485,13 +488,18 @@ class GammaMarginal(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
         Array
             Random samples. Shape: (1, nsamples) for protocol compliance.
         """
-        samples = np.random.gamma(self.shape(), self.scale(), nsamples)
+        if rng is None:
+            samples = np.random.gamma(self.shape(), self.scale(), nsamples)
+        else:
+            samples = rng.gamma(self.shape(), self.scale(), nsamples)
         return self._bkd.reshape(self._bkd.asarray(samples), (1, nsamples))
 
     def mean_value(self) -> float:

@@ -6,7 +6,7 @@ MarginalWithJacobianProtocol.
 """
 
 import math
-from typing import Any, Generic, Tuple
+from typing import Any, Generic, Optional, Tuple
 
 import numpy as np
 
@@ -256,7 +256,9 @@ class UniformMarginal(Generic[Array]):
         result = self._bkd.ones_like(probs_1d) * width
         return self._bkd.reshape(result, (1, -1))
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -264,6 +266,8 @@ class UniformMarginal(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
@@ -272,7 +276,10 @@ class UniformMarginal(Generic[Array]):
         """
         lower_val = self.lower()
         upper_val = self.upper()
-        usamples = np.random.uniform(lower_val, upper_val, nsamples)
+        if rng is None:
+            usamples = np.random.uniform(lower_val, upper_val, nsamples)
+        else:
+            usamples = rng.uniform(lower_val, upper_val, nsamples)
         return self._bkd.reshape(self._bkd.asarray(usamples), (1, nsamples))
 
     def _rvs_given_random_states(self, nsamples: int, random_states: Any) -> Array:

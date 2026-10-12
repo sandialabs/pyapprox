@@ -81,6 +81,27 @@ class ScipyGaussLegendreQuadrature01(Generic[Array]):
         )
 
 
+def _boundary_split(
+    probs: Array, bkd: Backend[Array]
+) -> Tuple[Array, Array, Array]:
+    """Indices where ``probs`` is 0, where it is 1, and everywhere else.
+
+    The rest is "neither 0 nor 1", NaN included, so an inverse CDF can map
+    the two boundaries to the support's ends and solve for the remainder.
+    """
+    at0 = bkd.equal(probs, 0.0)
+    at1 = bkd.equal(probs, 1.0)
+    # The two masks are disjoint, so this is 1 exactly where neither holds.
+    neither = 1.0 - bkd.asarray(at0, dtype=bkd.double_dtype()) - bkd.asarray(
+        at1, dtype=bkd.double_dtype()
+    )
+    return (
+        bkd.where(at0)[0],
+        bkd.where(at1)[0],
+        bkd.where(neither > 0.5)[0],
+    )
+
+
 class _BetaCDFNewtonResidual(Generic[Array]):
     """Newton residual for computing Beta inverse CDF."""
 
@@ -507,9 +528,7 @@ class BetaMarginal(Generic[Array]):
         probs_flat = self._bkd.flatten(probs_1d)
 
         # Handle boundary cases (use lb and ub instead of 0 and 1)
-        idx0 = self._bkd.where(probs_flat == 0.0)[0]
-        idx1 = self._bkd.where(probs_flat == 1.0)[0]
-        jdx = self._bkd.where((probs_flat != 0.0) & (probs_flat != 1.0))[0]
+        idx0, idx1, jdx = _boundary_split(probs_flat, self._bkd)
 
         # Initialize result
         result = self._bkd.zeros_like(probs_flat)
@@ -579,7 +598,9 @@ class BetaMarginal(Generic[Array]):
         pdf_vals = self(samples)
         return 1.0 / pdf_vals
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -587,6 +608,8 @@ class BetaMarginal(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
@@ -594,7 +617,10 @@ class BetaMarginal(Generic[Array]):
             Random samples in [lb, ub]. Shape: (1, nsamples) for protocol compliance.
         """
         # Generate samples in [0, 1] and transform to [lb, ub]
-        samples_01 = np.random.beta(self.alpha(), self.beta(), nsamples)
+        if rng is None:
+            samples_01 = np.random.beta(self.alpha(), self.beta(), nsamples)
+        else:
+            samples_01 = rng.beta(self.alpha(), self.beta(), nsamples)
         samples = self._lb + samples_01 * self._scale
         return self._bkd.reshape(self._bkd.asarray(samples), (1, nsamples))
 
@@ -855,9 +881,10 @@ class BetaMarginal(Generic[Array]):
         a2 = other._get_alpha()
         b2 = other._get_beta()
         bkd = self._bkd
-        log_B = lambda a, b: (  # noqa: E731
-            bkd.gammaln(a) + bkd.gammaln(b) - bkd.gammaln(a + b)
-        )
+
+        def log_B(a: Array, b: Array) -> Array:
+            return bkd.gammaln(a) + bkd.gammaln(b) - bkd.gammaln(a + b)
+
         return (
             log_B(a2, b2) - log_B(a1, b1)
             + (a1 - a2) * bkd.digamma(a1)
