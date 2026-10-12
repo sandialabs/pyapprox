@@ -26,6 +26,9 @@ from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian impo
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
     VectorAdjointOperatorWithJacobian,
 )
+from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
+)
 from pyapprox.pde.collocation.protocols.boundary import (
     BCPhysicalSensitivities,
     BoundaryConditionProtocol,
@@ -145,6 +148,10 @@ class CollocationStateEquationWithJacobianAdapter(Generic[Array]):
     def nparams(self) -> int:
         """Return number of parameters."""
         return self._parameterization.nparams()
+
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the optional derivatives this state equation provides."""
+        return SteadyStateEquationDerivatives.none()
 
     def solve(self, init_state: Array, param: Array) -> Array:
         """Solve the steady-state problem R(u, p) = 0 for u.
@@ -355,6 +362,15 @@ class CollocationStateEquationWithHVPAdapter(
                 "their second-order row sensitivities are not "
                 "representable by this adapter"
             )
+
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the four adjoint-weighted HVPs."""
+        return SteadyStateEquationDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
 
     def _zeroed_adjoint(self, adj_state: Array) -> Array:
         """Adjoint column as 1D with ALL BC-row entries zeroed."""

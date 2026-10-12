@@ -10,6 +10,9 @@ linear solves are sparse-aware).
 
 from typing import Generic, Optional
 
+from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
+)
 from pyapprox.pde.galerkin.solvers.steady_state import SteadyStateSolver
 from pyapprox.pde.models.galerkin.constrained_derivatives import (
     SteadyParamHVPFn,
@@ -140,6 +143,15 @@ class GalerkinStateEquationWithHVPAdapter(Generic[Array]):
     def _set_param(self, param: Array) -> None:
         """Apply the parameter column through the parameterization."""
         self._parameterization.apply(param[:, 0])
+
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the optional derivatives this state equation provides."""
+        return SteadyStateEquationDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
 
     def solve(self, init_state: Array, param: Array) -> Array:
         """Solve R(u, p) = 0 for u.

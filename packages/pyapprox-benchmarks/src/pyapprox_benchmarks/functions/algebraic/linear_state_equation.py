@@ -1,8 +1,10 @@
 from typing import Generic
 
-from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
+)
+from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -102,8 +104,14 @@ class LinearStateEquation(Generic[Array]):
         """
         return self.nstates()
 
-    def derivatives(self) -> Derivatives[Array]:
-        return Derivatives.none()
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the optional derivatives this state equation provides."""
+        return SteadyStateEquationDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
 
     def __call__(self, state: Array, param: Array) -> Array:
         """

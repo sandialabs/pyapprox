@@ -20,6 +20,9 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
 from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
     AdjointOperatorWithJacobianAndHVP,
 )
+from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
 from pyapprox.pde.collocation.mesh import (
@@ -56,6 +59,7 @@ from pyapprox.pde.parameterizations.diffusion import (
 from pyapprox.pde.parameterizations.protocol import (
     ParameterizationProtocol,
 )
+from pyapprox.util.backends.protocols import Array
 from tests._helpers.adjoint_checks import NoHVPQuadraticFieldMap
 
 
@@ -245,6 +249,15 @@ class _ToyCompositeStateEquation:
 
     def __call__(self, state, param):
         return self._kappa(param[:, 0]) * state - self._cvec[:, None]
+
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the optional derivatives this state equation provides."""
+        return SteadyStateEquationDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
 
     def solve(self, init_state, param):
         return self._cvec[:, None] / self._kappa(param[:, 0])

@@ -3,6 +3,9 @@ from typing import Generic
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
+from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
+)
 from pyapprox.optimization.implicitfunction.state_equations.wrappers import (
     ParameterizedStateEquationAsNewtonEquation,
 )
@@ -149,6 +152,15 @@ class NonLinearCoupledStateEquations(Generic[Array]):
             axis=0,
         )
         return value
+
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the optional derivatives this state equation provides."""
+        return SteadyStateEquationDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
 
     def solve(self, init_state: Array, param: Array) -> Array:
         """

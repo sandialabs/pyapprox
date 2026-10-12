@@ -1,5 +1,8 @@
 from typing import Generic, Protocol, runtime_checkable
 
+from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -40,6 +43,10 @@ class ParameterizedStateEquationWithJacobianProtocol(Protocol, Generic[Array]):
         int
             Number of states.
         """
+        ...
+
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the optional derivatives this state equation provides."""
         ...
 
     def __call__(self, state: Array, param: Array) -> Array:
@@ -151,6 +158,10 @@ class ParameterizedStateEquationWithJacobianAndHVPProtocol(Protocol, Generic[Arr
         Backend
             Backend used for computations.
         """
+        ...
+
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the optional derivatives this state equation provides."""
         ...
 
     def __call__(self, state: Array, param: Array) -> Array:

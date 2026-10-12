@@ -227,3 +227,13 @@ class TestLinearStateEquation:
 
         with pytest.raises(ValueError):
             eq(state, bad_param)
+
+    def test_derivatives_are_its_hvps(self, bkd) -> None:
+        """The bundle offers the four HVPs, each the equation's own."""
+        Amat, bvec, nstates, nparams = self._make_system(bkd)
+        eq = LinearStateEquation(Amat, bvec, bkd)
+        bundle = eq.derivatives()
+        assert bundle.state_state_hvp == eq.state_state_hvp
+        assert bundle.state_param_hvp == eq.state_param_hvp
+        assert bundle.param_state_hvp == eq.param_state_hvp
+        assert bundle.param_param_hvp == eq.param_param_hvp

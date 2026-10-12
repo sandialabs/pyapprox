@@ -1,6 +1,9 @@
 from abc import abstractmethod
 from typing import Generic
 
+from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
+    SteadyStateEquationDerivatives,
+)
 from pyapprox.util.backends.autodiff import AutodiffBackend
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -160,6 +163,15 @@ class StateEquationsWithAutoGrad(Generic[Array]):
                 f"value has shape {val.shape} but must be {(self.nstates(),)}"
             )
         return val
+
+    def derivatives(self) -> SteadyStateEquationDerivatives[Array]:
+        """Return the optional derivatives this state equation provides."""
+        return SteadyStateEquationDerivatives.second_order(
+            self.state_state_hvp,
+            self.state_param_hvp,
+            self.param_state_hvp,
+            self.param_param_hvp,
+        )
 
     def solve(self, init_state: Array, param: Array) -> Array:
         """
