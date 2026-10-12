@@ -7,7 +7,7 @@ state Jacobian.
 # TODO: this is specific to collocation, should it go in
 # collocation module or in benchmark module
 
-from typing import Generic
+from typing import Generic, Literal
 
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
@@ -79,6 +79,13 @@ class PointEvaluationFunctional(Generic[Array]):
 
     def nunique_params(self) -> int:
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q(u) = u(x*).

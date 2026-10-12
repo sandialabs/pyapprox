@@ -1,4 +1,4 @@
-from typing import Generic
+from typing import Generic, Literal
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -82,6 +82,13 @@ class MSEFunctional(Generic[Array]):
             Number of unique variables.
         """
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def set_observations(self, obs: Array) -> None:
         """

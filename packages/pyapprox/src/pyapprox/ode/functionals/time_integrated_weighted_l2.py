@@ -6,7 +6,7 @@ scheme-consistent quadrature approximation of
 :math:`\\int_0^T y(t)^\\top W y(t)\\, dt`.
 """
 
-from typing import Generic, Optional
+from typing import Generic, Literal, Optional
 
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -91,6 +91,13 @@ class TimeIntegratedWeightedL2Functional(Generic[Array]):
     def nunique_params(self) -> int:
         """Return the number of parameters unique to the functional."""
         return 0
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
 
     def weight_matrix(self) -> Array:
         """Return W. Shape: ``(nstates, nstates)``."""

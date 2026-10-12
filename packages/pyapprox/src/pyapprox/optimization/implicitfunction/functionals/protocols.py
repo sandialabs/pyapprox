@@ -1,4 +1,4 @@
-from typing import Generic, Protocol, runtime_checkable
+from typing import Generic, Literal, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -62,6 +62,13 @@ class ParameterizedFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
         -------
         int
             Number of unique variables.
+        """
+        ...
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
         """
         ...
 
@@ -168,6 +175,13 @@ class ParameterizedFunctionalWithJacobianAndHVPProtocol(Protocol, Generic[Array]
         -------
         int
             Number of unique variables.
+        """
+        ...
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
         """
         ...
 

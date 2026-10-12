@@ -6,7 +6,7 @@ Wraps any transient functional Q(y, p) as
 default), adding a direct parameter dependence.
 """
 
-from typing import Generic, Optional
+from typing import Generic, Literal, Optional
 
 from pyapprox.ode.functionals.protocols import (
     TimeQuadratureAwareFunctionalProtocol,
@@ -55,6 +55,12 @@ class TikhonovAugmentedFunctional(Generic[Array]):
                 "inner must satisfy "
                 "TransientFunctionalWithJacobianProtocol, got "
                 f"{type(inner).__name__}"
+            )
+        if inner.time_dependence() != "transient":
+            raise TypeError(
+                f"inner {type(inner).__name__} is a "
+                f"{inner.time_dependence()} functional; this wrapper needs "
+                "one that reads a trajectory"
             )
         if inner.nqoi() != 1:
             raise ValueError(
@@ -118,6 +124,13 @@ class TikhonovAugmentedFunctional(Generic[Array]):
     def nunique_params(self) -> int:
         """Return the number of parameters unique to the functional."""
         return self._inner.nunique_params()
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
 
     def inner(self) -> TransientFunctionalWithJacobianProtocol[Array]:
         """Return the wrapped functional."""

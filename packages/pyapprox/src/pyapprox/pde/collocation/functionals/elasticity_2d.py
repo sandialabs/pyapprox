@@ -10,7 +10,7 @@ All satisfy ParameterizedFunctionalWithJacobianProtocol.
 # TODO: this is specific to collocation, should it go in
 # collocation module or in benchmark module
 
-from typing import Generic
+from typing import Generic, Literal
 
 from pyapprox.pde.collocation.post_processing.stress import (
     HyperelasticStressPostProcessor2D,
@@ -82,6 +82,13 @@ class OuterWallRadialDisplacementFunctional(Generic[Array]):
 
     def nunique_params(self) -> int:
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/n_bnd) * sum u_r on boundary.
@@ -170,6 +177,13 @@ class AverageHoopStressFunctional(Generic[Array]):
 
     def nunique_params(self) -> int:
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/A) * integral sigma_tt dA.
@@ -260,6 +274,13 @@ class HyperelasticAverageHoopStressFunctional(Generic[Array]):
 
     def nunique_params(self) -> int:
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = (1/A) * integral sigma_tt dA.
@@ -354,6 +375,13 @@ class StrainEnergyFunctional2D(Generic[Array]):
 
     def nunique_params(self) -> int:
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate Q = integral psi dA.

@@ -8,6 +8,8 @@ DerivativeChecker-validated against FD of the forward solve, and the
 adjoint method must reproduce the tangent-linear one.
 """
 
+from typing import Literal
+
 import numpy as np
 import pytest
 
@@ -260,6 +262,13 @@ class _ObservedTimesFunctional:
     def nunique_params(self):
         return 1
 
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
+
     def __call__(self, sol, param):
         obs = [p_j @ sol[:, n_j : n_j + 1] for n_j, p_j in self._observations]
         return self._bkd.vstack(obs) + self._shift * param[0, 0]
@@ -309,6 +318,13 @@ class _ObservedRowFunctional:
 
     def nunique_params(self):
         return 1
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
 
     def __call__(self, sol, param):
         n = self._time_idx
@@ -454,6 +470,13 @@ class _NoRowsFunctional:
 
     def nunique_params(self):
         return self._inner.nunique_params()
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
 
     def __call__(self, sol, param):
         return self._inner(sol, param)

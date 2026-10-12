@@ -3,6 +3,7 @@
 import math
 
 import numpy as np
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -13,6 +14,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.interface.functions.protocols import (
     FunctionProtocol,
 )
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
     SubsetOfStatesAdjointFunctional,
 )
@@ -48,6 +50,7 @@ from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
 from pyapprox.pde.parameterizations.fields import ConstantInTimeField
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _create_parameterized_diffusion_problem(bkd, npts=20):
@@ -273,6 +276,20 @@ class TestSteadyForwardModel:
 
         assert forward_model.nvars() == 2
         assert forward_model.nqoi() == physics.nstates()
+
+    def test_rejects_transient_functional(self, bkd: Backend[Array]) -> None:
+        """The two functional protocols share every method name, so only
+        the declared time dependence tells them apart."""
+        physics, param, init_state = _create_parameterized_diffusion_problem(bkd)
+        transient = EndpointFunctional(0, physics.nstates(), 2, bkd)
+        with pytest.raises(TypeError, match="transient functional"):
+            SteadyForwardModel(
+                physics,
+                bkd,
+                init_state,
+                functional=transient,  # type: ignore[arg-type]
+                parameterization=param,
+            )
 
     def test_jacobian_works(self, bkd):
         """SteadyForwardModel jacobian works."""

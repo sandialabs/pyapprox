@@ -10,7 +10,7 @@ dW/du = (w * dpsi) @ Dx.
 # collocation module or in benchmark module
 
 
-from typing import Callable, Generic, Optional, Tuple
+from typing import Callable, Generic, Literal, Optional, Tuple
 
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
@@ -100,6 +100,13 @@ class StrainEnergyFunctional1D(Generic[Array]):
 
     def nunique_params(self) -> int:
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def _compute_arg(self, state: Array) -> Array:
         """Compute the argument to the energy density from state."""

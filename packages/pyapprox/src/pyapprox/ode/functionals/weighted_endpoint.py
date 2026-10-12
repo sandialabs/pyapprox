@@ -5,7 +5,7 @@ Computes :math:`Q = c^T y(T)`, a weighted sum of all state variables at
 final time T.
 """
 
-from typing import Generic
+from typing import Generic, Literal
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -65,6 +65,13 @@ class WeightedEndpointFunctional(Generic[Array]):
     def nunique_params(self) -> int:
         """Return the number of parameters unique to the functional."""
         return 0
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
 
     def weights(self) -> Array:
         """Return the weight vector. Shape: ``(nstates, 1)``."""

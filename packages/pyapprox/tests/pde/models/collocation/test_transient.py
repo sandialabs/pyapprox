@@ -3,6 +3,7 @@
 import math
 
 import numpy as np
+import pytest
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -15,6 +16,9 @@ from pyapprox.interface.functions.protocols import (
 )
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
+from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
+    SubsetOfStatesAdjointFunctional,
+)
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
     gradient_robin_bc,
@@ -38,6 +42,7 @@ from pyapprox.pde.parameterizations.diffusion import (
     create_diffusion_parameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 def _create_parameterized_transient_diffusion_problem(bkd, npts=15):
@@ -145,6 +150,25 @@ class TestTransientForwardModel:
         for ii in range(nsamples):
             single_result = forward_model(samples[:, ii : ii + 1])
             bkd.assert_allclose(result[:, ii : ii + 1], single_result, rtol=1e-10)
+
+    def test_rejects_steady_functional(self, bkd: Backend[Array]) -> None:
+        """The two functional protocols share every method name, so only
+        the declared time dependence tells them apart."""
+        physics, param, init_state, time_config = (
+            _create_parameterized_transient_diffusion_problem(bkd)
+        )
+        steady = SubsetOfStatesAdjointFunctional(
+            physics.nstates(), 2, bkd.arange(physics.nstates()), bkd
+        )
+        with pytest.raises(TypeError, match="steady functional"):
+            TransientForwardModel(
+                physics,
+                bkd,
+                init_state,
+                time_config,
+                functional=steady,  # type: ignore[arg-type]
+                parameterization=param,
+            )
 
     def test_nvars_nqoi(self, bkd):
         """nvars and nqoi are correct for default functional."""

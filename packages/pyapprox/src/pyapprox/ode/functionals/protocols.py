@@ -11,7 +11,7 @@ time-dependent problems where:
 - State Jacobian returns (nstates, ntimes) for adjoint accumulation
 """
 
-from typing import Generic, Protocol, runtime_checkable
+from typing import Generic, Literal, Protocol, runtime_checkable
 
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -44,6 +44,13 @@ class TransientFunctionalWithJacobianProtocol(Protocol, Generic[Array]):
 
     def nunique_params(self) -> int:
         """Return the number of parameters unique to the functional."""
+        ...
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
         ...
 
     def __call__(self, sol: Array, param: Array) -> Array:
@@ -172,6 +179,13 @@ class TransientFunctionalWithStateJacobianActionProtocol(
         """Return number of parameters unique to the functional."""
         ...
 
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        ...
+
     def __call__(self, sol: Array, param: Array) -> Array:
         """Evaluate the functional. Shape: (nqoi, 1)."""
         ...
@@ -268,6 +282,13 @@ class TransientFunctionalWithJacobianAndHVPProtocol(Protocol, Generic[Array]):
 
     def nunique_params(self) -> int:
         """Return number of parameters unique to the functional."""
+        ...
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
         ...
 
     def __call__(self, sol: Array, param: Array) -> Array:

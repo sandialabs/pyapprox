@@ -1,4 +1,4 @@
-from typing import Generic
+from typing import Generic, Literal
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -47,6 +47,13 @@ class WeightedSumFunctional(Generic[Array]):
 
     def nunique_params(self) -> int:
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def __call__(self, state: Array, param: Array) -> Array:
         return self._bkd.sum(state * self._weights, keepdims=True)

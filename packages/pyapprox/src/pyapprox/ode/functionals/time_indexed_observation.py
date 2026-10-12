@@ -5,7 +5,7 @@ fastest, where each row of the observation operator :math:`O` reads a
 few weighted states.
 """
 
-from typing import Generic, Sequence
+from typing import Generic, Literal, Sequence
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -94,6 +94,13 @@ class TimeIndexedObservationFunctional(Generic[Array]):
     def nunique_params(self) -> int:
         """Return the number of parameters unique to the functional."""
         return 0
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
 
     def nobservations(self) -> int:
         """Return the number of rows of the observation operator."""

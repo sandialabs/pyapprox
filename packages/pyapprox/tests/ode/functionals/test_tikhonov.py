@@ -1,5 +1,7 @@
 """Tests for TikhonovAugmentedFunctional."""
 
+from typing import Literal
+
 import numpy as np
 import pytest
 
@@ -22,6 +24,9 @@ from pyapprox.ode.functionals.weighted_endpoint import (
     WeightedEndpointFunctional,
 )
 from pyapprox.ode.time_quadrature import trapezoidal_quadrature
+from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
 
 _NSTATES = 4
 _NTIMES = 6
@@ -94,6 +99,13 @@ class _JacobianOnlyFunctional:
     def nunique_params(self):
         return 0
 
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
+
     def __call__(self, sol, param):
         return self._bkd.zeros((self._nqoi, 1))
 
@@ -125,6 +137,13 @@ class TestTikhonovAugmentedFunctional:
     def test_constructor_validation(self, bkd) -> None:
         with pytest.raises(TypeError, match="inner must satisfy"):
             TikhonovAugmentedFunctional(object(), _ALPHA, bkd)
+        steady = WeightedSumFunctional(bkd.ones((3, 1)), _NPARAMS, bkd)
+        with pytest.raises(TypeError, match="steady functional"):
+            TikhonovAugmentedFunctional(
+                steady,  # type: ignore[arg-type]
+                _ALPHA,
+                bkd,
+            )
         with pytest.raises(ValueError, match="nqoi"):
             TikhonovAugmentedFunctional(
                 _JacobianOnlyFunctional(bkd, nqoi=2), _ALPHA, bkd

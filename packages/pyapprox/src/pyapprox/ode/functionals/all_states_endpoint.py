@@ -5,7 +5,7 @@ Computes Q = y(T), returning all state variables at the final time.
 nqoi = nstates.
 """
 
-from typing import Generic
+from typing import Generic, Literal
 
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.util.backends.protocols import Array, Backend
@@ -60,6 +60,13 @@ class AllStatesEndpointFunctional(Generic[Array]):
     def nunique_params(self) -> int:
         """Return the number of parameters unique to the functional."""
         return 0
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
 
     def __call__(self, sol: Array, param: Array) -> Array:
         """

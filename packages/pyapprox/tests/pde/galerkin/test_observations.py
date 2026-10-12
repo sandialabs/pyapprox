@@ -26,6 +26,9 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.operator.qoi_jacobian import adjoint_jacobian
+from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
+    WeightedSumFunctional,
+)
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
     NodalFieldVelocity,
@@ -123,6 +126,63 @@ def _models(bkd: NumpyBkd, which: str) -> tuple[Any, Any]:
     (1, 0), Dirichlet u = 0 on the left only (outflow elsewhere), a
     Gaussian bump initial state, backward Euler with dt = 0.02 to
     T = 0.1. Returns the tangent-linear and the adjoint model."""
+    basis, system, parameterization = _problem(bkd)
+    nparams = parameterization.nparams()
+    times = [2, 5]
+    if which == "probes":
+        # (0, 0.5) and (0, 0.2) lie on the Dirichlet boundary.
+        points = bkd.asarray(
+            np.array([[0.0, 0.0, 0.42, 0.8], [0.5, 0.2, 0.55, 0.3]])
+        )
+        functional = probe_observation_functional(
+            basis, points, times, nparams
+        )
+    else:
+        coords = bkd.to_numpy(basis.dof_coordinates())
+        right = bkd.to_numpy(basis.get_dofs("right"))
+        right = right[np.argsort(coords[1, right])]
+        functional = nodal_outflux_functional(
+            bkd.asarray(right, dtype=bkd.int64_dtype()),
+            bkd.ones((right.shape[0],)),
+            times,
+            basis.ndofs(),
+            nparams,
+            bkd,
+        )
+    init_state, config = _initial_state_and_config(bkd, basis)
+    tangent = GalerkinTransientForwardModel(
+        system, parameterization, init_state, config, bkd,
+        functional=functional,
+    )
+    adjoint = GalerkinTransientForwardModel(
+        system, parameterization, init_state, config, bkd,
+        functional=functional, jacobian_method=adjoint_jacobian,
+    )
+    return tangent, adjoint
+
+
+def _initial_state_and_config(
+    bkd: NumpyBkd, basis: LagrangeBasis[Any]
+) -> tuple[Any, TimeIntegrationConfig[Any]]:
+    coords = bkd.to_numpy(basis.dof_coordinates())
+    init_state = bkd.asarray(
+        np.exp(-50.0 * ((coords[0] - 0.4) ** 2 + (coords[1] - 0.5) ** 2))
+    )
+    config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
+        method="backward_euler",
+        init_time=0.0,
+        final_time=0.1,
+        deltat=0.02,
+        newton_tol=1e-12,
+        newton_maxiter=20,
+        lumped_mass=False,
+        verbosity=0,
+    )
+    return init_state, config
+
+
+def _problem(bkd: NumpyBkd) -> tuple[Any, Any, Any]:
+    """The basis, composed system and KLE parameterization."""
     mesh = StructuredMesh2D(
         6, 6, [[0.0, 1.0], [0.0, 1.0]], bkd, element_type="tri"
     )
@@ -153,51 +213,7 @@ def _models(bkd: NumpyBkd, which: str) -> tuple[Any, Any]:
     parameterization = AdvectionDiffusionParameterization(
         physics, bkd=bkd, diffusivity_map=diffusivity_map
     )
-    nparams = parameterization.nparams()
-    times = [2, 5]
-    if which == "probes":
-        # (0, 0.5) and (0, 0.2) lie on the Dirichlet boundary.
-        points = bkd.asarray(
-            np.array([[0.0, 0.0, 0.42, 0.8], [0.5, 0.2, 0.55, 0.3]])
-        )
-        functional = probe_observation_functional(
-            basis, points, times, nparams
-        )
-    else:
-        coords = bkd.to_numpy(basis.dof_coordinates())
-        right = bkd.to_numpy(basis.get_dofs("right"))
-        right = right[np.argsort(coords[1, right])]
-        functional = nodal_outflux_functional(
-            bkd.asarray(right, dtype=bkd.int64_dtype()),
-            bkd.ones((right.shape[0],)),
-            times,
-            basis.ndofs(),
-            nparams,
-            bkd,
-        )
-    coords = bkd.to_numpy(basis.dof_coordinates())
-    init_state = bkd.asarray(
-        np.exp(-50.0 * ((coords[0] - 0.4) ** 2 + (coords[1] - 0.5) ** 2))
-    )
-    config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
-        method="backward_euler",
-        init_time=0.0,
-        final_time=0.1,
-        deltat=0.02,
-        newton_tol=1e-12,
-        newton_maxiter=20,
-        lumped_mass=False,
-        verbosity=0,
-    )
-    tangent = GalerkinTransientForwardModel(
-        system, parameterization, init_state, config, bkd,
-        functional=functional,
-    )
-    adjoint = GalerkinTransientForwardModel(
-        system, parameterization, init_state, config, bkd,
-        functional=functional, jacobian_method=adjoint_jacobian,
-    )
-    return tangent, adjoint
+    return basis, system, parameterization
 
 
 class TestObservationJacobians:
@@ -235,3 +251,22 @@ class TestObservationJacobians:
             rtol=1e-9,
             atol=1e-12,
         )
+
+
+class TestFunctionalTimeDependence:
+    def test_transient_model_rejects_steady_functional(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """The two functional protocols share every method name, so only
+        the declared time dependence tells them apart."""
+        bkd = numpy_bkd
+        basis, system, parameterization = _problem(bkd)
+        init_state, config = _initial_state_and_config(bkd, basis)
+        steady = WeightedSumFunctional(
+            bkd.ones((basis.ndofs(), 1)), parameterization.nparams(), bkd
+        )
+        with pytest.raises(TypeError, match="steady functional"):
+            GalerkinTransientForwardModel(
+                system, parameterization, init_state, config, bkd,
+                functional=steady,  # type: ignore[arg-type]
+            )

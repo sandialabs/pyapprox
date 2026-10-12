@@ -4,7 +4,7 @@ Endpoint functional for transient problems.
 Computes Q = y_k(T) where y_k is a specific state variable at final time T.
 """
 
-from typing import Generic
+from typing import Generic, Literal
 
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend
@@ -63,6 +63,13 @@ class EndpointFunctional(Generic[Array]):
     def nunique_params(self) -> int:
         """Return the number of parameters unique to the functional."""
         return 0
+
+    def time_dependence(self) -> Literal["transient"]:
+        """Return the kind of state this functional reads.
+
+        A trajectory of states, shape ``(nstates, ntimes)``.
+        """
+        return "transient"
 
     def __call__(self, sol: Array, param: Array) -> Array:
         """

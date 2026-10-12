@@ -9,7 +9,7 @@ projected to collocation nodes.
 # collocation module or in benchmark module
 
 
-from typing import Callable, Generic, Optional, Tuple
+from typing import Callable, Generic, Literal, Optional, Tuple
 
 from pyapprox.pde.collocation.basis.chebyshev.basis_1d import (
     ChebyshevBasis1D,
@@ -103,6 +103,13 @@ class SubdomainIntegralFunctional(Generic[Array]):
 
     def nunique_params(self) -> int:
         return 0
+
+    def time_dependence(self) -> Literal["steady"]:
+        """Return the kind of state this functional reads.
+
+        One steady state, shape ``(nstates, 1)``.
+        """
+        return "steady"
 
     def __call__(self, state: Array, param: Array) -> Array:
         """Evaluate the integral Q(u).
