@@ -53,7 +53,6 @@ from pyapprox.pde.models.galerkin.essential_boundary_flux import (
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
 )
-from pyapprox.pde.parameterizations.derivatives import ParamDerivatives
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
@@ -62,6 +61,7 @@ from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
 )
 from pyapprox.util.backends.numpy import NumpyBkd
 from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.parameterization_stubs import ApplyOnlyParameterization
 
 _NX = 20
 _PARAM = np.array([0.4, -0.3, 0.2])
@@ -81,29 +81,6 @@ def _kappa_deriv(u: Any) -> Any:
 
 def _kappa_deriv2(u: Any) -> Any:
     return np.full_like(u, 2.0)
-
-
-class _ApplyOnly:
-    """A parameterization of a physics that has none yet: it targets the
-    physics and writes nothing."""
-
-    def __init__(self, physics: Any) -> None:
-        self._physics = physics
-
-    def nparams(self) -> int:
-        return 1
-
-    def targets(self) -> Tuple[object, ...]:
-        return (self._physics,)
-
-    def owned_coefficients(self) -> Tuple[str, ...]:
-        return ("none",)
-
-    def apply(self, params_1d: Any) -> None:
-        pass
-
-    def param_derivatives(self) -> ParamDerivatives[Any]:
-        return ParamDerivatives.none()
 
 
 def _basis(bkd: NumpyBkd) -> LagrangeBasis[NumpyArray]:
@@ -215,7 +192,7 @@ class TestScalarFluxBalance:
         )
         system = _system(bkd, basis, physics)
         flux, state = _total_flux_and_solution(
-            bkd, basis, system, _ApplyOnly(physics), bkd.zeros((1,))
+            bkd, basis, system, ApplyOnlyParameterization(physics), bkd.zeros((1,))
         )
         expected = -(1.0 - wavenumber**2 * _integral(bkd, basis, state))
         bkd.assert_allclose(bkd.asarray([flux]), bkd.asarray([expected]), rtol=1e-10)
@@ -230,7 +207,7 @@ class TestScalarFluxBalance:
         )
         system = _system(bkd, basis, physics)
         flux, _ = _total_flux_and_solution(
-            bkd, basis, system, _ApplyOnly(physics), bkd.zeros((1,))
+            bkd, basis, system, ApplyOnlyParameterization(physics), bkd.zeros((1,))
         )
         bkd.assert_allclose(bkd.asarray([flux]), bkd.asarray([-0.5]), rtol=1e-10)
 
