@@ -6,7 +6,7 @@ from pyapprox.optimization.implicitfunction.functionals.derivatives import (
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class SubsetOfStatesAdjointFunctional(Generic[Array]):
+class SubsetOfStatesFunctional(Generic[Array]):
     """
     Subset vector adjoint functional with Jacobian capabilities.
 

@@ -35,7 +35,7 @@ from pyapprox.pde.galerkin.physics.composite_linear_elasticity import (
 )
 from pyapprox.pde.galerkin.solvers import SteadyStateSolver
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationAdapter,
+    GalerkinParameterizedStateEquation,
 )
 from pyapprox.pde.parameterizations.galerkin_lame import (
     create_galerkin_lame_parameterization,
@@ -316,7 +316,7 @@ class TestGalerkinLameParameterizationFactory:
         physics = _make_multi_material_physics(bkd)
         system = _make_system(physics, bkd)
         param_obj = create_galerkin_lame_parameterization(physics, bkd)
-        state_eq = GalerkinStateEquationAdapter(
+        state_eq = GalerkinParameterizedStateEquation(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()

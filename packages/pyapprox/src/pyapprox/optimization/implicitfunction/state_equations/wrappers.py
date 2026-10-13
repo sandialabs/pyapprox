@@ -4,7 +4,7 @@ from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
 from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    ParameterizedStateEquationWithJacobianProtocol,
+    SteadyStateEquationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -12,7 +12,7 @@ from pyapprox.util.backends.protocols import Array, Backend
 class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
     def __init__(
         self,
-        state_equations: ParameterizedStateEquationWithJacobianProtocol[Array],
+        state_equations: SteadyStateEquationProtocol[Array],
         param: Array,
     ) -> None:
         """
@@ -20,7 +20,7 @@ class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
 
         Parameters
         ----------
-        state_equations : ParameterizedStateEquationWithJacobianProtocol
+        state_equations : SteadyStateEquationProtocol
             State equations with Jacobian.
         param : Array
             Parameters for the state equations.
@@ -32,7 +32,7 @@ class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
 
     def _validate_state_equations(
         self,
-        state_equations: ParameterizedStateEquationWithJacobianProtocol[Array],
+        state_equations: SteadyStateEquationProtocol[Array],
     ) -> None:
         """
         Validate that the provided state equations conform to the required
@@ -40,7 +40,7 @@ class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
 
         Parameters
         ----------
-        state_equations : ParameterizedStateEquationWithJacobianProtocol
+        state_equations : SteadyStateEquationProtocol
             State equations to validate.
 
         Raises
@@ -49,11 +49,11 @@ class ParameterizedStateEquationAsNewtonEquation(Generic[Array]):
             If the state equations do not conform to the required protocol.
         """
         if not isinstance(
-            state_equations, ParameterizedStateEquationWithJacobianProtocol
+            state_equations, SteadyStateEquationProtocol
         ):
             raise TypeError(
                 "The provided state equations do not conform to the "
-                "ParameterizedStateEquationWithJacobianProtocol."
+                "SteadyStateEquationProtocol."
             )
 
     def bkd(self) -> Backend[Array]:

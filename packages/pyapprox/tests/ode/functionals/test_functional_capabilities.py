@@ -38,7 +38,7 @@ from pyapprox.optimization.implicitfunction.functionals.mean_squared_error impor
     MSEFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
-    SubsetOfStatesAdjointFunctional,
+    SubsetOfStatesFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
@@ -127,7 +127,7 @@ _FACTORIES: Dict[str, Callable[[NumpyBkd], Any]] = {
         bkd,
     ),
     "mse": lambda bkd: MSEFunctional(_NSTATES, _NPARAMS, bkd),
-    "subset_of_states": lambda bkd: SubsetOfStatesAdjointFunctional(
+    "subset_of_states": lambda bkd: SubsetOfStatesFunctional(
         _NSTATES, _NPARAMS, bkd.arange(_NSTATES), bkd
     ),
     "weighted_sum": lambda bkd: WeightedSumFunctional(

@@ -23,8 +23,13 @@ Field signatures (``sol`` the trajectory, ``(nstates, ntimes)``;
 - ``param_param_hvp``: ``(sol, param, vvec (nparams, 1))
   -> (nparams, 1)`` — ``(d^2 Q/dp^2) v``.
 - ``apply_state_jacobian``: ``(sol, param, time_idx, wmat (nstates,
-  ncols)) -> (nqoi, ncols)`` — ``(dQ/dy_n) W``, for tangent-linear
-  sweeps that never form ``dQ/dy_n``.
+  ncols)) -> (nqoi, ncols)`` — ``(dQ/dy_n) W``, zero at times the
+  functional does not depend on. By the chain rule
+  ``dQ/dp = sum_n (dQ/dy_n) W_n + dQ/dp|_direct`` with
+  ``W_n = dy_n/dp``, for any number of QoIs, so a tangent-linear sweep
+  hands it ``W_n`` at each step and accumulates the sum without storing
+  ``W_n`` or forming ``dQ/dy_n`` (a sparse observation operator applies
+  directly).
 - ``row_functional``: ``(qoi_idx) -> functional`` — QoI ``qoi_idx`` as a
   scalar functional, for the adjoint method's one-row sweeps.
 
@@ -45,7 +50,7 @@ from pyapprox.util.backends.protocols import Array, ArrayProtocol
 
 if TYPE_CHECKING:
     from pyapprox.ode.functionals.protocols import (
-        TransientFunctionalWithJacobianProtocol,
+        TransientFunctionalProtocol,
     )
 
 A = TypeVar("A", bound=ArrayProtocol)
@@ -55,7 +60,7 @@ TransientStepHVPFn = Callable[[Array, Array, int, Array], Array]
 TransientParamHVPFn = Callable[[Array, Array, Array], Array]
 TransientStateJacobianActionFn = Callable[[Array, Array, int, Array], Array]
 RowFunctionalFn = Callable[
-    [int], "TransientFunctionalWithJacobianProtocol[Array]"
+    [int], "TransientFunctionalProtocol[Array]"
 ]
 
 _HVP_FIELDS = (

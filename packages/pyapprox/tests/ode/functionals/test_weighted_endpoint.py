@@ -11,7 +11,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 )
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianAndHVPProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.functionals.weighted_endpoint import (
     WeightedEndpointFunctional,
@@ -32,9 +32,8 @@ def _make_functional(bkd, weights_np=None):
 class TestWeightedEndpointFunctional:
     def test_protocol_conformance(self, bkd) -> None:
         func = _make_functional(bkd)
-        assert isinstance(
-            func, TransientFunctionalWithJacobianAndHVPProtocol
-        )
+        assert isinstance(func, TransientFunctionalProtocol)
+        assert func.derivatives().state_state_hvp is not None
         assert func.nqoi() == 1
         assert func.nstates() == _NSTATES
         assert func.nparams() == _NPARAMS

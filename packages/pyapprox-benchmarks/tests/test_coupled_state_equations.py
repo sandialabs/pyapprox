@@ -11,7 +11,7 @@ from pyapprox.optimization.implicitfunction.functionals.mean_squared_error impor
     MSEFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
-    SubsetOfStatesAdjointFunctional,
+    SubsetOfStatesFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
@@ -133,13 +133,13 @@ class TestCoupledStateEquationsForwardUQ:
             def nqoi(self):
                 return 1
 
-        with pytest.raises(TypeError, match="ParameterizedFunctional"):
+        with pytest.raises(TypeError, match="SteadyFunctionalProtocol"):
             CoupledStateEquationsForwardUQ(numpy_bkd, functional=_JacobianOnly())
 
     def test_rejects_functional_whose_bundle_lacks_hvps(
         self, numpy_bkd: NumpyBkd
     ) -> None:
-        functional = SubsetOfStatesAdjointFunctional(
+        functional = SubsetOfStatesFunctional(
             2, 2, numpy_bkd.asarray([1]), numpy_bkd
         )
         with pytest.raises(TypeError, match="second-order"):

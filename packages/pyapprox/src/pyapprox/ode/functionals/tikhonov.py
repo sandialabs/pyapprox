@@ -12,7 +12,7 @@ from pyapprox.ode.functionals.derivatives import (
     TransientFunctionalDerivatives,
 )
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
@@ -31,7 +31,7 @@ class TikhonovAugmentedFunctional(Generic[Array]):
 
     Parameters
     ----------
-    inner : TransientFunctionalWithJacobianProtocol
+    inner : TransientFunctionalProtocol
         The functional to augment. Must have ``nqoi() == 1``.
     alpha : float
         Cost coefficient (exchange rate between Q and parameter effort).
@@ -44,16 +44,16 @@ class TikhonovAugmentedFunctional(Generic[Array]):
 
     def __init__(
         self,
-        inner: TransientFunctionalWithJacobianProtocol[Array],
+        inner: TransientFunctionalProtocol[Array],
         alpha: float,
         bkd: Backend[Array],
         weight: Optional[Array] = None,
     ):
         validate_backend(bkd)
-        if not isinstance(inner, TransientFunctionalWithJacobianProtocol):
+        if not isinstance(inner, TransientFunctionalProtocol):
             raise TypeError(
                 "inner must satisfy "
-                "TransientFunctionalWithJacobianProtocol, got "
+                "TransientFunctionalProtocol, got "
                 f"{type(inner).__name__}"
             )
         if inner.time_dependence() != "transient":
@@ -113,7 +113,7 @@ class TikhonovAugmentedFunctional(Generic[Array]):
         """
         return "transient"
 
-    def inner(self) -> TransientFunctionalWithJacobianProtocol[Array]:
+    def inner(self) -> TransientFunctionalProtocol[Array]:
         """Return the wrapped functional."""
         return self._inner
 

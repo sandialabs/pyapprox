@@ -8,7 +8,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 )
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
-    SubsetOfStatesAdjointFunctional,
+    SubsetOfStatesFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
@@ -46,7 +46,7 @@ def _build(bkd, second_order: bool = True):
             bkd.asarray([[0.0], [1.0]]), state_eq.nparams(), bkd
         )
         if second_order
-        else SubsetOfStatesAdjointFunctional(
+        else SubsetOfStatesFunctional(
             state_eq.nstates(), state_eq.nparams(), bkd.asarray([1]), bkd
         )
     )

@@ -3,7 +3,7 @@
 import numpy as np
 
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
+    SteadyFunctionalProtocol,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.functionals.point_evaluation import (
@@ -140,7 +140,7 @@ class TestPointEvaluationFunctional:
         bkd.assert_allclose(jac, expected)
 
     def test_protocol_compliance(self, bkd) -> None:
-        """Satisfies ParameterizedFunctionalWithJacobianProtocol."""
+        """Satisfies SteadyFunctionalProtocol."""
         basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
         func = PointEvaluationFunctional(
             basis,
@@ -148,7 +148,7 @@ class TestPointEvaluationFunctional:
             nparams,
             bkd,
         )
-        assert isinstance(func, ParameterizedFunctionalWithJacobianProtocol)
+        assert isinstance(func, SteadyFunctionalProtocol)
 
     def test_higher_degree_polynomial(self, bkd) -> None:
         """Exact for polynomial up to degree npts-1."""

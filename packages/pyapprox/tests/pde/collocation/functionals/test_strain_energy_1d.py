@@ -9,7 +9,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
+    SteadyFunctionalProtocol,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.functionals.strain_energy_1d import (
@@ -293,7 +293,7 @@ class TestStrainEnergyFunctional1D:
             bkd,
             E,
         )
-        assert isinstance(func, ParameterizedFunctionalWithJacobianProtocol)
+        assert isinstance(func, SteadyFunctionalProtocol)
 
     def test_protocol_compliance_neo_hookean(self, bkd) -> None:
         """Neo-Hookean strain energy satisfies the protocol."""
@@ -306,7 +306,7 @@ class TestStrainEnergyFunctional1D:
             lamda,
             mu,
         )
-        assert isinstance(func, ParameterizedFunctionalWithJacobianProtocol)
+        assert isinstance(func, SteadyFunctionalProtocol)
 
     def test_param_jacobian_is_zero(self, bkd) -> None:
         """Strain energy functional has no parameter dependence."""

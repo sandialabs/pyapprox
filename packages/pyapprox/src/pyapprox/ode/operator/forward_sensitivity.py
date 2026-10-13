@@ -10,7 +10,7 @@ the integrator's ``AdjointEnabledTimeSteppingResidualProtocol`` surface.
 """
 
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.step_context import StepContext
@@ -20,7 +20,7 @@ from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 def forward_sensitivity_jacobian(
     integrator: TimeIntegrator[Array],
-    functional: TransientFunctionalWithJacobianProtocol[Array],
+    functional: TransientFunctionalProtocol[Array],
     fwd_sols: Array,
     times: Array,
     param: Array,
@@ -54,7 +54,7 @@ def forward_sensitivity_jacobian(
     integrator : TimeIntegrator
         Integrator that produced ``fwd_sols``; its time-stepping
         residual (bound per step via ``bind``) defines the sweep.
-    functional : TransientFunctionalWithJacobianProtocol
+    functional : TransientFunctionalProtocol
         Quantity of interest; its ``derivatives()`` must provide
         ``apply_state_jacobian``. Its parameters are its own
         ``nunique_params()`` followed by the residual's.

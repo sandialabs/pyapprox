@@ -1,5 +1,8 @@
 """Functionals for transient problems with adjoint and HVP support."""
 
+from pyapprox.ode.functionals.derivatives import (
+    TransientFunctionalDerivatives,
+)
 from pyapprox.ode.functionals.endpoint import (
     EndpointFunctional,
 )
@@ -7,11 +10,7 @@ from pyapprox.ode.functionals.mse import (
     TransientMSEFunctional,
 )
 from pyapprox.ode.functionals.protocols import (
-    TimeQuadratureAwareFunctionalProtocol,
-    TransientFunctionalWithJacobianAndHVPProtocol,
-    TransientFunctionalWithJacobianProtocol,
-    TransientFunctionalWithRowsProtocol,
-    TransientFunctionalWithStateJacobianActionProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.functionals.tikhonov import (
     TikhonovAugmentedFunctional,
@@ -27,12 +26,9 @@ from pyapprox.ode.functionals.weighted_endpoint import (
 )
 
 __all__ = [
-    # Protocols
-    "TimeQuadratureAwareFunctionalProtocol",
-    "TransientFunctionalWithJacobianProtocol",
-    "TransientFunctionalWithJacobianAndHVPProtocol",
-    "TransientFunctionalWithRowsProtocol",
-    "TransientFunctionalWithStateJacobianActionProtocol",
+    # Protocol and derivative bundle
+    "TransientFunctionalProtocol",
+    "TransientFunctionalDerivatives",
     # Implementations
     "EndpointFunctional",
     "TikhonovAugmentedFunctional",

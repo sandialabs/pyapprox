@@ -1,8 +1,8 @@
 """Steady-state forward model for parameterized collocation PDEs.
 
-Provides CollocationStateEquationAdapter (wraps
+Provides CollocationParameterizedStateEquation (wraps
 CollocationModel + parameterized physics as
-ParameterizedStateEquationWithJacobianProtocol) and SteadyForwardModel
+SteadyStateEquationProtocol) and SteadyForwardModel
 (satisfies FunctionProtocol with adjoint-based Jacobian computation).
 """
 
@@ -11,10 +11,10 @@ from typing import Generic, Optional, Union
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
+    SteadyFunctionalProtocol,
 )
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
-    SubsetOfStatesAdjointFunctional,
+    SubsetOfStatesFunctional,
 )
 from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
     AdjointOperator,
@@ -73,11 +73,11 @@ def _has_coefficient_dependent_bc_rows(
     return False
 
 
-class CollocationStateEquationAdapter(Generic[Array]):
+class CollocationParameterizedStateEquation(Generic[Array]):
     """Adapts CollocationModel for use with AdjointOperator.
 
     Wraps CollocationModel + parameterized physics as
-    ParameterizedStateEquationWithJacobianProtocol.
+    SteadyStateEquationProtocol.
 
     Handles shape conversion between collocation convention (1D arrays)
     and protocol convention (2D column vectors):
@@ -455,8 +455,8 @@ class SteadyForwardModel(Generic[Array]):
         Computational backend.
     init_state : Array
         Initial guess for steady-state Newton solver. Shape: (nstates,).
-    functional : ParameterizedFunctionalWithJacobianProtocol, optional
-        QoI functional. If None, uses SubsetOfStatesAdjointFunctional with
+    functional : SteadyFunctionalProtocol, optional
+        QoI functional. If None, uses SubsetOfStatesFunctional with
         all indices (nqoi = nstates, identity functional).
     """
 
@@ -465,7 +465,7 @@ class SteadyForwardModel(Generic[Array]):
         physics: PhysicsProtocol[Array],
         bkd: Backend[Array],
         init_state: Array,
-        functional: Optional[ParameterizedFunctionalWithJacobianProtocol[Array]] = None,
+        functional: Optional[SteadyFunctionalProtocol[Array]] = None,
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
     ) -> None:
         if not isinstance(parameterization, ParameterizationProtocol):
@@ -494,7 +494,7 @@ class SteadyForwardModel(Generic[Array]):
         self._nparams = nparams
 
         if functional is None:
-            functional = SubsetOfStatesAdjointFunctional(
+            functional = SubsetOfStatesFunctional(
                 nstates, nparams, bkd.arange(nstates), bkd
             )
         # A transient functional has every member of the steady
@@ -516,7 +516,7 @@ class SteadyForwardModel(Generic[Array]):
         # forward sensitivities.
         bundle = parameterization.param_derivatives()
         q_derivs = functional.derivatives()
-        self._state_eq = CollocationStateEquationAdapter(
+        self._state_eq = CollocationParameterizedStateEquation(
             model, bkd, parameterization=parameterization
         )
         self._jacobian_op: Optional[
@@ -574,7 +574,7 @@ class SteadyForwardModel(Generic[Array]):
         """Return number of output quantities of interest."""
         return self._functional.nqoi()
 
-    def state_equation(self) -> CollocationStateEquationAdapter[Array]:
+    def state_equation(self) -> CollocationParameterizedStateEquation[Array]:
         """Return the state equation adapter."""
         return self._state_eq
 

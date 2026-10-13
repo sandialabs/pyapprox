@@ -45,7 +45,7 @@ from pyapprox.pde.galerkin.physics import (
     QuasilinearDiffusion,
 )
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationAdapter,
+    GalerkinParameterizedStateEquation,
 )
 from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
     create_quasilinear_diffusivity_parameterization,
@@ -118,7 +118,7 @@ class TestQuasilinearDiffusivityParameterization:
         param_obj = create_quasilinear_diffusivity_parameterization(
             physics, field_map, bkd
         )
-        state_eq = GalerkinStateEquationAdapter(
+        state_eq = GalerkinParameterizedStateEquation(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()

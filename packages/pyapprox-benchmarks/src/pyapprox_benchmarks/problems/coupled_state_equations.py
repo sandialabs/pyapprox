@@ -19,7 +19,7 @@ different geometry.
 from typing import Generic, Optional
 
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
+    SteadyFunctionalProtocol,
 )
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
@@ -52,7 +52,7 @@ class CoupledStateEquationsForwardUQ(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    functional : ParameterizedFunctionalWithJacobianProtocol, optional
+    functional : SteadyFunctionalProtocol, optional
         Scalar functional of ``(state, param)`` defining the quantity of
         interest. Defaults to reading the second state component. Supply
         one to change what the problem measures without changing the
@@ -68,7 +68,7 @@ class CoupledStateEquationsForwardUQ(Generic[Array]):
         self,
         bkd: Backend[Array],
         functional: Optional[
-            ParameterizedFunctionalWithJacobianProtocol[Array]
+            SteadyFunctionalProtocol[Array]
         ] = None,
     ) -> None:
         state_eq: NonLinearCoupledStateEquations[Array] = (
@@ -83,11 +83,11 @@ class CoupledStateEquationsForwardUQ(Generic[Array]):
             weights = bkd.asarray([[0.0]] * (nstates - 1) + [[1.0]])
             functional = WeightedSumFunctional(weights, state_eq.nparams(), bkd)
         elif not isinstance(
-            functional, ParameterizedFunctionalWithJacobianProtocol
+            functional, SteadyFunctionalProtocol
         ):
             raise TypeError(
                 "functional must satisfy "
-                "ParameterizedFunctionalWithJacobianProtocol, got "
+                "SteadyFunctionalProtocol, got "
                 f"{type(functional).__name__}"
             )
         elif functional.derivatives().state_state_hvp is None:

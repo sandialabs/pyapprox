@@ -3,7 +3,7 @@
 Component-wise validation (ImplicitFunctionDerivativeChecker: state and
 parameter Jacobians, all four state-equation HVP blocks, functional
 derivatives, and the assembled adjoint gradient and HVP) of
-GalerkinStateEquationAdapter with parameters the coefficients of a
+GalerkinParameterizedStateEquation with parameters the coefficients of a
 lognormal KLE of the diffusivity field. The exp map makes every
 parameter-facing HVP nonzero; the cubic-reaction variant additionally
 makes state_state_hvp nonzero.
@@ -46,7 +46,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationAdapter,
+    GalerkinParameterizedStateEquation,
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
@@ -82,7 +82,7 @@ def _lognormal_kle_map(
 def _build_state_equation(
     bkd: NumpyBkd, nonlinear_reaction: bool
 ) -> Tuple[
-    GalerkinStateEquationAdapter[NumpyArray],
+    GalerkinParameterizedStateEquation[NumpyArray],
     GalerkinSystem[NumpyArray],
 ]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -113,7 +113,7 @@ def _build_state_equation(
     param_obj = AdvectionDiffusionParameterization(
         physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
-    state_eq = GalerkinStateEquationAdapter(
+    state_eq = GalerkinParameterizedStateEquation(
         system.steady(), param_obj, bkd
     )
     return state_eq, system
@@ -206,7 +206,7 @@ class TestSteadyADRLogKLEAdjointHVP:
         param_obj = AdvectionDiffusionParameterization(
             physics, diffusivity_map=no_hvp_map, bkd=bkd
         )
-        state_eq = GalerkinStateEquationAdapter(
+        state_eq = GalerkinParameterizedStateEquation(
             system.steady(), param_obj, bkd
         )
         assert state_eq.derivatives().state_state_hvp is None

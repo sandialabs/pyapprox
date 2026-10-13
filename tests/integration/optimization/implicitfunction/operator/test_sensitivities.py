@@ -1,5 +1,5 @@
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
-    SubsetOfStatesAdjointFunctional,
+    SubsetOfStatesFunctional,
 )
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
@@ -30,7 +30,7 @@ class TestSensitivities:
         init_state = bkd.array([-1.0, -1.0])[:, None]
 
         # Create functional
-        functional = SubsetOfStatesAdjointFunctional(
+        functional = SubsetOfStatesFunctional(
             state_eq.nstates(), state_eq.nparams(), bkd.arange(2), bkd
         )
 

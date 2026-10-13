@@ -53,7 +53,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationAdapter,
+    GalerkinParameterizedStateEquation,
 )
 from pyapprox.pde.parameterizations.field_term import (
     FromLinearity,
@@ -243,7 +243,7 @@ class TestFieldParameterizationTerm:
         )
         term = _build_engine_term(bkd, physics, field_map)
         param_obj = term
-        state_eq = GalerkinStateEquationAdapter(
+        state_eq = GalerkinParameterizedStateEquation(
             system.steady(), param_obj, bkd
         )
 
@@ -326,7 +326,7 @@ class TestFieldParameterizationTerm:
             owned_coefficients=("field",),
         )
         param_obj = term
-        state_eq = GalerkinStateEquationAdapter(
+        state_eq = GalerkinParameterizedStateEquation(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
@@ -410,7 +410,7 @@ class TestFieldParameterizationTerm:
             owned_coefficients=("field",),
         )
         param_obj = term
-        state_eq = GalerkinStateEquationAdapter(
+        state_eq = GalerkinParameterizedStateEquation(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
@@ -498,7 +498,7 @@ class TestFieldParameterizationTerm:
             owned_coefficients=("field",),
         )
         param_obj = term
-        state_eq = GalerkinStateEquationAdapter(
+        state_eq = GalerkinParameterizedStateEquation(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()

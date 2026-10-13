@@ -17,7 +17,7 @@ from pyapprox.interface.functions.protocols import (
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
-    SubsetOfStatesAdjointFunctional,
+    SubsetOfStatesFunctional,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -156,13 +156,13 @@ class TestTransientForwardModel:
         physics, param, init_state, time_config = (
             _create_parameterized_transient_diffusion_problem(bkd)
         )
-        steady = SubsetOfStatesAdjointFunctional(
+        steady = SubsetOfStatesFunctional(
             physics.nstates(), 2, bkd.arange(physics.nstates()), bkd
         )
         # A steady functional lacks set_time_quadrature, so the
         # protocol check rejects it before the time-dependence check.
         with pytest.raises(
-            TypeError, match="TransientFunctionalWithJacobianProtocol"
+            TypeError, match="TransientFunctionalProtocol"
         ):
             TransientForwardModel(
                 physics,

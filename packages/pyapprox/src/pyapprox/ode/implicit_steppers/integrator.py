@@ -10,7 +10,7 @@ from typing import Generic, Optional, Tuple
 
 from pyapprox.ode.functionals.derivatives import TransientJacobianFn
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
@@ -68,7 +68,7 @@ class TimeIntegrator(Generic[Array]):
         self._verbosity = verbosity
         self._newton_solver = newton_solver
         self._functional: Optional[
-            TransientFunctionalWithJacobianProtocol[Array]
+            TransientFunctionalProtocol[Array]
         ] = None
         self._functional_state_jacobian: Optional[
             TransientJacobianFn[Array]
@@ -90,14 +90,14 @@ class TimeIntegrator(Generic[Array]):
         return nsteps + 1
 
     def set_functional(
-        self, functional: TransientFunctionalWithJacobianProtocol[Array]
+        self, functional: TransientFunctionalProtocol[Array]
     ) -> None:
         """
         Set the functional for gradient computation.
 
         Parameters
         ----------
-        functional : TransientFunctionalWithJacobianProtocol
+        functional : TransientFunctionalProtocol
             Functional defining the quantity of interest.
 
         Raises

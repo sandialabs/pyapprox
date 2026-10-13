@@ -45,7 +45,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationAdapter,
+    GalerkinParameterizedStateEquation,
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
@@ -124,7 +124,7 @@ class TestAdvectionDiffusionParameterization:
         nparams = facade.nparams()
         assert nparams == 9
 
-        state_eq = GalerkinStateEquationAdapter(
+        state_eq = GalerkinParameterizedStateEquation(
             system.steady(), facade, bkd
         )
         nstates = physics.nstates()

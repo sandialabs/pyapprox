@@ -2,7 +2,7 @@ from pyapprox.optimization.implicitfunction.functionals.mean_squared_error impor
     MSEFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
-    SubsetOfStatesAdjointFunctional,
+    SubsetOfStatesFunctional,
 )
 from pyapprox.optimization.implicitfunction.functionals.tikhonov_mean_squared_error import (  # noqa: E501
     TikhonovMSEFunctional,
@@ -15,5 +15,5 @@ __all__ = [
     "MSEFunctional",
     "TikhonovMSEFunctional",
     "WeightedSumFunctional",
-    "SubsetOfStatesAdjointFunctional",
+    "SubsetOfStatesFunctional",
 ]

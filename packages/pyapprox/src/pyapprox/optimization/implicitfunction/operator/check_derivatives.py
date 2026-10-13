@@ -11,7 +11,7 @@ from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
 from pyapprox.optimization.implicitfunction.operator.protocols import (
-    AdjointOperatorWithJacobianProtocol,
+    ImplicitOperatorProtocol,
 )
 from pyapprox.util.backends.protocols import Array
 
@@ -36,7 +36,7 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
     first-order derivatives (Jacobian) and second-order derivatives (HVPs).
     """
 
-    def __init__(self, adjoint_operator: AdjointOperatorWithJacobianProtocol[Array]):
+    def __init__(self, adjoint_operator: ImplicitOperatorProtocol[Array]):
         """
         Initialize the ImplicitFunctionDerivativeChecker object.
 
@@ -58,7 +58,7 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         self._r_derivs = self._state_eq.derivatives()
 
     def _validate_adjoint_operator(
-        self, adjoint_operator: AdjointOperatorWithJacobianProtocol[Array]
+        self, adjoint_operator: ImplicitOperatorProtocol[Array]
     ) -> None:
         """
         Validate the adjoint operator.
@@ -74,10 +74,10 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
             If the adjoint operator is not a valid instance of
             AdjointOperator.
         """
-        if not isinstance(adjoint_operator, AdjointOperatorWithJacobianProtocol):
+        if not isinstance(adjoint_operator, ImplicitOperatorProtocol):
             raise TypeError(
                 "adjoint_operator must be an instance of "
-                "AdjointOperatorWithJacobianProtocol."
+                "ImplicitOperatorProtocol."
             )
 
     def check_state_equation_state_jacobian(

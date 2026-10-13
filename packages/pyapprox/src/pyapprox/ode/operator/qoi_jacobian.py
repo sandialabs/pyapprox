@@ -17,7 +17,7 @@ model takes either one (or a user-written method) as an argument;
 from typing import Generic, Optional, Protocol
 
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.forward_sensitivity import (
@@ -32,7 +32,7 @@ class TransientQoIJacobianMethod(Protocol, Generic[Array]):
     def __call__(
         self,
         integrator: TimeIntegrator[Array],
-        functional: TransientFunctionalWithJacobianProtocol[Array],
+        functional: TransientFunctionalProtocol[Array],
         fwd_sols: Array,
         times: Array,
         param: Array,
@@ -44,7 +44,7 @@ class TransientQoIJacobianMethod(Protocol, Generic[Array]):
         ----------
         integrator : TimeIntegrator
             Integrator that produced ``fwd_sols``.
-        functional : TransientFunctionalWithJacobianProtocol
+        functional : TransientFunctionalProtocol
             Quantity of interest.
         fwd_sols : Array
             Forward trajectory. Shape: ``(nstates, ntimes)``.
@@ -63,7 +63,7 @@ class TransientQoIJacobianMethod(Protocol, Generic[Array]):
 
 def adjoint_jacobian(
     integrator: TimeIntegrator[Array],
-    functional: TransientFunctionalWithJacobianProtocol[Array],
+    functional: TransientFunctionalProtocol[Array],
     fwd_sols: Array,
     times: Array,
     param: Array,
@@ -80,7 +80,7 @@ def adjoint_jacobian(
     ----------
     integrator : TimeIntegrator
         Integrator that produced ``fwd_sols``.
-    functional : TransientFunctionalWithJacobianProtocol
+    functional : TransientFunctionalProtocol
         Quantity of interest.
     fwd_sols : Array
         Forward trajectory. Shape: ``(nstates, ntimes)``.
@@ -113,7 +113,7 @@ def adjoint_jacobian(
 
 
 def default_qoi_jacobian_method(
-    functional: TransientFunctionalWithJacobianProtocol[Array],
+    functional: TransientFunctionalProtocol[Array],
     jacobian_method: Optional[TransientQoIJacobianMethod[Array]],
 ) -> TransientQoIJacobianMethod[Array]:
     """Return the caller's method, or the default when none was given.
@@ -123,7 +123,7 @@ def default_qoi_jacobian_method(
 
     Parameters
     ----------
-    functional : TransientFunctionalWithJacobianProtocol
+    functional : TransientFunctionalProtocol
         Quantity of interest the method will be applied to.
     jacobian_method : TransientQoIJacobianMethod, optional
         The caller's choice; returned unchanged when given.

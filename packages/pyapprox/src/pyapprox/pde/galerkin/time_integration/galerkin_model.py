@@ -10,7 +10,7 @@ from typing import Generic, Optional, Tuple
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.time_adjoint_hvp import (
@@ -108,7 +108,7 @@ class GalerkinModel(Generic[Array]):
         return self._last_integrator
 
     def set_functional(
-        self, functional: TransientFunctionalWithJacobianProtocol[Array]
+        self, functional: TransientFunctionalProtocol[Array]
     ) -> None:
         """Set the QoI functional on the most recent solve's integrator.
 
@@ -145,7 +145,7 @@ class GalerkinModel(Generic[Array]):
 
     def hvp_operator(
         self,
-        functional: TransientFunctionalWithJacobianProtocol[Array],
+        functional: TransientFunctionalProtocol[Array],
     ) -> TimeAdjointOperatorWithHVP[Array]:
         """Build the second-order adjoint operator on the last solve.
 

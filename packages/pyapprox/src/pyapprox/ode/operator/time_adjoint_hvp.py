@@ -20,7 +20,7 @@ from pyapprox.ode.functionals.derivatives import (
     TransientStepHVPFn,
 )
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.storage import TimeTrajectoryStorage
@@ -55,7 +55,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
     ----------
     integrator : TimeIntegrator
         Time integrator with adjoint-enabled time stepping residual.
-    functional : TransientFunctionalWithJacobianProtocol
+    functional : TransientFunctionalProtocol
         Functional whose ``derivatives()`` bundle has all four HVPs.
 
     Raises
@@ -67,7 +67,7 @@ class TimeAdjointOperatorWithHVP(Generic[Array]):
     def __init__(
         self,
         integrator: TimeIntegrator[Array],
-        functional: TransientFunctionalWithJacobianProtocol[Array],
+        functional: TransientFunctionalProtocol[Array],
     ):
         derivs = functional.derivatives()
         state_jacobian = derivs.state_jacobian

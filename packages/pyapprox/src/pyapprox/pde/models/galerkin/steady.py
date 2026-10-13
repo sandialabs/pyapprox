@@ -1,8 +1,8 @@
 """Steady-state state-equation adapter for parameterized galerkin PDEs.
 
-Provides GalerkinStateEquationAdapter, which wraps a steady view
+Provides GalerkinParameterizedStateEquation, which wraps a steady view
 (``compose_galerkin_system(physics, bcs).steady()``) + parameterization as
-ParameterizedStateEquationWithJacobianProtocol for the steady
+SteadyStateEquationProtocol for the steady
 AdjointOperator, whose linear solves are sparse-aware.
 """
 
@@ -26,11 +26,11 @@ from pyapprox.pde.steady_view import SteadyViewProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
-class GalerkinStateEquationAdapter(Generic[Array]):
+class GalerkinParameterizedStateEquation(Generic[Array]):
     """Adapts galerkin physics + parameterization for the steady
     adjoint operator.
 
-    Implements ParameterizedStateEquationWithJacobianProtocol
+    Implements SteadyStateEquationProtocol
     with the 2D column convention (state (nstates, 1), param
     (nparams, 1)); the physics side uses 1D arrays. Jacobians are
     returned in the physics' native form (sparse at the skfem seam) —

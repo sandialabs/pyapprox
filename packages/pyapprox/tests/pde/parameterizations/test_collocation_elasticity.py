@@ -41,7 +41,7 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationAdapter,
+    CollocationParameterizedStateEquation,
     SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.collocation_elasticity import (
@@ -188,7 +188,7 @@ class TestSecondOrderCapability:
         model = create_collocation_model(
             physics, bkd, parameterization=facade
         )
-        state_eq = CollocationStateEquationAdapter(
+        state_eq = CollocationParameterizedStateEquation(
             model, bkd, parameterization=facade
         )
         nstates = physics.nstates()

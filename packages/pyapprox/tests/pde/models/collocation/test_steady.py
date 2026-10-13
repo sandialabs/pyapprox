@@ -16,7 +16,7 @@ from pyapprox.interface.functions.protocols import (
 )
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (
-    SubsetOfStatesAdjointFunctional,
+    SubsetOfStatesFunctional,
 )
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
@@ -40,7 +40,7 @@ from pyapprox.pde.field_maps.basis_expansion import (
 )
 from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationAdapter,
+    CollocationParameterizedStateEquation,
     SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.derivatives import (
@@ -102,7 +102,7 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(
+        adapter = CollocationParameterizedStateEquation(
             model, bkd, parameterization=param
         )
 
@@ -124,7 +124,7 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(
+        adapter = CollocationParameterizedStateEquation(
             model, bkd, parameterization=param
         )
 
@@ -141,7 +141,7 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(
+        adapter = CollocationParameterizedStateEquation(
             model, bkd, parameterization=param
         )
 
@@ -169,7 +169,7 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(
+        adapter = CollocationParameterizedStateEquation(
             model, bkd, parameterization=param
         )
 
@@ -194,7 +194,7 @@ class TestCollocationStateEquationAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationAdapter(
+        adapter = CollocationParameterizedStateEquation(
             model, bkd, parameterization=param
         )
 
@@ -330,7 +330,7 @@ class TestSteadyForwardModel:
 
         # Pick 3 interior indices as QoI
         subset = bkd.asarray(np.array([3, 7, 12]))
-        functional = SubsetOfStatesAdjointFunctional(nstates, nparams, subset, bkd)
+        functional = SubsetOfStatesFunctional(nstates, nparams, subset, bkd)
 
         forward_model = SteadyForwardModel(
             physics,
@@ -361,10 +361,10 @@ class TestSteadyForwardModel:
         nparams = param.nparams()
 
         subset = bkd.asarray(np.array([3, 7, 12]))
-        functional = SubsetOfStatesAdjointFunctional(nstates, nparams, subset, bkd)
+        functional = SubsetOfStatesFunctional(nstates, nparams, subset, bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        state_eq = CollocationStateEquationAdapter(
+        state_eq = CollocationParameterizedStateEquation(
             model, bkd, parameterization=param
         )
         adjoint_op = ForwardSensitivityOperator(state_eq, functional)

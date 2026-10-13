@@ -17,8 +17,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
 from pyapprox.ode.functionals.protocols import (
-    TimeQuadratureAwareFunctionalProtocol,
-    TransientFunctionalWithJacobianAndHVPProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.functionals.time_integrated_weighted_l2 import (
     TimeIntegratedWeightedL2Functional,
@@ -63,10 +62,8 @@ def _make_functional(bkd, quadrature="trapezoid"):
 class TestTimeIntegratedWeightedL2Functional:
     def test_protocol_conformance(self, bkd) -> None:
         func = _make_functional(bkd)
-        assert isinstance(
-            func, TransientFunctionalWithJacobianAndHVPProtocol
-        )
-        assert isinstance(func, TimeQuadratureAwareFunctionalProtocol)
+        assert isinstance(func, TransientFunctionalProtocol)
+        assert func.derivatives().state_state_hvp is not None
         assert func.nqoi() == 1
         assert func.nstates() == _NSTATES
         assert func.nparams() == _NPARAMS

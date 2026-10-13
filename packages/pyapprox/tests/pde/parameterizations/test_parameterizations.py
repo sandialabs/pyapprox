@@ -205,8 +205,8 @@ class _MockSecondOrderParam:
 class _ToyCompositeStateEquation:
     """Adapts the composite bundle to the state-equation checker protocol.
 
-    Implements ParameterizedStateEquationWithJacobianAndHVPProtocol (2D
-    column convention) for the toy residual
+    Implements SteadyStateEquationProtocol, with the four HVPs in its
+    derivatives() bundle (2D column convention), for the toy residual
 
         R(y, p) = kappa(p) y - c,   kappa(p) = sum_i s_i (sum(p_i)^2 / 2)
 

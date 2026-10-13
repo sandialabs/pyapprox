@@ -15,7 +15,7 @@ from pyapprox.pde.models.collocation.physics_adapter import (
     create_collocation_physics_ode_residual,
 )
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationAdapter,
+    CollocationParameterizedStateEquation,
     SteadyForwardModel,
 )
 from pyapprox.pde.models.collocation.transient import (
@@ -28,7 +28,7 @@ __all__ = [
     "CollocationPhysicsToODEResidualWithHVPAdapter",
     "create_collocation_physics_ode_residual",
     "create_collocation_model",
-    "CollocationStateEquationAdapter",
+    "CollocationParameterizedStateEquation",
     "SteadyForwardModel",
     "TransientForwardModel",
 ]

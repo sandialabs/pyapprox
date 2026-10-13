@@ -10,7 +10,7 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
+    SteadyFunctionalProtocol,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.functionals.subdomain_integral import (
@@ -204,7 +204,7 @@ class TestSubdomainIntegralFunctional:
         bkd.assert_allclose(result, expected, atol=1e-11)
 
     def test_protocol_compliance(self, bkd) -> None:
-        """Satisfies ParameterizedFunctionalWithJacobianProtocol."""
+        """Satisfies SteadyFunctionalProtocol."""
         basis, phys_pts, npts, length, nparams = self._make_basis(bkd)
         coeff = bkd.ones((npts,))
         func = SubdomainIntegralFunctional(
@@ -213,7 +213,7 @@ class TestSubdomainIntegralFunctional:
             bkd,
             coefficient=coeff,
         )
-        assert isinstance(func, ParameterizedFunctionalWithJacobianProtocol)
+        assert isinstance(func, SteadyFunctionalProtocol)
 
     def test_validation_neither_provided(self, bkd) -> None:
         """Raises ValueError if neither coefficient nor integrand given."""

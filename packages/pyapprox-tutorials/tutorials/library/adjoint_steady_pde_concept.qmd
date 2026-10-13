@@ -392,10 +392,10 @@ from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
     AdjointOperator,
 )
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationAdapter,
+    GalerkinParameterizedStateEquation,
 )
 
-state_equation = GalerkinStateEquationAdapter(
+state_equation = GalerkinParameterizedStateEquation(
     system.steady(), parameterization, bkd,
 )
 weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))

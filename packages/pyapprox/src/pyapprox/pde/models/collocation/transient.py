@@ -20,7 +20,7 @@ from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.operator.qoi_jacobian import (
     TransientQoIJacobianMethod,
@@ -98,7 +98,7 @@ class TransientForwardModel(CollocationModel[Array]):
         bkd: Backend[Array],
         init_state: Array,
         time_config: TimeIntegrationConfig[Array],
-        functional: Optional[TransientFunctionalWithJacobianProtocol[Array]] = (
+        functional: Optional[TransientFunctionalProtocol[Array]] = (
             None
         ),
         parameterization: Optional[ParameterizationProtocol[Array]] = None,
@@ -131,11 +131,11 @@ class TransientForwardModel(CollocationModel[Array]):
                 physics.nstates(), self._nparams, bkd
             )
         if not isinstance(
-            functional, TransientFunctionalWithJacobianProtocol
+            functional, TransientFunctionalProtocol
         ):
             raise TypeError(
                 "functional must satisfy "
-                "TransientFunctionalWithJacobianProtocol, got "
+                "TransientFunctionalProtocol, got "
                 f"{type(functional).__name__}"
             )
         # The protocol check above rejects today's steady functionals
@@ -147,7 +147,7 @@ class TransientForwardModel(CollocationModel[Array]):
                 f"{functional.time_dependence()} functional; a transient "
                 "model needs one that reads a trajectory"
             )
-        self._functional: TransientFunctionalWithJacobianProtocol[Array] = (
+        self._functional: TransientFunctionalProtocol[Array] = (
             functional
         )
         self._jacobian_method = default_qoi_jacobian_method(

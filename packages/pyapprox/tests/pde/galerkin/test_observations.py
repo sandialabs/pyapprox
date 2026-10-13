@@ -270,7 +270,7 @@ class TestFunctionalTimeDependence:
         # A steady functional lacks set_time_quadrature, so the
         # protocol check rejects it before the time-dependence check.
         with pytest.raises(
-            TypeError, match="TransientFunctionalWithJacobianProtocol"
+            TypeError, match="TransientFunctionalProtocol"
         ):
             GalerkinTransientForwardModel(
                 system, parameterization, init_state, config, bkd,

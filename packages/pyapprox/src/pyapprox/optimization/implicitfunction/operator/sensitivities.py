@@ -4,7 +4,7 @@ from pyapprox.optimization.implicitfunction.functionals.derivatives import (
     SteadyFunctionalJacobianFn,
 )
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
+    SteadyFunctionalProtocol,
 )
 from pyapprox.optimization.implicitfunction.operator.derivatives import (
     ImplicitOperatorDerivatives,
@@ -13,7 +13,7 @@ from pyapprox.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
 from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    ParameterizedStateEquationWithJacobianProtocol,
+    SteadyStateEquationProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backends
@@ -33,18 +33,18 @@ class ForwardSensitivityOperator(Generic[Array]):
 
     def __init__(
         self,
-        state_eq: ParameterizedStateEquationWithJacobianProtocol[Array],
-        functional: ParameterizedFunctionalWithJacobianProtocol[Array],
+        state_eq: SteadyStateEquationProtocol[Array],
+        functional: SteadyFunctionalProtocol[Array],
     ):
         """
         Initialize the ForwardSensitivityOperator object.
 
         Parameters
         ----------
-        state_eq : ParameterizedStateEquationWithJacobianProtocol
+        state_eq : SteadyStateEquationProtocol
             State equation object implementing the parameterized state
             equation protocol.
-        functional : ParameterizedFunctionalWithJacobianProtocol
+        functional : SteadyFunctionalProtocol
             Functional object implementing the parameterized functional
             protocol.
 
@@ -79,49 +79,49 @@ class ForwardSensitivityOperator(Generic[Array]):
 
     def validate_state_eq(
         self,
-        state_eq: ParameterizedStateEquationWithJacobianProtocol[Array],
+        state_eq: SteadyStateEquationProtocol[Array],
     ) -> None:
         """
         Validate the state equation.
 
         Parameters
         ----------
-        state_eq : ParameterizedStateEquationWithJacobianProtocol
+        state_eq : SteadyStateEquationProtocol
             State equation object.
 
         Raises
         ------
         TypeError
             If the state equation is not a valid instance of
-            ParameterizedStateEquationWithJacobianProtocol.
+            SteadyStateEquationProtocol.
         """
-        if not isinstance(state_eq, ParameterizedStateEquationWithJacobianProtocol):
+        if not isinstance(state_eq, SteadyStateEquationProtocol):
             raise TypeError(
                 "state_eq must be an instance of "
-                "ParameterizedStateEquationWithJacobianProtocol."
+                "SteadyStateEquationProtocol."
             )
 
     def validate_functional(
-        self, functional: ParameterizedFunctionalWithJacobianProtocol[Array]
+        self, functional: SteadyFunctionalProtocol[Array]
     ) -> None:
         """
         Validate the functional.
 
         Parameters
         ----------
-        functional : ParameterizedFunctionalWithJacobianProtocol
+        functional : SteadyFunctionalProtocol
             Functional object.
 
         Raises
         ------
         TypeError
             If the functional is not a valid instance of
-            ParameterizedFunctionalWithJacobianProtocol.
+            SteadyFunctionalProtocol.
         """
-        if not isinstance(functional, ParameterizedFunctionalWithJacobianProtocol):
+        if not isinstance(functional, SteadyFunctionalProtocol):
             raise TypeError(
                 "functional must be an instance of "
-                "ParameterizedFunctionalWithJacobianProtocol."
+                "SteadyFunctionalProtocol."
             )
 
     def bkd(self) -> Backend[Array]:
@@ -275,24 +275,24 @@ class ForwardSensitivityOperator(Generic[Array]):
 
     def state_equation(
         self,
-    ) -> ParameterizedStateEquationWithJacobianProtocol[Array]:
+    ) -> SteadyStateEquationProtocol[Array]:
         """
         Return the state equation object.
 
         Returns
         -------
-        ParameterizedStateEquationWithJacobianProtocol
+        SteadyStateEquationProtocol
             State equation object.
         """
         return self._state_eq
 
-    def functional(self) -> ParameterizedFunctionalWithJacobianProtocol[Array]:
+    def functional(self) -> SteadyFunctionalProtocol[Array]:
         """
         Return the functional object.
 
         Returns
         -------
-        ParameterizedFunctionalWithJacobianProtocol
+        SteadyFunctionalProtocol
             Functional object.
         """
         return self._functional

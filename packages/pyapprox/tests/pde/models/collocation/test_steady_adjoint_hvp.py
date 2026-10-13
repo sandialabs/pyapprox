@@ -3,7 +3,7 @@
 Component-wise validation (ImplicitFunctionDerivativeChecker: state and
 parameter Jacobians, all four state-equation HVP blocks, functional
 derivatives, and the assembled adjoint gradient and HVP) of
-CollocationStateEquationAdapter with parameters the coefficients
+CollocationParameterizedStateEquation with parameters the coefficients
 of a lognormal KLE of the diffusion field. The collocation mixed tensor
 is NOT symmetric in (residual, state) indices (non-symmetric
 differentiation matrices + Dirichlet row replacement), so this exercises
@@ -42,7 +42,7 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationAdapter,
+    CollocationParameterizedStateEquation,
 )
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
@@ -122,7 +122,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         model = create_collocation_model(
             physics, bkd, parameterization=param_obj
         )
-        state_eq = CollocationStateEquationAdapter(
+        state_eq = CollocationParameterizedStateEquation(
             model, bkd, parameterization=param_obj
         )
 
@@ -186,7 +186,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         model = create_collocation_model(
             physics, bkd, parameterization=comp
         )
-        state_eq = CollocationStateEquationAdapter(
+        state_eq = CollocationParameterizedStateEquation(
             model, bkd, parameterization=comp
         )
         weights = bkd.zeros((npts, 1))
@@ -239,7 +239,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         model = create_collocation_model(
             physics, bkd, parameterization=param_obj
         )
-        state_eq = CollocationStateEquationAdapter(
+        state_eq = CollocationParameterizedStateEquation(
             model, bkd, parameterization=param_obj
         )
         assert state_eq.derivatives().state_state_hvp is None

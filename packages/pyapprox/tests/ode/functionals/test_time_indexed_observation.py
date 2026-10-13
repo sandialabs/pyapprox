@@ -9,9 +9,7 @@ import numpy as np
 import pytest
 
 from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalWithJacobianProtocol,
-    TransientFunctionalWithRowsProtocol,
-    TransientFunctionalWithStateJacobianActionProtocol,
+    TransientFunctionalProtocol,
 )
 from pyapprox.ode.functionals.time_indexed_observation import (
     TimeIndexedObservationFunctional,
@@ -50,13 +48,14 @@ def _trajectory(bkd: Backend[Array]) -> Array:
 
 
 class TestTimeIndexedObservationFunctional:
-    def test_satisfies_protocols(self, numpy_bkd: NumpyBkd) -> None:
+    def test_satisfies_protocol_and_lists_action_and_rows(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
         func = _functional(numpy_bkd)
-        assert isinstance(func, TransientFunctionalWithJacobianProtocol)
-        assert isinstance(
-            func, TransientFunctionalWithStateJacobianActionProtocol
-        )
-        assert isinstance(func, TransientFunctionalWithRowsProtocol)
+        assert isinstance(func, TransientFunctionalProtocol)
+        derivs = func.derivatives()
+        assert derivs.apply_state_jacobian is not None
+        assert derivs.row_functional is not None
 
     def test_values_sensor_fastest(self, bkd: Backend[Array]) -> None:
         func = _functional(bkd)

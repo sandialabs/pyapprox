@@ -5,7 +5,7 @@ Provides three QoI functionals for 2D linear elastic problems:
 2. AverageHoopStressFunctional - average sigma_tt over a subdomain
 3. StrainEnergyFunctional2D - total strain energy integral
 
-All satisfy ParameterizedFunctionalWithJacobianProtocol.
+All satisfy SteadyFunctionalProtocol.
 """
 # TODO: this is specific to collocation, should it go in
 # collocation module or in benchmark module

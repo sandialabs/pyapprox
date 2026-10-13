@@ -36,7 +36,7 @@ class ODEFunctionalProtocol(Protocol[Array]):
     """Lightweight protocol for ODE QoI extraction functionals.
 
     Functionals extract a quantity of interest from an ODE solution
-    trajectory. Unlike TransientFunctionalWithJacobianProtocol, this
+    trajectory. Unlike TransientFunctionalProtocol, this
     protocol requires only evaluation and nqoi — no Jacobians or HVPs.
     """
 
