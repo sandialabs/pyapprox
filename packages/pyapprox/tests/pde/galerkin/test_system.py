@@ -9,7 +9,6 @@ if not package_available("skfem"):
 
 from typing import Any, Generic
 
-
 from pyapprox.ode.state_derivatives import StateDerivatives
 from pyapprox.pde.boundary import DirichletConstraintSet, NaturalBCOperator
 from pyapprox.pde.galerkin.boundary import (
