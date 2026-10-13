@@ -22,9 +22,10 @@ To verify them, check each order against finite differences of the one
 below with ``time_derivative_functions`` and ``DerivativeChecker``
 (``pde.boundary.time_derivative_function``).
 
-The parameter Jacobian ``s_p`` of BC data is reserved for a BC-data
-parameterization and not built: it would be one more optional entry on
-a signal, so adding it changes no BC class.
+A signal knows nothing about parameters, as a physics knows nothing about
+the fields that parameterize it: if BC data is ever parameterized, the
+parameterization writes the data and reports its sensitivity in its own
+derivative bundle, and the signal keeps only time derivatives.
 """
 
 from typing import Any, Callable, Optional, Sequence, Tuple, Union
