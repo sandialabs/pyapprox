@@ -1,13 +1,36 @@
-"""Steady-state state-equation adapter for parameterized galerkin PDEs.
+"""Steady-state models for parameterized galerkin PDEs.
 
 Provides GalerkinParameterizedStateEquation, which wraps a steady view
 (``compose_galerkin_system(physics, bcs).steady()``) + parameterization as
 SteadyStateEquationProtocol for the steady
-AdjointOperator, whose linear solves are sparse-aware.
+AdjointOperator, whose linear solves are sparse-aware; and
+GalerkinSteadyForwardModel, the FunctionProtocol forward model built on
+it.
 """
 
-from typing import Generic, Optional
+import warnings
+from typing import Generic, Optional, Union
 
+from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.protocols.validation import (
+    validate_sample,
+    validate_samples,
+)
+from pyapprox.optimization.implicitfunction.functionals.protocols import (
+    SteadyFunctionalProtocol,
+)
+from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
+    SubsetOfStatesFunctional,
+)
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
+from pyapprox.optimization.implicitfunction.operator.derivatives import (
+    OperatorHVPFn,
+)
+from pyapprox.optimization.implicitfunction.operator.sensitivities import (
+    ForwardSensitivityOperator,
+)
 from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
     SteadyStateEquationDerivatives,
 )
@@ -273,4 +296,200 @@ class GalerkinParameterizedStateEquation(Generic[Array]):
             f"parameterization="
             f"{type(self._parameterization).__name__}, "
             f"nstates={self.nstates()}, nparams={self.nparams()})"
+        )
+
+
+class GalerkinSteadyForwardModel(Generic[Array]):
+    """Steady-state parameterized galerkin PDE forward model.
+
+    Satisfies ``FunctionProtocol``: ``__call__`` maps parameter samples
+    to QoI values by a steady solve per sample. ``derivatives()`` is
+    decided once at construction from the bundles of the parameterization,
+    the functional and the state equation:
+
+    - none when the parameterization has no parameter Jacobian or the
+      functional has no Jacobians (the model is evaluated only);
+    - the adjoint Jacobian for a scalar QoI, plus the second-order adjoint
+      HVP when the state equation and the functional both carry their
+      second derivatives (a downgrade caused only by the physics' missing
+      state curvature warns);
+    - the forward-sensitivity Jacobian for a vector QoI.
+
+    Parameters
+    ----------
+    view : SteadyViewProtocol
+        The steady problem: ``system.steady()``, or
+        ``system.steady_snapshot(time)`` for time-dependent data.
+    parameterization : ParameterizationProtocol
+        Maps parameter vectors to coefficients; its targets must belong to
+        ``view``.
+    init_state : Array
+        Initial Newton guess. Shape: (nstates,).
+    bkd : Backend
+        Computational backend.
+    functional : SteadyFunctionalProtocol, optional
+        QoI functional. Defaults to every state
+        (``SubsetOfStatesFunctional`` over all indices).
+    solver : SteadyStateSolver, optional
+        Forward solver; defaults to the state equation's.
+    """
+
+    def __init__(
+        self,
+        view: SteadyViewProtocol[Array],
+        parameterization: ParameterizationProtocol[Array],
+        init_state: Array,
+        bkd: Backend[Array],
+        functional: Optional[SteadyFunctionalProtocol[Array]] = None,
+        solver: Optional[SteadyStateSolver[Array]] = None,
+    ) -> None:
+        # The state equation checks the view, the parameterization and
+        # that the parameterization's targets belong to the view.
+        self._state_eq = GalerkinParameterizedStateEquation(
+            view, parameterization, bkd, solver=solver
+        )
+        self._bkd = bkd
+        nstates = self._state_eq.nstates()
+        if init_state.shape != (nstates,):
+            raise ValueError(
+                f"init_state must have shape ({nstates},), got "
+                f"{init_state.shape}"
+            )
+        self._init_state = init_state[:, None]
+        if functional is None:
+            functional = SubsetOfStatesFunctional(
+                nstates, self._state_eq.nparams(), bkd.arange(nstates), bkd
+            )
+        if not isinstance(functional, SteadyFunctionalProtocol):
+            raise TypeError(
+                "functional must satisfy SteadyFunctionalProtocol, got "
+                f"{type(functional).__name__}"
+            )
+        # A transient functional has every member of the steady protocol,
+        # so isinstance cannot reject it; the declared time dependence
+        # does.
+        if functional.time_dependence() != "steady":
+            raise TypeError(
+                f"{type(functional).__name__} is a "
+                f"{functional.time_dependence()} functional; a steady model "
+                "needs one that reads a single state"
+            )
+        self._functional = functional
+
+        self._jacobian_op: Optional[
+            Union[AdjointOperator[Array], ForwardSensitivityOperator[Array]]
+        ] = None
+        self._operator_hvp: Optional[OperatorHVPFn[Array]] = None
+        self._derivs: Derivatives[Array] = Derivatives.none()
+        if (
+            parameterization.param_derivatives().param_jacobian is None
+            or functional.derivatives().state_jacobian is None
+        ):
+            return
+        if functional.nqoi() != 1:
+            self._jacobian_op = ForwardSensitivityOperator(
+                self._state_eq, functional
+            )
+            self._derivs = Derivatives.first_order(jacobian=self._jacobian)
+            return
+        adjoint_op = AdjointOperator(self._state_eq, functional)
+        self._jacobian_op = adjoint_op
+        operator_hvp = adjoint_op.derivatives().hvp
+        if operator_hvp is not None:
+            self._operator_hvp = operator_hvp
+            self._derivs = Derivatives.second_order(
+                jacobian=self._jacobian, hvp=self._hvp
+            )
+            return
+        param_derivs = parameterization.param_derivatives()
+        if (
+            param_derivs.param_param_hvp is not None
+            and param_derivs.state_param_hvp is not None
+            and param_derivs.param_state_hvp is not None
+            and functional.derivatives().state_state_hvp is not None
+        ):
+            # Everything else is second order, so the physics' missing
+            # state curvature is what costs the HVP; say so rather than
+            # downgrade silently.
+            warnings.warn(
+                "second-order parameterization and functional downgraded "
+                "to the Jacobian tier: the spatial operator supplies no "
+                "state curvature (state_derivatives().state_state_hvp is "
+                "None)",
+                UserWarning,
+                stacklevel=2,
+            )
+        self._derivs = Derivatives.first_order(jacobian=self._jacobian)
+
+    def bkd(self) -> Backend[Array]:
+        """Return the computational backend."""
+        return self._bkd
+
+    def nvars(self) -> int:
+        """Return the number of input variables (parameters)."""
+        return self._state_eq.nparams()
+
+    def nqoi(self) -> int:
+        """Return the number of output quantities of interest."""
+        return self._functional.nqoi()
+
+    def derivatives(self) -> Derivatives[Array]:
+        """Return the derivative bundle (with respect to parameters)."""
+        return self._derivs
+
+    def state_equation(self) -> GalerkinParameterizedStateEquation[Array]:
+        """Return the state equation."""
+        return self._state_eq
+
+    def functional(self) -> SteadyFunctionalProtocol[Array]:
+        """Return the QoI functional."""
+        return self._functional
+
+    def __call__(self, samples: Array) -> Array:
+        """Evaluate the QoIs at each parameter sample.
+
+        Parameters
+        ----------
+        samples : Array
+            Shape: (nvars, nsamples).
+
+        Returns
+        -------
+        Array
+            Shape: (nqoi, nsamples).
+        """
+        validate_samples(self.nvars(), samples)
+        values = []
+        for ii in range(samples.shape[1]):
+            param = samples[:, ii : ii + 1]
+            state = self._state_eq.solve(self._init_state, param)
+            values.append(self._functional(state, param))
+        return self._bkd.hstack(values)
+
+    def _jacobian(self, sample: Array) -> Array:
+        """dQ/dp at one sample. Shape: (nqoi, nvars)."""
+        jacobian_op = self._jacobian_op
+        if jacobian_op is None:
+            raise RuntimeError(
+                "jacobian is unavailable; check derivatives() before calling"
+            )
+        validate_sample(self.nvars(), sample)
+        return jacobian_op.jacobian(self._init_state, sample)
+
+    def _hvp(self, sample: Array, vec: Array) -> Array:
+        """(d^2Q/dp^2) v at one sample. Shape: (nvars, 1)."""
+        operator_hvp = self._operator_hvp
+        if operator_hvp is None:
+            raise RuntimeError(
+                "hvp is unavailable; check derivatives() before calling"
+            )
+        validate_sample(self.nvars(), sample)
+        validate_sample(self.nvars(), vec)
+        return operator_hvp(self._init_state, sample, vec)
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"nvars={self.nvars()}, nqoi={self.nqoi()}, "
+            f"functional={type(self._functional).__name__})"
         )
