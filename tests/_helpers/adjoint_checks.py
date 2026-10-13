@@ -1,10 +1,13 @@
 """Shared harness pieces for adjoint/HVP DerivativeChecker tests."""
 
-from typing import Any
+from typing import Any, List
 
 import numpy as np
 from numpy.typing import NDArray
 
+from pyapprox.interface.functions.derivative_checks.derivative_checker import (
+    DerivativeChecker,
+)
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.ode.operator.time_adjoint_hvp import (
     TimeAdjointOperatorWithHVP,
@@ -40,6 +43,38 @@ class NoHVPQuadraticFieldMap:
     def jacobian(self, params_1d: NumpyArray) -> NumpyArray:
         z = self._bkd.dot(self._W, params_1d)
         return 2.0 * z[:, None] * self._W
+
+
+def solve_based_derivatives_pass_fd(model: Any, sample: NumpyArray) -> List[bool]:
+    """Finite-difference check of each declared derivative of a model
+    whose every evaluation goes through a solve.
+
+    The solve's results are at roundoff, and its floor sits near an error
+    ratio of 1e-6, so whether the usual ``ratio <= 1e-6`` or a V-shape fit
+    passes depends on the random direction. Each derivative must instead
+    satisfy both:
+
+    - error ratio at most 5e-6 over steps 1e-13 to 1e-1, the bound used
+      for noise-limited checks elsewhere;
+    - first-order convergence over steps 1e-1 to 1e-5, the truncation
+      regime, which is clean for every direction; a wrong derivative
+      does not converge there (``convergence_order`` then raises, which
+      fails the test).
+    """
+    bkd = model.bkd()
+    checker = DerivativeChecker(model)
+    fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
+    passed = []
+    for errors in checker.check_derivatives(
+        sample, fd_eps=fd_eps, relative=True
+    ):
+        ratio = bkd.to_float(checker.error_ratio(errors))
+        # fd_eps descends, so the first five steps are 1e-1 to 1e-5.
+        order = bkd.to_float(
+            checker.convergence_order(errors[:5], fd_eps[:5])
+        )
+        passed.append(ratio <= 5e-6 and abs(order - 1.0) < 0.1)
+    return passed
 
 
 class HVPOperatorFunction:

@@ -17,9 +17,6 @@ if not package_available("skfem"):
 
 import numpy as np
 
-from pyapprox.interface.functions.derivative_checks.derivative_checker import (
-    DerivativeChecker,
-)
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.optimization.implicitfunction.functionals.derivatives import (
@@ -58,7 +55,10 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.adjoint_checks import (
+    NumpyArray,
+    solve_based_derivatives_pass_fd,
+)
 
 _NPARAMS = 3
 _PARAM = np.array([[0.4], [-0.3], [0.2]])
@@ -181,37 +181,11 @@ class _ValueOnlyFunctional:
 def _derivatives_pass_fd(
     bkd: NumpyBkd, model: GalerkinSteadyForwardModel[NumpyArray]
 ) -> List[bool]:
-    """Finite-difference checks of every declared derivative.
-
-    Each model evaluation goes through a Newton solve, whose results are
-    already at roundoff (a tighter tolerance changes nothing), and the
-    roundoff floor sits near an error ratio of 1e-6, so whether the usual
-    ``ratio <= 1e-6`` or a V-shape fit passes depends on the random
-    direction (worst ratio over ten seeds: 3.9e-6). Each derivative must
-    instead satisfy both:
-
-    - error ratio at most 5e-6 over steps 1e-13 to 1e-1, the bound used
-      for noise-limited checks elsewhere;
-    - first-order convergence over steps 1e-1 to 1e-5, the truncation
-      regime, which is clean for every direction; a wrong derivative
-      does not converge there.
-
-    The components are checked without repeated solves in
-    test_essential_boundary_flux.
-    """
-    checker = DerivativeChecker(model)
-    fd_eps = bkd.flip(bkd.logspace(-13, -1, 13))
-    passed = []
-    for errors in checker.check_derivatives(
-        bkd.asarray(_PARAM), fd_eps=fd_eps, relative=True
-    ):
-        ratio = bkd.to_float(checker.error_ratio(errors))
-        # fd_eps descends, so the first five steps are 1e-1 to 1e-5.
-        order = bkd.to_float(
-            checker.convergence_order(errors[:5], fd_eps[:5])
-        )
-        passed.append(ratio <= 5e-6 and abs(order - 1.0) < 0.1)
-    return passed
+    """FD checks at ``_PARAM`` (worst plain ratio over ten seeds was
+    3.9e-6, and a tighter Newton tolerance changes nothing, hence the
+    solve-based criterion). The components are checked without repeated
+    solves in test_essential_boundary_flux."""
+    return solve_based_derivatives_pass_fd(model, bkd.asarray(_PARAM))
 
 
 class TestValues:
