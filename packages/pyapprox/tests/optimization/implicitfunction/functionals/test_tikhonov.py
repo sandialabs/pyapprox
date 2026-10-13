@@ -26,9 +26,6 @@ from pyapprox.optimization.implicitfunction.functionals.subset_of_states import 
 from pyapprox.optimization.implicitfunction.functionals.tikhonov import (
     TikhonovAugmentedSteadyFunctional,
 )
-from pyapprox.optimization.implicitfunction.functionals.tikhonov_mean_squared_error import (  # noqa: E501
-    TikhonovMSEFunctional,
-)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -296,41 +293,6 @@ class TestValueAndDerivatives:
             sample, fd_eps=fd_eps, relative=True
         )[0]
         assert not checker.check_v_shape(errors, fd_eps).passed
-
-
-class TestReplacesTikhonovMSE:
-    def test_reproduces_tikhonov_mse(self, bkd: Backend[Array]) -> None:
-        """With alpha = 1 and no weight, the wrapper around MSEFunctional
-        is the former TikhonovMSEFunctional."""
-        obs = bkd.asarray(_OBS_NP)
-        old = TikhonovMSEFunctional(_NSTATES, _NPARAMS, bkd)
-        old.set_observations(obs)
-        mse = MSEFunctional(_NSTATES, _NPARAMS, bkd)
-        mse.set_observations(obs)
-        new = TikhonovAugmentedSteadyFunctional(mse, 1.0, bkd)
-        state, param = _state_param(bkd, 11)
-        vvec = bkd.asarray(
-            np.random.default_rng(12).normal(0.0, 1.0, (_NPARAMS, 1))
-        )
-        wvec = bkd.asarray(
-            np.random.default_rng(13).normal(0.0, 1.0, (_NSTATES, 1))
-        )
-        bkd.assert_allclose(new(state, param), old(state, param), rtol=1e-12)
-        old_derivs = old.derivatives()
-        new_derivs = new.derivatives()
-        pairs = [
-            ("state_jacobian", (state, param)),
-            ("param_jacobian", (state, param)),
-            ("state_state_hvp", (state, param, wvec)),
-            ("state_param_hvp", (state, param, vvec)),
-            ("param_state_hvp", (state, param, wvec)),
-            ("param_param_hvp", (state, param, vvec)),
-        ]
-        for name, args in pairs:
-            old_fn = getattr(old_derivs, name)
-            new_fn = getattr(new_derivs, name)
-            assert old_fn is not None and new_fn is not None
-            bkd.assert_allclose(new_fn(*args), old_fn(*args), rtol=1e-12)
 
 
 class TestConstructorValidation:

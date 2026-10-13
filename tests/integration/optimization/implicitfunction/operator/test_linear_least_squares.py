@@ -3,8 +3,8 @@ import numpy as np
 from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
-from pyapprox.optimization.implicitfunction.functionals.tikhonov_mean_squared_error import (  # noqa: E501
-    TikhonovMSEFunctional,
+from pyapprox.optimization.implicitfunction.functionals.tikhonov import (
+    TikhonovAugmentedSteadyFunctional,
 )
 from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
     AdjointOperator,
@@ -64,8 +64,9 @@ class TestLinearLeastSquares:
 
         # Create state equation and functional
         state_eq = LinearStateEquation(Amat, obs, bkd)
-        functional = TikhonovMSEFunctional(nobs, nvars, bkd)
-        functional.set_observations(obs)
+        misfit = MSEFunctional(nobs, nvars, bkd)
+        misfit.set_observations(obs)
+        functional = TikhonovAugmentedSteadyFunctional(misfit, 1.0, bkd)
 
         # Create adjoint operator
         adjoint_operator = AdjointOperator(state_eq, functional)
