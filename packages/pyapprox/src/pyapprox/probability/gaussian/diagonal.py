@@ -5,13 +5,16 @@ Provides a multivariate Gaussian with diagonal covariance matrix
 (independent components).
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 import numpy as np
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.probability.covariance import DiagonalCovarianceOperator
-from pyapprox.probability.gaussian.core import GaussianLogPDFCore
+from pyapprox.probability.gaussian.core import (
+    GaussianLogPDFCore,
+    standard_normal_draws,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -137,7 +140,9 @@ class DiagonalMultivariateGaussian(Generic[Array]):
         """
         return self._cov_op
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -145,6 +150,8 @@ class DiagonalMultivariateGaussian(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
@@ -152,7 +159,9 @@ class DiagonalMultivariateGaussian(Generic[Array]):
             Random samples. Shape: (nvars, nsamples)
         """
         # Generate standard normal samples
-        std_normal = self._bkd.asarray(np.random.normal(0, 1, (self._nvars, nsamples)))
+        std_normal = self._bkd.asarray(
+            standard_normal_draws(self._nvars, nsamples, rng)
+        )
         # Transform: sigma * z + mean
         return self._cov_op.apply(std_normal) + self._mean
 

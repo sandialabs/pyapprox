@@ -5,7 +5,7 @@ Provides an efficient covariance operator for diagonal covariance matrices
 where all operations reduce to elementwise operations.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -176,6 +176,33 @@ class DiagonalCovarianceOperator(Generic[Array]):
             Variances. Shape: (nvars,)
         """
         return self._variances
+
+    def covariance_diagonal(
+        self,
+        batch_size: Optional[int] = None,
+        active_indices: Optional[Array] = None,
+    ) -> Array:
+        """
+        Return diagonal entries of the covariance: the stored variances.
+
+        Parameters
+        ----------
+        batch_size : int, optional
+            Ignored: nothing is probed.
+        active_indices : Array, optional
+            Which diagonal entries to return. All if omitted.
+
+        Returns
+        -------
+        Array
+            The requested variances. Shape: (nactive,)
+        """
+        if active_indices is None:
+            return self._variances
+        # Integer-typed, as the probing operator converts them too.
+        return self._variances[
+            self._bkd.asarray(active_indices, dtype=self._bkd.int64_dtype())
+        ]
 
     def covariance(self) -> Array:
         """

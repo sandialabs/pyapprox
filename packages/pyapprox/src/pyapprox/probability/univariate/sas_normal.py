@@ -20,19 +20,17 @@ At epsilon=0, delta=1 this reduces exactly to N(xi, eta^2).
 # VI (optional if need arises)
 
 import math
-from typing import TYPE_CHECKING, Any, Generic, Optional
+from typing import Any, Generic, Optional
 
 import numpy as np
 
+from pyapprox.probability.univariate.gaussian import GaussianMarginal
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.hyperparameter import (
     HyperParameter,
     HyperParameterList,
     LogHyperParameter,
 )
-
-if TYPE_CHECKING:
-    from pyapprox.probability.univariate.gaussian import GaussianMarginal
 
 
 class SASNormalMarginal(Generic[Array]):
@@ -290,10 +288,8 @@ class SASNormalMarginal(Generic[Array]):
         result = self._sas_forward(n_1d)
         return self._bkd.reshape(result, (1, -1))
 
-    def base_distribution(self) -> "GaussianMarginal[Array]":
+    def base_distribution(self) -> GaussianMarginal[Array]:
         """Return the base distribution for reparameterization (standard normal)."""
-        from pyapprox.probability.univariate.gaussian import GaussianMarginal
-
         return GaussianMarginal(0.0, 1.0, self._bkd)
 
     def is_bounded(self) -> bool:

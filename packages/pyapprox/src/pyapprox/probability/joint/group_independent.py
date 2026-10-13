@@ -7,7 +7,9 @@ IndependentJoint.  Internally flattens to a single IndependentJoint but
 tracks group boundaries for slicing.
 """
 
-from typing import Generic, List, Sequence, Union
+from typing import Generic, List, Optional, Sequence, Union
+
+import numpy as np
 
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.protocols.distribution import MarginalProtocol
@@ -101,9 +103,11 @@ class GroupIndependentJoint(Generic[Array]):
         """Row slice for group *i* in the ``(nvars, n)`` sample array."""
         return self._group_slices[i]
 
-    def rvs(self, nsamples: int) -> Array:
-        """Draw samples, shape ``(nvars, nsamples)``."""
-        return self._flat_joint.rvs(nsamples)
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
+        """Draw samples, shape ``(nvars, nsamples)``, from ``rng`` if given."""
+        return self._flat_joint.rvs(nsamples, rng=rng)
 
     def marginals(self) -> List[MarginalProtocol[Array]]:
         """Flat list of all marginals across groups."""

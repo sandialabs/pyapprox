@@ -6,12 +6,28 @@ across distributions and likelihoods.
 """
 
 import math
-from typing import Generic
+from typing import Any, Generic, Optional
+
+import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.probability.protocols import (
     SqrtCovarianceOperatorProtocol,
 )
 from pyapprox.util.backends.protocols import Array, Backend
+
+
+def standard_normal_draws(
+    nvars: int, nsamples: int, rng: Optional[np.random.Generator]
+) -> NDArray[np.floating[Any]]:
+    """Independent standard normal draws, shape ``(nvars, nsamples)``.
+
+    From ``rng`` when given, so the draws depend on it alone; otherwise
+    from numpy's global state.
+    """
+    if rng is None:
+        return np.random.normal(0, 1, (nvars, nsamples))
+    return rng.normal(0, 1, (nvars, nsamples))
 
 
 class GaussianLogPDFCore(Generic[Array]):

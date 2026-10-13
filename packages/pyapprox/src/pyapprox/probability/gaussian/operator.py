@@ -5,13 +5,15 @@ Provides a multivariate Gaussian using callback-based covariance operators,
 suitable for infinite-dimensional or kernel-based covariances.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 import numpy as np
 
 from pyapprox.interface.functions.derivatives import Derivatives
-from pyapprox.probability.covariance import OperatorBasedCovarianceOperator
-from pyapprox.probability.gaussian.core import GaussianLogPDFCore
+from pyapprox.probability.gaussian.core import (
+    GaussianLogPDFCore,
+    standard_normal_draws,
+)
 from pyapprox.probability.protocols import SqrtCovarianceOperatorProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -112,58 +114,32 @@ class OperatorBasedMultivariateGaussian(Generic[Array]):
         return self._cov_op
 
     def covariance_diagonal(
-        self, batch_size: int = None, active_indices: Array = None
+        self,
+        batch_size: Optional[int] = None,
+        active_indices: Optional[Array] = None,
     ) -> Array:
         """
-        Compute diagonal of covariance via probing.
+        Return diagonal entries of the covariance, as its operator computes them.
 
         Parameters
         ----------
         batch_size : int, optional
-            Batch size for probe vectors.
+            Unit vectors probed at once, for an operator that probes.
         active_indices : Array, optional
-            Indices of diagonal terms to compute.
+            Indices of diagonal terms to compute. All if omitted.
 
         Returns
         -------
         Array
-            Diagonal terms of covariance.
+            Diagonal terms of covariance. Shape: (nactive,)
         """
-        if isinstance(self._cov_op, OperatorBasedCovarianceOperator):
-            return self._cov_op.compute_covariance_diagonal(
-                batch_size=batch_size, active_indices=active_indices
-            )
+        return self._cov_op.covariance_diagonal(
+            batch_size=batch_size, active_indices=active_indices
+        )
 
-        # Fallback for other operator types
-        if active_indices is None:
-            active_indices = self._bkd.arange(self._nvars)
-
-        n_active = active_indices.shape[0]
-        if batch_size is None:
-            batch_size = n_active
-
-        diagonal = self._bkd.zeros((n_active,))
-        cnt = 0
-
-        while cnt < n_active:
-            nvectors = min(batch_size, n_active - cnt)
-            vectors = self._bkd.zeros((self._nvars, nvectors))
-            for jj in range(nvectors):
-                idx = self._bkd.to_int(active_indices[cnt + jj])
-                vectors[idx, jj] = 1.0
-
-            tmp = self._cov_op.apply_transpose(vectors)
-            result = self._cov_op.apply(tmp)
-
-            for jj in range(nvectors):
-                idx = self._bkd.to_int(active_indices[cnt + jj])
-                diagonal[cnt + jj] = result[idx, jj]
-
-            cnt += nvectors
-
-        return diagonal
-
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -171,6 +147,8 @@ class OperatorBasedMultivariateGaussian(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
@@ -178,7 +156,9 @@ class OperatorBasedMultivariateGaussian(Generic[Array]):
             Random samples. Shape: (nvars, nsamples)
         """
         # Generate standard normal samples
-        std_normal = self._bkd.asarray(np.random.normal(0, 1, (self._nvars, nsamples)))
+        std_normal = self._bkd.asarray(
+            standard_normal_draws(self._nvars, nsamples, rng)
+        )
         # Transform: L @ z + mean
         return self._cov_op.apply(std_normal) + self._mean
 

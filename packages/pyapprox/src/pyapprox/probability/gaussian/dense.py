@@ -5,7 +5,7 @@ Provides a multivariate Gaussian with dense covariance matrix using
 Cholesky factorization.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 import numpy as np
 
@@ -13,7 +13,10 @@ from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.probability.covariance import (
     DenseCholeskyCovarianceOperator,
 )
-from pyapprox.probability.gaussian.core import GaussianLogPDFCore
+from pyapprox.probability.gaussian.core import (
+    GaussianLogPDFCore,
+    standard_normal_draws,
+)
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -131,7 +134,9 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         """
         return self._cov_op.cholesky_factor()
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -139,16 +144,17 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
         Array
             Random samples. Shape: (nvars, nsamples)
         """
-        # Generate standard normal samples (explicitly float64 for backend
-        # compatibility)
+        # Generate standard normal samples
         std_normal = self._bkd.asarray(
-            np.random.normal(0, 1, (self._nvars, nsamples)).astype(np.float64)
+            standard_normal_draws(self._nvars, nsamples, rng)
         )
         # Transform: L @ z + mean
         return self._cov_op.apply(std_normal) + self._mean
@@ -235,7 +241,7 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
         """
         return -self._cov_op.covariance_inverse()
 
-    def kl_divergence(self, other: "DenseCholeskyMultivariateGaussian[Array]") -> float:
+    def kl_divergence(self, other: "DenseCholeskyMultivariateGaussian[Array]") -> Array:
         """
         Compute KL divergence KL(self || other).
 
@@ -250,8 +256,8 @@ class DenseCholeskyMultivariateGaussian(Generic[Array]):
 
         Returns
         -------
-        float
-            KL divergence value.
+        Array
+            KL divergence value, a scalar array, so gradients flow through.
         """
         cov1 = self.covariance()
         cov2_inv = other.covariance_inverse()

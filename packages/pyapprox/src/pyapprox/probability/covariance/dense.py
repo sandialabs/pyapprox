@@ -5,7 +5,7 @@ Provides a covariance operator based on explicit Cholesky factorization
 of a dense covariance matrix.
 """
 
-from typing import Generic
+from typing import Generic, Optional
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -175,6 +175,34 @@ class DenseCholeskyCovarianceOperator(Generic[Array]):
             Covariance matrix. Shape: (nvars, nvars)
         """
         return self._cov
+
+    def covariance_diagonal(
+        self,
+        batch_size: Optional[int] = None,
+        active_indices: Optional[Array] = None,
+    ) -> Array:
+        """
+        Return diagonal entries of the covariance, read from its matrix.
+
+        Parameters
+        ----------
+        batch_size : int, optional
+            Ignored: nothing is probed.
+        active_indices : Array, optional
+            Which diagonal entries to return. All if omitted.
+
+        Returns
+        -------
+        Array
+            The requested diagonal entries. Shape: (nactive,)
+        """
+        diagonal = self._bkd.diag(self._cov)
+        if active_indices is None:
+            return diagonal
+        # Integer-typed, as the probing operator converts them too.
+        return diagonal[
+            self._bkd.asarray(active_indices, dtype=self._bkd.int64_dtype())
+        ]
 
     def covariance_inverse(self) -> Array:
         """

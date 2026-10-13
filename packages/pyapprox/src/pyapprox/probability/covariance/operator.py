@@ -182,7 +182,7 @@ class OperatorBasedCovarianceOperator(Generic[Array]):
         """
         return self._log_det
 
-    def compute_covariance_diagonal(
+    def covariance_diagonal(
         self, batch_size: Optional[int] = None, active_indices: Optional[Array] = None
     ) -> Array:
         """

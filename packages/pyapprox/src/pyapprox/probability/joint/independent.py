@@ -10,6 +10,7 @@ from typing import Generic, List, Optional, Sequence
 import numpy as np
 
 from pyapprox.interface.functions.derivatives import Derivatives
+from pyapprox.interface.functions.marginalize import DimensionReducerProtocol
 from pyapprox.interface.functions.plot.plot1d import Plotter1D
 from pyapprox.interface.functions.plot.plot2d_rectangular import (
     Plotter2DRectangularDomain,
@@ -260,7 +261,9 @@ class IndependentJoint(Generic[Array]):
         """
         return self._marginals[index]
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the joint distribution.
 
@@ -270,6 +273,9 @@ class IndependentJoint(Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness, drawn from by each marginal in turn;
+            numpy's global state if omitted.
 
         Returns
         -------
@@ -279,7 +285,7 @@ class IndependentJoint(Generic[Array]):
         samples_list = []
         for marginal in self._marginals:
             # Each marginal returns shape (1, nsamples)
-            marg_samples = marginal.rvs(nsamples)
+            marg_samples = marginal.rvs(nsamples, rng=rng)
             # Flatten to (nsamples,) for stacking
             samples_list.append(self._bkd.flatten(marg_samples))
         return self._bkd.stack(samples_list, axis=0)
@@ -574,7 +580,7 @@ class IndependentJoint(Generic[Array]):
     def plotter(
         self,
         plot_limits: Optional[Array] = None,
-        reducer: Optional[object] = None,
+        reducer: Optional[DimensionReducerProtocol[Array]] = None,
         variable_names: Optional[List[str]] = None,
     ) -> object:
         """
@@ -761,12 +767,12 @@ class IndependentJoint(Generic[Array]):
                 "calling"
             )
         jac_values = []
-        for i, marginal in enumerate(marginals):
+        for i, jac_marginal in enumerate(marginals):
             row_2d = self._bkd.reshape(sample[i], (1, -1))
-            # marginal.pdf_jacobian returns (1, 1) for single sample
-            pdf_jac_i = marginal.pdf_jacobian(row_2d)[0, 0]
+            # pdf_jacobian returns (1, 1) for single sample
+            pdf_jac_i = jac_marginal.pdf_jacobian(row_2d)[0, 0]
             # Product of all other PDFs
-            other_product = 1.0
+            other_product = self._bkd.asarray(1.0)
             for j, pdf_val in enumerate(pdf_vals):
                 if j != i:
                     other_product = other_product * pdf_val
@@ -808,10 +814,10 @@ class IndependentJoint(Generic[Array]):
             )
         # Compute Jacobian for each variable using product rule
         jac_list = []
-        for i, marginal in enumerate(marginals):
+        for i, jac_marginal in enumerate(marginals):
             row_2d = self._bkd.reshape(samples[i], (1, -1))
-            # marginal.pdf_jacobian returns (1, nsamples)
-            pdf_jac_i = marginal.pdf_jacobian(row_2d)[0]
+            # pdf_jacobian returns (1, nsamples)
+            pdf_jac_i = jac_marginal.pdf_jacobian(row_2d)[0]
             # Product of all other PDFs
             other_product = self._bkd.ones((nsamples,))
             for j in range(self._nvars):

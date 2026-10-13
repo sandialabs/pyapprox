@@ -19,7 +19,7 @@ DiagonalCovarianceOperatorProtocol
     Specialized for diagonal covariance matrices.
 """
 
-from typing import Generic, Protocol, runtime_checkable
+from typing import Generic, Optional, Protocol, runtime_checkable
 
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -152,6 +152,33 @@ class SqrtCovarianceOperatorProtocol(Protocol, Generic[Array]):
         -------
         float
             log|L| = sum(log(diag(L)))
+        """
+        ...
+
+    def covariance_diagonal(
+        self,
+        batch_size: Optional[int] = None,
+        active_indices: Optional[Array] = None,
+    ) -> Array:
+        """
+        Return diagonal entries of the covariance L @ L.T.
+
+        Each operator computes them its own way: from stored variances,
+        from its Cholesky factor, or, without explicit entries, by applying
+        L.T and then L to unit vectors.
+
+        Parameters
+        ----------
+        batch_size : int, optional
+            Unit vectors probed at once, for an operator that probes;
+            others ignore it. All at once if omitted.
+        active_indices : Array, optional
+            Which diagonal entries to return. All if omitted.
+
+        Returns
+        -------
+        Array
+            The requested diagonal entries. Shape: (nactive,)
         """
         ...
 

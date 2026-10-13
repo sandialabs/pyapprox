@@ -16,10 +16,11 @@ This form is efficient for:
 """
 
 import math
-from typing import Generic, Tuple
+from typing import Generic, Optional, Tuple
 
 import numpy as np
 
+from pyapprox.probability.gaussian.core import standard_normal_draws
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -324,7 +325,9 @@ class GaussianCanonicalForm(Generic[Array]):
             new_precision, new_shift, new_normalization, self._bkd
         )
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples.
 
@@ -332,6 +335,8 @@ class GaussianCanonicalForm(Generic[Array]):
         ----------
         nsamples : int
             Number of samples.
+        rng : numpy.random.Generator, optional
+            The source of randomness; numpy's global state if omitted.
 
         Returns
         -------
@@ -340,7 +345,9 @@ class GaussianCanonicalForm(Generic[Array]):
         """
         mean, covariance = self.to_moments()
         L = self._bkd.cholesky(covariance)
-        std_normal = self._bkd.asarray(np.random.normal(0, 1, (self._nvars, nsamples)))
+        std_normal = self._bkd.asarray(
+            standard_normal_draws(self._nvars, nsamples, rng)
+        )
         return L @ std_normal + mean[:, None]
 
     def __repr__(self) -> str:

@@ -2,6 +2,8 @@
 Tests for covariance operators.
 """
 
+from typing import Any, List, Tuple
+
 import numpy as np
 import pytest
 
@@ -10,6 +12,10 @@ from pyapprox.probability.covariance import (
     DiagonalCovarianceOperator,
     OperatorBasedCovarianceOperator,
 )
+from pyapprox.probability.protocols.covariance import (
+    SqrtCovarianceOperatorProtocol,
+)
+from pyapprox.util.backends.protocols import Array, Backend
 
 
 class TestDenseCholeskyCovarianceOperator:
@@ -253,26 +259,26 @@ class TestOperatorBasedCovarianceOperator:
         result = op.apply(Linv_x)
         assert bkd.allclose(result, x, rtol=1e-6)
 
-    def test_compute_covariance_diagonal(self, bkd) -> None:
+    def test_covariance_diagonal(self, bkd) -> None:
         """Test diagonal computation via probing."""
         nvars, scale, _, op = self._setup(bkd)
-        diagonal = op.compute_covariance_diagonal()
+        diagonal = op.covariance_diagonal()
         # Cov = L @ L.T = scale^2 * I
         expected = bkd.asarray([scale**2] * nvars)
         assert bkd.allclose(diagonal, expected, rtol=1e-6)
 
-    def test_compute_covariance_diagonal_batched(self, bkd) -> None:
+    def test_covariance_diagonal_batched(self, bkd) -> None:
         """Test batched diagonal computation."""
         nvars, scale, _, op = self._setup(bkd)
-        diagonal = op.compute_covariance_diagonal(batch_size=2)
+        diagonal = op.covariance_diagonal(batch_size=2)
         expected = bkd.asarray([scale**2] * nvars)
         assert bkd.allclose(diagonal, expected, rtol=1e-6)
 
-    def test_compute_covariance_diagonal_active(self, bkd) -> None:
+    def test_covariance_diagonal_active(self, bkd) -> None:
         """Test diagonal computation with active indices."""
         _, scale, _, op = self._setup(bkd)
         active = bkd.asarray([0, 2])
-        diagonal = op.compute_covariance_diagonal(active_indices=active)
+        diagonal = op.covariance_diagonal(active_indices=active)
         expected = bkd.asarray([scale**2, scale**2])
         assert bkd.allclose(diagonal, expected, rtol=1e-6)
 
@@ -367,3 +373,43 @@ class TestCovarianceOperatorProtocolCompliance:
         assert hasattr(op, "apply_inv")
         assert hasattr(op, "apply_inv_transpose")
         assert hasattr(op, "log_determinant")
+
+
+class TestCovarianceDiagonal:
+    """Every operator returns the diagonal of the covariance it represents."""
+
+    def _operators(self, bkd: Backend[Array]) -> List[Tuple[str, Any, Array]]:
+        A = bkd.asarray([[2.0, 0.0, 0.0], [1.0, 3.0, 0.0], [0.5, 1.0, 1.5]])
+        cov = A @ bkd.transpose(A)
+        lower = bkd.cholesky(cov)
+        probed = OperatorBasedCovarianceOperator(
+            apply_sqrt=lambda x: lower @ x,
+            apply_sqrt_inv=lambda x: bkd.solve_triangular(lower, x, lower=True),
+            log_determinant=bkd.to_float(bkd.sum(bkd.log(bkd.diag(lower)))),
+            nvars=3,
+            bkd=bkd,
+            apply_sqrt_transpose=lambda x: bkd.transpose(lower) @ x,
+        )
+        variances = bkd.asarray([4.0, 0.5, 2.25])
+        return [
+            ("dense", DenseCholeskyCovarianceOperator(cov, bkd), cov),
+            (
+                "diagonal",
+                DiagonalCovarianceOperator(variances, bkd),
+                bkd.diag(variances),
+            ),
+            ("probed", probed, cov),
+        ]
+
+    def test_matches_the_covariance(self, bkd: Backend[Array]) -> None:
+        for name, op, cov in self._operators(bkd):
+            assert isinstance(op, SqrtCovarianceOperatorProtocol), name
+            bkd.assert_allclose(op.covariance_diagonal(), bkd.diag(cov))
+
+    def test_selected_entries(self, bkd: Backend[Array]) -> None:
+        active = bkd.asarray([0, 2], dtype=bkd.int64_dtype())
+        for _, op, cov in self._operators(bkd):
+            bkd.assert_allclose(
+                op.covariance_diagonal(batch_size=1, active_indices=active),
+                bkd.diag(cov)[active],
+            )

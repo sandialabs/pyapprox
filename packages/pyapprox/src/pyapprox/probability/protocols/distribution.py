@@ -18,7 +18,9 @@ JointDistributionProtocol
     Multivariate distribution with marginal access.
 """
 
-from typing import Generic, Protocol, Sequence, Tuple, runtime_checkable
+from typing import Generic, Optional, Protocol, Sequence, Tuple, runtime_checkable
+
+import numpy as np
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.util.backends.protocols import Array, Backend
@@ -133,7 +135,9 @@ class MarginalProtocol(Protocol, Generic[Array]):
 
     def nvars(self) -> int: ...
 
-    def rvs(self, nsamples: int) -> Array: ...
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array: ...
 
     def logpdf(self, samples: Array) -> Array: ...
 
@@ -263,7 +267,9 @@ class MarginalWithJacobianProtocol(Protocol, Generic[Array]):
 
     def nvars(self) -> int: ...
 
-    def rvs(self, nsamples: int) -> Array: ...
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array: ...
 
     def logpdf(self, samples: Array) -> Array: ...
 
@@ -330,7 +336,9 @@ class MarginalWithParamJacobianProtocol(Protocol, Generic[Array]):
 
     def nvars(self) -> int: ...
 
-    def rvs(self, nsamples: int) -> Array: ...
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array: ...
 
     def logpdf(self, samples: Array) -> Array: ...
 
