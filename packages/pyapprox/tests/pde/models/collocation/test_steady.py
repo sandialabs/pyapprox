@@ -22,7 +22,7 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
-    VectorAdjointOperatorWithJacobian,
+    ForwardSensitivityOperator,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import (
@@ -40,7 +40,7 @@ from pyapprox.pde.field_maps.basis_expansion import (
 )
 from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationWithJacobianAdapter,
+    CollocationStateEquationAdapter,
     SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.derivatives import (
@@ -96,13 +96,13 @@ def _create_parameterized_diffusion_problem(bkd, npts=20):
     return physics, param, init_state
 
 
-class TestCollocationStateEquationWithJacobianAdapter:
+class TestCollocationStateEquationAdapter:
     def test_solve_matches_collocation_model(self, bkd):
         """Adapter solve matches direct CollocationModel.solve_steady."""
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationWithJacobianAdapter(
+        adapter = CollocationStateEquationAdapter(
             model, bkd, parameterization=param
         )
 
@@ -124,7 +124,7 @@ class TestCollocationStateEquationWithJacobianAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationWithJacobianAdapter(
+        adapter = CollocationStateEquationAdapter(
             model, bkd, parameterization=param
         )
 
@@ -141,7 +141,7 @@ class TestCollocationStateEquationWithJacobianAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationWithJacobianAdapter(
+        adapter = CollocationStateEquationAdapter(
             model, bkd, parameterization=param
         )
 
@@ -169,7 +169,7 @@ class TestCollocationStateEquationWithJacobianAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationWithJacobianAdapter(
+        adapter = CollocationStateEquationAdapter(
             model, bkd, parameterization=param
         )
 
@@ -194,7 +194,7 @@ class TestCollocationStateEquationWithJacobianAdapter:
         physics, param, init_state_1d = _create_parameterized_diffusion_problem(bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        adapter = CollocationStateEquationWithJacobianAdapter(
+        adapter = CollocationStateEquationAdapter(
             model, bkd, parameterization=param
         )
 
@@ -364,10 +364,10 @@ class TestSteadyForwardModel:
         functional = SubsetOfStatesAdjointFunctional(nstates, nparams, subset, bkd)
 
         model = create_collocation_model(physics, bkd, parameterization=param)
-        state_eq = CollocationStateEquationWithJacobianAdapter(
+        state_eq = CollocationStateEquationAdapter(
             model, bkd, parameterization=param
         )
-        adjoint_op = VectorAdjointOperatorWithJacobian(state_eq, functional)
+        adjoint_op = ForwardSensitivityOperator(state_eq, functional)
 
         init_state_2d = init_state[:, None]
         param_2d = bkd.array([0.3, 0.1])[:, None]

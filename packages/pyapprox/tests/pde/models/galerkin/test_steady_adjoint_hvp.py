@@ -3,7 +3,7 @@
 Component-wise validation (ImplicitFunctionDerivativeChecker: state and
 parameter Jacobians, all four state-equation HVP blocks, functional
 derivatives, and the assembled adjoint gradient and HVP) of
-GalerkinStateEquationWithHVPAdapter with parameters the coefficients of a
+GalerkinStateEquationAdapter with parameters the coefficients of a
 lognormal KLE of the diffusivity field. The exp map makes every
 parameter-facing HVP nonzero; the cubic-reaction variant additionally
 makes state_state_hvp nonzero.
@@ -23,11 +23,11 @@ import numpy as np
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
@@ -46,7 +46,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationWithHVPAdapter,
+    GalerkinStateEquationAdapter,
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
@@ -82,7 +82,7 @@ def _lognormal_kle_map(
 def _build_state_equation(
     bkd: NumpyBkd, nonlinear_reaction: bool
 ) -> Tuple[
-    GalerkinStateEquationWithHVPAdapter[NumpyArray],
+    GalerkinStateEquationAdapter[NumpyArray],
     GalerkinSystem[NumpyArray],
 ]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
@@ -113,7 +113,7 @@ def _build_state_equation(
     param_obj = AdvectionDiffusionParameterization(
         physics, diffusivity_map=_lognormal_kle_map(bkd, basis), bkd=bkd
     )
-    state_eq = GalerkinStateEquationWithHVPAdapter(
+    state_eq = GalerkinStateEquationAdapter(
         system.steady(), param_obj, bkd
     )
     return state_eq, system
@@ -138,7 +138,7 @@ class TestSteadyADRLogKLEAdjointHVP:
         weights[state_idx] = 1.0
         functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
 
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
@@ -162,14 +162,19 @@ class TestSteadyADRLogKLEAdjointHVP:
         # breaks for contraction/orientation bugs.
         vvec = bkd.asarray(np.array([[0.5], [0.7], [-0.6]]))
         uvec = bkd.asarray(np.array([[-0.2], [0.9], [0.3]]))
-        h_v = adjoint_op.hvp(init_state, param, vvec)
-        h_u = adjoint_op.hvp(init_state, param, uvec)
+        hvp = adjoint_op.derivatives().hvp
+        assert hvp is not None
+        h_v = hvp(init_state, param, vvec)
+        h_u = hvp(init_state, param, uvec)
         bkd.assert_allclose(
             bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
         )
 
-    def test_first_order_bundle_raises(self, numpy_bkd: NumpyBkd) -> None:
-        """A parameterization without HVPs is rejected at construction."""
+    def test_first_order_bundle_withholds_hvps(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """A parameterization without HVPs gives an adapter without
+        HVPs."""
         bkd = numpy_bkd
         mesh = StructuredMesh1D(nx=6, bounds=(0.0, 1.0), bkd=bkd)
         basis = LagrangeBasis(mesh, degree=1)
@@ -201,7 +206,7 @@ class TestSteadyADRLogKLEAdjointHVP:
         param_obj = AdvectionDiffusionParameterization(
             physics, diffusivity_map=no_hvp_map, bkd=bkd
         )
-        with pytest.raises(TypeError, match="second-order"):
-            GalerkinStateEquationWithHVPAdapter(
-                system.steady(), param_obj, bkd
-            )
+        state_eq = GalerkinStateEquationAdapter(
+            system.steady(), param_obj, bkd
+        )
+        assert state_eq.derivatives().state_state_hvp is None

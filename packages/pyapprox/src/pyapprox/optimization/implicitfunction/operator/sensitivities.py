@@ -6,6 +6,9 @@ from pyapprox.optimization.implicitfunction.functionals.derivatives import (
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
+from pyapprox.optimization.implicitfunction.operator.derivatives import (
+    ImplicitOperatorDerivatives,
+)
 from pyapprox.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
@@ -17,13 +20,15 @@ from pyapprox.util.backends.validation import validate_backends
 from pyapprox.util.linalg.sparse_dispatch import solve_maybe_sparse
 
 
-class VectorAdjointOperatorWithJacobian(Generic[Array]):
+class ForwardSensitivityOperator(Generic[Array]):
     """
-    Vector adjoint operator for solving adjoint equations and computing
-    sensitivities.
+    Operator for a vector-valued functional of the solution of a steady
+    state equation, differentiated by forward sensitivities.
 
-    This class encapsulates adjoint operator functionality for vector
-    functionals with Jacobian computations.
+    Solves ``(dR/du) S = -dR/dp`` for the state sensitivities ``S`` (one
+    linear solve per parameter) and returns ``dQ/du S + dQ/dp``, so it
+    suits functionals with many QoI. It provides no Hessian-vector
+    product.
     """
 
     def __init__(
@@ -32,7 +37,7 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         functional: ParameterizedFunctionalWithJacobianProtocol[Array],
     ):
         """
-        Initialize the VectorAdjointOperatorWithJacobian object.
+        Initialize the ForwardSensitivityOperator object.
 
         Parameters
         ----------
@@ -130,6 +135,10 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
         """
         return self._bkd
 
+    def derivatives(self) -> ImplicitOperatorDerivatives[Array]:
+        """Return the optional derivatives this operator provides (none)."""
+        return ImplicitOperatorDerivatives.none()
+
     def storage(self) -> AdjointOperatorStorage[Array]:
         """
         Return the adjoint operator storage.
@@ -140,6 +149,17 @@ class VectorAdjointOperatorWithJacobian(Generic[Array]):
             Storage for adjoint operator data.
         """
         return self._storage
+
+    def nstates(self) -> int:
+        """
+        Return the number of states in the system.
+
+        Returns
+        -------
+        int
+            Number of states.
+        """
+        return self._state_eq.nstates()
 
     def nparams(self) -> int:
         """

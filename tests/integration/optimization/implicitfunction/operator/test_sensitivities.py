@@ -5,7 +5,7 @@ from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
 )
 from pyapprox.optimization.implicitfunction.operator.sensitivities import (
-    VectorAdjointOperatorWithJacobian,
+    ForwardSensitivityOperator,
 )
 from pyapprox.util.rootfinding.newton import NewtonSolverOptions
 from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (  # noqa: E501
@@ -35,7 +35,7 @@ class TestSensitivities:
         )
 
         # Create adjoint operator
-        adjoint_op = VectorAdjointOperatorWithJacobian(state_eq, functional)
+        adjoint_op = ForwardSensitivityOperator(state_eq, functional)
 
         # Check derivatives
         derivative_checker = ImplicitFunctionDerivativeChecker(adjoint_op)

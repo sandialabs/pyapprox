@@ -20,11 +20,11 @@ import numpy as np
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -45,7 +45,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationWithHVPAdapter,
+    GalerkinStateEquationAdapter,
 )
 from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
@@ -124,7 +124,7 @@ class TestAdvectionDiffusionParameterization:
         nparams = facade.nparams()
         assert nparams == 9
 
-        state_eq = GalerkinStateEquationWithHVPAdapter(
+        state_eq = GalerkinStateEquationAdapter(
             system.steady(), facade, bkd
         )
         nstates = physics.nstates()
@@ -139,7 +139,7 @@ class TestAdvectionDiffusionParameterization:
         weights[state_idx] = 1.0
         functional = WeightedSumFunctional(weights, nparams, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         rng = np.random.default_rng(19)
         param = bkd.asarray(rng.normal(0.0, 0.3, (nparams, 1)))

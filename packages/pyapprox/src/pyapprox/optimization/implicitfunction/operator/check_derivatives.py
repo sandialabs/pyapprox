@@ -10,29 +10,20 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
 )
-from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianProtocol,
-)
 from pyapprox.optimization.implicitfunction.operator.protocols import (
     AdjointOperatorWithJacobianProtocol,
-)
-from pyapprox.optimization.implicitfunction.operator.sensitivities import (
-    VectorAdjointOperatorWithJacobian,
-)
-from pyapprox.optimization.implicitfunction.state_equations.protocols import (
-    ParameterizedStateEquationWithJacobianAndHVPProtocol,
 )
 from pyapprox.util.backends.protocols import Array
 
 _F = TypeVar("_F")
 
 
-def _require(field: Optional[_F], name: str) -> _F:
-    """Return a functional's derivative ``field``, or raise naming it."""
+def _require(field: Optional[_F], owner: str, name: str) -> _F:
+    """Return a derivative ``field`` of ``owner``, or raise naming it."""
     if field is None:
         raise TypeError(
-            f"the functional's derivatives() provides no {name}, so it "
-            "cannot be checked"
+            f"{owner}'s derivatives() provides no {name}, so it cannot be "
+            "checked"
         )
     return field
 
@@ -64,6 +55,7 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         self._state_eq = adjoint_operator.state_equation()
         self._functional = adjoint_operator.functional()
         self._q_derivs = self._functional.derivatives()
+        self._r_derivs = self._state_eq.derivatives()
 
     def _validate_adjoint_operator(
         self, adjoint_operator: AdjointOperatorWithJacobianProtocol[Array]
@@ -73,14 +65,14 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
 
         Parameters
         ----------
-        adjoint_operator : AdjointOperatorWithJacobian
+        adjoint_operator : AdjointOperator
             Adjoint operator object.
 
         Raises
         ------
         TypeError
             If the adjoint operator is not a valid instance of
-            AdjointOperatorWithJacobian.
+            AdjointOperator.
         """
         if not isinstance(adjoint_operator, AdjointOperatorWithJacobianProtocol):
             raise TypeError(
@@ -178,7 +170,7 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._state_eq.nstates(), init_state)
         validate_sample(self._state_eq.nparams(), param)
         state_jacobian = _require(
-            self._q_derivs.state_jacobian, "state_jacobian"
+            self._q_derivs.state_jacobian, "the functional", "state_jacobian"
         )
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=self._functional.nqoi(),
@@ -216,7 +208,7 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._state_eq.nstates(), init_state)
         validate_sample(self._state_eq.nparams(), param)
         param_jacobian = _require(
-            self._q_derivs.param_jacobian, "param_jacobian"
+            self._q_derivs.param_jacobian, "the functional", "param_jacobian"
         )
         wrapper = FunctionWithJacobianFromCallable(
             nqoi=self._functional.nqoi(),
@@ -284,11 +276,16 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._state_eq.nstates(), state)
         validate_sample(self._state_eq.nstates(), adj_state)
         validate_sample(self._state_eq.nparams(), param)
+        param_param_hvp = _require(
+            self._r_derivs.param_param_hvp,
+            "the state equation",
+            "param_param_hvp",
+        )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._functional.nparams(),
             nvars=self._functional.nparams(),
             fun=lambda param: self._state_eq.param_jacobian(state, param).T @ adj_state,
-            jvp=lambda p, v: self._state_eq.param_param_hvp(state, p, adj_state, v),
+            jvp=lambda p, v: param_param_hvp(state, p, adj_state, v),
             bkd=self._bkd,
         )
         checker: DerivativeChecker[Array] = DerivativeChecker(wrapper)
@@ -334,12 +331,16 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._state_eq.nstates(), state)
         validate_sample(self._state_eq.nstates(), adj_state)
         validate_sample(self._state_eq.nparams(), param)
-
+        state_state_hvp = _require(
+            self._r_derivs.state_state_hvp,
+            "the state equation",
+            "state_state_hvp",
+        )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._state_eq.nstates(),
             nvars=self._state_eq.nstates(),
             fun=lambda state: self._state_eq.state_jacobian(state, param).T @ adj_state,
-            jvp=lambda state, vec: self._state_eq.state_state_hvp(
+            jvp=lambda state, vec: state_state_hvp(
                 state, param, adj_state, vec
             ),
             bkd=self._bkd,
@@ -387,11 +388,16 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._state_eq.nstates(), state)
         validate_sample(self._state_eq.nstates(), adj_state)
         validate_sample(self._state_eq.nparams(), param)
+        param_state_hvp = _require(
+            self._r_derivs.param_state_hvp,
+            "the state equation",
+            "param_state_hvp",
+        )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._state_eq.nparams(),
             nvars=self._state_eq.nstates(),
             fun=lambda state: self._state_eq.param_jacobian(state, param).T @ adj_state,
-            jvp=lambda state, vec: self._state_eq.param_state_hvp(
+            jvp=lambda state, vec: param_state_hvp(
                 state, param, adj_state, vec
             ),
             bkd=self._bkd,
@@ -426,7 +432,11 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._state_eq.nstates(), state)
         validate_sample(self._state_eq.nstates(), adj_state)
         validate_sample(self._state_eq.nparams(), param)
-
+        state_param_hvp = _require(
+            self._r_derivs.state_param_hvp,
+            "the state equation",
+            "state_param_hvp",
+        )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._state_eq.nstates(),
             nvars=self._state_eq.nparams(),
@@ -437,7 +447,7 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
             # indices — Dirichlet row replacement breaks that symmetry.
             fun=lambda param: self._state_eq.state_jacobian(state, param).T
             @ adj_state,
-            jvp=lambda param, vec: self._state_eq.state_param_hvp(
+            jvp=lambda param, vec: state_param_hvp(
                 state, param, adj_state, vec
             ),
             bkd=self._bkd,
@@ -483,10 +493,10 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._functional.nparams(), param)
 
         param_jacobian = _require(
-            self._q_derivs.param_jacobian, "param_jacobian"
+            self._q_derivs.param_jacobian, "the functional", "param_jacobian"
         )
         param_param_hvp = _require(
-            self._q_derivs.param_param_hvp, "param_param_hvp"
+            self._q_derivs.param_param_hvp, "the functional", "param_param_hvp"
         )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._functional.nparams(),
@@ -536,10 +546,10 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._functional.nparams(), param)
 
         state_jacobian = _require(
-            self._q_derivs.state_jacobian, "state_jacobian"
+            self._q_derivs.state_jacobian, "the functional", "state_jacobian"
         )
         state_state_hvp = _require(
-            self._q_derivs.state_state_hvp, "state_state_hvp"
+            self._q_derivs.state_state_hvp, "the functional", "state_state_hvp"
         )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._functional.nstates(),
@@ -589,10 +599,10 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._functional.nparams(), param)
 
         param_jacobian = _require(
-            self._q_derivs.param_jacobian, "param_jacobian"
+            self._q_derivs.param_jacobian, "the functional", "param_jacobian"
         )
         param_state_hvp = _require(
-            self._q_derivs.param_state_hvp, "param_state_hvp"
+            self._q_derivs.param_state_hvp, "the functional", "param_state_hvp"
         )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._functional.nparams(),
@@ -642,10 +652,10 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         validate_sample(self._functional.nparams(), param)
 
         state_jacobian = _require(
-            self._q_derivs.state_jacobian, "state_jacobian"
+            self._q_derivs.state_jacobian, "the functional", "state_jacobian"
         )
         state_param_hvp = _require(
-            self._q_derivs.state_param_hvp, "state_param_hvp"
+            self._q_derivs.state_param_hvp, "the functional", "state_param_hvp"
         )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._functional.nstates(),
@@ -674,11 +684,14 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
             print(f"{self}.check_jacobian")
         validate_sample(self._state_eq.nstates(), state)
         validate_sample(self._state_eq.nparams(), param)
+        hvp = _require(
+            self._adjoint_operator.derivatives().hvp, "the operator", "hvp"
+        )
         wrapper = FunctionWithJVPFromCallable(
             nqoi=self._functional.nparams(),
             nvars=self._functional.nparams(),
             fun=lambda param: self._adjoint_operator.jacobian(state, param).T,
-            jvp=lambda param, vec: self._adjoint_operator.hvp(state, param, vec),
+            jvp=lambda param, vec: hvp(state, param, vec),
             bkd=self._bkd,
         )
         checker: DerivativeChecker[Array] = DerivativeChecker(wrapper)
@@ -748,16 +761,9 @@ class ImplicitFunctionDerivativeChecker(Generic[Array]):
         errors = self.check_jacobian(init_state, param, fd_eps, verbosity=verbosity)
         self._assert_derivatives_close(errors, tols[4])
 
-        if (
-            not isinstance(
-                self._functional, ParameterizedFunctionalWithJacobianProtocol
-            )
-            or not isinstance(
-                self._state_eq,
-                ParameterizedStateEquationWithJacobianAndHVPProtocol,
-            )
-            or isinstance(self._adjoint_operator, VectorAdjointOperatorWithJacobian)
-        ):
+        # The second-order checks run exactly when the operator offers an
+        # HVP, which needs every HVP of the functional and state equation.
+        if self._adjoint_operator.derivatives().hvp is None:
             return
 
         # Check second-order derivatives of the state equation

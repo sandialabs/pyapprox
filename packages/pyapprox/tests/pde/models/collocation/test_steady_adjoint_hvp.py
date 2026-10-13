@@ -3,7 +3,7 @@
 Component-wise validation (ImplicitFunctionDerivativeChecker: state and
 parameter Jacobians, all four state-equation HVP blocks, functional
 derivatives, and the assembled adjoint gradient and HVP) of
-CollocationStateEquationWithHVPAdapter with parameters the coefficients
+CollocationStateEquationAdapter with parameters the coefficients
 of a lognormal KLE of the diffusion field. The collocation mixed tensor
 is NOT symmetric in (residual, state) indices (non-symmetric
 differentiation matrices + Dirichlet row replacement), so this exercises
@@ -14,16 +14,15 @@ non-symmetric case.
 from typing import Tuple
 
 import numpy as np
-import pytest
 
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis1D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
@@ -43,7 +42,7 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationWithHVPAdapter,
+    CollocationStateEquationAdapter,
 )
 from pyapprox.pde.parameterizations.collocation_advection_diffusion import (
     CollocationAdvectionDiffusionParameterization,
@@ -123,7 +122,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         model = create_collocation_model(
             physics, bkd, parameterization=param_obj
         )
-        state_eq = CollocationStateEquationWithHVPAdapter(
+        state_eq = CollocationStateEquationAdapter(
             model, bkd, parameterization=param_obj
         )
 
@@ -133,7 +132,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         weights[npts // 2] = 1.0
         functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
 
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
@@ -152,8 +151,10 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         # breaks for contraction/orientation bugs.
         vvec = bkd.asarray(np.array([[0.5], [0.7], [-0.6]]))
         uvec = bkd.asarray(np.array([[-0.2], [0.9], [0.3]]))
-        h_v = adjoint_op.hvp(init_state, param, vvec)
-        h_u = adjoint_op.hvp(init_state, param, uvec)
+        hvp = adjoint_op.derivatives().hvp
+        assert hvp is not None
+        h_v = hvp(init_state, param, vvec)
+        h_u = hvp(init_state, param, uvec)
         bkd.assert_allclose(
             bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
         )
@@ -185,7 +186,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         model = create_collocation_model(
             physics, bkd, parameterization=comp
         )
-        state_eq = CollocationStateEquationWithHVPAdapter(
+        state_eq = CollocationStateEquationAdapter(
             model, bkd, parameterization=comp
         )
         weights = bkd.zeros((npts, 1))
@@ -193,7 +194,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         weights[npts // 2] = 1.0
         functional = WeightedSumFunctional(weights, nparams, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
 
         param = bkd.asarray(
@@ -214,16 +215,18 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         uvec = bkd.asarray(
             np.array([[-0.2], [0.9], [0.3], [-0.5], [0.6]])
         )
-        h_v = adjoint_op.hvp(init_state, param, vvec)
-        h_u = adjoint_op.hvp(init_state, param, uvec)
+        hvp = adjoint_op.derivatives().hvp
+        assert hvp is not None
+        h_v = hvp(init_state, param, vvec)
+        h_u = hvp(init_state, param, uvec)
         bkd.assert_allclose(
             bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
         )
 
-    def test_first_order_map_raises(self, numpy_bkd: NumpyBkd) -> None:
-        """A map with undeclared curvature yields a first-order bundle:
-        HVP tier construction is rejected. (Linear maps declare
-        hvp = 0 exactly and stay second order.)"""
+    def test_first_order_map_withholds_hvps(self, numpy_bkd: NumpyBkd) -> None:
+        """A map with undeclared curvature yields a first-order bundle,
+        so the adapter offers no HVPs and the operator no HVP. (Linear
+        maps declare hvp = 0 exactly and stay second order.)"""
         bkd = numpy_bkd
         physics, basis, nodes = _build_problem(bkd, npts=10)
         modes = bkd.stack([bkd.ones((10,)), nodes], axis=1)
@@ -236,7 +239,7 @@ class TestCollocationSteadyLogKLEAdjointHVP:
         model = create_collocation_model(
             physics, bkd, parameterization=param_obj
         )
-        with pytest.raises(TypeError, match="second-order"):
-            CollocationStateEquationWithHVPAdapter(
-                model, bkd, parameterization=param_obj
-            )
+        state_eq = CollocationStateEquationAdapter(
+            model, bkd, parameterization=param_obj
+        )
+        assert state_eq.derivatives().state_state_hvp is None

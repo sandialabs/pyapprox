@@ -6,11 +6,11 @@ from pyapprox.optimization.implicitfunction.functionals.mean_squared_error impor
 from pyapprox.optimization.implicitfunction.functionals.tikhonov_mean_squared_error import (  # noqa: E501
     TikhonovMSEFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox_benchmarks.functions.algebraic.linear_state_equation import (
     LinearStateEquation,
@@ -37,7 +37,7 @@ class TestLinearLeastSquares:
         functional.set_observations(obs)
 
         # Create adjoint operator
-        adjoint_operator = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_operator = AdjointOperator(state_eq, functional)
 
         # Test value computation
         value = adjoint_operator(init_state, param)
@@ -68,7 +68,7 @@ class TestLinearLeastSquares:
         functional.set_observations(obs)
 
         # Create adjoint operator
-        adjoint_operator = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_operator = AdjointOperator(state_eq, functional)
 
         # Test derivative computation
         derivative_checker = ImplicitFunctionDerivativeChecker(adjoint_operator)

@@ -7,17 +7,17 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.interface.functions.protocols.function import FunctionProtocol
+from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
+    SubsetOfStatesAdjointFunctional,
+)
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.as_function import (
     ImplicitFunctionOfParameters,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian import (
-    AdjointOperatorWithJacobian,
 )
 from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (
     NonLinearCoupledStateEquations,
@@ -37,16 +37,20 @@ def _exact_gradient(a, b):
     return np.array([dr_da, dr_db]) / (2.0 * np.sqrt(ratio))
 
 
-def _build(bkd, second_order=True):
+def _build(bkd, second_order: bool = True):
+    """Q = y_1, from a functional with HVPs or from one with Jacobians
+    only; the operator's HVP exists only for the first."""
     state_eq = NonLinearCoupledStateEquations(bkd)
-    functional = WeightedSumFunctional(
-        bkd.asarray([[0.0], [1.0]]), state_eq.nparams(), bkd
-    )
-    operator = (
-        AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+    functional = (
+        WeightedSumFunctional(
+            bkd.asarray([[0.0], [1.0]]), state_eq.nparams(), bkd
+        )
         if second_order
-        else AdjointOperatorWithJacobian(state_eq, functional)
+        else SubsetOfStatesAdjointFunctional(
+            state_eq.nstates(), state_eq.nparams(), bkd.asarray([1]), bkd
+        )
     )
+    operator = AdjointOperator(state_eq, functional)
     init_state = bkd.full((state_eq.nstates(), 1), 0.75)
     return ImplicitFunctionOfParameters(operator, init_state)
 
@@ -85,8 +89,10 @@ class TestImplicitFunctionOfParameters:
         sample = numpy_bkd.asarray([[0.5], [1.228]])
         vec_u = numpy_bkd.asarray([[0.6], [-0.8]])
         vec_v = numpy_bkd.asarray([[0.3], [0.95]])
-        hu_v = numpy_bkd.sum(function.hvp(sample, vec_u) * vec_v)
-        hv_u = numpy_bkd.sum(function.hvp(sample, vec_v) * vec_u)
+        hvp = function.derivatives().hvp
+        assert hvp is not None
+        hu_v = numpy_bkd.sum(hvp(sample, vec_u) * vec_v)
+        hv_u = numpy_bkd.sum(hvp(sample, vec_v) * vec_u)
         numpy_bkd.assert_allclose(
             numpy_bkd.asarray([hu_v]), numpy_bkd.asarray([hv_u]), atol=1e-12
         )
@@ -106,17 +112,22 @@ class TestImplicitFunctionOfParameters:
         assert without_hvp.jacobian is not None
         assert without_hvp.hvp is None
 
-    def test_hvp_raises_without_second_order_operator(self, numpy_bkd):
-        function = _build(numpy_bkd, second_order=False)
+    def test_jacobian_only_functional_gives_same_gradient(
+        self, numpy_bkd
+    ) -> None:
+        """The first-order operator differs only in capability."""
         sample = numpy_bkd.asarray([[0.5], [1.228]])
-        with pytest.raises(RuntimeError, match="AdjointOperatorWithJacobianAndHVP"):
-            function.hvp(sample, sample)
+        numpy_bkd.assert_allclose(
+            _build(numpy_bkd, second_order=False).jacobian(sample),
+            _build(numpy_bkd).jacobian(sample),
+            rtol=1e-12,
+        )
 
     def test_rejects_wrong_shaped_init_state(self, numpy_bkd):
         state_eq = NonLinearCoupledStateEquations(numpy_bkd)
         functional = WeightedSumFunctional(
             numpy_bkd.asarray([[0.0], [1.0]]), state_eq.nparams(), numpy_bkd
         )
-        operator = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        operator = AdjointOperator(state_eq, functional)
         with pytest.raises(ValueError):
             ImplicitFunctionOfParameters(operator, numpy_bkd.full((3, 1), 0.75))

@@ -14,11 +14,11 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.optimization.implicitfunction.state_equations.derivatives import (
     SteadyStateEquationDerivatives,
@@ -908,7 +908,7 @@ class TestParameterizations:
         functional = WeightedSumFunctional(
             bkd.ones((nstates, 1)), comp.nparams(), bkd
         )
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         tols = checker.get_derivative_tolerances(1e-6)
         param = bkd.array([0.3, -0.1, 0.8, 0.5, -0.4])[:, None]

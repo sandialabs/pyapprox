@@ -21,11 +21,11 @@ import numpy as np
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -45,7 +45,7 @@ from pyapprox.pde.galerkin.physics import (
     QuasilinearDiffusion,
 )
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationWithHVPAdapter,
+    GalerkinStateEquationAdapter,
 )
 from pyapprox.pde.parameterizations.galerkin_quasilinear_diffusion import (
     create_quasilinear_diffusivity_parameterization,
@@ -118,7 +118,7 @@ class TestQuasilinearDiffusivityParameterization:
         param_obj = create_quasilinear_diffusivity_parameterization(
             physics, field_map, bkd
         )
-        state_eq = GalerkinStateEquationWithHVPAdapter(
+        state_eq = GalerkinStateEquationAdapter(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
@@ -133,7 +133,7 @@ class TestQuasilinearDiffusivityParameterization:
         weights[state_idx] = 1.0
         functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
         init_state = bkd.zeros((nstates, 1))
@@ -153,8 +153,10 @@ class TestQuasilinearDiffusivityParameterization:
         # FD-noise-immune symmetry identity <Hu, v> = <Hv, u>.
         vvec = bkd.asarray(np.array([[0.5], [0.7], [-0.6]]))
         uvec = bkd.asarray(np.array([[-0.2], [0.9], [0.3]]))
-        h_v = adjoint_op.hvp(init_state, param, vvec)
-        h_u = adjoint_op.hvp(init_state, param, uvec)
+        hvp = adjoint_op.derivatives().hvp
+        assert hvp is not None
+        h_v = hvp(init_state, param, vvec)
+        h_u = hvp(init_state, param, uvec)
         bkd.assert_allclose(
             bkd.sum(h_v * uvec), bkd.sum(h_u * vvec), rtol=1e-12
         )

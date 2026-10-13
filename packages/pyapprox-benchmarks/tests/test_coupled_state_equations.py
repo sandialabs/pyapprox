@@ -10,9 +10,13 @@ from pyapprox.interface.functions.protocols.function import FunctionProtocol
 from pyapprox.optimization.implicitfunction.functionals.mean_squared_error import (
     MSEFunctional,
 )
+from pyapprox.optimization.implicitfunction.functionals.subset_of_states import (  # noqa: E501
+    SubsetOfStatesAdjointFunctional,
+)
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox_benchmarks.problems.coupled_state_equations import (
     CoupledStateEquationsForwardUQ,
 )
@@ -113,10 +117,12 @@ class TestCoupledStateEquationsForwardUQ:
         numpy_bkd.assert_allclose(
             function.jacobian(target), numpy_bkd.zeros((1, 2)), atol=1e-6
         )
+        hvp = function.derivatives().hvp
+        assert hvp is not None
         hessian = numpy_bkd.hstack(
             [
-                function.hvp(target, numpy_bkd.asarray([[1.0], [0.0]])),
-                function.hvp(target, numpy_bkd.asarray([[0.0], [1.0]])),
+                hvp(target, numpy_bkd.asarray([[1.0], [0.0]])),
+                hvp(target, numpy_bkd.asarray([[0.0], [1.0]])),
             ]
         )
         eigvals = np.linalg.eigvalsh(numpy_bkd.to_numpy(hessian))
@@ -129,3 +135,12 @@ class TestCoupledStateEquationsForwardUQ:
 
         with pytest.raises(TypeError, match="ParameterizedFunctional"):
             CoupledStateEquationsForwardUQ(numpy_bkd, functional=_JacobianOnly())
+
+    def test_rejects_functional_whose_bundle_lacks_hvps(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        functional = SubsetOfStatesAdjointFunctional(
+            2, 2, numpy_bkd.asarray([1]), numpy_bkd
+        )
+        with pytest.raises(TypeError, match="second-order"):
+            CoupledStateEquationsForwardUQ(numpy_bkd, functional=functional)

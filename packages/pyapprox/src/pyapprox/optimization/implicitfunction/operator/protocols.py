@@ -3,6 +3,9 @@ from typing import Generic, Protocol, runtime_checkable
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
     ParameterizedFunctionalWithJacobianProtocol,
 )
+from pyapprox.optimization.implicitfunction.operator.derivatives import (
+    ImplicitOperatorDerivatives,
+)
 from pyapprox.optimization.implicitfunction.operator.storage import (
     AdjointOperatorStorage,
 )
@@ -48,6 +51,10 @@ class AdjointOperatorWithJacobianProtocol(Generic[Array], Protocol):
         Array
             Jacobian matrix.
         """
+        ...
+
+    def derivatives(self) -> ImplicitOperatorDerivatives[Array]:
+        """Return the optional derivatives this operator provides."""
         ...
 
     def storage(self) -> AdjointOperatorStorage[Array]:

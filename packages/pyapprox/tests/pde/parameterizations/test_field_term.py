@@ -27,11 +27,11 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.pde.constitutive.coefficient_functions import (
     CallableReaction,
@@ -53,7 +53,7 @@ from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationWithHVPAdapter,
+    GalerkinStateEquationAdapter,
 )
 from pyapprox.pde.parameterizations.field_term import (
     FromLinearity,
@@ -243,7 +243,7 @@ class TestFieldParameterizationTerm:
         )
         term = _build_engine_term(bkd, physics, field_map)
         param_obj = term
-        state_eq = GalerkinStateEquationWithHVPAdapter(
+        state_eq = GalerkinStateEquationAdapter(
             system.steady(), param_obj, bkd
         )
 
@@ -259,7 +259,7 @@ class TestFieldParameterizationTerm:
         weights[state_idx] = 1.0
         functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
         init_state = bkd.zeros((nstates, 1))
@@ -326,7 +326,7 @@ class TestFieldParameterizationTerm:
             owned_coefficients=("field",),
         )
         param_obj = term
-        state_eq = GalerkinStateEquationWithHVPAdapter(
+        state_eq = GalerkinStateEquationAdapter(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
@@ -341,7 +341,7 @@ class TestFieldParameterizationTerm:
         weights[state_idx] = 1.0
         functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
         init_state = bkd.zeros((nstates, 1))
@@ -410,7 +410,7 @@ class TestFieldParameterizationTerm:
             owned_coefficients=("field",),
         )
         param_obj = term
-        state_eq = GalerkinStateEquationWithHVPAdapter(
+        state_eq = GalerkinStateEquationAdapter(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
@@ -425,7 +425,7 @@ class TestFieldParameterizationTerm:
         weights[state_idx] = 1.0
         functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
         init_state = bkd.zeros((nstates, 1))
@@ -498,7 +498,7 @@ class TestFieldParameterizationTerm:
             owned_coefficients=("field",),
         )
         param_obj = term
-        state_eq = GalerkinStateEquationWithHVPAdapter(
+        state_eq = GalerkinStateEquationAdapter(
             system.steady(), param_obj, bkd
         )
         nstates = physics.nstates()
@@ -513,7 +513,7 @@ class TestFieldParameterizationTerm:
         weights[state_idx] = 1.0
         functional = WeightedSumFunctional(weights, _NPARAMS, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         param = bkd.asarray(np.array([[0.4], [-0.3], [0.2]]))
         init_state = bkd.zeros((nstates, 1))

@@ -140,9 +140,12 @@ targets = bkd.asarray([[np.sqrt(1.0 + 1.0 * ratio)], [np.sqrt(ratio)]])
 functional = MSEFunctional(2, 2, bkd)
 functional.set_observations(targets)
 qoi = CoupledStateEquationsForwardUQ(bkd, functional=functional).problem().function()
+# The HVP is listed in the derivative bundle; it is None when the state
+# equation or the functional lacks second derivatives.
+qoi_hvp = qoi.derivatives().hvp
 
 direction = bkd.asarray([[0.6], [-0.8]])
-print("H v =", bkd.to_numpy(qoi.hvp(reference_param, direction)).ravel())
+print("H v =", bkd.to_numpy(qoi_hvp(reference_param, direction)).ravel())
 ```
 
 Four solves produced the product. Nothing in the call exposes a matrix; the
@@ -159,7 +162,7 @@ param = reference_param
 
 def hvp(vec):
     """Reduced-Hessian-vector product at the reference parameters."""
-    return qoi.hvp(param, vec)
+    return qoi_hvp(param, vec)
 
 
 columns = []

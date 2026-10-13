@@ -19,16 +19,16 @@ different geometry.
 from typing import Generic, Optional
 
 from pyapprox.optimization.implicitfunction.functionals.protocols import (
-    ParameterizedFunctionalWithJacobianAndHVPProtocol,
+    ParameterizedFunctionalWithJacobianProtocol,
 )
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.as_function import (
     ImplicitFunctionOfParameters,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.probability.joint.independent import IndependentJoint
 from pyapprox.probability.univariate.uniform import UniformMarginal
@@ -52,7 +52,7 @@ class CoupledStateEquationsForwardUQ(Generic[Array]):
     ----------
     bkd : Backend[Array]
         Computational backend.
-    functional : ParameterizedFunctionalWithJacobianAndHVPProtocol, optional
+    functional : ParameterizedFunctionalWithJacobianProtocol, optional
         Scalar functional of ``(state, param)`` defining the quantity of
         interest. Defaults to reading the second state component. Supply
         one to change what the problem measures without changing the
@@ -60,15 +60,15 @@ class CoupledStateEquationsForwardUQ(Generic[Array]):
         least-squares misfit turns the same solve into a
         parameter-estimation objective, and reading the first state
         instead is a ``WeightedSumFunctional`` with the weights
-        transposed. Must declare ``nqoi() == 1`` and the four
-        second-order terms.
+        transposed. Must declare ``nqoi() == 1`` and carry the four
+        second-order terms in its ``derivatives()`` bundle.
     """
 
     def __init__(
         self,
         bkd: Backend[Array],
         functional: Optional[
-            ParameterizedFunctionalWithJacobianAndHVPProtocol[Array]
+            ParameterizedFunctionalWithJacobianProtocol[Array]
         ] = None,
     ) -> None:
         state_eq: NonLinearCoupledStateEquations[Array] = (
@@ -83,14 +83,20 @@ class CoupledStateEquationsForwardUQ(Generic[Array]):
             weights = bkd.asarray([[0.0]] * (nstates - 1) + [[1.0]])
             functional = WeightedSumFunctional(weights, state_eq.nparams(), bkd)
         elif not isinstance(
-            functional, ParameterizedFunctionalWithJacobianAndHVPProtocol
+            functional, ParameterizedFunctionalWithJacobianProtocol
         ):
             raise TypeError(
                 "functional must satisfy "
-                "ParameterizedFunctionalWithJacobianAndHVPProtocol, got "
+                "ParameterizedFunctionalWithJacobianProtocol, got "
                 f"{type(functional).__name__}"
             )
-        operator = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        elif functional.derivatives().state_state_hvp is None:
+            raise TypeError(
+                f"{type(functional).__name__} declares no second-order "
+                "terms (derivatives().state_state_hvp is None); this "
+                "problem carries Hessian-vector products"
+            )
+        operator = AdjointOperator(state_eq, functional)
         # Start Newton inside the solution branch for the whole support.
         init_state = bkd.full((nstates, 1), 0.75)
         function = ImplicitFunctionOfParameters(operator, init_state)

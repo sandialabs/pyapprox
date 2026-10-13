@@ -4,11 +4,11 @@ import pytest
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.util.rootfinding.newton import NewtonSolverOptions
 from pyapprox_benchmarks.functions.algebraic.wildeys_nonlinear_state_equation import (  # noqa: E501
@@ -58,7 +58,7 @@ class TestNonLinearCoupledEquations:
 
         weights = bkd.ones((2, 1))
         functional = WeightedSumFunctional(weights, 2, bkd)
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         derivative_checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         tols = derivative_checker.get_derivative_tolerances(1e-6)
         # Reduce finite difference step sizes for Newton convergence

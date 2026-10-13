@@ -8,18 +8,18 @@ drivers, optimizers — want a batch map ``(nvars, nsamples) ->
 operator supports. This module bridges the two.
 """
 
-from typing import Generic, Optional, Union
+from typing import Generic, Optional
 
 from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.interface.functions.protocols.validation import (
     validate_sample,
     validate_samples,
 )
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
 )
-from pyapprox.optimization.implicitfunction.operator.operator_with_jacobian import (
-    AdjointOperatorWithJacobian,
+from pyapprox.optimization.implicitfunction.operator.derivatives import (
+    OperatorHVPFn,
 )
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -35,10 +35,10 @@ class ImplicitFunctionOfParameters(Generic[Array]):
 
     Parameters
     ----------
-    operator : AdjointOperatorWithJacobian or AdjointOperatorWithJacobianAndHVP
+    operator : AdjointOperator
         Operator pairing a parameterized state equation with a scalar
-        functional. Passing the HVP-capable operator declares ``hvp`` in
-        the bundle as well as ``jacobian``.
+        functional. The bundle declares ``hvp`` as well as ``jacobian``
+        when the operator's own bundle carries one.
     init_state : Array
         Initial state used to start every state solve.
         Shape: ``(nstates, 1)``.
@@ -46,10 +46,7 @@ class ImplicitFunctionOfParameters(Generic[Array]):
 
     def __init__(
         self,
-        operator: Union[
-            AdjointOperatorWithJacobian[Array],
-            AdjointOperatorWithJacobianAndHVP[Array],
-        ],
+        operator: AdjointOperator[Array],
         init_state: Array,
     ) -> None:
         state_eq = operator.state_equation()
@@ -62,16 +59,15 @@ class ImplicitFunctionOfParameters(Generic[Array]):
         self._operator = operator
         self._init_state = init_state
         self._bkd = operator.bkd()
-        # Capability is decided once, at construction: the HVP-capable
-        # operator declares an hvp, the jacobian-only one does not.
-        self._hvp_operator: Optional[AdjointOperatorWithJacobianAndHVP[Array]]
-        if isinstance(operator, AdjointOperatorWithJacobianAndHVP):
-            self._hvp_operator = operator
+        # Capability is decided once, at construction, from the
+        # operator's bundle.
+        operator_hvp = operator.derivatives().hvp
+        self._operator_hvp: Optional[OperatorHVPFn[Array]] = operator_hvp
+        if operator_hvp is not None:
             self._derivs: Derivatives[Array] = Derivatives.second_order(
-                jacobian=self.jacobian, hvp=self.hvp
+                jacobian=self.jacobian, hvp=self._hvp
             )
         else:
-            self._hvp_operator = None
             self._derivs = Derivatives.first_order(jacobian=self.jacobian)
 
     def bkd(self) -> Backend[Array]:
@@ -118,7 +114,7 @@ class ImplicitFunctionOfParameters(Generic[Array]):
         validate_sample(self.nvars(), sample)
         return self._operator.jacobian(self._init_state, sample)
 
-    def hvp(self, sample: Array, vec: Array) -> Array:
+    def _hvp(self, sample: Array, vec: Array) -> Array:
         """Second-order adjoint Hessian-vector product.
 
         Parameters
@@ -133,14 +129,14 @@ class ImplicitFunctionOfParameters(Generic[Array]):
         Array
             Shape: ``(nvars, 1)``.
         """
-        if self._hvp_operator is None:
+        operator_hvp = self._operator_hvp
+        if operator_hvp is None:
             raise RuntimeError(
-                "hvp requires an AdjointOperatorWithJacobianAndHVP; this "
-                f"instance wraps {type(self._operator).__name__}"
+                "hvp is unavailable; check derivatives() before calling"
             )
         validate_sample(self.nvars(), sample)
         validate_sample(self.nvars(), vec)
-        return self._hvp_operator.hvp(self._init_state, sample, vec)
+        return operator_hvp(self._init_state, sample, vec)
 
     def __repr__(self) -> str:
         """Return a detailed string representation for debugging."""

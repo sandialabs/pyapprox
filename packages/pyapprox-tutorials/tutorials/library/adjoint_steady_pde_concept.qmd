@@ -388,19 +388,19 @@ from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
 from pyapprox.optimization.implicitfunction.operator.as_function import (
     ImplicitFunctionOfParameters,
 )
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
 )
 from pyapprox.pde.models.galerkin.steady import (
-    GalerkinStateEquationWithHVPAdapter,
+    GalerkinStateEquationAdapter,
 )
 
-state_equation = GalerkinStateEquationWithHVPAdapter(
+state_equation = GalerkinStateEquationAdapter(
     system.steady(), parameterization, bkd,
 )
 weights = bkd.copy(bkd.zeros((physics.nstates(), 1)))
 weights[sensor] = 1.0
-operator = AdjointOperatorWithJacobianAndHVP(
+operator = AdjointOperator(
     state_equation, WeightedSumFunctional(weights, NUM_KLE_TERMS, bkd),
 )
 

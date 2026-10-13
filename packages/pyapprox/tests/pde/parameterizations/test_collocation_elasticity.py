@@ -17,11 +17,11 @@ from pyapprox.interface.functions.derivatives import Derivatives
 from pyapprox.optimization.implicitfunction.functionals.weighted_sum import (
     WeightedSumFunctional,
 )
+from pyapprox.optimization.implicitfunction.operator.adjoint_operator import (
+    AdjointOperator,
+)
 from pyapprox.optimization.implicitfunction.operator.check_derivatives import (
     ImplicitFunctionDerivativeChecker,
-)
-from pyapprox.optimization.implicitfunction.operator.operator_with_hvp import (
-    AdjointOperatorWithJacobianAndHVP,
 )
 from pyapprox.pde.collocation.basis import ChebyshevBasis2D
 from pyapprox.pde.collocation.boundary import zero_dirichlet_bc
@@ -41,7 +41,7 @@ from pyapprox.pde.field_maps.transformed import (
 )
 from pyapprox.pde.models.collocation import create_collocation_model
 from pyapprox.pde.models.collocation.steady import (
-    CollocationStateEquationWithHVPAdapter,
+    CollocationStateEquationAdapter,
     SteadyForwardModel,
 )
 from pyapprox.pde.parameterizations.collocation_elasticity import (
@@ -188,7 +188,7 @@ class TestSecondOrderCapability:
         model = create_collocation_model(
             physics, bkd, parameterization=facade
         )
-        state_eq = CollocationStateEquationWithHVPAdapter(
+        state_eq = CollocationStateEquationAdapter(
             model, bkd, parameterization=facade
         )
         nstates = physics.nstates()
@@ -211,7 +211,7 @@ class TestSecondOrderCapability:
         weights[state_idx] = 1.0
         functional = WeightedSumFunctional(weights, _NMODES, bkd)
 
-        adjoint_op = AdjointOperatorWithJacobianAndHVP(state_eq, functional)
+        adjoint_op = AdjointOperator(state_eq, functional)
         checker = ImplicitFunctionDerivativeChecker(adjoint_op)
         rng = np.random.default_rng(23)
         param = bkd.asarray(rng.normal(0.0, 0.3, (_NMODES, 1)))
