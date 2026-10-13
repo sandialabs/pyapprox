@@ -69,6 +69,16 @@ bc-flux slot), `CollocationElasticityParameterization` (stacked
 field), `CollocationHyperelasticityParameterization` (staged first
 order via `_WithoutHVP` and raising slots).
 
+The `ParamDerivatives` bundle's callables take `(state, time,
+params_1d, ...)` with no physics argument: the objects whose
+coefficients a parameterization writes (a physics, or a boundary term)
+are bound in its `__init__` and exposed via `targets()`. Model adapters
+validate at construction that every target belongs to what they solve
+(`pde.parameterizations.binding.require_owned_targets`): the solved
+object itself, or something it holds by `owns()` (`pde.ownership`),
+compared by identity, not equality. Ensembles construct one
+parameterization per physics.
+
 ## Seam 3 — the time-integration residual surface
 
 Implement (or wrap a stepper into)
@@ -86,9 +96,10 @@ the reference). Everything above the protocol is shared:
 Forward models satisfy `FunctionProtocol`: `__call__` maps parameter
 samples to QoIs; `derivatives()` returns a `Derivatives` bundle whose
 tier is fixed at construction from the parameterization bundle, the
-physics capability, the BC rows, and the functional's protocol tier
+physics capability, the BC rows, and the functional's own bundle
 (downgrades from missing physics capability warn; functional-driven
-downgrades are silent). Build the pipeline once and rebind parameters
+downgrades are silent; a functional without Jacobians gives a
+value-only model). Build the pipeline once and rebind parameters
 per sample. Reference: `pde/models/collocation/steady.py` and
 `transient.py`, `pde/models/galerkin/transient.py`.
 
