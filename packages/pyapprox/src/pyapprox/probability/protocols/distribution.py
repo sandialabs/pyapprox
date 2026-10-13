@@ -61,7 +61,9 @@ class DistributionProtocol(Protocol, Generic[Array]):
         """
         ...
 
-    def rvs(self, nsamples: int) -> Array:
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array:
         """
         Generate random samples from the distribution.
 
@@ -69,6 +71,10 @@ class DistributionProtocol(Protocol, Generic[Array]):
         ----------
         nsamples : int
             Number of samples to generate.
+        rng : numpy.random.Generator, optional
+            The source of randomness. Given, the samples depend on it
+            alone, so the same generator state repeats them whatever else
+            has drawn random numbers; omitted, numpy's global state.
 
         Returns
         -------
@@ -428,7 +434,9 @@ class JointDistributionProtocol(Protocol, Generic[Array]):
 
     def nvars(self) -> int: ...
 
-    def rvs(self, nsamples: int) -> Array: ...
+    def rvs(
+        self, nsamples: int, *, rng: Optional[np.random.Generator] = None
+    ) -> Array: ...
 
     def logpdf(self, samples: Array) -> Array: ...
 
