@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
 

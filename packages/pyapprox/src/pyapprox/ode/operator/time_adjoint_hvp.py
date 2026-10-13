@@ -14,13 +14,11 @@ Algorithm:
 
 from typing import Generic, Tuple
 
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.protocols import (
+    TransientFunctionalProtocol,
     TransientJacobianFn,
     TransientParamHVPFn,
     TransientStepHVPFn,
-)
-from pyapprox.ode.functionals.protocols import (
-    TransientFunctionalProtocol,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.operator.storage import TimeTrajectoryStorage

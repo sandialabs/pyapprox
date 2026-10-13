@@ -15,11 +15,11 @@ import pytest
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
-from pyapprox.ode.functionals.derivatives import (
-    TransientFunctionalDerivatives,
-)
 from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.functionals.mse import TransientMSEFunctional
+from pyapprox.ode.functionals.protocols import (
+    TransientFunctionalDerivatives,
+)
 from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional
 from pyapprox.ode.functionals.time_indexed_observation import (
     TimeIndexedObservationFunctional,

@@ -11,7 +11,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
 from pyapprox.interface.functions.fromcallable.jacobian import (
     FunctionWithJacobianFromCallable,
 )
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
 from pyapprox.ode.functionals.tikhonov import TikhonovAugmentedFunctional

@@ -22,10 +22,10 @@ from pyapprox.interface.functions.fromcallable.jacobian import (
 from pyapprox.ode.functionals.all_states_endpoint import (
     AllStatesEndpointFunctional,
 )
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
+from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
-from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
 from pyapprox.ode.mass_matrix import (
     ConstantDenseMassMatrix,

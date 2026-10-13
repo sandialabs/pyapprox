@@ -6,7 +6,7 @@ Computes Q = (1/2σ²) Σᵢ ||y(tᵢ) - obs(tᵢ)||² over observation times.
 
 from typing import Generic, List, Literal, Optional, Tuple
 
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol

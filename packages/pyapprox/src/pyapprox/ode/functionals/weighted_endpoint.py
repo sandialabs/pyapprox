@@ -7,7 +7,7 @@ final time T.
 
 from typing import Generic, Literal
 
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol

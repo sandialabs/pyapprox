@@ -25,7 +25,7 @@ from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
 )
 from pyapprox.ode.config import TimeIntegrationConfig
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
 from pyapprox.ode.operator.qoi_jacobian import adjoint_jacobian

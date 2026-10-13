@@ -8,10 +8,8 @@ default), adding a direct parameter dependence.
 
 from typing import Generic, Literal, Optional
 
-from pyapprox.ode.functionals.derivatives import (
-    TransientFunctionalDerivatives,
-)
 from pyapprox.ode.functionals.protocols import (
+    TransientFunctionalDerivatives,
     TransientFunctionalProtocol,
 )
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol

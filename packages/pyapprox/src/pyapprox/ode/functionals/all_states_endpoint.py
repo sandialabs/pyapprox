@@ -7,10 +7,10 @@ nqoi = nstates.
 
 from typing import Generic, Literal
 
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.endpoint import EndpointFunctional
+from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
-from pyapprox.ode.functionals.endpoint import EndpointFunctional
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.backends.validation import validate_backend

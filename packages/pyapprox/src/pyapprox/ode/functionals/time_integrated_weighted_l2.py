@@ -8,7 +8,7 @@ scheme-consistent quadrature approximation of
 
 from typing import Generic, Literal, Optional
 
-from pyapprox.ode.functionals.derivatives import (
+from pyapprox.ode.functionals.protocols import (
     TransientFunctionalDerivatives,
 )
 from pyapprox.ode.time_quadrature import TrajectoryQuadratureProtocol

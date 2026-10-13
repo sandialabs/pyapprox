@@ -8,9 +8,9 @@ Hessian-vector products require HVPEnabledTimeSteppingResidualProtocol.
 
 from typing import Generic, Optional, Tuple
 
-from pyapprox.ode.functionals.derivatives import TransientJacobianFn
 from pyapprox.ode.functionals.protocols import (
     TransientFunctionalProtocol,
+    TransientJacobianFn,
 )
 from pyapprox.ode.protocols.time_stepping import (
     AdjointEnabledTimeSteppingResidualProtocol,
