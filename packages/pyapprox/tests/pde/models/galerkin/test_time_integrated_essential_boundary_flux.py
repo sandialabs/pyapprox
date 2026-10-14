@@ -36,6 +36,12 @@ if not package_available("skfem"):
 import numpy as np
 
 from pyapprox.ode.config import TimeIntegrationConfig
+from pyapprox.ode.mass_matrix import IdentityMassMatrix
+from pyapprox.ode.time_quadrature import (
+    OneStepMassTelescope,
+    StepResidualDeclaration,
+    right_rectangle_quadrature,
+)
 from pyapprox.pde.boundary import BoundarySignal
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -52,6 +58,7 @@ from pyapprox.pde.galerkin.compose import compose_galerkin_system
 from pyapprox.pde.galerkin.mesh import StructuredMesh1D
 from pyapprox.pde.galerkin.physics import AdvectionDiffusionReaction
 from pyapprox.pde.galerkin.system import GalerkinSystem
+from pyapprox.pde.galerkin.time_integration.galerkin_model import GalerkinModel
 from pyapprox.pde.models.galerkin import (
     GalerkinParameterizedResidual,
     GalerkinSteadyForwardModel,
@@ -148,23 +155,27 @@ class _Problem:
         method: str,
         functional: TimeIntegratedEssentialBoundaryFluxFunctional[NumpyArray],
     ) -> GalerkinTransientForwardModel[NumpyArray]:
-        config: TimeIntegrationConfig[Any] = TimeIntegrationConfig(
+        return GalerkinTransientForwardModel(
+            self.system,
+            self.param_obj,
+            self.init_state,
+            self.config(method),
+            self.bkd,
+            functional=functional,
+        )
+
+    def config(
+        self, method: str, lumped_mass: bool = False
+    ) -> TimeIntegrationConfig[Any]:
+        return TimeIntegrationConfig(
             method=method,
             init_time=0.0,
             final_time=0.1,
             deltat=0.002,
             newton_tol=1e-13,
             newton_maxiter=20,
-            lumped_mass=False,
+            lumped_mass=lumped_mass,
             verbosity=0,
-        )
-        return GalerkinTransientForwardModel(
-            self.system,
-            self.param_obj,
-            self.init_state,
-            config,
-            self.bkd,
-            functional=functional,
         )
 
     def content(self, column: NumpyArray) -> float:
@@ -183,6 +194,24 @@ def _solve(problem: _Problem, method: str) -> Tuple[Any, NumpyArray, NumpyArray,
     return functional, traj, param, quadrature
 
 
+def _balance(problem: _Problem, traj: NumpyArray, quadrature: Any) -> float:
+    """Content change minus the source integrated by the scheme's rule.
+
+    Lumping keeps the mass row sums, so the content is integral u_h
+    whether or not the scheme lumps.
+    """
+    bkd = problem.bkd
+    rule = quadrature.step_residual_rule()
+    assert rule is not None
+    source = sum(
+        bkd.to_float(rule.weights()[jj])
+        * 1.5
+        * (1.0 + np.sin(5.0 * bkd.to_float(rule.sample_times()[jj])))
+        for jj in range(rule.nsamples())
+    )
+    return problem.content(traj[:, -1]) - problem.content(traj[:, 0]) - source
+
+
 class TestDiscreteConservation:
     @pytest.mark.parametrize("method", _ONE_STEP_METHODS)
     def test_total_flux_balances_content_and_source(
@@ -191,17 +220,36 @@ class TestDiscreteConservation:
         bkd = numpy_bkd
         problem = _Problem(bkd)
         functional, traj, param, quadrature = _solve(problem, method)
-        rule = quadrature.step_residual_rule()
-        assert rule is not None
-        source = sum(
-            bkd.to_float(rule.weights()[jj])
-            * 1.5
-            * (1.0 + np.sin(5.0 * bkd.to_float(rule.sample_times()[jj])))
-            for jj in range(rule.nsamples())
-        )
-        expected = problem.content(traj[:, -1]) - problem.content(traj[:, 0]) - source
         bkd.assert_allclose(
-            functional(traj, param), bkd.asarray([[expected]]), rtol=1e-10
+            functional(traj, param),
+            bkd.asarray([[_balance(problem, traj, quadrature)]]),
+            rtol=1e-10,
+        )
+
+    def test_lumped_scheme_balances_with_its_own_mass(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """Forward Euler with a lumped mass: the functional takes the
+        lumped mass from the scheme, so the balance still holds. The
+        parameterized model has no lumping option, so the plain model
+        solves with the parameters applied directly."""
+        bkd = numpy_bkd
+        problem = _Problem(bkd)
+        param = bkd.asarray(_PARAM)
+        problem.param_obj.apply(param[:, 0])
+        model = GalerkinModel(problem.system, bkd)
+        traj, times = model.solve_transient(
+            problem.init_state, problem.config("forward_euler", lumped_mass=True)
+        )
+        quadrature = (
+            model.last_integrator().time_residual().trajectory_quadrature(times)
+        )
+        functional = problem.functional()
+        functional.set_time_quadrature(quadrature)
+        bkd.assert_allclose(
+            functional(traj, param),
+            bkd.asarray([[_balance(problem, traj, quadrature)]]),
+            rtol=1e-10,
         )
 
     def test_integrated_steady_flux_breaks_conservation(
@@ -257,6 +305,25 @@ class TestSchemeRequirements:
         traj = bkd.zeros((problem.system.nstates(), 3))
         with pytest.raises(RuntimeError, match="time quadrature not set"):
             problem.functional()(traj, bkd.asarray(_PARAM))
+
+    def test_refuses_a_scheme_mass_without_its_unconstrained_rows(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        """The functional reads the essential rows of the scheme's own
+        mass; a scheme whose mass cannot give them is refused rather than
+        paired with some other mass."""
+        bkd = numpy_bkd
+        problem = _Problem(bkd)
+        quadrature = right_rectangle_quadrature(
+            bkd.asarray([0.0, 0.1, 0.2]),
+            bkd,
+            StepResidualDeclaration(
+                OneStepMassTelescope(),
+                IdentityMassMatrix(problem.system.nstates(), bkd),
+            ),
+        )
+        with pytest.raises(TypeError, match="does not keep the mass"):
+            problem.functional().set_time_quadrature(quadrature)
 
 
 class TestValidation:

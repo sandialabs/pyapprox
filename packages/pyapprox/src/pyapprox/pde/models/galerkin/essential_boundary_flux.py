@@ -17,9 +17,10 @@ exactly (summed over all essential rows with unit weights, it equals the
 negative of the total applied load).
 """
 
-from typing import Generic, Literal, Optional
+from typing import Generic, Literal, Optional, Tuple
 
 from pyapprox.ode.functionals.protocols import TransientFunctionalDerivatives
+from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.ode.time_quadrature import (
     StepResidualRuleProtocol,
     TrajectoryQuadratureProtocol,
@@ -29,6 +30,9 @@ from pyapprox.optimization.implicitfunction.functionals.derivatives import (
 )
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
+)
+from pyapprox.pde.galerkin.time_integration.constrained_mass import (
+    ConstrainedMassMatrixProtocol,
 )
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
@@ -326,9 +330,11 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
     total content minus the time-integrated sources and natural fluxes,
     as the scheme computes them.
 
-    ``M`` is the system's raw (consistent) mass and ``F`` the raw
-    residual, not the time-integration adapter's, which replaces the
-    essential rows. The scheme's rule is injected through
+    ``F`` is the raw residual, not the time-integration adapter's, which
+    replaces the essential rows. ``M`` is taken from the injected rule:
+    the mass the scheme stepped with, consistent or lumped, before its
+    essential rows were replaced. So the functional cannot pair a scheme
+    with a mass it did not use. The scheme's rule is injected through
     :meth:`set_time_quadrature`; a scheme without one (Heun, whose step
     evaluates ``F`` at an unstored predictor) is refused.
 
@@ -337,7 +343,7 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
     residual : GalerkinParameterizedResidual
         The raw residual, built on ``system``'s spatial operator.
     system : GalerkinTransientSystemProtocol
-        Supplies the essential DOFs (its constraint set) and the mass.
+        Supplies the essential DOFs (its constraint set).
     dofs : Array
         Essential DOFs whose rows are read, unique. Shape: (ndofs,).
     weights : Array
@@ -374,7 +380,6 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
             raise ValueError("residual and system must share one spatial operator")
         self._residual = residual
         self._bkd = residual.bkd()
-        self._mass = system.mass_matrix()
         self._nqoi = weights.shape[0]
         self._row_weights = _EssentialRowWeights(
             self._bkd,
@@ -384,6 +389,7 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
             weights,
         )
         self._rule: Optional[StepResidualRuleProtocol[Array]] = None
+        self._mass: Optional[MassMatrixProtocol[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -429,6 +435,10 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
             If the scheme provides no step-residual rule, or one whose
             stage states are nonlinear in the trajectory (not yet
             supported).
+        TypeError
+            If the scheme's mass does not keep the mass before its
+            essential rows were replaced, so the rows this functional
+            reads are not available as the scheme assembled them.
         """
         if not isinstance(quadrature, TrajectoryQuadratureProtocol):
             raise TypeError(
@@ -449,10 +459,22 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
                 "stage states are linear in the trajectory; this one is "
                 "not"
             )
+        scheme_mass = rule.mass_matrix()
+        if not isinstance(scheme_mass, ConstrainedMassMatrixProtocol):
+            raise TypeError(
+                f"{type(self).__name__} reads the essential rows of the "
+                "scheme's mass as the scheme assembled them, but the "
+                f"scheme's mass ({type(scheme_mass).__name__}) does not keep "
+                "the mass before those rows were replaced. Build the scheme "
+                "through the Galerkin time-integration adapter."
+            )
         self._rule = rule
+        self._mass = scheme_mass.unconstrained()
 
-    def _require_rule(self) -> StepResidualRuleProtocol[Array]:
-        if self._rule is None:
+    def _require_scheme(
+        self,
+    ) -> Tuple[StepResidualRuleProtocol[Array], MassMatrixProtocol[Array]]:
+        if self._rule is None or self._mass is None:
             raise RuntimeError(
                 "time quadrature not set. It is injected by the model "
                 "that owns the time-integration scheme; manual drivers "
@@ -460,11 +482,11 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
                 "stepper.trajectory_quadrature(times)) with the stepper "
                 "and times of their solve."
             )
-        return self._rule
+        return self._rule, self._mass
 
     def _summed_step_residual(self, sol: Array, param: Array) -> Array:
         """``M Y c - sum_j w_j F(y_j, t_j, p)``. Shape: (nstates,)."""
-        rule = self._require_rule()
+        rule, mass = self._require_scheme()
         if sol.ndim != 2 or sol.shape[0] != self.nstates():
             raise ValueError(
                 f"sol must have shape ({self.nstates()}, ntimes), got {sol.shape}"
@@ -474,7 +496,7 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
                 f"sol has {sol.shape[1]} times but the injected rule "
                 f"covers {rule.ntimes()}"
             )
-        total = self._mass @ (sol @ rule.mass_telescope_coefficients())
+        total = mass.apply(sol @ rule.mass_telescope_coefficients())
         stages = rule.sample(sol)
         stage_times = rule.sample_times()
         weights = rule.weights()

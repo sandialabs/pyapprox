@@ -23,8 +23,10 @@ samples the two coincide (:class:`LinearStepResidualRule`); a scheme
 whose stages are not reproduced by any rule here returns None.
 """
 
-from typing import Generic, Optional, Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Generic, Optional, Protocol, Tuple, runtime_checkable
 
+from pyapprox.ode.mass_matrix import MassMatrixProtocol
 from pyapprox.util.backends.protocols import Array, Backend
 
 
@@ -54,6 +56,27 @@ class OneStepMassTelescope:
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}()"
+
+
+@dataclass(frozen=True)
+class StepResidualDeclaration(Generic[Array]):
+    """What a stepper declares about its step residuals.
+
+    Both facts come from the stepper together, so a functional built on
+    the summed step residuals cannot pair a telescope with a mass the
+    scheme did not use.
+
+    Attributes
+    ----------
+    mass_telescope : MassTelescopeProtocol
+        How the scheme's mass terms combine over its summed steps.
+    mass : MassMatrixProtocol
+        The mass the scheme steps with: the stepper's own residual's
+        ``mass_matrix()``, lumped or consistent as the scheme was built.
+    """
+
+    mass_telescope: MassTelescopeProtocol
+    mass: MassMatrixProtocol[Array]
 
 
 @runtime_checkable
@@ -223,6 +246,10 @@ class StepResidualRuleProtocol(Protocol, Generic[Array]):
         contributes no parameter derivative and no curvature."""
         ...
 
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
+        """Return the mass :math:`M` the scheme steps with."""
+        ...
+
 
 class NodalTrajectoryQuadrature(Generic[Array]):
     """Quadrature whose samples are stored trajectory columns.
@@ -242,12 +269,12 @@ class NodalTrajectoryQuadrature(Generic[Array]):
         Time of each stored trajectory column. Shape: ``(ntimes,)``.
     bkd : Backend
         Backend for array operations.
-    mass_telescope : MassTelescopeProtocol, optional
-        How the scheme's mass terms combine over its summed steps. Given
-        only by a stepper whose step evaluates ``F`` exactly at this
-        rule's samples; :meth:`step_residual_rule` then returns this
-        rule as the scheme's step-residual rule. Default None: only the
-        stepper that owns the rule declares it.
+    step_residual : StepResidualDeclaration, optional
+        The scheme's mass telescope and mass. Given only by a stepper
+        whose step evaluates ``F`` exactly at this rule's samples;
+        :meth:`step_residual_rule` then returns this rule as the
+        scheme's step-residual rule. Default None: only the stepper that
+        owns the rule declares it.
     """
 
     def __init__(
@@ -256,7 +283,7 @@ class NodalTrajectoryQuadrature(Generic[Array]):
         weights: Array,
         times: Array,
         bkd: Backend[Array],
-        mass_telescope: Optional[MassTelescopeProtocol] = None,
+        step_residual: Optional[StepResidualDeclaration[Array]] = None,
     ) -> None:
         if node_indices.ndim != 1 or weights.ndim != 1 or times.ndim != 1:
             raise ValueError("node_indices, weights and times must be 1D")
@@ -270,7 +297,7 @@ class NodalTrajectoryQuadrature(Generic[Array]):
         self._times = times
         self._ntimes = int(times.shape[0])
         self._bkd = bkd
-        self._mass_telescope = _telescope_coefficients(mass_telescope, times, bkd)
+        self._step_residual = _declared_step_residual(step_residual, times, bkd)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -304,9 +331,10 @@ class NodalTrajectoryQuadrature(Generic[Array]):
         return self._times[self._node_indices]
 
     def step_residual_rule(self) -> Optional["LinearStepResidualRule[Array]"]:
-        if self._mass_telescope is None:
+        if self._step_residual is None:
             return None
-        return LinearStepResidualRule(self, self._mass_telescope)
+        coefficients, mass = self._step_residual
+        return LinearStepResidualRule(self, coefficients, mass)
 
     def __repr__(self) -> str:
         return (
@@ -333,12 +361,12 @@ class MidpointTrajectoryQuadrature(Generic[Array]):
         Time of each stored trajectory column. Shape: ``(ntimes,)``.
     bkd : Backend
         Backend for array operations.
-    mass_telescope : MassTelescopeProtocol, optional
-        How the scheme's mass terms combine over its summed steps. Given
-        only by a stepper whose step evaluates ``F`` exactly at this
-        rule's samples; :meth:`step_residual_rule` then returns this
-        rule as the scheme's step-residual rule. Default None: only the
-        stepper that owns the rule declares it.
+    step_residual : StepResidualDeclaration, optional
+        The scheme's mass telescope and mass. Given only by a stepper
+        whose step evaluates ``F`` exactly at this rule's samples;
+        :meth:`step_residual_rule` then returns this rule as the
+        scheme's step-residual rule. Default None: only the stepper that
+        owns the rule declares it.
     """
 
     def __init__(
@@ -346,7 +374,7 @@ class MidpointTrajectoryQuadrature(Generic[Array]):
         weights: Array,
         times: Array,
         bkd: Backend[Array],
-        mass_telescope: Optional[MassTelescopeProtocol] = None,
+        step_residual: Optional[StepResidualDeclaration[Array]] = None,
     ) -> None:
         if weights.ndim != 1 or times.ndim != 1:
             raise ValueError("weights and times must be 1D")
@@ -360,7 +388,7 @@ class MidpointTrajectoryQuadrature(Generic[Array]):
         self._times = times
         self._ntimes = ntimes
         self._bkd = bkd
-        self._mass_telescope = _telescope_coefficients(mass_telescope, times, bkd)
+        self._step_residual = _declared_step_residual(step_residual, times, bkd)
 
     def bkd(self) -> Backend[Array]:
         return self._bkd
@@ -397,9 +425,10 @@ class MidpointTrajectoryQuadrature(Generic[Array]):
         return 0.5 * (self._times[:-1] + self._times[1:])
 
     def step_residual_rule(self) -> Optional["LinearStepResidualRule[Array]"]:
-        if self._mass_telescope is None:
+        if self._step_residual is None:
             return None
-        return LinearStepResidualRule(self, self._mass_telescope)
+        coefficients, mass = self._step_residual
+        return LinearStepResidualRule(self, coefficients, mass)
 
     def __repr__(self) -> str:
         return (
@@ -416,7 +445,7 @@ class LinearStepResidualRule(Generic[Array]):
     The rule of every scheme whose step evaluates ``F`` at stored
     columns or affine combinations of them (backward and forward Euler,
     Crank-Nicolson, implicit midpoint). Built by the quadrature, from
-    the mass telescope its stepper declared.
+    the declaration its stepper made.
 
     Parameters
     ----------
@@ -425,15 +454,19 @@ class LinearStepResidualRule(Generic[Array]):
         stage states, times and weights.
     mass_telescope : Array
         The mass telescope coefficients. Shape: ``(ntimes,)``.
+    mass : MassMatrixProtocol
+        The mass the scheme steps with.
     """
 
     def __init__(
         self,
         quadrature: TrajectoryQuadratureProtocol[Array],
         mass_telescope: Array,
+        mass: MassMatrixProtocol[Array],
     ) -> None:
         self._quadrature = quadrature
         self._mass_telescope = mass_telescope
+        self._mass = mass
 
     def bkd(self) -> Backend[Array]:
         return self._quadrature.bkd()
@@ -465,6 +498,9 @@ class LinearStepResidualRule(Generic[Array]):
     def is_linear(self) -> bool:
         return True
 
+    def mass_matrix(self) -> MassMatrixProtocol[Array]:
+        return self._mass
+
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self._quadrature!r})"
 
@@ -481,18 +517,30 @@ def _indices(start: int, stop: int, bkd: Backend[Array]) -> Array:
     return bkd.asarray(list(range(start, stop)), dtype=int)
 
 
-def _telescope_coefficients(
-    mass_telescope: Optional[MassTelescopeProtocol],
+def _declared_step_residual(
+    step_residual: Optional[StepResidualDeclaration[Array]],
     times: Array,
     bkd: Backend[Array],
-) -> Optional[Array]:
-    """The scheme's coefficients for these times, or None if undeclared."""
-    if mass_telescope is None:
+) -> Optional[Tuple[Array, MassMatrixProtocol[Array]]]:
+    """The scheme's telescope coefficients for these times and its mass,
+    or None if undeclared."""
+    if step_residual is None:
         return None
+    if not isinstance(step_residual, StepResidualDeclaration):
+        raise TypeError(
+            "step_residual must be a StepResidualDeclaration, got "
+            f"{type(step_residual).__name__}"
+        )
+    mass_telescope = step_residual.mass_telescope
     if not isinstance(mass_telescope, MassTelescopeProtocol):
         raise TypeError(
             "mass_telescope must satisfy MassTelescopeProtocol, got "
             f"{type(mass_telescope).__name__}"
+        )
+    if not isinstance(step_residual.mass, MassMatrixProtocol):
+        raise TypeError(
+            "mass must satisfy MassMatrixProtocol, got "
+            f"{type(step_residual.mass).__name__}"
         )
     coefficients = mass_telescope.coefficients(times, bkd)
     ntimes = int(times.shape[0])
@@ -501,18 +549,18 @@ def _telescope_coefficients(
             f"{type(mass_telescope).__name__} returned coefficients of "
             f"shape {tuple(coefficients.shape)}; expected ({ntimes},)"
         )
-    return coefficients
+    return coefficients, step_residual.mass
 
 
 def right_rectangle_quadrature(
     times: Array,
     bkd: Backend[Array],
-    mass_telescope: Optional[MassTelescopeProtocol] = None,
+    step_residual: Optional[StepResidualDeclaration[Array]] = None,
 ) -> NodalTrajectoryQuadrature[Array]:
     """Right endpoints, interval widths — backward Euler's rule.
 
-    ``mass_telescope`` is declared only by the stepper that owns the
-    rule (see :class:`MassTelescopeProtocol`).
+    ``step_residual`` is declared only by the stepper that owns the
+    rule (see :class:`StepResidualDeclaration`).
     """
     ntimes = _validate_times(times)
     return NodalTrajectoryQuadrature(
@@ -520,19 +568,19 @@ def right_rectangle_quadrature(
         bkd.diff(times),
         times,
         bkd,
-        mass_telescope,
+        step_residual,
     )
 
 
 def left_rectangle_quadrature(
     times: Array,
     bkd: Backend[Array],
-    mass_telescope: Optional[MassTelescopeProtocol] = None,
+    step_residual: Optional[StepResidualDeclaration[Array]] = None,
 ) -> NodalTrajectoryQuadrature[Array]:
     """Left endpoints, interval widths — forward Euler's rule.
 
-    ``mass_telescope`` is declared only by the stepper that owns the
-    rule (see :class:`MassTelescopeProtocol`).
+    ``step_residual`` is declared only by the stepper that owns the
+    rule (see :class:`StepResidualDeclaration`).
     """
     ntimes = _validate_times(times)
     return NodalTrajectoryQuadrature(
@@ -540,19 +588,19 @@ def left_rectangle_quadrature(
         bkd.diff(times),
         times,
         bkd,
-        mass_telescope,
+        step_residual,
     )
 
 
 def trapezoidal_quadrature(
     times: Array,
     bkd: Backend[Array],
-    mass_telescope: Optional[MassTelescopeProtocol] = None,
+    step_residual: Optional[StepResidualDeclaration[Array]] = None,
 ) -> NodalTrajectoryQuadrature[Array]:
     """All nodes, trapezoidal weights — Crank-Nicolson/Heun's rule.
 
-    ``mass_telescope`` is declared only by the stepper that owns the
-    rule (see :class:`MassTelescopeProtocol`).
+    ``step_residual`` is declared only by the stepper that owns the
+    rule (see :class:`StepResidualDeclaration`).
     """
     ntimes = _validate_times(times)
     deltas = bkd.diff(times)
@@ -563,19 +611,19 @@ def trapezoidal_quadrature(
         weights,
         times,
         bkd,
-        mass_telescope,
+        step_residual,
     )
 
 
 def midpoint_quadrature(
     times: Array,
     bkd: Backend[Array],
-    mass_telescope: Optional[MassTelescopeProtocol] = None,
+    step_residual: Optional[StepResidualDeclaration[Array]] = None,
 ) -> MidpointTrajectoryQuadrature[Array]:
     """Interval midpoints, interval widths — implicit midpoint's rule.
 
-    ``mass_telescope`` is declared only by the stepper that owns the
-    rule (see :class:`MassTelescopeProtocol`).
+    ``step_residual`` is declared only by the stepper that owns the
+    rule (see :class:`StepResidualDeclaration`).
     """
     _validate_times(times)
-    return MidpointTrajectoryQuadrature(bkd.diff(times), times, bkd, mass_telescope)
+    return MidpointTrajectoryQuadrature(bkd.diff(times), times, bkd, step_residual)

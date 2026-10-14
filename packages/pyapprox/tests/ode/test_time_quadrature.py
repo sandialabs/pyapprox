@@ -19,13 +19,15 @@ from pyapprox.ode.implicit_steppers.implicit_midpoint import (
     ImplicitMidpointHVP,
 )
 from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
-from pyapprox.ode.mass_matrix import ConstantDenseMassMatrix
+from pyapprox.ode.mass_matrix import ConstantDenseMassMatrix, IdentityMassMatrix
 from pyapprox.ode.mixins.default_newton_jacobian import (
     DefaultNewtonJacobianMixin,
 )
 from pyapprox.ode.time_quadrature import (
     MidpointTrajectoryQuadrature,
     NodalTrajectoryQuadrature,
+    OneStepMassTelescope,
+    StepResidualDeclaration,
     StepResidualRuleProtocol,
     TrajectoryQuadratureProtocol,
 )
@@ -39,12 +41,16 @@ class _ToyResidual:
 
     def __init__(self, bkd) -> None:
         self._bkd = bkd
+        self._mass = IdentityMassMatrix(_NSTATES, bkd)
 
     def bkd(self):
         return self._bkd
 
     def __call__(self, state):
         return -state
+
+    def mass_matrix(self):
+        return self._mass
 
 
 class _WrongLengthTelescope:
@@ -96,8 +102,8 @@ class _ForcedCubicResidual(DefaultNewtonJacobianMixin):
 def _summed_step_residuals(bkd, stepper_class):
     """Solve, then rebuild the summed step residuals
     M Y c - sum_j w_j F(y_j, t_j) entirely from the stepper's own
-    step-residual rule: its telescope, stage states, stage times and
-    weights."""
+    step-residual rule: its mass, telescope, stage states, stage times
+    and weights."""
     residual = _ForcedCubicResidual(bkd)
     stepper = stepper_class(residual)
     newton = NewtonSolver(stepper)
@@ -108,9 +114,7 @@ def _summed_step_residuals(bkd, stepper_class):
     traj, times = integrator.solve(bkd.asarray([1.0, 0.5]))
     rule = stepper.trajectory_quadrature(times).step_residual_rule()
     assert rule is not None
-    total = residual.mass_matrix().apply(
-        bkd.dot(traj, rule.mass_telescope_coefficients())
-    )
+    total = rule.mass_matrix().apply(bkd.dot(traj, rule.mass_telescope_coefficients()))
     stages = rule.sample(traj)
     stage_times = rule.sample_times()
     weights = rule.weights()
@@ -281,12 +285,15 @@ _ONE_STEP_STEPPERS = [
 class TestStepResidualRule:
     @pytest.mark.parametrize("stepper_class", _ONE_STEP_STEPPERS)
     def test_one_step_schemes_provide_it(self, bkd, stepper_class) -> None:
-        quadrature = stepper_class(_ToyResidual(bkd)).trajectory_quadrature(
+        residual = _ToyResidual(bkd)
+        quadrature = stepper_class(residual).trajectory_quadrature(
             _nonuniform_times(bkd)
         )
         rule = quadrature.step_residual_rule()
         assert isinstance(rule, StepResidualRuleProtocol)
         assert rule.is_linear()
+        # The mass the scheme steps with, not a copy or a recomputation.
+        assert rule.mass_matrix() is residual.mass_matrix()
         bkd.assert_allclose(
             rule.mass_telescope_coefficients(),
             bkd.asarray([-1.0, 0.0, 0.0, 0.0, 1.0]),
@@ -342,14 +349,35 @@ class TestQuadratureValidation:
                 bkd.ones((3,)),
                 bkd.asarray([0.0, 1.0, 2.0]),
                 bkd,
-                _WrongLengthTelescope(),
+                StepResidualDeclaration(
+                    _WrongLengthTelescope(), IdentityMassMatrix(1, bkd)
+                ),
             )
 
-    def test_rejects_a_non_telescope(self, bkd) -> None:
+    def test_rejects_a_bad_declaration(self, bkd) -> None:
+        times = bkd.asarray([0.0, 1.0, 2.0])
+        mass = IdentityMassMatrix(1, bkd)
+        with pytest.raises(TypeError, match="StepResidualDeclaration"):
+            MidpointTrajectoryQuadrature(
+                bkd.ones((2,)),
+                times,
+                bkd,
+                object(),  # type: ignore[arg-type]
+            )
         with pytest.raises(TypeError, match="MassTelescopeProtocol"):
             MidpointTrajectoryQuadrature(
                 bkd.ones((2,)),
-                bkd.asarray([0.0, 1.0, 2.0]),
+                times,
                 bkd,
-                object(),  # type: ignore[arg-type]
+                StepResidualDeclaration(object(), mass),  # type: ignore[arg-type]
+            )
+        with pytest.raises(TypeError, match="MassMatrixProtocol"):
+            MidpointTrajectoryQuadrature(
+                bkd.ones((2,)),
+                times,
+                bkd,
+                StepResidualDeclaration(
+                    OneStepMassTelescope(),
+                    object(),  # type: ignore[arg-type]
+                ),
             )

@@ -33,6 +33,7 @@ from pyapprox.ode.protocols.ode_residual import (
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import (
     OneStepMassTelescope,
+    StepResidualDeclaration,
     TrajectoryQuadratureProtocol,
     trapezoidal_quadrature,
 )
@@ -124,7 +125,13 @@ class CrankNicolsonStepper(
         Its samples are the states and times where the step evaluates
         ``F``, so it declares the one-step mass telescope.
         """
-        return trapezoidal_quadrature(times, self._bkd, OneStepMassTelescope())
+        return trapezoidal_quadrature(
+            times,
+            self._bkd,
+            StepResidualDeclaration(
+                OneStepMassTelescope(), self._residual.mass_matrix()
+            ),
+        )
 
 
 # =========================================================================

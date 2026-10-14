@@ -51,6 +51,9 @@ from pyapprox.ode.mixins.default_newton_jacobian import (
 from pyapprox.pde.galerkin.protocols.system import (
     GalerkinTransientSystemProtocol,
 )
+from pyapprox.pde.galerkin.time_integration.constrained_mass import (
+    ConstrainedMassMatrix,
+)
 from pyapprox.util.backends.numpy import NumpyBkd
 from pyapprox.util.backends.protocols import Array, Backend
 
@@ -111,30 +114,35 @@ class GalerkinPhysicsToODEResidualAdapter(
         self._sparse_mass: Optional[spmatrix] = None
         self._mass = self._build_mass()
 
-    def _build_mass(self) -> MassMatrixProtocol[Array]:
+    def _build_mass(self) -> ConstrainedMassMatrix[Array]:
         """Build the BC-neutralized mass value-object.
 
         Lumped mass keeps its diagonality structurally
         (DiagonalMassMatrix with 1.0 at essential DOFs); consistent
-        mass gets identity rows via the constraint set.
+        mass gets identity rows via the constraint set. Either way the
+        mass before the essential rows were replaced is kept alongside,
+        for quantities read on those rows.
         """
         raw_mass = self._system.mass_matrix()
         constraint_set = self._constraint_set
         if self._lumped_mass:
-            diagonal = self._lumped_diagonal(raw_mass)
+            lumped = self._lumped_diagonal(raw_mass)
+            diagonal = lumped
             if constraint_set.ndofs():
-                diagonal = self._bkd.index_update(
-                    diagonal, constraint_set.dofs(), 1.0
-                )
+                diagonal = self._bkd.index_update(diagonal, constraint_set.dofs(), 1.0)
             if isinstance(self._bkd, NumpyBkd):
-                self._sparse_mass = diags(
-                    self.bkd().to_numpy(diagonal)
-                ).tocsc()
-            return DiagonalMassMatrix(diagonal, self._bkd)
+                self._sparse_mass = diags(self.bkd().to_numpy(diagonal)).tocsc()
+            return ConstrainedMassMatrix(
+                DiagonalMassMatrix(diagonal, self._bkd),
+                DiagonalMassMatrix(lumped, self._bkd),
+            )
         bc_mass = constraint_set.apply_to_mass(raw_mass)
         if isinstance(bc_mass, spmatrix):
             self._sparse_mass = bc_mass
-        return create_mass_matrix(bc_mass, self._bkd)
+        return ConstrainedMassMatrix(
+            create_mass_matrix(bc_mass, self._bkd),
+            create_mass_matrix(raw_mass, self._bkd),
+        )
 
     def _lumped_diagonal(self, mass: Union[spmatrix, Array]) -> Array:
         """Row sums of the mass matrix as a backend array."""
