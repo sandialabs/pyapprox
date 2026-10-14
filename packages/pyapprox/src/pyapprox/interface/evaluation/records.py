@@ -62,13 +62,15 @@ Payload = TypeVar("Payload")
 class ComputeProvenance(Enum):
     """Where a ``compute`` figure came from.
 
-    Three states rather than a boolean. ``MEASURED`` and ``ESTIMATED``
-    are the obvious two. The third exists because some transports have
-    no meaningful core-second figure at all: for HTTP dispatch the local
-    ``wall_time`` is time spent blocked on a socket, and multiplying it
-    by a core count yields a number that is neither an upper nor a lower
-    bound on anything. Reporting that as measured would corrupt exactly
-    the accounting the distinction exists to protect.
+    Four states rather than a boolean. ``MEASURED`` and ``ESTIMATED``
+    are the obvious two. ``NOT_APPLICABLE`` exists because some
+    transports have no meaningful core-second figure at all: for HTTP
+    dispatch the local ``wall_time`` is time spent blocked on a socket,
+    and multiplying it by a core count yields a number that is neither an
+    upper nor a lower bound on anything. Reporting that as measured would
+    corrupt exactly the accounting the distinction exists to protect.
+    ``DECLARED`` marks a cost assumed rather than observed, so a fixed
+    figure is never read as a measurement.
     """
 
     MEASURED = "measured"
@@ -79,6 +81,14 @@ class ComputeProvenance(Enum):
 
     NOT_APPLICABLE = "not_applicable"
     """No meaningful local core-second figure exists for this work."""
+
+    DECLARED = "declared"
+    """Stated in advance rather than observed.
+
+    A fixed cost assumed so that prices repeat exactly from run to run --
+    typically a representative figure measured once beforehand. It is a
+    model of the cost, not a record of it, and says so.
+    """
 
 
 class TimeSource(Enum):
@@ -227,6 +237,15 @@ class Cost:
         )
 
     @classmethod
+    def declared(cls, seconds: float) -> "Cost":
+        """A cost stated in advance, read as serial work on both clocks."""
+        return cls(
+            wall_clock=seconds,
+            compute=seconds,
+            provenance=ComputeProvenance.DECLARED,
+        )
+
+    @classmethod
     def zero(cls) -> "Cost":
         """Nothing was spent. The identity for an empty batch."""
         return cls(
@@ -274,6 +293,11 @@ class CostLedger:
         self._compute += cost.compute
         origin = 0.0 if start is None else start
         self._spans.append((origin, origin + cost.wall_clock))
+        if cost.wall_clock == 0.0 and cost.compute == 0.0:
+            # Nothing spent claims nothing, so :meth:`Cost.zero` stays
+            # the identity: a running total seeded with it keeps the
+            # provenance of what is added after.
+            return
         if self._provenance is None:
             self._provenance = cost.provenance
         elif self._provenance is not cost.provenance:

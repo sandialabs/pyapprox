@@ -25,6 +25,8 @@ from pyapprox.interface.evaluation.stores import (
     InMemoryResultStore,
     NpzResultStore,
     PickleResultStore,
+    decode_key,
+    encode_key,
 )
 
 
@@ -205,6 +207,24 @@ class TestKeys:
         )
         assert list(store.keys()) == [key]
         assert store.load(key) is not None
+
+
+class TestKeyEncoding:
+    @pytest.mark.parametrize(
+        "key", ["pilot:top-up:1", "sweep7/0", "températures", "cost in €"]
+    )
+    def test_round_trips(self, key: str) -> None:
+        """Past U+00FF too: a character there has more than two hex
+        digits, so the escape is of its UTF-8 bytes."""
+        assert decode_key(encode_key(key)) == key
+
+    def test_encoded_keys_are_plain_filenames(self) -> None:
+        encoded = encode_key("../a/€:b")
+        assert set(encoded) <= set(
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "0123456789-_.%"
+        )
+        assert "/" not in encoded
 
 
 class TestDurability:

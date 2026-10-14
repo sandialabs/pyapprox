@@ -106,8 +106,12 @@ from pyapprox.interface.evaluation.stores import (
     NpzResultStore,
     PickleResultStore,
     StoreWriter,
+    decode_key,
+    encode_key,
     restore_columns,
+    save_npz_atomically,
     stored_indices,
+    stored_records,
 )
 from pyapprox.interface.evaluation.subprocess_dispatcher import (
     ShellPayload,
@@ -157,8 +161,12 @@ __all__ = [
     "NpzResultStore",
     "PickleResultStore",
     "StoreWriter",
+    "decode_key",
+    "encode_key",
     "restore_columns",
+    "save_npz_atomically",
     "stored_indices",
+    "stored_records",
     # External solvers
     "OnExisting",
     "Retention",

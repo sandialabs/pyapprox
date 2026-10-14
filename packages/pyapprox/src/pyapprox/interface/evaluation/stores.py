@@ -51,6 +51,7 @@ from typing import (
     Dict,
     Generic,
     List,
+    Mapping,
     Optional,
     Sequence,
     Set,
@@ -155,7 +156,7 @@ class NpzResultStore(Generic[Array]):
         return self._directory
 
     def _path(self, key: str) -> str:
-        return os.path.join(self._directory, f"{_encode_key(key)}.npz")
+        return os.path.join(self._directory, f"{encode_key(key)}.npz")
 
     def save(self, key: str, decoded: Decoded[Array], cost: Cost) -> None:
         """Record one task's decoded output under ``key``.
@@ -177,29 +178,9 @@ class NpzResultStore(Generic[Array]):
                 payload[name] = self._bkd.to_numpy(field)
         if decoded.wall_time is not None:
             payload["wall_time"] = np.asarray(decoded.wall_time)
-
-        # Written beside the target so the rename stays within one
-        # filesystem; across filesystems rename is not atomic.
-        handle, temp_path = tempfile.mkstemp(
-            dir=self._directory, suffix=".npz.tmp"
-        )
-        os.close(handle)
-        try:
-            # Written through an open handle rather than by name:
-            # np.savez appends .npz to a name that lacks it, which would
-            # leave the real file beside the temporary one and defeat the
-            # atomic rename below.
-            with open(temp_path, "wb") as stream:
-                # allow_pickle is passed explicitly so that everything
-                # reaching disk is plain array data: load() reads with
-                # allow_pickle=False, and a file this store wrote must
-                # be one it can read back.
-                np.savez(stream, allow_pickle=False, **payload)
-            os.replace(temp_path, self._path(key))
-        except BaseException:
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
-            raise
+        # load() reads with allow_pickle=False, and a file this store
+        # wrote must be one it can read back.
+        save_npz_atomically(self._path(key), payload)
 
     def load(self, key: str) -> Optional[Tuple[Decoded[Array], Cost]]:
         """Return what was stored under ``key``, or None if absent."""
@@ -238,7 +219,7 @@ class NpzResultStore(Generic[Array]):
         found: List[str] = []
         for name in os.listdir(self._directory):
             if name.endswith(".npz"):
-                found.append(_decode_key(name[: -len(".npz")]))
+                found.append(decode_key(name[: -len(".npz")]))
         return found
 
 
@@ -280,7 +261,7 @@ class PickleResultStore(Generic[Array]):
         return self._directory
 
     def _path(self, key: str) -> str:
-        return os.path.join(self._directory, f"{_encode_key(key)}.pkl")
+        return os.path.join(self._directory, f"{encode_key(key)}.pkl")
 
     def save(self, key: str, decoded: Decoded[Array], cost: Cost) -> None:
         """Record one task's decoded output under ``key``."""
@@ -308,7 +289,7 @@ class PickleResultStore(Generic[Array]):
     def keys(self) -> Sequence[str]:
         """Every key currently stored."""
         return [
-            _decode_key(name[: -len(".pkl")])
+            decode_key(name[: -len(".pkl")])
             for name in os.listdir(self._directory)
             if name.endswith(".pkl")
         ]
@@ -384,6 +365,26 @@ class StoreWriter(Generic[Task, Payload, Array]):
         self._store.save(self.key_for(min(decoded.indices)), decoded, cost)
 
 
+def stored_records(
+    store: ResultStore[Array], prefix: str
+) -> List[Tuple[Decoded[Array], Cost]]:
+    """Every record ``store`` holds under ``prefix``, with its cost.
+
+    Keys outside the prefix are ignored, so several sweeps may share a
+    store. A record removed between ``keys()`` and ``load()`` is treated
+    as absent rather than failing a resume that would otherwise succeed.
+    """
+    records: List[Tuple[Decoded[Array], Cost]] = []
+    marker = f"{prefix}:"
+    for key in store.keys():
+        if not key.startswith(marker):
+            continue
+        record = store.load(key)
+        if record is not None:
+            records.append(record)
+    return records
+
+
 def stored_indices(store: ResultStore[Array], prefix: str) -> Set[int]:
     """Which sample indices ``store`` already holds under ``prefix``.
 
@@ -417,16 +418,8 @@ def stored_indices(store: ResultStore[Array], prefix: str) -> Set[int]:
     form that works for any store.
     """
     known: Set[int] = set()
-    marker = f"{prefix}:"
-    for key in store.keys():
-        if not key.startswith(marker):
-            continue
-        record = store.load(key)
-        if record is None:
-            # Removed between keys() and load(): treat as absent rather
-            # than failing a resume that would otherwise succeed.
-            continue
-        known.update(record[0].indices)
+    for decoded, _ in stored_records(store, prefix):
+        known.update(decoded.indices)
     return known
 
 
@@ -489,14 +482,7 @@ def restore_columns(
 
     position_in_todo = {index: j for j, index in enumerate(todo)}
     columns: Dict[int, Array] = {}
-    marker = f"{prefix}:"
-    for key in store.keys():
-        if not key.startswith(marker):
-            continue
-        record = store.load(key)
-        if record is None:
-            continue
-        decoded = record[0]
+    for decoded, _ in stored_records(store, prefix):
         for position, index in enumerate(decoded.indices):
             if index < nsamples and index not in position_in_todo:
                 columns[index] = decoded.values[:, position : position + 1]
@@ -522,33 +508,74 @@ def restore_columns(
     return bkd.hstack(ordered)
 
 
-def _encode_key(key: str) -> str:
+def encode_key(key: str) -> str:
     """Make a key safe to use as a filename.
 
     Keys are the caller's and may contain separators -- ``sweep7/0`` is
     a natural thing to write -- which would otherwise create
-    directories or escape the store. Percent-encoding every byte that
-    is not plainly safe is reversible, so ``keys()`` can return exactly
-    what was saved.
+    directories or escape the store. Percent-encoding every byte of its
+    UTF-8 form that is not an ASCII letter, digit or ``-_.`` is
+    reversible, so ``keys()`` can return exactly what was saved.
+
+    Bytes, not characters: a character past U+00FF has more than two
+    hex digits, which a two-digit escape could not hold.
     """
     safe = []
-    for char in key:
-        if char.isalnum() or char in "-_.":
+    for byte in key.encode("utf-8"):
+        char = chr(byte)
+        if char in _SAFE_KEY_CHARACTERS:
             safe.append(char)
         else:
-            safe.append(f"%{ord(char):02x}")
+            safe.append(f"%{byte:02x}")
     return "".join(safe)
 
 
-def _decode_key(name: str) -> str:
-    """Invert :func:`_encode_key`."""
-    out: List[str] = []
+def decode_key(name: str) -> str:
+    """Invert :func:`encode_key`."""
+    out = bytearray()
     index = 0
     while index < len(name):
         if name[index] == "%":
-            out.append(chr(int(name[index + 1 : index + 3], 16)))
+            out.append(int(name[index + 1 : index + 3], 16))
             index += 3
         else:
-            out.append(name[index])
+            out.append(ord(name[index]))
             index += 1
-    return "".join(out)
+    return out.decode("utf-8")
+
+
+_SAFE_KEY_CHARACTERS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
+)
+
+
+def save_npz_atomically(path: str, payload: Mapping[str, ArrayLike]) -> None:
+    """Write ``payload`` to ``path`` as ``.npz``, all or nothing.
+
+    The file is written to a temporary name in the same directory and
+    renamed into place, because ``rename`` is atomic within a
+    filesystem. A save interrupted midway therefore leaves either the
+    previous file or none -- never a truncated one that a resumed run
+    would load and trust.
+    """
+    # Written beside the target so the rename stays within one
+    # filesystem; across filesystems rename is not atomic.
+    handle, temp_path = tempfile.mkstemp(
+        dir=os.path.dirname(path) or ".", suffix=".npz.tmp"
+    )
+    os.close(handle)
+    try:
+        # Written through an open handle rather than by name:
+        # np.savez appends .npz to a name that lacks it, which would
+        # leave the real file beside the temporary one and defeat the
+        # atomic rename below.
+        with open(temp_path, "wb") as stream:
+            # allow_pickle is passed explicitly so that everything
+            # reaching disk is plain array data, readable with
+            # allow_pickle=False.
+            np.savez(stream, allow_pickle=False, **payload)
+        os.replace(temp_path, path)
+    except BaseException:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise

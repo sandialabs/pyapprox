@@ -162,6 +162,13 @@ class TestCostLedger:
         ledger.add(Cost.unaccounted(1.0))
         assert ledger.total().provenance is ComputeProvenance.NOT_APPLICABLE
 
+    def test_zero_keeps_the_provenance_of_what_follows(self) -> None:
+        """Nothing spent claims nothing: ``Cost.zero()`` is the identity."""
+        ledger = CostLedger()
+        ledger.add(Cost.zero(), start=0.0)
+        ledger.add(Cost.declared(2.0), start=0.0)
+        assert ledger.total().provenance is ComputeProvenance.DECLARED
+
     def test_all_measured_stays_measured(self):
         ledger = CostLedger()
         ledger.add(Cost.serial(1.0))
