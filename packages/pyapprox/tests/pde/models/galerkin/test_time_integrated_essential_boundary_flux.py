@@ -37,6 +37,7 @@ import numpy as np
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.ode.mass_matrix import IdentityMassMatrix
+from pyapprox.ode.operator.qoi_jacobian import adjoint_jacobian
 from pyapprox.ode.time_quadrature import (
     OneStepMassTelescope,
     StepResidualDeclaration,
@@ -69,7 +70,10 @@ from pyapprox.pde.parameterizations.galerkin_advection_diffusion import (
     AdvectionDiffusionParameterization,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from tests._helpers.adjoint_checks import NumpyArray
+from tests._helpers.adjoint_checks import (
+    NumpyArray,
+    solve_based_derivatives_pass_fd,
+)
 
 _PARAM = np.array([[0.4], [-0.3], [0.2]])
 _ONE_STEP_METHODS = [
@@ -154,6 +158,7 @@ class _Problem:
         self,
         method: str,
         functional: TimeIntegratedEssentialBoundaryFluxFunctional[NumpyArray],
+        jacobian_method: Any = None,
     ) -> GalerkinTransientForwardModel[NumpyArray]:
         return GalerkinTransientForwardModel(
             self.system,
@@ -162,6 +167,7 @@ class _Problem:
             self.config(method),
             self.bkd,
             functional=functional,
+            jacobian_method=jacobian_method,
         )
 
     def config(
@@ -358,6 +364,104 @@ class TestValidation:
         functional, traj, param, _ = _solve(problem, "backward_euler")
         with pytest.raises(ValueError, match="times but the injected rule"):
             functional(traj[:, :-1], param)
+
+
+class TestFunctionalDerivatives:
+    """The functional's own derivatives on a fixed trajectory. The heat
+    residual is affine in the state, so Q is affine in the trajectory
+    and a central difference is exact up to roundoff."""
+
+    def test_state_jacobian_matches_a_directional_difference(
+        self, numpy_bkd: NumpyBkd
+    ) -> None:
+        bkd = numpy_bkd
+        problem = _Problem(bkd)
+        functional, traj, param, _ = _solve(problem, "crank_nicolson")
+        direction = bkd.asarray(np.random.normal(size=traj.shape))
+        eps = 1e-3
+        difference = (
+            functional(traj + eps * direction, param)
+            - functional(traj - eps * direction, param)
+        ) / (2 * eps)
+        gradient = functional.derivatives().state_jacobian
+        assert gradient is not None
+        bkd.assert_allclose(
+            bkd.sum(gradient(traj, param) * direction),
+            difference[0, 0],
+            rtol=1e-9,
+        )
+
+    @pytest.mark.parametrize("method", ["crank_nicolson", "implicit_midpoint"])
+    def test_column_actions_sum_to_the_gradient(
+        self, numpy_bkd: NumpyBkd, method: str
+    ) -> None:
+        """sum_n (dQ/dy_n) v_n equals <dQ/dY, V>, including implicit
+        midpoint, whose stages read two columns."""
+        bkd = numpy_bkd
+        problem = _Problem(bkd)
+        functional, traj, param, _ = _solve(problem, method)
+        derivs = functional.derivatives()
+        assert derivs.state_jacobian is not None
+        assert derivs.apply_state_jacobian is not None
+        direction = bkd.asarray(np.random.normal(size=traj.shape))
+        summed = sum(
+            derivs.apply_state_jacobian(traj, param, nn, direction[:, nn : nn + 1])[
+                0, 0
+            ]
+            for nn in range(traj.shape[1])
+        )
+        bkd.assert_allclose(
+            bkd.asarray([summed]),
+            bkd.asarray([bkd.sum(derivs.state_jacobian(traj, param) * direction)]),
+            rtol=1e-10,
+        )
+
+    def test_midpoint_has_no_per_step_hvps(self, numpy_bkd: NumpyBkd) -> None:
+        problem = _Problem(numpy_bkd)
+        functional, _, _, _ = _solve(problem, "implicit_midpoint")
+        derivs = functional.derivatives()
+        assert derivs.state_jacobian is not None
+        assert derivs.state_state_hvp is None
+
+
+class TestModelDerivatives:
+    """Gradients and HVPs of the total end flux with respect to the
+    log-KLE diffusivity, against finite differences of full solves."""
+
+    @pytest.mark.parametrize("method", _ONE_STEP_METHODS)
+    def test_derivatives_match_fd(self, numpy_bkd: NumpyBkd, method: str) -> None:
+        bkd = numpy_bkd
+        problem = _Problem(bkd)
+        model = problem.model(method, problem.functional())
+        derivs = model.derivatives()
+        assert derivs.jacobian is not None
+        if method == "implicit_midpoint":
+            assert derivs.hvp is None
+        else:
+            assert derivs.hvp is not None
+        assert all(solve_based_derivatives_pass_fd(model, bkd.asarray(_PARAM)))
+
+    def test_vector_flux_jacobian(self, numpy_bkd: NumpyBkd) -> None:
+        """Each end's flux as its own QoI: the tangent-linear Jacobian
+        (the default for a vector QoI) matches finite differences and
+        the adjoint method's per-QoI rows."""
+        bkd = numpy_bkd
+        problem = _Problem(bkd)
+        tangent = problem.model("backward_euler", problem.functional(bkd.eye(2)))
+        assert all(solve_based_derivatives_pass_fd(tangent, bkd.asarray(_PARAM)))
+        adjoint = problem.model(
+            "backward_euler",
+            problem.functional(bkd.eye(2)),
+            jacobian_method=adjoint_jacobian,
+        )
+        jacobian = tangent.derivatives().jacobian
+        adjoint_rows = adjoint.derivatives().jacobian
+        assert jacobian is not None and adjoint_rows is not None
+        bkd.assert_allclose(
+            adjoint_rows(bkd.asarray(_PARAM)),
+            jacobian(bkd.asarray(_PARAM)),
+            rtol=1e-10,
+        )
 
 
 class TestPickle:

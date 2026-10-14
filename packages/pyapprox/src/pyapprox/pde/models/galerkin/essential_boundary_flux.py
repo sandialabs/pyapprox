@@ -17,7 +17,7 @@ exactly (summed over all essential rows with unit weights, it equals the
 negative of the total applied load).
 """
 
-from typing import Generic, Literal, Optional, Tuple
+from typing import Generic, List, Literal, Optional, Tuple
 
 from pyapprox.ode.functionals.protocols import TransientFunctionalDerivatives
 from pyapprox.ode.mass_matrix import MassMatrixProtocol
@@ -379,6 +379,9 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
         if residual.spatial_operator() is not system.spatial_operator():
             raise ValueError("residual and system must share one spatial operator")
         self._residual = residual
+        self._system = system
+        self._dofs = dofs
+        self._weights = weights
         self._bkd = residual.bkd()
         self._nqoi = weights.shape[0]
         self._row_weights = _EssentialRowWeights(
@@ -390,6 +393,14 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
         )
         self._rule: Optional[StepResidualRuleProtocol[Array]] = None
         self._mass: Optional[MassMatrixProtocol[Array]] = None
+        derivs = residual.derivatives()
+        self._param_jacobian_fn: Optional[ParamJacobianFn[Array]] = (
+            derivs.param_jacobian
+        )
+        self._state_state_fn: Optional[ParamHVPFn[Array]] = derivs.state_state_hvp
+        self._state_param_fn: Optional[ParamHVPFn[Array]] = derivs.state_param_hvp
+        self._param_state_fn: Optional[ParamHVPFn[Array]] = derivs.param_state_hvp
+        self._param_param_fn: Optional[ParamHVPFn[Array]] = derivs.param_param_hvp
 
     def bkd(self) -> Backend[Array]:
         """Return the computational backend."""
@@ -419,8 +430,49 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
         return "transient"
 
     def derivatives(self) -> TransientFunctionalDerivatives[Array]:
-        """Return the optional derivatives this functional provides."""
-        return TransientFunctionalDerivatives.none()
+        """Return the optional derivatives this functional provides.
+
+        First order whenever the raw residual has a parameter Jacobian:
+        the gradient of a scalar QoI, the per-column action used by the
+        tangent-linear sweep, and per-QoI rows for the adjoint. Second
+        order (per-step HVPs) only for a scalar QoI, a residual with all
+        four contractions, and a time-diagonal rule: implicit midpoint's
+        stage states couple adjacent columns, so its HVPs are absent.
+        Which holds depends on the scheme, so the answer exists only once
+        its rule is injected.
+
+        Raises
+        ------
+        RuntimeError
+            If no quadrature has been injected.
+        """
+        rule, _ = self._require_scheme()
+        if self._param_jacobian_fn is None:
+            return TransientFunctionalDerivatives.none()
+        if (
+            self._nqoi != 1
+            or not rule.is_time_diagonal()
+            or self._state_state_fn is None
+            or self._state_param_fn is None
+            or self._param_state_fn is None
+            or self._param_param_fn is None
+        ):
+            return TransientFunctionalDerivatives.first_order(
+                self._state_jacobian,
+                self._param_jacobian,
+                apply_state_jacobian=self._apply_state_jacobian,
+                row_functional=self._row_functional,
+            )
+        return TransientFunctionalDerivatives.second_order(
+            self._state_jacobian,
+            self._param_jacobian,
+            self._state_state_hvp,
+            self._state_param_hvp,
+            self._param_state_hvp,
+            self._param_param_hvp,
+            apply_state_jacobian=self._apply_state_jacobian,
+            row_functional=self._row_functional,
+        )
 
     def set_time_quadrature(
         self, quadrature: TrajectoryQuadratureProtocol[Array]
@@ -484,8 +536,10 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
             )
         return self._rule, self._mass
 
-    def _summed_step_residual(self, sol: Array, param: Array) -> Array:
-        """``M Y c - sum_j w_j F(y_j, t_j, p)``. Shape: (nstates,)."""
+    def _checked_scheme(
+        self, sol: Array
+    ) -> Tuple[StepResidualRuleProtocol[Array], MassMatrixProtocol[Array]]:
+        """The injected rule and mass, after checking ``sol`` against them."""
         rule, mass = self._require_scheme()
         if sol.ndim != 2 or sol.shape[0] != self.nstates():
             raise ValueError(
@@ -496,17 +550,184 @@ class TimeIntegratedEssentialBoundaryFluxFunctional(Generic[Array]):
                 f"sol has {sol.shape[1]} times but the injected rule "
                 f"covers {rule.ntimes()}"
             )
-        total = mass.apply(sol @ rule.mass_telescope_coefficients())
+        return rule, mass
+
+    def _stages(
+        self, sol: Array
+    ) -> Tuple[StepResidualRuleProtocol[Array], List[Tuple[Array, float, Array]]]:
+        """The rule and each stage's (state, time, weight)."""
+        rule, _ = self._checked_scheme(sol)
         stages = rule.sample(sol)
         stage_times = rule.sample_times()
         weights = rule.weights()
-        for jj in range(rule.nsamples()):
-            total = total - weights[jj] * self._residual.residual(
-                stages[:, jj],
-                self._bkd.to_float(stage_times[jj]),
-                param[:, 0],
+        return rule, [
+            (stages[:, jj], self._bkd.to_float(stage_times[jj]), weights[jj])
+            for jj in range(rule.nsamples())
+        ]
+
+    def _stage_map(self, rule: StepResidualRuleProtocol[Array], sol: Array) -> Array:
+        """The linear stage map ``S``, shape (nsamples, ntimes):
+        ``y_hat_j = sum_n S[j, n] y_n``. The adjoint action applied to
+        the identity, valid because only linear rules are accepted."""
+        return rule.accumulate(sol, self._bkd.eye(rule.nsamples()))
+
+    def _summed_step_residual(self, sol: Array, param: Array) -> Array:
+        """``M Y c - sum_j w_j F(y_j, t_j, p)``. Shape: (nstates,)."""
+        rule, mass = self._checked_scheme(sol)
+        total = mass.apply(sol @ rule.mass_telescope_coefficients())
+        for state, time, weight in self._stages(sol)[1]:
+            total = total - weight * self._residual.residual(state, time, param[:, 0])
+        return total
+
+    def _state_jacobian(self, sol: Array, param: Array) -> Array:
+        """``dQ/dY`` for a scalar QoI. Shape: (nstates, ntimes).
+
+        ``(M^T a) c^T`` from the mass term, minus the stage map's adjoint
+        of ``w_j J(y_hat_j)^T a`` from the residual terms, with ``a`` the
+        selected-row weights.
+        """
+        if self._nqoi != 1:
+            raise ValueError(
+                "the state Jacobian is the gradient of a scalar QoI; this "
+                f"functional has nqoi={self._nqoi}. Use the per-column action "
+                "or the per-QoI rows."
+            )
+        rule, mass = self._checked_scheme(sol)
+        adjoint = self._row_weights.adjoint(0)
+        mass_term = self._bkd.outer(
+            mass.apply_transpose(adjoint), rule.mass_telescope_coefficients()
+        )
+        columns = [
+            weight
+            * self._row_weights.apply(
+                self._residual.state_jacobian(state, time, param[:, 0])
+            )[0]
+            for state, time, weight in self._stages(sol)[1]
+        ]
+        return mass_term - rule.accumulate(sol, self._bkd.stack(columns, axis=1))
+
+    def _param_jacobian(self, sol: Array, param: Array) -> Array:
+        """``-sum_j w_j W dF/dp(y_hat_j)``. Shape: (nqoi, nparams).
+
+        The scheme's mass does not depend on the parameters.
+        """
+        fn = self._param_jacobian_fn
+        if fn is None:
+            raise RuntimeError(
+                "param_jacobian is unavailable; check derivatives() before calling"
+            )
+        total = self._bkd.zeros((self._nqoi, self.nparams()))
+        for state, time, weight in self._stages(sol)[1]:
+            total = total - weight * self._row_weights.apply(
+                fn(state, time, param[:, 0])
             )
         return total
+
+    def _apply_state_jacobian(
+        self, sol: Array, param: Array, time_idx: int, wmat: Array
+    ) -> Array:
+        """``(dQ/dy_n) W`` for stored column ``n``. Shape: (nqoi, ncols).
+
+        ``c_n W M V`` from the mass term, minus ``S[j, n] w_j W J_j V``
+        over the stages that read column ``n``.
+        """
+        rule, mass = self._checked_scheme(sol)
+        bkd = self._bkd
+        coefficient = rule.mass_telescope_coefficients()[time_idx]
+        mass_wmat = bkd.stack(
+            [mass.apply(wmat[:, kk]) for kk in range(wmat.shape[1])], axis=1
+        )
+        total = coefficient * self._row_weights.apply(mass_wmat)
+        stage_map = self._stage_map(rule, sol)
+        for jj, (state, time, weight) in enumerate(self._stages(sol)[1]):
+            share = bkd.to_float(stage_map[jj, time_idx])
+            if share == 0.0:
+                continue
+            jacobian = self._residual.state_jacobian(state, time, param[:, 0])
+            total = total - share * weight * self._row_weights.apply(jacobian @ wmat)
+        return total
+
+    def _row_functional(
+        self, qoi_idx: int
+    ) -> "TimeIntegratedEssentialBoundaryFluxFunctional[Array]":
+        """QoI ``qoi_idx`` as a scalar functional on the same scheme."""
+        if not 0 <= qoi_idx < self._nqoi:
+            raise ValueError(f"qoi_idx {qoi_idx} out of range [0, {self._nqoi})")
+        row = TimeIntegratedEssentialBoundaryFluxFunctional(
+            self._residual,
+            self._system,
+            self._dofs,
+            self._weights[qoi_idx : qoi_idx + 1],
+        )
+        row._rule, row._mass = self._require_scheme()
+        return row
+
+    def _step_contraction(
+        self,
+        fn: Optional[ParamHVPFn[Array]],
+        sol: Array,
+        param: Array,
+        vec: Array,
+        time_idx: Optional[int],
+        power: int,
+        size: int,
+    ) -> Array:
+        """``-sum_j S[j, n]^power w_j`` times the residual contraction
+        with adjoint ``a`` at stage ``j``; over every stage when
+        ``time_idx`` is None (the parameter-parameter block). Zero, of
+        length ``size``, for a column no stage reads (backward Euler's
+        first, forward Euler's last)."""
+        if fn is None:
+            raise RuntimeError(
+                "the HVPs are unavailable; check derivatives() before calling"
+            )
+        rule, stages = self._stages(sol)
+        stage_map = self._stage_map(rule, sol)
+        adjoint = self._row_weights.adjoint(0)
+        total: Optional[Array] = None
+        for jj, (state, time, weight) in enumerate(stages):
+            share = (
+                1.0
+                if time_idx is None
+                else self._bkd.to_float(stage_map[jj, time_idx]) ** power
+            )
+            if share == 0.0:
+                continue
+            term = share * weight * fn(state, time, param[:, 0], adjoint, vec[:, 0])
+            total = term if total is None else total + term
+        if total is None:
+            return self._bkd.zeros((size, 1))
+        return -total[:, None]
+
+    def _state_state_hvp(
+        self, sol: Array, param: Array, time_idx: int, wvec: Array
+    ) -> Array:
+        """``(d^2Q/dy_n^2) w``. Shape: (nstates, 1)."""
+        return self._step_contraction(
+            self._state_state_fn, sol, param, wvec, time_idx, 2, self.nstates()
+        )
+
+    def _state_param_hvp(
+        self, sol: Array, param: Array, time_idx: int, vvec: Array
+    ) -> Array:
+        """``(d^2Q/dy_n dp) v``. Shape: (nstates, 1)."""
+        return self._step_contraction(
+            self._state_param_fn, sol, param, vvec, time_idx, 1, self.nstates()
+        )
+
+    def _param_state_hvp(
+        self, sol: Array, param: Array, time_idx: int, wvec: Array
+    ) -> Array:
+        """``(d^2Q/dp dy_n) w``. Shape: (nparams, 1)."""
+        return self._step_contraction(
+            self._param_state_fn, sol, param, wvec, time_idx, 1, self.nparams()
+        )
+
+    def _param_param_hvp(self, sol: Array, param: Array, vvec: Array) -> Array:
+        """``(d^2Q/dp^2) v``. Shape: (nparams, 1)."""
+        return self._step_contraction(
+            self._param_param_fn, sol, param, vvec, None, 1, self.nparams()
+        )
 
     def __call__(self, sol: Array, param: Array) -> Array:
         """Evaluate ``Q``. Shape: (nqoi, 1).
