@@ -2,6 +2,7 @@
 
 from pyapprox.pde.models.galerkin.essential_boundary_flux import (
     EssentialBoundaryFluxFunctional,
+    TimeIntegratedEssentialBoundaryFluxFunctional,
 )
 from pyapprox.pde.models.galerkin.parameterized_residual import (
     GalerkinParameterizedResidual,
@@ -31,5 +32,6 @@ __all__ = [
     "GalerkinParameterizedResidual",
     "ParameterizedResidualDerivatives",
     "EssentialBoundaryFluxFunctional",
+    "TimeIntegratedEssentialBoundaryFluxFunctional",
     "GalerkinTransientForwardModel",
 ]
