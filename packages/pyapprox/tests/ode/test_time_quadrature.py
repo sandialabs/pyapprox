@@ -18,11 +18,18 @@ from pyapprox.ode.implicit_steppers.crank_nicolson import CrankNicolsonHVP
 from pyapprox.ode.implicit_steppers.implicit_midpoint import (
     ImplicitMidpointHVP,
 )
+from pyapprox.ode.implicit_steppers.integrator import TimeIntegrator
+from pyapprox.ode.mass_matrix import ConstantDenseMassMatrix
+from pyapprox.ode.mixins.default_newton_jacobian import (
+    DefaultNewtonJacobianMixin,
+)
 from pyapprox.ode.time_quadrature import (
     MidpointTrajectoryQuadrature,
     NodalTrajectoryQuadrature,
+    StepResidualRuleProtocol,
     TrajectoryQuadratureProtocol,
 )
+from pyapprox.util.rootfinding.newton import NewtonSolver
 
 _NSTATES = 3
 
@@ -38,6 +45,79 @@ class _ToyResidual:
 
     def __call__(self, state):
         return -state
+
+
+class _WrongLengthTelescope:
+    def coefficients(self, times, bkd):
+        return bkd.zeros((times.shape[0] + 1,))
+
+
+class _ForcedCubicResidual(DefaultNewtonJacobianMixin):
+    """M dy/dt = -y^3 + sin(3 t) b with a dense, non-identity M.
+
+    Nonlinear and time-dependent, so ``F`` at the wrong state or the
+    wrong time shows up in the summed step residuals.
+    """
+
+    def __init__(self, bkd) -> None:
+        self._bkd = bkd
+        self._mass = ConstantDenseMassMatrix(bkd.asarray([[2.0, 0.5], [0.5, 1.0]]), bkd)
+        self._forcing = bkd.asarray([1.0, -0.5])
+        self._time = 0.0
+
+    def bkd(self):
+        return self._bkd
+
+    def set_time(self, time: float) -> None:
+        self._time = time
+
+    def __call__(self, state):
+        return -(state**3) + np.sin(3.0 * self._time) * self._forcing
+
+    def jacobian(self, state):
+        return self._bkd.diag(-3.0 * state**2)
+
+    def mass_matrix(self):
+        return self._mass
+
+    def nparams(self) -> int:
+        return 0
+
+    def set_param(self, param) -> None:
+        pass
+
+    def param_jacobian(self, state):
+        return self._bkd.zeros((state.shape[0], 0))
+
+    def initial_param_jacobian(self):
+        return self._bkd.zeros((2, 0))
+
+
+def _summed_step_residuals(bkd, stepper_class):
+    """Solve, then rebuild the summed step residuals
+    M Y c - sum_j w_j F(y_j, t_j) entirely from the stepper's own
+    step-residual rule: its telescope, stage states, stage times and
+    weights."""
+    residual = _ForcedCubicResidual(bkd)
+    stepper = stepper_class(residual)
+    newton = NewtonSolver(stepper)
+    # Each step residual is then zero to roundoff, so the rebuilt sum
+    # is too; the default tolerance (1e-7) would hide a small defect.
+    newton.set_options(atol=1e-14, rtol=1e-14)
+    integrator = TimeIntegrator(0.0, 0.5, 0.05, newton, verbosity=0)
+    traj, times = integrator.solve(bkd.asarray([1.0, 0.5]))
+    rule = stepper.trajectory_quadrature(times).step_residual_rule()
+    assert rule is not None
+    total = residual.mass_matrix().apply(
+        bkd.dot(traj, rule.mass_telescope_coefficients())
+    )
+    stages = rule.sample(traj)
+    stage_times = rule.sample_times()
+    weights = rule.weights()
+    for jj in range(rule.nsamples()):
+        residual.set_time(bkd.to_float(stage_times[jj]))
+        total = total - weights[jj] * residual(stages[:, jj])
+    return total
 
 
 def _uniform_times(bkd, ntimes=6, deltat=0.1):
@@ -66,9 +146,7 @@ class TestStepperTrajectoryQuadrature:
     ) -> None:
         stepper = stepper_class(_ToyResidual(bkd))
         times_np = np.asarray(bkd.to_numpy(_nonuniform_times(bkd)))
-        quadrature = stepper.trajectory_quadrature(
-            _nonuniform_times(bkd)
-        )
+        quadrature = stepper.trajectory_quadrature(_nonuniform_times(bkd))
         assert isinstance(quadrature, TrajectoryQuadratureProtocol)
         assert isinstance(quadrature, NodalTrajectoryQuadrature)
         assert quadrature.is_time_diagonal()
@@ -104,9 +182,7 @@ class TestStepperTrajectoryQuadrature:
             ImplicitMidpointHVP,
         ],
     )
-    def test_weights_sum_to_interval_length(
-        self, bkd, stepper_class
-    ) -> None:
+    def test_weights_sum_to_interval_length(self, bkd, stepper_class) -> None:
         """Every rule integrates the constant 1 exactly."""
         stepper = stepper_class(_ToyResidual(bkd))
         for times in (_uniform_times(bkd), _nonuniform_times(bkd)):
@@ -123,26 +199,20 @@ class TestStepperTrajectoryQuadrature:
         "stepper_class",
         [BackwardEulerHVP, CrankNicolsonHVP, ImplicitMidpointHVP],
     )
-    def test_sample_accumulate_adjoint_identity(
-        self, bkd, stepper_class
-    ) -> None:
+    def test_sample_accumulate_adjoint_identity(self, bkd, stepper_class) -> None:
         """accumulate is the transpose of sample:
         <S u, x> == <u, S^T x> for random u, x."""
         stepper = stepper_class(_ToyResidual(bkd))
         times = _nonuniform_times(bkd)
         quadrature = stepper.trajectory_quadrature(times)
         rng = np.random.default_rng(3)
-        traj = bkd.asarray(
-            rng.normal(0.0, 1.0, (_NSTATES, quadrature.ntimes()))
-        )
+        traj = bkd.asarray(rng.normal(0.0, 1.0, (_NSTATES, quadrature.ntimes())))
         sampled_dir = bkd.asarray(
             rng.normal(0.0, 1.0, (_NSTATES, quadrature.nsamples()))
         )
         lhs = bkd.sum(quadrature.sample(traj) * sampled_dir)
         rhs = bkd.sum(traj * quadrature.accumulate(sampled_dir))
-        bkd.assert_allclose(
-            bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-13
-        )
+        bkd.assert_allclose(bkd.reshape(lhs, (1,)), bkd.reshape(rhs, (1,)), rtol=1e-13)
 
     def test_trapezoid_exact_for_linear_integrand(self, bkd) -> None:
         """Trapezoid integrates a linear-in-time trajectory exactly:
@@ -176,17 +246,110 @@ class TestStepperTrajectoryQuadrature:
         )
 
 
+class TestSampleTimes:
+    @pytest.mark.parametrize(
+        "stepper_class,expected",
+        [
+            (BackwardEulerHVP, "right"),
+            (ForwardEulerHVP, "left"),
+            (CrankNicolsonHVP, "all"),
+            (ImplicitMidpointHVP, "midpoints"),
+        ],
+    )
+    def test_samples_are_timed_where_sampled(
+        self, bkd, stepper_class, expected: str
+    ) -> None:
+        times = _nonuniform_times(bkd)
+        quadrature = stepper_class(_ToyResidual(bkd)).trajectory_quadrature(times)
+        expected_times = {
+            "right": times[1:],
+            "left": times[:-1],
+            "all": times,
+            "midpoints": 0.5 * (times[:-1] + times[1:]),
+        }[expected]
+        bkd.assert_allclose(quadrature.sample_times(), expected_times)
+
+
+_ONE_STEP_STEPPERS = [
+    BackwardEulerHVP,
+    ForwardEulerHVP,
+    CrankNicolsonHVP,
+    ImplicitMidpointHVP,
+]
+
+
+class TestStepResidualRule:
+    @pytest.mark.parametrize("stepper_class", _ONE_STEP_STEPPERS)
+    def test_one_step_schemes_provide_it(self, bkd, stepper_class) -> None:
+        quadrature = stepper_class(_ToyResidual(bkd)).trajectory_quadrature(
+            _nonuniform_times(bkd)
+        )
+        rule = quadrature.step_residual_rule()
+        assert isinstance(rule, StepResidualRuleProtocol)
+        assert rule.is_linear()
+        bkd.assert_allclose(
+            rule.mass_telescope_coefficients(),
+            bkd.asarray([-1.0, 0.0, 0.0, 0.0, 1.0]),
+        )
+        bkd.assert_allclose(rule.sample_times(), quadrature.sample_times())
+        bkd.assert_allclose(rule.weights(), quadrature.weights())
+
+    def test_heun_provides_none(self, bkd) -> None:
+        quadrature = HeunHVP(_ToyResidual(bkd)).trajectory_quadrature(
+            _nonuniform_times(bkd)
+        )
+        assert quadrature.step_residual_rule() is None
+
+    def test_undeclared_by_default(self, bkd) -> None:
+        quadrature = NodalTrajectoryQuadrature(
+            bkd.asarray([0, 1, 2, 3, 4], dtype=int),
+            bkd.ones((5,)),
+            _nonuniform_times(bkd),
+            bkd,
+        )
+        assert quadrature.step_residual_rule() is None
+
+    @pytest.mark.parametrize("stepper_class", _ONE_STEP_STEPPERS)
+    def test_rule_reproduces_the_summed_steps(self, numpy_bkd, stepper_class) -> None:
+        """At the solution every step residual vanishes, so their sum,
+        rebuilt from the rule alone, vanishes to the solver tolerance."""
+        total = _summed_step_residuals(numpy_bkd, stepper_class)
+        numpy_bkd.assert_allclose(total, numpy_bkd.zeros((2,)), atol=1e-12)
+
+
 class TestQuadratureValidation:
     def test_nodal_shape_validation(self, bkd) -> None:
+        times = bkd.asarray([0.0, 1.0])
         with pytest.raises(ValueError, match="1D"):
             NodalTrajectoryQuadrature(
-                bkd.asarray([[0]], dtype=int), bkd.ones((1,)), 2, bkd
+                bkd.asarray([[0]], dtype=int), bkd.ones((1,)), times, bkd
             )
         with pytest.raises(ValueError, match="entries"):
             NodalTrajectoryQuadrature(
-                bkd.asarray([0, 1], dtype=int), bkd.ones((1,)), 2, bkd
+                bkd.asarray([0, 1], dtype=int), bkd.ones((1,)), times, bkd
             )
 
     def test_midpoint_shape_validation(self, bkd) -> None:
         with pytest.raises(ValueError, match="ntimes - 1"):
-            MidpointTrajectoryQuadrature(bkd.ones((3,)), 3, bkd)
+            MidpointTrajectoryQuadrature(
+                bkd.ones((3,)), bkd.asarray([0.0, 1.0, 2.0]), bkd
+            )
+
+    def test_rejects_a_telescope_of_the_wrong_length(self, bkd) -> None:
+        with pytest.raises(ValueError, match="expected \\(3,\\)"):
+            NodalTrajectoryQuadrature(
+                bkd.asarray([0, 1, 2], dtype=int),
+                bkd.ones((3,)),
+                bkd.asarray([0.0, 1.0, 2.0]),
+                bkd,
+                _WrongLengthTelescope(),
+            )
+
+    def test_rejects_a_non_telescope(self, bkd) -> None:
+        with pytest.raises(TypeError, match="MassTelescopeProtocol"):
+            MidpointTrajectoryQuadrature(
+                bkd.ones((2,)),
+                bkd.asarray([0.0, 1.0, 2.0]),
+                bkd,
+                object(),  # type: ignore[arg-type]
+            )

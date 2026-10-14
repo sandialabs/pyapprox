@@ -32,6 +32,7 @@ from pyapprox.ode.protocols.ode_residual import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import (
+    OneStepMassTelescope,
     TrajectoryQuadratureProtocol,
     trapezoidal_quadrature,
 )
@@ -118,8 +119,12 @@ class CrankNicolsonStepper(
     def trajectory_quadrature(
         self, times: Array
     ) -> TrajectoryQuadratureProtocol[Array]:
-        """Trapezoidal rule — Crank-Nicolson IS the trapezoid scheme."""
-        return trapezoidal_quadrature(times, self._bkd)
+        """Trapezoidal rule — Crank-Nicolson IS the trapezoid scheme.
+
+        Its samples are the states and times where the step evaluates
+        ``F``, so it declares the one-step mass telescope.
+        """
+        return trapezoidal_quadrature(times, self._bkd, OneStepMassTelescope())
 
 
 # =========================================================================
@@ -136,14 +141,10 @@ class CrankNicolsonAdjoint(
 
     _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
 
-    def __init__(
-        self, residual: ODEResidualProtocol[Array]
-    ) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
-    def _param_jacobian_impl(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
+    def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp`.
 
         .. math::
@@ -165,9 +166,7 @@ class CrankNicolsonAdjoint(
     ) -> LinearOperatorProtocol[Array]:
         r"""Compute :math:`(dR/dy_n)^T = (M - (\Delta t/2) \, J)^T`."""
         self._residual.set_time(ctx.t_curr)
-        op = self._implicit_residual.newton_jacobian(
-            y_curr, 0.5 * ctx.deltat
-        )
+        op = self._implicit_residual.newton_jacobian(y_curr, 0.5 * ctx.deltat)
         return TransposeLinearOperator(op)
 
     def adjoint_off_diag_jacobian(
@@ -191,9 +190,7 @@ class CrankNicolsonAdjoint(
     ) -> Array:
         r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
         self._residual.set_time(ctx.t_curr)
-        op = self._implicit_residual.newton_jacobian(
-            final_fwd_sol, 0.5 * ctx.deltat
-        )
+        op = self._implicit_residual.newton_jacobian(final_fwd_sol, 0.5 * ctx.deltat)
         return op.solve_transpose(-final_dqdu)
 
 
@@ -291,9 +288,7 @@ class CrankNicolsonHVP(
         r"""Compute :math:`(d^2R/dp^2) v`."""
         # Contribution from y_{n-1} term
         self._residual.set_time(ctx.t_prev)
-        hvp_nm1 = self._hvp_residual.param_param_hvp(
-            ctx.y_prev, adj_state, vvec
-        )
+        hvp_nm1 = self._hvp_residual.param_param_hvp(ctx.y_prev, adj_state, vvec)
 
         # Contribution from y_n term
         self._residual.set_time(ctx.t_curr)
@@ -317,9 +312,7 @@ class CrankNicolsonHVP(
         return (
             -0.5
             * next_ctx.deltat
-            * self._hvp_residual.state_state_hvp(
-                next_ctx.y_prev, adj_state, wvec
-            )
+            * self._hvp_residual.state_state_hvp(next_ctx.y_prev, adj_state, wvec)
         )
 
     def prev_state_param_hvp(
@@ -334,9 +327,7 @@ class CrankNicolsonHVP(
         return (
             -0.5
             * next_ctx.deltat
-            * self._hvp_residual.state_param_hvp(
-                next_ctx.y_prev, adj_state, vvec
-            )
+            * self._hvp_residual.state_param_hvp(next_ctx.y_prev, adj_state, vvec)
         )
 
     def prev_param_state_hvp(
@@ -351,7 +342,5 @@ class CrankNicolsonHVP(
         return (
             -0.5
             * next_ctx.deltat
-            * self._hvp_residual.param_state_hvp(
-                next_ctx.y_prev, adj_state, wvec
-            )
+            * self._hvp_residual.param_state_hvp(next_ctx.y_prev, adj_state, wvec)
         )

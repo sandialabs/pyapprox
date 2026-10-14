@@ -31,6 +31,7 @@ from pyapprox.ode.protocols.ode_residual import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import (
+    OneStepMassTelescope,
     TrajectoryQuadratureProtocol,
     right_rectangle_quadrature,
 )
@@ -100,8 +101,12 @@ class BackwardEulerStepper(
     def trajectory_quadrature(
         self, times: Array
     ) -> TrajectoryQuadratureProtocol[Array]:
-        """Right-rectangle rule — the quadrature backward Euler implies."""
-        return right_rectangle_quadrature(times, self._bkd)
+        """Right-rectangle rule — the quadrature backward Euler implies.
+
+        Its samples are the states and times where the step evaluates
+        ``F``, so it declares the one-step mass telescope.
+        """
+        return right_rectangle_quadrature(times, self._bkd, OneStepMassTelescope())
 
 
 # =========================================================================
@@ -118,14 +123,10 @@ class BackwardEulerAdjoint(
 
     _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
 
-    def __init__(
-        self, residual: ODEResidualProtocol[Array]
-    ) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
-    def _param_jacobian_impl(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
+    def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_n, t_n}`."""
         self._residual.set_time(ctx.t_curr)
         return -ctx.deltat * self._adjoint_residual.param_jacobian(y_curr)
@@ -149,9 +150,7 @@ class BackwardEulerAdjoint(
     ) -> Array:
         r"""Solve :math:`(dR/dy_N)^T \lambda_N = -dQ/dy_N` at final time."""
         self._residual.set_time(ctx.t_curr)
-        op = self._implicit_residual.newton_jacobian(
-            final_fwd_sol, ctx.deltat
-        )
+        op = self._implicit_residual.newton_jacobian(final_fwd_sol, ctx.deltat)
         return op.solve_transpose(-final_dqdu)
 
 
@@ -194,9 +193,7 @@ class BackwardEulerHVP(
     ) -> Array:
         r"""Compute :math:`(d^2R/dy_n^2) w = -\Delta t \, (d^2f/dy^2) w`."""
         self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._hvp_residual.state_state_hvp(
-            y_curr, adj_state, wvec
-        )
+        return -ctx.deltat * self._hvp_residual.state_state_hvp(y_curr, adj_state, wvec)
 
     def state_param_hvp(
         self,
@@ -207,9 +204,7 @@ class BackwardEulerHVP(
     ) -> Array:
         r"""Compute :math:`(d^2R/dy_n \, dp) v = -\Delta t \, (d^2f/dy \, dp) v`."""
         self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._hvp_residual.state_param_hvp(
-            y_curr, adj_state, vvec
-        )
+        return -ctx.deltat * self._hvp_residual.state_param_hvp(y_curr, adj_state, vvec)
 
     def param_state_hvp(
         self,
@@ -220,9 +215,7 @@ class BackwardEulerHVP(
     ) -> Array:
         r"""Compute :math:`(d^2R/dp \, dy_n) w = -\Delta t \, (d^2f/dp \, dy) w`."""
         self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._hvp_residual.param_state_hvp(
-            y_curr, adj_state, wvec
-        )
+        return -ctx.deltat * self._hvp_residual.param_state_hvp(y_curr, adj_state, wvec)
 
     def param_param_hvp(
         self,
@@ -233,9 +226,7 @@ class BackwardEulerHVP(
     ) -> Array:
         r"""Compute :math:`(d^2R/dp^2) v = -\Delta t \, (d^2f/dp^2) v`."""
         self._residual.set_time(ctx.t_curr)
-        return -ctx.deltat * self._hvp_residual.param_param_hvp(
-            y_curr, adj_state, vvec
-        )
+        return -ctx.deltat * self._hvp_residual.param_param_hvp(y_curr, adj_state, vvec)
 
     # -- Cross-step HVP methods (all zero for BE) --
 

@@ -25,6 +25,7 @@ from pyapprox.ode.protocols.ode_residual import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import (
+    OneStepMassTelescope,
     TrajectoryQuadratureProtocol,
     left_rectangle_quadrature,
 )
@@ -96,8 +97,12 @@ class ForwardEulerStepper(
     def trajectory_quadrature(
         self, times: Array
     ) -> TrajectoryQuadratureProtocol[Array]:
-        """Left-rectangle rule — the quadrature forward Euler implies."""
-        return left_rectangle_quadrature(times, self._bkd)
+        """Left-rectangle rule — the quadrature forward Euler implies.
+
+        Its samples are the states and times where the step evaluates
+        ``F``, so it declares the one-step mass telescope.
+        """
+        return left_rectangle_quadrature(times, self._bkd, OneStepMassTelescope())
 
 
 # =========================================================================
@@ -112,14 +117,10 @@ class ForwardEulerAdjoint(
 ):
     """Forward Euler with adjoint capability for gradient computation."""
 
-    def __init__(
-        self, residual: ODEResidualProtocol[Array]
-    ) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
-    def _param_jacobian_impl(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
+    def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t \, (df/dp)|_{y_{n-1}}`."""
         self._adjoint_residual.set_time(ctx.t_prev)
         return -ctx.deltat * self._adjoint_residual.param_jacobian(ctx.y_prev)
@@ -145,9 +146,7 @@ class ForwardEulerAdjoint(
     ) -> Array:
         r"""Solve :math:`M^T \lambda_N = -dQ/dy_N` (explicit:
         :math:`dR_N/dy_N = M`)."""
-        return self._adjoint_residual.mass_matrix().solve_transpose(
-            -final_dqdu
-        )
+        return self._adjoint_residual.mass_matrix().solve_transpose(-final_dqdu)
 
 
 # =========================================================================

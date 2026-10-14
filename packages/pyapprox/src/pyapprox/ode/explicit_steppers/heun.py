@@ -81,9 +81,7 @@ class HeunStepper(
         self._residual.set_time(self._ctx.t_curr)
         k2 = self._residual(next_state)
 
-        return mass.apply(
-            state - self._ctx.y_prev
-        ) - 0.5 * self._ctx.deltat * (k1 + k2)
+        return mass.apply(state - self._ctx.y_prev) - 0.5 * self._ctx.deltat * (k1 + k2)
 
     def jacobian(self, state: Array) -> Array:
         return self._residual.mass_matrix().as_matrix()
@@ -141,17 +139,20 @@ class HeunStepper(
             + _dense(self._bkd, k2_jac)
             + ctx.deltat * (k2_jac @ minv_j1)
         )
-        return -(
-            _dense(self._bkd, mass_obj.as_matrix())
-            + 0.5 * ctx.deltat * inner
-        )
+        return -(_dense(self._bkd, mass_obj.as_matrix()) + 0.5 * ctx.deltat * inner)
 
     # -- QuadratureMixin --
 
     def trajectory_quadrature(
         self, times: Array
     ) -> TrajectoryQuadratureProtocol[Array]:
-        """Trapezoidal rule — Heun is the explicit trapezoid scheme."""
+        """Trapezoidal rule — Heun is the explicit trapezoid scheme.
+
+        Declares no mass telescope: the step evaluates ``F`` at a
+        predictor state, not at the stored column this rule samples, so
+        the rule integrates a QoI correctly but does not reproduce the
+        step residuals.
+        """
         return trapezoidal_quadrature(times, self._bkd)
 
 
@@ -167,14 +168,10 @@ class HeunAdjoint(
 ):
     """Heun's method with adjoint capability for gradient computation."""
 
-    def __init__(
-        self, residual: ODEResidualProtocol[Array]
-    ) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
-    def _param_jacobian_impl(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
+    def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute the parameter Jacobian :math:`dR/dp` for one time step.
 
         .. math::
@@ -205,9 +202,7 @@ class HeunAdjoint(
         k2_param_jac = self._adjoint_residual.param_jacobian(k2_state)
 
         # Chain rule: dk2/dp = ∂f/∂p + ∂f/∂y · Δt · M^{-1} · dk1/dp
-        minv_k1_param_jac = mass_obj.solve(
-            _dense(self._bkd, k1_param_jac)
-        )
+        minv_k1_param_jac = mass_obj.solve(_dense(self._bkd, k1_param_jac))
         return -(
             0.5
             * ctx.deltat
@@ -232,18 +227,14 @@ class HeunAdjoint(
         delegated so the two-stage chain rule (with its
         :math:`M^{-1}` stage slope) has a single source of truth.
         """
-        return self.sensitivity_off_diag_jacobian(
-            next_ctx, y_curr_of_next
-        ).T
+        return self.sensitivity_off_diag_jacobian(next_ctx, y_curr_of_next).T
 
     def adjoint_initial_condition(
         self, ctx: StepContext[Array], final_fwd_sol: Array, final_dqdu: Array
     ) -> Array:
         r"""Solve :math:`M^T \lambda_N = -dQ/dy_N` (explicit:
         :math:`dR_N/dy_N = M`)."""
-        return self._adjoint_residual.mass_matrix().solve_transpose(
-            -final_dqdu
-        )
+        return self._adjoint_residual.mass_matrix().solve_transpose(-final_dqdu)
 
 
 # =========================================================================
@@ -344,9 +335,7 @@ class HeunHVP(
 
         # Term 3: (dz/dp)^T f_zz(z) (dz/dp v) = dt dk1_dp^T M^-T h
         h_dz_dp_v = self._hvp_residual.state_state_hvp(z, adj_state, dz_dp_v_flat)
-        h_dz_dp_v_flat = mass_obj.solve_transpose(
-            self._bkd.flatten(h_dz_dp_v)
-        )
+        h_dz_dp_v_flat = mass_obj.solve_transpose(self._bkd.flatten(h_dz_dp_v))
         k2_term3 = dt * (dk1_dp.T @ h_dz_dp_v_flat)
 
         # Term 4: adj^T J_z d2z/dp2 v = dt f_pp(y; M^-T J_z^T adj) v
@@ -399,9 +388,7 @@ class HeunHVP(
         k1 = self._residual(next_ctx.y_prev)
         J1 = self._residual.jacobian(next_ctx.y_prev)
 
-        k1_ss_hvp = self._hvp_residual.state_state_hvp(
-            next_ctx.y_prev, adj_state, wvec
-        )
+        k1_ss_hvp = self._hvp_residual.state_state_hvp(next_ctx.y_prev, adj_state, wvec)
 
         # Stage 2: k2 = f(z) where z = y_k + dt*M^-1*k1
         z = next_ctx.y_prev + dt * mass_obj.solve(k1)
@@ -410,15 +397,11 @@ class HeunHVP(
 
         # S = dz/dy = I + dt*M^-1*J1
         nstates = next_ctx.y_prev.shape[0]
-        stage_sens = self._bkd.eye(nstates) + dt * mass_obj.solve(
-            _dense(self._bkd, J1)
-        )
+        stage_sens = self._bkd.eye(nstates) + dt * mass_obj.solve(_dense(self._bkd, J1))
 
         # Term 1: S^T f_zz(z; adj) (S w)
         scaled_wvec = stage_sens @ wvec
-        h2_scaled = self._hvp_residual.state_state_hvp(
-            z, adj_state, scaled_wvec
-        )
+        h2_scaled = self._hvp_residual.state_state_hvp(z, adj_state, scaled_wvec)
         h2_scaled_flat = self._bkd.flatten(h2_scaled)
         k2_term1 = stage_sens.T @ h2_scaled_flat
 
@@ -429,11 +412,7 @@ class HeunHVP(
             next_ctx.y_prev, J2_T_adj, wvec
         )
 
-        result = (
-            self._bkd.flatten(k1_ss_hvp)
-            + k2_term1
-            + self._bkd.flatten(k2_term2)
-        )
+        result = self._bkd.flatten(k1_ss_hvp) + k2_term1 + self._bkd.flatten(k2_term2)
         return -0.5 * dt * result
 
     def prev_state_param_hvp(
@@ -458,9 +437,7 @@ class HeunHVP(
         J1 = self._residual.jacobian(next_ctx.y_prev)
         dk1_dp = self._adjoint_residual.param_jacobian(next_ctx.y_prev)
 
-        k1_sp_hvp = self._hvp_residual.state_param_hvp(
-            next_ctx.y_prev, adj_state, vvec
-        )
+        k1_sp_hvp = self._hvp_residual.state_param_hvp(next_ctx.y_prev, adj_state, vvec)
 
         # Stage 2
         z = next_ctx.y_prev + dt * mass_obj.solve(k1)
@@ -468,9 +445,7 @@ class HeunHVP(
         J2 = self._residual.jacobian(z)
 
         nstates = next_ctx.y_prev.shape[0]
-        stage_sens = self._bkd.eye(nstates) + dt * mass_obj.solve(
-            _dense(self._bkd, J1)
-        )
+        stage_sens = self._bkd.eye(nstates) + dt * mass_obj.solve(_dense(self._bkd, J1))
         dz_dp_v = dt * mass_obj.solve(
             self._bkd.flatten(_dense(self._bkd, dk1_dp) @ vvec)
         )
@@ -481,9 +456,7 @@ class HeunHVP(
         k2_term1 = stage_sens.T @ self._bkd.flatten(sp_hvp_z)
 
         # Term 2: S^T f_zz(z; adj) (dz/dp v)
-        ss_hvp_z = self._hvp_residual.state_state_hvp(
-            z, adj_state, dz_dp_v_flat
-        )
+        ss_hvp_z = self._hvp_residual.state_state_hvp(z, adj_state, dz_dp_v_flat)
         k2_term2 = stage_sens.T @ self._bkd.flatten(ss_hvp_z)
 
         # Term 3: adj^T J2 dS/dp v = dt f_yp(y_k; M^-T J2^T adj) v
@@ -523,9 +496,7 @@ class HeunHVP(
         J1 = self._residual.jacobian(next_ctx.y_prev)
         dk1_dp = self._adjoint_residual.param_jacobian(next_ctx.y_prev)
 
-        k1_ps_hvp = self._hvp_residual.param_state_hvp(
-            next_ctx.y_prev, adj_state, wvec
-        )
+        k1_ps_hvp = self._hvp_residual.param_state_hvp(next_ctx.y_prev, adj_state, wvec)
 
         # Stage 2
         z = next_ctx.y_prev + dt * mass_obj.solve(k1)
@@ -533,26 +504,18 @@ class HeunHVP(
         J2 = self._residual.jacobian(z)
 
         nstates = next_ctx.y_prev.shape[0]
-        stage_sens = self._bkd.eye(nstates) + dt * mass_obj.solve(
-            _dense(self._bkd, J1)
-        )
+        stage_sens = self._bkd.eye(nstates) + dt * mass_obj.solve(_dense(self._bkd, J1))
         dz_dy_w = stage_sens @ wvec
 
         # Term 1: f_pz(z; adj) (S w)
-        k2_term1 = self._hvp_residual.param_state_hvp(
-            z, adj_state, dz_dy_w
-        )
+        k2_term1 = self._hvp_residual.param_state_hvp(z, adj_state, dz_dy_w)
 
         # Term 2: (dz/dp)^T f_zz(z; adj) (S w) = dt dk1_dp^T M^-T H
-        H_z_dz_dy_w = self._hvp_residual.state_state_hvp(
-            z, adj_state, dz_dy_w
-        )
+        H_z_dz_dy_w = self._hvp_residual.state_state_hvp(z, adj_state, dz_dy_w)
         k2_term2 = dt * (
             dk1_dp.T
             @ self._bkd.reshape(
-                mass_obj.solve_transpose(
-                    self._bkd.flatten(H_z_dz_dy_w)
-                ),
+                mass_obj.solve_transpose(self._bkd.flatten(H_z_dz_dy_w)),
                 (-1, 1),
             )
         )

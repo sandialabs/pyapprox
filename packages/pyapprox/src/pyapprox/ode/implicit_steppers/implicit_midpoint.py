@@ -37,6 +37,7 @@ from pyapprox.ode.protocols.ode_residual import (
 )
 from pyapprox.ode.step_context import StepContext
 from pyapprox.ode.time_quadrature import (
+    OneStepMassTelescope,
     TrajectoryQuadratureProtocol,
     midpoint_quadrature,
 )
@@ -127,9 +128,11 @@ class ImplicitMidpointStepper(
 
         Not time-diagonal: time-integrated functionals get exact
         values and gradients, but per-step HVPs are unavailable until
-        the block-tridiagonal adjoint extension lands.
+        the block-tridiagonal adjoint extension lands. Its samples are
+        the states and times where the step evaluates ``F``, so it
+        declares the one-step mass telescope.
         """
-        return midpoint_quadrature(times, self._bkd)
+        return midpoint_quadrature(times, self._bkd, OneStepMassTelescope())
 
 
 # =========================================================================
@@ -146,14 +149,10 @@ class ImplicitMidpointAdjoint(
 
     _residual: ImplicitODEResidualWithParamJacobianProtocol[Array]
 
-    def __init__(
-        self, residual: ODEResidualProtocol[Array]
-    ) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
-    def _param_jacobian_impl(
-        self, ctx: StepContext[Array], y_curr: Array
-    ) -> Array:
+    def _param_jacobian_impl(self, ctx: StepContext[Array], y_curr: Array) -> Array:
         r"""Compute :math:`dR/dp = -\Delta t
         \, (df/dp)|_{y_{\mathrm{mid}}, t_{\mathrm{mid}}}`."""
         y_mid = self._midpoint_state(ctx, y_curr)
@@ -226,9 +225,7 @@ class ImplicitMidpointHVP(
 
     _residual: ImplicitODEResidualWithHVPProtocol[Array]
 
-    def __init__(
-        self, residual: ODEResidualProtocol[Array]
-    ) -> None:
+    def __init__(self, residual: ODEResidualProtocol[Array]) -> None:
         super().__init__(residual)
 
     # -- Same-step HVP methods --
@@ -291,10 +288,7 @@ class ImplicitMidpointHVP(
         r"""Compute :math:`-\Delta t \, (d^2f/dp^2)|_{y_{\mathrm{mid}}} \, v`."""
         y_mid = self._midpoint_state(ctx, y_curr)
         self._set_midpoint_time(ctx)
-        return (
-            -ctx.deltat
-            * self._hvp_residual.param_param_hvp(y_mid, adj_state, vvec)
-        )
+        return -ctx.deltat * self._hvp_residual.param_param_hvp(y_mid, adj_state, vvec)
 
     # -- Cross-step HVP methods --
 
@@ -383,8 +377,5 @@ class ImplicitMidpointHVP(
         return (
             -0.25
             * next_ctx.deltat
-            * self._hvp_residual.state_state_hvp(
-                y_mid, adj_state, wvec_curr_of_next
-            )
+            * self._hvp_residual.state_state_hvp(y_mid, adj_state, wvec_curr_of_next)
         )
-
