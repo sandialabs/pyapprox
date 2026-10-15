@@ -29,6 +29,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.interface.functions.derivative_checks.derivative_checker import (
     DerivativeChecker,
@@ -79,19 +80,22 @@ from tests._helpers.adjoint_checks import NumpyArray
 _NSAMPLES = 12
 
 
-def _unit_forcing(coords: Any) -> Any:
+_Points = NDArray[np.floating[Any]]
+
+
+def _unit_forcing(coords: _Points) -> _Points:
     return np.ones(coords.shape[1])
 
 
-def _square(x: Any, u: Any) -> Any:
+def _square(x: _Points, u: _Points) -> _Points:
     return u**2
 
 
-def _square_deriv(x: Any, u: Any) -> Any:
+def _square_deriv(x: _Points, u: _Points) -> _Points:
     return 2.0 * u
 
 
-def _square_deriv2(x: Any, u: Any) -> Any:
+def _square_deriv2(x: _Points, u: _Points) -> _Points:
     return np.full_like(u, 2.0)
 
 
@@ -202,7 +206,10 @@ class _QuadraticTrialSpace:
 
     def decode(self, codes: NumpyArray) -> NumpyArray:
         kron = np.stack([np.kron(c, c) for c in codes.T], axis=1)
-        return self._reference[:, None] + self._linear @ codes + self._quadratic @ kron
+        decoded: NumpyArray = (
+            self._reference[:, None] + self._linear @ codes + self._quadratic @ kron
+        )
+        return decoded
 
     def tangent(self, code: NumpyArray) -> TangentOperatorProtocol[NumpyArray]:
         eye = np.eye(self.ncodes())
@@ -214,7 +221,8 @@ class _QuadraticTrialSpace:
         if self._drop_curvature:
             return np.zeros((ncodes, ncodes))
         half = (self._quadratic.T @ weights).reshape(ncodes, ncodes)
-        return half + half.T
+        curvature: NumpyArray = half + half.T
+        return curvature
 
 
 def _residual_norm(
@@ -347,7 +355,7 @@ class TestDerivatives:
         )
         assert ratio <= 1e-6
 
-    def _curved(self, problem: _Problem, drop_curvature: bool) -> Any:
+    def _curved(self, problem: _Problem, drop_curvature: bool) -> _QuadraticTrialSpace:
         trial = fit_pod_trial_space(
             problem.homogenized, problem.bkd, latent_dim=3, metric=problem.metric
         )

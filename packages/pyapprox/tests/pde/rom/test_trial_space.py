@@ -31,6 +31,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.pde.constitutive.coefficient_functions import (
     NodalFieldDiffusion,
@@ -65,7 +66,7 @@ from pyapprox.pde.rom import (
 )
 from pyapprox.surrogates.kle import as_basis_operator
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.backends.protocols import Array, Backend
 from pyapprox.util.linalg.inner_product import (
     DiagonalInnerProduct,
     InnerProductProtocol,
@@ -73,11 +74,13 @@ from pyapprox.util.linalg.inner_product import (
 )
 from tests._helpers.adjoint_checks import NumpyArray
 
+_Points = NDArray[np.floating[Any]]
+
 
 def _assert_pod_identity(
-    bkd: Backend[Any],
-    snapshots: SnapshotSet[Any],
-    metric: InnerProductProtocol[Any],
+    bkd: Backend[Array],
+    snapshots: SnapshotSet[Array],
+    metric: InnerProductProtocol[Array],
     ranks: range,
 ) -> None:
     sigma = snapshot_spectrum(snapshots, bkd, metric=metric)
@@ -93,7 +96,9 @@ def _assert_pod_identity(
         bkd.assert_allclose(trial.gram(), bkd.eye(rank), atol=1e-10)
 
 
-def _synthetic(bkd: Backend[Any]) -> Tuple[SnapshotSet[Any], Any]:
+def _synthetic(
+    bkd: Backend[Array],
+) -> Tuple[SnapshotSet[Array], DiagonalInnerProduct[Array]]:
     rng = np.random.default_rng(1)
     low_rank = rng.normal(size=(20, 5)) @ rng.normal(size=(5, 8))
     states = low_rank + 1e-3 * rng.normal(size=(20, 8))
@@ -104,13 +109,13 @@ def _synthetic(bkd: Backend[Any]) -> Tuple[SnapshotSet[Any], Any]:
     )
 
 
-def _unit_forcing(coords: Any) -> Any:
+def _unit_forcing(coords: _Points) -> _Points:
     return np.ones(coords.shape[1])
 
 
 def _galerkin(
     bkd: NumpyBkd,
-) -> Tuple[SnapshotSet[NumpyArray], MassInnerProduct[NumpyArray], Any]:
+) -> Tuple[SnapshotSet[NumpyArray], MassInnerProduct[NumpyArray], NumpyArray]:
     mesh = StructuredMesh1D(nx=10, bounds=(0.0, 1.0), bkd=bkd)
     basis = LagrangeBasis(mesh, degree=1)
     physics = AdvectionDiffusionReaction(
@@ -160,20 +165,20 @@ def _galerkin(
 
 
 class TestLinearTrialSpace:
-    def test_satisfies_protocol(self, bkd: Backend[Any]) -> None:
+    def test_satisfies_protocol(self, bkd: Backend[Array]) -> None:
         snapshots, metric = _synthetic(bkd)
         trial = fit_pod_trial_space(snapshots, bkd, latent_dim=3, metric=metric)
         assert isinstance(trial, TrialSpaceProtocol)
         assert (trial.nstates(), trial.ncodes()) == (20, 3)
 
-    def test_project_inverts_decode(self, bkd: Backend[Any]) -> None:
+    def test_project_inverts_decode(self, bkd: Backend[Array]) -> None:
         snapshots, metric = _synthetic(bkd)
         trial = fit_pod_trial_space(snapshots, bkd, latent_dim=3, metric=metric)
         codes = bkd.asarray(np.random.default_rng(3).normal(size=(3, 4)))
         bkd.assert_allclose(trial.project(trial.decode(codes)), codes, rtol=1e-10)
 
     def test_projection_is_metric_orthogonal_for_any_basis(
-        self, bkd: Backend[Any]
+        self, bkd: Backend[Array]
     ) -> None:
         """The residual is M-orthogonal to the span even when V^T M V != I."""
         snapshots, metric = _synthetic(bkd)
@@ -186,14 +191,14 @@ class TestLinearTrialSpace:
             atol=1e-10,
         )
 
-    def test_rejects_wrong_reference_shape(self, bkd: Backend[Any]) -> None:
+    def test_rejects_wrong_reference_shape(self, bkd: Backend[Array]) -> None:
         raw = bkd.ones((5, 2))
         with pytest.raises(ValueError, match="reference"):
             LinearTrialSpace(as_basis_operator(raw, bkd), bkd.zeros((4,)))
 
 
 class TestPODIdentity:
-    def test_synthetic_diagonal_metric(self, bkd: Backend[Any]) -> None:
+    def test_synthetic_diagonal_metric(self, bkd: Backend[Array]) -> None:
         snapshots, metric = _synthetic(bkd)
         _assert_pod_identity(bkd, snapshots, metric, range(1, 7))
 
@@ -213,7 +218,9 @@ class TestPODIdentity:
         )
         bkd.assert_allclose(trial.reference()[ends], bkd.zeros((2,)), atol=1e-12)
 
-    def test_euclidean_basis_fails_in_weighted_metric(self, bkd: Backend[Any]) -> None:
+    def test_euclidean_basis_fails_in_weighted_metric(
+        self, bkd: Backend[Array]
+    ) -> None:
         snapshots, metric = _synthetic(bkd)
         rank = 3
         sigma = snapshot_spectrum(snapshots, bkd, metric=metric)

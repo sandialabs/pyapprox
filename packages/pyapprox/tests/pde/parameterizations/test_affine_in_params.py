@@ -16,8 +16,6 @@ p. Wrong-model control: the exponential map is declared not affine and
 the identity fails for it, by far more than roundoff.
 """
 
-from typing import Any
-
 import pytest
 
 from pyapprox.util.optional_deps import package_available
@@ -84,7 +82,7 @@ class _Problem:
             bkd.asarray(self._modes()),
         )
 
-    def exp_map(self) -> Any:
+    def exp_map(self) -> TransformedFieldMap[NumpyArray]:
         bkd = self.bkd
         exp = _ExpTransform(bkd)
         return TransformedFieldMap(

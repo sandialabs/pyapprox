@@ -15,6 +15,7 @@ wrong-model controls give the homogenizer data from a different system,
 or times paired with the wrong states, and require it to refuse.
 """
 
+import math
 from typing import Any, Tuple
 
 import pytest
@@ -25,6 +26,7 @@ if not package_available("skfem"):
     pytest.skip("skfem not installed", allow_module_level=True)
 
 import numpy as np
+from numpy.typing import NDArray
 
 from pyapprox.ode.config import TimeIntegrationConfig
 from pyapprox.pde.boundary import BoundarySignal
@@ -63,29 +65,34 @@ from pyapprox.pde.rom import (
     homogenize,
 )
 from pyapprox.util.backends.numpy import NumpyBkd
-from pyapprox.util.backends.protocols import Backend
+from pyapprox.util.backends.protocols import Array, Backend
 from tests._helpers.adjoint_checks import NumpyArray
+
+_Points = NDArray[np.floating[Any]]
 
 _SAMPLES = np.array([[0.4, -0.2, 0.1], [-0.3, 0.5, 0.0], [0.2, 0.1, -0.4]])
 
 
-def _unit_forcing(coords: Any) -> Any:
+def _unit_forcing(coords: _Points) -> _Points:
     return np.ones(coords.shape[1])
 
 
-def _heat_forcing(coords: Any, time: float) -> Any:
-    return (1.0 + coords[0]) * (1.0 + np.sin(5.0 * time))
+def _heat_forcing(coords: _Points, time: float) -> _Points:
+    forcing: _Points = (1.0 + coords[0]) * (1.0 + math.sin(5.0 * time))
+    return forcing
 
 
-def _right_value(coords: Any, time: float) -> Any:
+def _right_value(coords: _Points, time: float) -> _Points:
     return np.full(coords.shape[1], 0.5 * np.sin(4.0 * time))
 
 
-def _right_rate(coords: Any, time: float) -> Any:
+def _right_rate(coords: _Points, time: float) -> _Points:
     return np.full(coords.shape[1], 2.0 * np.cos(4.0 * time))
 
 
-def _log_kle_map(bkd: NumpyBkd, basis: LagrangeBasis[NumpyArray]) -> Any:
+def _log_kle_map(
+    bkd: NumpyBkd, basis: LagrangeBasis[NumpyArray]
+) -> TransformedFieldMap[NumpyArray]:
     coords = bkd.to_numpy(basis.dof_coordinates())[0]
     modes = np.stack(
         [0.4 * np.sin((k + 1) * np.pi * coords) / (k + 1) for k in range(3)],
@@ -153,7 +160,7 @@ def _transient_problem(
         physics, diffusivity_map=_log_kle_map(bkd, basis), bkd=bkd
     )
     x = bkd.to_numpy(basis.dof_coordinates())[0]
-    config = TimeIntegrationConfig(
+    config: TimeIntegrationConfig[NumpyArray] = TimeIntegrationConfig(
         method="backward_euler",
         init_time=0.0,
         final_time=0.02,
@@ -190,7 +197,7 @@ def _steady_snapshots(
 
 
 class TestSnapshotSet:
-    def test_counts(self, bkd: Backend[Any]) -> None:
+    def test_counts(self, bkd: Backend[Array]) -> None:
         snapshots = SnapshotSet(bkd.zeros((5, 4)), bkd.zeros((2, 4)), bkd.zeros((4,)))
         assert (
             snapshots.nstates(),
@@ -200,7 +207,7 @@ class TestSnapshotSet:
         assert not snapshots.is_steady()
         assert SnapshotSet(bkd.zeros((5, 4)), bkd.zeros((2, 4))).is_steady()
 
-    def test_rejects_mismatched_columns(self, bkd: Backend[Any]) -> None:
+    def test_rejects_mismatched_columns(self, bkd: Backend[Array]) -> None:
         with pytest.raises(ValueError, match="columns"):
             SnapshotSet(bkd.zeros((5, 4)), bkd.zeros((2, 3)))
         with pytest.raises(ValueError, match="entries"):
@@ -208,7 +215,7 @@ class TestSnapshotSet:
         with pytest.raises(ValueError, match="2D"):
             SnapshotSet(bkd.zeros((5,)), bkd.zeros((2, 4)))
 
-    def test_concatenate(self, bkd: Backend[Any]) -> None:
+    def test_concatenate(self, bkd: Backend[Array]) -> None:
         first = SnapshotSet(
             bkd.ones((3, 2)), bkd.zeros((1, 2)), bkd.asarray([0.0, 1.0])
         )
@@ -221,7 +228,9 @@ class TestSnapshotSet:
         assert joined.times is not None
         bkd.assert_allclose(joined.times, bkd.asarray([0.0, 1.0, 2.0]))
 
-    def test_concatenate_rejects_steady_with_transient(self, bkd: Backend[Any]) -> None:
+    def test_concatenate_rejects_steady_with_transient(
+        self, bkd: Backend[Array]
+    ) -> None:
         steady = SnapshotSet(bkd.ones((3, 1)), bkd.zeros((1, 1)))
         transient = SnapshotSet(bkd.ones((3, 1)), bkd.zeros((1, 1)), bkd.zeros((1,)))
         with pytest.raises(ValueError, match="steady and transient"):
