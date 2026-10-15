@@ -1,6 +1,7 @@
 """Tests for field map implementations."""
 
 import math
+from typing import Generic
 
 import numpy as np
 import pytest
@@ -23,6 +24,7 @@ from pyapprox.pde.field_maps.mesh_kle_field_map import (
 )
 from pyapprox.pde.field_maps.protocol import (
     FieldMapProtocol,
+    field_map_has_hvp,
 )
 from pyapprox.pde.field_maps.scalar import (
     ScalarAmplitude,
@@ -31,6 +33,40 @@ from pyapprox.pde.field_maps.transformed import (
     TransformedFieldMap,
     _ExpTransform,
 )
+from pyapprox.util.backends.protocols import Array, Backend
+
+
+class _QuadraticNoHVP(Generic[Array]):
+    """Nonlinear test field map g(p) = base + Phi p + 0.5 (a.p)^2 psi,
+    declaring no HVP (its curvature is unknown to consumers)."""
+
+    def __init__(
+        self, bkd: Backend[Array], phi: Array, avec: Array, psi: Array
+    ) -> None:
+        self._bkd = bkd
+        self._phi = phi
+        self._avec = avec
+        self._psi = psi
+
+    def nvars(self) -> int:
+        return self._phi.shape[1]
+
+    def __call__(self, params_1d: Array) -> Array:
+        ap = self._bkd.sum(self._avec * params_1d)
+        return self._phi @ params_1d + 0.5 * ap**2 * self._psi
+
+    def jacobian(self, params_1d: Array) -> Array:
+        ap = self._bkd.sum(self._avec * params_1d)
+        return self._phi + ap * self._psi[:, None] * self._avec[None, :]
+
+
+class _QuadraticFieldMap(_QuadraticNoHVP[Array]):
+    """The same map, declaring its exact adjoint-weighted HVP
+    sum_i adj_i Hess(g_i) v = (adj . psi) (a . v) a."""
+
+    def hvp(self, params_1d: Array, adj_state: Array, vvec: Array) -> Array:
+        scale = self._bkd.sum(adj_state * self._psi) * self._bkd.sum(self._avec * vvec)
+        return scale * self._avec
 
 
 class TestFieldMaps:
@@ -104,21 +140,17 @@ class TestFieldMaps:
         phi1 = bkd.array([0.0, 0.25, 0.5, 0.75, 1.0])
         fm = BasisExpansion(bkd, bkd.asarray(base_np), [phi0, phi1])
         params = bkd.array([0.5, -1.0])
-        expected = base_np + 0.5 * np.ones(npts) - 1.0 * np.array(
-            [0.0, 0.25, 0.5, 0.75, 1.0]
+        expected = (
+            base_np + 0.5 * np.ones(npts) - 1.0 * np.array([0.0, 0.25, 0.5, 0.75, 1.0])
         )
         bkd.assert_allclose(fm(params), bkd.asarray(expected), rtol=1e-12)
         bkd.assert_allclose(fm.base_field(), bkd.asarray(base_np), rtol=1e-14)
         # The offset never enters the derivatives of the linear map.
         scalar_fm = BasisExpansion(bkd, 0.0, [phi0, phi1])
-        bkd.assert_allclose(
-            fm.jacobian(params), scalar_fm.jacobian(params), rtol=1e-14
-        )
+        bkd.assert_allclose(fm.jacobian(params), scalar_fm.jacobian(params), rtol=1e-14)
         adj = bkd.ones((npts,))
         vvec = bkd.ones((2,))
-        bkd.assert_allclose(
-            fm.hvp(params, adj, vvec), bkd.zeros((2,)), rtol=1e-14
-        )
+        bkd.assert_allclose(fm.hvp(params, adj, vvec), bkd.zeros((2,)), rtol=1e-14)
 
     def test_basis_expansion_array_base_shape_validation(self, bkd) -> None:
         """A base field not matching the basis nodes fails loudly."""
@@ -296,6 +328,24 @@ class TestFieldMaps:
         ratio = float(bkd.min(errors) / bkd.max(errors))
         assert ratio <= 1e-5
 
+    def test_transformed_jacobian_matches_diag_formula(self, bkd) -> None:
+        """The broadcast row scaling equals diag(t'(inner)) @ inner_jac."""
+        npts = 7
+        rng = np.random.default_rng(1)
+        phis = [bkd.asarray(rng.normal(0.0, 1.0, (npts,))) for _ in range(3)]
+        inner = BasisExpansion(bkd, 0.1, phis)
+        tfm = TransformedFieldMap(
+            inner,
+            transform=_ExpTransform(bkd),
+            transform_deriv=_ExpTransform(bkd),
+            bkd=bkd,
+        )
+        params = bkd.asarray(rng.normal(0.0, 1.0, (3,)))
+        expected = bkd.diag(bkd.exp(inner(params))) @ inner.jacobian(params)
+        jac = tfm.jacobian(params)
+        assert jac.shape == (npts, 3)
+        bkd.assert_allclose(jac, expected, rtol=1e-12)
+
     def test_transformed_rejects_inner_without_jacobian(self, bkd) -> None:
         """FieldMapProtocol requires jacobian, so eval-only inners are
         rejected at construction (a missing field-map jacobian would
@@ -338,6 +388,103 @@ class TestFieldMaps:
             bkd=bkd,
         )
         assert isinstance(tfm, FieldMapProtocol)
+
+    # --- TransformedFieldMap HVP (curvature of the inner map) ---
+
+    def _make_exp_of_quadratic(
+        self, bkd: Backend[Array], with_inner_hvp: bool
+    ) -> "TransformedFieldMap[Array]":
+        rng = np.random.default_rng(4)
+        npts, nvars = 6, 3
+        inner_cls = _QuadraticFieldMap if with_inner_hvp else _QuadraticNoHVP
+        inner = inner_cls(
+            bkd,
+            bkd.asarray(rng.normal(0.0, 1.0, (npts, nvars))),
+            bkd.asarray(rng.normal(0.0, 1.0, (nvars,))),
+            bkd.asarray(rng.normal(0.0, 0.5, (npts,))),
+        )
+        exp = _ExpTransform(bkd)
+        return TransformedFieldMap(inner, exp, exp, bkd, transform_deriv2=exp)
+
+    def test_transformed_hvp_nonlinear_inner_matches_fd(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """For a nonlinear inner map the HVP includes the inner
+        curvature term: the Hessian assembled from hvp columns passes a
+        derivative check against the gradient adj^T J(p)."""
+        tfm = self._make_exp_of_quadratic(bkd, with_inner_hvp=True)
+        assert tfm.has_hvp()
+        nvars = tfm.nvars()
+        adj = bkd.asarray(np.random.default_rng(5).normal(0.0, 1.0, (6,)))
+        eye = bkd.eye(nvars)
+
+        def grad(samples: Array) -> Array:
+            return bkd.stack(
+                [
+                    tfm.jacobian(samples[:, ii]).T @ adj
+                    for ii in range(samples.shape[1])
+                ],
+                axis=1,
+            )
+
+        def hessian(sample: Array) -> Array:
+            return bkd.stack(
+                [tfm.hvp(sample[:, 0], adj, eye[:, kk]) for kk in range(nvars)],
+                axis=1,
+            )
+
+        wrapper = FunctionWithJacobianFromCallable(
+            nqoi=nvars, nvars=nvars, fun=grad, jacobian=hessian, bkd=bkd
+        )
+        checker = DerivativeChecker(wrapper)
+        params = bkd.asarray([[0.3], [-0.4], [0.2]])
+        errors = checker.check_derivatives(params)[0]
+        assert float(bkd.to_numpy(checker.error_ratio(errors))) <= 1e-6
+
+    def test_transformed_hvp_nonlinear_inner_matches_autograd(
+        self, torch_bkd: Backend[Array]
+    ) -> None:
+        """The HVP equals torch's HVP of p -> adj^T exp(g(p))."""
+        import torch
+
+        bkd = torch_bkd
+        tfm = self._make_exp_of_quadratic(bkd, with_inner_hvp=True)
+        rng = np.random.default_rng(6)
+        adj = bkd.asarray(rng.normal(0.0, 1.0, (6,)))
+        params = bkd.asarray(rng.normal(0.0, 0.5, (3,)))
+        vvec = bkd.asarray(rng.normal(0.0, 1.0, (3,)))
+        _, auto_hvp = torch.autograd.functional.hvp(
+            lambda p: adj @ tfm(p), params, vvec
+        )
+        bkd.assert_allclose(tfm.hvp(params, adj, vvec), auto_hvp, rtol=1e-10)
+
+    def test_transformed_hvp_absent_without_inner_hvp(
+        self, bkd: Backend[Array]
+    ) -> None:
+        """An inner map with unknown curvature leaves the HVP absent
+        rather than approximated by the linear-inner formula."""
+        tfm = self._make_exp_of_quadratic(bkd, with_inner_hvp=False)
+        assert not tfm.has_hvp()
+        assert not field_map_has_hvp(tfm)
+        with pytest.raises(RuntimeError, match="hvp is unavailable"):
+            tfm.hvp(bkd.zeros((3,)), bkd.ones((6,)), bkd.ones((3,)))
+
+    def test_transformed_hvp_linear_inner_unchanged(self, bkd: Backend[Array]) -> None:
+        """For a linear inner map the curvature term is zero, so the HVP
+        equals J^T (adj * t''(g) * J v)."""
+        rng = np.random.default_rng(7)
+        npts = 5
+        phis = [bkd.asarray(rng.normal(0.0, 1.0, (npts,))) for _ in range(2)]
+        inner = BasisExpansion(bkd, 0.2, phis)
+        exp = _ExpTransform(bkd)
+        tfm = TransformedFieldMap(inner, exp, exp, bkd, transform_deriv2=exp)
+        assert tfm.has_hvp()
+        params = bkd.asarray(rng.normal(0.0, 1.0, (2,)))
+        adj = bkd.asarray(rng.normal(0.0, 1.0, (npts,)))
+        vvec = bkd.asarray(rng.normal(0.0, 1.0, (2,)))
+        jac = inner.jacobian(params)
+        expected = jac.T @ (adj * bkd.exp(inner(params)) * (jac @ vvec))
+        bkd.assert_allclose(tfm.hvp(params, adj, vvec), expected, rtol=1e-12)
 
     # --- Lognormal KLE factory tests ---
 
@@ -520,15 +667,10 @@ class TestFixedPoissonRatioLameMap:
     def _make_inner(self, bkd, npts, nmodes=2):
         coords = np.linspace(-1.0, 1.0, npts)
         modes = np.stack(
-            [
-                0.4 * np.sin((k + 1) * math.pi * coords) / (k + 1)
-                for k in range(nmodes)
-            ],
+            [0.4 * np.sin((k + 1) * math.pi * coords) / (k + 1) for k in range(nmodes)],
             axis=1,
         )
-        kle = MeshKLEFieldMap(
-            bkd, bkd.asarray(np.zeros(npts)), bkd.asarray(modes)
-        )
+        kle = MeshKLEFieldMap(bkd, bkd.asarray(np.zeros(npts)), bkd.asarray(modes))
         exp = _ExpTransform(bkd)
         return TransformedFieldMap(kle, exp, exp, bkd, transform_deriv2=exp)
 
@@ -559,10 +701,7 @@ class TestFixedPoissonRatioLameMap:
             nqoi=2 * npts,
             nvars=lame_map.nvars(),
             fun=lambda samples: bkd.stack(
-                [
-                    lame_map(samples[:, i])
-                    for i in range(samples.shape[1])
-                ],
+                [lame_map(samples[:, i]) for i in range(samples.shape[1])],
                 axis=1,
             ),
             jacobian=lambda sample: lame_map.jacobian(sample[:, 0]),
@@ -667,15 +806,11 @@ class TestParameterShapeValidation:
         with pytest.raises(ValueError, match="entries but this"):
             field_map(bkd.ones((5,)))
 
-    def test_a_column_would_otherwise_return_a_square_field(
-        self, bkd
-    ) -> None:
+    def test_a_column_would_otherwise_return_a_square_field(self, bkd) -> None:
         """What the check prevents, shown explicitly: the bad shape is
         square and finite, which is why nothing downstream notices."""
         rng = np.random.RandomState(0)
-        weights = np.asarray(bkd.to_numpy(bkd.array(
-            rng.standard_normal((6, 3))
-        )))
+        weights = np.asarray(bkd.to_numpy(bkd.array(rng.standard_normal((6, 3)))))
         unchecked = np.zeros(6) + weights @ np.ones((3, 1))
         assert unchecked.shape == (6, 6)
 
@@ -686,9 +821,7 @@ class TestParameterShapeValidation:
             field_map(bkd.ones((1, 1)))
 
     def test_basis_expansion_rejects_a_column(self, bkd) -> None:
-        field_map = BasisExpansion(
-            bkd, 0.0, [bkd.ones((4,)), bkd.ones((4,))]
-        )
+        field_map = BasisExpansion(bkd, 0.0, [bkd.ones((4,)), bkd.ones((4,))])
         assert field_map(bkd.ones((2,))).shape == (4,)
         with pytest.raises(ValueError, match="must be 1D"):
             field_map(bkd.ones((2, 1)))
