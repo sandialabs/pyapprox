@@ -67,6 +67,11 @@ _NMODES = 2
 # A point away from the KLE mean, so the log-diffusivity is not uniform.
 _PARAM0 = (0.3, -0.2)
 _FINAL_TIME, _DELTAT = 0.4, 0.1
+# Central differences: with forward differences the error falls only ~6
+# decades before rounding, so error_ratio <= 1e-6 depended on the size of
+# the rounding tail (measured 1.7e-7 to 9.0e-7 locally, 1.1e-6 to 2.6e-6
+# on CI). Central differences reach 8e-10 to 2.5e-9 for both steppers.
+_FD_EPS = NumpyBkd().flip(NumpyBkd().logspace(-13, -1, 13))
 
 
 def _make_physics(
@@ -159,9 +164,12 @@ class TestTransientAdjointGradient:
         )
         checker = DerivativeChecker(wrapper_fn)
         sample = bkd.asarray(np.array([[_PARAM0[0]], [_PARAM0[1]]]))
-        errors = checker.check_derivatives(sample, relative=True)[0]
+        errors = checker.check_derivatives(
+            sample, fd_eps=_FD_EPS, relative=True, central=True
+        )[0]
         ratio = float(bkd.to_numpy(checker.error_ratio(errors)))
         assert ratio <= 1e-6
+        assert checker.check_v_shape(errors, _FD_EPS, central=True).passed
 
 
 class TestTransientAdjointHVP:
@@ -190,9 +198,13 @@ class TestTransientAdjointHVP:
 
         param = bkd.asarray(np.array([[_PARAM0[0]], [_PARAM0[1]]]))
         direction = bkd.asarray(np.array([[0.7], [-0.4]]))
-        errors = checker.check_derivatives(param, direction=direction, relative=True)
+        errors = checker.check_derivatives(
+            param, fd_eps=_FD_EPS, direction=direction, relative=True, central=True
+        )
 
-        jac_ratio = float(bkd.to_numpy(checker.error_ratio(errors[0])))
-        assert jac_ratio <= 1e-6
-        hvp_ratio = float(bkd.to_numpy(checker.error_ratio(errors[1])))
-        assert hvp_ratio <= 1e-6
+        for capability_errors in errors:
+            ratio = float(bkd.to_numpy(checker.error_ratio(capability_errors)))
+            assert ratio <= 1e-6
+            assert checker.check_v_shape(
+                capability_errors, _FD_EPS, central=True
+            ).passed
