@@ -67,15 +67,9 @@ class TimeIntegrator(Generic[Array]):
         self._deltat = deltat
         self._verbosity = verbosity
         self._newton_solver = newton_solver
-        self._functional: Optional[
-            TransientFunctionalProtocol[Array]
-        ] = None
-        self._functional_state_jacobian: Optional[
-            TransientJacobianFn[Array]
-        ] = None
-        self._functional_param_jacobian: Optional[
-            TransientJacobianFn[Array]
-        ] = None
+        self._functional: Optional[TransientFunctionalProtocol[Array]] = None
+        self._functional_state_jacobian: Optional[TransientJacobianFn[Array]] = None
+        self._functional_param_jacobian: Optional[TransientJacobianFn[Array]] = None
 
     def bkd(self) -> Backend[Array]:
         """Return the backend."""
@@ -84,16 +78,21 @@ class TimeIntegrator(Generic[Array]):
     def ntimes(self) -> int:
         """Return the number of time points (including initial time)."""
         import math
-        nsteps = math.ceil(
-            (self._final_time - self._init_time - 1e-12) / self._deltat
-        )
+
+        nsteps = math.ceil((self._final_time - self._init_time - 1e-12) / self._deltat)
         return nsteps + 1
 
-    def set_functional(
-        self, functional: TransientFunctionalProtocol[Array]
-    ) -> None:
+    def set_functional(self, functional: TransientFunctionalProtocol[Array]) -> None:
         """
         Set the functional for gradient computation.
+
+        This integrator owns the time-integration scheme, so it injects
+        the scheme's trajectory quadrature into the functional: here, on
+        the planned step times, so the functional can answer which
+        derivatives it provides (that depends only on the rule's
+        structure); and after every :meth:`solve`, on the times actually
+        stepped through. A caller that wants a different rule injects it
+        after the solve.
 
         Parameters
         ----------
@@ -106,6 +105,11 @@ class TimeIntegrator(Generic[Array]):
             If the functional's ``derivatives()`` has no Jacobians, which
             the adjoint gradient needs.
         """
+        functional.set_time_quadrature(
+            self._time_residual.trajectory_quadrature(
+                self._bkd.asarray(self._planned_times())
+            )
+        )
         derivs = functional.derivatives()
         if derivs.state_jacobian is None or derivs.param_jacobian is None:
             raise TypeError(
@@ -170,7 +174,25 @@ class TimeIntegrator(Generic[Array]):
             states_list.append(state)
             times_list.append(self._time)
         states = self._bkd.stack(states_list, axis=1)
-        return states, self._bkd.asarray(times_list)
+        times = self._bkd.asarray(times_list)
+        if self._functional is not None:
+            self._functional.set_time_quadrature(
+                self._time_residual.trajectory_quadrature(times)
+            )
+        return states, times
+
+    def _planned_times(self) -> list[float]:
+        """Return the step times :meth:`solve` will visit.
+
+        Uses the same stepping arithmetic as :meth:`solve`, so the
+        planned grid equals the stepped one.
+        """
+        times = [self._init_time]
+        time = self._init_time
+        while time < self._final_time - 1e-12:
+            time += min(self._deltat, self._final_time - time)
+            times.append(time)
+        return times
 
     def _require_adjoint(
         self,
@@ -238,9 +260,7 @@ class TimeIntegrator(Generic[Array]):
         """
         residual = self._require_adjoint()
         drduT_diag = residual.adjoint_diag_jacobian(ctx, fsol_n)
-        drduT_offdiag = residual.adjoint_off_diag_jacobian(
-            next_ctx, y_curr_of_next
-        )
+        drduT_offdiag = residual.adjoint_off_diag_jacobian(next_ctx, y_curr_of_next)
 
         rhs = -drduT_offdiag @ asol_np1 - dqdu_n
         return drduT_diag.solve(rhs)
@@ -394,11 +414,7 @@ class TimeIntegrator(Generic[Array]):
         functional = self._functional
         state_jacobian = self._functional_state_jacobian
         param_jacobian = self._functional_param_jacobian
-        if (
-            functional is None
-            or state_jacobian is None
-            or param_jacobian is None
-        ):
+        if functional is None or state_jacobian is None or param_jacobian is None:
             raise RuntimeError("Must call set_functional() first")
         # Direct parameter dependence of functional
         dqdp = param_jacobian(fwd_sols, param)
@@ -419,12 +435,8 @@ class TimeIntegrator(Generic[Array]):
         self._time_residual.bind(ctx_init)
 
         dy0dp = residual.initial_param_jacobian()
-        dqdu_0 = residual.zero_adjoint_rhs(
-            state_jacobian(fwd_sols, param)[:, 0]
-        )
-        drduT_offdiag = residual.adjoint_off_diag_jacobian(
-            ctx_init, fwd_sols[:, 1]
-        )
+        dqdu_0 = residual.zero_adjoint_rhs(state_jacobian(fwd_sols, param)[:, 0])
+        drduT_offdiag = residual.adjoint_off_diag_jacobian(ctx_init, fwd_sols[:, 1])
         init_sensitivity = drduT_offdiag @ adj_sols[:, 1] + dqdu_0
         grad_init = self._bkd.reshape(init_sensitivity @ dy0dp, (1, -1))
         # Prepend zeros for functional-only parameters
@@ -442,9 +454,7 @@ class TimeIntegrator(Generic[Array]):
                 y_prev=fwd_sols[:, ii],
             )
 
-            drdp = residual.param_jacobian(
-                ctx_ii, fwd_sols[:, ii + 1]
-            )
+            drdp = residual.param_jacobian(ctx_ii, fwd_sols[:, ii + 1])
             # Prepend zeros for functional-only parameters
             n_unique = functional.nunique_params()
             if n_unique > 0:
